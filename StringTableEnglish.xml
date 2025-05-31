@@ -1,0 +1,215 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+	<language id="english">english</language>
+	<data name="Modelling.Properties">
+		<label>Modelling Mode</label>
+		<info>In the modelling mode you can change dimensions or features of objects</info>
+	</data>
+	<data name="Accumulating.Faces">
+		<label>Accumulating faces</label>
+		<info>In accumulation mode, you can add more faces to the collection and do something with the collection as a whole</info>
+	</data>
+	<data name="Accumulating.Faces.List">
+		<label>List of faces ({0})</label>
+		<info>List of already accumulated faces</info>
+	</data>
+	<data name="MenuId.GeneralModifications">
+		<label>General modifications of this object</label>
+		<info>Move, rotate, reflect, scale, copy or delete this object</info>
+	</data>
+	<data name="Mate.Mode">
+		<label>Orientation</label>
+		<info>Mate from inside or outside</info>
+	</data>
+	<data name="Mate.Mode.Values">
+		<label>|from inside|from outside</label>
+	</data>
+	<data name="Mate.Target">
+		<label>Target face</label>
+		<info>Face onto which will be mated</info>
+	</data>
+	<data name="Construct.MateFaces">
+		<label>Mating</label>
+	</data>
+	<data name="MenuId.Edge">
+		<label>Edge</label>
+		<info>submenu for the edge</info>
+	</data>
+	<data name="MenuId.Face">
+		<label>Face</label>
+		<info>submenu for the face</info>
+	</data>
+	<data name="MenuId.Shell">
+		<label>Shell</label>
+		<info>submenu for the shell</info>
+	</data>
+	<data name="MenuId.Solid">
+		<label>Solid</label>
+		<info>submenu for the solid</info>
+	</data>
+	<data name="MenuId.Solid.RemoveFrom">
+		<label>Subtract from Solid (Specify)</label>
+		<info>This solid will be subtracted from another solid you will specify in the next step</info>
+	</data>
+	<data name="MenuId.Solid.RemoveFromAll">
+		<label>Subtract from Overlapping</label>
+		<info>Subtracts this solid from all overlapping or intersecting solids</info>
+	</data>
+	<data name="MenuId.Solid.RemoveAll">
+		<label>Subtract Overlapping</label>
+		<info>Subtracts all overlapping or intersecting solids from this solid</info>
+	</data>
+	<data name="MenuId.Solid.UniteWith">
+		<label>Unite this solid with ...</label>
+	</data>
+	<data name="MenuId.Solid.UniteWithAll">
+		<label>Unite with overlapping</label>
+		<info>Unites this solid with all overlapping or intersecting solids into a single body</info>
+	</data>
+	<data name="MenuId.Solid.IntersectWith">
+		<label>Intersect with Solid (Specify)</label>
+		<info>Creates a new solid from the overlapping volume of this solid another solid to be specified</info>
+	</data>
+	<data name="MenuId.Solid.IntersectWith">
+		<label>Intersect with Overlapping</label>
+		<info>Creates a new solid from the overlapping volume of this solid and all intersecting solids</info>
+	</data>
+	<data name="MenuId.Solid.SplitWith">
+		<label>Split with Solid (Specify)</label>
+		<info>Splits this solids with a solid to specify into separate parts, creating individual bodies for the overlapping and non-overlapping regions</info>
+	</data>
+	<data name="MenuId.Solid.SplitWithAll">
+		<label>Split with overlapping</label>
+		<info>Splits intersecting solids into separate parts, creating individual bodies for the overlapping and non-overlapping regions</info>
+	</data>
+	<data name="MenuId.Parametrics.Cylinder.Radius">
+		<label>Change radius</label>
+		<info>Change radius of cylindrical features</info>
+	</data>
+	<data name="MenuId.Parametrics.Cylinder.Diameter">
+		<label>Change radius</label>
+		<info>Change radius of cylindrical features</info>
+	</data>
+	<data name="Constr.Parametrics.Cylinder.Radius">
+		<label>Change radius</label>
+		<info>Change radius of cylindrical features</info>
+	</data>
+	<data name="Constr.Parametrics.Cylinder.Diameter">
+		<label>Change diameter</label>
+		<info>Change diameter of cylindrical features</info>
+	</data>
+	<data name="Parametrics.Cylinder.Radius">
+		<label>Radius</label>
+		<info>Change radius of this feature</info>
+	</data>
+	<data name="Parametrics.Cylinder.Diameter">
+		<label>Diameter</label>
+		<info>Change diameter of this feature</info>
+	</data>
+	<data name="Parametrics.AssociateParametric">
+		<label>Use as parameter for the solid</label>
+	</data>
+	<data name="Parametrics.AssociateParametric">
+		<label>Use as parameter for the solid</label>
+	</data>
+	<data name="Parametrics.ParametricsName">
+		<label>Name</label>
+		<info>Name for the parameter. If provided, this will be a property of the solid</info>
+	</data>
+	<data name="Parametrics.PreserveValue">
+		<label>Preserve Value</label>
+		<info>If enabled, the parameter's value will remain unchanged when other parameters of the solid are modified</info>
+	</data>
+	<data name="MenuId.ParametricProperty.Preserve">
+		<label>Preserve Value</label>
+		<info>If enabled, the parameter's value will remain unchanged when other parameters of the solid are modified</info>
+	</data>
+	<data name="MenuId.Export.Solid">
+		<label>Export STL or STEP file [[E]]</label>
+		<info>Export this Solid in the STL or STEP file format</info>
+	</data>
+	<data name="MenuId.Debug">
+		<label>Debug</label>
+		<info>Debug</info>
+	</data>
+	<data name="MenuId.Feature.Split">
+		<label>Split Feature</label>
+		<info>Split the feature from the solid or make the cutout to a solid</info>
+	</data>
+	<data name="MenuId.SelectMoreEdges">
+		<label>Select more edges</label>
+		<info>Select more edges for various tasks</info>
+	</data>
+	<data name="MenuId.SelectMoreFaces">
+		<label>Select more faces</label>
+		<info>Select more faces for various tasks</info>
+	</data>
+	<data name="MenuId.Gauge">
+		<label>Gauge (Thickness)</label>
+		<info>Change gauge of the solid</info>
+	</data>
+	<data name="MenuId.ParametricProperty.Remove">
+		<label>Remove property</label>
+		<info>Remove this parametric property from the shell</info>
+	</data>
+	<data name="Solid.ParametricProperties">
+		<label>Parametrics</label>
+		<info>The parametric entries of the shell</info>
+	</data>
+	<data name="MenuId.FaceDistance">
+		<label>Distance to Face</label>
+		<info>Distance to another face</info>
+	</data>
+	<data name="Solid.NewFeatureName">
+		<label>Feature</label>
+	</data>
+	<data name="MenuId.Feature">
+		<label>Feature</label>
+	</data>
+	<data name="MenuId.Feature.Position">
+		<label>Position</label>
+	</data>
+	<data name="MenuId.Feature.Name">
+		<label>Name</label>
+	</data>
+	<data name="MenuId.Feature.Remove">
+		<label>Remove</label>
+	</data>
+	<data name="Parametrics.InvalidPropertyValue">
+		<label>Ensure the value is within valid limits to maintain design integrity</label>
+	</data>
+	<data name="MenuId.ExtrusionLength">
+		<label>Dimension</label>
+		<info>Set the length or width dimension of an extrusion in this direction</info>
+	</data>
+	<data name="Extrude.Distance">
+		<label>Extrusion Dimension</label>
+		<info>Set the length or width dimension of an extrusion in this direction</info>
+	</data>
+	<data name="Extrude.MeassureForwardObject">
+		<label>Meassure to</label>
+		<info>Meassuer to this object</info>
+	</data>
+	<data name="Extrude.MeassureBackwardObject">
+		<label>Meassure from</label>
+		<info>Meassure from this object</info>
+	</data>
+	<data name="Vertex.Displayname">
+		<label>Vertex</label>
+		<info>A vertex of this shape</info>
+	</data>
+	<data name="Edge.Displayname">
+		<label>Edge</label>
+		<info>An edge of this shape</info>
+	</data>
+	<data name="Face.Displayname">
+		<label>Face</label>
+		<info>A face of this shape</info>
+	</data>
+	<data name="ShapeIt.RestoreAfterCrash">
+		<label>Restore file "{0}" ?</label>
+	</data>
+
+	<!-- 
+	-->
+</root>
