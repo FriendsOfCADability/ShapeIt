@@ -78,14 +78,6 @@
     <DelaySign>false</DelaySign>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="CADability, Version=1.0.0.0, Culture=neutral, PublicKeyToken=62ba9c16fd2eecf7, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\SOFAgh\CADability.Forms\bin\Debug\CADability.dll</HintPath>
-    </Reference>
-    <Reference Include="CADability.Forms, Version=1.0.0.0, Culture=neutral, PublicKeyToken=62ba9c16fd2eecf7, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\SOFAgh\CADability.Forms\bin\Debug\CADability.Forms.dll</HintPath>
-    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing.Common, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
@@ -195,6 +187,16 @@
   </ItemGroup>
   <ItemGroup>
     <Analyzer Include="..\SOFAgh\CADability\bin\Debug\netstandard2.0\CADability.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SOFAgh\CADability.Forms\CADability.Forms.csproj">
+      <Project>{5806c7e4-e796-42be-bddb-833d637e072f}</Project>
+      <Name>CADability.Forms</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\SOFAgh\CADability\CADability.csproj">
+      <Project>{c7dd89e7-d266-99b5-8dd4-48611aa0056a}</Project>
+      <Name>CADability</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
