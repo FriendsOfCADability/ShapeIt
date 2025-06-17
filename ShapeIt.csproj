@@ -80,15 +80,15 @@
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
     <Reference Include="System.Drawing.Common, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Drawing.Common.8.0.0\lib\net462\System.Drawing.Common.dll</HintPath>
+      <HintPath>packages\System.Drawing.Common.8.0.1\lib\net462\System.Drawing.Common.dll</HintPath>
     </Reference>
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Data" />
     <Reference Include="System.Deployment" />
-    <Reference Include="System.Drawing" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
@@ -186,15 +186,12 @@
     </FileAssociation>
   </ItemGroup>
   <ItemGroup>
-    <Analyzer Include="..\SOFAgh\CADability\bin\Debug\netstandard2.0\CADability.dll" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\SOFAgh\CADability.Forms\CADability.Forms.csproj">
-      <Project>{5806c7e4-e796-42be-bddb-833d637e072f}</Project>
+    <ProjectReference Include="..\CADability\CADability.Forms\CADability.Forms.csproj">
+      <Project>{42b7df0e-8a25-4913-9961-2583e53a9f1a}</Project>
       <Name>CADability.Forms</Name>
     </ProjectReference>
-    <ProjectReference Include="..\SOFAgh\CADability\CADability.csproj">
-      <Project>{c7dd89e7-d266-99b5-8dd4-48611aa0056a}</Project>
+    <ProjectReference Include="..\CADability\CADability\CADability.csproj">
+      <Project>{fecf4f56-043e-43f9-a682-4a84f94a1a56}</Project>
       <Name>CADability</Name>
     </ProjectReference>
   </ItemGroup>

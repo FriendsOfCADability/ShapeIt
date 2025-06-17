@@ -405,7 +405,11 @@ namespace ShapeIt
             }
             if (sld1 != null)
             {
-                sld1.Shells[0].GetOffsetNew(0.50);
+                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(-0.5);
+                //if (res1.Length > 0)
+                //{
+                //    CADability.GeoObject.Shell[] res2 = res1[0].GetOffsetNew(-0.5);
+                //}
                 //CADability.GeoObject.Solid[] res = CADability.GeoObject.Solid.Subtract(sld2, sld1);
                 //bool ok = res[0].Shells[0].CheckConsistency();
             }
