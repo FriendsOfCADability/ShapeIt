@@ -29,7 +29,7 @@
     <PublisherName>Gerhard Hofmann</PublisherName>
     <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>publish.htm</WebPage>
-    <ApplicationRevision>7</ApplicationRevision>
+    <ApplicationRevision>10</ApplicationRevision>
     <ApplicationVersion>0.2.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <CreateDesktopShortcut>true</CreateDesktopShortcut>
@@ -107,6 +107,7 @@
     </Compile>
     <Compile Include="MateFacesAction.cs" />
     <Compile Include="ModellingPropertyEntries.cs" />
+    <Compile Include="OffsetSolidAction.cs" />
     <Compile Include="ParametricPositionAction.cs" />
     <Compile Include="ParametricsAngleAction.cs" />
     <Compile Include="ParametricsCenterAction.cs" />

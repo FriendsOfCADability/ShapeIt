@@ -1397,6 +1397,10 @@ namespace ShapeIt
                 {
                     List<ICurve> useForPathCreation = new List<ICurve>(cc);
                     List<Path> created = Path.FromSegments(useForPathCreation); // all curves used for a path are removed from useForPathCreation
+                    for (int i = 0; i < created.Count; i++)
+                    {
+                        created[i].RemoveShortSegments(0.1);
+                    }
                     for (int i = 0; i < cc.Count; i++)
                     {   // rmeove all those curves, which have been used in the created paths
                         if (!useForPathCreation.Contains(cc[i])) vw.Model.Remove(cc[i] as IGeoObject);
@@ -1595,6 +1599,25 @@ namespace ShapeIt
                     solidMenus.Add(mhSplitWithAll);
                 }
             }
+            DirectMenuEntry offsetSolid = new DirectMenuEntry("MenuId.offsetSolid"); // replace this solid by the offset (expand or shrink)
+            offsetSolid.IsSelected = (selected, frame) =>
+            {   // this is the standard selection behaviour for BRep operations
+                feedback.Clear();
+                if (selected)
+                {
+                    feedback.ShadowFaces.Add(sld);
+                }
+                feedback.Refresh();
+                return true;
+            };
+            offsetSolid.ExecuteMenu = (frame) =>
+            {
+                cadFrame.SetAction(new OffsetSolidAction(sld));
+                this.Clear();
+                return true;
+            };
+            solidMenus.Add(offsetSolid);
+
             DirectMenuEntry exportSTL = new DirectMenuEntry("MenuId.Export.Solid"); // export this solid to a stl file
             exportSTL.ExecuteMenu = (frame) =>
             {   // show open file dialog
@@ -2359,7 +2382,7 @@ namespace ShapeIt
                 OctTree<EdgeInOctTree> edgeOctTree = new OctTree<EdgeInOctTree>(ext, Precision.eps);
                 edgeOctTree.AddMany(shell.Edges.Select(e => new EdgeInOctTree(e)));
 
-                for (int i = 0; i < directions.Count; i++) // all possible extrusion directions found for the face fc
+                for (int i = 0; i < Math.Min(directions.Count, 10); i++) // all possible extrusion directions found for the face fc
                 {
                     Plane plane = new Plane(pointOnFace, directions[i]); // the plane perpendicular to the possible extrusion direction
                     PlaneSurface planeSurface = new PlaneSurface(plane); // the same plane as a surface

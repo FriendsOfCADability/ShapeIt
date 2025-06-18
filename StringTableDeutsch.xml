@@ -298,5 +298,17 @@
 		<label>Kanten in Kurven umwandeln</label>
 		<info>Die Kanten in Kurven umwandeln und zum Projekt hinzufügen</info>
 	</data>
-	
+	<data name="MenuId.offsetSolid">
+		<label>Körper ausdehnen</label>
+		<info>Körper nach allen Seiten um einen Betrag erweitern oder schrumpfen</info>
+	</data>
+	<data name="Construct.OffsetSolid">
+		<label>Ausdehnen/Schrumpfen</label>
+		<info>Körper nach allen Seiten um einen Betrag erweitern oder schrumpfen</info>
+	</data>
+	<data name="OffsetSolid.Distance">
+		<label>Offset</label>
+		<info>Betrag, um welchen der Körper ausgedehnt (+) oder geschrumpft (-) werden soll</info>
+	</data>
+
 </root>
