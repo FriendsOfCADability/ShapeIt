@@ -156,6 +156,7 @@ namespace ShapeIt
             Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false); // we start face extrus with newly generated face, which has no owner
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);
+            Settings.GlobalSettings.SetValue("Action.PopProperties", false);
             Settings.GlobalSettings.SetValue("ShapeIt.Initialized", true);
             CadFrame.FileNameChangedEvent += (name) =>
             {
@@ -267,7 +268,7 @@ namespace ShapeIt
                         {
                             CadFrame.Project = Project.ReadFromFile(lines[1]);
                             CadFrame.Project.FileName = lines[0];
-                            
+
                             this.Text = "ShapeIt -- " + lines[0];
                         }
                     }
@@ -405,7 +406,7 @@ namespace ShapeIt
             }
             if (sld1 != null)
             {
-                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(1); // -0.5);
+                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(2); // -0.5);
                 //if (res1.Length > 0)
                 //{
                 //    CADability.GeoObject.Shell[] res2 = res1[0].GetOffsetNew(-0.5);

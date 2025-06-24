@@ -451,7 +451,7 @@ namespace ShapeIt
                             {
                                 go.UserData.Add("ShapeIt.OriginalEdge", new EdgeReference(edg));
                             }
-                            if (edg.Curve3D is Ellipse elli && Math.Abs(elli.Radius - Math.Abs(offset)) < Precision.eps)
+                            if (edg.Curve3D is Ellipse elli && elli.IsCircle && Math.Abs(elli.Radius - Math.Abs(offset)) < Precision.eps)
                             {
                                 if (Precision.IsEqual(elli.Center, sedge.Vertex1.Position))
                                 {

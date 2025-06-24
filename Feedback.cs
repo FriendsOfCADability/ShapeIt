@@ -57,7 +57,7 @@ namespace ShapeIt
             ShadowFaces.Clear();
             SelectedObjects.Clear();
             Arrows.Clear();
-            // hotSpots.Clear(); // hotspots are removed regularly
+            hotSpots.Clear(); // was commented out, why?
             // selectedHotSpot = null;
             // reset the display lists, so they will be recreated when the next OnRepaintSelect is called
             frontFacesDisplayList = null;
