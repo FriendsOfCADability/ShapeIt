@@ -140,7 +140,7 @@ namespace ShapeIt
                     pp.Remove(this); // to reflect this newly composed entry
                     pp.Add(this, true);
                 }
-                if (action.GetID()!= "SelectObjects") cadFrame.ControlCenter.ShowPropertyPage("Action");
+                if (action.GetID() != "SelectObjects") cadFrame.ControlCenter.ShowPropertyPage("Action");
             }
         }
         private void ActionTerminated(CADability.Actions.Action action)
@@ -523,9 +523,19 @@ namespace ShapeIt
             else return "Arrow";
         }
 
+        private string resourceIdOfLastSelectedCategory = String.Empty; // what was selected last time? edge, face, solid etc.
         private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea pickArea, bool alsoParent = true, bool addRemove = false)
         {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by 
             // the object(s) under the mouse cursor
+            // what to focus after the selection changed?
+            IPropertyEntry pe = propertyPage.GetCurrentSelection();
+            while (pe != null && FindParent(this, pe) != this)
+            {
+                pe = FindParent(this, pe);
+            }
+            if (pe != null) resourceIdOfLastSelectedCategory = pe.ResourceId; // resource id of what is currently selected, if objectsUnderCursor was removed
+
+
             Axis clickBeam = Axis.InvalidAxis;
             if (pickArea != null)
             {
@@ -577,10 +587,6 @@ namespace ShapeIt
                 currentlySelected.UnionWith(objectsUnderCursor);
                 selectedSameSurfaceBudies = sameSurfaceBudies;
             }
-            // what to focus after the selection changed?
-            string resourceIdOfEntryToSelect = String.Empty; // may contain several ids
-            IPropertyEntry pe = propertyPage.GetCurrentSelection();
-            if (pe != null) resourceIdOfEntryToSelect = pe.ResourceId; // resource id of what is currently selected, if objectsUnderCursor was removed
 
             {   // test, whethere there are hidden objects and if so, make a menu to show them
                 bool thereAreHiddenObjects = false;
@@ -699,13 +705,12 @@ namespace ShapeIt
             }
 
             // What would we select
-            {
-                if (edges.Count > 0) resourceIdOfEntryToSelect = "MultipleEdges.Properties" + "|" + "MenuId.Edge";
-                else if (curves.Count > 0) resourceIdOfEntryToSelect = "MultipleCurves.Properties" + "|" + "MenuId.CurveMenus";
-                else if (faces.Count > 0) resourceIdOfEntryToSelect = "MultipleFaces.Properties" + "|" + "MenuId.Face";
-                else if (solids.Count > 0) resourceIdOfEntryToSelect = "MultipleSolids.Properties" + "|" + "MenuId.Solid";
-                if (texts.Count > 0) resourceIdOfEntryToSelect = "MenuId.TextMenus";
-            }
+            string possibleSelectionId = string.Empty;
+            if (edges.Count > 0) possibleSelectionId = "MultipleEdges.Properties" + "|" + "MenuId.Edge";
+            else if (curves.Count > 0) possibleSelectionId = "MultipleCurves.Properties" + "|" + "MenuId.CurveMenus";
+            else if (faces.Count > 0) possibleSelectionId = "MultipleFaces.Properties" + "|" + "MenuId.Face";
+            else if (solids.Count > 0) possibleSelectionId = "MultipleSolids.Properties" + "|" + "MenuId.Solid";
+            if (texts.Count > 0) possibleSelectionId = "MenuId.TextMenus";
 
 
             // find features from either edges or faces
@@ -857,30 +862,55 @@ namespace ShapeIt
                 pp.Remove(this); // to reflect this newly composed entry
                 subEntries.RemoveAll(entry => entry == null);
                 pp.Add(this, true);
+                // close all first level entries
                 for (int i = 0; i < subEntries.Count; ++i)
                 {
                     pp.OpenSubEntries(subEntries[i], false);
                 }
-                for (int i = 0; i < subEntries.Count; i++)
+                bool found = false;
+                // first try with resourceIdOfEntryToSelect, which was the last selected category, if not possible then try with possibleSelectionId, which is the edge->face->solid priority
+                foreach (String resIdToSearchFor in new string[] { resourceIdOfLastSelectedCategory, possibleSelectionId })
                 {
-                    if (resourceIdOfEntryToSelect.Contains(subEntries[i].ResourceId))
+                    for (int i = 0; i < subEntries.Count; i++)
                     {
-                        pp.OpenSubEntries(subEntries[i], true);
-                        if (subEntries[i].ResourceId == "MenuId.CurveMenus")
-                        {   // there is only a single curve selected: also open the curve properties to show the hotspots
-                            for (int j = 0; j < subEntries[i].SubItems.Length; j++)
-                            {
-                                if (subEntries[i].SubItems[j] is IDisplayHotSpots)
+                        if (resIdToSearchFor.Contains(subEntries[i].ResourceId))
+                        {
+                            pp.OpenSubEntries(subEntries[i], true);
+                            if (subEntries[i].ResourceId == "MenuId.CurveMenus")
+                            {   // there is only a single curve selected: also open the curve properties to show the hotspots
+                                for (int j = 0; j < subEntries[i].SubItems.Length; j++)
                                 {
-                                    pp.OpenSubEntries(subEntries[i].SubItems[j], true);
+                                    if (subEntries[i].SubItems[j] is IDisplayHotSpots)
+                                    {
+                                        pp.OpenSubEntries(subEntries[i].SubItems[j], true);
+                                    }
                                 }
                             }
-                        }
-                        else
-                        {
                             pp.SelectEntry(subEntries[i]);
+                            found = true;
+                            break;
                         }
-                        break;
+                    }
+                    if (found) break;
+                }
+                CollapseTooLongSubentries(pp, this);
+            }
+        }
+
+        const int maxNumSubentries = 10;
+        private void CollapseTooLongSubentries(IPropertyPage pp, IPropertyEntry entry)
+        {
+            if (entry.IsOpen)
+            {
+                if (entry.SubItems.Length > maxNumSubentries)
+                {
+                    pp.OpenSubEntries(entry, false);
+                }
+                else
+                {
+                    for (int i = 0; i < entry.SubItems.Length; i++)
+                    {
+                        CollapseTooLongSubentries(pp, entry.SubItems[i]);
                     }
                 }
             }
@@ -1124,6 +1154,8 @@ namespace ShapeIt
                 pp.Remove(this); // to reflect this newly composed entry
                 pp.Add(this, true);
             }
+            selectedObjects.Clear();
+            selectedChildObjects.Clear();
             activeHotspots.Clear();
             feedback.hotSpots.Clear();
             feedback.Clear();
@@ -2901,6 +2933,15 @@ namespace ShapeIt
 
         public bool OnCommand(string MenuId)
         {
+            if ((cadFrame.UIService.ModifierKeys & Keys.Control) == Keys.Control )
+            {
+                Settings.GlobalSettings.SetValue("Action.RepeatConstruct", true);
+            }
+            else
+            {
+                Settings.GlobalSettings.SetValue("Action.RepeatConstruct", false);
+            }
+
             switch (MenuId)
             {
                 case "MenuId.Edit.Copy":

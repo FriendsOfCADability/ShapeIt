@@ -406,7 +406,7 @@ namespace ShapeIt
             }
             if (sld1 != null)
             {
-                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(2); // -0.5);
+                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(-0.75); // -0.5);
                 //if (res1.Length > 0)
                 //{
                 //    CADability.GeoObject.Shell[] res2 = res1[0].GetOffsetNew(-0.5);

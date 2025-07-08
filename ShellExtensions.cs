@@ -9,6 +9,8 @@ using System.Runtime.CompilerServices;
 using CADability.Curve2D;
 using CADability.Shapes;
 using Wintellect.PowerCollections;
+using MathNet.Numerics.RootFinding;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace ShapeIt
 {
@@ -27,6 +29,200 @@ namespace ShapeIt
         }
     }
 
+
+    public static class EllipseDistanceSolver
+    {
+        /// <summary>
+        /// Finds a point on the line G(t) = P0 + t*v, whose minimal distance to the ellipse
+        /// E(θ) = (a*cos(θ), b*sin(θ), 0) equals a given value d.
+        /// </summary>
+        public static bool FindPointOnLineAtDistanceToEllipse(
+            GeoPoint P0, GeoVector v,
+            Ellipse elli,
+            double d,
+            out GeoPoint pointOnLine,
+            out GeoPoint closestPointOnEllipse)
+        {
+            pointOnLine = default;
+            closestPointOnEllipse = default;
+
+            // Function F(θ) = distance between E(θ) and G(t(θ)) - d
+            Func<double, double> F = theta =>
+            {
+                // Ellipse point
+                GeoPoint E = elli.PointAt(theta);
+
+                // Tangent vector of the ellipse at θ (treated as normal to plane)
+                GeoVector tangent = elli.DirectionAt(theta);
+
+                // Plane through E with tangent as normal
+                Plane plane = new Plane(E, tangent);
+
+                // Intersect line with tangent plane
+                if (!plane.Intersect(P0, v, out GeoPoint G))
+                    return double.NaN; // Degenerate case: line parallel to plane
+
+                // Distance between ellipse point and line point
+                return (G | E) - d;
+            };
+
+            // Search interval in θ (full ellipse)
+            double thetaMin = 0;
+            double thetaMax = 1;
+
+            // Discretely sample to find a sign change (zero crossing)
+            int samples = 36;
+            while (thetaMax - thetaMin > 0.001)
+            {
+                double prevTheta = thetaMin;
+                double prevValue = F(prevTheta);
+
+                List<(double, double)> vals = new List<(double, double)>();
+                vals.Add((prevTheta, prevValue));
+                for (int i = 1; i <= samples; i++)
+                {
+                    double theta = thetaMin + i * (thetaMax - thetaMin) / samples;
+                    double value = F(theta);
+
+                    if (double.IsNaN(prevValue) || double.IsNaN(value))
+                    {
+                        prevTheta = theta;
+                        prevValue = value;
+                        continue;
+                    }
+                    vals.Add((theta, value));
+
+                    if (prevValue * value < 0)
+                    {
+                        // Found sign change → root between prevTheta and theta
+                        var result = Brent.FindRoot(F, prevTheta, theta, accuracy: 1e-10, maxIterations: 100);
+
+                        // Evaluate result
+                        double thetaRoot = result;
+                        GeoPoint E = elli.PointAt(thetaRoot);
+                        GeoVector tangent = elli.DirectionAt(thetaRoot);
+                        Plane plane = new Plane(E, tangent);
+
+                        if (!plane.Intersect(P0, v, out GeoPoint G))
+                            return false;
+
+                        pointOnLine = G;
+                        closestPointOnEllipse = E;
+                        return true;
+                    }
+
+                    prevTheta = theta;
+                    prevValue = value;
+                }
+                int mini = -1;
+                double minval = double.MaxValue;
+                for (int i = 0; i < vals.Count; i++)
+                {
+                    if (Math.Abs(vals[i].Item2) < minval)
+                    {
+                        minval = vals[i].Item2;
+                        mini = i;
+                    }
+                }
+                thetaMin = vals[Math.Max(mini - 1, 0)].Item1;
+                thetaMax = vals[Math.Min(mini + 1, vals.Count - 1)].Item1;
+            }
+            // No zero crossing found
+            return false;
+        }
+    }
+
+    internal static class CurveExtensions
+    {
+        /// <summary>
+        /// Computes the curvature circle at a given parameter on a 3D curve.
+        /// </summary>
+        /// <param name="curve">The curve to evaluate.</param>
+        /// <param name="u">The curve parameter.</param>
+        /// <returns>
+        /// A tuple containing:
+        /// - center: the center point of the osculating circle,
+        /// - normal: the normal vector of the osculating plane,
+        /// - radius: the curvature radius (1 / curvature).
+        /// </returns>
+        public static (GeoPoint center, GeoVector normal, double radius) CurvatureAt(this ICurve curve, double u)
+        {
+            if (!curve.TryPointDeriv2At(u, out GeoPoint point, out GeoVector deriv1, out GeoVector deriv2))
+            {
+                throw new ArgumentException("Curve does not support second derivative at the given parameter.");
+            }
+
+            double deriv1Length = deriv1.Length;
+            if (deriv1Length < 1e-12)
+            {
+                throw new ArgumentException("First derivative is too small to determine curvature.");
+            }
+
+            // Tangent vector
+            GeoVector T = deriv1 / deriv1Length;
+
+            // Normal component of second derivative
+            GeoVector proj = (deriv2 * T) * T;
+            GeoVector normalComponent = deriv2 - proj;
+
+            double normalLength = normalComponent.Length;
+            if (normalLength < 1e-12)
+            {
+                // Curve is locally straight (e.g. line)
+                return (point, GeoVector.NullVector, double.PositiveInfinity);
+            }
+
+            // Unit normal vector (direction to curvature center)
+            GeoVector N = normalComponent / normalLength;
+
+            // Curvature and radius
+            double curvature = normalLength / (deriv1Length * deriv1Length);
+            double radius = 1.0 / curvature;
+
+            // Center of curvature
+            GeoPoint center = point + radius * N;
+
+            return (center, (deriv1 ^ deriv2).Normalized, radius);
+        }
+
+        public static double RadiusAt(this ICurve curve, double u)
+        {
+            if (!curve.TryPointDeriv2At(u, out GeoPoint p, out GeoVector d1, out GeoVector d2))
+            {
+                throw new ArgumentException("Curve does not support second derivative at the given parameter.");
+            }
+            double d1l = d1.Length;
+            return d1l * d1l * d1l / (d1 ^ d2).Length;
+        }
+        /// <summary>
+        /// Returns the positions, where the curve has maximal and minimal curature
+        /// </summary>
+        /// <param name="curve"></param>
+        /// <returns>Array of maximal curvature, array of minimal curvature</returns>
+        public static (double[] max, double[] min) CurvatureExtrema(this ICurve curve)
+        {
+            List<double> minima = new List<double>();
+            List<double> maxima = new List<double>();
+            if (curve is Line || (curve is Ellipse e && e.IsCircle) || curve is Polyline) { } // no minima and maxima
+            if (curve is Ellipse ellipse)
+            {
+                double pos = curve.ParameterToPosition(0.0);
+                if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
+                pos = curve.ParameterToPosition(Math.PI);
+                if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
+                pos = curve.ParameterToPosition(Math.PI/2.0);
+                if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
+                pos = curve.ParameterToPosition(3.0*Math.PI / 2.0);
+                if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
+            }
+            else
+            {
+                // TODO
+                double[] pp = curve.GetSavePositions();
+            }
+            return (minima.ToArray(),maxima.ToArray());
+        }
+    }
     internal static class ShellExtensions
     {
         public static int GetFaceDistances(this Shell shell, Face distanceFrom, GeoPoint touchingPoint, out List<Face> distanceTo, out List<double> distance, out List<GeoPoint> pointsFrom, out List<GeoPoint> pointsTo)
@@ -144,15 +340,174 @@ namespace ShapeIt
 
             return result;
         }
+
         /// <summary>
-        /// Make a fillet like face, which fills the gap of two offset faces at the provided <paramref name="axis"/>
+        /// Finds the (u,v) on <paramref name="surface"/> that minimises
+        /// the distance to <paramref name="target"/>.
+        /// </summary>
+        /// <param name="surface">Parametric surface f(u,v).</param>
+        /// <param name="target">3-D point P.</param>
+        /// <param name="startValue">Initial guess (u0,v0).</param>
+        /// <param name="tol">Tolerance in world units.</param>
+        /// <param name="maxIter">Maximum number of Newton steps.</param>
+        public static GeoPoint2D PositionOf(
+            this ISurface surface,
+            GeoPoint target,
+            GeoPoint2D startValue,
+            double tol = 1e-8,
+            int maxIter = 30)
+        {
+            var uv = new GeoPoint2D(startValue.x, startValue.y);
+
+            for (int iter = 0; iter < maxIter; iter++)
+            {
+                // First- and second-order surface data
+                surface.Derivation2At(
+                    uv, out GeoPoint loc, out GeoVector du, out GeoVector dv,
+                    out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+
+                GeoVector r = loc - target;               // residual f-P
+                double resLen = r.Length;
+                if (resLen < tol) return uv;              // converged
+
+                // Gradient of g
+                var g = Vector<double>.Build.DenseOfArray(new[]
+                {
+                r * du,                               // dot product
+                r * dv
+            });
+
+                // Hessian of g
+                var H = Matrix<double>.Build.DenseOfArray(new[,]
+                {
+                { du * du + r * duu,  du * dv + r * duv },
+                { du * dv + r * duv,  dv * dv + r * dvv }
+            });
+
+                // Solve H Δ = -∇g  (fallback to damped GN if necessary)
+                Vector<double> delta;
+                try
+                {
+                    delta = H.Solve(-g);
+                }
+                catch (Exception)                   // singular Hessian
+                {
+                    // Levenberg-Marquardt fallback: (H + λI) Δ = -∇g
+                    double lambda = 1e-4 * H.Diagonal().Maximum();
+                    delta = (H + lambda * Matrix<double>.Build.DenseIdentity(2)).Solve(-g);
+                }
+
+                // Update parameters
+                uv.x += delta[0];
+                uv.y += delta[1];
+
+                if (delta.L2Norm() < tol) return uv;      // small step → done
+            }
+
+            // If we get here we did not converge
+            return GeoPoint2D.Invalid;
+        }
+
+        public static (double from, double upto) EllipticalPipeSelfIntersectionInterval(Ellipse ellipticalArc, double r)
+        {
+            double a = ellipticalArc.MajorRadius;
+            double b = ellipticalArc.MinorRadius;
+            double C = Math.Pow((a * b * r), (2.0 / 3.0));
+            double sin2u = (C - b * b) / (a * a - b * b);
+            double u0 = Math.Asin(Math.Sqrt(sin2u));
+            double pos1 = (ellipticalArc as ICurve).ParameterToPosition(u0);
+            double pos2 = (ellipticalArc as ICurve).ParameterToPosition(-u0);
+            if ((pos1 >= 0 && pos1 <= 1) || (pos2 >= 0 && pos2 <= 1))
+            {   // the elliptical arc contains the point at the major axis
+                return (Math.Min(pos2, pos1), Math.Max(pos2, pos1));
+            }
+            double pos3 = (ellipticalArc as ICurve).ParameterToPosition(Math.PI + u0);
+            double pos4 = (ellipticalArc as ICurve).ParameterToPosition(Math.PI - u0);
+            if ((pos3 >= 0 && pos3 <= 1) || (pos4 >= 0 && pos4 <= 1))
+            {   // the elliptical arc contains the point at the negative major axis
+                return (Math.Min(pos4, pos3), Math.Max(pos4, pos3));
+            }
+            return (double.MaxValue, double.MaxValue);
+        }
+
+        /// <summary>
+        /// On the elliptical arc there is a self intersection for the swept circle with radius <paramref name="r"/> at the returned parameter (radian) of the circle.
+        /// The circle 0 position ist in the plane of the ellipse outside of the ellipse.
+        /// </summary>
+        /// <param name="ellipticalArc"></param>
+        /// <param name="r"></param>
+        /// <param name="earcPos"></param>
+        /// <returns>Parameters on the circle of the self intersection</returns>
+        public static (double, double) EllipticalPipeSelfIntersection(Ellipse ellipticalArc, double r, double earcPos)
+        {
+            ModOp toUnit = ellipticalArc.ToUnitCircle;
+            double a = ellipticalArc.MajorRadius;
+            double b = ellipticalArc.MinorRadius;
+            Func<double, double> rho = (double u) =>
+            {
+                double su = Math.Sin(u);
+                double cu = Math.Cos(u);
+                double s = a * a * su * su + b * b * cu * cu;
+                return Math.Pow(s, 1.5) / (a * b);
+            };
+            double C = Math.Pow((a * b * r), (2.0 / 3.0));
+            double sin2u = (C - b * b) / (a * a - b * b);
+            double earcPar = (ellipticalArc as ICurve).PositionToParameter(earcPos);
+            double delta = Math.Acos(rho(earcPar) / r);
+            double v = Math.PI - delta;
+            return (Math.PI - delta, Math.PI + delta);
+        }
+
+        public static void EllipticalPipe(Ellipse ellipse, double r, List<GeoPoint> selfInt3, List<GeoPoint2D> selfInt2)
+        {
+            ModOp toUnit = ellipse.ToUnitCircle;
+            double a = (toUnit * ellipse.MajorAxis).Length;
+            double b = (toUnit * ellipse.MinorAxis).Length;
+            Func<double, double> rho = (double u) =>
+                {
+                    double su = Math.Sin(u);
+                    double cu = Math.Cos(u);
+                    double s = a * a * su * su + b * b * cu * cu;
+                    return Math.Pow(s, 1.5) / (a * b);
+                };
+            double C = Math.Pow((a * b * r), (2.0 / 3.0));
+            double sin2u = (C - b * b) / (a * a - b * b);
+            double u0 = Math.Asin(Math.Sqrt(sin2u));
+            //double u1 = Math.PI - u0;
+            //double u2 = Math.PI + u0;
+            double u1 = -u0;
+            double u2 = +u0;
+            int n = 100;
+            GeoPoint2D[] p2d = new GeoPoint2D[n];
+            GeoPoint[] p3d = new GeoPoint[n];
+            for (int i = 0; i < n; i++)
+            {
+                double u = u1 + i * (u2 - u1) / (n - 1);
+                double delta = Math.Acos(rho(u) / r);
+                double v = Math.PI - delta;
+                if (u < 0) u += 2.0 * Math.PI;
+                if (u > 2 * Math.PI) u -= 2.0 * Math.PI;
+                double eu = (ellipse as ICurve).ParameterToPosition(u);
+                if (eu < -0.5) eu = (ellipse as ICurve).ParameterToPosition(u + 2 * Math.PI);
+                p2d[i] = new GeoPoint2D(v, eu);
+                GeoPoint ep = ellipse.PointAt(eu);
+                GeoVector edir = ellipse.DirectionAt(eu);
+                Plane cPlane = new Plane(ep, edir ^ ellipse.Plane.Normal, ellipse.Plane.Normal);
+                GeoPoint2D cp = new GeoPoint2D(r * Math.Cos(v), r * Math.Sin(v));
+                p3d[i] = cPlane.ToGlobal(cp);
+            }
+            selfInt2.AddRange(p2d);
+            selfInt3.AddRange(p3d);
+        }
+        /// <summary>
+        /// Make a fillet like face, which fills the gap between two offset faces at the provided <paramref name="axis"/>
         /// </summary>
         /// <param name="axis"></param>
         /// <param name="radius"></param>
         /// <param name="forward"></param>
         /// <param name="backward"></param>
         /// <returns></returns>
-        public static Face MakeOffsetFillet(Edge axis, double radius, Edge forward, Edge backward)
+        public static Face MakeOffsetFillet(Edge axis, double radius, Edge forward, Edge backward, bool dontUseForward, bool dontUseBackward)
         {
             ISurface surface = null;
             GeoVector toInside;
@@ -203,37 +558,142 @@ namespace ShapeIt
             else
             {
                 // make a NURBS surface defined by a certain number of circles
-                GeoVector normal = axis.Curve3D.StartDirection ^ axis.Curve3D.EndDirection;
-                
-                if (normal.IsNullVector()) axis.Curve3D.StartDirection.ArbitraryNormals(out normal, out GeoVector _);
+                // the curvature of the axis plays a critical role:
+                // when it is always greater than the radius: we can simply make a NURBS from the circles
+                // when it is both greater and smaller than the radius: there is a folding of the surface
+                // when it is always smaller than the radius: we dont't have to produce a fillet here
+                if (axis.Curve3D.GetPlanarState() == PlanarState.Planar) { }
+
                 int n = 20; // number of intermediate points, need some adaptive algorithm
                 List<Ellipse> throughEllipses = new List<Ellipse>(n);
+                // we need only a half pipe at maximum: (not sure, wether this is correct for non planar curves)
+                (GeoPoint center, GeoVector normal, double radius) middleCurvature = axis.Curve3D.CurvatureAt(0.5);
+                GeoPoint middlePoint = axis.Curve3D.PointAt(0.5);
+                GeoPoint2D uvp = axis.PrimaryFace.Surface.PositionOf(middlePoint);
+                GeoPoint2D uvs = axis.SecondaryFace.Surface.PositionOf(middlePoint);
+                GeoVector toOutside = axis.PrimaryFace.Surface.GetNormal(uvp).Normalized + axis.SecondaryFace.Surface.GetNormal(uvs).Normalized;
+                Plane middlePlane = new Plane(middlePoint, axis.Curve3D.DirectionAt(0.5) ^ middleCurvature.normal, middleCurvature.normal);
+                Ellipse middleElli = Ellipse.Construct();
+                middleElli.SetCirclePlaneCenterRadius(middlePlane, middlePoint, Math.Abs(radius));
+                double mpos = middleElli.PositionOf(middlePoint + radius * toOutside.Normalized);
+                middleElli.Trim(mpos - 0.25, mpos + 0.25);
+                double startParameter = middleElli.StartParameter;
+                double sweepParameter = middleElli.SweepParameter;
+                double[] knots = new double[n];
                 for (int i = 0; i < n; i++)
                 {
                     double par = (double)i / (n - 1);
+                    knots[i] = par;
                     GeoVector dir = axis.Curve3D.DirectionAt(par);
                     GeoPoint pos = axis.Curve3D.PointAt(par);
-                    GeoVector n1 = axis.PrimaryFace.Surface.GetNormal(axis.PrimaryFace.Surface.PositionOf(pos));
-                    GeoVector n2 = axis.SecondaryFace.Surface.GetNormal(axis.SecondaryFace.Surface.PositionOf(pos));
-                    GeoVector nn = (n1.Normalized + n2.Normalized).Normalized;
-                    Plane epln = new Plane(pos, nn ^ dir, nn);
+                    (GeoPoint center, GeoVector normal, double radius) curvature = axis.Curve3D.CurvatureAt(0.0);
+                    Plane epln = new Plane(pos, dir ^ curvature.normal, curvature.normal);
+                    // the 0°-point of the circle is to the outside of the curvature, so self intersection can only occur between 90° and 270°
                     Ellipse elli = Ellipse.Construct();
-                    elli.SetArcPlaneCenterStartEndPoint(epln, GeoPoint2D.Origin, new GeoPoint2D(-Math.Abs(radius), 0), new GeoPoint2D(Math.Abs(radius), 0), epln, true);
-                    double pp = elli.PositionOf(pos + Math.Abs(radius) * nn);
+                    elli.SetCirclePlaneCenterRadius(epln, pos, Math.Abs(radius));
+                    elli.StartParameter = startParameter;
+                    elli.SweepParameter = sweepParameter;
                     throughEllipses.Add(elli);
                 }
-                //GeoVector ddir = -(throughEllipses[1].Center | throughEllipses[0].Center) * axis.Curve3D.StartDirection.Normalized;
-                //Ellipse efirst = throughEllipses[0].Clone() as Ellipse;
-                //efirst.Modify(ModOp.Translate(ddir));
-                //throughEllipses.Insert(0,efirst);
-                //int tn = throughEllipses.Count - 1;
-                //ddir = (throughEllipses[tn].Center | throughEllipses[tn-1].Center) * axis.Curve3D.EndDirection.Normalized;
-                //Ellipse elast = throughEllipses[tn].Clone() as Ellipse;
-                //elast.Modify(ModOp.Translate(ddir));
-                //throughEllipses.Add(elast);
-                surface = new NurbsSurface(throughEllipses.ToArray());
+                surface = new NurbsSurface(throughEllipses.ToArray(), knots);
+                // the u-parameter of the NurbsSurface is the circular arc. It spans 180°, so the u parameter goes from 0 to 0.5 (the whole circle is from 0 to 1)
+                // the v-parameter goes from 0 to 1. It is not linear synchronous to the axis.Curve3d parameter, but to the length of the segments
+                if (axis.Curve3D is Ellipse ellipse)
+                {
+                    (GeoPoint center, GeoVector normal, double radius) c1 = ellipse.CurvatureAt(0.0);
+                    (GeoPoint center, GeoVector normal, double radius) c2 = ellipse.CurvatureAt(1.0);
+                    if (Math.Sign(c1.radius - Math.Abs(radius)) != Math.Sign(c2.radius - Math.Abs(radius)))
+                    {
+                        (double vmin, double vmax) vInterval = EllipticalPipeSelfIntersectionInterval(ellipse, Math.Abs(radius));
+                        if (vInterval.vmin < 0 && vInterval.vmax > 0)
+                        {   // self intersection at the beginning
+
+                        }
+                        if (vInterval.vmin < 1 && vInterval.vmax > 1)
+                        {   // self intersection at the end
+                            (double v1, double v2) = EllipticalPipeSelfIntersection(ellipse, Math.Abs(radius), 1.0);
+                        }
+                    }
+                    //    List<GeoPoint2D> uvCurve = new List<GeoPoint2D>();
+                    //List<GeoPoint2D> uvCurveOrg = new List<GeoPoint2D>();
+                    //for (int i = 0; i < selfInt3.Count; i++)
+                    //{
+                    //    GeoPoint pdbg = surface.PointAt(new GeoPoint2D(0.5, 0.5));
+                    //    GeoPoint2D uvstart = new GeoPoint2D((middleElli as ICurve).ParameterToPosition(selfInt2[i].x) / 2, selfInt2[i].y);
+                    //    pdbg = surface.PointAt(uvstart);
+                    //    uvCurveOrg.Add(uvstart);
+                    //    GeoPoint2D uv = surface.PositionOf(selfInt3[i], uvstart);
+                    //    if (uv.IsValid) uvCurve.Add(uv); else uvCurve.Add(uvstart);
+                    //}
+                    //BoundingRect outline = new BoundingRect(0, 0, 0.5, 1.0);
+
+                }
             }
-            if (surface != null)
+            if (surface is ToroidalSurface toroidalSurface)
+            {
+                BoundingRect domain = new BoundingRect(surface.PositionOf(forward.Curve3D.PointAt(0.5))); // toroidal fillets may sweep over 180°. so it would be ambiguous which part to use
+                GeoPoint2D uv = surface.PositionOf(forward.Vertex2.Position);
+                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
+                domain.MinMax(uv);
+                uv = surface.PositionOf(forward.Vertex1.Position);
+                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
+                domain.MinMax(uv);
+                uv = surface.PositionOf(backward.Vertex1.Position);
+                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
+                domain.MinMax(uv);
+                uv = surface.PositionOf(backward.Vertex2.Position);
+                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
+                domain.MinMax(uv);
+
+                ICurve2D c1 = surface.GetProjectedCurve(forward.Curve3D, Precision.eps);
+                ICurve2D c3 = surface.GetProjectedCurve(backward.Curve3D, Precision.eps);
+                SurfaceHelper.AdjustPeriodic(toroidalSurface, domain, c1);
+                SurfaceHelper.AdjustPeriodic(toroidalSurface, domain, c3);
+                if (forward.Forward(forward.PrimaryFace)) c1.Reverse(); // then it is backward on secondary face
+                if (backward.Forward(backward.PrimaryFace)) c3.Reverse();
+                ICurve2D c2 = new Line2D(c1.EndPoint, c3.StartPoint);
+                ICurve2D c4 = new Line2D(c3.EndPoint, c1.StartPoint);
+                Border bdr = new Border(new ICurve2D[] { c1, c2, c3, c4 });
+                double[] vs = toroidalSurface.GetVSingularities(); // this are the poles of the torus, when minor radius > major radius
+                double vToSplit = double.MaxValue;
+                double vPeriod = toroidalSurface.VPeriod; // is Math.PI*2.0
+                for (int i = 0; i < vs.Length; i++)
+                {
+                    while (vs[i] > domain.Top) vs[i] -= vPeriod;
+                    while (vs[i] < domain.Bottom) vs[i] += vPeriod;
+                    if (vs[i] > domain.Bottom && vs[i] < domain.Top) vToSplit = vs[i];
+                }
+                if (vToSplit < double.MaxValue)
+                {
+                    // one of the two provided edges must be invalid
+
+                    if (dontUseBackward)
+                    {
+                        c2.EndPoint = new GeoPoint2D(c1.EndPoint.x, vToSplit);
+                        c4.StartPoint = new GeoPoint2D(c1.StartPoint.x, vToSplit);
+                        bdr = new Border(new ICurve2D[] { c1, c2, new Line2D(c2.EndPoint, c4.StartPoint), c4 });
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.Assert(dontUseForward); // this must be the case here
+                        c2.StartPoint = new GeoPoint2D(c3.StartPoint.x, vToSplit);
+                        c4.EndPoint = new GeoPoint2D(c3.EndPoint.x, vToSplit);
+                        bdr = new Border(new ICurve2D[] { c2, c3, c4, new Line2D(c4.EndPoint, c2.StartPoint) });
+                    }
+                    Face res = Face.MakeFace(toroidalSurface, new SimpleShape(bdr));
+                    if (!dontUseForward) res.UseEdge(forward);
+                    if (!dontUseBackward) res.UseEdge(backward);
+                    return res;
+                }
+                else
+                {
+                    Face res = Face.MakeFace(toroidalSurface, new SimpleShape(bdr));
+                    res.UseEdge(forward);
+                    res.UseEdge(backward);
+                    return res;
+                }
+            }
+            else if (surface != null)
             {
                 BoundingRect domain = new BoundingRect(surface.PositionOf(forward.Curve3D.PointAt(0.5))); // toroidal fillets may sweep over 180°. so it would be ambiguous which part to use
                 GeoPoint2D uv = surface.PositionOf(forward.Vertex2.Position);
@@ -325,11 +785,11 @@ namespace ShapeIt
             Dictionary<Edge, Face> edgeToFillet = new Dictionary<Edge, Face>(); // for each convex edge we create a "fillet" face
             HashSet<Face> inverseFaces = new HashSet<Face>();
             List<Face> sphercalWegdes = new List<Face>(); // the sphreical faces fill the gaps between the fillets
-            // for the brep operation we need edge-face pairs, which should not be tested for intersection, because they connect adjacent parts like the offset faces with the fillets
-            // or the fillets with the spherical faces. Since each breop operation creates new faces and edges, we attach this information to the user data of the original parts
-            // and retrieve them after the brep operation is done.
-            HashSet<(Edge, Face)> dontIntersect = new HashSet<(Edge, Face)>(); // these pairs will be connected and there is no need to calculate the intersection
-            // set UserData with the original face and edge references to 
+                                                          // for the brep operation we need edge-face pairs, which should not be tested for intersection, because they connect adjacent parts like the offset faces with the fillets
+                                                          // or the fillets with the spherical faces. Since each breop operation creates new faces and edges, we attach this information to the user data of the original parts
+                                                          // and retrieve them after the brep operation is done.
+            HashSet<(Edge, Face)> dontIntersect = new HashSet<(Edge, Face)>(); // NOT USED ANY MORE, these pairs will be connected and there is no need to calculate the intersection
+                                                                               // set UserData with the original face and edge references to 
             foreach (Face face in shell.Faces)
             {   // makeparallel faces with the provided offset
                 ISurface offsetSurface = face.Surface.GetOffsetSurface(offset);
@@ -407,7 +867,6 @@ namespace ShapeIt
                     }
 #endif
 
-                    // faces.Add(offsetFace);
                     // we need a reference from edges of the original face to the edges of the paralell face.
                     foreach (Edge edg in offsetFace.Edges)
                     {
@@ -419,7 +878,6 @@ namespace ShapeIt
                             go.UserData.Add("ShapeIt.OriginalEdge", new EdgeReference(edg));
                         }
                     }
-                    //offsetFace.ReverseOrientation();
                     faceToOffsetFace[face] = offsetFace;
                     if (offsetSurface.GetNormal(cnt) * face.Surface.GetNormal(cnt) < 0)
                     {   // this face is reversed, e.g. a cylinder, which now has negative radius
@@ -434,8 +892,7 @@ namespace ShapeIt
                 AdjacencyType toCheckFor = offset > 0 ? AdjacencyType.Convex : AdjacencyType.Concave;
                 if (sedge.Adjacency() == toCheckFor && faceEdgeToParallelEdge.TryGetValue((sedge.PrimaryFace, sedge), out Edge e1) && faceEdgeToParallelEdge.TryGetValue((sedge.SecondaryFace, sedge), out Edge e2))
                 {
-                    Face fillet = MakeOffsetFillet(sedge, offset, e1, e2);
-                    //fillet.ReverseOrientation();
+                    Face fillet = MakeOffsetFillet(sedge, offset, e1, e2, inverseFaces.Contains(e1.PrimaryFace), inverseFaces.Contains(e2.PrimaryFace));
                     if (fillet != null)
                     {
                         fillet.UserData.Add("ShapeIt.OriginalFace", new FaceReference(fillet));
