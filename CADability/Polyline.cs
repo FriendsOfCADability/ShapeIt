@@ -922,7 +922,11 @@ namespace CADability.GeoObject
             //}
             //GeoVector dir = new GeoVector(vertex[i-1],vertex[i]);
             dir.Norm();
-            return dir;
+            return Length*dir.Normalized;
+        }
+        public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
+        {
+            return GeneralCurve.PointAndDerivativesAt(this, position, grad);
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ICurve.PointAt (double)"/>

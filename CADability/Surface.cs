@@ -9256,7 +9256,7 @@ namespace CADability.GeoObject
                 // deshalb hier besser überprüfen und nur zweiteilen
 #if DEBUG
                 DebuggerContainer dc = new DebuggerContainer();
-                Face fc = Face.MakeFace(this.surface, uvPatch);
+                Face fc = Face.MakeFace(this.surface.Clone(), uvPatch); // added clone to not change the usedArea of the surface, no two faces with the same surface
                 dc.Add(fc, 0);
                 double len = ((cube.plr | cube.pul) + (cube.pll | cube.pur)) / 4.0;
                 dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * cube.nll));
@@ -11308,6 +11308,13 @@ namespace CADability.GeoObject
                     else if (th.IsTriangle(i))
                     {
                         cubes = octtree.GetObjectsCloseTo(new OctTreeTriangle(th.TetraederBase[i], th.TetraederVertex[2 * i], th.TetraederBase[i + 1]));
+#if DEBUG
+                        DebuggerContainer dccubes = new DebuggerContainer();
+                        for (int j = 0; j < cubes.Length; j++)
+                        {
+                            dccubes.Add(cubes[j].AsBox,j);
+                        }
+#endif
                     }
                     else
                     {

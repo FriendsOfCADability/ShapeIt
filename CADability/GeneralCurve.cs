@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Runtime.Serialization;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.Differentiation;
 
 namespace CADability.GeoObject
 {
@@ -840,6 +841,50 @@ namespace CADability.GeoObject
             deriv = deriv2 = GeoVector.NullVector;
             return false;
         }
+        public virtual IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
+        {
+            return PointAndDerivativesAt(this, position, grad);
+        }
+        /// <summary>
+        /// Helper for calculating higher derivations. Implement in specific curve when possible
+        /// </summary>
+        /// <param name="curve"></param>
+        /// <param name="position"></param>
+        /// <param name="grad"></param>
+        /// <returns></returns>
+        public static IReadOnlyList<GeoVector> PointAndDerivativesAt(ICurve curve, double position, int grad)
+        {
+            List<GeoVector> result = new List<GeoVector>();
+            if (curve.TryPointDeriv2At(position, out GeoPoint point, out GeoVector deriv, out GeoVector deriv2))
+            {
+                if (grad >= 0) result.Add(point.ToVector());
+                if (grad >= 1) result.Add(deriv);
+                if (grad >= 2) result.Add(deriv2);
+                for (int i = 3; i <= grad; i++)
+                {
+                    var diff = new NumericalDerivative { StepType = StepType.Relative };
+                    GeoVector der = new GeoVector(diff.EvaluateDerivative(w => { curve.TryPointDeriv2At(w, out _, out _, out GeoVector d2); return d2.x; }, position, i - 2),
+                                                  diff.EvaluateDerivative(w => { curve.TryPointDeriv2At(w, out _, out _, out GeoVector d2); return d2.y; }, position, i - 2),
+                                                  diff.EvaluateDerivative(w => { curve.TryPointDeriv2At(w, out _, out _, out GeoVector d2); return d2.z; }, position, i - 2));
+                    result.Add(der);
+                }
+            }
+            else
+            {
+                result.Add(curve.PointAt(position).ToVector());
+                result.Add(curve.DirectionAt(position));
+                for (int i = 2; i <= grad; i++)
+                {
+                    var diff = new NumericalDerivative { StepType = StepType.Relative };
+                    GeoVector der = new GeoVector(diff.EvaluateDerivative(w => curve.DirectionAt(w).x, position, i - 1),
+                                                  diff.EvaluateDerivative(w => curve.DirectionAt(w).y, position, i - 1),
+                                                  diff.EvaluateDerivative(w => curve.DirectionAt(w).z, position, i - 1));
+                    result.Add(der);
+                }
+            }
+            return result;
+        }
+
         #endregion
         /// <summary>
         /// Constructor required by deserialization
@@ -1096,7 +1141,7 @@ namespace CADability.GeoObject
                             GeoPoint p4 = pl4.Intersect(ip, id);
                             double d12 = (p1 | p2);
                             // if ((p3 | p4) > d12 || (p1 | p3) > d12 || (p1 | p4) > d12 || (p2 | p3) > d12 || (p2 | p4) > d12)
-                            
+
                             //Unreachable code
                             /*
                             if (false)

@@ -4064,6 +4064,10 @@ namespace CADability.GeoObject
             }
 
         }
+        public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
+        {   // implement here!
+            return GeneralCurve.PointAndDerivativesAt(this, position, grad);
+        }
 #if DEBUG
         internal Polyline DebugSegments
         {

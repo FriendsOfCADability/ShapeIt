@@ -162,7 +162,7 @@ namespace CADability.UserInterface
         /// <summary>
         /// The label text
         /// </summary>
-        string Label { get; }
+        string Label { get; set; }
         /// <summary>
         /// The values text (may contain drawing hints like "[[ColorBox:0:128:255]]Pink")
         /// </summary>

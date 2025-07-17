@@ -7300,6 +7300,8 @@ namespace CADability.GeoObject
 #if DEBUG
             if (hashCode == 3061) { }
 #endif
+            // not sure, why we need this here, but in some cases usedArea is undefined
+            if ((Surface as ISurfaceImpl).usedArea.IsInfinite || (Surface as ISurfaceImpl).usedArea.IsInvalid()) (Surface as ISurfaceImpl).usedArea = Domain;
             GeoPoint2D uv;
             return (Surface.HitTest(bc, out uv) && Contains(ref uv, true));
         }

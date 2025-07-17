@@ -14,6 +14,7 @@ namespace CADability.GeoObject
 {
     using CADability.Attribute;
     using CADability.UserInterface;
+    using System.Collections.Generic;
 
     /// <summary>
     /// The line is a <see href="GeoObject.html">IGeoObject</see>. It is actually a line segment
@@ -749,6 +750,18 @@ namespace CADability.GeoObject
             deriv2 = GeoVector.NullVector;
             return true;
         }
+        public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
+        {
+            List<GeoVector> res = new List<GeoVector>();
+            if (grad >= 0) res.Add((startPoint + position * (endPoint - startPoint)).ToVector());
+            if (grad >= 1) res.Add(endPoint - startPoint);
+            for (int i = 0; i < grad - 1; i++)
+            {
+                res.Add(GeoVector.NullVector);
+            }
+            return res;
+        }
+
         #endregion
 
         #region ILineWidth Members
@@ -852,7 +865,7 @@ namespace CADability.GeoObject
                 // #38 = TRIMMED_CURVE('',#39,(#43,PARAMETER_VALUE(0.E+000)),(#44,PARAMETER_VALUE(62.52263230373)),.T.,.PARAMETER.);
                 int sp = (startPoint as IExportStep).Export(export, false);
                 int ep = (endPoint as IExportStep).Export(export, false);
-                int tc = export.WriteDefinition("TRIMMED_CURVE('',#" + ln.ToString() + ",(#" + sp.ToString() + ",PARAMETER_VALUE(0.0)),(#" + ep.ToString() + ",PARAMETER_VALUE("+export.ToString(Length)+")),.T.,.CARTESIAN.)");
+                int tc = export.WriteDefinition("TRIMMED_CURVE('',#" + ln.ToString() + ",(#" + sp.ToString() + ",PARAMETER_VALUE(0.0)),(#" + ep.ToString() + ",PARAMETER_VALUE(" + export.ToString(Length) + ")),.T.,.CARTESIAN.)");
                 int gcs = export.WriteDefinition("GEOMETRIC_CURVE_SET('',(#" + tc.ToString() + "))"); // is a Representation_Item 
                 ColorDef cd = ColorDef;
                 if (cd == null) cd = new ColorDef("Black", Color.Black);
@@ -946,7 +959,7 @@ namespace CADability.GeoObject
             m[0, 1] = plane.DirectionY.x;
             m[1, 0] = plane.DirectionX.y;
             m[1, 1] = plane.DirectionY.y;
-            double[] b = new double[] {  p.x - plane.Location.x ,  p.y - plane.Location.y  };
+            double[] b = new double[] { p.x - plane.Location.x, p.y - plane.Location.y };
             Matrix mx = DenseMatrix.OfArray(m);
             Vector s = (Vector)mx.Solve(new DenseVector(b));
             if (s != null)

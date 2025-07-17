@@ -265,5 +265,30 @@ namespace CADability
                 list.Add(item);
             }
         }
+        /// <summary>
+        /// Remove duplicates from the list.
+        /// </summary>
+        /// <param name="sortedList"></param>
+        /// <param name="tolerance"></param>
+        public static void RemoveDuplicatesWithTolerance(this List<double> sortedList, double tolerance)
+        {
+            if (sortedList.Count < 2) return;
+
+            int writeIndex = 1;
+            double lastValue = sortedList[0];
+
+            for (int i = 1; i < sortedList.Count; i++)
+            {
+                double current = sortedList[i];
+                if (Math.Abs(current - lastValue) > tolerance)
+                {
+                    sortedList[writeIndex++] = current;
+                    lastValue = current;
+                }
+            }
+
+            // remove overhang
+            sortedList.RemoveRange(writeIndex, sortedList.Count - writeIndex);
+        }
     }
 }

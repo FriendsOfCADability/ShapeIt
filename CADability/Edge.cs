@@ -915,7 +915,7 @@ namespace CADability
         public ICurve Curve3D
         {
             get { return curve3d; }
-            internal set
+            set
             {
                 curve3d = value;
                 if (curve3d is IGeoObject go) go.Owner = this;

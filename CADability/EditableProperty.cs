@@ -328,7 +328,14 @@ namespace CADability.UserInterface
                     /// the octtree. The last change of the frame re-inserts the object to the octtree.
                     using (Frame.Project.Undo.ContextFrame(this))
                     {
-                        SetValue(val, !DeferUpdate);
+                        try
+                        {
+                            SetValue(val, !DeferUpdate);
+                        }
+                        catch (Exception e)
+                        {   // Error handling to prevent crashing the application when some invalid characters have been typed or the calculation behind SetValue fails
+                            ErrorMessage = e.Message;
+                        }
                     }
                 }
                 return String.IsNullOrEmpty(ErrorMessage);

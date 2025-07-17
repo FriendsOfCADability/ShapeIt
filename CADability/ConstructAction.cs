@@ -7573,7 +7573,17 @@ namespace CADability.Actions
 			}
 		}
 		bool IPropertyEntry.ReadOnly { get; set; }
-		string IPropertyEntry.Label => StringTable.GetString(TitleId + ".Label");
+		string IPropertyEntry.Label
+		{
+			get
+			{
+				return StringTable.GetString(TitleId + ".Label");
+			}
+			set
+			{
+				// no way to change the label currently
+			}
+		}
 		string IPropertyEntry.Value => null;
 		string IPropertyEntry.ResourceId => StringTable.GetString(TitleId);
 		object IPropertyEntry.Parent { get; set; }

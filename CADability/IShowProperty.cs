@@ -737,7 +737,17 @@ namespace CADability.UserInterface
                 return res;
             }
         }
-        public virtual string Label => LabelText;
+        public virtual string Label
+        {
+            get
+            {
+                return LabelText;
+            }
+            set
+            {
+                LabelText = value;
+            }
+        }
         public virtual string Value => null;
         //public string ToolTip => StringTable.GetString(HelpLink, StringTable.Category.info);
         public string ResourceId => HelpLink;

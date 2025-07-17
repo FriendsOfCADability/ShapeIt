@@ -335,6 +335,17 @@ namespace CADability.GeoObject
         /// <param name="atEnd"></param>
         /// <returns></returns>
         bool Extend(double atStart, double atEnd);
+        /// <summary>
+        /// Returns all derivatives up to grad. The first vector is actually the point at this position.
+        /// </summary>
+        /// <param name="position">Where to calculate the derivations</param>
+        /// <param name="grad">Number of derivations. grad==2 returns the point, the first and the second derivation</param>
+        /// <returns>
+        /// Sequence of derivatives: element 0 = point-vector (P), 
+        /// 1 = first derivative (P'), 2 = second (P''), … .
+        /// Length ≥ grad+1.
+        /// </returns>
+        IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad);
     }
     /// <summary>
     /// Enumeration for direction of curve extension
@@ -969,5 +980,6 @@ namespace CADability.GeoObject
             }
             return false;
         }
+
     }
 }

@@ -74,6 +74,10 @@ namespace CADability.UserInterface
                 if (resourceIdInternal != null) return StringTable.GetString(resourceIdInternal);
                 throw new NotImplementedException("A label text must be provided");
             }
+            set
+            {
+                LabelText = value;
+            }
         }
         public virtual string LabelText
         {

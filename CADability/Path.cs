@@ -1544,12 +1544,17 @@ namespace CADability.GeoObject
 			if (ind >= subCurves.Length) ind = subCurves.Length - 1;
 			return Curve(ind).DirectionAt(pos - ind);
 		}
-		/// <summary>
-		/// Implements <see cref="CADability.GeoObject.ICurve.PointAt (double)"/>
-		/// </summary>
-		/// <param name="Position"></param>
-		/// <returns></returns>
-		public GeoPoint PointAt(double Position)
+        public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
+        {
+            return GeneralCurve.PointAndDerivativesAt(this, position, grad);
+        }
+
+        /// <summary>
+        /// Implements <see cref="CADability.GeoObject.ICurve.PointAt (double)"/>
+        /// </summary>
+        /// <param name="Position"></param>
+        /// <returns></returns>
+        public GeoPoint PointAt(double Position)
 		{
 			// der Lauf der Parameter ist so zu interpretieren: Der Wert liegt zwischen 0 und 1
 			// bei n Segmenten deckt jedes Segment einen Bereich von 1/n ab
