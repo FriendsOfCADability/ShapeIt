@@ -19,6 +19,7 @@ using CADability.Actions;
 using System.Drawing.Imaging;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using System.Xml.Linq;
+using MathNet.Numerics.Distributions;
 
 namespace ShapeIt
 {
@@ -392,28 +393,27 @@ namespace ShapeIt
         /// </summary>
         private void Debug()
         {
-            CADability.GeoObject.Solid sld1 = null;
-            CADability.GeoObject.Solid sld2 = null;
-            CADability.GeoObject.Solid sld3 = null;
+            //CADability.GeoObject.Solid sld1 = null;
+            //CADability.GeoObject.Solid sld2 = null;
+            //CADability.GeoObject.Solid sld3 = null;
+            GeoPoint[] throupointsTest = new GeoPoint[10];
+            GeoVector[] directionsTest = new GeoVector[10];
+            for (int i = 0; i < 10; i++)
+            {
+                throupointsTest[i] = new GeoPoint(i, Math.Sin(i), 0);
+                directionsTest[i] = new GeoVector(1, Math.Cos(i), 0).Normalized;
+            }
+            CADability.GeoObject.BSpline bsp = CADability.GeoObject.BSpline.Construct();
+            bsp.ThroughPoints(throupointsTest, 3, false);
+            bsp.ThroughPoints(throupointsTest,directionsTest, 5, false);
             foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
             {
-                if (go is CADability.GeoObject.Solid sld)
+                if (go is CADability.GeoObject.Face face && face.Surface is SweptCircle sc)
                 {
-                    if (sld1 == null) sld1 = sld;
-                    else if (sld2 == null) sld2 = sld;
-                    else sld3 = sld;
+                    sc.OuterShell(face.Domain.Bottom, face.Domain.Top);
                 }
             }
-            if (sld1 != null)
-            {
-                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(-0.75); // -0.5);
-                //if (res1.Length > 0)
-                //{
-                //    CADability.GeoObject.Shell[] res2 = res1[0].GetOffsetNew(-0.5);
-                //}
-                //CADability.GeoObject.Solid[] res = CADability.GeoObject.Solid.Subtract(sld2, sld1);
-                //bool ok = res[0].Shells[0].CheckConsistency();
-            }
+
         }
 #endif
     }

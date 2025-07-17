@@ -479,9 +479,31 @@ namespace ShapeIt
             if (vw is ModelView mv) visiblaLayers = mv.GetVisibleLayers();
             HashSet<IGeoObject> objects = new HashSet<IGeoObject>();
             PickMode pm = multiple ? PickMode.onlyEdges : PickMode.singleEdge; // first edges, they should have a higher priority in resourceIdOfEntryToSelect (see below)
-            objects.UnionWith(vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null)); // returns all edges under the cursor
+            GeoObjectList edges = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null); // returns all edges under the cursor
             pm = multiple ? PickMode.children : PickMode.singleChild;
-            objects.UnionWith(vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null)); // returns all the faces curves or text objects under the cursor
+            GeoObjectList facesAndCurves = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null); // returns all the faces curves or text objects under the cursor
+            // now an edge may be behind a face. In this case we don't want to select this edge
+            double zMin = double.MaxValue;
+            double delta = 1e-2 / pickArea.ToUnitBox.Determinant; // the accepted offset when an edge is not behind a face
+            foreach (IGeoObject go in facesAndCurves)
+            {
+                double z = go.Position(pickArea.FrontCenter, pickArea.Direction, pickArea.ToUnitBox.Determinant * 0.01);
+                if (z < zMin) zMin = z;
+            }
+            foreach (IGeoObject go in edges)
+            {
+                double z = go.Position(pickArea.FrontCenter, pickArea.Direction, pickArea.ToUnitBox.Determinant * 0.01);
+                if (z < zMin + delta) objects.Add(go); // only add those edges which are in front of the faces
+            }
+            foreach (IGeoObject go in facesAndCurves)
+            {
+                if (go is Face) objects.Add(go); // the face which was hit is already checked in its z position and cannot be hidden by an edge
+                else
+                {
+                    double z = go.Position(pickArea.FrontCenter, pickArea.Direction, pickArea.ToUnitBox.Determinant * 0.01);
+                    if (z < zMin + delta) objects.Add(go);
+                }
+            }
             if (onlyInside)
             {
                 objects = new HashSet<IGeoObject>(objects.Where(go => go.HitTest(pickArea, true)));
@@ -1986,6 +2008,9 @@ namespace ShapeIt
 
             // faceEntry: a simple group entry, which contains all face modelling menus
             SelectEntry faceEntries = new SelectEntry("MenuId.Face", true); // only handles selection
+            IPropertyEntry faceProperties = fc.GetShowProperties(cadFrame);
+            faceProperties.Label = "Test";
+            faceEntries.Add(faceProperties);
             faceEntries.IsSelected = (selected, frame) =>
             {   // show the provided face and the "same geometry connected" faces as feedback
                 feedback.Clear();
@@ -2933,7 +2958,7 @@ namespace ShapeIt
 
         public bool OnCommand(string MenuId)
         {
-            if ((cadFrame.UIService.ModifierKeys & Keys.Control) == Keys.Control )
+            if ((cadFrame.UIService.ModifierKeys & Keys.Control) == Keys.Control)
             {
                 Settings.GlobalSettings.SetValue("Action.RepeatConstruct", true);
             }

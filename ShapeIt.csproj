@@ -13,21 +13,23 @@
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
     <TargetFrameworkProfile />
-    <IsWebBootstrapper>false</IsWebBootstrapper>
-    <PublishUrl>G:\</PublishUrl>
+    <IsWebBootstrapper>true</IsWebBootstrapper>
+    <PublishUrl>ftp://ftp.cadability.de/html/ShapeIt/</PublishUrl>
     <Install>true</Install>
-    <InstallFrom>Disk</InstallFrom>
-    <UpdateEnabled>false</UpdateEnabled>
+    <InstallFrom>Web</InstallFrom>
+    <UpdateEnabled>true</UpdateEnabled>
     <UpdateMode>Foreground</UpdateMode>
     <UpdateInterval>7</UpdateInterval>
     <UpdateIntervalUnits>Days</UpdateIntervalUnits>
     <UpdatePeriodically>false</UpdatePeriodically>
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
+    <InstallUrl>http://www.cadability.de/ShapeIt/</InstallUrl>
     <ProductName>ShapeIt with CADability</ProductName>
     <PublisherName>Gerhard Hofmann</PublisherName>
+    <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>publish.htm</WebPage>
-    <ApplicationRevision>17</ApplicationRevision>
+    <ApplicationRevision>18</ApplicationRevision>
     <ApplicationVersion>0.2.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <CreateDesktopShortcut>true</CreateDesktopShortcut>
@@ -95,6 +97,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AdaptiveRootFinder.cs" />
     <Compile Include="DistanceCalculator.cs" />
     <Compile Include="EdgeInOctTree.cs" />
     <Compile Include="Feedback.cs" />
@@ -108,6 +111,7 @@
     </Compile>
     <Compile Include="MateFacesAction.cs" />
     <Compile Include="ModellingPropertyEntries.cs" />
+    <Compile Include="NurbsSurfaceInterpolator.cs" />
     <Compile Include="OffsetSolidAction.cs" />
     <Compile Include="ParametricPositionAction.cs" />
     <Compile Include="ParametricsAngleAction.cs" />
@@ -124,6 +128,7 @@
     <Compile Include="ShellExtensions.cs" />
     <Compile Include="SolidPlaneIntersectionPathAction.cs" />
     <Compile Include="Surfaces.cs" />
+    <Compile Include="SweptCircle.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>

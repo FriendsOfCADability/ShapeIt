@@ -147,24 +147,21 @@ namespace ShapeIt
         /// </returns>
         public static (GeoPoint center, GeoVector normal, double radius) CurvatureAt(this ICurve curve, double u)
         {
-            if (!curve.TryPointDeriv2At(u, out GeoPoint point, out GeoVector deriv1, out GeoVector deriv2))
-            {
-                throw new ArgumentException("Curve does not support second derivative at the given parameter.");
-            }
+            IReadOnlyList<GeoVector> ders =  curve.PointAndDerivativesAt(u, 2);
 
-            double deriv1Length = deriv1.Length;
-            if (deriv1Length < 1e-12)
+            double deriv1Length = ders[1].Length;
+            if (ders[1].Length < 1e-12)
             {
                 throw new ArgumentException("First derivative is too small to determine curvature.");
             }
 
             // Tangent vector
-            GeoVector T = deriv1 / deriv1Length;
+            GeoVector T = ders[1] / deriv1Length;
 
             // Normal component of second derivative
-            GeoVector proj = (deriv2 * T) * T;
-            GeoVector normalComponent = deriv2 - proj;
-
+            GeoVector proj = (ders[2] * T) * T;
+            GeoVector normalComponent = ders[2] - proj;
+            GeoPoint point = GeoPoint.Origin + ders[0];
             double normalLength = normalComponent.Length;
             if (normalLength < 1e-12)
             {
@@ -182,7 +179,7 @@ namespace ShapeIt
             // Center of curvature
             GeoPoint center = point + radius * N;
 
-            return (center, (deriv1 ^ deriv2).Normalized, radius);
+            return (center, (ders[1] ^ ders[2]).Normalized, radius);
         }
 
         public static double RadiusAt(this ICurve curve, double u)
