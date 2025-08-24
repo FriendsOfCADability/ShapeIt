@@ -2111,6 +2111,11 @@ namespace CADability.GeoObject
             }
         }
 
+        public void Complement()
+        {
+            if (sweepParameter < 0) sweepParameter = sweepParameter + 2 * Math.PI;
+            else sweepParameter = sweepParameter - 2 * Math.PI;
+        }
         public bool CounterClockWise
         {
             get { return sweepParameter > 0.0; }

@@ -196,9 +196,6 @@ namespace CADability.GeoObject
         protected GeneralCurve()
         {
         }
-        private GeoPoint[] tetraederBase; // Punkte auf der Kurve
-        private double[] tetraederParams; // Parameter zu tetraederBase
-        private GeoPoint[] tetraederVertex; // zu jedem tetraederBase (bis auf den letzten) gibt es zwei Punkte, so dass ein Tetraeder aufgespannt wird
         private TetraederHull tetraederHull;
         private BoundingCube extent = BoundingCube.EmptyBoundingCube;
         internal TetraederHull TetraederHull
@@ -277,32 +274,6 @@ namespace CADability.GeoObject
                     vertices.Add(pm);
                 }
             }
-        }
-        protected void MakeTetraederHull()
-        {
-            // 1. Implementierung: Die Dreiecke werden richtig gebildet
-            // noch keine Aufteilung, wenn "Wendepunkt" (2. Ableitung der Kurve?)
-            double[] pos = GetBasePoints();
-            List<GeoPoint> points = new List<GeoPoint>();
-            List<double> pars = new List<double>();
-            List<GeoPoint> vertices = new List<GeoPoint>();
-            for (int i = 0; i < pos.Length - 1; ++i)
-            {
-                MakeTetraeder(pos[i], pos[i + 1], points, pars, vertices);
-            }
-            tetraederBase = points.ToArray();
-            tetraederParams = pars.ToArray();
-            tetraederVertex = vertices.ToArray();
-
-            //GeoObjectList dbg = new GeoObjectList();
-            //Face fc1 = Face.MakeFace(p1, p2, p3);
-            //dbg.Add(fc1);
-            //Face fc2 = Face.MakeFace(p1, p2, p4);
-            //dbg.Add(fc2);
-            //Face fc3 = Face.MakeFace(p1, p3, p4);
-            //dbg.Add(fc3);
-            //Face fc4 = Face.MakeFace(p2, p3, p4);
-            //dbg.Add(fc4);
         }
         protected virtual void InvalidateSecondaryData()
         {
@@ -473,7 +444,7 @@ namespace CADability.GeoObject
         public override double Position(GeoPoint fromHere, GeoVector direction, double precision)
         {
             // gesucht ist die Z-Position beim Blick von fromHere für die Pickauswahl
-            return this.TetraederHull.Position(fromHere, direction, precision);
+            return TetraederHull.Position(fromHere, direction, precision);
         }
         #endregion
         #region IColorDef Members
@@ -556,7 +527,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public virtual double PositionOf(GeoPoint p)
         {
-            return this.TetraederHull.PositionOf(p);
+            return TetraederHull.PositionOf(p);
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ICurve.PositionOf (GeoPoint, double)"/>
@@ -587,7 +558,7 @@ namespace CADability.GeoObject
         {
             get
             {
-                return this.TetraederHull.GetLength();
+                return TetraederHull.GetLength();
             }
         }
         /// <summary>
@@ -702,7 +673,7 @@ namespace CADability.GeoObject
         {
             if (linesOnly)
             {
-                return this.TetraederHull.Approximate(linesOnly, maxError);
+                return TetraederHull.Approximate(linesOnly, maxError);
             }
             else
             {
@@ -761,14 +732,14 @@ namespace CADability.GeoObject
         }
         BoundingCube ICurve.GetExtent()
         {
-            if (tetraederBase == null) MakeTetraederHull();
+            
             // int xmin, xmax, ymin, ymax, zmin, zmax; // Indizes der extremen Vertexpunkte
             // noch nicht sauber implementiert: Gesucht werden müssen die lokalen
             // Minima und Maxima in x, y und z.
             BoundingCube res = BoundingCube.EmptyBoundingCube;
-            for (int i = 0; i < tetraederBase.Length; ++i)
+            for (int i = 0; i < TetraederHull.TetraederBase.Length; ++i)
             {
-                res.MinMax(tetraederBase[i]);
+                res.MinMax(TetraederHull.TetraederBase[i]);
             }
             // so war es vorher, das scheint nicht in Ordnung zu sein:
             //for (int i = 0; i < tetraederVertex.Length; ++i)
@@ -781,15 +752,15 @@ namespace CADability.GeoObject
         }
         bool ICurve.HitTest(BoundingCube cube)
         {
-            return this.TetraederHull.HitTest(cube);
+            return TetraederHull.HitTest(cube);
         }
         double[] ICurve.GetSavePositions()
         {
             return GetBasePoints();
         }
         double[] ICurve.GetExtrema(GeoVector direction)
-        {
-            return this.TetraederHull.GetExtrema(direction);
+        {   
+            return TetraederHull.GetExtrema(direction);
         }
         double[] ICurve.GetPlaneIntersection(Plane plane)
         {

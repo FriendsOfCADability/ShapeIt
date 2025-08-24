@@ -2331,8 +2331,9 @@ namespace CADability
             int ind = SegmentOfParameter(Position);
             if (approxPolynom == null) InitApproxPolynom();
             GeoVector v1 = approxPolynom.DirectionAt(Position);
-            if (v.Length > 1e-4)
-            {
+            if (v.Length > 1e-4 && Position >= 0.0 && Position <= 1.0)
+            {   // when position is outside ApproximatePosition always returns the first or last point.
+                // for 2nd derivativ approximation we need different values
                 v.Length = v1.Length;
                 return v;
             }
@@ -3028,6 +3029,14 @@ namespace CADability
             ApproximatePosition(u, out uv1, out uv2, out p);
             GeoVector v = surface1.GetNormal(uv1).Normalized + surface2.GetNormal(uv2).Normalized;
             return v;
+        }
+
+        void IDualSurfaceCurve.Trim(GeoPoint startPoint, GeoPoint endPoint)
+        {
+            if (Precision.IsEqual(startPoint, StartPoint) && Precision.IsEqual(endPoint, EndPoint)) return;
+            double posSp = PositionOf(startPoint);
+            double posEp = PositionOf(endPoint);
+            Trim(posSp, posEp);
         }
 
         #endregion

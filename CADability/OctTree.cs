@@ -1291,6 +1291,7 @@ namespace CADability
         /// <returns>All objects close to <paramref name="closeToThis"/></returns>
         public T[] GetObjectsCloseTo(IOctTreeInsertable closeToThis)
         {
+            if (node.list == null && node.mmm == null) return new T[0];
             Set<T> addToList = new Set<T>();
             if (node != null) node.GetObjectsCloseTo(closeToThis, addToList);
             return addToList.ToArray();

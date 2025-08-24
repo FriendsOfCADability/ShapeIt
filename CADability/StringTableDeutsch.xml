@@ -1558,7 +1558,7 @@
 		<label>Durchgangspunkt</label>
 		<info>Ein Punkt, der auf dem Spline liegt. Weitere Funktionen im Kontext-Menue (rechts).</info>
 	</data>
-	<data name="MenuID.Constr.BSpline.Points">
+	<data name="MenuId.Constr.BSpline.Points">
 		<label>Spline Durchgangspunkte</label>
 		<info>Ein Spline wird durch Angabe der Durchgangspunkte konstruiert</info>
 	</data>

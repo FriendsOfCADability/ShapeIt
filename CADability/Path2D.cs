@@ -570,7 +570,7 @@ namespace CADability.Curve2D
                     {
                         ICurve2D curve = subCurves[eind].Clone();
                         curve = curve.Trim(0.0, par);
-                        res.Add(curve);
+                        if (curve!=null) res.Add(curve);
                     }
                 }
             }

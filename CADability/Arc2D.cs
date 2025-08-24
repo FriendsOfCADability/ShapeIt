@@ -478,6 +478,14 @@ namespace CADability.Curve2D
             sweep = -sweep;
         }
         /// <summary>
+        /// Keep start and endpoint but use the complementary part of the arc
+        /// </summary>
+        public void Complement()
+        {
+            if (sweep < 0) sweep = sweep + 2 * Math.PI;
+            else sweep = sweep - 2 * Math.PI;
+        }
+        /// <summary>
         /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.Trim (double, double)"/>
         /// </summary>
         /// <param name="startPos"></param>
@@ -485,9 +493,9 @@ namespace CADability.Curve2D
         /// <returns></returns>
         public override ICurve2D Trim(double startPos, double endPos)
         {
-	        //If both parameters are 0.0d, this would produce an invalid arc
-			if (startPos == 0.0d && endPos == 0.0d)
-		        return null;
+            //If both parameters are 0.0d, this would produce an invalid arc
+            if (startPos == 0.0d && endPos == 0.0d)
+                return null;
 
             Arc2D res = new Arc2D(Center, Radius, start, sweep);
             Angle st = start + startPos * sweep;
@@ -496,7 +504,7 @@ namespace CADability.Curve2D
             res.start = st;
 
             //Return null if the trimmed Arc2D would be invalid.
-            if(Math.Abs(res.Sweep) < Precision.eps)
+            if (Math.Abs(res.Sweep) < Precision.eps)
                 return null;
 
             return res;
@@ -789,8 +797,8 @@ namespace CADability.Curve2D
                 double a2 = GeoVector2D.Area(majorAxis, minorAxis);
                 // geändert wg. Fehler in IsIsogonal Fall, noch nicht getestet
                 EllipseArc2D res = EllipseArc2D.Create(m * Center, majorAxis, minorAxis, m * StartPoint, m * EndPoint, cc);
-                double rpos = res.PositionOf(m*this.PointAt(0.5));
-                if (rpos < 0 || rpos>1) 
+                double rpos = res.PositionOf(m * this.PointAt(0.5));
+                if (rpos < 0 || rpos > 1)
                 {
                     res = EllipseArc2D.Create(m * Center, majorAxis, minorAxis, m * StartPoint, m * EndPoint, !cc);
                 }

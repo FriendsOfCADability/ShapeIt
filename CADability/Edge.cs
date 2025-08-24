@@ -1145,6 +1145,90 @@ namespace CADability
             }
 
         }
+        /// <summary>
+        /// Use the vertices in the provided Set. If the endpoints of the curve don't coincide with one of the vertices, create a new one and add it to the set.
+        /// </summary>
+        /// <param name="toUse"></param>
+        internal void UseVertices(HashSet<Vertex> toUse, double precision = 1e-6)
+        {
+            if (curve3d != null)
+            {
+                GeoPoint sp = curve3d.StartPoint;
+                GeoPoint ep = curve3d.EndPoint;
+                Vertex oldV1 = v1;
+                if (v1 != null) v1.RemoveEdge(this);
+                v1 = null;
+                double bestDist = double.MaxValue;
+                foreach (Vertex v0 in toUse)
+                {
+                    double d = sp | v0.Position;
+                    if (d < precision && d < bestDist)
+                    {
+                        v1 = v0;
+                        bestDist = d;
+                    }
+                }
+                if (v1 == null)
+                {
+                    if (oldV1 == null)
+                    {
+                        oldV1 = new Vertex(sp);
+                    }
+                    v1 = oldV1;
+                    toUse.Add(v1);
+                }
+                if (v1 != null) v1.AddEdge(this);
+                Vertex oldV2 = v2;
+                if (v2 != null) v2.RemoveEdge(this);
+                v2 = null;
+                bestDist = double.MaxValue;
+                foreach (Vertex v0 in toUse)
+                {
+                    double d = ep | v0.Position;
+                    if (d < precision && d < bestDist)
+                    {
+                        v2 = v0;
+                        bestDist = d;
+                    }
+                }
+                if (v2 == null)
+                {
+                    if (oldV2 == null)
+                    {
+                        oldV2 = new Vertex(ep);
+                    }
+                    v2 = oldV2;
+                    toUse.Add(v2);
+                }
+                if (v2 != null) v2.AddEdge(this);
+            }
+            else
+            {   // singulär
+                GeoPoint p = primaryFace.Surface.PointAt(curveOnPrimaryFace.EndPoint);
+                Vertex oldV1 = v1;
+                double bestDist = double.MaxValue;
+                foreach (Vertex v0 in toUse)
+                {
+                    double d = p | v0.Position;
+                    if (d < precision && d < bestDist)
+                    {
+                        v1 = v2 = v0;
+                        bestDist = d;
+                    }
+                }
+                if (v1 == null)
+                {
+                    if (oldV1 == null)
+                    {
+                        oldV1 = new Vertex(p);
+                    }
+                    v1 = v2 = oldV1;
+                    toUse.Add(v1);
+                }
+                if (v1 != null) v1.AddEdge(this);
+            }
+
+        }
         internal void UseVertices(params Vertex[] toUse)
         {
             if (curve3d != null)
@@ -1740,6 +1824,10 @@ namespace CADability
             if (onThisFace == secondaryFace) return forwardOnSecondaryFace;
             return false; // dürfte nicht vorkommen
         }
+        public bool ForwardOnPrimaryFace
+        {
+            get { return forwardOnPrimaryFace; }
+        }
         public bool SameGeometry(Edge other, double precision)
         {
             // erstmal von offener Kurve ausgehen
@@ -1760,6 +1848,7 @@ namespace CADability
             this.primaryFace = primaryFace;
             this.curveOnPrimaryFace = curveOnPrimaryFace;
             this.forwardOnPrimaryFace = forwardOnPrimaryFace;
+            if (owner == null) owner = primaryFace;
             oriented = true;
         }
         internal void SetPrimary(Face fc, bool forward)
@@ -1768,6 +1857,7 @@ namespace CADability
             curveOnPrimaryFace = fc.Surface.GetProjectedCurve(curve3d, Precision.eps);
             if (!forward) curveOnPrimaryFace.Reverse();
             forwardOnPrimaryFace = forward;
+            if (owner == null) owner = primaryFace;
             oriented = true;
         }
         internal void SetSecondary(Face fc, bool forward)
@@ -1797,6 +1887,8 @@ namespace CADability
                     GeoVector n2e = SecondaryFace.Surface.GetNormal(uv2e);
                     BoundingRect bounds1 = primaryFace.Area.GetExtent();
                     BoundingRect bounds2 = secondaryFace.Area.GetExtent();
+                    primaryFace.Surface.SetBounds(bounds1);
+                    secondaryFace.Surface.SetBounds(bounds2); // these bounds were not set under certain circumstances
                     if ((new Angle(n1s, n2s)).Radian < 0.01 && (new Angle(n1e, n2e)).Radian < 0.01) // the condition was "||", but we get along with curves that are tangential at one end
                     {   // surfaces are tangential, this edge.curve3d cannot remain a InterpolatedDualSurfaceCurve
                         curve3d = (curve3d as InterpolatedDualSurfaceCurve).ToBSpline(0.0);
@@ -3010,6 +3102,7 @@ namespace CADability
                         if (s2d1 < e2d1) splittedEdge.curveOnPrimaryFace = curveOnPrimaryFace.Trim(s2d1, e2d1);
                         else splittedEdge.curveOnPrimaryFace = curveOnPrimaryFace.Trim(e2d1, s2d1);
                     }
+                    SurfaceHelper.AdjustPeriodic(primaryFace.Surface, primaryFace.Domain, splittedEdge.curveOnPrimaryFace);
                     s2d1 = e2d1;
                     if (i < sortedVertices.Count - 1)
                         e2d1 = FindPeriodicPosition(curveOnPrimaryFace, sortedVertices.Values[i + 1].GetPositionOnFace(primaryFace), primaryFace.Surface);
@@ -3030,6 +3123,7 @@ namespace CADability
                             if (s2d2 < e2d2) splittedEdge.curveOnSecondaryFace = curveOnSecondaryFace.Trim(s2d2, e2d2);
                             else splittedEdge.curveOnSecondaryFace = curveOnSecondaryFace.Trim(e2d2, s2d2);
                         }
+                        SurfaceHelper.AdjustPeriodic(secondaryFace.Surface, secondaryFace.Domain, splittedEdge.curveOnSecondaryFace);
                         s2d2 = e2d2;
                         if (i < sortedVertices.Count - 1) e2d2 = FindPeriodicPosition(curveOnSecondaryFace, sortedVertices.Values[i + 1].GetPositionOnFace(secondaryFace), secondaryFace.Surface);
                         else

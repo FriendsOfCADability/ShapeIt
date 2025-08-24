@@ -265,6 +265,32 @@ namespace CADability
                 list.Add(item);
             }
         }
+
+        /// <summary>
+        /// IEnumerable&lt;T&gt; to HashSet&lt;T&gt; 
+        /// </summary>
+        public static HashSet<T> ToHashSet<T>(this IEnumerable<T> source)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            return new HashSet<T>(source);
+        }
+
+        /// <summary>
+        /// IEnumerable&lt;T&gt; to HashSet&lt;T&gt; with Comparer.
+        /// </summary>
+        public static HashSet<T> ToHashSet<T>(this IEnumerable<T> source, IEqualityComparer<T> comparer)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            return new HashSet<T>(source, comparer);
+        }
+        public static HashSet<T> Clone<T>(this HashSet<T> source)
+        {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+            return new HashSet<T>(source, source.Comparer);
+        }
         /// <summary>
         /// Remove duplicates from the list.
         /// </summary>

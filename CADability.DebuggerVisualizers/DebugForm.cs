@@ -12,7 +12,7 @@ namespace CADability.DebuggerVisualizers
     {
         public DebugForm() : base(new string[] { })
         {
-            // Trace.WriteLine("DebugForm constructor");
+            Trace.WriteLine("DebugForm constructor");
             Text = "CADability.Forms.DebugForm";
             CadFrame.GenerateNewProject();
             // Trace.WriteLine("Project created");

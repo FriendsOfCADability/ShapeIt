@@ -162,7 +162,7 @@
         <MenuItem MenuId="MenuId.Constr.Arc.TangentPointRadius" IconNr="127" />
       </Popup>
       <MenuItem MenuId="MenuId.Constr.Polyline" IconNr="16" />
-      <MenuItem MenuId="MenuID.Constr.BSpline.Points" IconNr="148" />
+      <MenuItem MenuId="MenuId.Constr.BSpline.Points" IconNr="148" />
       <Popup MenuId="MenuId.Constr.Ellipse" IconNr="17" >
         <MenuItem MenuId="MenuId.Constr.Ellipse.CenterRadius" IconNr="81" />
         <MenuItem MenuId="MenuId.Constr.Ellipse.2PointsDirections" IconNr="20"/>

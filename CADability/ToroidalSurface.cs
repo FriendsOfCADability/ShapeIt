@@ -12,7 +12,7 @@ namespace CADability.GeoObject
     /// the "big" circles around the main axis, the v parameter describes the "small" circles.
     /// </summary>
     [Serializable()]
-    public class ToroidalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IImplicitPSurface, IExportStep, ISurfaceOfArcExtrusion
+    public class ToroidalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IImplicitPSurface, IExportStep, ISurfaceOfArcExtrusion, ISurfaceOfRevolution
     {
         private ModOp toTorus; // diese ModOp modifiziert den Einheitstorus in den konkreten Torus
         private ModOp toUnit; // die inverse ModOp zum schnelleren Rechnen
@@ -490,6 +490,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override IDualSurfaceCurve[] GetPlaneIntersection(PlaneSurface pl, double umin, double umax, double vmin, double vmax, double precision)
         {
+            BoundingRect domain = new BoundingRect(umin, vmin, umax, vmax);
             Plane pln = new Plane(toUnit * pl.Location, toUnit * pl.DirectionX, toUnit * pl.DirectionY);
             int degree = 3;
             if (Precision.IsPerpendicular(GeoVector.ZAxis, pln.Normal, false))
@@ -519,7 +520,11 @@ namespace CADability.GeoObject
                     elli1.Modify(toTorus);
                     GeoPoint2D tst1 = PositionOf(elli1.PointAt(0.5));
                     ICurve2D c2dpl1 = pl.GetProjectedCurve(elli1, 0.0); // must be a circle (Ellipse)
-                    ICurve2D c2dtr1 = new Line2D(PositionOf(elli1.StartPoint), PositionOf(elli1.EndPoint));
+                    GeoPoint2D ps = PositionOf(elli1.StartPoint);
+                    GeoPoint2D pe = PositionOf(elli1.EndPoint);
+                    SurfaceHelper.AdjustPeriodic(this, domain, ref ps);
+                    SurfaceHelper.AdjustPeriodic(this, domain, ref pe);
+                    ICurve2D c2dtr1 = new Line2D(ps, pe);
                     DualSurfaceCurve dsc1 = new DualSurfaceCurve(elli1, this, c2dtr1, pl, c2dpl1);
                     //Der Zweite Kreis
                     Ellipse elli2 = Ellipse.Construct();
@@ -529,7 +534,11 @@ namespace CADability.GeoObject
                     elli2.Modify(toTorus);
                     GeoPoint2D tst2 = PositionOf(elli1.PointAt(0.5));
                     ICurve2D c2dpl2 = pl.GetProjectedCurve(elli2, 0.0); // must be a circle (Ellipse)
-                    ICurve2D c2dtr2 = new Line2D(PositionOf(elli2.StartPoint), PositionOf(elli2.EndPoint));
+                    ps = PositionOf(elli2.StartPoint);
+                    pe = PositionOf(elli2.EndPoint);
+                    SurfaceHelper.AdjustPeriodic(this, domain, ref ps);
+                    SurfaceHelper.AdjustPeriodic(this, domain, ref pe);
+                    ICurve2D c2dtr2 = new Line2D(ps, pe);
                     DualSurfaceCurve dsc2 = new DualSurfaceCurve(elli2, this, c2dtr2, pl, c2dpl2);
                     return new IDualSurfaceCurve[] { dsc1, dsc2 };
                 }
@@ -2782,6 +2791,22 @@ namespace CADability.GeoObject
             // the sign of the result holds the orientation information
             else return res;
         }
+        #region ISurfaceOfRevolution Members
+        Axis ISurfaceOfRevolution.Axis
+        {
+            get
+            {
+                return new Axis(Location, Axis);
+            }
+        }
+        ICurve ISurfaceOfRevolution.Curve
+        {
+            get
+            {
+                return FixedU(0, 0, 2 * Math.PI);
+            }
+        }
+        #endregion
 #if DEBUG
         override public GeoObjectList DebugGrid
         {
@@ -2840,6 +2865,7 @@ namespace CADability.GeoObject
                 return Face.MakeFace(this, new CADability.Shapes.SimpleShape(ext));
             }
         }
+
 #endif
     }
 }

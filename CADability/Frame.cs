@@ -1402,7 +1402,7 @@ namespace CADability
                 case "MenuId.Constr.Labeling.Dimension":
                     SetAction(new ConstrDimensionLabelPoint(ConstrDimensionLabelPoint.DimLabelType.Labeling));
                     return true;
-                case "MenuID.Constr.BSpline.Points":
+                case "MenuId.Constr.BSpline.Points":
                     SetAction(new ConstrBSplinePoints());
                     return true;
                 case "MenuId.Constr.Polyline":
@@ -1853,7 +1853,7 @@ namespace CADability
                 case "MenuId.Constr.Angle.Dimension.4p":
                 case "MenuId.Constr.Point.Dimension":
                 case "MenuId.Constr.Labeling.Dimension":
-                case "MenuID.Constr.BSpline.Points":
+                case "MenuId.Constr.BSpline.Points":
                 case "MenuId.Constr.Polyline":
                 case "MenuId.Constr.Hatch.Inside":
                 case "MenuId.Constr.Hatch.WithHoles":

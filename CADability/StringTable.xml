@@ -3339,13 +3339,13 @@
   <data name="Constr.BSpline.Points.Point.DetailedInfo">
     <deutsch>Ein Punkt, der auf dem Spline liegt. Weitere Funktionen im Kontext-Menue (rechts).</deutsch>
   </data>
-  <data name="MenuID.Constr.BSpline.Points">
+  <data name="MenuId.Constr.BSpline.Points">
     <deutsch>Spline Durchgangspunkte</deutsch>
   </data>
-  <data name="MenuID.Constr.BSpline.Points.ShortInfo">
+  <data name="MenuId.Constr.BSpline.Points.ShortInfo">
     <deutsch>Spline definieren mit Durchgangspunkten</deutsch>
   </data>
-  <data name="MenuID.Constr.BSpline.Points.DetailedInfo">
+  <data name="MenuId.Constr.BSpline.Points.DetailedInfo">
     <deutsch>Ein Spline wird durch Angabe der Durchgangspunkte konstruiert</deutsch>
   </data>
   <data name="Line.Description">

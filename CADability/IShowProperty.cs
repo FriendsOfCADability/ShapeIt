@@ -585,6 +585,7 @@ namespace CADability.UserInterface
             }
             set
             {
+                if (propertyTreeView == null) return;
                 if (value) propertyTreeView.SelectEntry(this);
                 else
                 {

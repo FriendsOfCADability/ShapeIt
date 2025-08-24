@@ -1511,7 +1511,7 @@ namespace CADability
                 }
                 if (ef.edge.PrimaryFace == ef.face || ef.edge.SecondaryFace == ef.face) continue; // necessary for multipleFaces
                 if (ef.edge.PrimaryFace.Surface.SameGeometry(ef.edge.PrimaryFace.Domain, ef.face.Surface, ef.face.Domain, precision, out ModOp2D _)) continue;
-                if (ef.edge.SecondaryFace!=null && ef.edge.SecondaryFace.Surface.SameGeometry(ef.edge.SecondaryFace.Domain, ef.face.Surface, ef.face.Domain, precision, out ModOp2D _)) continue;
+                if (ef.edge.SecondaryFace != null && ef.edge.SecondaryFace.Surface.SameGeometry(ef.edge.SecondaryFace.Domain, ef.face.Surface, ef.face.Domain, precision, out ModOp2D _)) continue;
                 ef.face.IntersectAndPosition(ef.edge, out ip, out uvOnFace, out uOnCurve3D, out position, precision);
                 for (int i = 0; i < ip.Length; ++i)
                 {
@@ -1652,6 +1652,26 @@ namespace CADability
             }
             // vo.combineAll(intersectionVertices); // hier wird zusammengefasst
         }
+        private void combineVertices(IEnumerable<Face> faces)
+        {
+            HashSet<Vertex> vertices = new HashSet<Vertex>();
+            foreach (Face fc in faces)
+            {
+                vertices.UnionWith(fc.Vertices);
+            }
+            VertexOcttree vo = new VertexOcttree(this.Extend, this.precision);
+            foreach (var v in vertices)
+            {
+                if (vo.IsEmpty) vo.AddObject(v);
+                else
+                {
+                    var existing = vo.GetObjectsCloseTo(v).FirstOrDefault(c => (c.Position | v.Position) < precision);
+
+                    if (existing != null) existing.MergeWith(v);
+                    else vo.AddObject(v);
+                }
+            }
+        }
         private void combineVerticesMultipleFaces()
         {
             VertexOcttree vo = new VertexOcttree(this.Extend, this.precision);
@@ -1707,7 +1727,7 @@ namespace CADability
                 }
                 foreach (Vertex vtx in vtxs) vo.AddObject(vtx);
                 foreach (Vertex vtx in vtxs)
-                    {
+                {
                     Vertex[] close = vo.GetObjectsCloseTo(vtx);
                     for (int j = 0; j < close.Length; j++)
                     {
@@ -2225,7 +2245,6 @@ namespace CADability
                 createNewEdges(); // faceToIntersectionEdges wird gesetzt, also für jedes Face eine Liste der neuen Schnittkanten
                 createInnerFaceIntersections(); // Schnittpunkte zweier Faces, deren Kanten sich aber nicht schneiden, finden
                 combineEdges(); // hier werden intsEdgeToEdgeShell1, intsEdgeToEdgeShell2 und intsEdgeToIntsEdge gesetzt, die aber z.Z. noch nicht verwendet werden
-
             }
 #if DEBUG
             foreach (KeyValuePair<Face, Set<Edge>> item in faceToIntersectionEdges)
@@ -3807,6 +3826,7 @@ namespace CADability
             Set<Face> usedByOverlapping = new Set<Face>();
             Set<Face> overlappingCommonFaces = CollectOverlappingCommonFaces(usedByOverlapping); // same oriented overlapping faces yield their common parts
             Set<Face> oppositeCommonFaces = CollectOppositeCommonFaces(discardedFaces); // opposite oriented overlapping faces yield their common parts
+            HashSet<Face> totallyOppositeFace = CollectTotallyCoveredFaces();
             VertexConnectionSet nonManifoldEdges = new VertexConnectionSet();
             HashSet<Face> nonManifoldCandidates = new HashSet<Face>(); // faces, which are only added because they contain nonManifoldEdges.
             foreach (KeyValuePair<Face, Set<Edge>> kv in faceToIntersectionEdges)
@@ -3937,6 +3957,13 @@ namespace CADability
                 if (faceToCommonFaces.TryGetValue(faceToSplit, out Set<Face> createdCommonfaces))
                 {   // there have been common faces created using this face
                     Dictionary<Pair<Vertex, Vertex>, Edge> avoidCommonEdges = new Dictionary<Pair<Vertex, Vertex>, Edge>();
+                    HashSet<Vertex> intersectionVertices = new HashSet<Vertex>(); // collect vertices
+                    foreach (Edge ise1 in intersectionEdges)
+                    {
+                        intersectionVertices.Add(ise1.Vertex1);
+                        intersectionVertices.Add(ise1.Vertex2);
+                    }
+                    bool opposite = false;
                     foreach (Face ccf in createdCommonfaces)
                     {
                         if (oppositeCommonFaces.Contains(ccf))
@@ -3947,18 +3974,19 @@ namespace CADability
                                 // reverse means reverse to the face from shell1
                                 // there is a bug with "batterieHalter2.cdb.json", faceToSplit==260, which made me to comment out the following line
                                 if (faceToSplit.Owner == shell2) reverse = !reverse;
-                                if (reverse) avoidCommonEdges.Add(new Pair<Vertex, Vertex>(edg.EndVertex(ccf), edg.StartVertex(ccf)), edg);
-                                else avoidCommonEdges.Add(new Pair<Vertex, Vertex>(edg.StartVertex(ccf), edg.EndVertex(ccf)), edg);
+                                Vertex sv = intersectionVertices.FirstOrDefault(v => (v.Position | edg.StartVertex(ccf).Position) < precision);
+                                if (sv == null) sv = edg.StartVertex(ccf);
+                                Vertex ev = intersectionVertices.FirstOrDefault(v => (v.Position | edg.EndVertex(ccf).Position) < precision);
+                                if (ev == null) ev = edg.EndVertex(ccf);
+                                if (!reverse) avoidCommonEdges.Add(new Pair<Vertex, Vertex>(ev, sv), edg);
+                                else avoidCommonEdges.Add(new Pair<Vertex, Vertex>(sv, ev), edg);
                             }
+                            opposite = true;
                         }
                         else
                         {
                             foreach (Edge edg in ccf.Edges)
                             {
-                                if (avoidCommonEdges.ContainsKey(new Pair<Vertex, Vertex>(edg.StartVertex(ccf), edg.EndVertex(ccf))))
-                                {
-
-                                }
                                 avoidCommonEdges.Add(new Pair<Vertex, Vertex>(edg.StartVertex(ccf), edg.EndVertex(ccf)), edg);
                             }
                         }
@@ -3971,7 +3999,7 @@ namespace CADability
                         if (avoidCommonEdges.ContainsKey(k) && SameEdge(avoidCommonEdges[k], edg, precision))
                         {
                             intersectionEdges.Remove(edg); // this is an intersection edge identical to an outline of a common face: remove the intersection edge
-                            intersectionEdgeRemovedByCommonFace = true; // see below: faceToSplit may not be used
+                            if (!opposite) intersectionEdgeRemovedByCommonFace = true; // see below: faceToSplit may not be used, but only if common and not if opposite
                             edg.DisconnectFromFace(faceToSplit); // disconnecting is important, because of the vertex->edge->face references
                         }
                     }
@@ -4297,6 +4325,13 @@ namespace CADability
 #endif
             // All edges of trimmedFaces are connected to either other trimmedfaces or to remaining uncut faces of the two shells.
             // Collect all faces that are reachable from trimmedFaces
+            HashSet<Face> testFaces = new HashSet<Face>(shell1.Faces);
+            testFaces.UnionWith(shell2.Faces);
+            testFaces.UnionWith(trimmedFaces);
+            testFaces.ExceptWith(cancelledfaces);
+            testFaces.ExceptWith(discardedFaces);
+            combineVertices(testFaces);
+
             Set<Face> allFaces = new Set<Face>(trimmedFaces);
             bool added = true;
             while (added)
@@ -4369,7 +4404,7 @@ namespace CADability
                     }
                 }
             }
-            if (allFaces.Count == 0 && cancelledfaces.Count > 0)
+            if (allFaces.Count == 0 && (cancelledfaces.Count > 0 || discardedFaces.Count > 0))
             {   // there were no intersections, only identical opposite faces, like when glueing two parts together
                 // this remains empty in case of intersection and returns the full body in case of union
                 if (this.operation == Operation.union)
@@ -4378,6 +4413,7 @@ namespace CADability
                     allFaces.AddMany(shell1.Faces);
                     allFaces.AddMany(shell2.Faces);
                     allFaces.RemoveMany(cancelledfaces);
+                    allFaces.RemoveMany(discardedFaces);
                 }
             }
             if (allFaces.Count == 0 && multipleFaces != null)
@@ -5915,6 +5951,21 @@ namespace CADability
             }
             return commonFaces;
         }
+        private HashSet<Face> CollectTotallyCoveredFaces()
+        {
+            HashSet<Face> res = new HashSet<Face>();
+            foreach (KeyValuePair<Face, Set<Face>> item in faceToCommonFaces)
+            {
+                CompoundShape cs = new CompoundShape(item.Key.Area);
+                foreach (Face fc in item.Value)
+                {
+                    bool dbg = fc.UserData.Contains("BRepIntersection.IsOpposite");
+                    cs.Subtract(fc.Area);
+                }
+                if (cs.Empty) res.Add(item.Key);
+            }
+            return res;
+        }
         private Set<Face> CollectOppositeCommonFaces(Set<Face> discardedFaces)
         {
             Set<Face> commonFaces = new Set<Face>();
@@ -5925,6 +5976,8 @@ namespace CADability
                 {
                     discardedFaces.Add(op.Key.face1);
                     discardedFaces.Add(op.Key.face2);
+                    op.Key.face1.UserData["BRepIntersection.OppositeKey"] = true;
+                    op.Key.face2.UserData["BRepIntersection.OppositeKey"] = true;
                     Set<Face> ftc;
                     if (!faceToCommonFaces.TryGetValue(op.Key.face1, out ftc)) faceToCommonFaces[op.Key.face1] = ftc = new Set<Face>();
                     ftc.AddMany(common.Keys);
@@ -9119,19 +9172,24 @@ namespace CADability
                     dc0.Add(pnt, vtx.GetHashCode());
                 }
 #endif
-                List<Vertex> possibleEdge = new List<Vertex>(item.Key.face1.Vertices.Intersect(item.Key.face2.Vertices).Intersect(involvedVertices));
-                if (possibleEdge.Count == 2)
+                List<Vertex> possibleVerticesOnCommonEdge = new List<Vertex>(item.Key.face1.Vertices.Intersect(item.Key.face2.Vertices).Intersect(involvedVertices));
+                if (possibleVerticesOnCommonEdge.Count == 2)
                 {   // maybe the intersection curve is an existing edge on both faces: we don't need it
-                    List<Edge> commonEdges = new List<Edge>(possibleEdge[0].AllEdges.Intersect(possibleEdge[1].AllEdges));
-                    bool found1 = false, found2 = false;
+                    // but this could happen multiple times and we only check for a single edge!
+                    List<Edge> commonEdges = new List<Edge>(possibleVerticesOnCommonEdge[0].AllEdges.Intersect(possibleVerticesOnCommonEdge[1].AllEdges));
                     foreach (Edge edg in commonEdges)
                     {
+                        bool found1 = false, found2 = false;
                         if (edg.PrimaryFace == item.Key.face1) found1 = true;
                         if (edg.SecondaryFace == item.Key.face1) found1 = true;
                         if (edg.PrimaryFace == item.Key.face2) found2 = true;
                         if (edg.SecondaryFace == item.Key.face2) found2 = true;
+                        if (found1 && found2)
+                        {   // this edge is an already existing edge on both faces (face1 and face2) and connects the two vertices in possibleVerticesOnCommonEdge
+                            involvedVertices.RemoveMany(possibleVerticesOnCommonEdge);
+                            break;
+                        }
                     }
-                    if (found1 && found2) { involvedVertices.RemoveMany(possibleEdge); }
                 }
 
                 if (involvedVertices.Count < 2) continue;
@@ -9204,8 +9262,8 @@ namespace CADability
                         // There have been additional vertices created.
                         // This happens e.g. when two cylinders with the same diameter intersect or in general there is a touching point, which was not in points
                         for (int i = usedVertices.Count; i < points.Count; i++)
-                        {
-                            if (!item.Key.face1.Contains(ref paramsuvsurf1[i], false) || !item.Key.face2.Contains(ref paramsuvsurf2[i], false))
+                        {   // changed to true: accept also on border, which is necessary with UniteBug5
+                            if (!item.Key.face1.Contains(ref paramsuvsurf1[i], true) || !item.Key.face2.Contains(ref paramsuvsurf2[i], true))
                             {
                                 for (int j = 0; j < c3ds.Length; j++)
                                 {

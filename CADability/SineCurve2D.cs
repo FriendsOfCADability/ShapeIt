@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.Serialization;
+using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace CADability.Curve2D
 {
@@ -15,6 +18,73 @@ namespace CADability.Curve2D
             this.ustart = ustart;
             this.udiff = udiff;
             this.fromUnit = fromUnit;
+        }
+
+        /// <summary>
+        /// Fits a sine curve y = A * sin(B*(x - C)) + D to the given points.
+        /// Uses Levenberg–Marquardt (via MathNet.Numerics.Fit.Curve).
+        /// </summary>
+        /// <param name="points">List of 2D points (x,y).</param>
+        /// <param name="fx">Output: x-scale factor B.</param>
+        /// <param name="fy">Output: y-scale factor A.</param>
+        /// <param name="tx">Output: x-offset C.</param>
+        /// <param name="ty">Output: y-offset D.</param>
+        /// <returns>True if the algorithm converged; false otherwise.</returns>
+        public static SineCurve2D FitSineCurve(IEnumerable<GeoPoint2D> points)
+        {
+            // Initialize outputs
+
+            // Need at least 4 points to determine A, B, C, D
+            if (points == null)
+                return null;
+
+            // Extract x- and y-arrays
+            double[] xs = points.Select(p => p.x).ToArray();
+            double[] ys = points.Select(p => p.y).ToArray();
+            if (xs.Length < 4) return null;
+
+            // Initial guess for vertical offset D and amplitude A
+            double yMin = ys.Min();
+            double yMax = ys.Max();
+            double initialOffset = (yMax + yMin) / 2.0;       // D0
+            double initialAmplitude = (yMax - yMin) / 2.0;    // A0
+
+            // Initial guess for x-scale B: assume one full period spans the x-range
+            double xMin = xs.Min();
+            double xMax = xs.Max();
+            double approximatePeriod = xMax - xMin;
+            if (approximatePeriod <= 0)
+                return null;
+            double initialScale = 2.0 * Math.PI / approximatePeriod;  // B0
+
+            // Initial guess for phase shift C
+            double initialPhase = xMin;  // C0
+
+            try
+            {
+                // Perform the nonlinear fit using Levenberg–Marquardt
+                // Model: y = A * sin(B*(x - C)) + D
+                (double fy, double fx, double tx, double ty) = Fit.Curve(
+                    xs, ys,
+                    (double x, double A, double B, double C, double D)
+                        => A * Math.Sin(B * (x - C)) + D,
+                    initialAmplitude,
+                    initialScale,
+                    initialPhase,
+                    initialOffset
+                );
+                ModOp2D fromUnit = new ModOp2D(fx, 0, tx, 0, fy, ty);
+                ModOp2D toUnit = fromUnit.GetInverse();
+                double ustart = toUnit*points.First().x;
+                double uend = toUnit*points.Last().x;
+                return new SineCurve2D(0, 2*Math.PI, fromUnit);
+                return new SineCurve2D(ustart, uend - ustart, fromUnit);
+            }
+            catch
+            {
+                // In case of non-convergence or other fitting error
+                return null;
+            }
         }
         public override ICurve2D Clone()
         {

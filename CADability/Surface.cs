@@ -3088,7 +3088,7 @@ namespace CADability.GeoObject
                 }
                 return new ProjectedCurve(curve, this, true, restricted, precision);
             }
-            if (!usedArea.IsInfinite)
+            if (usedArea.IsInfinite)
                 return new ProjectedCurve(curve, this, true, BoundingRect.EmptyBoundingRect, precision);
             else
                 return new ProjectedCurve(curve, this, true, usedArea, precision);
@@ -5306,11 +5306,11 @@ namespace CADability.GeoObject
                                             if (tp >= 0 && tp <= 1) ++inside;
                                             // it still might be, that the two arcs touch at all endpoints but describe different halfs of a circle
                                             // if all tp are 0 or 1, the resulting overlap will be 0
-                                            if (overlap<10*Precision.eps)
+                                            if (overlap < 10 * Precision.eps)
                                             {   // either full identical or opposite arcs
                                                 tp = tarc.PositionOf(oarc.PointAt(0.5));
                                             }
-                                            if (inside >= 2 && tp>0 && tp<1) dscs.Add(new DualSurfaceCurve(c3d, this, tc2d, other, oc2d));
+                                            if (inside >= 2 && tp > 0 && tp < 1) dscs.Add(new DualSurfaceCurve(c3d, this, tc2d, other, oc2d));
                                             // else: did choose wrong part of arc, no common intersection curve
                                         }
                                     }
@@ -5330,7 +5330,7 @@ namespace CADability.GeoObject
             ModOp2D mop;
             if (SameGeometry(thisBounds, other, otherBounds, Precision.eps, out mop)) return new IDualSurfaceCurve[0]; // surfaces are identical, no intersection
             ICurve[] cvs = BoxedSurfaceEx.Intersect(thisBounds, other, otherBounds, seeds, extremePositions);
-            if (cvs.Length == 0 && seeds.Count == 2)
+            if ((cvs.Length == 0 && seeds.Count == 2))
             {
                 InterpolatedDualSurfaceCurve idscv = new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, seeds[0], seeds[1]);
                 return new IDualSurfaceCurve[] { idscv };
@@ -6016,7 +6016,7 @@ namespace CADability.GeoObject
         /// <param name="uv2"></param>
         /// <param name="uv3"></param>
         /// <returns></returns>
-        internal static bool IntersectThreeSurfaces(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, ISurface surface3, BoundingRect bounds3, ref GeoPoint ip,
+        public static bool IntersectThreeSurfaces(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, ISurface surface3, BoundingRect bounds3, ref GeoPoint ip,
             out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3)
         {
             ISurface[] surfaces = new ISurface[] { surface1, surface2, surface3 };
@@ -6073,6 +6073,7 @@ namespace CADability.GeoObject
             uv1 = surface1.PositionOf(ip);
             uv2 = surface2.PositionOf(ip);
             uv3 = surface3.PositionOf(ip);
+            // double serr = NewtonLMIntersection(surface1, surface2, surface3, ref uv1, ref uv2, ref uv3);
             GeoPoint p1 = surface1.PointAt(uv1);
             GeoPoint p2 = surface2.PointAt(uv2);
             GeoPoint p3 = surface3.PointAt(uv3);
@@ -6128,6 +6129,126 @@ namespace CADability.GeoObject
             }
             ip = new GeoPoint(p1, p2, p3);
             return true;
+        }
+
+        /// <summary>
+        /// Newton Levenberg-Marquardt intersection of three surfaces with provided start positions. The result is in <paramref name="uv1"/>, 
+        /// <paramref name="uv1"/> and <paramref name="uv3"/>.
+        /// </summary>
+        /// <param name="surface1">surface 1</param>
+        /// <param name="surface2">surface 2</param>
+        /// <param name="surface3">surface 3</param>
+        /// <param name="uv1">startpoint on surface 1</param>
+        /// <param name="uv2">startpoint on surface 2</param>
+        /// <param name="uv3">startpoint on surface 3</param>
+        /// <returns>double.MaxValue if not converged, square of error otherwise</returns>
+        public static double NewtonLMIntersection(ISurface surface1, ISurface surface2, ISurface surface3, ref GeoPoint2D uv1, ref GeoPoint2D uv2, ref GeoPoint2D uv3)
+        {
+            const int dim = 6;
+
+            // Dummy-Vektoren für observedX, observedY und Gewichte
+            var dummyX = Vector<double>.Build.Dense(dim, 0.0);
+            var observedY = Vector<double>.Build.Dense(dim, 0.0);
+            var weights = Vector<double>.Build.Dense(dim, 1.0);
+
+            // Modell: liefert den Residualvektor r(p) mit p = [u1,v1,u2,v2,u3,v3]
+            Func<Vector<double>, Vector<double>, Vector<double>> model = (p, x) =>
+            {
+                // Parameter entpacken
+                double u1 = p[0], v1 = p[1],
+                       u2 = p[2], v2 = p[3],
+                       u3 = p[4], v3 = p[5];
+
+                // Punkte auf den Flächen auswerten
+                GeoPoint P1 = surface1.PointAt(new GeoPoint2D(u1, v1));
+                GeoPoint P2 = surface2.PointAt(new GeoPoint2D(u2, v2));
+                GeoPoint P3 = surface3.PointAt(new GeoPoint2D(u3, v3));
+
+                var r = Vector<double>.Build.Dense(dim);
+                // S1 - S2
+                r[0] = P1.x - P2.x;
+                r[1] = P1.y - P2.y;
+                r[2] = P1.z - P2.z;
+                // S1 - S3
+                r[3] = P1.x - P3.x;
+                r[4] = P1.y - P3.y;
+                r[5] = P1.z - P3.z;
+                return r;
+            };
+
+            // Analytische Jacobimatrix J(p)
+            Func<Vector<double>, Vector<double>, Matrix<double>> jacobian = (p, x) =>
+            {
+                double u1 = p[0], v1 = p[1],
+                       u2 = p[2], v2 = p[3],
+                       u3 = p[4], v3 = p[5];
+
+                // Erste Ableitungen ermitteln
+                GeoVector du1 = surface1.UDirection(new GeoPoint2D(u1, v1));
+                GeoVector dv1 = surface1.VDirection(new GeoPoint2D(u1, v1));
+                GeoVector du2 = surface2.UDirection(new GeoPoint2D(u2, v2));
+                GeoVector dv2 = surface2.VDirection(new GeoPoint2D(u2, v2));
+                GeoVector du3 = surface3.UDirection(new GeoPoint2D(u3, v3));
+                GeoVector dv3 = surface3.VDirection(new GeoPoint2D(u3, v3));
+
+                var J = Matrix<double>.Build.Dense(dim, dim, 0.0);
+
+                // Zeilen 0–2: P1 - P2
+                for (int i = 0; i < 3; i++)
+                {
+                    // P1-Komponente
+                    J[i, 0] = du1[i];
+                    J[i, 1] = dv1[i];
+                    // P2-Komponente (negativ)
+                    J[i, 2] = -du2[i];
+                    J[i, 3] = -dv2[i];
+                }
+                // Zeilen 3–5: P1 - P3
+                for (int i = 0; i < 3; i++)
+                {
+                    J[3 + i, 0] = du1[i];
+                    J[3 + i, 1] = dv1[i];
+                    J[3 + i, 4] = -du3[i];
+                    J[3 + i, 5] = -dv3[i];
+                }
+
+                return J;
+            };
+
+            // ObjectiveModel mit analytischer Jacobi
+            var objective = ObjectiveFunction.NonlinearModel(model, jacobian, dummyX, observedY, weights);
+
+            // Startwerte
+            double[] initial = { uv1.x, uv1.y, uv2.x, uv2.y, uv3.x, uv3.y };
+            double[] lower = Enumerable.Repeat(double.NegativeInfinity, dim).ToArray();
+            double[] upper = Enumerable.Repeat(double.PositiveInfinity, dim).ToArray();
+            double[] scales = Enumerable.Repeat(1.0, dim).ToArray();
+            bool[] fixedParams = new bool[dim]; // alle false
+
+            // Solver konfigurieren und ausführen
+            var solver = new LevenbergMarquardtMinimizer(
+                initialMu: 1e-3,
+                gradientTolerance: 1e-6,
+                stepTolerance: 1e-6,
+                functionTolerance: 1e-6,
+                maximumIterations: 100);
+
+            var result = solver.FindMinimum(objective, initial, lower, upper, scales, fixedParams);
+
+            // Prüfen, ob konvergiert
+            if (result.ReasonForExit == ExitCondition.Converged)
+            {
+                var sol = result.MinimizingPoint;
+                uv1 = new GeoPoint2D(sol[0], sol[1]);
+                uv2 = new GeoPoint2D(sol[2], sol[3]);
+                uv3 = new GeoPoint2D(sol[4], sol[5]);
+                return result.ModelInfoAtMinimum.Value;
+            }
+            else
+            {
+                // Kein konvergentes Ergebnis
+                return double.MaxValue;
+            }
         }
         internal static bool Overlapping(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, double precision, out ModOp2D From1To2)
         {   // zwei Oberflächen überlappen sich wenn sie eine gemeinsame Fläche haben
@@ -11312,7 +11433,7 @@ namespace CADability.GeoObject
                         DebuggerContainer dccubes = new DebuggerContainer();
                         for (int j = 0; j < cubes.Length; j++)
                         {
-                            dccubes.Add(cubes[j].AsBox,j);
+                            dccubes.Add(cubes[j].AsBox, j);
                         }
 #endif
                     }

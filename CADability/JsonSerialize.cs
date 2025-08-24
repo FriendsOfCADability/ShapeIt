@@ -1274,9 +1274,13 @@ namespace CADability
                             object[] nsa = pi[i].GetCustomAttributes(typeof(NonSerializedAttribute), true);
                             if ((nsa == null || nsa.Length == 0) && pi[i].CanRead && pi[i].CanWrite)
                             {
-                                object pval = pi[i].GetValue(val, new object[0]);
-                                (this as IJsonWriteData).AddProperty(pi[i].Name, pval);
-                                serialized = true; // at least one property can be read and written
+                                try
+                                {
+                                    object pval = pi[i].GetValue(val, new object[0]);
+                                    (this as IJsonWriteData).AddProperty(pi[i].Name, pval);
+                                    serialized = true; // at least one property can be read and written
+                                }
+                                catch (TargetInvocationException t) { }
                             }
                         }
                     }

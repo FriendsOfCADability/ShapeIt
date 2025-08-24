@@ -6,6 +6,8 @@ using System.Drawing;
 using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
+using System.Xml;
+using System.Xml.Linq;
 
 
 namespace CADability.Forms
@@ -37,7 +39,11 @@ namespace CADability.Forms
             Menu = MenuManager.MakeMainMenu(mainMenu);
             cadFrame.FormMenu = Menu;
             // open an existing Project or create a new one
-            ToolBars.CreateOrRestoreToolbars(topToolStripContainer, cadFrame);
+            try
+            {
+                ToolBars.CreateOrRestoreToolbars(topToolStripContainer, cadFrame);
+            }
+            catch (Exception ex) { }
             Application.Idle += new EventHandler(OnIdle); // update the toolbars (menus are updated when they popup)
         }
         /// <summary>
@@ -61,6 +67,10 @@ namespace CADability.Forms
             }
             Menu = MenuManager.MakeMainMenu(mainMenu);
             cadFrame.FormMenu = Menu;
+        }
+        public void SetToolbar(XmlNode definition)
+        {
+            ToolBars.SetToolBar(topToolStripContainer, cadFrame, definition);
         }
         // Access the components of the MainForm from the CadFrame. 
         public ProgressForm ProgressForm
@@ -88,7 +98,11 @@ namespace CADability.Forms
         }
         protected override void OnClosing(CancelEventArgs e)
         {   // maybe we need to save the project
-            ToolBars.SaveToolbarPositions(topToolStripContainer);
+            try
+            {
+                ToolBars.SaveToolbarPositions(topToolStripContainer);
+            }
+            catch (Exception ex) { }
             Settings.SaveGlobalSettings();
             // ToolStripManager.SaveSettings(this); // save the positions of the toolbars (doesn't work correctly)
             base.OnClosing(e);

@@ -2168,7 +2168,7 @@ namespace CADability.Forms
                 {
                     for (int i = 0; i < toDelete.Count; ++i)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Delete List. Count:{openLists.Count}");
+                        // System.Diagnostics.Debug.WriteLine($"Delete List. Count:{openLists.Count}");
 #if DEBUG
                         //System.Diagnostics.Trace.WriteLine("----- OpenGl List Nr.: " + toDelete[i].ToString());
 #endif

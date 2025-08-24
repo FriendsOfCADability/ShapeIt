@@ -2197,9 +2197,12 @@ namespace CADability.Shapes
 					}
 					ICurve2D lastCurve = segment[endIndex].Clone();
 					lastCurve = lastCurve.Trim(0.0, nextPos - endIndex);
-					lastCurve.UserData.CloneFrom(segment[endIndex].UserData);
-					if (i < parameter.Length) lastCurve.EndPoint = points[i];
-					if (lastCurve.Length > Precision.eps) curves.Add(lastCurve);
+					if (lastCurve != null)
+					{
+						lastCurve.UserData.CloneFrom(segment[endIndex].UserData);
+						if (i < parameter.Length) lastCurve.EndPoint = points[i];
+						if (lastCurve.Length > Precision.eps) curves.Add(lastCurve);
+					}
 					if (curves.Count > 0)
 					{
 						Border toAdd = new Border((ICurve2D[])(curves.ToArray(typeof(ICurve2D))));

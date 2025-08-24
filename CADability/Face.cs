@@ -3554,7 +3554,7 @@ namespace CADability.GeoObject
             return res;
         }
 
-        internal static Face MakeFace(ISurface surface, Edge[] outline)
+        public static Face MakeFace(ISurface surface, Edge[] outline)
         {
             Face res = Face.Construct();
             res.surface = surface;
@@ -3564,16 +3564,41 @@ namespace CADability.GeoObject
             BoundingRect domain = BoundingRect.EmptyBoundingRect;
             for (int i = 0; i < outline.Length; i++)
             {
-                ICurve2D c2d = surface.GetProjectedCurve(outline[i].Curve3D, 0.0);
+                ICurve2D c2d = null;
+                bool forward = false;
+                if (outline[i].PrimaryFace == null)
+                {
+                    c2d = outline[i].PrimaryCurve2D;
+                    if (c2d == null)
+                    {   // if c2d is not provided, we assume curve3d is forward oriented
+                        c2d = surface.GetProjectedCurve(outline[i].Curve3D, 0.0);
+                        forward = true;
+                    }
+                    else
+                    {
+                        forward = outline[i].ForwardOnPrimaryFace; // when c2d is provided, the orientation must also be set
+                    }
+                }
+                else
+                {
+                    forward = !outline[i].ForwardOnPrimaryFace;
+                    c2d = outline[i].SecondaryCurve2D; // must be correct oriented if provided
+                    if (c2d == null)
+                    {
+                        c2d = surface.GetProjectedCurve(outline[i].Curve3D, 0.0);
+                        if (!forward) c2d.Reverse();
+                    }
+                }
                 if (i > 0) SurfaceHelper.AdjustPeriodic(surface, domain, c2d);
                 domain.MinMax(c2d.GetExtent());
                 if (outline[i].PrimaryFace == null)
                 {
-                    outline[i].SetPrimary(res, c2d, true);
+
+                    outline[i].SetPrimary(res, c2d, forward);
                 }
                 else
                 {
-                    outline[i].SetSecondary(res, c2d, !outline[i].Forward(outline[i].PrimaryFace));
+                    outline[i].SetSecondary(res, c2d, forward);
                 }
             }
             CheckOutlineDirection(res, outline, uperiod, vperiod, null);
@@ -3947,7 +3972,10 @@ namespace CADability.GeoObject
                 //this.Owner.Add(dbgc2d.MakeGeoObject(new Plane(pl.Location, pl.DirectionX, pl.DirectionY))); // DEBUG!!
                 // this.Owner.Add(int2d[i].Curve3D as IGeoObject); // DEBUG!!
                 // continue; // DEBUG
+
                 ICurve2D c2d = int2d[i].GetCurveOnSurface(surface);
+                if (int2d[i].Surface1 == this.surface) c2d = int2d[i].Curve2D1;
+                else if (int2d[i].Surface2 == this.surface) c2d = int2d[i].Curve2D2;
                 if (c2d != null)
                 {
                     // bei periodischen Flächen kann es sein, dass man die Kurve um die Periode verschieben muss
@@ -5558,6 +5586,21 @@ namespace CADability.GeoObject
         /// <param name="stopVertices"></param>
         /// <returns></returns>
         internal List<Edge> FindConnection(Vertex startVertex, Set<Vertex> stopVertices)
+        {
+            List<Edge> res = new List<Edge>();
+            Edge startWith = startVertex.FindOutgoing(this);
+            if (startWith == null) return res;
+            Edge next = startWith;
+            res.Add(startWith);
+            do
+            {
+                if (stopVertices.Contains(next.EndVertex(this))) break;
+                next = GetNextEdge(next);
+                res.Add(next);
+            } while (next != startWith);
+            return res;
+        }
+        internal List<Edge> FindConnection(Vertex startVertex, HashSet<Vertex> stopVertices)
         {
             List<Edge> res = new List<Edge>();
             Edge startWith = startVertex.FindOutgoing(this);
@@ -9722,6 +9765,13 @@ namespace CADability.GeoObject
         /// <returns></returns>
         internal bool combineEdges(Edge edg1, Edge edg2)
         {
+            ICurve curve1 = edg1.Curve3D.Clone();
+            ICurve curve2 = edg2.Curve3D.Clone();
+            if (!edg1.Forward(this)) curve1.Reverse();
+            if (!edg2.Forward(this)) curve2.Reverse();
+            ICurve combined = Curves.Combine(curve1, curve2, Precision.eps);
+            if (combined == null) return false; // too many problems, when the curves cannot easily be combined
+
             Face otherface = edg1.OtherFace(this);
             if (edg2.OtherFace(this) != otherface) return false; // the other face of both edges must be the same
             if (edg1.EndVertex(this) != edg2.StartVertex(this)) return false; // edg2 must be the follower of edg1
@@ -9732,8 +9782,7 @@ namespace CADability.GeoObject
             // if ((edg1.EndVertex(this) == edg2.StartVertex(this)) && (edg1.StartVertex(this) == edg2.EndVertex(this))) return false; // do not create closed edges
 
             // now edg1 and edg2 are both forward oriented on this face and edg1 precedes edg2
-            ICurve combined = Curves.Combine(edg1.Curve3D, edg2.Curve3D, Precision.eps);
-            if (combined == null && otherface != null)
+            if (combined == null && otherface != null && edg1.Curve3D.GetType() != edg2.Curve3D.GetType()) // we do not want to connect two ellipses on a cylinder, which have a sharp connection
             {
                 Vertex v1 = edg1.StartVertex(this);
                 Vertex v2 = edg1.EndVertex(this);
@@ -10579,7 +10628,7 @@ namespace CADability.GeoObject
             return false;
         }
 
-        internal bool CheckConsistency()
+        public bool CheckConsistency()
         {   // Konsistenzcheck
             for (int i = 0; i < outline.Length; i++)
             {

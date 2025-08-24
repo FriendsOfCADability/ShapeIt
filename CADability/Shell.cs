@@ -1240,6 +1240,7 @@ namespace CADability.GeoObject
                     faces[i].ModifySurface(m);
                 }
                 // Edges groß, damit sie sicher existieren
+                edges = null;
                 for (int i = 0; i < Edges.Length; ++i)
                 {
                     IGeoObject go = edges[i].Curve3D as IGeoObject;
@@ -5045,13 +5046,18 @@ namespace CADability.GeoObject
                     for (int j = i + 1; j < allEdges.Length; j++)
                     {
                         if (allEdges[j].SecondaryFace != null) continue; // ist schon verbunden
+
                         if (allEdges[i].OtherVertex(vtx) == allEdges[j].OtherVertex(vtx))
                         {
                             if (allEdges[i].Curve3D == null && allEdges[j].Curve3D == null) allEdges[j].PrimaryFace.ReplaceEdge(allEdges[j], allEdges[i]);
                             // else if (allEdges[i].Curve3D.SameGeometry(allEdges[j].Curve3D, precision)) // SameGeometry ist schlecht, Ellipse erwartet Ellipse als Partner, akzeptiert nicht BSpline
                             else if (allEdges[i].Curve3D != null && allEdges[j].Curve3D != null && allEdges[i].Curve3D.DistanceTo(allEdges[j].Curve3D.PointAt(0.5)) < precision)
                             {
-                                allEdges[j].PrimaryFace.ReplaceEdge(allEdges[j], allEdges[i]);
+                                if (allEdges[i].SecondaryFace != null) { }
+                                else
+                                {
+                                    allEdges[j].PrimaryFace.ReplaceEdge(allEdges[j], allEdges[i]);
+                                }
                             }
                             else
                             {
@@ -5527,8 +5533,8 @@ namespace CADability.GeoObject
                 foreach (Edge edg in disconnectedEdges)
                 {
                     HashSet<Edge> commonVertex = new HashSet<Edge>();
-                    commonVertex.UnionWith(oldToNewVertices[edg.Vertex1].AllEdges);
-                    commonVertex.IntersectWith(oldToNewVertices[edg.Vertex2].AllEdges);
+                    if (oldToNewVertices.TryGetValue(edg.Vertex1, out Vertex vtxfound)) commonVertex.UnionWith(vtxfound.AllEdges);
+                    if (oldToNewVertices.TryGetValue(edg.Vertex2, out vtxfound)) commonVertex.IntersectWith(vtxfound.AllEdges);
                     // this should be at least one edge
                     Edge toConnectWith = null;
                     if (commonVertex.Count > 1)
@@ -6693,8 +6699,10 @@ namespace CADability.GeoObject
                     // faces in connect may not be reverse oriented faces of featur faces
                     foreach (Face f1 in connect)
                     {
+                        if (f1 == null) continue;
                         foreach (Face f2 in featureFaces)
                         {
+                            if (f2 == null) continue;
                             if (f1.Surface.SameGeometry(f1.Domain, f2.Surface, f2.Domain, Precision.eps, out _))
                             {
                                 GeoPoint p1 = f1.Surface.PointAt(f1.Domain.GetCenter());
@@ -6765,7 +6773,7 @@ namespace CADability.GeoObject
                 // the orientation has to be considered!
                 PlaneSurface ps = new PlaneSurface(commonPlane);
                 Face res = Face.FromEdges(ps, new ICurve[][] { outline });
-                return new Face[] { res };
+                if (res != null) return new Face[] { res };
             }
             if (boundingFaces.Count == 2 && loop.Length == 2)
             {   // two faces with different surfaces sourround the loop: try to find a common edge between those two faces and make
@@ -6778,7 +6786,7 @@ namespace CADability.GeoObject
                 {
                     Face res1 = Face.FromEdges(fc1.Surface.Clone(), new[] { new[] { loop[0].Curve3D, dscs[0].Curve3D } });
                     Face res2 = Face.FromEdges(fc1.Surface.Clone(), new[] { new[] { loop[1].Curve3D, dscs[0].Curve3D } });
-                    return new Face[] { res1, res2 };
+                    if (res1 != null && res2 != null) return new Face[] { res1, res2 };
                 }
             }
             if (loop.Length > 2)
@@ -6890,7 +6898,7 @@ namespace CADability.GeoObject
         /// <param name="bounds"></param>
         private void CollectConnected(Face startWith, HashSet<Face> featureFaces, HashSet<Edge> bounds)
         {
-            if (startWith!=null && featureFaces.Add(startWith))
+            if (startWith != null && featureFaces.Add(startWith))
             {
                 foreach (Edge edge in startWith.AllEdges)
                 {
@@ -7310,13 +7318,13 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="other"></param>
         /// <returns></returns>
-        public Dictionary<Face,Face> GetRememberedDictionary(Shell other)
+        public Dictionary<Face, Face> GetRememberedDictionary(Shell other)
         {
             Dictionary<Face, Face> result = new Dictionary<Face, Face>();
             foreach (Face face in Faces)
             {
                 FaceReference fr = face.UserData.GetData("CADability.RememberFace") as FaceReference;
-                if (fr!=null) result[fr.Face] = face;
+                if (fr != null) result[fr.Face] = face;
             }
             return result;
         }
@@ -7342,7 +7350,7 @@ namespace CADability.GeoObject
             foreach (Face face in Faces)
             {
                 FaceReference fr = face.UserData.GetData("CADability.RememberFace") as FaceReference;
-                if (fr != null) 
+                if (fr != null)
                 {
                     if (!result.TryGetValue(fr.Face, out List<Face> list)) result[fr.Face] = list = new List<Face>();
                     list.Add(face);

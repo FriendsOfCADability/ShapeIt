@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Text;
 using System.Windows.Forms;
+using System.Xml;
 
 namespace CADability.Forms
 {
@@ -144,7 +146,7 @@ namespace CADability.Forms
                         "MenuId.Constr.Ellipse",
                         "MenuId.Constr.Ellipsearc",
                         "MenuId.Constr.Polyline",
-                        "MenuID.Constr.BSpline.Points",
+                        "MenuId.Constr.BSpline.Points",
                         "MenuId.Constr.3DObjects",
                         "MenuId.Constr.Text",
                         "MenuId.Constr.Hatch",
@@ -185,6 +187,10 @@ namespace CADability.Forms
             // combo buttons (ToolStripSplitButton), which show a popup menu when clicked. The latter also may change their image to 
             // display the last clicked menu item: if so, on click, they execute the last clicked menu item, if not, the show the popup menu.
             ToolStrip res = new ToolStrip();
+            res.Dock = DockStyle.None;
+            res.Stretch = false;
+            res.AutoSize = true;
+            res.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
             res.Name = name;
             for (int i = 0; i < menuIds.Length; i++)
             {
@@ -326,5 +332,45 @@ namespace CADability.Forms
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Construct", commandHandler), 1);
             }
         }
+        public static void SetToolBar(ToolStripContainer topToolStripContainer, ICommandHandler commandHandler, XmlNode definition)
+        {
+            topToolStripContainer.TopToolStripPanel.Controls.Clear();
+            int joinrow = 0;
+            int maxWidth = topToolStripContainer.TopToolStripPanel.Width;
+            int currentWidth = 0;
+            List<List<ToolStrip>> tsiList = new List<List<ToolStrip>>();
+            tsiList.Add(new List<ToolStrip>());
+            foreach (XmlNode tb in definition.ChildNodes)
+            {
+                List<string> items = new List<string>();
+                foreach (XmlNode mi in tb.SelectNodes("MenuItem"))
+                {
+                    items.Add(mi.Attributes.GetNamedItem("MenuId").Value);
+                }
+                if (items.Count > 0)
+                {
+                    ToolStrip ts = MakeToolStrip(items.ToArray(), tb.Attributes.GetNamedItem("MenuId").Value, commandHandler);
+                    int w = ts.Items[1].Width;
+                    int tswidth = w * ts.Items.Count;
+                    currentWidth += tswidth;
+                    if (currentWidth > maxWidth - w)
+                    {
+                        currentWidth = 0;
+                        joinrow += 1;
+                        tsiList.Add(new List<ToolStrip>());
+                    }
+                    tsiList.Last().Add(ts); 
+                }
+            }
+            for (int i = 0; i < tsiList.Count; i++)
+            {
+                for (int j = tsiList[i].Count-1; j >=0; --j) // don't know why, but we must reverse the list
+                {
+                    topToolStripContainer.TopToolStripPanel.Join(tsiList[i][j], i);
+                }
+            }
+
+        }
     }
 }
+

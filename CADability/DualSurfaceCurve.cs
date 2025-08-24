@@ -4,6 +4,7 @@ using MathNet.Numerics.LinearAlgebra.Double;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
+using System.Security.Cryptography;
 
 namespace CADability
 {
@@ -18,6 +19,8 @@ namespace CADability
         ICurve2D Curve2D2 { get; }
         void SwapSurfaces();
         IDualSurfaceCurve[] Split(double v);
+        void Trim(GeoPoint startPoint, GeoPoint endPoint);
+        void Reverse();
     }
 
 
@@ -137,6 +140,51 @@ namespace CADability
             {
                 return curve2D2;
             }
+        }
+        void IDualSurfaceCurve.Trim(GeoPoint startPoint, GeoPoint endPoint)
+        {
+            if (Precision.IsEqual(curve3D.StartPoint, startPoint) && Precision.IsEqual(curve3D.EndPoint, endPoint)) return;
+            if (Precision.IsEqual(curve3D.StartPoint, endPoint) && Precision.IsEqual(curve3D.EndPoint, startPoint))
+            {
+                curve3D.Reverse();
+                curve2D1.Reverse();
+                curve2D2.Reverse();
+            }
+            else
+            {
+                double startPar = curve3D.PositionOf(startPoint);
+                double endPar = curve3D.PositionOf(endPoint);
+                bool reverse = (endPar < startPar);
+                if (reverse)
+                {
+                    double t = startPar;
+                    startPar = endPar;
+                    endPar = t;
+                    GeoPoint tmp = startPoint;
+                    startPoint = endPoint;
+                    endPoint = tmp;
+                }
+                curve3D.Trim(startPar, endPar);
+                GeoPoint2D sp2d = surface1.PositionOf(startPoint);
+                GeoPoint2D ep2d = surface1.PositionOf(endPoint);
+                curve2D1 = curve2D1.Trim(curve2D1.PositionOf(sp2d), curve2D1.PositionOf(ep2d));
+                sp2d = surface2.PositionOf(startPoint);
+                ep2d = surface2.PositionOf(endPoint);
+                curve2D2 = curve2D2.Trim(curve2D2.PositionOf(sp2d), curve2D2.PositionOf(ep2d));
+                if (reverse)
+                {
+                    curve3D.Reverse();
+                    curve2D1.Reverse();
+                    curve2D2.Reverse();
+                }
+            }
+        }
+
+        public void Reverse()
+        {
+            curve3D.Reverse();
+            curve2D1.Reverse();
+            curve2D2.Reverse();
         }
     }
 
@@ -713,13 +761,13 @@ namespace CADability
             for (int i = 0; i < vs.Length; i++)
             {
                 GeoPoint pl = surface.PointAt(new GeoPoint2D(cnt2d.x, vs[i]));
-                if ((pl | sp) < prec*10)
+                if ((pl | sp) < prec * 10)
                 {
                     GeoPoint2D tmp = surface.PositionOf(curve3D.PointAt(0.1));
                     startPoint2d = new GeoPoint2D(tmp.x, vs[i]);
                     startPointIsPole = true;
                 }
-                if ((pl | ep) < prec*10)
+                if ((pl | ep) < prec * 10)
                 {
                     GeoPoint2D tmp = surface.PositionOf(curve3D.PointAt(0.9));
                     endPoint2d = new GeoPoint2D(tmp.x, vs[i]);

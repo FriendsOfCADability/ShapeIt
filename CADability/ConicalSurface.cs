@@ -173,19 +173,61 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
-            GeoPoint pu = toUnit * p;
-            if (pu.z < 0.0)
+            if (!(p - Location).IsNullVector())
             {
-                double u = Math.Atan2(-pu.y, -pu.x);
-                if (u < 0) u += Math.PI * 2;
-                return new GeoPoint2D(u, pu.z - voffset);
+                Plane pln = new Plane(Location, Axis, p - Location);
+                if (pln.IsValid())
+                {
+                    // in this plane the x-axis is the conical axis, the origin is the apex of the cone
+                    Angle dira = OpeningAngle / 2.0;
+                    // this line through origin with angle dira and -dira are the envelope lines of the cone
+                    GeoPoint2D p2d = pln.Project(p);
+                    GeoPoint2D fp1 = Geometry.DropPL(p2d, GeoPoint2D.Origin, new GeoVector2D(dira));
+                    GeoPoint2D fp2 = Geometry.DropPL(p2d, GeoPoint2D.Origin, new GeoVector2D(-dira));
+                    double mindist = double.MaxValue;
+                    GeoPoint2D res = GeoPoint2D.Origin;
+                    foreach (GeoPoint2D fp in new GeoPoint2D[] { fp1, fp2 })
+                    {
+                        GeoPoint2D r;
+                        GeoPoint pu = toUnit * pln.ToGlobal(fp);
+                        if (pu.z < 0.0)
+                        {
+                            double u = Math.Atan2(-pu.y, -pu.x);
+                            if (u < 0) u += Math.PI * 2;
+                            r = new GeoPoint2D(u, pu.z - voffset);
+                        }
+                        else
+                        {
+                            double u = Math.Atan2(pu.y, pu.x);
+                            if (u < 0) u += Math.PI * 2;
+                            r = new GeoPoint2D(u, pu.z - voffset);
+                        }
+                        double d = PointAt(r) | p;
+                        if (d < mindist)
+                        {
+                            mindist = d;
+                            res = r;
+                        }
+                    }
+                    return res;
+                }
             }
-            else
-            {
-                double u = Math.Atan2(pu.y, pu.x);
-                if (u < 0) u += Math.PI * 2;
-                return new GeoPoint2D(u, pu.z - voffset);
-            }
+            return new GeoPoint2D(0.0, (toUnit * p).z);
+
+            // this is the old implementation, which was bad for points outside the surface
+            //GeoPoint pu = toUnit * p;
+            //if (pu.z < 0.0)
+            //{
+            //    double u = Math.Atan2(-pu.y, -pu.x);
+            //    if (u < 0) u += Math.PI * 2;
+            //    return new GeoPoint2D(u, pu.z - voffset);
+            //}
+            //else
+            //{
+            //    double u = Math.Atan2(pu.y, pu.x);
+            //    if (u < 0) u += Math.PI * 2;
+            //    return new GeoPoint2D(u, pu.z - voffset);
+            //}
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.PerpendicularFoot (GeoPoint)"/>
@@ -1757,9 +1799,8 @@ namespace CADability.GeoObject
                 }
             }
             ICurve crvunit = curve.CloneModified(toUnit);
-            if (crvunit is Line)
+            if (crvunit is Line l)
             {
-                Line l = crvunit as Line;
                 if (Geometry.DistPL(GeoPoint.Origin, l.StartPoint, l.EndPoint) < Precision.eps)
                 {   // not yet tested
                     GeoPoint mp = l.PointAt(0.5);
@@ -1767,6 +1808,18 @@ namespace CADability.GeoObject
                     if (l.StartPoint.z + l.EndPoint.z < 0) u += Math.PI; // start- or endpoint could be 0, crossing z=0 is not allowed
                     if (u < 0.0) u += 2.0 * Math.PI;
                     return new Line2D(new GeoPoint2D(u, l.StartPoint.z - voffset), new GeoPoint2D(u, l.EndPoint.z - voffset));
+                }
+                else
+                {
+                    GeoVector v2 = l.StartPoint - GeoPoint.Origin;
+                    GeoVector v3 = l.EndPoint - GeoPoint.Origin;
+                    if (Math.Abs((v3 ^ v2).z) < Precision.eps)
+                    {   // line and axis are in a common plane
+                        GeoPoint2D p1 = PositionOf(curve.StartPoint);
+                        GeoPoint2D p2 = PositionOf(curve.EndPoint);
+                        SurfaceHelper.AdjustPeriodicStartPoint(this, p1, ref p2);
+                        return new Line2D(p1, p2);
+                    }
                 }
             }
             else if (crvunit is Ellipse)

@@ -1555,7 +1555,7 @@
 		<label>Point</label>
 		<info>Point passed by the spline</info>
 	</data>
-	<data name="MenuID.Constr.BSpline.Points">
+	<data name="MenuId.Constr.BSpline.Points">
 		<label>Spline through points</label>
 		<info>Spline: Passing through a set of points</info>
 	</data>
