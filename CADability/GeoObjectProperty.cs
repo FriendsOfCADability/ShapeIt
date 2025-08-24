@@ -105,7 +105,7 @@ namespace CADability.UserInterface
                         string name = "";
                         if (brepObjects[i] is Vertex) name = StringTable.GetString("Vertex.Displayname", StringTable.Category.label);
                         else if (brepObjects[i] is Edge) name = StringTable.GetString("Edge.Displayname", StringTable.Category.label);
-                        if (brepObjects[i] is Face) name = StringTable.GetString("Face.Displayname", StringTable.Category.label);
+                        else if (brepObjects[i] is Face) name = StringTable.GetString("Face.Displayname", StringTable.Category.label);
                         SimpleNameProperty cp = new SimpleNameProperty(name, brepObjects[i], "GeoObject.Object");
                         cp.SelectionChangedEvent += new CADability.UserInterface.SimpleNameProperty.SelectionChangedDelegate(OnBrepObjectSelectionChanged);
                         subEntries[i] = cp;
