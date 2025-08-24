@@ -4437,7 +4437,7 @@ namespace CADability.Shapes
 								positions[2] = tmp.GetParameter(segments[startSegment].PointAt(onStartSegment));
 								positions[3] = tmp.GetParameter(segments[i].PointAt(startPos));
 								List<List<ICurve2D>> parts = tmp.SplitCyclical(positions);
-								if (parts.Count == 4)
+								if (parts.Count == 4 && parts[1].Count > 0 && parts[3].Count > 0)
 								{
 									segments.Clear();
 									segments.AddRange(parts[1]);
@@ -4456,7 +4456,7 @@ namespace CADability.Shapes
 							positions[0] = tmp.GetParameter(segments[i].PointAt(endPos));
 							positions[1] = tmp.GetParameter(segments[endSegment].PointAt(onEndSegment));
 							List<List<ICurve2D>> parts = tmp.SplitCyclical(positions);
-							if (parts.Count == 2)
+							if (parts.Count == 2 && parts[1].Count > 0)
 							{
 								segments.Clear();
 								segments.AddRange(parts[1]);
@@ -4474,7 +4474,7 @@ namespace CADability.Shapes
 							positions[0] = tmp.GetParameter(segments[startSegment].PointAt(onStartSegment));
 							positions[1] = tmp.GetParameter(segments[i].PointAt(startPos));
 							List<List<ICurve2D>> parts = tmp.SplitCyclical(positions);
-							if (parts.Count == 2)
+							if (parts.Count == 2 && parts[1].Count > 0)
 							{
 								segments.Clear();
 								segments.AddRange(parts[1]);
