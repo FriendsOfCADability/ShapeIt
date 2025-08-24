@@ -71,12 +71,6 @@
     <None Include="packages.config" />
   </ItemGroup>
 
-  <!-- Post Build -->
-  <Target Name="CustomPostBuild" AfterTargets="PostBuildEvent" Condition=" '$(CI)' != 'true' ">
-    <Exec Command="echo &quot;copying $(TargetPath) to $(USERPROFILE)\Documents\Visual Studio 2022\Visualizers\$(TargetFileName)&quot;" />
-    <Exec Command="copy /Y &quot;$(TargetPath)&quot; &quot;$(USERPROFILE)\Documents\Visual Studio 2022\Visualizers\$(TargetFileName)&quot;" />
-  </Target>
-
   <PropertyGroup>
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>

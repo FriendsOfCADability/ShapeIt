@@ -64,6 +64,18 @@ namespace CADability.GeoObject
                 this.list.AddIfNotNull(crv as IGeoObject);
             }
         }
+#if DEBUG
+        /// <summary>
+        /// This is used to show the list in the CADability.DebuggerView when opening this GeoObjectList in VS watch
+        /// </summary>
+        public string Debug
+        {
+            get
+            {
+                return D.Show(this);
+            }
+        }
+#endif
         public void Add(IGeoObject ObjectToAdd)
         {
             list.Add(ObjectToAdd);
