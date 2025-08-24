@@ -14,6 +14,7 @@ using CADability.Attribute;
 using MathNet.Numerics.RootFinding;
 using CADability.Curve2D;
 using CADability.Shapes;
+using MathNet.Numerics.LinearAlgebra;
 
 namespace ShapeIt
 {
@@ -25,6 +26,36 @@ namespace ShapeIt
         private double radius; // radius of the pipe
         private GeoVector normal; // when spine curve is planar, this is the normal vector to the plane. When n is the nullvector we use the Frenet frame
         private double[] criticalPositions; // the u parameters, where the spines curvature changes from greater than radius to smaller than radius
+
+        /// <summary>
+        /// create a surface which is defined by a curve along which a circle is beeing moved.
+        /// The result may be a cylindrical surface, a toroidal surface or a SweptCircle
+        /// </summary>
+        /// <param name="along"></param>
+        /// <param name="radius"></param>
+        /// <param name="seam">points to the 0°, 360° seam</param>
+        /// <returns></returns>
+        public static ISurface MakePipeSurface(ICurve along, double radius, GeoVector seam)
+        {   // erzeugt ein Rohr mit gegebenem Radius entland der Kurve als Mittelachse und der Nahtstelle in Richtung seam
+            if (along is Line)
+            {
+                GeoVector dirz = along.StartDirection.Normalized;
+                GeoVector diry = radius * (seam ^ dirz).Normalized;
+                GeoVector dirx = radius * (dirz ^ diry).Normalized;
+                CylindricalSurface cs = new CylindricalSurface(along.StartPoint, dirx, diry, dirz);
+                return cs;
+            }
+            if (along is Ellipse && (along as Ellipse).IsCircle)
+            {
+                Ellipse e = (along as Ellipse);
+                ToroidalSurface ts = new ToroidalSurface(along.StartPoint, e.Plane.DirectionX, e.Plane.DirectionY, e.Plane.Normal, e.Radius, e.MinorRadius);
+                return ts;
+            }
+            else
+            {
+                return new SweptCircle(along, radius);
+            }
+        }
 
         public SweptCircle(ICurve spine, double radius)
         {
@@ -41,11 +72,76 @@ namespace ShapeIt
                     spine.StartDirection.ArbitraryNormals(out normal, out GeoVector _);
                     break;
                 default:
-                    // we use the frenet frame
-                    normal = GeoVector.NullVector;
+                    int n = 25;
+                    double[] values = Enumerable.Range(0, n + 1).Select(i => i / (double)n).ToArray();
+                    normal = FindSweepNormal(spine, values); // if normal==null, we use the Frenet frame
                     break;
             }
         }
+
+        /// <summary>
+        /// Computes a constant sweep normal for a (possibly non-planar) curve
+        /// by PCA on its tangent directions.
+        /// Returns GeoVector.NullVector if no clear normal exists.
+        /// </summary>
+        private static GeoVector FindSweepNormal(ICurve curve, double[] parameters)
+        {
+            // Need at least 3 samples to define a direction
+            if (parameters == null || parameters.Length < 3)
+                return GeoVector.NullVector;
+
+            // 1) Build covariance matrix C = sum(t_i * t_i^T)
+            var C = Matrix<double>.Build.Dense(3, 3, 0.0);
+            foreach (double u in parameters)
+            {
+                // get tangent and normalize
+                GeoVector tg = curve.DirectionAt(u);
+                Vector<double> t = Vector<double>.Build.DenseOfArray(new[] { tg.x, tg.y, tg.z });
+                double norm = t.L2Norm();
+                if (norm < 1e-8)
+                    continue;
+                t = t.Divide(norm);
+
+                // outer product
+                C += t.ToColumnMatrix() * t.ToRowMatrix();
+            }
+
+            // 2) Eigen-Decomposition
+            var evd = C.Evd();
+            var eValues = evd.EigenValues;
+            var eVectors = evd.EigenVectors;
+
+            // 3) Find smallest and largest real eigenvalue
+            int minIdx = 0, maxIdx = 0;
+            double minVal = eValues[0].Real, maxVal = eValues[0].Real;
+            for (int i = 1; i < 3; i++)
+            {
+                double val = eValues[i].Real;
+                if (val < minVal) { minVal = val; minIdx = i; }
+                if (val > maxVal) { maxVal = val; maxIdx = i; }
+            }
+
+            // 4) Critical condition: no clear “weakest” direction
+            if (maxVal <= 0)
+                return GeoVector.NullVector;
+
+            // If the smallest variance direction is not much smaller than the
+            // largest, the tangents are too isotropic -> fallback to Frenet
+            const double ratioThreshold = 0.5;
+            if (minVal / maxVal > ratioThreshold)
+                return GeoVector.NullVector;
+
+            // 5) Extract the eigenvector for the smallest eigenvalue
+            Vector<double> nVec = eVectors.Column(minIdx);
+            var normal = new GeoVector(nVec[0], nVec[1], nVec[2]);
+
+            // Normalize final result
+            double length = Math.Sqrt(normal * normal);
+            if (length < 1e-8)
+                return GeoVector.NullVector;
+            return normal.Normalized;
+        }
+
         private double[] CriticalPositions
         {
             get
@@ -343,12 +439,23 @@ namespace ShapeIt
         public override ICurve FixedU(double u, double vmin, double vmax)
         {
             Plane circlePlane = new Plane(spine.PointAt(u), spine.DirectionAt(u));
+            GeoPoint spinePoint = spine.PointAt(u);
+            GeoVector tangent = spine.DirectionAt(u).Normalized;
+            GeoVector yAxis = (normal ^ tangent).Normalized;
+            GeoVector xAxis = tangent ^ yAxis;
+            Plane plane = new Plane(spinePoint, xAxis, yAxis);
             Ellipse circularArc = Ellipse.Construct();
-            circularArc.SetArcPlaneCenterStartEndPoint(circlePlane, GeoPoint2D.Origin, circlePlane.Project(PointAt(new GeoPoint2D(u, vmin))), circlePlane.Project(PointAt(new GeoPoint2D(u, vmax))), circlePlane, vmin > vmax);
+            circularArc.SetArcPlaneCenterStartEndPoint(plane, GeoPoint2D.Origin, plane.Project(PointAt(new GeoPoint2D(u, vmin))), plane.Project(PointAt(new GeoPoint2D(u, vmax))), plane, vmin < vmax);
             if (Math.Abs(circularArc.SweepParameter) < 1e-12)
             {   // a full circle
                 if (vmin < vmax) circularArc.SweepParameter = 2 * PI;
                 else circularArc.SweepParameter = -2 * PI;
+            }
+            GeoPoint2D dbg1 = PositionOf(circularArc.EndPoint);
+            double pos = circularArc.PositionOf(PointAt(new GeoPoint2D(u, (vmin + vmax) / 2.0)));
+            if (Math.Abs(0.5 - pos) > 0.5)
+            {   // this is the 
+                circularArc.Complement();
             }
             return circularArc; // no need for FixedUCurve!
         }
@@ -405,10 +512,11 @@ namespace ShapeIt
             {
                 GeoPoint spinePoint = spine.PointAt(u);
                 GeoVector tangent = spine.DirectionAt(u).Normalized;
-                GeoVector planePerp = normal ^ tangent;
+                GeoVector yAxis = (normal ^ tangent).Normalized;
+                GeoVector xAxis = tangent ^ yAxis;
                 double sinV = Sin(v);
                 double cosV = Cos(v);
-                return spinePoint + radius * (cosV * normal + sinV * planePerp);
+                return spinePoint + radius * (cosV * xAxis + sinV * yAxis);
             }
             else
             {
@@ -422,20 +530,140 @@ namespace ShapeIt
                 GeoVector B = T ^ N;                              // Binormale
                 double sinV = Sin(v);
                 double cosV = Cos(v);
-                return spinePoint + radius * (cosV * normal + sinV * B);
+                return spinePoint + radius * (cosV * N + sinV * B);
             }
         }
 
+        public override GeoPoint2D PositionOf(GeoPoint p)
+        {
+            double u = spine.PositionOf(p);
+            if (normal != GeoVector.NullVector)
+            {
+                GeoPoint spinePoint = spine.PointAt(u);
+                GeoVector tangent = spine.DirectionAt(u).Normalized;
+                GeoVector yAxis = (normal ^ tangent).Normalized;
+                GeoVector xAxis = tangent ^ yAxis;
+                double v = Atan2((p - spinePoint) * yAxis, (p - spinePoint) * xAxis);
+                return new GeoPoint2D(u, v);
+            }
+            else
+            {
+                var deriv = spine.PointAndDerivativesAt(u, 2).ToArray();
+                GeoPoint spinePoint = GeoPoint.Origin + deriv[0];
+                GeoVector vel = deriv[1];
+                GeoVector acc = deriv[2];
+                GeoVector T = vel.Normalized;
+                // Frenet-Frame 
+                GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
+                GeoVector B = T ^ N;                              // Binormale
+                double v = Atan2((p - spinePoint) * B, (p - spinePoint) * N);
+                return new GeoPoint2D(u, v);
+            }
+        }
         public override GeoVector UDirection(GeoPoint2D uv)
         {
-            Derivation2At(uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
-            return du;
+            double u = uv.x;
+            double v = uv.y;
+
+            if (normal != GeoVector.NullVector)
+            {
+                // Derivatives of the spine curve
+                var deriv = spine.PointAndDerivativesAt(u, 2);
+
+                GeoVector vel = deriv[1];         // 1st  derivative  c'(u)
+                GeoVector acc = deriv[2];         // 2nd derivative   c''(u)
+
+                // scalar helpers
+                double speed = vel.Length;                              // |c'|
+                double curvature = (vel ^ acc).Length / Pow(speed, 3);      // κ
+
+                // frame vectors
+                GeoVector tangent = vel / speed;                             // T
+
+                // final results
+                double sinV = Sin(v);
+
+                return speed * (1 - radius * curvature * sinV) * tangent;
+            }
+            else
+            {
+                var deriv = spine.PointAndDerivativesAt(u, 3).ToArray();
+
+                GeoVector vel = deriv[1];                    // c′
+                GeoVector acc = deriv[2];                    // c″
+                GeoVector jerk = deriv[3];         // 3rd derivative   c'''(u)
+
+                double speed = vel.Length;             // |c′|
+                GeoVector T = vel / speed;            // Frenet-Tangent
+
+                //  curvature & torsion (+ derivatives)
+                GeoVector crossVA = vel ^ acc;              // c′ × c″
+                double curvature = crossVA.Length / Pow(speed, 3);     // κ
+
+                GeoVector crossVB = vel ^ jerk;             // c′ × c‴
+                double torsion = (vel * crossVB) / Pow(crossVA.Length, 2); // τ
+
+                // Frenet-Frame 
+                GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
+                GeoVector B = T ^ N;                              // Binormale
+
+                // Derivatives of the frame
+                // scaling with s = |c′|
+                double s = speed;
+                GeoVector N_u = (-curvature * s) * T + torsion * s * B;
+                GeoVector B_u = (-torsion * s) * N;
+
+
+                // final results
+                double sinV = Sin(v);
+                double cosV = Cos(v);
+                return vel + radius * (cosV * N_u + sinV * B_u);
+            }
         }
 
         public override GeoVector VDirection(GeoPoint2D uv)
         {
-            Derivation2At(uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
-            return dv;
+            double u = uv.x;
+            double v = uv.y;
+
+            if (normal != GeoVector.NullVector)
+            {
+                // Derivatives of the spine curve
+                GeoVector vel = spine.DirectionAt(u);
+
+                // scalar helpers
+                double speed = vel.Length;                              // |c'|
+
+                // frame vectors
+                GeoVector tangent = vel / speed;                             // T
+                GeoVector yAxis = (normal ^ tangent).Normalized;
+                GeoVector xAxis = tangent ^ yAxis;
+
+                // final results
+                double sinV = Sin(v);
+                double cosV = Cos(v);
+
+                return -radius * sinV * xAxis + radius * cosV * yAxis;
+            }
+            else
+            {
+                var deriv = spine.PointAndDerivativesAt(u, 2).ToArray();
+
+                GeoVector vel = deriv[1];                    // c′
+                GeoVector acc = deriv[2];                    // c″
+
+                double speed = vel.Length;             // |c′|
+                GeoVector T = vel / speed;            // Frenet-Tangent
+
+                // Frenet-Frame 
+                GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
+                GeoVector B = T ^ N;                              // Binormale
+
+                // final results
+                double sinV = Sin(v);
+                double cosV = Cos(v);
+                return -radius * sinV * N + radius * cosV * B;
+            }
         }
 
         public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
@@ -467,19 +695,20 @@ namespace ShapeIt
 
                 // frame vectors
                 GeoVector tangent = vel / speed;                             // T
-                GeoVector planePerp = normal ^ tangent;                        // P
+                GeoVector yAxis = (normal ^ tangent).Normalized;                        // P
+                GeoVector xAxis = tangent ^ yAxis;
                 GeoVector tangent2nd = (curvatureDash * speed + curvature * speedDash)
-                                        * planePerp
+                                        * yAxis
                                         - curvature * curvature * speed * speed * tangent;
 
                 // final results
                 double sinV = Sin(v);
                 double cosV = Cos(v);
 
-                location = spinePoint + radius * (cosV * normal + sinV * planePerp);
+                location = spinePoint + radius * (cosV * xAxis + sinV * yAxis);
                 du = speed * (1 - radius * curvature * sinV) * tangent;
-                dv = -radius * sinV * normal + radius * cosV * planePerp;
-                duu = acc + radius * sinV * (normal ^ tangent2nd);
+                dv = -radius * sinV * xAxis + radius * cosV * yAxis;
+                duu = acc + radius * sinV * (xAxis ^ tangent2nd);
                 duv = -radius * curvature * speed * cosV * tangent;
                 dvv = -(location - spinePoint);
             }
@@ -568,6 +797,11 @@ namespace ShapeIt
                 throw new NotImplementedException("Modify not implemented for non isogonal matrices");
             }
         }
+        public override ModOp2D ReverseOrientation()
+        {
+            spine.Reverse(); // reverse the spine, keep everything else
+            return new ModOp2D(-1, 0, 1, 0, -1, 2*Math.PI);
+        }
         public override void CopyData(ISurface CopyFrom)
         {
             SweptCircle cc = CopyFrom as SweptCircle;
@@ -586,11 +820,12 @@ namespace ShapeIt
         {
             GeoPoint spinePoint = spine.PointAt(u);
             GeoVector tangent = spine.DirectionAt(u).Normalized;
-            GeoVector planePerp = normal ^ tangent;
+            GeoVector yAxis = (normal ^ tangent).Normalized;
+            GeoVector xAxis = tangent ^ yAxis;
             GeoVector d = (p - spinePoint) / radius;
 
-            double x = d * normal;
-            double y = d * planePerp;
+            double x = d * xAxis;
+            double y = d * yAxis;
             double v = Math.Atan2(y, x);
             if (v < 0.0) v += 2.0 * Math.PI;
             return v;

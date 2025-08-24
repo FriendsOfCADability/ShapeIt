@@ -203,8 +203,12 @@ namespace ShapeIt
                     mainMenu.AppendChild(debugMenuItem);
                 }
 #endif
+                XmlNode toolbar = menuDocument.SelectSingleNode("Menus/Popup[@MenuId='Toolbar']");
+                SetToolbar(toolbar);
+
                 MenuResource.SetMenuResource(menuDocument);
                 ResetMainMenu(null);
+
             }
 
             lastSaved = DateTime.Now;
@@ -393,27 +397,30 @@ namespace ShapeIt
         /// </summary>
         private void Debug()
         {
-            //CADability.GeoObject.Solid sld1 = null;
-            //CADability.GeoObject.Solid sld2 = null;
+            CADability.GeoObject.Solid sld1 = null;
+            CADability.GeoObject.Solid sld2 = null;
             //CADability.GeoObject.Solid sld3 = null;
-            GeoPoint[] throupointsTest = new GeoPoint[10];
-            GeoVector[] directionsTest = new GeoVector[10];
-            for (int i = 0; i < 10; i++)
-            {
-                throupointsTest[i] = new GeoPoint(i, Math.Sin(i), 0);
-                directionsTest[i] = new GeoVector(1, Math.Cos(i), 0).Normalized;
-            }
-            CADability.GeoObject.BSpline bsp = CADability.GeoObject.BSpline.Construct();
-            bsp.ThroughPoints(throupointsTest, 3, false);
-            bsp.ThroughPoints(throupointsTest,directionsTest, 5, false);
             foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
             {
-                if (go is CADability.GeoObject.Face face && face.Surface is SweptCircle sc)
+                if (go is CADability.GeoObject.Solid sld)
                 {
-                    sc.OuterShell(face.Domain.Bottom, face.Domain.Top);
+                    if (sld1 == null) sld1 = sld;
+                    else if (sld2 == null) sld2 = sld;
                 }
             }
-
+            if (sld1 != null && sld2 != null)
+            {
+                // var s = CADability.GeoObject.Solid.Unite(sld2, sld1);
+                BooleanOperation bo = new BooleanOperation();
+                bo.SetShells(sld1.Shells[0], sld2.Shells[0], BooleanOperation.Operation.union);
+                var s = bo.Execute();
+            }
+            //if (sld1 != null)
+            //{
+            //    CADability.GeoObject.Shell shell = sld1.Shells[0];
+            //    shell.RoundEdges(new Edge[] { shell.Edges[6], shell.Edges[20], shell.Edges[25] }, 2);
+            //    // shell.GetOffsetNew(4.0);
+            //}
         }
 #endif
     }

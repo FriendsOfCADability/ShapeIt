@@ -29,7 +29,7 @@
     <PublisherName>Gerhard Hofmann</PublisherName>
     <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
     <WebPage>publish.htm</WebPage>
-    <ApplicationRevision>18</ApplicationRevision>
+    <ApplicationRevision>22</ApplicationRevision>
     <ApplicationVersion>0.2.0.%2a</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <CreateDesktopShortcut>true</CreateDesktopShortcut>
@@ -39,7 +39,7 @@
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
+    <DebugType>pdbonly</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
     <DefineConstants>DEBUG;TRACE</DefineConstants>
@@ -49,12 +49,14 @@
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
+    <DebugType>full</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <DebugSymbols>true</DebugSymbols>
+    <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
     <SignAssembly>false</SignAssembly>
@@ -63,7 +65,8 @@
     <SignManifests>false</SignManifests>
   </PropertyGroup>
   <PropertyGroup>
-    <AssemblyOriginatorKeyFile>ShapeIt.snk.pfx</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>
+    </AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <PropertyGroup>
     <ManifestCertificateThumbprint>97495F516753024B56AF55D613D1BFA19BBECC24</ManifestCertificateThumbprint>
@@ -87,6 +90,7 @@
     <Reference Include="System.Drawing.Common, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>packages\System.Drawing.Common.8.0.1\lib\net462\System.Drawing.Common.dll</HintPath>
     </Reference>
+    <Reference Include="System.Numerics" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -98,8 +102,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AdaptiveRootFinder.cs" />
+    <Compile Include="NewBooleanOperation.cs" />
     <Compile Include="DistanceCalculator.cs" />
     <Compile Include="EdgeInOctTree.cs" />
+    <Compile Include="FaceExtensions.cs" />
     <Compile Include="Feedback.cs" />
     <Compile Include="FeedbackArrow.cs" />
     <Compile Include="Helper.cs" />
@@ -124,6 +130,7 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="DirectMenuEntry.cs" />
+    <Compile Include="RoundEdgesAction.cs" />
     <Compile Include="SelectSecondSolidAction.cs" />
     <Compile Include="ShellExtensions.cs" />
     <Compile Include="SolidPlaneIntersectionPathAction.cs" />
@@ -149,11 +156,6 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
-    <None Include="ShapeIt.snk.pfx" />
-    <None Include="ShapeIt_1_TemporaryKey.pfx" />
-    <None Include="ShapeIt_2_TemporaryKey.pfx" />
-    <None Include="ShapeIt_3_TemporaryKey.pfx" />
-    <None Include="ShapeIt_TemporaryKey.pfx" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

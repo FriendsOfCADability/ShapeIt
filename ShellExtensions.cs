@@ -147,7 +147,7 @@ namespace ShapeIt
         /// </returns>
         public static (GeoPoint center, GeoVector normal, double radius) CurvatureAt(this ICurve curve, double u)
         {
-            IReadOnlyList<GeoVector> ders =  curve.PointAndDerivativesAt(u, 2);
+            IReadOnlyList<GeoVector> ders = curve.PointAndDerivativesAt(u, 2);
 
             double deriv1Length = ders[1].Length;
             if (ders[1].Length < 1e-12)
@@ -207,9 +207,9 @@ namespace ShapeIt
                 if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
                 pos = curve.ParameterToPosition(Math.PI);
                 if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
-                pos = curve.ParameterToPosition(Math.PI/2.0);
+                pos = curve.ParameterToPosition(Math.PI / 2.0);
                 if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
-                pos = curve.ParameterToPosition(3.0*Math.PI / 2.0);
+                pos = curve.ParameterToPosition(3.0 * Math.PI / 2.0);
                 if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
             }
             else
@@ -217,7 +217,7 @@ namespace ShapeIt
                 // TODO
                 double[] pp = curve.GetSavePositions();
             }
-            return (minima.ToArray(),maxima.ToArray());
+            return (minima.ToArray(), maxima.ToArray());
         }
     }
     internal static class ShellExtensions
@@ -809,6 +809,7 @@ namespace ShapeIt
                                 outline.Add(c2d);
                                 c2d.UserData.Add("CADability.CurveToEdge", edge);
                             }
+                            ICurve dbg = offsetSurface.Make3dCurve(c2d);
                         }
                         else
                         {   // surfaces and offset surfaces usually have the same u/v system, i.e. 2d curves on both are parallel with the distance "offset"
@@ -1009,6 +1010,287 @@ namespace ShapeIt
             BRepOperation bo = new BRepOperation(faces);
             Shell[] res = bo.Result();
             return res;
+        }
+        public static Shell RoundEdges(this Shell shell, IEnumerable<Edge> edges, double radius)
+        {
+            if (radius < 0) radius = -radius; // radius always >0
+            List<Shell> shellsToSubtract = new List<Shell>();
+            List<Shell> shellsToAdd = new List<Shell>();
+            bool isConvex = false;
+            foreach (Edge edgeToRound in edges)
+            {
+                double dist = 0.0;
+                switch (Adjacency(edgeToRound))
+                {
+                    case AdjacencyType.Convex:
+                        isConvex = true;
+                        dist = -radius;
+                        break; // the fillet will be subtracted
+                    case AdjacencyType.Concave:
+                        isConvex = false;
+                        dist = radius;
+                        break; // the fillet will be added
+                    default: continue; // tangential or mixed: not possible to round
+                }
+                // for documentation we assume the following:
+                // the edge edgeToRound is going from left to right. We call one of the faces top, the other bottom.
+                // we create a body here which we call fillet. The fillet may be removed from the shell or added to the shell depending on whether the edge is convex or concav
+                // the fillet is bounded by 5 surfaces/faces: the swept circle, the bottom and top surface (part of bottom and top faces) and the two lids on the left and right side.
+                ISurface topSurface = edgeToRound.PrimaryFace.Surface; // for previty
+                ISurface bottomSurface = edgeToRound.SecondaryFace.Surface;
+                ICurve leadingEdge = edgeToRound.Curve3D.Clone();
+                if (!edgeToRound.Forward(edgeToRound.PrimaryFace)) leadingEdge.Reverse(); // always forward on topSurface
+                // we are looking for the three vertices on each side of the "negative fillet" (the part we want to remove from the shell
+                // this "negative fillet" is bounded by the two offset surfaces, the fillet surface (swept circle) and the two sides. For the sides we can either
+                // use the third face of the vertex of the edge e (if there is exactely a third face - which is in most cases) or a plane perpendicular ti the start or endpoint of the edge
+                ISurface topOffset = topSurface.GetOffsetSurface(dist);
+                ISurface bottomOffset = bottomSurface.GetOffsetSurface(dist);
+                topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
+                bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
+                PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint, -leadingEdge.StartDirection));
+                PlaneSurface rightPlane = new PlaneSurface(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection));
+                GeoPoint filletAxisLeft = leadingEdge.StartPoint; // a first guess for the intersection, typically a good start
+                GeoPoint filletAxisRight = leadingEdge.EndPoint; // the start and endpoint of the axis (spine) of the swept circle
+                BoundingRect plnBounds = new BoundingRect(GeoPoint2D.Origin, radius, radius);
+                BoundingRect topDomain = edgeToRound.PrimaryFace.Domain; // the domains of the top and bottom surfaces may be a little bit bigger than the original domains
+                BoundingRect bottomDomain = edgeToRound.SecondaryFace.Domain;
+                if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, leftPlane, plnBounds,
+                    ref filletAxisLeft, out GeoPoint2D uv11, out GeoPoint2D uv12, out GeoPoint2D uv13)) return null;
+                SurfaceHelper.AdjustPeriodic(topSurface, topDomain, ref uv11);
+                SurfaceHelper.AdjustPeriodic(bottomSurface, bottomDomain, ref uv12);
+                topDomain.MinMax(uv11);
+                bottomDomain.MinMax(uv12);
+                if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, rightPlane, plnBounds,
+                    ref filletAxisRight, out GeoPoint2D uv21, out GeoPoint2D uv22, out GeoPoint2D uv23)) return null;
+                SurfaceHelper.AdjustPeriodic(topSurface, topDomain, ref uv21);
+                SurfaceHelper.AdjustPeriodic(bottomSurface, bottomDomain, ref uv22);
+                topDomain.MinMax(uv21);
+                bottomDomain.MinMax(uv22);
+                IDualSurfaceCurve filletAxisCurve = topOffset.GetDualSurfaceCurves(topDomain, bottomOffset, bottomDomain, new List<GeoPoint>(new GeoPoint[] { filletAxisLeft, filletAxisRight }))
+                    .MinBy(dsc => dsc.Curve3D.DistanceTo(filletAxisLeft) + dsc.Curve3D.DistanceTo(filletAxisRight));
+                if (filletAxisCurve == null) return null;
+                filletAxisCurve.Trim(filletAxisLeft, filletAxisRight);
+                //BoundingRect sweptCircleBounds; // unfortunately the different surfaces (cylinder, SweptCircle) have different bounds for the full surface
+                //if (sweptCircle is CylindricalSurface) sweptCircleBounds = new BoundingRect(0, 0, Math.PI * 2, 1); // the circle is in u-direction
+                //else sweptCircleBounds = new BoundingRect(0, 0, 1, Math.PI * 2); // the circle is in v-direction (torus, SweptCircle)
+                // the axis for the fillet
+                // construct the left lid of the "negative fillet"
+                GeoPoint lid1v1 = topSurface.PerpendicularFoot(filletAxisCurve.Curve3D.StartPoint).Select(p2d => topSurface.PointAt(p2d)).MinBy(p3d => p3d | leadingEdge.StartPoint);
+                // a vertex on the "lid"
+                GeoPoint lid1v2 = bottomSurface.PerpendicularFoot(filletAxisCurve.Curve3D.StartPoint).Select(p2d => bottomSurface.PointAt(p2d)).MinBy(p3d => p3d | leadingEdge.StartPoint);
+                // the other vertex on the lid, the third vertex is the startpoint of edge edgeToRound
+                // now lets construct the lid as a face
+                IDualSurfaceCurve lid1crv1 = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, leftPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
+                    new List<GeoPoint>(new GeoPoint[] { lid1v1, leadingEdge.StartPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid1v1));
+                if (lid1crv1 == null) return null;
+                lid1crv1.Trim(leadingEdge.StartPoint, lid1v1);
+                IDualSurfaceCurve lid1crv2 = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, leftPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
+                    new List<GeoPoint>(new GeoPoint[] { lid1v2, leadingEdge.StartPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid1v2));
+                if (lid1crv2 == null) return null;
+                lid1crv2.Trim(lid1v2, leadingEdge.StartPoint);
+                Arc2D arc2DOnLeftPlane = new Arc2D(leftPlane.PositionOf(filletAxisLeft), radius, leftPlane.PositionOf(lid1v1), leftPlane.PositionOf(lid1v2), false);
+                if (!isConvex) arc2DOnLeftPlane.Complement();
+                ICurve lid1crv3 = leftPlane.Make3dCurve(arc2DOnLeftPlane);
+                Edge le1;
+                Edge le2;
+                Edge le3;
+                Face leftLid;
+                if (isConvex)
+                {
+                    le1 = new Edge(null, lid1crv1.Curve3D, null, lid1crv1.Curve2D2, true);
+                    le2 = new Edge(null, lid1crv3, null, arc2DOnLeftPlane, true);
+                    le3 = new Edge(null, lid1crv2.Curve3D, null, lid1crv2.Curve2D2, true);
+                    leftLid = Face.MakeFace(leftPlane, new Edge[] { le1, le2, le3 });
+                }
+                else
+                {
+                    lid1crv1.Reverse();
+                    lid1crv3.Reverse();
+                    lid1crv2.Reverse();
+                    arc2DOnLeftPlane.Reverse();
+                    le1 = new Edge(null, lid1crv1.Curve3D, null, lid1crv1.Curve2D2, true);
+                    le2 = new Edge(null, lid1crv3, null, arc2DOnLeftPlane, true);
+                    le3 = new Edge(null, lid1crv2.Curve3D, null, lid1crv2.Curve2D2, true);
+                    leftLid = Face.MakeFace(leftPlane, new Edge[] { le3, le2, le1 });
+                }
+#if DEBUG
+                leftLid.CheckConsistency();
+#endif
+
+                // construct the right lid of the "negative fillet"
+                GeoPoint lid2v1 = topSurface.PerpendicularFoot(filletAxisCurve.Curve3D.EndPoint).Select(p2d => topSurface.PointAt(p2d)).MinBy(p3d => p3d | leadingEdge.EndPoint);
+                // a vertex on the "lid"
+                GeoPoint lid2v2 = bottomSurface.PerpendicularFoot(filletAxisCurve.Curve3D.EndPoint).Select(p2d => bottomSurface.PointAt(p2d)).MinBy(p3d => p3d | leadingEdge.EndPoint);
+                // the other vertex on the lid, the third vertex is the endpoint of edge edgeToRound
+                // now lets construct the lid as a face
+                IDualSurfaceCurve lid2crv1 = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, rightPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
+                    new List<GeoPoint>(new GeoPoint[] { lid2v1, leadingEdge.EndPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid2v1));
+                if (lid2crv1 == null) return null;
+                lid2crv1.Trim(lid2v1, leadingEdge.EndPoint);
+                IDualSurfaceCurve lid2crv2 = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, rightPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
+                    new List<GeoPoint>(new GeoPoint[] { lid2v2, leadingEdge.EndPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid2v2));
+                if (lid2crv2 == null) return null;
+                lid2crv2.Trim(leadingEdge.EndPoint, lid2v2);
+                Arc2D arc2DOnRightPlane = new Arc2D(rightPlane.PositionOf(filletAxisRight), radius, rightPlane.PositionOf(lid2v2), rightPlane.PositionOf(lid2v1), false);
+                if (!isConvex) arc2DOnRightPlane.Complement();
+                ICurve lid2crv3 = rightPlane.Make3dCurve(arc2DOnRightPlane);
+                Edge re1;
+                Edge re2;
+                Edge re3;
+                Face rightLid;
+                if (isConvex)
+                {
+                    re1 = new Edge(null, lid2crv1.Curve3D, null, lid2crv1.Curve2D2, true);
+                    re2 = new Edge(null, lid2crv3, null, arc2DOnRightPlane, true);
+                    re3 = new Edge(null, lid2crv2.Curve3D, null, lid2crv2.Curve2D2, true);
+                    rightLid = Face.MakeFace(rightPlane, new Edge[] { re1, re2, re3 });
+                }
+                else
+                {
+                    lid2crv1.Reverse();
+                    lid2crv3.Reverse();
+                    lid2crv2.Reverse();
+                    arc2DOnRightPlane.Reverse();
+                    re1 = new Edge(null, lid2crv1.Curve3D, null, lid2crv1.Curve2D2, true);
+                    re2 = new Edge(null, lid2crv3, null, arc2DOnRightPlane, true);
+                    re3 = new Edge(null, lid2crv2.Curve3D, null, lid2crv2.Curve2D2, true);
+                    rightLid = Face.MakeFace(rightPlane, new Edge[] { re3, re2, re1 });
+                }
+#if DEBUG
+                rightLid.CheckConsistency();
+#endif
+
+                // now we need the tangential edges between the swept arc and the top rsp. bottom face
+                // we could do an intersection, which is currently numerical instable with tangential intersections
+                // or we get the perpendicular projection of the filletAxisCurve on both surfaces
+                ICurve topTangentialCurve = topSurface.Make3dCurve(filletAxisCurve.Curve2D1);
+                ICurve bottomTangentialCurve = bottomSurface.Make3dCurve(filletAxisCurve.Curve2D2);
+                ICurve edgeCurve = leadingEdge.Clone();
+                // le1 and re1 are two edges we need for the top face, the orientation of the topTangentialCurve and edgeCurve and the order must be tested
+                // the filletAxisCurve and the leadingEdge have the same orientation.
+                // on the top face, the edgCurve must have the same orientation as the edgeToRound
+                Edge[] topEdges = new Edge[4];
+                Face topFace;
+                if (isConvex)
+                {
+                    topTangentialCurve.Reverse();
+                    topEdges[0] = new Edge(null, topTangentialCurve, null, filletAxisCurve.Curve2D1.CloneReverse(true), true);
+                    topEdges[1] = le1; // we know the 2d curve but cannot provide it
+                    topEdges[2] = new Edge(null, edgeCurve, null, edgeToRound.Curve2D(edgeToRound.PrimaryFace), true);
+                    topEdges[3] = re1;
+                    topFace = Face.MakeFace(topSurface.Clone(), topEdges);
+                }
+                else
+                {
+                    ISurface surface = topSurface.Clone();
+                    ModOp2D rev = surface.ReverseOrientation();
+                    ICurve2D tan = filletAxisCurve.Curve2D1.GetModified(rev);
+                    topEdges[3] = new Edge(null, topTangentialCurve, null, tan, true);
+                    topEdges[2] = le1; // we know the 2d curve but cannot provide it
+                    ICurve2D lead = edgeToRound.Curve2D(edgeToRound.PrimaryFace).GetModified(rev);
+                    lead.Reverse();
+                    edgeCurve.Reverse();
+                    topEdges[1] = new Edge(null, edgeCurve, null, lead, true);
+                    topEdges[0] = re1;
+                    topFace = Face.MakeFace(surface, topEdges);
+                }
+#if DEBUG
+                topFace.CheckConsistency();
+#endif
+
+                Edge[] bottomEdges = new Edge[4];
+                Face bottomFace;
+                if (isConvex)
+                {
+                    bottomEdges[3] = new Edge(null, bottomTangentialCurve, null, filletAxisCurve.Curve2D2.CloneReverse(edgeToRound.Forward(edgeToRound.SecondaryFace)), true);
+                    bottomEdges[2] = le3; // we know the 2d curve but cannot provide it
+                    bottomEdges[1] = topEdges[2];
+                    bottomEdges[0] = re3;
+                    bottomFace = Face.MakeFace(bottomSurface.Clone(), bottomEdges);
+                }
+                else
+                {
+                    ISurface surface = bottomSurface.Clone();
+                    ModOp2D rev = surface.ReverseOrientation();
+                    bottomTangentialCurve.Reverse();
+                    ICurve2D tan = filletAxisCurve.Curve2D2.GetModified(rev);
+                    bottomEdges[0] = new Edge(null, bottomTangentialCurve, null, tan, true);
+                    bottomEdges[1] = le3; // we know the 2d curve but cannot provide it
+                    bottomEdges[2] = topEdges[1];
+                    bottomEdges[3] = re3;
+                    bottomFace = Face.MakeFace(surface.Clone(), bottomEdges);
+                }
+#if DEBUG
+                bottomFace.CheckConsistency();
+#endif
+
+                ISurface sweptCircle;
+                sweptCircle = SweptCircle.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
+                GeoPoint2D dbguv = new GeoPoint2D(0, 2 * Math.PI - Math.PI / 4);
+                GeoPoint dbg3d = sweptCircle.PointAt(dbguv);
+                GeoVector dbgudir = sweptCircle.UDirection(dbguv);
+                GeoVector dbgvdir = sweptCircle.VDirection(dbguv);
+                GeoVector dbgdir = sweptCircle.GetNormal(dbguv);
+                ModOp2D revo = sweptCircle.ReverseOrientation();
+                GeoPoint dbg3d1 = sweptCircle.PointAt(revo * dbguv);
+                GeoPoint2D uvxxx = sweptCircle.PositionOf(dbg3d);
+                dbg3d1 = sweptCircle.PointAt(uvxxx);
+                GeoVector dbgdir1 = sweptCircle.GetNormal(revo * dbguv);
+                GeoVector dbgudir1 = sweptCircle.UDirection(revo * dbguv);
+                GeoVector dbgvdir1 = sweptCircle.VDirection(revo * dbguv);
+
+                // we need bounds for sweptCircle to enable Makeface to use BoxedSurface methods
+                sweptCircle.SetBounds(new BoundingRect(0.05, Math.PI / 2, 0.95, 3 * Math.PI / 2));
+                sweptCircle.PointAt(GeoPoint2D.Origin);
+                Face dbgfc = Face.MakeFace(sweptCircle, new BoundingRect(0.0, Math.PI / 2, 1.0, 3 * Math.PI / 2));
+                Face dbgfc1 = Face.MakeFace(sweptCircle, new BoundingRect(0.0, 3 * Math.PI / 2, 1.0, 5 * Math.PI / 2));
+                SimpleShape dbgss = dbgfc.Area;
+                sweptCircle.Intersect(Line.TwoPoints(GeoPoint.Origin, new GeoPoint(100, 100, 100)), new BoundingRect(0.1, 0, 0.2, 0.5), out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds);
+                Face sweptFace;
+                if (isConvex)
+                {
+                    sweptCircle.ReverseOrientation();
+                    sweptFace = Face.MakeFace(sweptCircle, new Edge[] { topEdges[0], re2, bottomEdges[3], le2 });
+                }
+                else
+                {
+                    sweptFace = Face.MakeFace(sweptCircle, new Edge[] { topEdges[3], le2, bottomEdges[0], re2 });
+                }
+                sweptFace.CheckConsistency();
+                dbgss = sweptFace.Area;
+                Shell filletShell = Shell.FromFaces(sweptFace, bottomFace, topFace, rightLid, leftLid);
+
+#if DEBUG
+                bool ok = filletShell.CheckConsistency();
+#endif
+                if (isConvex) shellsToSubtract.Add(filletShell);
+                else shellsToAdd.Add(filletShell);
+            }
+
+            Shell toOperateOn = shell.Clone() as Shell;
+            bool success = false;
+            for (int i = 0; i < shellsToSubtract.Count; i++)
+            {
+                BRepOperation bro = new BRepOperation(toOperateOn, shellsToSubtract[i], BRepOperation.Operation.difference);
+                Shell[] brores = bro.Result();
+                if (brores.Length == 1)
+                {
+                    toOperateOn = brores[0];
+                    success = true; // at least one rounding succeeded
+                }
+            }
+            for (int i = 0; i < shellsToAdd.Count; i++)
+            {
+                BRepOperation bro = new BRepOperation(toOperateOn, shellsToAdd[i], BRepOperation.Operation.union);
+                Shell[] brores = bro.Result();
+                if (brores.Length == 1)
+                {
+                    toOperateOn = brores[0];
+                    success = true; // at least one rounding succeeded
+                }
+            }
+            if (success) return toOperateOn;
+            else return null;
         }
     }
 }
