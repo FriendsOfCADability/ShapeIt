@@ -1,0 +1,156 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Bitmaps\Buttons1.bmp" />
+    <None Remove="Bitmaps\Buttons2.bmp" />
+    <None Remove="Bitmaps\Buttons3.bmp" />
+    <None Remove="Bitmaps\Buttons4.bmp" />
+    <None Remove="Bitmaps\Buttons5.bmp" />
+    <None Remove="Bitmaps\Hotspots.png" />
+    <None Remove="Bitmaps\Icons.bmp" />
+    <None Remove="Bitmaps\PointSymbols.bmp" />
+    <None Remove="Bitmaps\PointSymbolsB.bmp" />
+    <None Remove="Cursors\Aequidist.cur" />
+    <None Remove="Cursors\Angle.cur" />
+    <None Remove="Cursors\ArrowSnap.cur" />
+    <None Remove="Cursors\Bow.cur" />
+    <None Remove="Cursors\Connect.cur" />
+    <None Remove="Cursors\Cut.cur" />
+    <None Remove="Cursors\CutOff.cur" />
+    <None Remove="Cursors\CutOffReady.cur" />
+    <None Remove="Cursors\Dart.cur" />
+    <None Remove="Cursors\Dart.svg" />
+    <None Remove="Cursors\DartFoot.cur" />
+    <None Remove="Cursors\DartGrid.cur" />
+    <None Remove="Cursors\DartIntersect.cur" />
+    <None Remove="Cursors\DartMiddle.cur" />
+    <None Remove="Cursors\DartObject.cur" />
+    <None Remove="Cursors\DartOrigin.cur" />
+    <None Remove="Cursors\DartOrtho.cur" />
+    <None Remove="Cursors\DartSnap.cur" />
+    <None Remove="Cursors\DartTangent.cur" />
+    <None Remove="Cursors\Expand.cur" />
+    <None Remove="Cursors\Hand.cur" />
+    <None Remove="Cursors\HandArrow.cur" />
+    <None Remove="Cursors\HandOpen.cur" />
+    <None Remove="Cursors\Length.cur" />
+    <None Remove="Cursors\Move.cur" />
+    <None Remove="Cursors\MoveAndCopy.cur" />
+    <None Remove="Cursors\Needle.cur" />
+    <None Remove="Cursors\Origin.cur" />
+    <None Remove="Cursors\Pen.cur" />
+    <None Remove="Cursors\Pen.svg" />
+    <None Remove="Cursors\PenSnap.cur" />
+    <None Remove="Cursors\Plane.cur" />
+    <None Remove="Cursors\Rotate.cur" />
+    <None Remove="Cursors\RotateSmall.cur" />
+    <None Remove="Cursors\RoundIn.cur" />
+    <None Remove="Cursors\RoundInReady.cur" />
+    <None Remove="Cursors\RoundOff.cur" />
+    <None Remove="Cursors\RoundOffReady.cur" />
+    <None Remove="Cursors\ScaleSnap.cur" />
+    <None Remove="Cursors\Size.cur" />
+    <None Remove="Cursors\SizeLB.cur" />
+    <None Remove="Cursors\SizeLT.cur" />
+    <None Remove="Cursors\SizeRB.cur" />
+    <None Remove="Cursors\SizeRT.cur" />
+    <None Remove="Cursors\SmallMove.cur" />
+    <None Remove="Cursors\Trim.cur" />
+    <None Remove="Cursors\TrimSplit.cur" />
+    <None Remove="Icons\Constr_Polyline.svg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Bitmaps\Buttons1.bmp" />
+    <EmbeddedResource Include="Bitmaps\Buttons2.bmp" />
+    <EmbeddedResource Include="Bitmaps\Buttons3.bmp" />
+    <EmbeddedResource Include="Bitmaps\Buttons4.bmp" />
+    <EmbeddedResource Include="Bitmaps\Buttons5.bmp" />
+    <EmbeddedResource Include="Bitmaps\Hotspots.png" />
+    <EmbeddedResource Include="Bitmaps\Icons.bmp" />
+    <EmbeddedResource Include="Bitmaps\PointSymbols.bmp" />
+    <EmbeddedResource Include="Bitmaps\PointSymbolsB.bmp" />
+    <EmbeddedResource Include="Cursors\Aequidist.cur" />
+    <EmbeddedResource Include="Cursors\Angle.cur" />
+    <EmbeddedResource Include="Cursors\ArrowSnap.cur" />
+    <EmbeddedResource Include="Cursors\Bow.cur" />
+    <EmbeddedResource Include="Cursors\Connect.cur" />
+    <EmbeddedResource Include="Cursors\Cut.cur" />
+    <EmbeddedResource Include="Cursors\CutOff.cur" />
+    <EmbeddedResource Include="Cursors\CutOffReady.cur" />
+    <EmbeddedResource Include="Cursors\Dart.cur" />
+    <EmbeddedResource Include="Cursors\Dart.svg" />
+    <EmbeddedResource Include="Cursors\DartFoot.cur" />
+    <EmbeddedResource Include="Cursors\DartGrid.cur" />
+    <EmbeddedResource Include="Cursors\DartIntersect.cur" />
+    <EmbeddedResource Include="Cursors\DartMiddle.cur" />
+    <EmbeddedResource Include="Cursors\DartObject.cur" />
+    <EmbeddedResource Include="Cursors\DartOrigin.cur" />
+    <EmbeddedResource Include="Cursors\DartOrtho.cur" />
+    <EmbeddedResource Include="Cursors\DartSnap.cur" />
+    <EmbeddedResource Include="Cursors\DartTangent.cur" />
+    <EmbeddedResource Include="Cursors\Expand.cur" />
+    <EmbeddedResource Include="Cursors\Hand.cur" />
+    <EmbeddedResource Include="Cursors\HandArrow.cur" />
+    <EmbeddedResource Include="Cursors\HandOpen.cur" />
+    <EmbeddedResource Include="Cursors\Length.cur" />
+    <EmbeddedResource Include="Cursors\Move.cur" />
+    <EmbeddedResource Include="Cursors\MoveAndCopy.cur" />
+    <EmbeddedResource Include="Cursors\Needle.cur" />
+    <EmbeddedResource Include="Cursors\Origin.cur" />
+    <EmbeddedResource Include="Cursors\Pen.cur" />
+    <EmbeddedResource Include="Cursors\Pen.svg" />
+    <EmbeddedResource Include="Cursors\PenSnap.cur" />
+    <EmbeddedResource Include="Cursors\Plane.cur" />
+    <EmbeddedResource Include="Cursors\Rotate.cur" />
+    <EmbeddedResource Include="Cursors\RotateSmall.cur" />
+    <EmbeddedResource Include="Cursors\RoundIn.cur" />
+    <EmbeddedResource Include="Cursors\RoundInReady.cur" />
+    <EmbeddedResource Include="Cursors\RoundOff.cur" />
+    <EmbeddedResource Include="Cursors\RoundOffReady.cur" />
+    <EmbeddedResource Include="Cursors\ScaleSnap.cur" />
+    <EmbeddedResource Include="Cursors\Size.cur" />
+    <EmbeddedResource Include="Cursors\SizeLB.cur" />
+    <EmbeddedResource Include="Cursors\SizeLT.cur" />
+    <EmbeddedResource Include="Cursors\SizeRB.cur" />
+    <EmbeddedResource Include="Cursors\SizeRT.cur" />
+    <EmbeddedResource Include="Cursors\SmallMove.cur" />
+    <EmbeddedResource Include="Cursors\Trim.cur" />
+    <EmbeddedResource Include="Cursors\TrimSplit.cur" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Svg.Skia" Version="3.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\CADability\CADability\CADability.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Icons\Constr_Polyline.svg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\Settings.Designer.cs">
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+</Project>
