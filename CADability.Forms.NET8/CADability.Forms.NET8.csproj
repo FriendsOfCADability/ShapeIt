@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="PngExportHelper.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Remove="Bitmaps\Buttons1.bmp" />
     <None Remove="Bitmaps\Buttons2.bmp" />
     <None Remove="Bitmaps\Buttons3.bmp" />
@@ -65,6 +69,7 @@
     <None Remove="Cursors\Trim.cur" />
     <None Remove="Cursors\TrimSplit.cur" />
     <None Remove="Icons\Constr_Polyline.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.svg" />
   </ItemGroup>
 
   <ItemGroup>
@@ -124,6 +129,7 @@
     <EmbeddedResource Include="Cursors\SmallMove.cur" />
     <EmbeddedResource Include="Cursors\Trim.cur" />
     <EmbeddedResource Include="Cursors\TrimSplit.cur" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.svg" />
   </ItemGroup>
 
   <ItemGroup>
@@ -131,7 +137,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\CADability\CADability\CADability.csproj" />
+    <ProjectReference Include="..\CADability\CADability.csproj" />
   </ItemGroup>
 
   <ItemGroup>

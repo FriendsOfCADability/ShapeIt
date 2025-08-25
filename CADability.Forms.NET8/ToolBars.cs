@@ -189,6 +189,8 @@ namespace CADability.Forms.NET8
             for (int i = 0; i < menuIds.Length; i++)
             {
                 int ImageIndex = MenuResource.FindImageIndex(menuIds[i]);
+                // Try SVG first (embedded), fallback to ImageList if null:
+                Bitmap? bmp = SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(menuIds[i], res, res.ImageScalingSize, null);
                 if (MenuResource.IsPopup(menuIds[i])) // this is a popup menu id. On click, we show the popup menu (sub menu)
                 {
                     ToolStripSplitButton btn = new ToolStripSplitButton();
@@ -198,7 +200,7 @@ namespace CADability.Forms.NET8
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
                         btn.ImageScaling = ToolStripItemImageScaling.None;
-                        btn.Image = ButtonImages.ButtonImageList.Images[ImageIndex];
+                        btn.Image = bmp;
                     }
                     else
                     {
@@ -219,7 +221,7 @@ namespace CADability.Forms.NET8
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
                         btn.ImageScaling = ToolStripItemImageScaling.None;
-                        btn.Image = ButtonImages.ButtonImageList.Images[ImageIndex];
+                        btn.Image = bmp;
                     }
                     else
                     {
