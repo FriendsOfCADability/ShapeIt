@@ -80,25 +80,21 @@ namespace CADability.Forms.NET8
             }
             set
             {   // if cursorTable doesn't contain the cursor, try to get it from the resources or from System.Windows.Forms.Cursors
-                if (!cursorTable.TryGetValue(value, out Cursor cursor))
+                if (!cursorTable.TryGetValue(value, out Cursor? cursor))
                 {
                     Assembly ThisAssembly = Assembly.GetExecutingAssembly();
                     string resBase = "CADability.Forms.NET8.Cursors." + value;
-                    Stream? str = ThisAssembly.GetManifestResourceStream(resBase + ".svg");
+                    cursor = SvgCursorHelper.CreateCursorFromEmbeddedSvg(resBase, this);
 
-                    if (str != null)
+                    if (cursor != null)
                     {
                         // Lade SVG, rendere Bitmap, erzeuge Cursor
-                        using var ms = new MemoryStream();
-                        str.CopyTo(ms);
-                        var svgBytes = ms.ToArray();
-                        cursor = SvgCursorHelper.CreateCursorFromSvg(svgBytes, dpi: this.DeviceDpi); 
                         cursorTable[value] = cursor;
                     }
                     else
                     {
                         // fallback wie bisher:
-                        str = ThisAssembly.GetManifestResourceStream(resBase + ".cur");
+                        Stream? str = ThisAssembly.GetManifestResourceStream(resBase + ".cur");
 
                         if (str != null)
                         {
@@ -109,11 +105,11 @@ namespace CADability.Forms.NET8
                         }
                         else
                         {   // the name is one of the System.Windows.Forms.Cursors properties
-                            PropertyInfo propertyInfo = typeof(Cursors).GetProperty(value);
-                            if (propertyInfo != null) cursor = propertyInfo.GetMethod.Invoke(null, new object[] { }) as Cursor;
+                            PropertyInfo? propertyInfo = typeof(Cursors).GetProperty(value);
+                            cursor = propertyInfo?.GetMethod?.Invoke(null, new object[] { }) as Cursor;
                         }
                     }
-                    cursorTable[value] = cursor;
+                    if (cursor!=null) cursorTable[value] = cursor;
                 }
                 currentCursor = value;
                 if (cursor != null) base.Cursor = cursor; // sets the cursor for the Control
