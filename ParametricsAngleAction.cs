@@ -2,7 +2,6 @@
 using CADability.Actions;
 using CADability.GeoObject;
 using CADability.UserInterface;
-using MathNet.Numerics;
 using System;
 using System.Collections.Generic;
 using System.Linq;

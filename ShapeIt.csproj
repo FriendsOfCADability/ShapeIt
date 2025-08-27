@@ -1,218 +1,34 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{EE9A7DFB-97BA-42A1-B55B-E19B28D15B68}</ProjectGuid>
     <OutputType>WinExe</OutputType>
-    <RootNamespace>ShapeIt</RootNamespace>
-    <AssemblyName>ShapeIt</AssemblyName>
-    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-    <Deterministic>true</Deterministic>
-    <TargetFrameworkProfile />
-    <IsWebBootstrapper>true</IsWebBootstrapper>
-    <PublishUrl>ftp://ftp.cadability.de/html/ShapeIt/</PublishUrl>
-    <Install>true</Install>
-    <InstallFrom>Web</InstallFrom>
-    <UpdateEnabled>true</UpdateEnabled>
-    <UpdateMode>Foreground</UpdateMode>
-    <UpdateInterval>7</UpdateInterval>
-    <UpdateIntervalUnits>Days</UpdateIntervalUnits>
-    <UpdatePeriodically>false</UpdatePeriodically>
-    <UpdateRequired>false</UpdateRequired>
-    <MapFileExtensions>true</MapFileExtensions>
-    <InstallUrl>https://www.cadability.de/ShapeIt/</InstallUrl>
-    <ProductName>ShapeIt with CADability</ProductName>
-    <PublisherName>Gerhard Hofmann</PublisherName>
-    <CreateWebPageOnPublish>true</CreateWebPageOnPublish>
-    <WebPage>publish.htm</WebPage>
-    <ApplicationRevision>7</ApplicationRevision>
-    <ApplicationVersion>0.2.0.%2a</ApplicationVersion>
-    <UseApplicationTrust>false</UseApplicationTrust>
-    <CreateDesktopShortcut>true</CreateDesktopShortcut>
-    <PublishWizardCompleted>true</PublishWizardCompleted>
-    <BootstrapperEnabled>true</BootstrapperEnabled>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>true</Prefer32Bit>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
-  </PropertyGroup>
-  <PropertyGroup>
-    <SignAssembly>false</SignAssembly>
-  </PropertyGroup>
-  <PropertyGroup>
-    <SignManifests>false</SignManifests>
-  </PropertyGroup>
-  <PropertyGroup>
-    <AssemblyOriginatorKeyFile>ShapeIt.snk.pfx</AssemblyOriginatorKeyFile>
-  </PropertyGroup>
-  <PropertyGroup>
-    <ManifestCertificateThumbprint>97495F516753024B56AF55D613D1BFA19BBECC24</ManifestCertificateThumbprint>
-  </PropertyGroup>
-  <PropertyGroup>
-    <ManifestKeyFile>ShapeIt.snk.pfx</ManifestKeyFile>
-  </PropertyGroup>
-  <PropertyGroup>
-    <GenerateManifests>true</GenerateManifests>
-  </PropertyGroup>
-  <PropertyGroup>
-    <DelaySign>false</DelaySign>
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Drawing.Common, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\packages\System.Drawing.Common.8.0.0\lib\net462\System.Drawing.Common.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Xml.Linq" />
-    <Reference Include="System.Data.DataSetExtensions" />
-    <Reference Include="Microsoft.CSharp" />
-    <Reference Include="System.Data" />
-    <Reference Include="System.Deployment" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xml" />
+    <None Remove="MenuResource.xml" />
+    <None Remove="Resources\Icon.ico" />
+    <None Remove="Resources\Logo.png" />
+    <None Remove="Resources\ShapeIt2.png" />
+    <None Remove="StringTableDeutsch.xml" />
+    <None Remove="StringTableEnglish.xml" />
   </ItemGroup>
-  <ItemGroup>
-    <Compile Include="DistanceCalculator.cs" />
-    <Compile Include="EdgeInOctTree.cs" />
-    <Compile Include="Feedback.cs" />
-    <Compile Include="FeedbackArrow.cs" />
-    <Compile Include="Helper.cs" />
-    <Compile Include="MainForm.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="MainForm.Designer.cs">
-      <DependentUpon>MainForm.cs</DependentUpon>
-    </Compile>
-    <Compile Include="MateFacesAction.cs" />
-    <Compile Include="ModellingPropertyEntries.cs" />
-    <Compile Include="ParametricPositionAction.cs" />
-    <Compile Include="ParametricsAngleAction.cs" />
-    <Compile Include="ParametricsCenterAction.cs" />
-    <Compile Include="ParametricsDistanceAction.cs" />
-    <Compile Include="ParametricsEdgeRadiusAction.cs" />
-    <Compile Include="ParametricsExtrudeAction.cs" />
-    <Compile Include="ParametricsOffsetAction.cs" />
-    <Compile Include="ParametricsRadiusAction.cs" />
-    <Compile Include="Program.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="DirectMenuEntry.cs" />
-    <Compile Include="SelectSecondSolidAction.cs" />
-    <Compile Include="ShellExtensions.cs" />
-    <Compile Include="SolidPlaneIntersectionPathAction.cs" />
-    <Compile Include="Surfaces.cs" />
-    <EmbeddedResource Include="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
-      <SubType>Designer</SubType>
-    </EmbeddedResource>
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Resources.resx</DependentUpon>
-      <DesignTime>True</DesignTime>
-    </Compile>
-    <None Include="packages.config" />
-    <None Include="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
-    </None>
-    <Compile Include="Properties\Settings.Designer.cs">
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Settings.settings</DependentUpon>
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-    </Compile>
-    <None Include="ShapeIt.snk.pfx" />
-    <None Include="ShapeIt_1_TemporaryKey.pfx" />
-    <None Include="ShapeIt_2_TemporaryKey.pfx" />
-    <None Include="ShapeIt_3_TemporaryKey.pfx" />
-    <None Include="ShapeIt_TemporaryKey.pfx" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
-  </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="MenuResource.xml" />
-  </ItemGroup>
-  <ItemGroup>
-    <BootstrapperPackage Include=".NETFramework,Version=v4.8">
-      <Visible>False</Visible>
-      <ProductName>Microsoft .NET Framework 4.8 %28x86 and x64%29</ProductName>
-      <Install>true</Install>
-    </BootstrapperPackage>
-    <BootstrapperPackage Include="Microsoft.Net.Framework.3.5.SP1">
-      <Visible>False</Visible>
-      <ProductName>.NET Framework 3.5 SP1</ProductName>
-      <Install>false</Install>
-    </BootstrapperPackage>
-  </ItemGroup>
-  <ItemGroup>
+    <EmbeddedResource Include="Resources\Icon.ico" />
+    <EmbeddedResource Include="Resources\Logo.png" />
+    <EmbeddedResource Include="Resources\ShapeIt2.png" />
     <EmbeddedResource Include="StringTableDeutsch.xml" />
     <EmbeddedResource Include="StringTableEnglish.xml" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="Resources\Logo.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <Content Include="Resources\Icon.ico" />
-    <Content Include="Resources\ShapeIt2.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <FileAssociation Include=".cdb.json">
-      <Visible>False</Visible>
-      <Description>ShapeIt</Description>
-      <Progid>ShapeIt.Document</Progid>
-      <DefaultIcon>Resources\Icon.ico</DefaultIcon>
-    </FileAssociation>
-  </ItemGroup>
-  <ItemGroup>
-    <Analyzer Include="..\SOFAgh\CADability\bin\Debug\netstandard2.0\CADability.dll" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\SOFAgh\CADability.Forms\CADability.Forms.csproj">
-      <Project>{5806c7e4-e796-42be-bddb-833d637e072f}</Project>
-      <Name>CADability.Forms</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\SOFAgh\CADability\CADability.csproj">
-      <Project>{c7dd89e7-d266-99b5-8dd4-48611aa0056a}</Project>
-      <Name>CADability</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <PropertyGroup>
-    <PostBuildEvent>if /I NOT "$(ConfigurationName)"=="Release" exit 0
-setlocal
-set OUTPATH=$(ProjectDir)installer_temp
 
-rmdir /S /Q "%25OUTPATH%25"
-mkdir "%25OUTPATH%25"
+  <ItemGroup>
+    <ProjectReference Include="..\CADability.Forms.NET8\CADability.Forms.NET8.csproj" />
+    <ProjectReference Include="..\CADability\CADability.csproj" />
+  </ItemGroup>
 
-copy /Y "$(TargetPath)" "%25OUTPATH%25\"
-xcopy /Y /Q "$(TargetDir)*.dll" "%25OUTPATH%25\"
-
-"$(ProgramFiles)\7-Zip\7z.exe" a -sfx"$(ProgramFiles)\7-Zip\7z.sfx" "$(ProjectDir)unsigned\unsigned_installer.exe" "%25OUTPATH%25\*"
-
-endlocal
-</PostBuildEvent>
-  </PropertyGroup>
 </Project>

@@ -1,27 +1,28 @@
-﻿using CADability.Forms;
-using CADability;
+﻿using CADability;
+using CADability.Actions;
+using CADability.Forms.NET8;
+using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using System.Reflection;
 using System.Xml;
-using CADability.UserInterface;
-using System.Runtime.InteropServices;
-using static ShapeIt.MainForm;
-using System.IO;
-using CADability.Actions;
-using System.Drawing.Imaging;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using System.Xml.Linq;
+using static ShapeIt.MainForm;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace ShapeIt
 {
+
     public partial class MainForm : CadForm
     {
         private PictureBox logoBox;
@@ -48,7 +49,7 @@ namespace ShapeIt
 
         void FadeOutPictureBox(PictureBox pb)
         {
-            var timer = new Timer();
+            var timer = new System.Windows.Forms.Timer();
             timer.Interval = 50;
             double alpha = 1.0;
 
@@ -95,7 +96,11 @@ namespace ShapeIt
             Control pex = FindControlByName(this, "propertiesExplorer");
             // Create PictureBox 
             logoBox = new PictureBox();
-            logoBox.Image = Properties.Resources.ShapeIt2;
+            Assembly ThisAssembly = Assembly.GetExecutingAssembly();
+            using (System.IO.Stream str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.ShapeIt2.png"))
+            {
+                logoBox.Image = new Bitmap(str);
+            }
             logoBox.SizeMode = PictureBoxSizeMode.Zoom;
 
             double aspectRatio = (double)logoBox.Image.Height / logoBox.Image.Width;
@@ -129,8 +134,13 @@ namespace ShapeIt
 
             //InitializeComponent();
             ShowLogo();
-
-            this.Icon = Properties.Resources.Icon;
+            // this.Icon = Properties.Resources.Icon;
+            Assembly ThisAssembly = Assembly.GetExecutingAssembly();
+            System.IO.Stream str;
+            using (str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.Icon.ico"))
+            {
+                this.Icon = new Icon(str);
+            }
 
             string fileName = "";
             for (int i = 0; i < args.Length; i++)
@@ -169,8 +179,6 @@ namespace ShapeIt
             CadFrame.ViewsChangedEvent += OnViewsChanged;
             if (CadFrame.ActiveView != null) OnViewsChanged(CadFrame);
             CadFrame.ControlCenter.RemovePropertyPage("View");
-            Assembly ThisAssembly = Assembly.GetExecutingAssembly();
-            System.IO.Stream str;
             using (str = ThisAssembly.GetManifestResourceStream("ShapeIt.StringTableDeutsch.xml"))
             {
                 XmlDocument stringXmlDocument = new XmlDocument();
@@ -229,7 +237,8 @@ namespace ShapeIt
                     CadFrame.Project.WriteToFile(path);
                     File.WriteAllText(Path.Combine(Path.GetTempPath(), @"ShapeIt\Crash.txt"), currentFileName + "\n" + path);
                 }
-                catch (Exception) { };
+                catch (Exception) { }
+                ;
             };
             // the following installs the property page for modelling. This connects all modelling
             // tasks of ShapeIt with CADability
@@ -267,7 +276,7 @@ namespace ShapeIt
                         {
                             CadFrame.Project = Project.ReadFromFile(lines[1]);
                             CadFrame.Project.FileName = lines[0];
-                            
+
                             this.Text = "ShapeIt -- " + lines[0];
                         }
                     }
@@ -405,7 +414,11 @@ namespace ShapeIt
             }
             if (sld1 != null)
             {
-                sld1.Shells[0].GetOffsetNew(0.50);
+                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(1); // -0.5);
+                //if (res1.Length > 0)
+                //{
+                //    CADability.GeoObject.Shell[] res2 = res1[0].GetOffsetNew(-0.5);
+                //}
                 //CADability.GeoObject.Solid[] res = CADability.GeoObject.Solid.Subtract(sld2, sld1);
                 //bool ok = res[0].Shells[0].CheckConsistency();
             }
