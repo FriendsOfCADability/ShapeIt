@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="MenuResource.xml" />
+    <None Remove="Resources\Icon.ico" />
+    <None Remove="Resources\Logo.png" />
+    <None Remove="Resources\ShapeIt2.png" />
+    <None Remove="StringTableDeutsch.xml" />
+    <None Remove="StringTableEnglish.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="MenuResource.xml" />
+    <EmbeddedResource Include="Resources\Icon.ico" />
+    <EmbeddedResource Include="Resources\Logo.png" />
+    <EmbeddedResource Include="Resources\ShapeIt2.png" />
+    <EmbeddedResource Include="StringTableDeutsch.xml" />
+    <EmbeddedResource Include="StringTableEnglish.xml" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CADability.Forms.NET8\CADability.Forms.NET8.csproj" />
+    <ProjectReference Include="..\CADability\CADability.csproj" />
+  </ItemGroup>
+
+</Project>

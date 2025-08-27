@@ -144,7 +144,7 @@ namespace CADability.Forms.NET8
                         "MenuId.Constr.Ellipse",
                         "MenuId.Constr.Ellipsearc",
                         "MenuId.Constr.Polyline",
-                        "MenuID.Constr.BSpline.Points",
+                        "MenuId.Constr.BSpline.Points",
                         "MenuId.Constr.3DObjects",
                         "MenuId.Constr.Text",
                         "MenuId.Constr.Hatch",

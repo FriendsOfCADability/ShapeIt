@@ -69,7 +69,9 @@
     <None Remove="Cursors\Trim.cur" />
     <None Remove="Cursors\TrimSplit.cur" />
     <None Remove="Icons\Constr_Polyline.svg" />
+    <None Remove="Icons\MenuId.Aequidist.svg" />
     <None Remove="Icons\MenuId.Constr.Line.svg" />
+    <None Remove="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
   </ItemGroup>
 
   <ItemGroup>
@@ -129,7 +131,9 @@
     <EmbeddedResource Include="Cursors\SmallMove.cur" />
     <EmbeddedResource Include="Cursors\Trim.cur" />
     <EmbeddedResource Include="Cursors\TrimSplit.cur" />
+    <EmbeddedResource Include="Icons\MenuId.Aequidist.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
   </ItemGroup>
 
   <ItemGroup>
