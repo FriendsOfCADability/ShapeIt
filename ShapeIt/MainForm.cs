@@ -22,6 +22,7 @@ using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace ShapeIt
 {
+
     public partial class MainForm : CadForm
     {
         private PictureBox logoBox;
