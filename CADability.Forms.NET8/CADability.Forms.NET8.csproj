@@ -69,9 +69,31 @@
     <None Remove="Cursors\Trim.cur" />
     <None Remove="Cursors\TrimSplit.cur" />
     <None Remove="Icons\Constr_Polyline.svg" />
+    <None Remove="Icons\MenuId.Activate.Grid.svg" />
     <None Remove="Icons\MenuId.Aequidist.svg" />
+    <None Remove="Icons\MenuId.Align.Bottom.svg" />
+    <None Remove="Icons\MenuId.Align.Center.svg" />
+    <None Remove="Icons\MenuId.Align.Hcenter.svg" />
+    <None Remove="Icons\MenuId.Align.Left.svg" />
+    <None Remove="Icons\MenuId.Align.Right.svg" />
+    <None Remove="Icons\MenuId.Align.Top.svg" />
+    <None Remove="Icons\MenuId.Align.Vcenter.svg" />
+    <None Remove="Icons\MenuId.Colors.svg" />
+    <None Remove="Icons\MenuId.Connnect.svg" />
+    <None Remove="Icons\MenuId.Constr.3DObjects.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.BisectAngle.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.MiddlePerp.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.ParallelDist.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.ParallelPoint.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.PointTangent.svg" />
     <None Remove="Icons\MenuId.Constr.Line.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.TangentAngle.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.TwoPoints.svg" />
+    <None Remove="Icons\MenuId.Constr.Line.TwoTangents.svg" />
+    <None Remove="Icons\MenuId.Constr.Point.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
+    <None Remove="Icons\MenuId.Fillet.svg" />
+    <None Remove="Icons\MenuId.SetGrid.svg" />
   </ItemGroup>
 
   <ItemGroup>
@@ -131,9 +153,31 @@
     <EmbeddedResource Include="Cursors\SmallMove.cur" />
     <EmbeddedResource Include="Cursors\Trim.cur" />
     <EmbeddedResource Include="Cursors\TrimSplit.cur" />
+    <EmbeddedResource Include="Icons\MenuId.Activate.Grid.svg" />
     <EmbeddedResource Include="Icons\MenuId.Aequidist.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Align.Bottom.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Align.Center.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Align.Hcenter.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Align.Left.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Align.Right.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Align.Top.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Align.Vcenter.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Colors.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Connnect.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.3DObjects.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.BisectAngle.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.MiddlePerp.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.ParallelDist.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.ParallelPoint.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.PointTangent.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.TangentAngle.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.TwoPoints.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Line.TwoTangents.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Point.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Fillet.svg" />
+    <EmbeddedResource Include="Icons\MenuId.SetGrid.svg" />
   </ItemGroup>
 
   <ItemGroup>

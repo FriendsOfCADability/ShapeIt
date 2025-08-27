@@ -163,6 +163,17 @@ namespace ShapeIt
             if (toOpen == null) CadFrame.GenerateNewProject();
             else CadFrame.Project = toOpen;
             this.Text = "ShapeIt with CADability";
+            if (!Settings.GlobalSettings.ContainsSetting("UserInterface"))
+            {
+                Settings UserInterface = new Settings("UserInterface");
+                Settings.GlobalSettings.AddSetting("UserInterface", UserInterface);
+                IntegerProperty ToolbarButtonSize = new IntegerProperty("ToolbarButtonSize", "ToolbarButtonSize");
+                ToolbarButtonSize.IntegerValue = 0;
+                UserInterface.AddSetting("ToolbarButtonSize", ToolbarButtonSize);
+                IntegerProperty MenuSize = new IntegerProperty("MenuSize", "MenuSize");
+                MenuSize.IntegerValue = 0;
+                UserInterface.AddSetting("MenuSize", MenuSize);
+            }
             Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false); // we start face extrus with newly generated face, which has no owner
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);

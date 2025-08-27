@@ -790,6 +790,7 @@ namespace CADability
             sortedEntries = new ArrayList();
             modified = false;
             resourceIdInternal = ResourceID;
+            myName = ResourceID;
         }
 
         public void AddSetting(string Name, object Value)

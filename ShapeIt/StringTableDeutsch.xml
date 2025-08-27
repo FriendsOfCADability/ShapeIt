@@ -310,5 +310,17 @@
 		<label>Offset</label>
 		<info>Betrag, um welchen der Körper ausgedehnt (+) oder geschrumpft (-) werden soll</info>
 	</data>
+  <data name="UserInterface">
+    <label>Benutzeroberfläche</label>
+    <info>EInstellungen für die Benutzeroberfläche (o ist Standard)</info>
+  </data>
+  <data name="ToolbarButtonSize">
+    <label>Schaltflächengröße</label>
+    <info>Größe der Schaltflächen (Toolbars), 0 ist Standard</info>
+  </data>
+  <data name="MenuSize">
+    <label>Menuegröße</label>
+    <info>Größe des Menues, 0 ist Standard</info>
+  </data>
 
 </root>

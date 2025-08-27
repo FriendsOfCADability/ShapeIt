@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Security.Policy;
 using System.Text;
 using System.Windows.Forms;
 
@@ -34,10 +35,10 @@ namespace CADability.Forms.NET8
                 if (showLastSubMenu)
                 {
                     lastSubMenuId = MenuId;
-                    int ImageIndex = MenuResource.FindImageIndex(MenuId);
-                    if (ImageIndex >= 0)
+                    if (parent.GetCurrentParent() is ToolStrip ts)
                     {
-                        parent.Image = ButtonImages.ButtonImageList.Images[ImageIndex];
+                        Bitmap? bmp = SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(MenuId, ts, ts.ImageScalingSize, null);
+                        if (bmp != null) parent.Image = bmp;
                     }
                 }
                 return commandHandler.OnCommand(MenuId);
@@ -185,12 +186,14 @@ namespace CADability.Forms.NET8
             // combo buttons (ToolStripSplitButton), which show a popup menu when clicked. The latter also may change their image to 
             // display the last clicked menu item: if so, on click, they execute the last clicked menu item, if not, the show the popup menu.
             ToolStrip res = new ToolStrip();
+            int buttonSize = Settings.GlobalSettings.GetIntValue("UserInterface.ToolbarButtonSize", -1);
+            Size size = buttonSize > 16 ? new Size(buttonSize, buttonSize) : SvgBitmapHelper.GetToolbarTargetSize(res);
             res.Name = name;
             for (int i = 0; i < menuIds.Length; i++)
             {
                 int ImageIndex = MenuResource.FindImageIndex(menuIds[i]);
                 // Try SVG first (embedded), fallback to ImageList if null:
-                Bitmap? bmp = SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(menuIds[i], res, res.ImageScalingSize, null);
+                Bitmap? bmp = SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(menuIds[i], res, size, null);
                 if (MenuResource.IsPopup(menuIds[i])) // this is a popup menu id. On click, we show the popup menu (sub menu)
                 {
                     ToolStripSplitButton btn = new ToolStripSplitButton();
@@ -200,7 +203,7 @@ namespace CADability.Forms.NET8
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
                         btn.ImageScaling = ToolStripItemImageScaling.SizeToFit;
-                        res.ImageScalingSize = SvgBitmapHelper.GetToolbarTargetSize(res);
+                        res.ImageScalingSize = size;
                         btn.Image = bmp;
                     }
                     else
@@ -221,7 +224,7 @@ namespace CADability.Forms.NET8
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
                         btn.ImageScaling = ToolStripItemImageScaling.SizeToFit;
-                        res.ImageScalingSize = SvgBitmapHelper.GetToolbarTargetSize(res); 
+                        res.ImageScalingSize = size;
                         btn.Image = bmp;
                     }
                     else
