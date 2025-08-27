@@ -199,7 +199,8 @@ namespace CADability.Forms.NET8
                     if (ImageIndex >= 0)
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
-                        btn.ImageScaling = ToolStripItemImageScaling.None;
+                        btn.ImageScaling = ToolStripItemImageScaling.SizeToFit;
+                        res.ImageScalingSize = SvgBitmapHelper.GetToolbarTargetSize(res);
                         btn.Image = bmp;
                     }
                     else
@@ -207,7 +208,6 @@ namespace CADability.Forms.NET8
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Text;
                     }
                     btn.Name = StringTable.GetString(menuIds[i]); // not sure, what the name is used for
-                    btn.Size = new System.Drawing.Size(24, 24);
                     btn.Text = StringTable.GetString(menuIds[i]);
                     btn.Click += tagInfo.ButtonClicked;
                     res.Items.Add(btn);
@@ -220,7 +220,8 @@ namespace CADability.Forms.NET8
                     if (ImageIndex >= 0)
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
-                        btn.ImageScaling = ToolStripItemImageScaling.None;
+                        btn.ImageScaling = ToolStripItemImageScaling.SizeToFit;
+                        res.ImageScalingSize = SvgBitmapHelper.GetToolbarTargetSize(res); 
                         btn.Image = bmp;
                     }
                     else
@@ -228,7 +229,6 @@ namespace CADability.Forms.NET8
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Text;
                     }
                     btn.Name = StringTable.GetString(menuIds[i]);
-                    btn.Size = new System.Drawing.Size(24, 24);
                     btn.Text = StringTable.GetString(menuIds[i]); // will be shown as a tooltip
                     btn.Click += tagInfo.ButtonClicked;
                     res.Items.Add(btn);
