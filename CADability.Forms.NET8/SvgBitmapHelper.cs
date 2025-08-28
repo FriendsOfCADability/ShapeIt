@@ -17,10 +17,10 @@ namespace CADability.Forms.NET8
         // Win32 system metrics for small icons (toolbars)
         private const int SM_CXSMICON = 49;
         private const int SM_CYSMICON = 50;
-
         [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hWnd);
         [DllImport("user32.dll")] private static extern int GetSystemMetricsForDpi(int nIndex, uint dpi);
 
+        private static Dictionary<(string, Size), Bitmap> cachedBitmaps = new Dictionary<(string, Size), Bitmap>();
         /// <summary>
         /// Create a toolbar-sized bitmap from an embedded SVG resource.
         /// Fallback to embedded raster (.png/.bmp/.ico) and upscale if needed.
@@ -39,11 +39,7 @@ namespace CADability.Forms.NET8
         /// Optional assembly to search; defaults to the calling assembly.
         /// </param>
         /// <returns>Bitmap or null if nothing found.</returns>
-        public static Bitmap? CreateBitmapFromEmbeddedSvg(
-            string resourceBaseName,
-            Control contextControl,
-            Size? overridePixelSize = null,
-            Assembly? assembly = null)
+        public static Bitmap? CreateBitmapFromEmbeddedSvg(string resourceBaseName, Control contextControl, Size? overridePixelSize = null, Assembly? assembly = null)
         {
             if (string.IsNullOrWhiteSpace(resourceBaseName) || contextControl == null)
                 return null;
@@ -52,6 +48,7 @@ namespace CADability.Forms.NET8
 
             // 1) Determine target pixel size for toolbar icons.
             Size targetSize = overridePixelSize ?? GetToolbarTargetSize(contextControl);
+            if (cachedBitmaps.TryGetValue((resourceBaseName, targetSize), out var bitmap) && bitmap != null) { return bitmap; }
 
             // 2) Try SVG first.
             using (var svgStream = TryOpenResourceStream(assembly, "Icons/"+resourceBaseName, ".svg"))
@@ -66,7 +63,9 @@ namespace CADability.Forms.NET8
                             throw new InvalidOperationException("SVG picture is null.");
 
                         // Render exactly in the target size
-                        return RenderSvgToBitmap(svg.Picture, targetSize);
+                        Bitmap res = RenderSvgToBitmap(svg.Picture, targetSize);
+                        cachedBitmaps[(resourceBaseName, targetSize)] = res;
+                        return res;
                     }
                     catch
                     {
@@ -77,12 +76,15 @@ namespace CADability.Forms.NET8
 
             // 3) Raster fallback: 
             int ImageIndex = MenuResource.FindImageIndex(resourceBaseName);
+            if (ImageIndex < 0 || ButtonImages.ButtonImageList.Images.Count <= ImageIndex) return null; // not found
             Bitmap src = new Bitmap(ButtonImages.ButtonImageList.Images[ImageIndex]);
 
             if (src.Size == targetSize) return src;
 
             // upscale (or downscale) to target; keep alpha
-            return ResizeBitmap(src, targetSize);
+            Bitmap scaled = ResizeBitmap(src, targetSize);
+            cachedBitmaps[(resourceBaseName, targetSize)] = scaled;
+            return scaled;
         }
 
         /// <summary>

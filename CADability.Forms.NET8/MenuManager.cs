@@ -9,6 +9,7 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Security.Cryptography;
+using System.Security.Policy;
 using System.Windows.Forms;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using Timer = System.Windows.Forms.Timer;
@@ -350,6 +351,30 @@ namespace CADability.Forms.NET8
         {
             return Form.ActiveForm;
         }
+        /// <summary>
+        /// Returns the control that effectively hosts the given menu item.
+        /// - For MenuStrip/ToolStrip: returns the strip itself (it is a Control).
+        /// - For ContextMenuStrip: returns SourceControl if available, otherwise the ContextMenuStrip.
+        /// </summary>
+        private Control? GetHostControl()
+        {
+
+            // Start with the immediate owner (could be a drop-down menu)
+            ToolStrip? owner = Owner;
+
+            // Walk up through nested drop-downs until we reach a top-level strip
+            while (owner is ToolStripDropDown dd && dd.OwnerItem?.Owner != null)
+            {
+                owner = dd.OwnerItem.Owner;
+            }
+
+            // If it's a context menu, prefer the SourceControl (the control that opened it)
+            if (owner is ContextMenuStrip cms)
+                return cms.SourceControl ?? cms;
+
+            // MenuStrip or ToolStrip are Controls themselves
+            return owner as Control;
+        }
         protected override void OnOwnerChanged(EventArgs e)
         {
             base.OnOwnerChanged(e);
@@ -358,12 +383,10 @@ namespace CADability.Forms.NET8
                 var sz = Owner.ImageScalingSize;
                 if (Tag is MenuWithHandler definition)
                 {
-                    // definition.ID -> versuche SVG zu laden!
-                    int ind = definition.ImageIndex;
-                    if (ind >= 10000) ind = ind - 10000 + ButtonImages.OffsetUserImages;
-                    if (ind >= 0)
+                    Bitmap? bmp = SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(definition.ID, GetHostControl(), sz, null);
+                    if (bmp != null)
                     {
-                        base.Image = ButtonImages.ButtonImageList.Images[ind];
+                        base.Image = bmp;
                     }
                 }
             }

@@ -21,7 +21,7 @@ using static CADability.Projection;
 namespace ShapeIt
 {
     /// <summary>
-    /// Class to enable Edges to reside in an <see cref="OctTree{T}"/>
+    /// This is the tab page in the control center or property view, which contains all the menus to modelling
     /// </summary>
     internal class ModellingPropertyEntries : PropertyEntryImpl, ICommandHandler
     {
