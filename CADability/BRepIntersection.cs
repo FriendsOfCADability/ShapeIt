@@ -4325,12 +4325,15 @@ namespace CADability
 #endif
             // All edges of trimmedFaces are connected to either other trimmedfaces or to remaining uncut faces of the two shells.
             // Collect all faces that are reachable from trimmedFaces
-            HashSet<Face> testFaces = new HashSet<Face>(shell1.Faces);
-            testFaces.UnionWith(shell2.Faces);
-            testFaces.UnionWith(trimmedFaces);
-            testFaces.ExceptWith(cancelledfaces);
-            testFaces.ExceptWith(discardedFaces);
-            combineVertices(testFaces);
+            if (multipleFaces == null)
+            {
+                HashSet<Face> testFaces = new HashSet<Face>(shell1.Faces);
+                testFaces.UnionWith(shell2.Faces);
+                testFaces.UnionWith(trimmedFaces);
+                testFaces.ExceptWith(cancelledfaces);
+                testFaces.ExceptWith(discardedFaces);
+                combineVertices(testFaces);
+            }
 
             Set<Face> allFaces = new Set<Face>(trimmedFaces);
             bool added = true;

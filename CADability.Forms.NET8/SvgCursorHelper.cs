@@ -48,7 +48,7 @@ public static class SvgCursorHelper
         if (svg == null || !string.Equals(svg.Name.LocalName, "svg", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        // Suche nach <desc id="hotspot" .../>
+        // Look for <desc id="hotspot" .../>
         foreach (var desc in svg.Elements())
         {
             if (!string.Equals(desc.Name.LocalName, "desc", StringComparison.OrdinalIgnoreCase))

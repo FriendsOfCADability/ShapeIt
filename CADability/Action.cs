@@ -131,7 +131,7 @@ namespace CADability.Actions
         protected Action()
         {
             autoCursor = true; // oder?
-            changeTabInControlCenter = false; // erstmal...
+            changeTabInControlCenter = true; // changed to true because of ShapeIt
             cursor = new Dictionary<SnapPointFinder.DidSnapModes, string>();
             cursor[SnapPointFinder.DidSnapModes.DidNotSnap] = "Pen";
             cursor[SnapPointFinder.DidSnapModes.DidSnapToIntersectionPoint] = "DartIntersect";

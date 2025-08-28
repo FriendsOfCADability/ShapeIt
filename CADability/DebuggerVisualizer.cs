@@ -178,7 +178,7 @@ namespace CADability
 
             try
             {
-                TryStartCadDebugger();
+                //TryStartCadDebugger();
                 SafeDispose();
                 var c = new NamedPipeClientStream(".", "cadability.visualizer.v1", PipeDirection.InOut, PipeOptions.None);
                 try { c.Connect(50); }                           // max. 50 ms

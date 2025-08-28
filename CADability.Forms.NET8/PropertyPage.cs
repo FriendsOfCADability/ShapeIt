@@ -1053,7 +1053,7 @@ namespace CADability.Forms.NET8
         }
         public IPropertyEntry GetCurrentSelection()
         {
-            if (selected >= 0) return entries[selected];
+            if (selected >= 0 && entries.Length>selected) return entries[selected];
             return null;
         }
         public void SelectEntry(IPropertyEntry toSelect)
