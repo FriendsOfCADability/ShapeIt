@@ -21,7 +21,7 @@ using static CADability.Projection;
 namespace ShapeIt
 {
     /// <summary>
-    /// This is the tab page in the control center or property view, which contains all the menus to modelling
+    /// This is the tab page in the control center or property view, which contains all the menus to do modelling
     /// </summary>
     internal class ModellingPropertyEntries : PropertyEntryImpl, ICommandHandler
     {
