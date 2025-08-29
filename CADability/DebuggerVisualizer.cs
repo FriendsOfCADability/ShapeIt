@@ -45,6 +45,11 @@ namespace CADability
             else
             {
                 toVisualize = ToGeoObject(toVisualize);
+                if (toVisualize is IGeoObject geoObject)
+                {
+                    // make a GeoObjectlist, because single GeoObjects don't serialize correctely
+                    toVisualize = new GeoObjectList(geoObject);
+                }
             }
             if (toVisualize != null)
             {

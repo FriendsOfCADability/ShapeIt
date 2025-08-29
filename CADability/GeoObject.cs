@@ -576,12 +576,16 @@ namespace CADability.GeoObject
         private IDrive actuator;
 #if DEBUG
         // this property enables the Debugger Visualizer to display the GeoObject
-        public string Show
+        //public string Show
+        //{
+        //    get
+        //    {
+        //        return D.Show(this);
+        //    }
+        //}
+        public void Show()
         {
-            get
-            {
-                return D.Show(this);
-            }
+            D.Show(this);
         }
 #endif
 

@@ -68,13 +68,13 @@ namespace CADability.GeoObject
         /// <summary>
         /// This is used to show the list in the CADability.DebuggerView when opening this GeoObjectList in VS watch
         /// </summary>
-        public string Debug
-        {
-            get
-            {
-                return D.Show(this);
-            }
-        }
+        //public string Debug
+        //{
+        //    get
+        //    {
+        //        return D.Show(this);
+        //    }
+        //}
 #endif
         public void Add(IGeoObject ObjectToAdd)
         {

@@ -104,8 +104,6 @@ namespace ShapeIt
                     Model m = Frame.ActiveView.Model;
                     PlaneSurface pls = new PlaneSurface(plane);
                     ICurve[] crvs = Intersect(pls);
-                    List<ICurve> lcrvs = new List<ICurve>(crvs);
-                    RemoveDuplicates(lcrvs, solidToIntersect.GetExtent(0.0));
                     if (crvs != null)
                     {
                         for (int k = 0; k < crvs.Length; k++)
@@ -115,7 +113,7 @@ namespace ShapeIt
                             ToAdd.Add(go);
                         }
                     }
-                    List<Path> paths = Path.FromSegments(lcrvs);
+                    List<Path> paths = Path.FromSegments(new List<ICurve>(crvs));
                     foreach (Path path in paths)
                     {
                         path.CopyAttributes(base.ActiveObject);
@@ -124,30 +122,6 @@ namespace ShapeIt
                     base.KeepAsLastStyle(ActiveObject);
                     base.ActiveObject = null;
                     base.OnDone();
-                }
-            }
-        }
-
-        private void RemoveDuplicates(List<ICurve> lcrvs, BoundingCube extent)
-        {
-            OctTree<IOctTreeInsertable> ot = new OctTree<IOctTreeInsertable>(extent, Precision.eps);
-            // all ICurves are IOctTreeInsertable
-            for (int i = 0; i < lcrvs.Count; i++)
-            {
-                ot.AddObject(lcrvs[i] as IOctTreeInsertable);
-            }
-            // maybe we should use an octtree, but here the quick implementation
-            for (int i = lcrvs.Count - 1; i > 0; --i)
-            {
-                ot.RemoveObject(lcrvs[i] as IOctTreeInsertable);
-                IOctTreeInsertable[] found = ot.GetObjectsCloseTo(lcrvs[i] as IOctTreeInsertable);
-                for (int j = 0; j < found.Length; ++j)
-                {
-                    if (lcrvs[i].SameGeometry(found[j] as ICurve, Precision.eps))
-                    {
-                        lcrvs.RemoveAt(i);
-                        break;
-                    }
                 }
             }
         }

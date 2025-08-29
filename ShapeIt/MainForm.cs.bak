@@ -220,8 +220,6 @@ namespace ShapeIt
                     mainMenu.AppendChild(debugMenuItem);
                 }
 #endif
-                XmlNode toolbar = menuDocument.SelectSingleNode("Menus/Popup[@MenuId='Toolbar']");
-                SetToolbar(toolbar);
                 MenuResource.SetMenuResource(menuDocument);
                 ResetMainMenu(null);
             }

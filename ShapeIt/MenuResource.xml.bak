@@ -38,7 +38,7 @@
 				<MenuItem MenuId="SEPARATOR" />
 				<MenuItem MenuId="MenuId.Save.Symbol" IconNr="165" />
 			</Popup>
-			<Popup MenuId="MenuId.Object.Arrange" IconNr="106" >
+			<Popup MenuId="MenuId.Object.Arrange">
 				<MenuItem MenuId="MenuId.Copy.Matrix" IconNr="106" />
 				<MenuItem MenuId="MenuId.Copy.Circular" IconNr="107" />
 				<MenuItem MenuId="MenuId.Align.Left"  IconNr="135" />
@@ -52,6 +52,24 @@
 				<MenuItem MenuId="MenuId.Space.Across" IconNr="143"/>
 				<MenuItem MenuId="MenuId.Same.Width" IconNr="145"/>
 				<MenuItem MenuId="MenuId.Same.Height" IconNr="146"/>
+			</Popup>
+			<Popup MenuId="MenuId.ConstrSelected.Face" IconNr="142" Usage="3D">
+				<MenuItem MenuId="MenuId.Constr.Face.FromSelectedObject"  IconNr="167"/>
+				<MenuItem MenuId="MenuId.Constr.Face.SelectedObjectExtrude"  IconNr="22"/>
+				<MenuItem MenuId="MenuId.Constr.Face.SelectedObjectRotate"  IconNr="162"/>
+				<MenuItem MenuId="MenuId.Constr.Face.SelectedRuledFace"  IconNr="163"/>
+				<MenuItem MenuId="MenuId.SelectedObjects.SewFaces"  IconNr="168"/>
+				<!-- <MenuItem MenuId="MenuId.SelectedEdges.Round" /> z.Z. nur testweise implementiert -->
+			</Popup>
+			<Popup MenuId="MenuId.ConstrSelected.Solid" IconNr="141" Usage="3D">
+				<Popup MenuId="MenuId.Constr.Solid.ModifyMode" IconNr="166"  >
+					<MenuItem MenuId="MenuId.Constr.Solid.ModifyMode.Unite" Flag="NotSticky"/>
+					<MenuItem MenuId="MenuId.Constr.Solid.ModifyMode.Subtract"  Flag="NotSticky"/>
+				</Popup>
+				<MenuItem MenuId="MenuId.Constr.Solid.SelectedFaceExtrude"  IconNr="159"/>
+				<MenuItem MenuId="MenuId.Constr.Solid.SelectedFaceRotate"  IconNr="160"/>
+				<MenuItem MenuId="MenuId.Constr.Solid.SelectedRuledSolid"  IconNr="161"/>
+				<MenuItem MenuId="MenuId.Constr.Solid.Fuse"/>
 			</Popup>
 			<MenuItem MenuId="MenuId.Import" IconNr="194"/>
 			<MenuItem MenuId="MenuId.Import.Edges" IconNr="194" Usage="3D"/>
@@ -138,7 +156,7 @@
 				<MenuItem MenuId="MenuId.Constr.Arc.TangentPointRadius" IconNr="127" />
 			</Popup>
 			<MenuItem MenuId="MenuId.Constr.Polyline" IconNr="16" />
-			<MenuItem MenuId="MenuId.Constr.BSpline.Points" IconNr="148" />
+			<MenuItem MenuId="MenuID.Constr.BSpline.Points" IconNr="148" />
 			<Popup MenuId="MenuId.Constr.Ellipse" IconNr="17" >
 				<MenuItem MenuId="MenuId.Constr.Ellipse.CenterRadius" IconNr="81" />
 				<MenuItem MenuId="MenuId.Constr.Ellipse.2PointsDirections" IconNr="20"/>
@@ -154,6 +172,10 @@
 -->
 			</Popup>
 			<Popup MenuId="MenuId.Constr.3DObjects" IconNr="200" Usage="3D">
+				<Popup MenuId="MenuId.Constr.Solid.ModifyMode" IconNr="166">
+					<MenuItem MenuId="MenuId.Constr.Solid.ModifyMode.Unite"  Flag="NotSticky"/>
+					<MenuItem MenuId="MenuId.Constr.Solid.ModifyMode.Subtract"  Flag="NotSticky"/>
+				</Popup>
 				<MenuItem MenuId="MenuId.Constr.Sphere" IconNr="204"/>
 				<MenuItem MenuId="MenuId.Constr.Box" IconNr="201"/>
 				<MenuItem MenuId="MenuId.Constr.Cylinder" IconNr="202"/>
@@ -195,6 +217,18 @@
 				<MenuItem MenuId="MenuId.SelectedObjects.SewFaces"  IconNr="168"/>
 				<!-- <MenuItem MenuId="MenuId.SelectedEdges.Round" /> z.Z. nur testweise implementiert -->
 			</Popup>
+			<Popup MenuId="MenuId.Constr.Solid" IconNr="141" Usage="3D">
+				<Popup MenuId="MenuId.Constr.Solid.ModifyMode" IconNr="166">
+					<MenuItem MenuId="MenuId.Constr.Solid.ModifyMode.Unite"  Flag="NotSticky"/>
+					<MenuItem MenuId="MenuId.Constr.Solid.ModifyMode.Subtract"  Flag="NotSticky"/>
+				</Popup>
+				<MenuItem MenuId="MenuId.Constr.Solid.FaceExtrude"  IconNr="159"/>
+				<MenuItem MenuId="MenuId.Constr.Solid.FaceRotate"  IconNr="160"/>
+				<MenuItem MenuId="MenuId.Constr.Solid.RuledSolid"  IconNr="161"/>
+				<MenuItem MenuId="MenuId.Constr.Solid.ScrewPath" />
+				<MenuItem MenuId="MenuId.Constr.Solid.Fuse"/>
+				<MenuItem MenuId="MenuId.Constr.Solid.ShellToSolid"/>
+			</Popup>
 			<Popup MenuId="MenuId.Tools" IconNr="28" >
 				<MenuItem MenuId="MenuId.Trim" IconNr="73" />
 				<MenuItem MenuId="MenuId.Trim.Split" IconNr="74"  />
@@ -206,6 +240,10 @@
 				<MenuItem MenuId="MenuId.RoundMultiple"  IconNr="78" />
 				<MenuItem MenuId="MenuId.Round.In"  IconNr="79" />
 				<MenuItem MenuId="MenuId.Aequidist" IconNr="80" />
+				<MenuItem MenuId="MenuId.PlaneIntersection" IconNr="164" Usage="3D"/>
+				<MenuItem MenuId="MenuId.Fillet" IconNr="170" Usage="3D"/>
+				<MenuItem MenuId="MenuId.Chamfer" IconNr="171" Usage="3D"/>
+				<!--				<MenuItem MenuId="MenuId.Change.Dim"  /> -->
 			</Popup>
 			<Popup MenuId="MenuId.Measure" IconNr="156" >
 				<MenuItem MenuId="MenuId.Measure.Point.IntersectionTwoCurves" IconNr="101"/>
@@ -276,7 +314,7 @@
 			<MenuItem MenuId="SEPARATOR" />
 			<MenuItem MenuId="MenuId.Save.Symbol" IconNr="165" />
 		</Popup>
-		<Popup MenuId="MenuId.Object.Arrange" IconNr="106" >
+		<Popup MenuId="MenuId.Object.Arrange">
 			<MenuItem MenuId="MenuId.Copy.Matrix" IconNr="106" />
 			<MenuItem MenuId="MenuId.Copy.Circular" IconNr="107" />
 			<MenuItem MenuId="MenuId.Align.Left"  IconNr="135" />
@@ -837,62 +875,5 @@
 	</Popup>
 	<Popup MenuId="MenuId.DebugFlag" >
 		<MenuItem MenuId="MenuId.ToggleDebugFlag" />
-	</Popup>
-	<Popup MenuId="Toolbar">
-		<!-- This is actually the toolbar definition, there is no menu "Toolbar" -->
-		<Popup MenuId="File">
-			<MenuItem MenuId="MenuId.File.New" />
-			<MenuItem MenuId="MenuId.File.Open" />
-			<MenuItem MenuId="MenuId.File.Save" />
-		</Popup>
-		<Popup MenuId= "Edit">
-			<MenuItem MenuId="MenuId.Edit.Cut"/>
-			<MenuItem MenuId="MenuId.Edit.Copy"/>
-			<MenuItem MenuId="MenuId.Edit.Paste"/>
-			<MenuItem MenuId="MenuId.Edit.Undo"/>
-			<MenuItem MenuId="MenuId.Edit.Redo"/>
-			</Popup>
-		<Popup MenuId= "Construct">
-			<MenuItem MenuId="MenuId.Select"/>
-			<MenuItem MenuId="MenuId.Constr.Point"/>
-			<MenuItem MenuId="MenuId.Constr.Line"/>
-			<MenuItem MenuId="MenuId.Constr.Rect"/>
-			<MenuItem MenuId="MenuId.Constr.Circle"/>
-			<MenuItem MenuId="MenuId.Constr.Arc"/>
-			<MenuItem MenuId="MenuId.Constr.Ellipse"/>
-			<MenuItem MenuId="MenuId.Constr.Ellipsearc"/>
-			<MenuItem MenuId="MenuId.Constr.Polyline"/>
-			<MenuItem MenuId="MenuId.Constr.BSpline.Points"/>
-			<MenuItem MenuId="MenuId.Constr.Text"/>
-			<MenuItem MenuId="MenuId.Tools"/>
-		</Popup>
-		<Popup MenuId= "Object">
-			<MenuItem MenuId="MenuId.Object.Move"/>
-			<MenuItem MenuId="MenuId.Object.Rotate"/>
-			<MenuItem MenuId="MenuId.Object.Scale"/>
-			<MenuItem MenuId="MenuId.Object.Reflect"/>
-			<MenuItem MenuId="MenuId.Object.Snap"/>
-		</Popup>
-		<Popup MenuId= "Snap">
-			<MenuItem MenuId="MenuId.Activate.Grid"/>
-			<MenuItem MenuId="MenuId.Activate.Ortho"/>
-			<MenuItem MenuId="MenuId.Snap.ObjectSnapPoint"/>
-			<MenuItem MenuId="MenuId.Snap.ObjectPoint"/>
-			<MenuItem MenuId="MenuId.Snap.DropPoint"/>
-			<MenuItem MenuId="MenuId.Snap.ObjectCenter"/>
-			<MenuItem MenuId="MenuId.Snap.TangentPoint"/>
-			<MenuItem MenuId="MenuId.Snap.Intersections"/>
-			<MenuItem MenuId="MenuId.Snap.Surface"/>
-		</Popup>
-		<Popup MenuId= "Zoom">
-			<MenuItem MenuId="MenuId.Zoom.Total"/>
-			<MenuItem MenuId="MenuId.Zoom.Detail"/>
-			<MenuItem MenuId="MenuId.Zoom.DetailPlus"/>
-			<MenuItem MenuId="MenuId.Zoom.DetailMinus"/>
-			<MenuItem MenuId="MenuId.ViewPoint"/>
-			<MenuItem MenuId="MenuId.Scroll"/>
-			<MenuItem MenuId="MenuId.Zoom"/>
-			<MenuItem MenuId="MenuId.Projection.Direction"/>
-		</Popup>
 	</Popup>
 </Menus>
