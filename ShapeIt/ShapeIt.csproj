@@ -23,6 +23,8 @@
     <None Remove="Resources\ShapeIt2.png" />
     <None Remove="StringTableDeutsch.xml" />
     <None Remove="StringTableEnglish.xml" />
+    <None Remove="Upload-ClickOnce.ps1" />
+    <None Remove="UploadShapeIt.cmd" />
   </ItemGroup>
 
   <ItemGroup>
