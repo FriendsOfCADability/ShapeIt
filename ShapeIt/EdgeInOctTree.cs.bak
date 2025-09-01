@@ -14,13 +14,11 @@ namespace ShapeIt
 
         public BoundingCube GetExtent(double precision)
         {
-            if (Edge.Curve3D == null) return new BoundingCube(Edge.Vertex1.Position);
             return Edge.Curve3D.GetExtent();
         }
 
         public bool HitTest(ref BoundingCube cube, double precision)
         {
-            if (Edge.Curve3D == null) return cube.Contains(Edge.Vertex1.Position);
             return Edge.Curve3D.HitTest(cube);
         }
 

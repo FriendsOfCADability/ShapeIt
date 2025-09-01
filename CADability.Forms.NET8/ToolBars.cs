@@ -5,6 +5,7 @@ using System.Drawing;
 using System.Security.Policy;
 using System.Text;
 using System.Windows.Forms;
+using System.Xml;
 
 namespace CADability.Forms.NET8
 {
@@ -330,6 +331,45 @@ namespace CADability.Forms.NET8
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Snap", commandHandler), 1);
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Construct", commandHandler), 1);
             }
+        }
+        public static void SetToolBar(ToolStripContainer topToolStripContainer, ICommandHandler commandHandler, XmlNode definition)
+        {
+            topToolStripContainer.TopToolStripPanel.Controls.Clear();
+            int joinrow = 0;
+            int maxWidth = topToolStripContainer.TopToolStripPanel.Width;
+            int currentWidth = 0;
+            List<List<ToolStrip>> tsiList = new List<List<ToolStrip>>();
+            tsiList.Add(new List<ToolStrip>());
+            foreach (XmlNode tb in definition.ChildNodes)
+            {
+                List<string> items = new List<string>();
+                foreach (XmlNode mi in tb.SelectNodes("MenuItem"))
+                {
+                    items.Add(mi.Attributes.GetNamedItem("MenuId").Value);
+                }
+                if (items.Count > 0)
+                {
+                    ToolStrip ts = MakeToolStrip(items.ToArray(), tb.Attributes.GetNamedItem("MenuId").Value, commandHandler);
+                    int w = ts.Items[1].Width;
+                    int tswidth = w * ts.Items.Count;
+                    currentWidth += tswidth;
+                    if (currentWidth > maxWidth - w)
+                    {
+                        currentWidth = 0;
+                        joinrow += 1;
+                        tsiList.Add(new List<ToolStrip>());
+                    }
+                    tsiList.Last().Add(ts);
+                }
+            }
+            for (int i = 0; i < tsiList.Count; i++)
+            {
+                for (int j = tsiList[i].Count - 1; j >= 0; --j) // don't know why, but we must reverse the list
+                {
+                    topToolStripContainer.TopToolStripPanel.Join(tsiList[i][j], i);
+                }
+            }
+
         }
     }
 }

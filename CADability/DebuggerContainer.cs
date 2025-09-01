@@ -190,6 +190,10 @@ namespace CADability
             point.UserData.Add("Debug", ip);
             toShow.Add(point);
         }
+        public void Show()
+        {
+            D.Show(toShow);
+        }
         private ColorDef pointColor = null;
         private ColorDef PointColor
         {

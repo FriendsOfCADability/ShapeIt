@@ -26,7 +26,7 @@ namespace CadDebuggerViewer
 
         public async Task RunAsync(CancellationToken ct)
         {
-            // Einfache Ein-Client-Variante. Wenn Client weg → wieder warten.
+            // Simple single-client variant. If client disconnects → wait again.
             while (!ct.IsCancellationRequested)
             {
                 using var server = new NamedPipeServerStream(
@@ -57,7 +57,7 @@ namespace CadDebuggerViewer
         {
             var lenBuf = new byte[4];
 
-            // 0) Handshake – innerhalb von z.B. 5s muss ein Hello kommen
+            // 0) Handshake – within e.g. 5s a Hello must arrive
             using (var helloCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
             {
                 helloCts.CancelAfter(TimeSpan.FromSeconds(5));
@@ -65,20 +65,20 @@ namespace CadDebuggerViewer
                 if (!string.Equals(hello?.type, "Hello", StringComparison.OrdinalIgnoreCase) || hello!.ver != 1)
                     throw new InvalidDataException("Protocol: expected Hello v1");
 
-                // Ack zurück
+                // Ack back
                 await WriteEnvelopeAsync(pipe, new Envelope { ver = 1, type = "HelloAck" }, ct).ConfigureAwait(false);
             }
             File.AppendAllText(logFileName, "HandleClientAsync Stelle 1" + Environment.NewLine);
 
             while (pipe.IsConnected && !ct.IsCancellationRequested)
             {
-                // 1) Länge lesen
+                // 1) Read length
                 await ReadExactlyAsync(pipe, lenBuf, 4, ct).ConfigureAwait(false);
                 int len = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
                 if (len <= 0 || len > 16 * 1024 * 1024) throw new InvalidDataException("Frame size");
                 File.AppendAllText(logFileName, "HandleClientAsync Stelle 2" + Environment.NewLine);
 
-                // 2) Payload lesen
+                // 2) Read payload
                 var buf = new byte[len];
                 await ReadExactlyAsync(pipe, buf, len, ct).ConfigureAwait(false);
                 File.AppendAllText(logFileName, "HandleClientAsync Stelle 3" + Environment.NewLine);
@@ -91,7 +91,7 @@ namespace CadDebuggerViewer
                 string payload = env.payload.ToString();
                 File.AppendAllText(logFileName, "HandleClientAsync Stelle 4 "+ env.type?.ToString() + Environment.NewLine);
 
-                // 4) Disptach
+                // 4) Dispatch
                 switch (env.type?.ToLowerInvariant())
                 {
                     case "show":
@@ -106,10 +106,10 @@ namespace CadDebuggerViewer
                         }
                         break;
                     case "ping":
-                        // optional: ack schreiben
+                        // optional: write ack
                         break;
                     default:
-                        // unbekannt → ignorieren/loggen
+                        // unknown → ignore/log
                         break;
                 }
             }
@@ -126,13 +126,13 @@ namespace CadDebuggerViewer
                 count -= r;
             }
         }
-        // oben: gemeinsame Serializer-Optionen (Case-insensitive hilft, falls Client anders schreibt)
+        // above: shared serializer options (Case-insensitive helps if client writes differently)
         private static readonly System.Text.Json.JsonSerializerOptions JsonOpts = new()
         {
             PropertyNameCaseInsensitive = true
         };
 
-        // Hilfs-Methoden für Framing
+        // Helper methods for framing
         private static async Task<Envelope?> ReadEnvelopeAsync(Stream s, CancellationToken ct)
         {
             byte[] lenBuf = new byte[4];
@@ -157,9 +157,9 @@ namespace CadDebuggerViewer
         }
     }
 
-    // Protokolltypen
-    // Achtung: Dein Client serialisiert camelCase.
-    // Für das Deserialisieren setze ich unten JsonOptions.PropertyNameCaseInsensitive = true.
+    // Protocol types
+    // Attention: Your client serializes in camelCase.
+    // For deserialization I set JsonOptions.PropertyNameCaseInsensitive = true below.
 
     public sealed class Envelope
     {
@@ -171,10 +171,10 @@ namespace CadDebuggerViewer
 
     public sealed class ShowPayload
     {
-        public string? title { get; set; }           // kommt von client: title ?? "CADability Object"
-        public string? objectKind { get; set; }      // aktuell null
-        public string cadJson { get; set; } = "";    // <-- dein CAD-JSON
-        public DisplayOptions? display { get; set; } // z.B. { fitAll: true }
+        public string? title { get; set; }           // comes from client: title ?? "CADability Object"
+        public string? objectKind { get; set; }      // currently null
+        public string cadJson { get; set; } = "";    // <-- your CAD-JSON
+        public DisplayOptions? display { get; set; } // e.g. { fitAll: true }
     }
 
     public sealed class DisplayOptions

@@ -66,10 +66,6 @@
 		<label>Mit überlappenden Körpern vereinigen [[V]]</label>
 		<info>Vereint diesen Körper mit allen überlappenden oder sich schneidenden Körpern zu einem einzigen Körper</info>
 	</data>
-	<data name="MenuId.Solid.UniteAll">
-		<label>Alle überlappende Körpern vereinigen [[V]]</label>
-		<info>Vereint alle Körper die sich berühren oder überlappen</info>
-	</data>
 	<data name="MenuId.Solid.IntersectWith">
 		<label>Mit Körper schneiden (spezifizieren)</label>
 		<info>Erstellt einen neuen Körper aus dem überlappenden Volumen dieses Körpers und eines anderen, zu spezifizierenden Körpers</info>
@@ -287,20 +283,16 @@
 		<label>Datei "{0}" wiederherstellen?</label>
 	</data>
 	<data name="MultipleEdges.Properties">
-		<label>{0} Kanten</label>
+		<label>Kanten</label>
 		<info>Aktionen für mehrere Kanten</info>
 	</data>
 	<data name="MultipleCurves.Properties">
-		<label>{0} Kurven</label>
+		<label>Kurven</label>
 		<info>Aktionen für mehrere Kurven</info>
 	</data>
 	<data name="MultipleFaces.Properties">
-		<label>{0} Flächen</label>
+		<label>Flächen</label>
 		<info>Aktionen für mehrere Flächen</info>
-	</data>
-	<data name="MultipleSolids.Properties">
-		<label>{0} Körper</label>
-		<info>Aktionen für mehrere Körper</info>
 	</data>
 	<data name="MenuId.EdgesToCurves">
 		<label>Kanten in Kurven umwandeln</label>
@@ -331,28 +323,4 @@
     <info>Größe des Menues, 0 ist Standard</info>
   </data>
 
-	<data name="Object.Properties">
-		<label>Eigenschaften</label>
-		<info>Die geometrischen Eigenschaften und Attribute dies Objektes</info>
-	</data>
-	<data name="Message.DestroySolid">
-		<label>Das Löschen der Fläche wandelt den Körper in eine Schale um. Soll die Fläche wirklich gelöscht werden?</label>
-	</data>
-	
-	<data name="SelectSolid.Solid">
-		<label>Anderer Körper</label>
-		<info>Den anderen Körper für diese Operation anklicken</info>
-	</data>
-	<data name="SelectSolid.Union">
-		<label>Körper vereinigen</label>
-	</data>
-	<data name="SelectSolid.Intersection">
-		<label>Körper schneiden</label>
-	</data>
-	<data name="SelectSolid.Difference">
-		<label>Körper abziehen</label>
-	</data>
-	<data name="SelectSolid.Split">
-		<label>Körper aufteilen</label>
-	</data>
 </root>

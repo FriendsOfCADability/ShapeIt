@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static CADability.BooleanOperation;
+using static CADability.BRepOperation;
 
 namespace ShapeIt
 {
@@ -14,14 +14,14 @@ namespace ShapeIt
     {
         private Solid firstSolid;
         private Solid secondSolid;
-        private BooleanOperation.Operation operation;
+        private BRepOperation.Operation operation;
         private GeoObjectInput selectSolid;
         public override string GetID()
         {
             return "Parametrics.SecondSolid";
         }
 
-        public SelectSecondSolidAction(Solid firstSolid, BooleanOperation.Operation operation)
+        public SelectSecondSolidAction(Solid firstSolid, BRepOperation.Operation operation)
         {
             this.firstSolid = firstSolid;
             this.operation = operation;
@@ -85,7 +85,7 @@ namespace ShapeIt
                 switch (operation)
                 {
                     case Operation.union:
-                        Solid res = NewBooleanOperation.Unite(firstSolid, secondSolid);
+                        Solid res = Solid.Unite(firstSolid, secondSolid);
                         if (res != null)
                         {
                             using (Frame.Project.Undo.UndoFrame)
@@ -98,7 +98,7 @@ namespace ShapeIt
                         }
                         break;
                     case Operation.intersection:
-                        Solid[] intersections = NewBooleanOperation.Intersect(firstSolid, secondSolid);
+                        Solid[] intersections = Solid.Intersect(firstSolid, secondSolid);
                         if (intersections != null && intersections.Length > 0)
                         {
                             using (Frame.Project.Undo.UndoFrame)
@@ -112,7 +112,7 @@ namespace ShapeIt
                         }
                         break;
                     case Operation.difference:
-                        Solid[] difference = NewBooleanOperation.Subtract(firstSolid, secondSolid);
+                        Solid[] difference = Solid.Subtract(firstSolid, secondSolid);
                         if (difference != null && difference.Length > 0)
                         {
                             using (Frame.Project.Undo.UndoFrame)
@@ -127,9 +127,9 @@ namespace ShapeIt
                         break;
                     case Operation.clip: // misused for splitting here
                         List<Solid> fragments = new List<Solid>();
-                        Solid[] res1 = NewBooleanOperation.Subtract(firstSolid, secondSolid);
-                        Solid[] res2 = NewBooleanOperation.Subtract(secondSolid, firstSolid);
-                        Solid[] res3 = NewBooleanOperation.Intersect(firstSolid, secondSolid);
+                        Solid[] res1 = Solid.Subtract(firstSolid, secondSolid);
+                        Solid[] res2 = Solid.Subtract(secondSolid, firstSolid);
+                        Solid[] res3 = Solid.Intersect(firstSolid, secondSolid);
                         if (res1 != null && res1.Length > 0 && res2 != null && res2.Length > 0)
                         {
                             if (res1 != null) fragments.AddRange(res1);

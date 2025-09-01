@@ -6,6 +6,7 @@ using System.Drawing;
 using System.Reflection;
 using System.Text;
 using System.Windows.Forms;
+using System.Xml;
 
 
 namespace CADability.Forms.NET8
@@ -64,6 +65,10 @@ namespace CADability.Forms.NET8
             cadFrame.FormMenu = MainMenuStrip;
         }
         // Access the components of the MainForm from the CadFrame. 
+        public void SetToolbar(XmlNode definition)
+        {
+            ToolBars.SetToolBar(topToolStripContainer, cadFrame, definition);
+        }
         public ProgressForm ProgressForm
         {
             get

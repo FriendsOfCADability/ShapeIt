@@ -2,11 +2,11 @@
 using CADability.Actions;
 using CADability.Attribute;
 using CADability.Curve2D;
-using CADability.Forms.NET8;
 using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.Substitutes;
 using CADability.UserInterface;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -14,6 +14,8 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms.Design;
+using System.Windows.Forms.VisualStyles;
 using System.Xml.Linq;
 using Wintellect.PowerCollections;
 using static CADability.Projection;
@@ -21,7 +23,7 @@ using static CADability.Projection;
 namespace ShapeIt
 {
     /// <summary>
-    /// This is the tab page in the control center or property view, which contains all the menus to do modelling
+    /// Class to enable Edges to reside in an <see cref="OctTree{T}"/>
     /// </summary>
     internal class ModellingPropertyEntries : PropertyEntryImpl, ICommandHandler
     {
@@ -69,12 +71,30 @@ namespace ShapeIt
             modelligIsActive = true;
             selectionTabForced = false;
 
+            cadFrame.ProjectOpenedEvent += OnProjectOpened;
+            cadFrame.ProjectClosedEvent += OnProjectClosed;
+
             cadFrame.ProcessContextMenuEvent += ProcessContextMenu;
 
             feedback = new Feedback();
             feedback.Attach(cadFrame.ActiveView);
             FeedbackArrow.SetNumberFormat(cadFrame);
             ViewsChanged(cadFrame); // first initialisation
+        }
+
+        private void OnProjectClosed(Project theProject, IFrame theFrame)
+        {
+            theProject.GetModel(0).RemovingGeoObjectEvent -= OnObjectRemoved;
+        }
+
+        private void OnProjectOpened(Project theProject, IFrame theFrame)
+        {
+            theProject.GetModel(0).RemovingGeoObjectEvent += OnObjectRemoved;
+        }
+
+        private void OnObjectRemoved(IGeoObject go, ref bool cancel)
+        {
+            Clear();
         }
 
         private void ProcessContextMenu(ICommandHandler target, string MenuId, ref bool Processed)
@@ -91,7 +111,15 @@ namespace ShapeIt
         private void SelectedObjectListChanged(SelectObjectsAction sender, GeoObjectList selectedObjects)
         {
             // the user is in "old" selection mode and has changed the selction. Clear all selections in modelling mode
-            if (!cadFrame.ControlCenter.GetPropertyPage("Modelling").IsOnTop()) Clear();
+            // The selection has been modified by some other event, like exploding a path.
+            // Here we need to reset the SelectObjectsAction and set the selection in this class
+            if (modelligIsActive && selectedObjects.Count > 0)
+            {
+                cadFrame.ControlCenter.ShowPropertyPage("Modelling");
+                GeoObjectList toSelect = new GeoObjectList(selectedObjects);
+                sender.SetSelectedObjects(new GeoObjectList()); // nothing selected
+                ComposeModellingEntries(toSelect, sender.Frame.ActiveView, null);
+            }
             return; // do we need this at all? selection here happens with filter mouse messages, this makes things complicated
 
         }
@@ -119,6 +147,8 @@ namespace ShapeIt
             {
                 Select(); // selects this entry, which is the top entry for the page. By this, the current selected entry is beeing unselected and the display
                           // of feedback objects is removed
+                activeHotspots.Clear();
+                feedback.hotSpots.Clear();
                 feedback.Clear(); // additionally, but probably not necessary, because unselect of the current entry did the same
                 cadFrame.ActiveView.Invalidate(PaintBuffer.DrawingAspect.Select, cadFrame.ActiveView.DisplayRectangle);
                 subEntries.Clear();
@@ -128,6 +158,7 @@ namespace ShapeIt
                     pp.Remove(this); // to reflect this newly composed entry
                     pp.Add(this, true);
                 }
+                if (action.GetID() != "SelectObjects") cadFrame.ControlCenter.ShowPropertyPage("Action");
             }
         }
         private void ActionTerminated(CADability.Actions.Action action)
@@ -466,9 +497,39 @@ namespace ShapeIt
             if (vw is ModelView mv) visiblaLayers = mv.GetVisibleLayers();
             HashSet<IGeoObject> objects = new HashSet<IGeoObject>();
             PickMode pm = multiple ? PickMode.onlyEdges : PickMode.singleEdge; // first edges, they should have a higher priority in resourceIdOfEntryToSelect (see below)
-            objects.UnionWith(vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null)); // returns all edges under the cursor
+            GeoObjectList edges = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null); // returns all edges under the cursor
             pm = multiple ? PickMode.children : PickMode.singleChild;
-            objects.UnionWith(vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null)); // returns all the faces curves or text objects under the cursor
+            GeoObjectList facesAndCurves = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null); // returns all the faces curves or text objects under the cursor
+            // now an edge may be behind a face. In this case we don't want to select this edge, except when multiple picking is on, i.e. a rectangle selection
+            if (multiple)
+            {
+                objects.UnionWith(facesAndCurves);
+                objects.UnionWith(edges);
+            }
+            else
+            {
+                double zMin = double.MaxValue;
+                double delta = 1e-2 / pickArea.ToUnitBox.Determinant; // the accepted offset when an edge is not behind a face
+                foreach (IGeoObject go in facesAndCurves)
+                {
+                    double z = go.Position(pickArea.FrontCenter, pickArea.Direction, pickArea.ToUnitBox.Determinant * 0.01);
+                    if (z < zMin) zMin = z;
+                }
+                foreach (IGeoObject go in edges)
+                {
+                    double z = go.Position(pickArea.FrontCenter, pickArea.Direction, pickArea.ToUnitBox.Determinant * 0.01);
+                    if (z < zMin + delta) objects.Add(go); // only add those edges which are in front of the faces
+                }
+                foreach (IGeoObject go in facesAndCurves)
+                {
+                    if (go is Face) objects.Add(go); // the face which was hit is already checked in its z position and cannot be hidden by an edge
+                    else
+                    {
+                        double z = go.Position(pickArea.FrontCenter, pickArea.Direction, pickArea.ToUnitBox.Determinant * 0.01);
+                        if (z < zMin + delta) objects.Add(go);
+                    }
+                }
+            }
             if (onlyInside)
             {
                 objects = new HashSet<IGeoObject>(objects.Where(go => go.HitTest(pickArea, true)));
@@ -479,15 +540,50 @@ namespace ShapeIt
         {
             int pickRadius = selectAction.Frame.GetIntSetting("Select.PickRadius", 5);
             PickArea pickArea = vw.Projection.GetPickSpace(new Rectangle(location.X - pickRadius, location.Y - pickRadius, pickRadius * 2, pickRadius * 2));
+            foreach (IHotSpot hotspot in activeHotspots)
+            {
+                GeoPoint hp = hotspot.GetHotspotPosition();
+                if (BoundingCube.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
+                {
+                    hotspotUnderCursor = hotspot;
+                    return "Pen";
+                }
+            }
+            foreach (IGeoObject go in selectedObjects)
+            {
+                if (go.HitTest(pickArea, false))
+                {
+                    selectedObjectUnderCursor = go;
+                    return "Move";
+                }
+            }
+            foreach (IGeoObject go in selectedChildObjects)
+            {
+                if (go.HitTest(pickArea, false))
+                {
+                    selectedObjectUnderCursor = go;
+                    return "Move";
+                }
+            }
             IEnumerable<Layer> visiblaLayers = new List<Layer>();
             if (vw is ModelView mv) visiblaLayers = mv.GetVisibleLayers();
             if (vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), PickMode.singleFaceAndCurve, null).Count > 0) return "Hand";
             else return "Arrow";
         }
 
+        private string resourceIdOfLastSelectedCategory = String.Empty; // what was selected last time? edge, face, solid etc.
         private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea pickArea, bool alsoParent = true, bool addRemove = false)
         {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by 
             // the object(s) under the mouse cursor
+            // what to focus after the selection changed?
+            IPropertyEntry pe = propertyPage.GetCurrentSelection();
+            while (pe != null && FindParent(this, pe) != this)
+            {
+                pe = FindParent(this, pe);
+            }
+            if (pe != null) resourceIdOfLastSelectedCategory = pe.ResourceId; // resource id of what is currently selected, if objectsUnderCursor was removed
+
+
             Axis clickBeam = Axis.InvalidAxis;
             if (pickArea != null)
             {
@@ -539,10 +635,6 @@ namespace ShapeIt
                 currentlySelected.UnionWith(objectsUnderCursor);
                 selectedSameSurfaceBudies = sameSurfaceBudies;
             }
-            // what to focus after the selection changed?
-            string resourceIdOfEntryToSelect = String.Empty; // may contain several ids
-            IPropertyEntry pe = propertyPage.GetCurrentSelection();
-            if (pe != null) resourceIdOfEntryToSelect = pe.ResourceId; // resource id of what is currently selected, if objectsUnderCursor was removed
 
             {   // test, whethere there are hidden objects and if so, make a menu to show them
                 bool thereAreHiddenObjects = false;
@@ -596,7 +688,7 @@ namespace ShapeIt
             // distibute objects into their categories
             List<Face> faces = new List<Face>();
             List<Shell> shells = new List<Shell>(); // only Shells, which are not part of a Solid
-            List<Solid> solids = new List<Solid>();
+            HashSet<Solid> solids = new HashSet<Solid>();
             List<Face> axis = new List<Face>(); // the axis of these faces, which may be cylindrical, conical or toroidal
             List<Edge> edges = new List<Edge>();
             List<ICurve> curves = new List<ICurve>(); // curves, but not axis
@@ -604,6 +696,7 @@ namespace ShapeIt
             Dictionary<Solid, List<Face>> solidToFaces = new Dictionary<Solid, List<Face>>();
 
             selectedObjects.Clear();
+            selectedChildObjects.Clear();
             foreach (IGeoObject go in currentlySelected)
             {
                 {   // add top level objects to selectedObjects to be able to copy to clipboard.
@@ -660,13 +753,12 @@ namespace ShapeIt
             }
 
             // What would we select
-            {
-                if (edges.Count > 0) resourceIdOfEntryToSelect = "MultipleEdges.Properties" + "|" + "MenuId.Edge";
-                else if (curves.Count > 0) resourceIdOfEntryToSelect = "MultipleCurves.Properties" + "|" + "MenuId.CurveMenus";
-                else if (faces.Count > 0) resourceIdOfEntryToSelect = "MultipleFaces.Properties" + "|" + "MenuId.Face";
-                else if (solids.Count > 0) resourceIdOfEntryToSelect = "MultipleSolids.Properties" + "|" + "MenuId.Solid";
-                if (texts.Count > 0) resourceIdOfEntryToSelect = "MenuId.TextMenus";
-            }
+            string possibleSelectionId = string.Empty;
+            if (edges.Count > 0) possibleSelectionId = "MultipleEdges.Properties" + "|" + "MenuId.Edge";
+            else if (curves.Count > 0) possibleSelectionId = "MultipleCurves.Properties" + "|" + "MenuId.CurveMenus";
+            else if (faces.Count > 0) possibleSelectionId = "MultipleFaces.Properties" + "|" + "MenuId.Face";
+            else if (solids.Count > 0) possibleSelectionId = "MultipleSolids.Properties" + "|" + "MenuId.Solid";
+            if (texts.Count > 0) possibleSelectionId = "MenuId.TextMenus";
 
 
             // find features from either edges or faces
@@ -711,6 +803,7 @@ namespace ShapeIt
             if (faces.Count > 1)
             {
                 SelectEntry multipleFaces = new SelectEntry("MultipleFaces.Properties", true);
+                multipleFaces.Label = StringTable.GetFormattedString("MultipleFaces.Properties", faces.Count);
                 multipleFaces.IsSelected = (selected, frame) =>
                 {
                     feedback.Clear();
@@ -722,9 +815,12 @@ namespace ShapeIt
                     return true;
                 };
                 multipleFaces.Add(GetFacesProperties(faces, vw));
-                foreach (Face face in faces)
-                {
-                    multipleFaces.Add(GetFaceProperties(vw, face, clickBeam));
+                if (faces.Count < 5)
+                {   // it takes too long when many faces are selected
+                    foreach (Face face in faces)
+                    {
+                        multipleFaces.Add(GetFaceProperties(vw, face, clickBeam));
+                    }
                 }
                 subEntries.Add(multipleFaces);
             }
@@ -733,6 +829,7 @@ namespace ShapeIt
             if (edges.Count > 1)
             {
                 SelectEntry multipleEdges = new SelectEntry("MultipleEdges.Properties", true);
+                multipleEdges.Label = StringTable.GetFormattedString("MultipleEdges.Properties", edges.Count);
                 GeoObjectList select = Helper.ThickCurvesFromEdges(edges);
                 multipleEdges.IsSelected = (selected, frame) =>
                 {
@@ -757,6 +854,7 @@ namespace ShapeIt
             if (solids.Count > 1)
             {
                 SelectEntry multipleSolids = new SelectEntry("MultipleSolids.Properties", true);
+                multipleSolids.Label = StringTable.GetFormattedString("MultipleSolids.Properties", solids.Count);
                 multipleSolids.IsSelected = (selected, frame) =>
                 {
                     feedback.Clear();
@@ -767,7 +865,7 @@ namespace ShapeIt
                     feedback.Refresh();
                     return true;
                 };
-                multipleSolids.Add(GetSolidsProperties(solids, vw));
+                multipleSolids.Add(GetSolidsProperties(solids.ToList(), vw));
                 foreach (Solid sld in solids)
                 {
                     multipleSolids.Add(GetSolidProperties(vw, sld, solidToFaces.TryGetValue(sld, out List<Face> found) ? found : null));
@@ -785,6 +883,7 @@ namespace ShapeIt
                     break;
                 default: // which is >1, but only in C# Version 9
                     SelectEntry multipleCurves = new SelectEntry("MultipleCurves.Properties", true);
+                    multipleCurves.Label = StringTable.GetFormattedString("MultipleCurves.Properties", curves.Count);
                     GeoObjectList select = Helper.ThickCurvesFromCurves(curves);
                     multipleCurves.IsSelected = (selected, frame) =>
                     {
@@ -816,31 +915,57 @@ namespace ShapeIt
             {
                 // pp.Refresh(this); // doesn't do the job, so we must remove and add
                 pp.Remove(this); // to reflect this newly composed entry
+                subEntries.RemoveAll(entry => entry == null);
                 pp.Add(this, true);
+                // close all first level entries
                 for (int i = 0; i < subEntries.Count; ++i)
                 {
                     pp.OpenSubEntries(subEntries[i], false);
                 }
-                for (int i = 0; i < subEntries.Count; i++)
+                bool found = false;
+                // first try with resourceIdOfEntryToSelect, which was the last selected category, if not possible then try with possibleSelectionId, which is the edge->face->solid priority
+                foreach (String resIdToSearchFor in new string[] { resourceIdOfLastSelectedCategory, possibleSelectionId })
                 {
-                    if (resourceIdOfEntryToSelect.Contains(subEntries[i].ResourceId))
+                    for (int i = 0; i < subEntries.Count; i++)
                     {
-                        pp.OpenSubEntries(subEntries[i], true);
-                        if (subEntries[i].ResourceId == "MenuId.CurveMenus")
-                        {   // there is only a single curve selected: also open the curve properties to show the hotspots
-                            for (int j = 0; j < subEntries[i].SubItems.Length; j++)
-                            {
-                                if (subEntries[i].SubItems[j] is IDisplayHotSpots)
+                        if (resIdToSearchFor.Contains(subEntries[i].ResourceId))
+                        {
+                            pp.OpenSubEntries(subEntries[i], true);
+                            if (subEntries[i].ResourceId == "MenuId.CurveMenus")
+                            {   // there is only a single curve selected: also open the curve properties to show the hotspots
+                                for (int j = 0; j < subEntries[i].SubItems.Length; j++)
                                 {
-                                    pp.OpenSubEntries(subEntries[i].SubItems[j], true);
+                                    if (subEntries[i].SubItems[j] is IDisplayHotSpots)
+                                    {
+                                        pp.OpenSubEntries(subEntries[i].SubItems[j], true);
+                                    }
                                 }
                             }
-                        }
-                        else
-                        {
                             pp.SelectEntry(subEntries[i]);
+                            found = true;
+                            break;
                         }
-                        break;
+                    }
+                    if (found) break;
+                }
+                CollapseTooLongSubentries(pp, this);
+            }
+        }
+
+        const int maxNumSubentries = 10;
+        private void CollapseTooLongSubentries(IPropertyPage pp, IPropertyEntry entry)
+        {
+            if (entry.IsOpen)
+            {
+                if (entry.SubItems.Length > maxNumSubentries)
+                {
+                    pp.OpenSubEntries(entry, false);
+                }
+                else
+                {
+                    for (int i = 0; i < entry.SubItems.Length; i++)
+                    {
+                        CollapseTooLongSubentries(pp, entry.SubItems[i]);
                     }
                 }
             }
@@ -923,6 +1048,60 @@ namespace ShapeIt
             };
             res.Add(exportSTL);
 
+            DirectMenuEntry uniteAll = new DirectMenuEntry("MenuId.Solid.UniteAll"); // unite all solids
+            uniteAll.IsSelected = (selected, frame) =>
+            {   // this is the standard selection behaviour for BRep operations
+                feedback.Clear();
+                if (selected)
+                {
+                    feedback.ShadowFaces.AddRange(solids);
+                }
+                feedback.Refresh();
+                return true;
+            };
+            uniteAll.ExecuteMenu = (frame) =>
+            {
+                using (cadFrame.Project.Undo.UndoFrame)
+                {
+                    List<Solid> originalSolids = new List<Solid>(solids);
+                    bool found = true;
+                    while (found)
+                    {
+                        found = false;
+                        for (int i = 0; i < solids.Count - 1; i++)
+                        {
+                            for (int j = i + 1; j < solids.Count; j++)
+                            {
+                                CollisionDetection cd = new CollisionDetection(solids[i].Shells[0], solids[j].Shells[0]);
+                                if (cd.GetResult(Precision.eps, out GeoPoint _))
+                                {
+                                    Solid union = NewBooleanOperation.Unite(solids[i], solids[j]);
+                                    if (union != null && union.Shells.Length > 0 && !union.Shells[0].HasOpenEdgesExceptPoles())
+                                    {
+                                        solids.RemoveAt(j);
+                                        solids.RemoveAt(i);
+                                        solids.Add(union);
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (found) break;
+                        }
+                    }
+                    if (solids.Count < originalSolids.Count)
+                    {
+                        Clear(); // clear the control center menu
+                        var owner = originalSolids[0].Owner; // usually the model
+                        for (int i = 0; i < originalSolids.Count; ++i) owner.Remove(originalSolids[i]); // remove the originals from the model
+                        for (int i = 0; i < solids.Count; i++) owner.Add(solids[i]); // add the united solids to the model
+                        ComposeModellingEntries(new GeoObjectList(solids), frame.ActiveView, null, false, false); // show the resulting solids in the controlcenter
+                    }
+                }
+                return true;
+            };
+            res.Add(uniteAll);
+
             DirectMenuEntry mhhide = new DirectMenuEntry("MenuId.Solid.Hide"); // hide this solid
             mhhide.ExecuteMenu = (frame) =>
             {
@@ -945,6 +1124,7 @@ namespace ShapeIt
                 return true;
             };
             res.Add(mhhide);
+
 
             return res.ToArray();
         }
@@ -977,7 +1157,8 @@ namespace ShapeIt
             DirectMenuEntry makeFillet = new DirectMenuEntry("MenuId.Fillet"); // too bad, no icon yet, 
             makeFillet.ExecuteMenu = (frame) =>
             {
-                frame.SetAction(new Constr3DFillet(edges));
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                frame.SetAction(new RoundEdgesAction(edges));
                 return true;
             };
             makeFillet.IsSelected = (selected, frame) =>
@@ -998,8 +1179,8 @@ namespace ShapeIt
             {   // here we work with the original curves. MakePath in GetMakepath needs them to remove them properly from the model, when a path is created
                 if (CanMakePath(curves)) res.Add(GetMakePath(vw, curves));
             }
-            
-            res.Add(ModifyMenu(curves.OfType<IGeoObject>())); 
+
+            res.Add(ModifyMenu(curves.OfType<IGeoObject>()));
 
             MultiObjectsProperties mop = new MultiObjectsProperties(cadFrame, new GeoObjectList(curves.OfType<IGeoObject>()));
             res.Add(mop.attributeProperties);
@@ -1048,6 +1229,7 @@ namespace ShapeIt
                     DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
                     extrude.ExecuteMenu = (frame) =>
                     {
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         frame.SetAction(new Constr3DFaceExtrude(fc));
                         return true;
                     };
@@ -1055,10 +1237,135 @@ namespace ShapeIt
                     DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
                     rotate.ExecuteMenu = (frame) =>
                     {
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
                         return true;
                     };
                     res.Add(rotate);
+                }
+            }
+            if (paths.Count > 1 && Curves.GetCommonPlane(paths.Cast<ICurve>().ToList(), out Plane plane))
+            {
+                List<Border> bdrs = paths.Where(p => p.IsClosed).Select(p => new Border(p.GetProjectedCurve(plane))).OrderBy(b => -b.Area).ToList();
+                for (int i = 0; i < bdrs.Count; ++i)
+                {
+                    int capturedI = i;
+                    {
+                        DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
+                        extrude.IsSelected = (selected, frame) =>
+                        {
+                            feedback.Clear();
+                            if (selected)
+                            {
+                                Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                if (fc == null) return false;
+                                feedback.ShadowFaces.Add(fc);
+                            }
+                            feedback.Refresh();
+
+                            return true;
+                        };
+                        extrude.ExecuteMenu = (frame) =>
+                        {
+                            cadFrame.ControlCenter.ShowPropertyPage("Action");
+                            Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                            if (fc == null) return false;
+                            frame.SetAction(new Constr3DFaceExtrude(fc));
+                            return true;
+                        };
+                        res.Add(extrude);
+                        DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
+                        rotate.IsSelected = (selected, frame) =>
+                        {
+                            feedback.Clear();
+                            if (selected)
+                            {
+                                Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                if (fc == null) return false;
+                                feedback.ShadowFaces.Add(fc);
+                            }
+                            feedback.Refresh();
+
+                            return true;
+                        };
+                        rotate.ExecuteMenu = (frame) =>
+                        {
+                            cadFrame.ControlCenter.ShowPropertyPage("Action");
+                            Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                            if (fc == null) return false;
+                            frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                            return true;
+                        };
+                        res.Add(rotate);
+                    }
+                    if (bdrs.Count > 0)
+                    {
+                        CompoundShape original = new CompoundShape(new SimpleShape(bdrs[i])); // the original, to check for differences
+                        CompoundShape currentDiff = original.Clone();
+                        CompoundShape currentInts = original.Clone();
+                        for (int j = 0; j < bdrs.Count; j++)
+                        {
+                            if (i != j)
+                            {
+                                currentDiff = CompoundShape.Difference(currentDiff, new CompoundShape(new SimpleShape(bdrs[j])));
+                                CompoundShape cs = CompoundShape.Intersection(currentInts, new CompoundShape(new SimpleShape(bdrs[j])));
+                                if (!cs.Empty) currentInts = cs;
+                            }
+                        }
+                        if (original.Area > currentDiff.Area + Precision.eps)
+                        {
+                            foreach (SimpleShape simpleShape in currentDiff.SimpleShapes)
+                            {
+                                SimpleShape forFace = simpleShape.Clone();
+                                DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
+                                extrude.IsSelected = (selected, frame) =>
+                                {
+                                    feedback.Clear();
+                                    if (selected)
+                                    {
+                                        Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
+                                        if (fc == null) return false;
+                                        feedback.ShadowFaces.Add(fc);
+                                    }
+                                    feedback.Refresh();
+
+                                    return true;
+                                };
+                                extrude.ExecuteMenu = (frame) =>
+                                {
+                                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                    Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
+                                    if (fc == null) return false;
+                                    frame.SetAction(new Constr3DFaceExtrude(fc));
+                                    return true;
+                                };
+                                res.Add(extrude);
+                                DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
+                                rotate.IsSelected = (selected, frame) =>
+                                {
+                                    feedback.Clear();
+                                    if (selected)
+                                    {
+                                        Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
+                                        if (fc == null) return false;
+                                        feedback.ShadowFaces.Add(fc);
+                                    }
+                                    feedback.Refresh();
+
+                                    return true;
+                                };
+                                rotate.ExecuteMenu = (frame) =>
+                                {
+                                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                    Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
+                                    if (fc == null) return false;
+                                    frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                                    return true;
+                                };
+                                res.Add(rotate);
+                            }
+                        }
+                    }
                 }
             }
             return res.ToArray();
@@ -1068,6 +1375,13 @@ namespace ShapeIt
         /// </summary>
         private void Clear()
         {
+            IPropertyEntry pe = propertyPage.GetCurrentSelection();
+            while (pe != null && FindParent(this, pe) != this)
+            {
+                pe = FindParent(this, pe);
+            }
+            if (pe != null) resourceIdOfLastSelectedCategory = pe.ResourceId; // resource id of what is currently selected before clearing the selection
+
             IPropertyPage pp = propertyPage;
             if (pp != null)
             {
@@ -1081,6 +1395,8 @@ namespace ShapeIt
                 pp.Remove(this); // to reflect this newly composed entry
                 pp.Add(this, true);
             }
+            selectedObjects.Clear();
+            selectedChildObjects.Clear();
             activeHotspots.Clear();
             feedback.hotSpots.Clear();
             feedback.Clear();
@@ -1118,13 +1434,17 @@ namespace ShapeIt
                 };
                 curveMenus.Add(modifyMenu);
                 IPropertyEntry curveProperties = (curve as IGeoObject).GetShowProperties(cadFrame);
+                curveProperties.Label = StringTable.GetString("Object.Properties", StringTable.Category.label);
                 if (curveProperties is IDisplayHotSpots dh) dh.HotspotChangedEvent += HotspotChanged;
                 curveMenus.Add(curveProperties);
             }
             if (curve.IsClosed && curve.GetPlanarState() == PlanarState.Planar)
             {
                 Plane plane = curve.GetPlane();
-                Face fc = Face.MakeFace(new GeoObjectList(curve as IGeoObject));
+                Face fc = null;
+                ICurve2D curve2d = curve.GetProjectedCurve(plane);
+                ICurve2D[] parts = curve2d.Split(0.5);
+                fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(new Border(parts)));
                 if (fc != null)
                 {
                     DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
@@ -1138,6 +1458,7 @@ namespace ShapeIt
                                 cadFrame.ActiveView.Model.Remove(curve as IGeoObject);
                             }
                         };
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         frame.SetAction(action);
                         return true;
                     };
@@ -1160,6 +1481,7 @@ namespace ShapeIt
                                 cadFrame.ActiveView.Model.Remove(curve as IGeoObject);
                             }
                         };
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         frame.SetAction(action);
                         return true;
                     };
@@ -1185,6 +1507,7 @@ namespace ShapeIt
                                 cadFrame.ActiveView.Model.Remove(curve as IGeoObject);
                             }
                         };
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         frame.SetAction(action);
                         return true;
                     };
@@ -1234,7 +1557,7 @@ namespace ShapeIt
             };
             if ((text as IGeoObject).Owner is Model)
             {
-                SelectEntry modifyMenu = ModifyMenu(new IGeoObject[]{ text});
+                SelectEntry modifyMenu = ModifyMenu(new IGeoObject[] { text });
                 textMenus.TestShortcut = (key) =>
                 {
                     if (key == Keys.Delete)
@@ -1246,7 +1569,9 @@ namespace ShapeIt
                     return false;
                 };
                 textMenus.Add(modifyMenu);
-                textMenus.Add((text as IGeoObject).GetShowProperties(cadFrame));
+                IPropertyEntry textProperties = (text as IGeoObject).GetShowProperties(cadFrame);
+                textProperties.Label = StringTable.GetString("Object.Properties", StringTable.Category.label);
+                textMenus.Add(textProperties);
             }
             DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
             extrude.ExecuteMenu = (frame) =>
@@ -1259,6 +1584,7 @@ namespace ShapeIt
                         cadFrame.ActiveView.Model.Remove(text);
                     }
                 };
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 frame.SetAction(action);
                 return true;
             };
@@ -1281,6 +1607,7 @@ namespace ShapeIt
                         cadFrame.ActiveView.Model.Remove(text);
                     }
                 };
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 frame.SetAction(action);
                 return true;
             };
@@ -1317,9 +1644,12 @@ namespace ShapeIt
             {   // directly delete the selected object
                 if (key == Keys.Delete)
                 {
-                    foreach (IGeoObject go in capturedList)
+                    using (cadFrame.Project.Undo.UndoFrame)
                     {
-                        cadFrame.ActiveView.Model.Remove(go);
+                        foreach (IGeoObject go in capturedList)
+                        {
+                            cadFrame.ActiveView.Model.Remove(go);
+                        }
                     }
                     Clear();
                     return true;
@@ -1331,6 +1661,7 @@ namespace ShapeIt
             move.OnCommand = (e) =>
             {
                 Clear();
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 cadFrame.SetAction(new MoveObjects(capturedList));
                 return true;
             };
@@ -1338,6 +1669,7 @@ namespace ShapeIt
             rotate.OnCommand = (e) =>
             {
                 Clear();
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 cadFrame.SetAction(new RotateObjects(capturedList));
                 return true;
             };
@@ -1345,6 +1677,7 @@ namespace ShapeIt
             scale.OnCommand = (e) =>
             {
                 Clear();
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 cadFrame.SetAction(new ScaleObjects(capturedList));
                 return true;
             };
@@ -1352,6 +1685,7 @@ namespace ShapeIt
             reflect.OnCommand = (e) =>
             {
                 Clear();
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 cadFrame.SetAction(new ReflectObjects(capturedList));
                 return true;
             };
@@ -1417,7 +1751,12 @@ namespace ShapeIt
             solidMenus.IsSelected = (selected, frame) =>
             {
                 feedback.Clear();
-                if (selected) feedback.ShadowFaces.Add(sld);
+                if (selected)
+                {
+                    feedback.ShadowFaces.Add(sld);
+                    selectedObjects.Clear(); // selectedObjects will be used for cursor display and vor standard transformations
+                    selectedObjects.Add(sld);
+                }
                 vw.Invalidate(PaintBuffer.DrawingAspect.Select, vw.DisplayRectangle);
                 return true;
             };
@@ -1436,7 +1775,7 @@ namespace ShapeIt
                     return false;
                 };
                 IPropertyEntry solidProperties = sld.GetShowProperties(cadFrame);
-                // wish I could rename the Label here to something like "Properties"
+                solidProperties.Label = StringTable.GetString("Object.Properties", StringTable.Category.label);
                 solidMenus.Add(solidProperties);
             }
 
@@ -1451,6 +1790,7 @@ namespace ShapeIt
             DirectMenuEntry splitByPlane = new DirectMenuEntry("MenuId.Solid.SplitByPlane");
             splitByPlane.ExecuteMenu = (frame) =>
             {
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 cadFrame.SetAction(new SplitSolidByPlane(sld));
                 this.Clear();
                 return true;
@@ -1467,6 +1807,7 @@ namespace ShapeIt
             DirectMenuEntry planeIntersectionPath = new DirectMenuEntry("MenuId.Solid.PlaneIntersetionPath");
             planeIntersectionPath.ExecuteMenu = (frame) =>
             {
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 cadFrame.SetAction(new SolidPlaneIntersectionPathAction(sld));
                 this.Clear();
                 return true;
@@ -1488,7 +1829,7 @@ namespace ShapeIt
                 List<Solid> otherSolids = new List<Solid>();
                 for (int i = 0; i < fromBox.Count; i++)
                 {
-                    if (fromBox[i] is Solid solid && sld != solid) otherSolids.Add(solid);
+                    if (fromBox[i] is Solid solid && sld != solid && solid.GetExtent(0.0).Interferes(sld.GetExtent(0.0))) otherSolids.Add(solid);
                 }
                 if (otherSolids.Count > 0)
                 {   // there are other solids close to this solid, it is not guaranteed that these other solids interfere with this solid 
@@ -1513,12 +1854,12 @@ namespace ShapeIt
                         feedback.Refresh();
                         return true;
                     };
-                    BRepOpWith bRepOp = new BRepOpWith(sld, otherSolids, cadFrame); // it is all implemented in BRepOpWith, so we use the ICommandHandler to forward it
                     DirectMenuEntry mhSubtractFrom = new DirectMenuEntry("MenuId.Solid.RemoveFrom");
                     mhSubtractFrom.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        frame.SetAction(new SelectSecondSolidAction(sld, BRepOperation.Operation.difference));
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(new SelectSecondSolidAction(sld, BooleanOperation.Operation.difference));
                         return true;
                     };
                     mhSubtractFrom.IsSelected = ShowThis;
@@ -1527,7 +1868,7 @@ namespace ShapeIt
                     mhSubtractFromAll.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        (bRepOp as ICommandHandler).OnCommand("MenuId.Solid.RemoveFromAll");
+                        NewBooleanOperation.OperateWithMany(sld, otherSolids, cadFrame,"MenuId.Solid.RemoveFromAll");
                         return true;
                     };
                     mhSubtractFromAll.IsSelected = ShowThisAndAll;
@@ -1536,7 +1877,7 @@ namespace ShapeIt
                     mhSubtractAllFromThis.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        (bRepOp as ICommandHandler).OnCommand("MenuId.Solid.RemoveAll");
+                        NewBooleanOperation.OperateWithMany(sld, otherSolids, cadFrame, "MenuId.Solid.RemoveAll");
                         return true;
                     };
                     mhSubtractAllFromThis.IsSelected = ShowThisAndAll;
@@ -1545,7 +1886,8 @@ namespace ShapeIt
                     mhUniteWith.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        frame.SetAction(new SelectSecondSolidAction(sld, BRepOperation.Operation.union));
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(new SelectSecondSolidAction(sld, BooleanOperation.Operation.union));
                         return true;
                     };
                     mhUniteWith.IsSelected = ShowThis;
@@ -1554,7 +1896,7 @@ namespace ShapeIt
                     mhUniteWithAll.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        (bRepOp as ICommandHandler).OnCommand("MenuId.Solid.UniteWithAll");
+                        NewBooleanOperation.OperateWithMany(sld, otherSolids, cadFrame, "MenuId.Solid.UniteWithAll");
                         return true;
                     };
                     mhUniteWithAll.IsSelected = ShowThisAndAll;
@@ -1563,7 +1905,8 @@ namespace ShapeIt
                     mhIntersectWith.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        frame.SetAction(new SelectSecondSolidAction(sld, BRepOperation.Operation.intersection));
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(new SelectSecondSolidAction(sld, BooleanOperation.Operation.intersection));
                         return true;
                     };
                     mhIntersectWith.IsSelected = ShowThis;
@@ -1572,7 +1915,7 @@ namespace ShapeIt
                     mhIntersectWithAll.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        (bRepOp as ICommandHandler).OnCommand("MenuId.Solid.IntersectWithAll");
+                        NewBooleanOperation.OperateWithMany(sld, otherSolids, cadFrame, "MenuId.Solid.IntersectWithAll");
                         return true;
                     };
                     mhIntersectWithAll.IsSelected = ShowThisAndAll;
@@ -1581,7 +1924,8 @@ namespace ShapeIt
                     mhSplitWith.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        frame.SetAction(new SelectSecondSolidAction(sld, BRepOperation.Operation.clip));
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(new SelectSecondSolidAction(sld, BooleanOperation.Operation.clip));
                         return true;
                     };
                     mhSplitWith.IsSelected = ShowThis;
@@ -1590,7 +1934,7 @@ namespace ShapeIt
                     mhSplitWithAll.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        (bRepOp as ICommandHandler).OnCommand("MenuId.Solid.SplitWithAll");
+                        NewBooleanOperation.OperateWithMany(sld, otherSolids, cadFrame, "MenuId.Solid.SplitWithAll");
                         return true;
                     };
                     mhSplitWithAll.IsSelected = ShowThisAndAll;
@@ -1610,6 +1954,7 @@ namespace ShapeIt
             };
             offsetSolid.ExecuteMenu = (frame) =>
             {
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
                 cadFrame.SetAction(new OffsetSolidAction(sld));
                 this.Clear();
                 return true;
@@ -1742,7 +2087,12 @@ namespace ShapeIt
             edgeMenus.IsSelected = (selected, frame) =>
             {   // show the provided edge and the "same geometry connected" edges as feedback
                 feedback.Clear();
-                if (selected) feedback.ShadowFaces.AddRange(selection);
+                if (selected)
+                {
+                    feedback.ShadowFaces.AddRange(selection);
+                    selectedObjects.Clear(); // selectedObjects will be used for cursor display and vor standard transformations
+                    selectedObjects.UnionWith(edges.Select(e => e.Curve3D as IGeoObject));
+                }
                 feedback.Refresh();
                 return true;
             };
@@ -1781,6 +2131,7 @@ namespace ShapeIt
                     bool useDiameter = i == 1;
                     edgeRadiusOrDiameter.ExecuteMenu = (frame) =>
                     {
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         cadFrame.SetAction(new ParametricsEdgeRadiusAction(edges, GeoPoint.Invalid, useDiameter));
                         return true;
                     };
@@ -1797,7 +2148,8 @@ namespace ShapeIt
                 DirectMenuEntry makeFillet = new DirectMenuEntry("MenuId.Fillet");
                 makeFillet.ExecuteMenu = (frame) =>
                 {
-                    cadFrame.SetAction(new Constr3DFillet(edges));
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    cadFrame.SetAction(new RoundEdgesAction(edges));
                     return true;
                 };
                 makeFillet.IsSelected = (selected, frame) =>
@@ -1816,6 +2168,7 @@ namespace ShapeIt
                     rotateMenu.ExecuteMenu = (frame) =>
                     {
                         ParametricsAngleAction pa = new ParametricsAngleAction(edg.PrimaryFace, edg.SecondaryFace, rotationAxis1, fromHere1, toHere1, edg, selectAction.Frame);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         selectAction.Frame.SetAction(pa);
                         return true;
                     };
@@ -1836,6 +2189,7 @@ namespace ShapeIt
                     rotateMenu.ExecuteMenu = (frame) =>
                     {
                         ParametricsAngleAction pa = new ParametricsAngleAction(edg.SecondaryFace, edg.PrimaryFace, rotationAxis2, fromHere2, toHere2, edg, selectAction.Frame);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         selectAction.Frame.SetAction(pa);
                         return true;
                     };
@@ -1855,7 +2209,7 @@ namespace ShapeIt
 
         private IPropertyEntry GetFaceProperties(IView vw, Face fc, Axis clickBeam)
         {
-            if (!(fc.Owner is Shell)) return null;
+            // if (!(fc.Owner is Shell)) return null; also handle faces which are not part of a shell
             HashSet<Face> faces = Shell.ConnectedSameGeometryFaces(new Face[] { fc }); // in case of half cylinders etc. use the whole cylinder
 
             // where did the user touch the face? We need this point for the display of the dimensioning arrow
@@ -1888,6 +2242,9 @@ namespace ShapeIt
 
             // faceEntry: a simple group entry, which contains all face modelling menus
             SelectEntry faceEntries = new SelectEntry("MenuId.Face", true); // only handles selection
+            IPropertyEntry faceProperties = fc.GetShowProperties(cadFrame);
+            faceProperties.Label = StringTable.GetString("Object.Properties", StringTable.Category.label);
+            faceEntries.Add(faceProperties);
             faceEntries.IsSelected = (selected, frame) =>
             {   // show the provided face and the "same geometry connected" faces as feedback
                 feedback.Clear();
@@ -1901,6 +2258,59 @@ namespace ShapeIt
                 feedback.Refresh();
                 return true;
             };
+
+            faceEntries.TestShortcut = (key) =>
+            {
+                if (key == Keys.Delete)
+                {
+                    if (fc.Owner is Model)
+                    {
+                        fc.Owner.Remove(fc);
+                        Clear();
+                    }
+                    else if (fc.Owner is Hatch hatch && hatch.Owner is Model)
+                    {
+                        hatch.Owner.Remove(hatch);
+                        Clear();
+                    }
+                    else if (fc.Owner is Shell shell)
+                    {
+                        if (shell.Owner is Solid sld)
+                        {
+                            string ask = StringTable.GetString("Message.DestroySolid");
+                            if (cadFrame.UIService.ShowMessageBox(ask, "ShapeIt", CADability.Substitutes.MessageBoxButtons.YesNo) == CADability.Substitutes.DialogResult.Yes)
+                            {
+                                IGeoObjectOwner owner = sld.Owner; // usually the model
+                                owner.Remove(sld);
+                                Shell sh = sld.Shells[0]; // use a clone to prevent ownership problems
+                                Dictionary<Edge, Edge> clonedEdges = new Dictionary<Edge, Edge>();
+                                Dictionary<Vertex, Vertex> clonedVertices = new Dictionary<Vertex, Vertex>();
+                                Dictionary<Face, Face> clonedFaces = new Dictionary<Face, Face>();
+                                Shell cloned = sh.Clone(clonedEdges, clonedVertices, clonedFaces);
+                                List<Face> toRemove = new List<Face>();
+                                foreach (Face f in faces) { toRemove.Add(clonedFaces[f]); }
+                                cloned.AddAndRemoveFaces(new Face[0], toRemove);
+                                owner.Add(cloned);
+                                Clear();
+                            }
+                        }
+                        else
+                        {
+                            shell.AddAndRemoveFaces(new Face[0], faces);
+                            Clear();
+                        }
+                    }
+                    return true;
+                }
+                return false;
+            };
+
+            if (fc.Owner is Model)
+            {
+                faceEntries.Add(ModifyMenu(new IGeoObject[] { fc }));
+                // here we process the delete key!
+            }
+
 
             // add more menus for faces with specific surfaces
             faceEntries.Add(GetSurfaceSpecificSubmenus(fc, vw, touchingPoint).ToArray());
@@ -1923,6 +2333,7 @@ namespace ShapeIt
                     mate.ExecuteMenu = (frame) =>
                     {
                         MateFacesAction po = new MateFacesAction(fc);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         cadFrame.SetAction(po);
                         return true;
                     };
@@ -1947,6 +2358,7 @@ namespace ShapeIt
                     gauge.ExecuteMenu = (frame) =>
                     {
                         ParametricsOffsetAction po = new ParametricsOffsetAction(frontSide, backSide, cadFrame, fc, touchingPoint, thickness);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                         selectAction.Frame.SetAction(po);
                         return true;
                     };
@@ -1971,7 +2383,8 @@ namespace ShapeIt
                     center.ExecuteMenu = (frame) =>
                     {
                         ParametricsCenterAction pca = new ParametricsCenterAction(faces);
-                        selectAction.Frame.SetAction(pca);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(pca);
                         return true;
                     };
                     center.IsSelected = (selected, frame) =>
@@ -1991,7 +2404,8 @@ namespace ShapeIt
                 faceDistTo.ExecuteMenu = (frame) =>
                 {
                     ParametricPositionAction pp = new ParametricPositionAction(faces, fc, touchingPoint);
-                    selectAction.Frame.SetAction(pp);
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    frame.SetAction(pp);
                     return true;
                 };
                 faceDistTo.IsSelected = (selected, frame) =>
@@ -2021,7 +2435,8 @@ namespace ShapeIt
                         faceDist.ExecuteMenu = (frame) =>
                         {
                             ParametricsDistanceAction pd = new ParametricsDistanceAction(capturedDistTo, capturedFaceI, capturedPoint2, capturedPoint1, touchingPoint, selectAction.Frame);
-                            selectAction.Frame.SetAction(pd);
+                            cadFrame.ControlCenter.ShowPropertyPage("Action");
+                            frame.SetAction(pd);
                             return true;
                         };
                         faceDist.IsSelected = (selected, frame) =>
@@ -2059,7 +2474,8 @@ namespace ShapeIt
                                     rotateMenu.ExecuteMenu = (frame) =>
                                     {
                                         ParametricsAngleAction pa = new ParametricsAngleAction(capturedFace, otherFace, rotationAxis, fromHere, toHere, edge, selectAction.Frame);
-                                        selectAction.Frame.SetAction(pa);
+                                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                        frame.SetAction(pa);
                                         return true;
                                     };
                                     rotateMenu.IsSelected = (selected, frame) =>
@@ -2074,6 +2490,7 @@ namespace ShapeIt
                                         return true;
                                     };
                                     rotateMenus.Add(rotateMenu);
+                                    if (rotateMenus.Count > 10) break; // not meaningful, too many menus
                                 }
                             }
                         }
@@ -2149,7 +2566,8 @@ namespace ShapeIt
                     Face arrow2 = FeedbackArrow.MakeSimpleTriangle(pointOnFace, -lplane.Normal, -crossDir, vw.Projection);
                     ParametricsExtrudeAction pea = new ParametricsExtrudeAction(minObject, maxObject, lfaces, ledges, lplane, extrFace,
                         pointOnFace, new Face[] { arrow1, arrow2 }, cadFrame);
-                    selectAction.Frame.SetAction(pea);
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    cadFrame.SetAction(pea);
                     return true;
                 };
                 res.Add(extrudeMenu);
@@ -2191,7 +2609,7 @@ namespace ShapeIt
             uv = ff[0].Surface.PositionOf(xyz);
             bool wasInverse = normal * ff[0].Surface.GetNormal(uv) < 0;
 #if DEBUG
-            bool ok = feature.CheckConsistency();
+            //bool ok = feature.CheckConsistency();
 #endif
             //double v = feature.Volume(ext.Size / 1000); // maybe it is totally flat
             //if (v < Precision.eps) return null; // Volume calculation is too slow
@@ -2250,7 +2668,8 @@ namespace ShapeIt
             positionFeature.ExecuteMenu = (frame) =>
             {
                 ParametricsDistanceActionOld pd = new ParametricsDistanceActionOld(feature, selectAction.Frame);
-                selectAction.Frame.SetAction(pd);
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                frame.SetAction(pd);
                 Clear();
                 return true;
             };
@@ -2473,7 +2892,7 @@ namespace ShapeIt
             if (selection != null)
             {
                 selection.Selected(selection); // to regenerate the feedback display
-                // and by passing selected as "previousSelected" parameter, they can only regenerate projection dependant feedback 
+                                               // and by passing selected as "previousSelected" parameter, they can only regenerate projection dependant feedback 
             }
         }
 
@@ -2481,7 +2900,7 @@ namespace ShapeIt
         {
             Shell shell = face.Owner as Shell;
             List<IPropertyEntry> res = new List<IPropertyEntry>();
-            if (shell == null) return res;
+            // if (shell == null) return res;
             if (face.IsFillet())
             {
                 // handling of a fillet: change radius or remove fillet, composed to a group
@@ -2499,7 +2918,8 @@ namespace ShapeIt
                 fr.ExecuteMenu = (frame) =>
                 {
                     ParametricsRadiusAction pr = new ParametricsRadiusAction(connectedFillets.ToArray(), selectAction.Frame, true, touchingPoint);
-                    selectAction.Frame.SetAction(pr);
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    frame.SetAction(pr);
                     return true;
                 };
                 fr.IsSelected = (selected, frame) =>
@@ -2542,7 +2962,7 @@ namespace ShapeIt
                 res.Add(fch);
             }
             IEnumerable<Face> connected = face.GetSameSurfaceConnected();
-            // if (connected.Any())
+            if (shell != null)
             {
                 List<Face> lconnected = new List<Face>(connected);
                 lconnected.Add(face);
@@ -2562,7 +2982,8 @@ namespace ShapeIt
                     mh.ExecuteMenu = (frame) =>
                     {
                         ParametricsRadiusAction pr = new ParametricsRadiusAction(lconnected.ToArray(), selectAction.Frame, false, touchingPoint);
-                        selectAction.Frame.SetAction(pr);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(pr);
                         return true;
                     };
                     mh.IsSelected = (selected, frame) =>
@@ -2589,7 +3010,8 @@ namespace ShapeIt
                     mh.ExecuteMenu = (frame) =>
                     {
                         ParametricsDistanceAction pd = new ParametricsDistanceAction(lconnected, axis, selectAction.Frame);
-                        selectAction.Frame.SetAction(pd);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(pd);
                         return true;
                     };
                     mh.IsSelected = (selected, frame) =>
@@ -2626,43 +3048,48 @@ namespace ShapeIt
                         return true;
                     };
                 res.Add(dp);
-                // try to find parallel outline edges to modify the distance
-                Edge[] outline = face.OutlineEdges;
-                for (int j = 0; j < outline.Length - 1; j++)
+                if (shell != null)
                 {
-                    for (int k = j + 1; k < outline.Length; k++)
+                    // try to find parallel outline edges to modify the distance
+                    Edge[] outline = face.OutlineEdges;
+                    for (int j = 0; j < outline.Length - 1; j++)
                     {
-                        if (outline[j].Curve3D is Line l1 && outline[k].Curve3D is Line l2)
+                        for (int k = j + 1; k < outline.Length; k++)
                         {
-                            if (Precision.SameDirection(l1.StartDirection, l2.StartDirection, false))
+                            if (outline[j].Curve3D is Line l1 && outline[k].Curve3D is Line l2)
                             {
-                                // two parallel outline lines, we could parametrize the distance
-                                Edge o1 = outline[j]; // capture the two edges
-                                Edge o2 = outline[k];
-                                (GeoPoint p1, GeoPoint p2) = DistanceCalculator.DistanceBetweenObjects(l1, l2, pls.Normal ^ l1.StartDirection, touchingPoint, out GeoVector _, out GeoPoint dp1, out GeoPoint dp2);
-                                if ((p1 | p2) > Precision.eps)
+                                if (Precision.SameDirection(l1.StartDirection, l2.StartDirection, false))
                                 {
-                                    DirectMenuEntry mh = new DirectMenuEntry("MenuId.EdgeDistance");
-                                    mh.ExecuteMenu = (frame) =>
+                                    // two parallel outline lines, we could parametrize the distance
+                                    Edge o1 = outline[j]; // capture the two edges
+                                    Edge o2 = outline[k];
+                                    (GeoPoint p1, GeoPoint p2) = DistanceCalculator.DistanceBetweenObjects(l1, l2, pls.Normal ^ l1.StartDirection, touchingPoint, out GeoVector _, out GeoPoint dp1, out GeoPoint dp2);
+                                    if ((p1 | p2) > Precision.eps)
                                     {
-                                        ParametricsDistanceAction pd = new ParametricsDistanceAction(new Face[] { o2.OtherFace(face) }, new Face[] { o1.OtherFace(face) }, p2, p1, touchingPoint, cadFrame);
-                                        cadFrame.SetAction(pd);
-                                        return true;
-                                    };
-                                    mh.IsSelected = (selected, frame) =>
-                                    {
-                                        feedback.Clear();
-                                        if (selected)
+                                        DirectMenuEntry mh = new DirectMenuEntry("MenuId.EdgeDistance");
+                                        mh.ExecuteMenu = (frame) =>
                                         {
-                                            GeoObjectList fb = FeedbackArrow.MakeLengthArrow(shell, o1.Curve3D, o2.Curve3D, face, pls.Normal ^ l1.StartDirection, touchingPoint, vw, FeedbackArrow.ArrowFlags.secondRed);
-                                            feedback.Arrows.AddRange(fb);
-                                            feedback.FrontFaces.Add(o1.OtherFace(face));
-                                            feedback.BackFaces.Add(o2.OtherFace(face));
-                                        }
-                                        feedback.Refresh();
-                                        return true;
-                                    };
-                                    res.Add(mh);
+                                            ParametricsDistanceAction pd = new ParametricsDistanceAction(new Face[] { o2.OtherFace(face) }, new Face[] { o1.OtherFace(face) }, p2, p1, touchingPoint, cadFrame);
+                                            cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                            cadFrame.SetAction(pd);
+                                            return true;
+                                        };
+                                        mh.IsSelected = (selected, frame) =>
+                                        {
+                                            feedback.Clear();
+                                            if (selected)
+                                            {
+                                                GeoObjectList fb = FeedbackArrow.MakeLengthArrow(shell, o1.Curve3D, o2.Curve3D, face, pls.Normal ^ l1.StartDirection, touchingPoint, vw, FeedbackArrow.ArrowFlags.secondRed);
+                                                feedback.Arrows.AddRange(fb);
+                                                feedback.FrontFaces.Add(o1.OtherFace(face));
+                                                feedback.BackFaces.Add(o2.OtherFace(face));
+                                            }
+                                            feedback.Refresh();
+                                            return true;
+                                        };
+                                        res.Add(mh);
+                                        if (res.Count > 10) break;
+                                    }
                                 }
                             }
                         }
@@ -2673,6 +3100,7 @@ namespace ShapeIt
                 DirectMenuEntry extrudeFace = new DirectMenuEntry("MenuId.ExtrudeFace");
                 extrudeFace.ExecuteMenu = (frame) =>
                 {
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
                     cadFrame.SetAction(new Constr3DFaceExtrude(face));
                     return true;
                 };
@@ -2687,6 +3115,25 @@ namespace ShapeIt
                     return true;
                 };
                 res.Add(extrudeFace);
+                DirectMenuEntry rotateFace = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
+                rotateFace.ExecuteMenu = (frame) =>
+                {
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(face)));
+                    return true;
+                };
+                rotateFace.IsSelected = (selected, frame) =>
+                {
+                    feedback.Clear();
+                    if (selected)
+                    {
+                        feedback.ShadowFaces.Add(face);
+                    }
+                    feedback.Refresh();
+                    return true;
+                };
+                res.Add(rotateFace);
+
 
             }
             if (res.Count > 6)
@@ -2778,6 +3225,15 @@ namespace ShapeIt
 
         public bool OnCommand(string MenuId)
         {
+            if ((cadFrame.UIService.ModifierKeys & Keys.Control) == Keys.Control)
+            {
+                Settings.GlobalSettings.SetValue("Action.RepeatConstruct", true);
+            }
+            else
+            {
+                Settings.GlobalSettings.SetValue("Action.RepeatConstruct", false);
+            }
+
             switch (MenuId)
             {
                 case "MenuId.Edit.Copy":
@@ -2823,6 +3279,37 @@ namespace ShapeIt
                         // if (cadFrame.ActiveView is ModelView mv) mv.SetLayerVisibility(layer, true);
                     }
                     return true;
+                case "MenuId.Object.Move":
+                    cadFrame.ControlCenter.ShowPropertyPage("Action"); // to show the actions input fields, before setting the action, because else the focus gets lost
+                    Frame.SetAction(new MoveObjects(new GeoObjectList(selectedObjects)));
+                    Clear();
+                    return true;
+                case "MenuId.Object.Rotate":
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    Frame.SetAction(new RotateObjects(new GeoObjectList(selectedObjects)));
+                    Clear();
+                    return true;
+                case "MenuId.Object.Scale":
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    Frame.SetAction(new ScaleObjects(new GeoObjectList(selectedObjects)));
+                    Clear();
+                    return true;
+                case "MenuId.Object.Reflect":
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    Frame.SetAction(new ReflectObjects(new GeoObjectList(selectedObjects)));
+                    Clear();
+                    return true;
+                case "MenuId.Copy.Matrix":
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    Frame.SetAction(new CopyMatrixObjects(new GeoObjectList(selectedObjects)));
+                    Clear();
+                    return true;
+                case "MenuId.Copy.Circular":
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    Frame.SetAction(new CopyCircularObjects(new GeoObjectList(selectedObjects)));
+                    Clear();
+                    return true;
+
                 default: return false;
             }
         }
@@ -2831,13 +3318,18 @@ namespace ShapeIt
         {
             switch (MenuId)
             {
-                case "MenuId.Edit.Copy":
-                    {
-                        CommandState.Enabled = selectedObjects.Any();
-                    }
-                    return true;
                 case "MenuId.Edit.Paste":
                     CommandState.Enabled = Frame.UIService.HasClipboardData(typeof(GeoObjectList));
+                    return true;
+                case "MenuId.Edit.Copy":
+                case "MenuId.Object.Reflect":
+                case "MenuId.Object.Scale":
+                case "MenuId.Object.Rotate":
+                case "MenuId.Object.Move":
+                case "MenuId.Object.Delete":
+                case "MenuId.Copy.Matrix":
+                case "MenuId.Copy.Circular":
+                    CommandState.Enabled = modelligIsActive && selectedObjects.Any();
                     return true;
                 default: return false;
             }
