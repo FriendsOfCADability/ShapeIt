@@ -1,250 +1,431 @@
-﻿using CADability.Curve2D;
+﻿/// -----------------------------------------------------------------------------------------------------------------------------------------
+/// How to use Debugger Visualizers for Visual Studio 2022:
+/// Copy all files from ...\CADability\CADability.DebuggerVisualizers\bin\Debug folder to
+/// ...\My Documents\Visual Studio 2022\Visualizers
+/// No need to create any subfolders!
+/// See: https://learn.microsoft.com/en-us/visualstudio/debugger/how-to-install-a-visualizer?view=vs-2022
+/// This applies to Visual Studio 2022 and 2019
+
+using CADability.Attribute;
+using CADability.Curve2D;
+using CADability.DebuggerVisualizers;
 using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.UserInterface;
-using Microsoft.Win32;
-using netDxf;
+using Microsoft.VisualStudio.DebuggerVisualizers;
 using System;
-using System.Buffers.Binary;
-using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
+using System.Drawing;
 using System.IO;
-using System.IO.Pipes;
-using System.Linq;
-using System.Runtime.InteropServices.ComTypes;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using System.Reflection;
+using Point = CADability.GeoObject.Point;
 
-namespace CADability
+#region "Types to be visualized"
+//Border
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(BorderVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Shapes.Border), Description = "CADability Border Visualizer")]
+
+//GeoObjectList
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoObjectListVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.GeoObjectList), Description = "CADability GeoObjectList Visualizer")]
+
+//Simple Shape
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(SimpleShapeVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Shapes.SimpleShape), Description = "CADability Simple Shape Visualizer")]
+
+//Compound Shape
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CompoundShapeVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Shapes.CompoundShape), Description = "CADability Compound Shape Visualizer")]
+
+//GeoPoint2D
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoPoint2DVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoPoint2D), Description = "CADability GeoPoint2D Visualizer")]
+
+//GeoPoint
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoPointVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoPoint), Description = "CADability GeoPoint Visualizer")]
+
+//ICurve2D Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(Curve2DVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Curve2D.GeneralCurve2D), Description = "CADability GeneralCurve2D Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(Curve2DVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Curve2DAspect), Description = "CADability Curve2DAspect Visualizer")]
+
+//IGeoObject Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoObjectVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.IGeoObjectImpl), Description = "CADability IGeoObject Visualizer")]
+
+//ICurve Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.BSpline), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Ellipse), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.GeneralCurve), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Line), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Path), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Polyline), Description = "CADability ICurve Visualizer")]
+
+//IDebuggerVisualizer Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.BRepItem), Description = "CADability IDebuggerVisualizer Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Curve2D.BSpline2D), Description = "CADability IDebuggerVisualizer Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.BoxedSurfaceEx.ParEpi), Description = "CADability IDebuggerVisualizer Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.DebuggerContainer), Description = "CADability DebuggerContainer Visualizer")]
+
+#endregion
+
+namespace CADability.DebuggerVisualizers
 {
-    public static class D
+    class SerializeToJsonOjectSource : VisualizerObjectSource
     {
-        public static string Show(object toVisualize)
+        public override void GetData(object target, Stream outgoingData)
         {
-            var enumInterface = toVisualize.GetType().GetInterfaces().FirstOrDefault(i => i.IsGenericType &&
-                         i.GetGenericTypeDefinition() == typeof(IEnumerable<>));
-            // Convert the IEnumerable type to an array of the same type
-            if (enumInterface != null)
+            string json = JsonSerialize.ToString(target);
+            using (StreamWriter writer = new StreamWriter(outgoingData))
             {
-                object[] arr = ((IEnumerable)toVisualize).Cast<object>().ToArray();
-                GeoObjectList toShow = new GeoObjectList();
-                for (int i = 0; i < arr.Length; i++)
-                {
-                    object g = ToGeoObject(arr[i]);
-                    if (g is IGeoObject geoObject)
-                    {
-                        geoObject.UserData.Add("ListIndex", new IntegerProperty(i, "Debug.ListIndex"));
-                        toShow.Add(geoObject);
-                    }
-                    else if (g is GeoObjectList l) { toShow.AddRange(l); }
-                }
-                toVisualize = toShow;
+                writer.Write(json);
             }
-            else
-            {
-                toVisualize = ToGeoObject(toVisualize);
-            }
-            if (toVisualize != null)
-            {
-                using (MemoryStream ms = new MemoryStream())
-                {
-                    JsonSerialize js = new JsonSerialize();
-                    js.ToStream(ms, toVisualize, false); // don't close the memory stream
-                    ms.Seek(0, SeekOrigin.Begin);
-                    StreamReader sr = new StreamReader(ms);
-                    string json = sr.ReadToEnd();
-                    sr.Close();
-                    if (DebuggerVisualizer.TrySend(json)) return "look in CADability.DebuggerViewer";
-                    return "CADability.DebuggerViewer is not running";
-                }
-            }
-            else return "no visualizable oject";
-        }
-        private static object ToGeoObject(object obj)
-        {
-            if (obj is IGeoObject go)
-            {
-                IGeoObject ret = go.Clone();
-                ret.UserData.Clear(); // Clear user data, because it might contain references to other obejcts
-                // which would also be serialized
-                if (go is Face fc) ret.UserData.Add("OriginalHashcode", new IntegerProperty(fc.GetHashCode(), "Debug.HashCode"));
-                return ret;
-            }
-            else if (obj is Edge edge)
-            {
-                IGeoObject ret = edge.Curve3D.Clone() as IGeoObject;
-                ret.UserData.Add("OriginalHashcode", new IntegerProperty(edge.GetHashCode(), "Debug.HashCode"));
-                return ret;
-            }
-            else if (obj is ICurve2D curve2d)
-            {
-                return curve2d.MakeGeoObject(Plane.XYPlane);
-            }
-            else if (obj is Border border)
-            {
-                return border.MakePath(Plane.XYPlane);
-            }
-            else if (obj is SimpleShape ss)
-            {
-                return ss.DebugList;
-            }
-            else if (obj is CompoundShape cs)
-            {
-                return cs.DebugList;
-            }
-            else if (obj is GeoPoint geoPoint)
-            {
-                return Point.MakePoint(geoPoint);
-            }
-            return null;
         }
     }
-    public static class DebuggerVisualizer
+
+    public interface IDebugForm
     {
-        private static NamedPipeClientStream _pipe;               // volatile genügt in der Praxis
-        private static int _connecting;                            // 0/1 – verhindert paralleles Connect
-        private static long _disabledUntilTicks;                   // Backoff bis …
-
-        public static bool TrySend(string json)
+        Model Model { get; }
+        void ShowDialog(IDialogVisualizerService windowService);
+    }
+    static class CF
+    {
+        /// <summary>
+        /// Load the assembly of CADability.Forms and instantiate the class
+        /// </summary>
+        public static IDebugForm DebugForm
         {
-            if (json == null) return false;
-            if (DateTime.UtcNow.Ticks < Interlocked.Read(ref _disabledUntilTicks)) return false;
-
-            try
+            get
             {
-                EnsureConnectedNonBlocking();
-                var p = _pipe;
-                if (p == null || !p.IsConnected) return false;
-
-                UTF8Encoding enc = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
-                string msg = $@"{{""ver"":1,""type"":""Show"",""payload"":{json}}}";
-                byte[] data = enc.GetBytes(msg);
-
-                byte[] len = new byte[4];
-                BinaryPrimitives.WriteInt32LittleEndian(len, data.Length);
-
-                p.Write(len, 0, len.Length);
-                p.Write(data, 0, data.Length);
-                p.Flush();
-                return true;
-            }
-            catch
-            {
-                // 5s Ruhe – verhindert Dauerversuche im Break-Zustand
-                Interlocked.Exchange(ref _disabledUntilTicks, DateTime.UtcNow.AddSeconds(5).Ticks);
-                SafeDispose();
-                return false;
-            }
-        }
-        static string GetCadDebuggerExe()
-        {
-            using (var key = Registry.CurrentUser.OpenSubKey(@"Software\CADability\DebuggerView"))
-                return key?.GetValue("ExePath") as string;
-        }
-
-        static bool TryStartCadDebugger(string arg = "")
-        {
-            bool running;
-            try
-            {
-                using (var m = Mutex.OpenExisting("Cadability.DebuggerViewer_Running")) // wirft, wenn nicht vorhanden
-                { running = true; }
-            }
-            catch (WaitHandleCannotBeOpenedException)
-            {
-                running = false;
-            }
-
-            if (!running)
-            {
-                var exe = GetCadDebuggerExe();
-                if (string.IsNullOrWhiteSpace(exe)) return false;
-
-                var psi = new ProcessStartInfo(exe)
+                Assembly cf = Assembly.Load("CADability.DebuggerVisualizers");
+                Type tp = cf.GetType("CADability.DebuggerVisualizers.DebugForm");
+                if (tp is null)
+                    throw new ApplicationException("Failed to get type: CADability.DebuggerVisualizers.DebugForm");
+                else
                 {
-                    UseShellExecute = true,
-                    Arguments = string.IsNullOrEmpty(arg) ? "" : arg
-                };
-                Process.Start(psi);
+                    ConstructorInfo ci = tp.GetConstructor(new Type[0]);
+                    if (ci is null)
+                        throw new ApplicationException("Failed to get Constructor of CADability.DebuggerVisualizers.DebugForm");
+                    else
+                    {
+                        object df = ci.Invoke(new object[0]);
+                        return df as IDebugForm;
+                    }
+                }
             }
-            return true;
         }
-        private static void EnsureConnectedNonBlocking()
-        {
-            if (_pipe != null && _pipe.IsConnected) return;
-            if (Interlocked.Exchange(ref _connecting, 1) != 0) return; // jemand anders versucht schon
+    }
 
-            try
+    public class GeneralDebuggerVisualizer : DialogDebuggerVisualizer
+    {
+        public GeneralDebuggerVisualizer() : base(FormatterPolicy.Json)
+        {
+        }
+
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+            using (var stream = objectProvider.GetData() as Stream)
+            using (var reader = new StreamReader(stream))
             {
-                //TryStartCadDebugger();
-                SafeDispose();
-                var c = new NamedPipeClientStream(".", "cadability.visualizer.v1", PipeDirection.InOut, PipeOptions.None);
-                try { c.Connect(50); }                           // max. 50 ms
-                catch { c.Dispose(); return; }
-
-                c.ReadMode = PipeTransmissionMode.Byte;
-                //c.ReadTimeout = 100; c.WriteTimeout = 100;
-
-                // Handshake (sync, klein)
-                SendHello(c);
-                if (!ExpectHelloAck(c)) { c.Dispose(); return; }
-
-                Interlocked.Exchange(ref _pipe, c);
+                string json = reader.ReadToEnd();
+                // Now you can deserialize json with your custom deserializer
+                object o = JsonSerialize.FromString(json);
+                if (o is IDebuggerVisualizer dv)
+                {
+                    m.Add(dv.GetList());
+                }
+                else if (o is IGeoObject)
+                {
+                    m.Add(o as IGeoObject);
+                }
+                form.ShowDialog(windowService);
             }
-            catch
+        }
+    }
+    class VisualizerHelper
+    {
+        static private ColorDef pointColor = null;
+        static public ColorDef PointColor
+        {
+            get
             {
-                SafeDispose();
-                // kein Re-throw – Property darf nie Fehlermeldungen aufspringen lassen
+                if (pointColor == null)
+                {
+                    pointColor = new ColorDef("auto point", Color.Brown);
+                }
+                return pointColor;
             }
-            finally
+        }
+        static private ColorDef curveColor = null;
+        static public ColorDef CurveColor
+        {
+            get
             {
-                Volatile.Write(ref _connecting, 0);
+                if (curveColor == null)
+                {
+                    curveColor = new ColorDef("auto point", Color.DarkCyan);
+                }
+                return curveColor;
             }
         }
-
-        private static void SendHello(Stream s)
+        static private ColorDef faceColor = null;
+        static public ColorDef FaceColor
         {
-            byte[] data = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
-               .GetBytes("{\"ver\":1,\"type\":\"Hello\",\"payload\":{}}");
-            byte[] len = new byte[4];
-            BinaryPrimitives.WriteInt32LittleEndian(len, data.Length);
-            s.Write(len, 0, len.Length);
-            s.Write(data, 0, data.Length);
-            s.Flush();
-        }
-
-        private static bool ExpectHelloAck(Stream s)
-        {
-            byte[] len = new byte[4];
-            if (!ReadExactly(s, len)) return false;
-            int n = BinaryPrimitives.ReadInt32LittleEndian(len);
-            if (n <= 0 || n > 1_000_000) return false;
-
-            byte[] buf = new byte[n];
-            if (!ReadExactly(s, buf)) return false;
-
-            string answer = Encoding.UTF8.GetString(buf);
-            return answer.Contains("HelloAck");
-        }
-
-        private static bool ReadExactly(Stream s, byte[] buffer)
-        {
-            int off = 0, need = buffer.Length;
-            while (need > 0)
+            get
             {
-                int r = s.Read(buffer, off, need);
-                if (r == 0) return false;
-                off += r; need -= r;
+                if (faceColor == null)
+                {
+                    faceColor = new ColorDef("auto point", Color.GreenYellow);
+                }
+                return faceColor;
             }
-            return true;
+        }
+        static public IGeoObject AssertColor(IGeoObject go)
+        {
+            if (go is IColorDef cd && cd.ColorDef == null)
+            {
+                if (go is GeoObject.Point) cd.ColorDef = PointColor;
+                if (go is ICurve) cd.ColorDef = CurveColor;
+                if (go is Face) cd.ColorDef = FaceColor;
+                if (go is Shell) cd.ColorDef = FaceColor;
+                if (go is Solid) cd.ColorDef = FaceColor;
+            }
+            return go;
+        }
+        static public GeoObjectList AssertColor(GeoObjectList list)
+        {
+            foreach (IGeoObject go in list)
+            {
+                if (go is IColorDef cd && cd.ColorDef == null)
+                {
+                    if (go is GeoObject.Point) cd.ColorDef = PointColor;
+                    if (go is ICurve) cd.ColorDef = CurveColor;
+                    if (go is Face) cd.ColorDef = FaceColor;
+                    if (go is Shell) cd.ColorDef = FaceColor;
+                    if (go is Solid) cd.ColorDef = FaceColor;
+                }
+            }
+            return list;
         }
 
-        private static void SafeDispose()
+    }
+    public class GeoObjectVisualizer : DialogDebuggerVisualizer
+    {
+        public GeoObjectVisualizer() : base(FormatterPolicy.Json)
         {
-            try { _pipe?.Dispose(); } catch { }
-            _pipe = null;
+        }
+
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            using (var stream = objectProvider.GetData() as Stream)
+            using (var reader = new StreamReader(stream))
+            {
+                string json = reader.ReadToEnd();
+                // Now you can deserialize json with your custom deserializer
+                IGeoObjectImpl go = JsonSerialize.FromString(json) as IGeoObjectImpl;
+
+                IDebugForm form = CF.DebugForm;
+                Model m = form.Model;
+                m.Add(VisualizerHelper.AssertColor(go));
+                form.ShowDialog(windowService);
+            }
+        }
+
+        public static void TestShowVisualizer(object objectToVisualize)
+        {
+            VisualizerDevelopmentHost visualizerHost = new VisualizerDevelopmentHost(objectToVisualize, typeof(GeoObjectVisualizer));
+            visualizerHost.ShowVisualizer();
+        }
+    }
+
+    public class GeoObjectListVisualizer : DialogDebuggerVisualizer
+    {
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+
+            GeoObjectList list = (GeoObjectList)objectProvider.GetObject();
+
+            if (list.Count > 0)
+            {
+                for (int i = 0; i < list.Count; ++i)
+                {
+                    IntegerProperty ip = new IntegerProperty(i, "Debug.Hint");
+                    list[i].UserData.Add("ListIndex", ip);
+                    m.Add(VisualizerHelper.AssertColor(list[i]));
+                }
+                m.Add(list);
+            }
+            form.ShowDialog(windowService);
+        }
+        public static void TestShowVisualizer(object objectToVisualize)
+        {
+            VisualizerDevelopmentHost visualizerHost = new VisualizerDevelopmentHost(objectToVisualize, typeof(GeoObjectListVisualizer));
+            visualizerHost.ShowVisualizer();
+        }
+    }
+
+    public class BorderVisualizer : DialogDebuggerVisualizer
+    {
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+
+            Border bdr = (Border)objectProvider.GetObject();
+            for (int i = 0; i < bdr.DebugList.Count; ++i)
+            {
+                IGeoObject toAdd = bdr.DebugList[i];
+                IntegerProperty ip = new IntegerProperty(i, "Debug.Hint");
+                toAdd.UserData.Add("Debug", ip);
+                VisualizerHelper.AssertColor(toAdd);
+                m.Add(toAdd);
+            }
+
+            form.ShowDialog(windowService);
+        }
+
+        public static void TestBorderVisualizer(object objectToVisualize)
+        {
+            VisualizerDevelopmentHost myHost = new VisualizerDevelopmentHost(objectToVisualize, typeof(BorderVisualizer));
+            myHost.ShowVisualizer();
+        }
+    }
+
+    public class Curve2DVisualizer : DialogDebuggerVisualizer
+    {
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+
+            ICurve2D gc2d = (ICurve2D)objectProvider.GetObject();
+            m.Add(VisualizerHelper.AssertColor(gc2d.MakeGeoObject(Plane.XYPlane)));
+
+            form.ShowDialog(windowService);
+        }
+    }
+
+    public class CurveVisualizer : DialogDebuggerVisualizer
+    {
+        public CurveVisualizer() : base(FormatterPolicy.Json) { }
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+            using (var stream = objectProvider.GetData() as Stream)
+            using (var reader = new StreamReader(stream))
+            {
+                string json = reader.ReadToEnd();
+                // Now you can deserialize json with your custom deserializer
+                IGeoObjectImpl go = JsonSerialize.FromString(json) as IGeoObjectImpl;
+
+                m.Add(VisualizerHelper.AssertColor(go));
+                form.ShowDialog(windowService);
+                VisualizerHelper.AssertColor(go);
+                m.Add(go);
+
+                form.ShowDialog(windowService);
+            }
+        }
+    }
+
+    public class GeoPoint2DVisualizer : DialogDebuggerVisualizer
+    {
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+
+            GeoPoint2D p = (GeoPoint2D)objectProvider.GetObject();
+            Point pnt = Point.Construct();
+            pnt.Location = new GeoPoint(p);
+            pnt.Symbol = PointSymbol.Cross;
+            VisualizerHelper.AssertColor(pnt);
+            m.Add(pnt);
+
+            form.ShowDialog(windowService);
+        }
+    }
+
+    public class GeoPointVisualizer : DialogDebuggerVisualizer
+    {
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+
+            GeoPoint p = (GeoPoint)objectProvider.GetObject();
+            Point pnt = Point.Construct();
+            pnt.Location = p;
+            pnt.Symbol = PointSymbol.Cross;
+            VisualizerHelper.AssertColor(pnt);
+            m.Add(pnt);
+
+            form.ShowDialog(windowService);
+        }
+    }
+
+    public class CompoundShapeVisualizer : DialogDebuggerVisualizer
+    {
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+
+            CompoundShape compoundShape = (CompoundShape)objectProvider.GetObject();
+            m.Add(VisualizerHelper.AssertColor(compoundShape.DebugList));
+
+            form.ShowDialog(windowService);
+        }
+    }
+
+    public class SimpleShapeVisualizer : DialogDebuggerVisualizer
+    {
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            IDebugForm form = CF.DebugForm;
+            Model m = form.Model;
+
+            SimpleShape simpleShape = (SimpleShape)objectProvider.GetObject();
+            m.Add(VisualizerHelper.AssertColor(simpleShape.DebugList));
+
+            form.ShowDialog(windowService);
+        }
+
+        /// <summary>
+        /// Damit kann man den Visualizer zum Debuggen im Context von CADability aufrufen, sonst läuft er immer im
+        /// Context des Debuggers
+        /// </summary>
+        /// <param name="objectToVisualize">The object to display in the visualizer.</param>
+        public static void TestShowVisualizer(object objectToVisualize)
+        {
+            VisualizerDevelopmentHost visualizerHost = new VisualizerDevelopmentHost(objectToVisualize, typeof(SimpleShapeVisualizer));
+            visualizerHost.ShowVisualizer();
         }
     }
 }

@@ -70,6 +70,7 @@
     <EmbeddedFiles Remove="@(RemoveFiles)" />
     <Resource Remove="@(RemoveFiles)" />
     <Compile Remove="@(RemoveFiles)" />
+    <Compile Remove="DebuggerVisualizer.cs" />
     <Compile Remove="ParametricsExtrudeAction.cs" />
     <Compile Remove="ParametricsOffsetAction.cs" />
     <Compile Remove="ParametricsRadiusAction.cs" />

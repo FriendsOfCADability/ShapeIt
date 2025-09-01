@@ -3979,7 +3979,7 @@ namespace CADability.Shapes
 			}
 			return new Path2D(path, true);
 		}
-		internal GeoObjectList DebugList
+		public GeoObjectList DebugList
 		{
 			get
 			{

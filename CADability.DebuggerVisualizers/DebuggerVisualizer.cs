@@ -6,91 +6,102 @@
 /// See: https://learn.microsoft.com/en-us/visualstudio/debugger/how-to-install-a-visualizer?view=vs-2022
 /// This applies to Visual Studio 2022 and 2019
 
-using System;
-using System.Collections.Generic;
-using Microsoft.VisualStudio.DebuggerVisualizers;
+using CADability.Attribute;
+using CADability.Curve2D;
+using CADability.DebuggerVisualizers;
+using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.UserInterface;
-using CADability.Curve2D;
-using CADability.GeoObject;
-using CADability.Attribute;
-using System.Reflection;
-using System.IO;
+using Microsoft.VisualStudio.DebuggerVisualizers;
+using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
+using System.Reflection;
 using Point = CADability.GeoObject.Point;
 
 #region "Types to be visualized"
 //Border
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.BorderVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(BorderVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.Shapes.Border), Description = "CADability Border Visualizer")]
 
 //GeoObjectList
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeoObjectListVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoObjectListVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.GeoObjectList), Description = "CADability GeoObjectList Visualizer")]
 
 //Simple Shape
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.SimpleShapeVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(SimpleShapeVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.Shapes.SimpleShape), Description = "CADability Simple Shape Visualizer")]
 
 //Compound Shape
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.CompoundShapeVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CompoundShapeVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.Shapes.CompoundShape), Description = "CADability Compound Shape Visualizer")]
 
 //GeoPoint2D
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeoPoint2DVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoPoint2DVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoPoint2D), Description = "CADability GeoPoint2D Visualizer")]
 
 //GeoPoint
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeoPointVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoPointVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoPoint), Description = "CADability GeoPoint Visualizer")]
 
 //ICurve2D Implementations
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.Curve2DVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(Curve2DVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.Curve2D.GeneralCurve2D), Description = "CADability GeneralCurve2D Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.Curve2DVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(Curve2DVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.Curve2DAspect), Description = "CADability Curve2DAspect Visualizer")]
 
 //IGeoObject Implementations
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeoObjectVisualizer), typeof(VisualizerObjectSource),
-Target = typeof(CADability.GeoObject.IGeoObjectImpl), Description = "CADability IGeoObject Visualizer")]
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoObjectVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.IGeoObjectImpl), Description = "CADability GeoObject Visualizer 3")]
 
 //ICurve Implementations
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.CurveVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.BSpline), Description = "CADability ICurve Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.CurveVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.Ellipse), Description = "CADability ICurve Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.CurveVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.GeneralCurve), Description = "CADability ICurve Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.CurveVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.Line), Description = "CADability ICurve Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.CurveVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.Path), Description = "CADability ICurve Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.CurveVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.Polyline), Description = "CADability ICurve Visualizer")]
 
 //IDebuggerVisualizer Implementations
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeneralDebuggerVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.BRepItem), Description = "CADability IDebuggerVisualizer Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeneralDebuggerVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.Curve2D.BSpline2D), Description = "CADability IDebuggerVisualizer Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeneralDebuggerVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.GeoObject.BoxedSurfaceEx.ParEpi), Description = "CADability IDebuggerVisualizer Visualizer")]
 
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CADability.DebuggerVisualizers.GeneralDebuggerVisualizer), typeof(VisualizerObjectSource),
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.DebuggerContainer), Description = "CADability DebuggerContainer Visualizer")]
-
 #endregion
 
 namespace CADability.DebuggerVisualizers
 {
+    class SerializeToJsonOjectSource : VisualizerObjectSource
+    {
+        public override void GetData(object target, Stream outgoingData)
+        {
+            string json = JsonSerialize.ToString(target);
+            using (StreamWriter writer = new StreamWriter(outgoingData))
+            {
+                writer.Write(json);
+            }
+        }
+    }
     internal class Trace
     {
         static public void Clear()
@@ -156,6 +167,9 @@ namespace CADability.DebuggerVisualizers
         {
             get
             {
+                IDebugForm res = new DebugForm();
+                return res;
+                // old way via reflection:
                 Assembly cf = Assembly.Load("CADability.DebuggerVisualizers");
                 Type tp = cf.GetType("CADability.DebuggerVisualizers.DebugForm");
                 if (tp is null)
@@ -170,7 +184,7 @@ namespace CADability.DebuggerVisualizers
                         object df = ci.Invoke(new object[0]);
                         return df as IDebugForm;
                     }
-                }                
+                }
             }
         }
     }
@@ -187,28 +201,31 @@ namespace CADability.DebuggerVisualizers
      */
     public class GeneralDebuggerVisualizer : DialogDebuggerVisualizer
     {
+        public GeneralDebuggerVisualizer() : base(FormatterPolicy.Json)
+        {
+        }
+
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {
             IDebugForm form = CF.DebugForm;
             Model m = form.Model;
-            object o = objectProvider.GetObject();
-            if (o is IDebuggerVisualizer)
+            using (var stream = objectProvider.GetData() as Stream)
+            using (var reader = new StreamReader(stream))
             {
-                IDebuggerVisualizer dv = (IDebuggerVisualizer)objectProvider.GetObject();
-                m.Add(dv.GetList());
+                string json = reader.ReadToEnd();
+                // Now you can deserialize json with your custom deserializer
+                object o = JsonSerialize.FromString(json);
+                if (o is IDebuggerVisualizer dv)
+                {
+                    m.Add(dv.GetList());
+                }
+                else if (o is IGeoObject)
+                {
+                    m.Add(o as IGeoObject);
+                }
+                form.ShowDialog(windowService);
             }
-            else if (o is IGeoObject)
-            {
-                m.Add(o as IGeoObject);
-            }
-            form.ShowDialog(windowService);
         }
-        public static void TestShowVisualizer(object objectToVisualize)
-        {
-            VisualizerDevelopmentHost visualizerHost = new VisualizerDevelopmentHost(objectToVisualize, typeof(GeneralDebuggerVisualizer));
-            visualizerHost.ShowVisualizer();
-        }
-        // ? GeneralDebuggerVisualizer.TestShowVisualizer(face.DebugEdges3D); // aus Command Window
     }
     class VisualizerHelper
     {
@@ -277,32 +294,36 @@ namespace CADability.DebuggerVisualizers
         }
 
     }
-    internal class GeoObjectVisualizer : DialogDebuggerVisualizer
+    public class GeoObjectVisualizer : DialogDebuggerVisualizer
     {
-        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        public GeoObjectVisualizer() : base(FormatterPolicy.Json)
         {
-            IDebugForm form = CF.DebugForm;
-            Model m = form.Model;
-
-            IGeoObjectImpl go = (IGeoObjectImpl)objectProvider.GetObject();
-            m.Add(VisualizerHelper.AssertColor(go));
-
-            form.ShowDialog(windowService);
         }
 
-        /// <summary>
-        /// Damit kann man den Visualizer zum Debuggen im Context von CADability aufrufen, sonst läuft er immer im
-        /// Context des Debuggers
-        /// </summary>
-        /// <param name="objectToVisualize">The object to display in the visualizer.</param>
+        protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
+        {
+            using (var stream = objectProvider.GetData() as Stream)
+            using (var reader = new StreamReader(stream))
+            {
+                string json = reader.ReadToEnd();
+                // Now you can deserialize json with your custom deserializer
+                IGeoObjectImpl go = JsonSerialize.FromString(json) as IGeoObjectImpl;
+
+                DebugForm form = new DebugForm();
+                Model m = form.Model;
+                m.Add(VisualizerHelper.AssertColor(go));
+                form.ShowDialog(windowService);
+            }
+        }
+
         public static void TestShowVisualizer(object objectToVisualize)
         {
-            VisualizerDevelopmentHost visualizerHost = new VisualizerDevelopmentHost(objectToVisualize, typeof(GeoObjectVisualizer));
+            VisualizerDevelopmentHost visualizerHost = new VisualizerDevelopmentHost(objectToVisualize, typeof(GeoObjectVisualizer), typeof(SerializeToJsonOjectSource));
             visualizerHost.ShowVisualizer();
         }
     }
 
-    internal class GeoObjectListVisualizer : DialogDebuggerVisualizer
+    public class GeoObjectListVisualizer : DialogDebuggerVisualizer
     {
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {
@@ -357,7 +378,7 @@ namespace CADability.DebuggerVisualizers
         }
     }
 
-    internal class Curve2DVisualizer : DialogDebuggerVisualizer
+    public class Curve2DVisualizer : DialogDebuggerVisualizer
     {
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {
@@ -371,22 +392,31 @@ namespace CADability.DebuggerVisualizers
         }
     }
 
-    internal class CurveVisualizer : DialogDebuggerVisualizer
+    public class CurveVisualizer : DialogDebuggerVisualizer
     {
+        public CurveVisualizer() : base(FormatterPolicy.Json) { }
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {
             IDebugForm form = CF.DebugForm;
             Model m = form.Model;
+            using (var stream = objectProvider.GetData() as Stream)
+            using (var reader = new StreamReader(stream))
+            {
+                string json = reader.ReadToEnd();
+                // Now you can deserialize json with your custom deserializer
+                IGeoObjectImpl go = JsonSerialize.FromString(json) as IGeoObjectImpl;
 
-            IGeoObject go = (IGeoObject)objectProvider.GetObject();
-            VisualizerHelper.AssertColor(go);
-            m.Add(go);
+                m.Add(VisualizerHelper.AssertColor(go));
+                form.ShowDialog(windowService);
+                VisualizerHelper.AssertColor(go);
+                m.Add(go);
 
-            form.ShowDialog(windowService);
+                form.ShowDialog(windowService);
+            }
         }
     }
 
-    internal class GeoPoint2DVisualizer : DialogDebuggerVisualizer
+    public class GeoPoint2DVisualizer : DialogDebuggerVisualizer
     {
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {
@@ -404,7 +434,7 @@ namespace CADability.DebuggerVisualizers
         }
     }
 
-    internal class GeoPointVisualizer : DialogDebuggerVisualizer
+    public class GeoPointVisualizer : DialogDebuggerVisualizer
     {
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {
@@ -422,7 +452,7 @@ namespace CADability.DebuggerVisualizers
         }
     }
 
-    internal class CompoundShapeVisualizer : DialogDebuggerVisualizer
+    public class CompoundShapeVisualizer : DialogDebuggerVisualizer
     {
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {
@@ -436,7 +466,7 @@ namespace CADability.DebuggerVisualizers
         }
     }
 
-    internal class SimpleShapeVisualizer : DialogDebuggerVisualizer
+    public class SimpleShapeVisualizer : DialogDebuggerVisualizer
     {
         protected override void Show(IDialogVisualizerService windowService, IVisualizerObjectProvider objectProvider)
         {

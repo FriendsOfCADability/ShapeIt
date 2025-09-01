@@ -181,7 +181,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Svg.Skia" Version="3.0.5" />
+    <PackageReference Include="Svg" Version="3.4.7" />
   </ItemGroup>
 
   <ItemGroup>

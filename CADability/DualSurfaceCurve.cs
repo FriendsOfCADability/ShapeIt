@@ -188,7 +188,7 @@ namespace CADability
         }
     }
 
-    internal class Curve2DAspect : ICurve2D
+    public class Curve2DAspect : ICurve2D
     {
         /*
          * Diese Klasse hat den Zweck dort wo eine ICurve2D benötigt wird mit einer 3D Kurve arbeiten zu können.

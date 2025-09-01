@@ -7,8 +7,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using CADability.UserInterface;
-using SkiaSharp;
-using Svg.Skia;
+using Svg; // Svg.NET
 
 namespace CADability.Forms.NET8
 {
@@ -17,17 +16,20 @@ namespace CADability.Forms.NET8
         // Win32 system metrics for small icons (toolbars)
         private const int SM_CXSMICON = 49;
         private const int SM_CYSMICON = 50;
+
         [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hWnd);
         [DllImport("user32.dll")] private static extern int GetSystemMetricsForDpi(int nIndex, uint dpi);
 
-        private static Dictionary<(string, Size), Bitmap> cachedBitmaps = new Dictionary<(string, Size), Bitmap>();
+        // Cache generated bitmaps per (resourceName, targetSize)
+        private static readonly Dictionary<(string, Size), Bitmap> cachedBitmaps = new();
+
         /// <summary>
-        /// Create a toolbar-sized bitmap from an embedded SVG resource.
-        /// Fallback to embedded raster (.png/.bmp/.ico) and upscale if needed.
+        /// Create a toolbar-sized bitmap from an embedded SVG resource using Svg.NET.
+        /// Fallback to embedded raster ImageList and upscale if needed.
         /// </summary>
         /// <param name="resourceBaseName">
         /// Base name without extension, e.g. "MyNamespace.Images.zoom_in".
-        /// We'll try ".svg" first, then ".png/.bmp/.ico".
+        /// We will try "Icons/{name}.svg" first.
         /// </param>
         /// <param name="contextControl">
         /// Any control in the target window (used to query per-monitor DPI).
@@ -39,7 +41,11 @@ namespace CADability.Forms.NET8
         /// Optional assembly to search; defaults to the calling assembly.
         /// </param>
         /// <returns>Bitmap or null if nothing found.</returns>
-        public static Bitmap? CreateBitmapFromEmbeddedSvg(string resourceBaseName, Control contextControl, Size? overridePixelSize = null, Assembly? assembly = null)
+        public static Bitmap? CreateBitmapFromEmbeddedSvg(
+            string resourceBaseName,
+            Control contextControl,
+            Size? overridePixelSize = null,
+            Assembly? assembly = null)
         {
             if (string.IsNullOrWhiteSpace(resourceBaseName) || contextControl == null)
                 return null;
@@ -48,41 +54,50 @@ namespace CADability.Forms.NET8
 
             // 1) Determine target pixel size for toolbar icons.
             Size targetSize = overridePixelSize ?? GetToolbarTargetSize(contextControl);
-            if (cachedBitmaps.TryGetValue((resourceBaseName, targetSize), out var bitmap) && bitmap != null) { return bitmap; }
 
-            // 2) Try SVG first.
-            using (var svgStream = TryOpenResourceStream(assembly, "Icons/"+resourceBaseName, ".svg"))
+            if (cachedBitmaps.TryGetValue((resourceBaseName, targetSize), out var cached) && cached != null)
+                return cached;
+
+            // 2) Try SVG first: look up "Icons/{resourceBaseName}.svg" (exact or suffix match)
+            using (var svgStream = TryOpenResourceStream(assembly, "Icons/" + resourceBaseName, ".svg"))
             {
                 if (svgStream != null)
                 {
                     try
                     {
-                        var svg = new SKSvg();
-                        svg.Load(svgStream);
-                        if (svg.Picture == null)
-                            throw new InvalidOperationException("SVG picture is null.");
+                        // Load SVG document with Svg.NET
+                        // Note: stream stays open only for parsing; Draw creates a new Bitmap.
+                        var doc = SvgDocument.Open<SvgDocument>(svgStream);
 
-                        // Render exactly in the target size
-                        Bitmap res = RenderSvgToBitmap(svg.Picture, targetSize);
-                        cachedBitmaps[(resourceBaseName, targetSize)] = res;
-                        return res;
+                        // Draw directly to the requested pixel size (32bpp ARGB with alpha).
+                        var bmp = doc.Draw(targetSize.Width, targetSize.Height);
+
+                        // Cache and return
+                        cachedBitmaps[(resourceBaseName, targetSize)] = bmp;
+                        return bmp;
                     }
                     catch
                     {
-                        // fall through to raster fallback
+                        // fall through to raster fallback if SVG fails
                     }
                 }
             }
 
-            // 3) Raster fallback: 
-            int ImageIndex = MenuResource.FindImageIndex(resourceBaseName);
-            if (ImageIndex < 0 || ButtonImages.ButtonImageList.Images.Count <= ImageIndex) return null; // not found
-            Bitmap src = new Bitmap(ButtonImages.ButtonImageList.Images[ImageIndex]);
+            // 3) Raster fallback via ImageList
+            int imageIndex = MenuResource.FindImageIndex(resourceBaseName);
+            if (imageIndex < 0 || ButtonImages.ButtonImageList.Images.Count <= imageIndex)
+                return null; // not found
 
-            if (src.Size == targetSize) return src;
+            using var srcTmp = new Bitmap(ButtonImages.ButtonImageList.Images[imageIndex]); // ensure we own a Bitmap
+            if (srcTmp.Size == targetSize)
+            {
+                var same = new Bitmap(srcTmp);
+                cachedBitmaps[(resourceBaseName, targetSize)] = same;
+                return same;
+            }
 
-            // upscale (or downscale) to target; keep alpha
-            Bitmap scaled = ResizeBitmap(src, targetSize);
+            // Upscale (or downscale) to target; keep alpha
+            var scaled = ResizeBitmap(srcTmp, targetSize);
             cachedBitmaps[(resourceBaseName, targetSize)] = scaled;
             return scaled;
         }
@@ -99,30 +114,6 @@ namespace CADability.Forms.NET8
         }
 
         /// <summary>
-        /// Render an SKPicture (from SVG) into a 32bpp premultiplied-ARGB Bitmap of the given size.
-        /// </summary>
-        private static Bitmap RenderSvgToBitmap(SKPicture picture, Size target)
-        {
-            var cull = picture.CullRect;
-            float svgW = Math.Max(1f, cull.Width);
-            float svgH = Math.Max(1f, cull.Height);
-            float sx = target.Width / svgW;
-            float sy = target.Height / svgH;
-
-            using var surface = SKSurface.Create(new SKImageInfo(target.Width, target.Height, SKColorType.Bgra8888, SKAlphaType.Premul));
-            var canvas = surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
-            canvas.Scale(sx, sy);
-            canvas.DrawPicture(picture);
-            canvas.Flush();
-
-            using var image = surface.Snapshot();
-            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-            using var ms = new MemoryStream(data.ToArray());
-            return new Bitmap(ms); // will be 32bpp ARGB with alpha
-        }
-
-        /// <summary>
         /// High-quality resize for raster fallback (keeps alpha).
         /// </summary>
         private static Bitmap ResizeBitmap(Bitmap src, Size target)
@@ -131,7 +122,7 @@ namespace CADability.Forms.NET8
             using var g = Graphics.FromImage(dst);
             g.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
             g.CompositingQuality = System.Drawing.Drawing2D.CompositingQuality.HighQuality;
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic; // switch to NearestNeighbor if you prefer crisp pixel edges
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
@@ -153,6 +144,22 @@ namespace CADability.Forms.NET8
             string suffix = (baseName + ext).Replace('\\', '.').Replace('/', '.');
             var name = asm.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
             return name != null ? asm.GetManifestResourceStream(name) : null;
+        }
+
+        /// <summary>
+        /// Optional: clears the internal bitmap cache. Call when sizes/theme change if you want to free memory.
+        /// Be careful not to dispose images that are still in use by UI controls.
+        /// </summary>
+        public static void InvalidateCache(bool disposeBitmaps = false)
+        {
+            if (disposeBitmaps)
+            {
+                foreach (var kv in cachedBitmaps)
+                {
+                    try { kv.Value.Dispose(); } catch { /* ignore */ }
+                }
+            }
+            cachedBitmaps.Clear();
         }
     }
 }

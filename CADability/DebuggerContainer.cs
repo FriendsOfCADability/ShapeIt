@@ -11,8 +11,6 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Runtime.Serialization;
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("CADability.DebuggerVisualizers, PublicKey=0024000004800000940000000602000000240000525341310004000001000100b1ad8b0ed092aad57de8d0423919856eab910629e254ad40d6de3709a87cc161162d71827d65177e862b4822364c691d32f20beb81f0f7c17690662c2b397fe7bf556ac85e9dc66c7de56f435df1c5899a22b6fde65c423c1ec4fe3e4bb316838dbc7332ff1d31995a1657f754f942b36b82787d4c9c8e4325b4fb2871bdedbb")]
-
 namespace CADability
 {
     /// <summary>
@@ -409,7 +407,7 @@ namespace CADability
             }
         }
     }
-    internal interface IDebuggerVisualizer
+    public interface IDebuggerVisualizer
     {
         GeoObjectList GetList();
     }

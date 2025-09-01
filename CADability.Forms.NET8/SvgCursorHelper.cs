@@ -1,6 +1,5 @@
 ﻿using Microsoft.Win32;
-using SkiaSharp;
-using Svg.Skia;
+using Svg; // Svg.NET
 using System;
 using System.Drawing;
 using System.Globalization;
@@ -12,31 +11,22 @@ using System.Xml.Linq;
 
 public static class SvgCursorHelper
 {
-    // --- Win32 DPI & Metriken ---
+    // --- Win32 DPI & metrics ---
     private const int SM_CXCURSOR = 13;
     private const int SM_CYCURSOR = 14;
 
-    [DllImport("user32.dll")]
-    private static extern uint GetDpiForWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern int GetSystemMetricsForDpi(int nIndex, uint dpi);
+    [DllImport("user32.dll")] private static extern IntPtr CreateIconIndirect(ref ICONINFO icon);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr hObject);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateBitmap(int nWidth, int nHeight, uint cPlanes, uint cBitsPerPel, IntPtr lpvBits);
 
-    [DllImport("user32.dll")]
-    private static extern int GetSystemMetricsForDpi(int nIndex, uint dpi);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr CreateIconIndirect(ref ICONINFO icon);
-
-    [DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(IntPtr hObject);
-
-    [DllImport("gdi32.dll")]
-    private static extern IntPtr CreateBitmap(int nWidth, int nHeight, uint cPlanes, uint cBitsPerPel, IntPtr lpvBits);
-
-    // Lies <desc id="hotspot" x="…" y="…"/>
+    /// <summary>
+    /// Reads &lt;desc id="hotspot" x="…" y="…"/&gt; directly from the SVG XML (top-level under &lt;svg&gt;).
+    /// </summary>
     public static bool TryReadHotspotFromSvgXml(Stream svgStream, out PointF hotspot)
     {
         hotspot = default;
-
-        // Sicherstellen, dass Position am Anfang ist
         if (svgStream.CanSeek) svgStream.Position = 0;
 
         using var reader = new StreamReader(svgStream, leaveOpen: true);
@@ -48,7 +38,6 @@ public static class SvgCursorHelper
         if (svg == null || !string.Equals(svg.Name.LocalName, "svg", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        // Look for <desc id="hotspot" .../>
         foreach (var desc in svg.Elements())
         {
             if (!string.Equals(desc.Name.LocalName, "desc", StringComparison.OrdinalIgnoreCase))
@@ -58,13 +47,51 @@ public static class SvgCursorHelper
             if (!string.Equals(id, "hotspot", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            // x/y lesen (InvariantCulture, Komma-Workaround)
             if (TryParseFloatAttr(desc, "x", out float x) &&
                 TryParseFloatAttr(desc, "y", out float y))
             {
                 hotspot = new PointF(x, y);
                 return true;
             }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Reads the logical SVG viewport size from viewBox or width/height (in px, pt, mm, cm).
+    /// Returns false if neither is present; out values are then 0.
+    /// </summary>
+    private static bool TryReadSvgLogicalSize(byte[] svgBytes, out SizeF logical)
+    {
+        logical = default;
+        using var ms = new MemoryStream(svgBytes, writable: false);
+        var doc = XDocument.Load(ms);
+        var root = doc.Root;
+        if (root == null || !string.Equals(root.Name.LocalName, "svg", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        // Prefer viewBox="minx miny width height"
+        var viewBoxAttr = (string?)root.Attribute("viewBox");
+        if (!string.IsNullOrWhiteSpace(viewBoxAttr))
+        {
+            var parts = viewBoxAttr.Split(new[] { ' ', ',', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 4 &&
+                TryParseFloat(parts[2], out float vw) &&
+                TryParseFloat(parts[3], out float vh) &&
+                vw > 0 && vh > 0)
+            {
+                logical = new SizeF(vw, vh);
+                return true;
+            }
+        }
+
+        // Fallback: width / height attributes
+        if (TryParseSvgLength((string?)root.Attribute("width"), out float w) &&
+            TryParseSvgLength((string?)root.Attribute("height"), out float h) &&
+            w > 0 && h > 0)
+        {
+            logical = new SizeF(w, h);
+            return true;
         }
 
         return false;
@@ -74,55 +101,96 @@ public static class SvgCursorHelper
     {
         value = 0f;
         var s = (string?)el.Attribute(name);
-        if (string.IsNullOrWhiteSpace(s)) return false;
+        return TryParseFloat(s, out value);
+    }
 
-        // Erlaubt sowohl "." als auch "," als Dezimaltrenner
+    private static bool TryParseFloat(string? s, out float value)
+    {
+        value = 0f;
+        if (string.IsNullOrWhiteSpace(s)) return false;
         s = s.Trim().Replace(',', '.');
         return float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
     }
+
+    /// <summary>
+    /// Parses an SVG length (px/pt/mm/cm or unitless). Returns pixels at 96 DPI.
+    /// </summary>
+    private static bool TryParseSvgLength(string? s, out float px)
+    {
+        px = 0f;
+        if (string.IsNullOrWhiteSpace(s)) return false;
+        s = s.Trim();
+
+        // Extract numeric part + unit
+        int i = 0;
+        while (i < s.Length && (char.IsDigit(s[i]) || s[i] == '.' || s[i] == ',' || s[i] == '+' || s[i] == '-')) i++;
+        var num = s.Substring(0, i).Trim().Replace(',', '.');
+        var unit = s.Substring(i).Trim().ToLowerInvariant();
+
+        if (!float.TryParse(num, NumberStyles.Float, CultureInfo.InvariantCulture, out float v))
+            return false;
+
+        const float dpi = 96f;
+        px = unit switch
+        {
+            "" or "px" => v,
+            "pt" => v * dpi / 72f,
+            "mm" => v * dpi / 25.4f,
+            "cm" => v * dpi / 2.54f,
+            _ => v // fallback: treat as px
+        };
+        return true;
+    }
+
     private static Cursor CreateCursorFromBitmap(Bitmap bmp, Point hotspot)
     {
         using var iconInfo = new IconInfo(bmp, hotspot);
         IntPtr hIcon = CreateIconIndirect(ref iconInfo.info);
         return new Cursor(hIcon);
     }
+
+    /// <summary>
+    /// Returns the effective cursor size in pixels for the given control,
+    /// combining DPI metrics with the system-wide accessibility cursor size.
+    /// </summary>
     public static (int cx, int cy) GetTargetCursorSize(Control ctl)
     {
         uint dpi = GetDpiForWindow(ctl.Handle);
-        int baseCx = GetSystemMetricsForDpi(SM_CXCURSOR, dpi); // i.d.R. 32 bei 96 DPI
+        int baseCx = GetSystemMetricsForDpi(SM_CXCURSOR, dpi);
         int baseCy = GetSystemMetricsForDpi(SM_CYCURSOR, dpi);
 
-        // 1) Direkte Basisgröße (Pixel) – bevorzugt verwenden
-        var baseSizeObj = Registry.GetValue(
-            @"HKEY_CURRENT_USER\Control Panel\Cursors", "CursorBaseSize", null);
+        // Preferred: absolute base size in pixels
+        var baseSizeObj = Registry.GetValue(@"HKEY_CURRENT_USER\Control Panel\Cursors", "CursorBaseSize", null);
         if (baseSizeObj is int baseSize && baseSize > 0)
         {
-            double s = baseSize / 32.0; // 32 ist Default-Basis bei 96 DPI
+            double s = baseSize / 32.0; // 32 is the default at 96 DPI
             return ((int)Math.Round(baseCx * s), (int)Math.Round(baseCy * s));
         }
 
-        // 2) Slider-Stufe (1..15) -> Größe ableiten
-        var multObj = Registry.GetValue(
-            @"HKEY_CURRENT_USER\Software\Microsoft\Accessibility", "CursorSize", null);
+        // Slider level 1..15 → derive approx. size
+        var multObj = Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Accessibility", "CursorSize", null);
         if (multObj is int m && m >= 1)
         {
-            // bewährte Ableitung aus dem Sliderwert (siehe Quelle)
             double newH = baseCy + (m - 1) * (baseCy / 2.0);
             double s = newH / baseCy;
             return ((int)Math.Round(baseCx * s), (int)Math.Round(newH));
         }
 
-        return (baseCx, baseCy); // Fallback: nur DPI-Größe
+        return (baseCx, baseCy); // Fallback: DPI size
     }
 
+    /// <summary>
+    /// Loads an embedded SVG (resourceNameWithoutExtension + ".svg"), renders it as a cursor bitmap
+    /// at the system/Accessibility target size, maps hotspot from SVG coords, and returns a Cursor.
+    /// </summary>
     public static Cursor? CreateCursorFromEmbeddedSvg(string resourceNameWithoutExtension, Control contextControl)
     {
-        Assembly ThisAssembly = Assembly.GetExecutingAssembly();
-        // 1) Resource lesen und in Byte-Array kopieren (zweifach nutztbar)
-        var asm = ThisAssembly; // falls du das als Typ brauchst: typeof(Program).Assembly o.ä.
-        using Stream? resource = ThisAssembly.GetManifestResourceStream(resourceNameWithoutExtension + ".svg");
+        Assembly asm = Assembly.GetExecutingAssembly();
+
+        using Stream? resource = asm.GetManifestResourceStream(resourceNameWithoutExtension + ".svg");
         if (resource == null) return null;
 
+        // Read once into memory (for XML + Svg.NET)
         byte[] svgBytes;
         using (var ms = new MemoryStream())
         {
@@ -130,60 +198,47 @@ public static class SvgCursorHelper
             svgBytes = ms.ToArray();
         }
 
-        // 2) Hotspot aus XML lesen
+        // 1) Hotspot from XML
         PointF hotspotSvg = default;
         bool hasHotspot;
         using (var msXml = new MemoryStream(svgBytes, writable: false))
             hasHotspot = TryReadHotspotFromSvgXml(msXml, out hotspotSvg);
 
-        // 3) SVG mit Svg.Skia laden
-        var skSvg = new SKSvg();
+        // 2) Logical SVG size (viewBox / width/height)
+        SizeF logical;
+        bool hasLogical = TryReadSvgLogicalSize(svgBytes, out logical);
+        if (!hasLogical || logical.Width <= 0 || logical.Height <= 0)
+            logical = new SizeF(32f, 32f); // safe default
+
+        // 3) Target cursor size (DPI + Accessibility)
+        (int cx, int cy) = GetTargetCursorSize(contextControl);
+
+        // 4) Render with Svg.NET; Svg.NET uses preserveAspectRatio="xMidYMid meet" by default.
+        Bitmap bmp;
         using (var msSvg = new MemoryStream(svgBytes, writable: false))
         {
-            skSvg.Load(msSvg);
+            var doc = SvgDocument.Open<SvgDocument>(msSvg);
+            bmp = doc.Draw(cx, cy); // returns a 32bpp ARGB bitmap
         }
 
-        if (skSvg.Picture == null) return null;
+        // 5) Map hotspot from SVG coords to pixels (meet + centered)
+        // scale = min; offsets center the image inside cx×cy
+        float scale = Math.Min(cx / logical.Width, cy / logical.Height);
+        int offsetX = (int)Math.Round((cx - logical.Width * scale) * 0.5f);
+        int offsetY = (int)Math.Round((cy - logical.Height * scale) * 0.5f);
 
-        // 4) Zielgröße gemäß aktuellem DPI-Kontext (Cursorgröße)
-        (int cx, int cy) = GetTargetCursorSize(contextControl);
-        // 5) Intrinsische SVG-Größe ermitteln
-        var cull = skSvg.Picture.CullRect; // "logische" SVG-Größe
-        float svgW = Math.Max(1f, cull.Width);
-        float svgH = Math.Max(1f, cull.Height);
+        Point hotspotPx = hasHotspot
+            ? new Point(
+                (int)Math.Round(hotspotSvg.X * scale) + offsetX,
+                (int)Math.Round(hotspotSvg.Y * scale) + offsetY
+              )
+            : Point.Empty;
 
-        float sx = cx / svgW;
-        float sy = cy / svgH;
-
-        // 6) Rendern in genau cx×cy
-        using var surface = SKSurface.Create(new SKImageInfo(cx, cy, SKColorType.Bgra8888, SKAlphaType.Premul));
-        var canvas = surface.Canvas;
-        canvas.Clear(SKColors.Transparent);
-        canvas.Scale(sx, sy);
-        canvas.DrawPicture(skSvg.Picture);
-        canvas.Flush();
-
-        using var image = surface.Snapshot();
-        using var data = image.Encode(); // PNG
-        using var bmp = new Bitmap(new MemoryStream(data.ToArray())); // ARGB
-
-        // 7) Hotspot skalieren (SVG -> Pixel)
-        Point hotspotPx;
-        if (hasHotspot)
-        {
-            hotspotPx = new Point(
-                (int)Math.Round(hotspotSvg.X * sx),
-                (int)Math.Round(hotspotSvg.Y * sy)
-            );
-        }
-        else
-        {
-            hotspotPx = Point.Empty; // fallback: 0,0
-        }
-
-        // 8) Cursor erzeugen über deine bestehende Methode
-        return CreateCursorFromBitmap(bmp, hotspotPx);
+        // 6) Create HCURSOR
+        using (bmp)
+            return CreateCursorFromBitmap(bmp, hotspotPx);
     }
+
     public static IntPtr CreateDummyMask(Size size)
     {
         return CreateBitmap(size.Width, size.Height, 1, 1, IntPtr.Zero);
@@ -223,108 +278,4 @@ public static class SvgCursorHelper
         public IntPtr hbmMask;
         public IntPtr hbmColor;
     }
-
 }
-
-
-
-/* alt:
-
-
-using SkiaSharp;
-using Svg.Skia;
-using System;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.Runtime.InteropServices;
-using System.Windows.Forms;
-
-namespace CADability.Forms.NET8
-{
-    public static class SvgCursorHelper
-    {
-        public static Cursor CreateCursorFromSvg(byte[] svgData, int dpi = 96, Point? hotspot = null, Size? size = null)
-        {
-            var svg = new SKSvg();
-            using var stream = new MemoryStream(svgData);
-            svg.Load(stream);
-
-            var picture = svg.Picture ?? throw new InvalidOperationException("Invalid SVG");
-            var bounds = picture.CullRect;
-
-            var targetSize = size ?? new Size(32, 32); // Default-Cursorgröße (skalieren wir gleich)
-
-            float scale = Math.Min((float)targetSize.Width / bounds.Width, (float)targetSize.Height / bounds.Height);
-
-            using var surface = SKSurface.Create(new SKImageInfo(targetSize.Width, targetSize.Height));
-            var canvas = surface.Canvas;
-            canvas.Clear(SKColors.Transparent);
-            canvas.Scale(scale);
-            canvas.DrawPicture(picture);
-            canvas.Flush();
-
-            using var image = surface.Snapshot();
-            using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-            using var bmpStream = new MemoryStream(data.ToArray());
-
-            using var bmp = new Bitmap(bmpStream);
-            return CreateCursorFromBitmap(bmp, hotspot ?? new Point(0, 0));
-        }
-
-        private static Cursor CreateCursorFromBitmap(Bitmap bmp, Point hotspot)
-        {
-            using var iconInfo = new IconInfo(bmp, hotspot);
-            IntPtr hIcon = CreateIconIndirect(ref iconInfo.info);
-            return new Cursor(hIcon);
-        }
-        public static IntPtr CreateDummyMask(Size size)
-        {
-            
-            return CreateBitmap(size.Width, size.Height, 1, 1, IntPtr.Zero);
-
-        }
-        private class IconInfo : IDisposable
-        {
-            public ICONINFO info;
-            private IntPtr maskHandle;
-
-            public IconInfo(Bitmap bmp, Point hotspot)
-            {
-                maskHandle = CreateDummyMask(bmp.Size);
-                info = new ICONINFO
-                {
-                    fIcon = false,
-                    xHotspot = hotspot.X,
-                    yHotspot = hotspot.Y,
-                    hbmMask = maskHandle,
-                    hbmColor = bmp.GetHbitmap()
-                };
-            }
-
-            public void Dispose()
-            {
-                if (info.hbmMask != IntPtr.Zero) DeleteObject(info.hbmMask);
-                if (info.hbmColor != IntPtr.Zero) DeleteObject(info.hbmColor);
-            }
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct ICONINFO
-        {
-            public bool fIcon;
-            public int xHotspot;
-            public int yHotspot;
-            public IntPtr hbmMask;
-            public IntPtr hbmColor;
-        }
-
-        [DllImport("user32.dll")]
-        private static extern IntPtr CreateIconIndirect(ref ICONINFO icon);
-
-        [DllImport("gdi32.dll")]
-        private static extern bool DeleteObject(IntPtr hObject);
-        [DllImport("gdi32.dll")]
-        private static extern IntPtr CreateBitmap(int nWidth, int nHeight, uint cPlanes, uint cBitsPerPel, IntPtr lpvBits);
-    }
-}
-*/

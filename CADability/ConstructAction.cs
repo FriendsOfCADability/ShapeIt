@@ -2659,9 +2659,9 @@ namespace CADability.Actions
 				{
 					if (HotSpotSource != null)
 					{
-						return constructAction.Frame.UIService.GetBitmap(HotSpotSource);
-					}
-					return null;
+                        return constructAction.Frame.UIService.GetBitmap(HotSpotSource);
+                    }
+                    return null;
 				}
 			}
 			bool IInputObject.IsFixed()

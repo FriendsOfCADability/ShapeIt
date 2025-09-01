@@ -8706,13 +8706,13 @@ namespace CADability.GeoObject
     /// sind in einem OctTree enthalten. Wenn ein Würfelchen verkleinert werden muss, dann wird es aus dem
     /// OctTree entfernt und die kleinen werden eingefügt. Die Würfelchen können sich überlappen
     /// </summary>
-    internal class BoxedSurfaceEx
+    public class BoxedSurfaceEx
     {
         public class DidntConverge : ApplicationException
         {
             public DidntConverge() { }
         }
-        internal class ParEpi : IOctTreeInsertable, IQuadTreeInsertable, IDebuggerVisualizer
+        public class ParEpi : IOctTreeInsertable, IQuadTreeInsertable, IDebuggerVisualizer
         {   // ParallelEpiped, zu deutsch auch Spat oder Parallelotop genannt
             // Gegeben durch Punkt und drei Vektoren, die ein Rechtssystem bilden sollen, bei Ebenen Stücken könnte normal auch 0 sein
             // diru ist die gemittelte u-Richtung, dirv die gemittelte v Richtung

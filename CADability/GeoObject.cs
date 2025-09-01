@@ -574,17 +574,6 @@ namespace CADability.GeoObject
         private SortedList userAttributes;
         private bool visible;
         private IDrive actuator;
-#if DEBUG
-        // this property enables the Debugger Visualizer to display the GeoObject
-        public string Show
-        {
-            get
-            {
-                return D.Show(this);
-            }
-        }
-#endif
-
         /// <summary>
         /// Each call to <see cref="FireWillChange"/> increments this value, each call to
         /// <see cref="FireDidChange"/> decrements this value. If isChanging is 0
