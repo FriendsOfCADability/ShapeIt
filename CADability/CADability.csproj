@@ -92,4 +92,13 @@
     <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="CADability.DebuggerVisualizers">
+      <HintPath>..\CADability.DebuggerVisualizers\bin\Debug\net48\CADability.DebuggerVisualizers.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.VisualStudio.DebuggerVisualizers">
+      <HintPath>..\..\..\..\..\..\..\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.DebuggerVisualizers.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>

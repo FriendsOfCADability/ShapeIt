@@ -10,6 +10,91 @@ using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Runtime.Serialization;
 using System.Runtime.CompilerServices;
+using Microsoft.VisualStudio.DebuggerVisualizers;
+using CADability.DebuggerVisualizers;
+
+#region "Types to be visualized"
+//Border
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(BorderVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Shapes.Border), Description = "CADability Border Visualizer")]
+
+//GeoObjectList
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoObjectListVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.GeoObjectList), Description = "CADability GeoObjectList Visualizer")]
+
+//Simple Shape
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(SimpleShapeVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Shapes.SimpleShape), Description = "CADability Simple Shape Visualizer")]
+
+//Compound Shape
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CompoundShapeVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Shapes.CompoundShape), Description = "CADability Compound Shape Visualizer")]
+
+//GeoPoint2D
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoPoint2DVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoPoint2D), Description = "CADability GeoPoint2D Visualizer")]
+
+//GeoPoint
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoPointVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoPoint), Description = "CADability GeoPoint Visualizer")]
+
+//ICurve2D Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(Curve2DVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Curve2D.GeneralCurve2D), Description = "CADability GeneralCurve2D Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(Curve2DVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Curve2DAspect), Description = "CADability Curve2DAspect Visualizer")]
+
+//IGeoObject Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeoObjectVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.IGeoObjectImpl), Description = "CADability GeoObject Visualizer 4")]
+
+//ICurve Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.BSpline), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Ellipse), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.GeneralCurve), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Line), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Path), Description = "CADability ICurve Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(CurveVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.Polyline), Description = "CADability ICurve Visualizer")]
+
+//IDebuggerVisualizer Implementations
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.BRepItem), Description = "CADability IDebuggerVisualizer Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.Curve2D.BSpline2D), Description = "CADability IDebuggerVisualizer Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.GeoObject.BoxedSurfaceEx.ParEpi), Description = "CADability IDebuggerVisualizer Visualizer")]
+
+[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+Target = typeof(CADability.DebuggerContainer), Description = "CADability DebuggerContainer Visualizer")]
+#endregion
+namespace CADability.DebuggerVisualizers
+{
+    class SerializeToJsonOjectSource : VisualizerObjectSource
+    {
+        public override void GetData(object target, Stream outgoingData)
+        {
+            string json = JsonSerialize.ToString(target);
+            using (StreamWriter writer = new StreamWriter(outgoingData))
+            {
+                writer.Write(json);
+            }
+        }
+    }
+}
 
 namespace CADability
 {
@@ -50,7 +135,7 @@ namespace CADability
         }
         public void Add(IGeoObject toAdd)
         {
-            if (toAdd is IColorDef cd && cd.ColorDef==null) toAdd = toAdd.Clone(); // otherwise we would change the color of the original
+            if (toAdd is IColorDef cd && cd.ColorDef == null) toAdd = toAdd.Clone(); // otherwise we would change the color of the original
             AssertColor(toAdd);
             if (toAdd != null) toShow.Add(toAdd);
         }
@@ -189,10 +274,6 @@ namespace CADability
             IntegerProperty ip = new IntegerProperty(debugHint, "Debug.Hint");
             point.UserData.Add("Debug", ip);
             toShow.Add(point);
-        }
-        public void Show()
-        {
-            D.Show(toShow);
         }
         private ColorDef pointColor = null;
         private ColorDef PointColor

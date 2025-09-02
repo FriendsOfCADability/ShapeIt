@@ -22,13 +22,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CADability.App.NET8", "CADa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CADability.DebuggerVisualizers", "CADability.DebuggerVisualizers\CADability.DebuggerVisualizers.csproj", "{37A7116C-1890-F01A-24F7-7E74F836B81F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestDebuggerVisualizer", "TestDebuggerVisualizer\TestDebuggerVisualizer.csproj", "{C37EC734-7A82-4B68-A0D3-EFF18622A485}"
-	ProjectSection(ProjectDependencies) = postProject
-		{37A7116C-1890-F01A-24F7-7E74F836B81F} = {37A7116C-1890-F01A-24F7-7E74F836B81F}
-		{5806C7E4-E796-42BE-BDDB-833D637E072F} = {5806C7E4-E796-42BE-BDDB-833D637E072F}
-		{B234840A-1F1C-4C53-9789-4EEB82349F98} = {B234840A-1F1C-4C53-9789-4EEB82349F98}
-	EndProjectSection
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -123,18 +116,6 @@ Global
 		{37A7116C-1890-F01A-24F7-7E74F836B81F}.RelWithDoc|Any CPU.Build.0 = Debug|Any CPU
 		{37A7116C-1890-F01A-24F7-7E74F836B81F}.RelWithDoc|x64.ActiveCfg = Debug|Any CPU
 		{37A7116C-1890-F01A-24F7-7E74F836B81F}.RelWithDoc|x64.Build.0 = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Debug|x64.Build.0 = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Release|Any CPU.Build.0 = Release|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Release|x64.ActiveCfg = Release|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.Release|x64.Build.0 = Release|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.RelWithDoc|Any CPU.ActiveCfg = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.RelWithDoc|Any CPU.Build.0 = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.RelWithDoc|x64.ActiveCfg = Debug|Any CPU
-		{C37EC734-7A82-4B68-A0D3-EFF18622A485}.RelWithDoc|x64.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -7,7 +7,6 @@
     <UseWindowsForms>true</UseWindowsForms>
     <Deterministic>true</Deterministic>
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>CADabilityKey.snk</AssemblyOriginatorKeyFile>
     <RunPostBuildEvent>OnOutputUpdated</RunPostBuildEvent>
   </PropertyGroup>
 
@@ -61,8 +60,8 @@
 
   <!-- Project References -->
   <ItemGroup>
-    <ProjectReference Include="..\CADability\CADability.csproj" />
     <ProjectReference Include="..\CADability.Forms\CADability.Forms.csproj" />
+    <ProjectReference Include="..\CADability\CADability.csproj" />
   </ItemGroup>
 
   <!-- Extra Files -->
@@ -75,6 +74,8 @@
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyOriginatorKeyFile>CADabilityKey.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
