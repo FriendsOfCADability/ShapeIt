@@ -49,7 +49,7 @@
     <DebugSymbols>true</DebugSymbols>
     <DocumentationFile />
   </PropertyGroup>
-
+  
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="" />
   </ItemGroup>
@@ -88,10 +88,9 @@
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics.Signed" Version="5.0.0" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
-    <PackageReference Include="System.Drawing.Common" Version="6.0.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
+    <PackageReference Include="System.Drawing.Common" Version="6.0.0" />
   </ItemGroup>
-
   <ItemGroup>
     <Reference Include="CADability.DebuggerVisualizers">
       <HintPath>..\CADability.DebuggerVisualizers\bin\Debug\net48\CADability.DebuggerVisualizers.dll</HintPath>

@@ -226,7 +226,7 @@ namespace CADability.Forms
         /// </summary>
         /// <param name="name"></param>
         /// <returns></returns>
-        Bitmap IUIService.GetBitmap(string name)
+        object IUIService.GetBitmap(string name)
         {
             string[] parts = name.Split(':');
             if (parts.Length == 2)
@@ -246,18 +246,18 @@ namespace CADability.Forms
             }
             return null;
         }
-        IPaintTo3D IUIService.CreatePaintInterface(Bitmap paintToBitmap, double precision)
+        IPaintTo3D IUIService.CreatePaintInterface(object paintToBitmap, double precision)
         {
             PaintToOpenGL paintTo3D = new PaintToOpenGL(precision);
-            paintTo3D.Init(paintToBitmap);
+            paintTo3D.Init(paintToBitmap as Bitmap);
             return paintTo3D;
         }
-        Substitutes.DialogResult IUIService.ShowPageSetupDlg(ref PrintDocument printDocument, PageSettings pageSettings, out int width, out int height, out bool landscape)
+        Substitutes.DialogResult IUIService.ShowPageSetupDlg(object printDocument, object pageSettings, out int width, out int height, out bool landscape)
         {
             PageSetupDialog psd = new PageSetupDialog();
             psd.AllowPrinter = true;
             psd.EnableMetric = true;
-            psd.Document = printDocument;
+            psd.Document = (PrintDocument)printDocument;
             Substitutes.DialogResult res = (Substitutes.DialogResult)(int)psd.ShowDialog();
             if (res == Substitutes.DialogResult.OK)
             {
@@ -274,10 +274,10 @@ namespace CADability.Forms
             }
             return res;
         }
-        Substitutes.DialogResult IUIService.ShowPrintDlg(ref PrintDocument printDocument)
+        Substitutes.DialogResult IUIService.ShowPrintDlg(object printDocument)
         {
             PrintDialog printDialog = new PrintDialog();
-            printDialog.Document = printDocument;
+            printDialog.Document = (PrintDocument)printDocument;
             printDialog.AllowSomePages = false;
             printDialog.AllowCurrentPage = false;
             printDialog.AllowSelection = false;

@@ -60,6 +60,7 @@
 
   <!-- Project References -->
   <ItemGroup>
+    <ProjectReference Include="..\CADability.DebuggerVisualizers.ObjectSource\CADability.DebuggerVisualizers.ObjectSource.csproj" />
     <ProjectReference Include="..\CADability.Forms\CADability.Forms.csproj" />
     <ProjectReference Include="..\CADability\CADability.csproj" />
   </ItemGroup>
@@ -74,11 +75,12 @@
     <Version>1.0.0</Version>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
     <FileVersion>1.0.0.0</FileVersion>
-    <PlatformTarget>x64</PlatformTarget>
+    <PlatformTarget>AnyCPU</PlatformTarget>
     <AssemblyOriginatorKeyFile>CADabilityKey.snk</AssemblyOriginatorKeyFile>
+    <DelaySign>False</DelaySign>
   </PropertyGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /Y /D /F &quot;$(TargetDir)*.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\&quot;" />
+    <Exec Command="xcopy /Y /D /F &quot;$(TargetDir)CADability.DebuggerVisualizers.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.Forms.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.DebuggerVisualizers.ObjectSource.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\netstandard2.0\&quot;" />
   </Target>
 </Project>

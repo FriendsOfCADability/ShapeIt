@@ -720,7 +720,9 @@ namespace CADability.Actions
 
 			if (selObj.Count == 1)
 			{
-				bool ok = true;
+				//DebuggerVisualizers.GeoObjectVisualizer.TestShowVisualizer(selObj[0]);
+
+                bool ok = true;
 				if (selObj[0] is Solid)
 				{
 					foreach (Edge edge in (selObj[0] as Solid).Shells[0].Edges)

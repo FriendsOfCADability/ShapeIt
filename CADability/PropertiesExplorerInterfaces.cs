@@ -331,11 +331,11 @@ namespace CADability.UserInterface
         /// </summary>
         /// <param name="name"></param>
         /// <returns></returns>
-        Bitmap GetBitmap(string name);
+        object GetBitmap(string name);
         event EventHandler ApplicationIdle;
-        IPaintTo3D CreatePaintInterface(Bitmap paintToBitmap, double precision);
-        DialogResult ShowPageSetupDlg(ref PrintDocument printDocument1, PageSettings pageSettings, out int width, out int height, out bool landscape);
-        DialogResult ShowPrintDlg(ref PrintDocument printDocument);
+        IPaintTo3D CreatePaintInterface(object paintToBitmap, double precision);
+        DialogResult ShowPageSetupDlg(object printDocument1, object pageSettings, out int width, out int height, out bool landscape);
+        DialogResult ShowPrintDlg(object printDocument);
         void SetClipboardData(GeoObjectList objects, bool copy);
         object GetClipboardData(Type typeOfData);
         bool HasClipboardData(Type typeOfData);

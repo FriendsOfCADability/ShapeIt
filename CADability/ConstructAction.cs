@@ -2659,7 +2659,7 @@ namespace CADability.Actions
 				{
 					if (HotSpotSource != null)
 					{
-                        return constructAction.Frame.UIService.GetBitmap(HotSpotSource);
+                        return (Image)constructAction.Frame.UIService.GetBitmap(HotSpotSource);
                     }
                     return null;
 				}

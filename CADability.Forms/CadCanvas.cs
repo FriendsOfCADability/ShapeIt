@@ -48,11 +48,15 @@ namespace CADability.Forms
         }
         private static CADability.Substitutes.PaintEventArgs Subst(System.Windows.Forms.PaintEventArgs v)
         {
-            return new Substitutes.PaintEventArgs()
+            try
             {
-                ClipRectangle = v.ClipRectangle,
-                Graphics = v.Graphics
-            };
+                return new Substitutes.PaintEventArgs()
+                {
+                    ClipRectangle = v.ClipRectangle,
+                    Graphics = v.Graphics
+                };
+            }
+            catch { return null; }
         }
         private IView view;
         private IPaintTo3D paintTo3D;

@@ -217,32 +217,32 @@ namespace CADability
             }
         }
 
-        void IPaintTo3D.PrepareText(string fontName, string textString, FontStyle fontStyle)
+        void IPaintTo3D.PrepareText(string fontName, string textString, object fontStyle)
         {
 
         }
 
-        void IPaintTo3D.PrepareIcon(Bitmap icon)
+        void IPaintTo3D.PrepareIcon(object icon)
         {
 
         }
 
-        void IPaintTo3D.PrepareBitmap(Bitmap bitmap, int xoffset, int yoffset)
+        void IPaintTo3D.PrepareBitmap(object bitmap, int xoffset, int yoffset)
         {
 
         }
 
-        void IPaintTo3D.PrepareBitmap(Bitmap bitmap)
+        void IPaintTo3D.PrepareBitmap(object bitmap)
         {
 
         }
 
-        void IPaintTo3D.RectangularBitmap(Bitmap bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
+        void IPaintTo3D.RectangularBitmap(object bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
         {
 
         }
 
-        void IPaintTo3D.Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, FontStyle fontStyle, Text.AlignMode alignment, Text.LineAlignMode lineAlignment)
+        void IPaintTo3D.Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, object fontStyle, Text.AlignMode alignment, Text.LineAlignMode lineAlignment)
         {
 
         }
@@ -282,12 +282,12 @@ namespace CADability
 
         }
 
-        void IPaintTo3D.DisplayIcon(GeoPoint p, Bitmap icon)
+        void IPaintTo3D.DisplayIcon(GeoPoint p, object icon)
         {
 
         }
 
-        void IPaintTo3D.DisplayBitmap(GeoPoint p, Bitmap bitmap)
+        void IPaintTo3D.DisplayBitmap(GeoPoint p, object bitmap)
         {
 
         }

@@ -67,20 +67,20 @@ namespace CADability
             screenToLayout = layoutToScreen = ModOp2D.Null;
             base.resourceIdInternal = "LayoutView";
             // printDocument = project.printDocument;
-            printDocument = new PrintDocument();
+            //printDocument = new PrintDocument();
 
-            if (printDocument != null)
-            {
-                if (layout.pageSettings != null)
-                {
-                    printDocument.DefaultPageSettings = layout.pageSettings;
-                }
-                else
-                {
-                    if (project.printDocument != null) printDocument.DefaultPageSettings = (PageSettings)project.printDocument.DefaultPageSettings.Clone();
-                    else printDocument.DefaultPageSettings.Landscape = layout.PaperWidth > layout.PaperHeight;
-                }
-            }
+            //if (printDocument != null)
+            //{
+            //    if (layout.pageSettings != null)
+            //    {
+            //        printDocument.DefaultPageSettings = layout.pageSettings;
+            //    }
+            //    else
+            //    {
+            //        if (project.printDocument != null) printDocument.DefaultPageSettings = (PageSettings)project.printDocument.DefaultPageSettings.Clone();
+            //        else printDocument.DefaultPageSettings.Landscape = layout.PaperWidth > layout.PaperHeight;
+            //    }
+            //}
         }
 
         event ScrollPositionChanged IView.ScrollPositionChangedEvent
@@ -963,7 +963,7 @@ namespace CADability
                 printDocument.DefaultPageSettings = layout.pageSettings;
             }
             
-            if (Frame.UIService.ShowPageSetupDlg(ref printDocument, layout.pageSettings, out int width, out int height, out bool landscape) == DialogResult.OK)
+            if (Frame.UIService.ShowPageSetupDlg(printDocument, layout.pageSettings, out int width, out int height, out bool landscape) == DialogResult.OK)
             {
                 //psd.Document.OriginAtMargins = false;
 
@@ -996,7 +996,7 @@ namespace CADability
             //printDialog.AllowCurrentPage = false;
             //printDialog.AllowSelection = false;
             //printDialog.AllowPrintToFile = false;
-            if (Frame.UIService.ShowPrintDlg(ref printDocument) == DialogResult.OK)
+            if (Frame.UIService.ShowPrintDlg(printDocument) == DialogResult.OK)
             {
                 // printDocument = printDialog.Document; update in ShowPrintDlg
             }

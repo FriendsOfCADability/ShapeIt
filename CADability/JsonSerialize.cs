@@ -1113,6 +1113,7 @@ namespace CADability
             objectCount = 0;
             WriteProperty("Entities");
             BeginArray();
+            objectToIndex[toSerialize] = 0;
             while (queue.Count > 0)
             {
                 if (objectCount > 0)

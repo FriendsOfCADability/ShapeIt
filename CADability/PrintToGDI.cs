@@ -2462,12 +2462,12 @@ namespace CADability
             }
         }
 
-        void IPaintTo3D.PrepareText(string fontName, string textString, System.Drawing.FontStyle fontStyle)
+        void IPaintTo3D.PrepareText(string fontName, string textString, object fontStyle)
         {
             throw new NotImplementedException("The method or operation is not implemented.");
         }
 
-        void IPaintTo3D.PrepareIcon(System.Drawing.Bitmap icon)
+        void IPaintTo3D.PrepareIcon(object icon)
         {
             throw new NotImplementedException("The method or operation is not implemented.");
         }
@@ -2475,7 +2475,7 @@ namespace CADability
         {
 
         }
-        void IPaintTo3D.Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, System.Drawing.FontStyle fontStyle, CADability.GeoObject.Text.AlignMode alignment, CADability.GeoObject.Text.LineAlignMode lineAlignment)
+        void IPaintTo3D.Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, object fontStyle, CADability.GeoObject.Text.AlignMode alignment, CADability.GeoObject.Text.LineAlignMode lineAlignment)
         {
             if (print2D)
             {
@@ -2547,7 +2547,7 @@ namespace CADability
             }
             else
             {
-                PrintText pt = new PrintText(projection * lineDirection, projection * glyphDirection, projection * location, fontName, textString, fontStyle, alignment, lineAlignment, currentColor);
+                PrintText pt = new PrintText(projection * lineDirection, projection * glyphDirection, projection * location, fontName, textString, (FontStyle)fontStyle, alignment, lineAlignment, currentColor);
                 //currentCollection.AddObject(pt);
                 currentCollectionList.Add(pt);
                 currentCollectionQuad.AddObject(pt);
@@ -2589,20 +2589,20 @@ namespace CADability
             throw new NotImplementedException("The method or operation is not implemented.");
         }
 
-        void IPaintTo3D.DisplayIcon(GeoPoint p, System.Drawing.Bitmap icon)
+        void IPaintTo3D.DisplayIcon(GeoPoint p, object icon)
         {
             //throw new NotImplementedException("The method or operation is not implemented.");
         }
-        void IPaintTo3D.DisplayBitmap(GeoPoint p, System.Drawing.Bitmap bitmap)
+        void IPaintTo3D.DisplayBitmap(GeoPoint p, object bitmap)
         {
         }
-        void IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap bitmap, int xoffset, int yoffset)
+        void IPaintTo3D.PrepareBitmap(object bitmap, int xoffset, int yoffset)
         {
         }
-        void IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap bitmap)
+        void IPaintTo3D.PrepareBitmap(object bitmap)
         {
         }
-        void IPaintTo3D.RectangularBitmap(System.Drawing.Bitmap bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
+        void IPaintTo3D.RectangularBitmap(object bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
         {
             if (print2D)
             {
@@ -2614,11 +2614,11 @@ namespace CADability
                 destPoints[1] = (loc + yDirection + xDirection).ToPointF();
                 destPoints[2] = (loc).ToPointF();
                 // System.Diagnostics.Trace.WriteLine("PrintBitmap: " + destPoints[0].ToString() + ", " + destPoints[1].ToString() + ", " + destPoints[2].ToString());
-                currentGraphics.DrawImage(bitmap, destPoints);
+                currentGraphics.DrawImage((Bitmap)bitmap, destPoints);
             }
             else
             {
-                PrintBitmap pb = new PrintBitmap(bitmap, projection * location, projection * directionWidth, projection * directionHeight);
+                PrintBitmap pb = new PrintBitmap((Bitmap)bitmap, projection * location, projection * directionWidth, projection * directionHeight);
                 currentCollectionList.Add(pb);
                 currentCollectionQuad.AddObject(pb);
             }

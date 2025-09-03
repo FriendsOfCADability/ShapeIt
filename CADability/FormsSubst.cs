@@ -57,7 +57,7 @@ namespace CADability.Substitutes
     public class PaintEventArgs 
     {
         public Rectangle ClipRectangle { get; set; }
-        public Graphics Graphics { get; set; }
+        public object Graphics { get; set; } // we cannot access System.Drawing.Graphics here (in DebuggerVisualizer
     }
 
     public enum CheckState

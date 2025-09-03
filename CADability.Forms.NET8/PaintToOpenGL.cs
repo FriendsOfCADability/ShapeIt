@@ -1133,8 +1133,9 @@ namespace CADability.Forms.NET8
             //(this as IPaintTo3D).PopState();
             CheckError();
         }
-        void IPaintTo3D.PrepareIcon(System.Drawing.Bitmap icon)
+        void IPaintTo3D.PrepareIcon(object oicon)
         {   // Für ein Icon wird eine kleine DisplayList gemacht, in der großen stürzt es oft ab
+            System.Drawing.Bitmap icon = oicon as System.Drawing.Bitmap;
             if (currentList != null) throw new ApplicationException("PrepareIcon called with display list open");
             if (!icons.ContainsKey(icon))
             {
@@ -1176,8 +1177,9 @@ namespace CADability.Forms.NET8
                 icons[icon] = (this as IPaintTo3D).CloseList();
             }
         }
-        void IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap bitmap, int xoffset, int yoffset)
+        void IPaintTo3D.PrepareBitmap(object obitmap, int xoffset, int yoffset)
         {
+            System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
             if (currentList != null) throw new ApplicationException("PrepareBitmap called with display list open");
             if (!bitmaps.ContainsKey(bitmap))
             {
@@ -1220,7 +1222,7 @@ namespace CADability.Forms.NET8
                 Gl.glGetIntegerv(Gl.GL_MAX_TEXTURE_SIZE, out maxTextureSize);
             }
         }
-        void IPaintTo3D.PrepareText(string fontName, string textString, FontStyle fontStyle)
+        void IPaintTo3D.PrepareText(string fontName, string textString, object fontStyle)
         {
             // siehe http://www.opengl.org/resources/features/fontsurvey/ für andere Font Methoden
             // dieses hier ist zu Resourcenträchtig
@@ -1286,9 +1288,10 @@ namespace CADability.Forms.NET8
                 (this as IPaintTo3D).PrepareIcon(bmp);
             }
         }
-        void IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap bitmap)
+        void IPaintTo3D.PrepareBitmap(object obitmap)
         {   // Mechanismus zum Entfernen aus dem Dictionary und vor allem aus OpenGL fehlt noch.
             // man bräuchte eine Art OnDispose vom Bitmap, aber das gibt es nicht...
+            System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
             if (!textures.ContainsKey(bitmap))
             {
                 Gl.glPixelStorei(Gl.GL_UNPACK_ALIGNMENT, 1);
@@ -1346,8 +1349,9 @@ namespace CADability.Forms.NET8
                 CheckError();
             }
         }
-        void IPaintTo3D.RectangularBitmap(System.Drawing.Bitmap bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
+        void IPaintTo3D.RectangularBitmap(object obitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
         {
+            System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
             uint texName;
             if (textures.TryGetValue(bitmap, out texName))
             {
@@ -1378,7 +1382,7 @@ namespace CADability.Forms.NET8
                 CheckError();
             }
         }
-        void IPaintTo3D.Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, FontStyle fontStyle, Text.AlignMode alignment, CADability.GeoObject.Text.LineAlignMode lineAlignment)
+        void IPaintTo3D.Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, object fontStyle, Text.AlignMode alignment, CADability.GeoObject.Text.LineAlignMode lineAlignment)
         {
             if (currentList != null) currentList.SetHasContents();
             if (textString.Length == 0) return;
@@ -1558,8 +1562,9 @@ namespace CADability.Forms.NET8
             if (useLineWidth) Gl.glEnable(Gl.GL_LINE_SMOOTH);
             CheckError();
         }
-        void IPaintTo3D.DisplayIcon(GeoPoint p, System.Drawing.Bitmap icon)
+        void IPaintTo3D.DisplayIcon(GeoPoint p, object oicon)
         {
+            System.Drawing.Bitmap icon = oicon as System.Drawing.Bitmap;
             if (currentList != null) currentList.SetHasContents();
             if (icons.ContainsKey(icon))
             {
@@ -1594,8 +1599,9 @@ namespace CADability.Forms.NET8
             }
             CheckError();
         }
-        void IPaintTo3D.DisplayBitmap(GeoPoint p, System.Drawing.Bitmap bitmap)
+        void IPaintTo3D.DisplayBitmap(GeoPoint p, object obitmap)
         {
+            System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
             if (currentList != null) currentList.SetHasContents();
             IPaintTo3DList list;
             if (bitmaps.TryGetValue(bitmap, out list))

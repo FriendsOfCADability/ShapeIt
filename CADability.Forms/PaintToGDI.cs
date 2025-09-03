@@ -515,17 +515,17 @@ namespace CADability.Forms
             }
         }
 
-        void IPaintTo3D.PrepareText(string fontName, string textString, FontStyle fontStyle)
+        void IPaintTo3D.PrepareText(string fontName, string textString, object fontStyle)
         {
 
         }
 
-        void IPaintTo3D.PrepareIcon(System.Drawing.Bitmap icon)
+        void IPaintTo3D.PrepareIcon(object icon)
         {
         }
 
         void IPaintTo3D.Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName,
-            string textString, FontStyle fontStyle, CADability.GeoObject.Text.AlignMode alignment,
+            string textString, object fontStyle, CADability.GeoObject.Text.AlignMode alignment,
             CADability.GeoObject.Text.LineAlignMode lineAlignment)
         {
             // graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.SingleBitPerPixel; 
@@ -571,11 +571,11 @@ namespace CADability.Forms
                         //{
                         //    ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
                         //}
-                        int em = ff.GetEmHeight(fontStyle);
-                        int ls = ff.GetLineSpacing(fontStyle);
-                        int dc = ff.GetCellDescent(fontStyle);
-                        int ac = ff.GetCellAscent(fontStyle);
-                        Font font = new Font(ff, 1.0f, fontStyle, GraphicsUnit.Pixel);
+                        int em = ff.GetEmHeight((FontStyle)fontStyle);
+                        int ls = ff.GetLineSpacing((FontStyle)fontStyle);
+                        int dc = ff.GetCellDescent((FontStyle)fontStyle);
+                        int ac = ff.GetCellAscent((FontStyle)fontStyle);
+                        Font font = new Font(ff, 1.0f, (FontStyle)fontStyle, GraphicsUnit.Pixel);
                         // Alignement ist wohl genau vertauscht mit LineAlignement/Alignement in WindowsForms
                         StringFormat sf = new StringFormat(StringFormatFlags.NoClip);
                         PointF loc = new PointF(0.0f, 0.0f);
@@ -722,8 +722,9 @@ namespace CADability.Forms
             throw new Exception("The method or operation is not implemented.");
         }
 
-        void IPaintTo3D.DisplayIcon(GeoPoint p, System.Drawing.Bitmap icon)
+        void IPaintTo3D.DisplayIcon(GeoPoint p, object oicon)
         {
+            Bitmap icon = (Bitmap)oicon;
             PointF pf = projection.ProjectF(p);
             System.Drawing.Point point = new System.Drawing.Point((int)(pf.X - icon.Width / 2.0 + 0.5), (int)(pf.Y - icon.Height / 2.0 + 0.5));
             try
@@ -732,17 +733,18 @@ namespace CADability.Forms
             }
             catch (System.OverflowException) { }
         }
-        void IPaintTo3D.DisplayBitmap(GeoPoint p, System.Drawing.Bitmap bitmap)
+        void IPaintTo3D.DisplayBitmap(GeoPoint p, object bitmap)
         {
         }
-        void IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap bitmap, int xoffset, int yoffset)
+        void IPaintTo3D.PrepareBitmap(object bitmap, int xoffset, int yoffset)
         {
         }
-        void IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap bitmap)
+        void IPaintTo3D.PrepareBitmap(object bitmap)
         {
         }
-        void IPaintTo3D.RectangularBitmap(System.Drawing.Bitmap bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
+        void IPaintTo3D.RectangularBitmap(object obitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
         {
+            Bitmap bitmap = (Bitmap)obitmap;
             PointF[] destPoints = new PointF[3];
             destPoints[0] = projection.ProjectF(location + directionHeight);
             destPoints[1] = projection.ProjectF(location + directionHeight + directionWidth);

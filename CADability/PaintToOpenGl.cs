@@ -167,7 +167,7 @@ namespace CADability
         /// <param name="fontName">Name of the font</param>
         /// <param name="textString">String to be painted</param>
         /// <param name="fontStyle">Additional font style (bold, italic, etc.)</param>
-        void PrepareText(string fontName, string textString, FontStyle fontStyle);
+        void PrepareText(string fontName, string textString, object fontStyle);
         /// <summary>
         /// Assure that the point symbol is loaded
         /// </summary>
@@ -178,7 +178,7 @@ namespace CADability
         /// (Some implementations cache the icon or transform it into an convenient format)
         /// </summary>
         /// <param name="icon">The icon</param>
-        void PrepareIcon(Bitmap icon);
+        void PrepareIcon(object icon);
         /// <summary>
         /// Assure that the <paramref name="bitmap"/> will be available when <see cref="DisplayIcon"/> will subsequently be called.
         /// (Some implementations cache the bitmap or transform it into an convenient format)
@@ -186,12 +186,12 @@ namespace CADability
         /// <param name="bitmap">The bitmap</param>
         /// <param name="xoffset">x-component of the origin that defines the insertion point (e.g. to center the bitmap)</param>
         /// <param name="yoffset">y-component of the origin</param>
-        void PrepareBitmap(Bitmap bitmap, int xoffset, int yoffset);
+        void PrepareBitmap(object bitmap, int xoffset, int yoffset);
         /// <summary>
-        /// Similar to <see cref="PrepareBitmap(Bitmap , int , int )"/> with origin set to (0,0)
+        /// Similar to <see cref="PrepareBitmap(object , int , int )"/> with origin set to (0,0)
         /// </summary>
         /// <param name="bitmap">The bitmap.</param>
-        void PrepareBitmap(Bitmap bitmap);
+        void PrepareBitmap(object bitmap);
         /// <summary>
         /// Draws a rectangular bitmap at the provided <paramref name="location"/> with <paramref name="directionWidth"/>
         /// specifying the direction of the lower edge of the bitmap and <paramref name="directionHeight"/>
@@ -202,7 +202,7 @@ namespace CADability
         /// <param name="location">Location of the lower left corner of the bitmap</param>
         /// <param name="directionWidth">Direction of the lower edge of the bitmap</param>
         /// <param name="directionHeight">Direction of the left edge of the bitmap</param>
-        void RectangularBitmap(Bitmap bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight);
+        void RectangularBitmap(object bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight);
         /// <summary>
         /// Draw a text with the provided parameters and the current color.
         /// </summary>
@@ -214,7 +214,7 @@ namespace CADability
         /// <param name="fontStyle">Style of the font (e.g. bold)</param>
         /// <param name="alignment">Left, right or center (horizontal) alignement</param>
         /// <param name="lineAlignment">Vertical alignement</param>
-        void Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, FontStyle fontStyle, CADability.GeoObject.Text.AlignMode alignment, CADability.GeoObject.Text.LineAlignMode lineAlignment);
+        void Text(GeoVector lineDirection, GeoVector glyphDirection, GeoPoint location, string fontName, string textString, object fontStyle, CADability.GeoObject.Text.AlignMode alignment, CADability.GeoObject.Text.LineAlignMode lineAlignment);
         /// <summary>
         /// Paint the provided display list.
         /// </summary>
@@ -267,14 +267,14 @@ namespace CADability
         /// </summary>
         /// <param name="p">Where to draw the icon (world coordinates)</param>
         /// <param name="icon">The icon to draw</param>
-        void DisplayIcon(GeoPoint p, Bitmap icon);
+        void DisplayIcon(GeoPoint p, object icon);
         /// <summary>
         /// Displays the provided bitmap at the provided location. The bitmap always faces the viewer.
         /// <see cref="PrepareBitmap"/> has been called or must be called prior to this method.
         /// </summary>
         /// <param name="p">Where to Paint</param>
         /// <param name="bitmap">Th ebitmap to paint</param>
-        void DisplayBitmap(GeoPoint p, Bitmap bitmap);
+        void DisplayBitmap(GeoPoint p, object bitmap);
         /// <summary>
         /// Sets the projection to use in subsequent calls to paint methods.
         /// </summary>

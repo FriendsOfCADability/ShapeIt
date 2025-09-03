@@ -7054,18 +7054,18 @@ namespace CADability.GeoObject
                         res.MinMax(projection.ProjectUnscaled(Vertices[i].Position));
                     }
                 }
+                if (res.Size > Precision.eps) return res;
+                // there are cases where all vertices are in a line parallel to the projection, then the extent is useless
+                // fallback to triangulation
             }
-            else
+            TryAssureTriangles(projection.Precision);
+            lock (lockTriangulationData)
             {
-                TryAssureTriangles(projection.Precision);
-                lock (lockTriangulationData)
+                if (trianglePoint != null)
                 {
-                    if (trianglePoint != null)
+                    for (int i = 0; i < trianglePoint.Length; ++i)
                     {
-                        for (int i = 0; i < trianglePoint.Length; ++i)
-                        {
-                            res.MinMax(projection.ProjectUnscaled(trianglePoint[i]));
-                        }
+                        res.MinMax(projection.ProjectUnscaled(trianglePoint[i]));
                     }
                 }
             }
