@@ -318,10 +318,10 @@ namespace CADability
             info.AddValue("Patches", patches, typeof(LayoutPatch[]));
             info.AddValue("paperWidth", paperWidth, typeof(double));
             info.AddValue("paperHeight", paperHeight, typeof(double));
-            if (pageSettings != null) info.AddValue("PageSettings", pageSettings);
+            // if (pageSettings != null) info.AddValue("PageSettings", pageSettings); // no more page settings, they don' serialize
         }
 
-#endregion
+        #endregion
     }
 }
 #endif

@@ -69,7 +69,8 @@ namespace CADability
         Dictionary<DoubleFaceKey, ModOp2D> overlappingFaces; // Faces von verschiedenen Shells, die auf der gleichen Surface beruhen und sich überlappen
         Dictionary<DoubleFaceKey, HashSet<Edge>> overlappingEdges; // relevante Kanten auf den overlappingFaces
         Dictionary<DoubleFaceKey, ModOp2D> oppositeFaces; // Faces von verschiedenen Shells, die auf der gleichen Surface beruhen und sich überlappen aber verschieden orientiert sind
-        Dictionary<Face, HashSet<Face>> faceToOverlappingFaces; // schneller Zugriff von einem face zu den überlappenden aus der anderen shell
+        Dictionary<Face, HashSet<Face>> faceToOverlappingFaces; // all faces which overlap with this face
+        Dictionary<Face, HashSet<Face>> faceToOppositeFaces; // all faces which are opposite oriented to this face
         HashSet<Face> cancelledfaces; // Faces, which cancel each other, they have the same area but are opposite oriented 
         Dictionary<Face, HashSet<Edge>> faceToIntersectionEdges; // faces of both shells with their intersection edges
         Dictionary<Face, HashSet<Face>> faceToCommonFaces; // faces which have overlapping common parts on them
@@ -112,6 +113,44 @@ namespace CADability
 
         private void AddFaceFaceIntersection(Face fc1, Face fc2)
         {
+            if (fc1.Surface.SameGeometry(fc1.Domain, fc2.Surface, fc2.Domain, this.precision, out ModOp2D firstToSecond))
+            {
+                // These are overlapping faces, we don't intersect them
+                // but we have to remember them in faceToOverlappingFaces and faceToOppositeFaces for later processing
+                // depending on their orientation
+                if (firstToSecond.Determinant > 0)
+                {
+                    if (!faceToOverlappingFaces.TryGetValue(fc1, out var overlapping))
+                    {
+                        overlapping = new HashSet<Face>();
+                        faceToOverlappingFaces[fc1] = overlapping;
+                    }
+                    overlapping.Add(fc2);
+                    if (!faceToOverlappingFaces.TryGetValue(fc2, out overlapping))
+                    {
+                        overlapping = new HashSet<Face>();
+                        faceToOverlappingFaces[fc2] = overlapping;
+                    }
+                    overlapping.Add(fc1);
+                }
+                else
+                {
+                    if (!faceToOppositeFaces.TryGetValue(fc1, out var opposite))
+                    {
+                        opposite = new HashSet<Face>();
+                        faceToOppositeFaces[fc1] = opposite;
+                    }
+                    opposite.Add(fc2);
+                    if (!faceToOppositeFaces.TryGetValue(fc2, out opposite))
+                    {
+                        opposite = new HashSet<Face>();
+                        faceToOppositeFaces[fc2] = opposite;
+                    }
+                    opposite.Add(fc1);
+                }
+                return;
+            }
+
             HashSet<Vertex> intersectionVertices = new HashSet<Vertex>();
             foreach (Edge edge in fc2.Edges)
             {
@@ -1651,6 +1690,8 @@ namespace CADability
 
             edgesToSplit = new Dictionary<Edge, List<Vertex>>();
             faceToIntersectionEdges = new Dictionary<Face, HashSet<Edge>>();
+            faceToOverlappingFaces = new Dictionary<Face, HashSet<Face>>();
+            faceToOppositeFaces = new Dictionary<Face, HashSet<Face>>();
 
             CreateFaceIntersections();
 
@@ -1671,6 +1712,8 @@ namespace CADability
             if (operation != Operation.testonly)
             {   // Für testonly genügen die Kantenschnitte (fast)
                 SplitEdges(); // mit den gefundenen Schnittpunkten werden die Edges jetzt gesplittet
+                IncorporateOverlappingFaces();
+
             }
 #if DEBUG
             foreach (KeyValuePair<Face, HashSet<Edge>> item in faceToIntersectionEdges)
@@ -1693,6 +1736,28 @@ namespace CADability
             }
 #endif
             return Result();
+        }
+
+        private void IncorporateOverlappingFaces()
+        {
+            // since all edges are splitted at the intersection points, each edge is either totally inside or outside the opposite face
+            foreach (var kv in faceToOppositeFaces)
+            {
+                Face mainFace = kv.Key;
+                foreach (var oppositeFace in kv.Value)
+                {
+                    foreach (Edge edge in oppositeFace.Edges)
+                    {
+                        if (mainFace.Contains(edge.Curve3D.PointAt(0.5), false)) // the edge lies on the main face
+                        {   // this edge, which is totally inside the main face, is dealt as an intersection edge of the opposite face
+                            // the intersection edge is reverse to the edge orientation, to eliminate it.
+                            Edge oppositeEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), !edge.Forward(oppositeFace));
+                            if (!faceToIntersectionEdges.ContainsKey(oppositeFace)) faceToIntersectionEdges[oppositeFace] = new HashSet<Edge>();
+                            faceToIntersectionEdges[oppositeFace].Add(edge);
+                        }
+                    }
+                }
+            }
         }
 
         private void AddToVertexOctTree(Shell shell)
