@@ -816,6 +816,15 @@ namespace CADability
         {
             return hashCode;
         }
+        public static GeoObjectList Debug(IEnumerable<Edge> edges)
+        {
+            GeoObjectList res = new GeoObjectList();
+            foreach (Edge edge in edges)
+            {
+                if (edge.curve3d is IGeoObject go) res.Add(go);
+            }
+            return res;
+        }
         internal Edge()
         {
             hashCode = hashCodeCounter++; // 

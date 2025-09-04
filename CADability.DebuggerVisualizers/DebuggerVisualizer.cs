@@ -6,6 +6,7 @@
 /// See: https://learn.microsoft.com/en-us/visualstudio/debugger/how-to-install-a-visualizer?view=vs-2022
 /// This applies to Visual Studio 2022 and 2019
 
+using CADability;
 using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.DebuggerVisualizers;
@@ -92,6 +93,12 @@ TargetTypeName = "CADability.GeoObject.BoxedSurfaceEx.ParEpi, CADability", Descr
 [assembly: DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 TargetTypeName = "CADability.DebuggerContainer, CADability", Description = "CADability DebuggerContainer Visualizer")]
 
+//[assembly: DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+//Target = typeof(System.Collections.Generic.List<CADability.Edge>), Description = "CADability Edges Visualizer")]
+//[assembly: DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+//Target = typeof(CADability.Edge[]), Description = "CADability Edges Visualizer")]
+//[assembly: DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
+//Target = typeof(System.Collections.Generic.HashSet<CADability.Edge>), Description = "CADability Edges Visualizer")]
 #endregion
 
 
@@ -141,6 +148,10 @@ namespace CADability.DebuggerVisualizers
                 else if (o is IGeoObject)
                 {
                     m.Add(o as IGeoObject);
+                }
+                else if (o is GeoObjectList l)
+                {
+                    m.Add(l);
                 }
                 form.ShowDialog(windowService);
             }

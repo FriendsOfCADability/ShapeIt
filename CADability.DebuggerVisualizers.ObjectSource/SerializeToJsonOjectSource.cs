@@ -4,6 +4,7 @@ using System.Runtime.Serialization;
 using System.Runtime.CompilerServices;
 using Microsoft.VisualStudio.DebuggerVisualizers;
 using CADability.GeoObject;
+using System.Collections.Generic;
 
 namespace CADability.DebuggerVisualizers.ObjectSource
 {
@@ -14,6 +15,19 @@ namespace CADability.DebuggerVisualizers.ObjectSource
             if (target is IGeoObject go)
             {
                 target = go.Clone(); // clone the object, so that any references to other objects (e.g. Face->Edge->otherFace) are removed    
+            }
+            else if (target is DebuggerContainer dc)
+            {
+                target = dc.toShow; // the contained objects
+            }
+            else if (target is IEnumerable<Edge> goEnum)
+            {
+                GeoObjectList goList = new GeoObjectList();
+                foreach (Edge edge2 in goEnum)
+                {
+                    goList.Add(edge2.Curve3D.Clone() as IGeoObjectImpl);
+                }
+                target = goList;
             }
             string json = JsonSerialize.ToString(target);
             using (StreamWriter writer = new StreamWriter(outgoingData))
