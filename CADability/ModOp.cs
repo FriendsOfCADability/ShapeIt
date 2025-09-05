@@ -157,7 +157,7 @@ namespace CADability
         /// <returns>inverse</returns>
         public ModOp2D GetInverse()
         {
-
+            if (IsNull) return ModOp2D.Null;
             // nach http://mathworld.wolfram.com/MatrixInverse.html
             double d = Determinant;
             if (Math.Abs(d) < 1e-16) throw new ModOpException(ModOpException.tExceptionType.InversionFailed);

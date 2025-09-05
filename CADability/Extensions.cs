@@ -1,11 +1,35 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using CADability.GeoObject;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace CADability
 {
+    sealed class UnorderedPairComparer<T> : IEqualityComparer<(T A, T B)>
+    {
+        private static readonly IEqualityComparer<T> C = EqualityComparer<T>.Default;
+
+        public bool Equals((T A, T B) x, (T A, T B) y)
+        {
+            // same or exchanged order
+            return (C.Equals(x.A, y.A) && C.Equals(x.B, y.B)) ||
+                   (C.Equals(x.A, y.B) && C.Equals(x.B, y.A));
+        }
+
+        public int GetHashCode((T A, T B) p)
+        {
+            // commutativ Hash-Combination: h(A,B) == h(B,A)
+            unchecked
+            {
+                int h1 = p.A == null ? 0 : C.GetHashCode(p.A);
+                int h2 = p.B == null ? 0 : C.GetHashCode(p.B);
+                return h1 ^ h2;
+            }
+        }
+    }
+
     public class CombinedEnumerable<T> : IEnumerable<T>, IEnumerator<T>, IEnumerator
     {
         IEnumerable<T>[] toEnumerate;
@@ -315,6 +339,15 @@ namespace CADability
 
             // remove overhang
             sortedList.RemoveRange(writeIndex, sortedList.Count - writeIndex);
+        }
+        public static GeoObjectList Show(this IEnumerable<Edge> edges)
+        {
+            GeoObjectList res = new GeoObjectList();
+            foreach (Edge e in edges)
+            {
+                if (e.Curve3D is IGeoObject geoObject) { res.Add(geoObject); }
+            }
+            return res;
         }
     }
 }

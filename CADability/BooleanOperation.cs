@@ -69,8 +69,9 @@ namespace CADability
         Dictionary<DoubleFaceKey, ModOp2D> overlappingFaces; // Faces von verschiedenen Shells, die auf der gleichen Surface beruhen und sich überlappen
         Dictionary<DoubleFaceKey, HashSet<Edge>> overlappingEdges; // relevante Kanten auf den overlappingFaces
         Dictionary<DoubleFaceKey, ModOp2D> oppositeFaces; // Faces von verschiedenen Shells, die auf der gleichen Surface beruhen und sich überlappen aber verschieden orientiert sind
-        Dictionary<Face, HashSet<Face>> faceToOverlappingFaces; // all faces which overlap with this face
-        Dictionary<Face, HashSet<Face>> faceToOppositeFaces; // all faces which are opposite oriented to this face
+        Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOverlappingFaces; // all faces which overlap with this face
+        Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOppositeFaces; // all faces which are opposite oriented to this face and the ModOp2D to transform 2d curves from one face to the other
+        HashSet<Face> commonOverlappingFaces; // Faces, which have been newly created as common parts of overlapping faces
         HashSet<Face> cancelledfaces; // Faces, which cancel each other, they have the same area but are opposite oriented 
         Dictionary<Face, HashSet<Edge>> faceToIntersectionEdges; // faces of both shells with their intersection edges
         Dictionary<Face, HashSet<Face>> faceToCommonFaces; // faces which have overlapping common parts on them
@@ -118,37 +119,73 @@ namespace CADability
                 // These are overlapping faces, we don't intersect them
                 // but we have to remember them in faceToOverlappingFaces and faceToOppositeFaces for later processing
                 // depending on their orientation
-                if (firstToSecond.Determinant > 0)
+                bool sameOrientation = true;
+                if (firstToSecond.IsNull)
+                {   // the u/v systems of the two faces are incompatible
+                    // to find out, whether they are same or opposite oriented, we check a common point
+                    GeoPoint commonPoint = GeoPoint.Invalid;
+                    foreach (Vertex vtx in fc1.Vertices)
+                    {
+                        if (fc2.Contains(vtx.Position, true))
+                        {
+                            commonPoint = vtx.Position;
+                            break;
+                        }
+                    }
+                    if (!commonPoint.IsValid)
+                    {
+                        foreach (Vertex vtx in fc2.Vertices)
+                        {
+                            if (fc1.Contains(vtx.Position, true))
+                            {
+                                commonPoint = vtx.Position;
+                                break;
+                            }
+                        }
+                    }
+                    if (!commonPoint.IsValid)
+                    {
+                        commonPoint = fc1.Surface.PointAt(fc1.Area.GetSomeInnerPoint());
+                    }
+                    GeoVector n1 = fc1.Surface.GetNormal(fc1.Surface.PositionOf(commonPoint));
+                    GeoVector n2 = fc2.Surface.GetNormal(fc2.Surface.PositionOf(commonPoint));
+                    sameOrientation = (n1 * n2) > 0;
+                }
+                else
+                {
+                    sameOrientation = firstToSecond.Determinant > 0;
+                }
+                if (sameOrientation)
                 {
                     if (!faceToOverlappingFaces.TryGetValue(fc1, out var overlapping))
                     {
-                        overlapping = new HashSet<Face>();
+                        overlapping = new Dictionary<Face, ModOp2D>();
                         faceToOverlappingFaces[fc1] = overlapping;
                     }
-                    overlapping.Add(fc2);
+                    overlapping[fc2] = firstToSecond;
                     if (!faceToOverlappingFaces.TryGetValue(fc2, out overlapping))
                     {
-                        overlapping = new HashSet<Face>();
+                        overlapping = new Dictionary<Face, ModOp2D>();
                         faceToOverlappingFaces[fc2] = overlapping;
                     }
-                    overlapping.Add(fc1);
+                    overlapping[fc1] = firstToSecond.GetInverse();
                 }
                 else
                 {
                     if (!faceToOppositeFaces.TryGetValue(fc1, out var opposite))
                     {
-                        opposite = new HashSet<Face>();
+                        opposite = new Dictionary<Face, ModOp2D>();
                         faceToOppositeFaces[fc1] = opposite;
                     }
-                    opposite.Add(fc2);
+                    opposite[fc2] = firstToSecond;
                     if (!faceToOppositeFaces.TryGetValue(fc2, out opposite))
                     {
-                        opposite = new HashSet<Face>();
+                        opposite = new Dictionary<Face, ModOp2D>();
                         faceToOppositeFaces[fc2] = opposite;
                     }
-                    opposite.Add(fc1);
+                    opposite[fc1] = firstToSecond.GetInverse();
                 }
-                return;
+                return; // don't intersect overlapping faces
             }
 
             HashSet<Vertex> intersectionVertices = new HashSet<Vertex>();
@@ -770,10 +807,10 @@ namespace CADability
                                 if (dontIntersect.Contains((edge, second.face))) continue; // this intersection is not needed, it is probably a direct connection between edge and face
                                 if (second.face.Owner == null || second.face.Owner != shell) // owner==null when we don't have two shells but many faces (e.g. offset shell)
                                 {   // keine Schnitte von Kanten, die ganz im Face liegen
-                                    HashSet<Face> overlap;
-                                    if (faceToOverlappingFaces.TryGetValue(second.face, out overlap))
+                                    if (faceToOverlappingFaces.TryGetValue(second.face, out var map) &&
+                                        (map.ContainsKey(edge.PrimaryFace) || map.ContainsKey(edge.SecondaryFace)))
                                     {
-                                        if (overlap.Contains(edge.PrimaryFace) || overlap.Contains(edge.SecondaryFace)) continue;
+                                        continue;
                                     }
                                     List<Node<BRepItem>> addInto;
                                     EdgeFaceKey efk = new EdgeFaceKey(edge, second.face);
@@ -1690,8 +1727,8 @@ namespace CADability
 
             edgesToSplit = new Dictionary<Edge, List<Vertex>>();
             faceToIntersectionEdges = new Dictionary<Face, HashSet<Edge>>();
-            faceToOverlappingFaces = new Dictionary<Face, HashSet<Face>>();
-            faceToOppositeFaces = new Dictionary<Face, HashSet<Face>>();
+            faceToOverlappingFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
+            faceToOppositeFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
 
             CreateFaceIntersections();
 
@@ -1712,7 +1749,7 @@ namespace CADability
             if (operation != Operation.testonly)
             {   // Für testonly genügen die Kantenschnitte (fast)
                 SplitEdges(); // mit den gefundenen Schnittpunkten werden die Edges jetzt gesplittet
-                IncorporateOverlappingFaces();
+                ProcessOverlappingFaces();
 
             }
 #if DEBUG
@@ -1738,26 +1775,117 @@ namespace CADability
             return Result();
         }
 
-        private void IncorporateOverlappingFaces()
-        {
+        private void ProcessOverlappingFaces()
+        {   // When we have opposite faces which are overlapping, we have to subtract the common part from the result
+            // Whenwe have overlapping faces, we have to add the common part to the result
+
             // since all edges are splitted at the intersection points, each edge is either totally inside or outside the opposite face
+            // we don't need to split edges here
+
+            // first deal with opposite faces:
+            // subtracting the common part is done by adding the edges inside the opposite face as intersection edges to both faces with the correct orientation
             foreach (var kv in faceToOppositeFaces)
             {
                 Face mainFace = kv.Key;
-                foreach (var oppositeFace in kv.Value)
+                foreach (var oppositeFace in kv.Value.Keys)
                 {
+                    ModOp2D firstToSecond = kv.Value[oppositeFace];
                     foreach (Edge edge in oppositeFace.Edges)
                     {
                         if (mainFace.Contains(edge.Curve3D.PointAt(0.5), false)) // the edge lies on the main face
                         {   // this edge, which is totally inside the main face, is dealt as an intersection edge of the opposite face
                             // the intersection edge is reverse to the edge orientation, to eliminate it.
-                            Edge oppositeEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), !edge.Forward(oppositeFace));
+                            bool forward = !edge.Forward(oppositeFace);
+                            ICurve2D secondaryCurve2D = edge.Curve2D(oppositeFace).Clone();
+                            if (firstToSecond.IsNull) secondaryCurve2D = mainFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                            else secondaryCurve2D = secondaryCurve2D.GetModified(firstToSecond.GetInverse());
+                            if (forward) secondaryCurve2D.Reverse();
+                            Edge overlappingEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), forward,
+                                mainFace, secondaryCurve2D, !forward);
+                            overlappingEdge.UseVertices(edge.Vertex1, edge.Vertex2);
                             if (!faceToIntersectionEdges.ContainsKey(oppositeFace)) faceToIntersectionEdges[oppositeFace] = new HashSet<Edge>();
-                            faceToIntersectionEdges[oppositeFace].Add(edge);
+                            faceToIntersectionEdges[oppositeFace].Add(overlappingEdge);
+                            if (!faceToIntersectionEdges.ContainsKey(mainFace)) faceToIntersectionEdges[mainFace] = new HashSet<Edge>();
+                            faceToIntersectionEdges[mainFace].Add(overlappingEdge);
+                            // in most cases, the overlapping edge exists already in the mainFace, but duplicates are no problem
                         }
                     }
                 }
             }
+
+            // now deal with overlapping faces:
+            // adding the common part is done by creating a new common face from the intersection edges
+            // it will be added to faceToIntersectionEdges and in Result(), the intersection edges will become the outline edges of the common face
+            Dictionary<(Face, Face), Face> commonFaces = new Dictionary<(Face, Face), Face>(new UnorderedPairComparer<Face>());
+            foreach (var kv in faceToOverlappingFaces)
+            {
+                Face mainFace = kv.Key;
+                foreach (var otherFace in kv.Value.Keys)
+                {
+                    // create a new common face, which has no outline edges, but only the intersection edges
+                    // or maybe it already exists, there is one for each pair of overlapping faces
+                    // this will be reached twice for each common face
+                    bool commonFaceHasMainSurface;
+                    Face commonFace;
+                    if (commonFaces.ContainsKey((mainFace, otherFace)))
+                    {
+                        commonFace = commonFaces[(mainFace, otherFace)];
+                        commonFaceHasMainSurface = false;
+                    }
+                    else
+                    {
+                        commonFace = Face.Construct();
+                        commonFace.Surface = mainFace.Surface.Clone();
+                        commonFaces[(mainFace, otherFace)] = commonFace;
+                        commonFaceHasMainSurface = true;
+                    }
+                    ModOp2D firstToSecond = kv.Value[otherFace];
+                    foreach (Edge edge in otherFace.Edges)
+                    {
+                        if (mainFace.Contains(edge.Curve3D.PointAt(0.5), false)) // the edge lies on the main face
+                        {   // this edge, which is totally inside the main face, is dealt as an intersection edge of the common face
+                            Edge commonEdge;
+                            ICurve2D curveOnPrimaryFace;
+                            if (commonFaceHasMainSurface)
+                            {// the common face has the surface of the main face
+                                if (firstToSecond.IsNull) curveOnPrimaryFace = mainFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                                else curveOnPrimaryFace = edge.Curve2D(otherFace).GetModified(firstToSecond.GetInverse());
+                                if (edge.Forward(otherFace)) curveOnPrimaryFace.Reverse();
+                                commonEdge = new Edge(commonFace, edge.Curve3D.Clone(), commonFace, curveOnPrimaryFace, edge.Forward(otherFace));
+                            }
+                            else
+                            { // the common face has the surface of the other face
+                                if (firstToSecond.IsNull) curveOnPrimaryFace = otherFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                                else curveOnPrimaryFace = edge.Curve2D(otherFace).Clone();
+                                if (!edge.Forward(otherFace)) curveOnPrimaryFace.Reverse();
+                                commonEdge = new Edge(commonFace, edge.Curve3D.Clone(), commonFace, curveOnPrimaryFace, edge.Forward(otherFace));
+                            }
+                            ICurve dbg = commonFace.Surface.Make3dCurve(curveOnPrimaryFace);
+                            commonEdge.UseVertices(edge.Vertex1, edge.Vertex2);
+                            if (!faceToIntersectionEdges.ContainsKey(commonFace)) faceToIntersectionEdges[commonFace] = new HashSet<Edge>();
+                            faceToIntersectionEdges[commonFace].Add(commonEdge);
+                        }
+                    }
+                }
+            }
+            foreach (Face fc in commonFaces.Values)
+            {   // we have to assign an outline to the common face, otherwise it will generate problems in various situations
+                BoundingRect ext = BoundingRect.EmptyBoundingRect;
+                foreach (Edge edg in faceToIntersectionEdges[fc])
+                {
+                    ext.MinMax(edg.Curve2D(fc).GetExtent());
+                }
+                ext.InflateRelative(1.1); // to create a big egnough outline
+                Face dumy = Face.MakeFace(fc.Surface, ext); // to create appropriate edges
+                // transfer the edges from dumy to fc (very low level, but efficient)
+                foreach (Edge edg in dumy.OutlineEdges)
+                {
+                    edg.SetPrimary(fc, true);
+                    edg.Owner = fc;
+                }
+                fc.SetOutline(dumy.OutlineEdges);
+            }
+            commonOverlappingFaces = commonFaces.Values.ToHashSet();
         }
 
         private void AddToVertexOctTree(Shell shell)
@@ -2794,7 +2922,7 @@ namespace CADability
         {
             overlappingFaces = new Dictionary<DoubleFaceKey, ModOp2D>();
             oppositeFaces = new Dictionary<DoubleFaceKey, ModOp2D>();
-            faceToOverlappingFaces = new Dictionary<Face, HashSet<Face>>();
+            faceToOverlappingFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
             // Faces von verschiedenen Shells die identisch sind oder sich überlappen machen Probleme
             // beim Auffinden der Schnitte. Die Kanten und die Flächen berühren sich nur
             HashSet<DoubleFaceKey> candidates = new HashSet<DoubleFaceKey>(); // Kandidaten für parallele faces
@@ -2853,19 +2981,18 @@ namespace CADability
                     {
                         oppositeFaces.Add(df, firstToSecond);
                     }
-                    HashSet<Face> setToAddTo;
-                    if (!faceToOverlappingFaces.TryGetValue(df.face1, out setToAddTo))
+                    if (!faceToOverlappingFaces.TryGetValue(df.face1, out var setToAddTo))
                     {
-                        setToAddTo = new HashSet<Face>();
+                        setToAddTo = new Dictionary<Face, ModOp2D>();
                         faceToOverlappingFaces[df.face1] = setToAddTo;
                     }
-                    setToAddTo.Add(df.face2);
+                    setToAddTo[df.face2] = firstToSecond;
                     if (!faceToOverlappingFaces.TryGetValue(df.face2, out setToAddTo))
                     {
-                        setToAddTo = new HashSet<Face>();
+                        setToAddTo = new Dictionary<Face, ModOp2D>();
                         faceToOverlappingFaces[df.face2] = setToAddTo;
                     }
-                    setToAddTo.Add(df.face1);
+                    setToAddTo[df.face1] = firstToSecond.GetInverse();
                 }
             }
 
@@ -3201,6 +3328,7 @@ namespace CADability
             Dictionary<Face, DebuggerContainer> debugTrimmedFaces = new Dictionary<Face, DebuggerContainer>();
             foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
             {
+                if (kv.Key.OutlineEdges == null || kv.Key.OutlineEdges.Length == 0) continue; // this are faces created from overlapping faces, which do not have outline edges
                 debugTrimmedFaces[kv.Key] = new DebuggerContainer();
                 debugTrimmedFaces[kv.Key].Add(kv.Key.Clone(), Color.Black, kv.Key.GetHashCode());
                 int dbgclr = 1;
@@ -3351,6 +3479,8 @@ namespace CADability
                         edg.DisconnectFromFace(faceToSplit);
                     }
                 }
+                if (commonOverlappingFaces.Contains(faceToSplit)) originalEdges.Clear(); // when this face is part of overlapping faces, we do not need the original edges (outline)
+                                                                                         // because they are not part of the result
                 // now originalEdges contain all edges of the face, that could be used, intersectionEdges contain all edges that must be used
 #if DEBUG       // show the original edges of the faceToSplit (blue) and the intersection edges (red) for this face, where duplicates and reverses are already removed
                 // in this 2d display it should be easy to see, which loops should be generated
@@ -3403,7 +3533,7 @@ namespace CADability
                 {
                     if (Math.Abs(a) > Math.Abs(biggestArea)) biggestArea = a;
                 }
-                if (biggestArea < 0) // when no loop, we don't need the outline
+                if (biggestArea < 0 && !commonOverlappingFaces.Contains(faceToSplit)) // when no loop, we don't need the outline
                 {
                     foreach ((List<Edge>, ICurve2D[]) item in loops.Values) faceEdges.ExceptWith(item.Item1);
                     if (faceEdges.IsSupersetOf(faceToSplit.OutlineEdges))

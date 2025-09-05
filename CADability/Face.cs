@@ -3009,6 +3009,7 @@ namespace CADability.GeoObject
         internal void SetOutline(Edge[] outline)
         {
             this.outline = outline;
+            if (holes == null) holes = new Edge[0][];
         }
 
         /// <summary>

@@ -1536,7 +1536,8 @@ namespace CADability
             }
             else
             {
-                throw new ApplicationException("Cannot serialize value" + value.ToString());
+                WriteNull(); // no exception here, because this can happen with some properties, e.g. from System.Drawing.Common
+                // throw new ApplicationException("Cannot serialize value" + value.ToString());
             }
         }
 #if DEBUG
