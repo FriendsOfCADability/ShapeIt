@@ -1777,7 +1777,7 @@ namespace CADability
 
         private void ProcessOverlappingFaces()
         {   // When we have opposite faces which are overlapping, we have to subtract the common part from the result
-            // Whenwe have overlapping faces, we have to add the common part to the result
+            // When we have overlapping (same orientation) faces, we have to add the common part to the result
 
             // since all edges are splitted at the intersection points, each edge is either totally inside or outside the opposite face
             // we don't need to split edges here
@@ -1813,7 +1813,7 @@ namespace CADability
                 }
             }
 
-            // now deal with overlapping faces:
+            // now deal with overlapping faces (same orientation):
             // adding the common part is done by creating a new common face from the intersection edges
             // it will be added to faceToIntersectionEdges and in Result(), the intersection edges will become the outline edges of the common face
             Dictionary<(Face, Face), Face> commonFaces = new Dictionary<(Face, Face), Face>(new UnorderedPairComparer<Face>());
