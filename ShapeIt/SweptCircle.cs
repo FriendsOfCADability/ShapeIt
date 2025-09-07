@@ -48,7 +48,7 @@ namespace ShapeIt
             if (along is Ellipse && (along as Ellipse).IsCircle)
             {
                 Ellipse e = (along as Ellipse);
-                ToroidalSurface ts = new ToroidalSurface(along.StartPoint, e.Plane.DirectionX, e.Plane.DirectionY, e.Plane.Normal, e.Radius, e.MinorRadius);
+                ToroidalSurface ts = new ToroidalSurface(e.Center, e.Plane.DirectionX, e.Plane.DirectionY, e.Plane.Normal, e.Radius, radius);
                 return ts;
             }
             else

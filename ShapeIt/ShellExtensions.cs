@@ -1045,6 +1045,7 @@ namespace ShapeIt
                 // use the third face of the vertex of the edge e (if there is exactely a third face - which is in most cases) or a plane perpendicular ti the start or endpoint of the edge
                 ISurface topOffset = topSurface.GetOffsetSurface(dist);
                 ISurface bottomOffset = bottomSurface.GetOffsetSurface(dist);
+                if (topOffset == null || bottomOffset == null) continue; // e.g. a sphere shrinking to a point
                 topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
                 bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
                 PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint, -leadingEdge.StartDirection));
@@ -1247,13 +1248,22 @@ namespace ShapeIt
                 SimpleShape dbgss = dbgfc.Area;
                 sweptCircle.Intersect(Line.TwoPoints(GeoPoint.Origin, new GeoPoint(100, 100, 100)), new BoundingRect(0.1, 0, 0.2, 0.5), out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds);
                 Face sweptFace;
-                if (isConvex)
-                {
-                    sweptCircle.ReverseOrientation();
+                // how to test for correct orientation of the sweptCircle?
+                // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface in both cases
+                // In the covex-edge case the fillet shell is removed, the result will be a convex swept surface
+                // In the concave-edge case the fillet shell is added, the result will be a concave swept surface
+                GeoPoint testpoint = re2.Curve3D.PointAt(0.5);
+                GeoPoint2D testpoint2d = sweptCircle.PositionOf(re2.Curve3D.PointAt(0.5));
+                GeoVector testNormal = sweptCircle.GetNormal(testpoint2d);
+                if (testNormal * (filletAxisCurve.Curve3D.EndPoint - re2.Curve3D.PointAt(0.5)) < 0) sweptCircle.ReverseOrientation(); if (isConvex)
+                {   
                     sweptFace = Face.MakeFace(sweptCircle, new Edge[] { topEdges[0], re2, bottomEdges[3], le2 });
+                    double d1 = re2.Curve3D.PointAt(0.5) | filletAxisCurve.Curve3D.StartPoint;
+                    double d2 = re2.Curve3D.PointAt(0.5) | filletAxisCurve.Curve3D.EndPoint;
                 }
                 else
                 {
+                     if (testNormal * (filletAxisCurve.Curve3D.EndPoint - re2.Curve3D.PointAt(0.5)) > 0) sweptCircle.ReverseOrientation();
                     sweptFace = Face.MakeFace(sweptCircle, new Edge[] { topEdges[3], le2, bottomEdges[0], re2 });
                 }
                 sweptFace.CheckConsistency();
@@ -1271,21 +1281,23 @@ namespace ShapeIt
             bool success = false;
             for (int i = 0; i < shellsToSubtract.Count; i++)
             {
-                BRepOperation bro = new BRepOperation(toOperateOn, shellsToSubtract[i], BRepOperation.Operation.difference);
-                Shell[] brores = bro.Result();
-                if (brores.Length == 1)
+                BooleanOperation bo = new BooleanOperation();
+                bo.SetShells(toOperateOn, shellsToSubtract[i], BooleanOperation.Operation.difference);
+                Shell[] bores = bo.Execute();
+                if (bores.Length == 1)
                 {
-                    toOperateOn = brores[0];
+                    toOperateOn = bores[0];
                     success = true; // at least one rounding succeeded
                 }
             }
             for (int i = 0; i < shellsToAdd.Count; i++)
             {
-                BRepOperation bro = new BRepOperation(toOperateOn, shellsToAdd[i], BRepOperation.Operation.union);
-                Shell[] brores = bro.Result();
-                if (brores.Length == 1)
+                BooleanOperation bo = new BooleanOperation();
+                bo.SetShells(toOperateOn, shellsToAdd[i], BooleanOperation.Operation.union);
+                Shell[] bores = bo.Execute();
+                if (bores.Length == 1)
                 {
-                    toOperateOn = brores[0];
+                    toOperateOn = bores[0];
                     success = true; // at least one rounding succeeded
                 }
             }
