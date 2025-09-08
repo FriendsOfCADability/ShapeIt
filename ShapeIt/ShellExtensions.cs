@@ -1067,7 +1067,7 @@ namespace ShapeIt
                 SurfaceHelper.AdjustPeriodic(bottomSurface, bottomDomain, ref uv22);
                 topDomain.MinMax(uv21);
                 bottomDomain.MinMax(uv22);
-                IDualSurfaceCurve filletAxisCurve = topOffset.GetDualSurfaceCurves(topDomain, bottomOffset, bottomDomain, new List<GeoPoint>(new GeoPoint[] { filletAxisLeft, filletAxisRight }))
+                IDualSurfaceCurve filletAxisCurve = topOffset.GetDualSurfaceCurves(topDomain, bottomOffset, bottomDomain, new List<GeoPoint>([filletAxisLeft, filletAxisRight]))
                     .MinBy(dsc => dsc.Curve3D.DistanceTo(filletAxisLeft) + dsc.Curve3D.DistanceTo(filletAxisRight));
                 if (filletAxisCurve == null) return null;
                 filletAxisCurve.Trim(filletAxisLeft, filletAxisRight);
@@ -1082,11 +1082,11 @@ namespace ShapeIt
                 // the other vertex on the lid, the third vertex is the startpoint of edge edgeToRound
                 // now lets construct the lid as a face
                 IDualSurfaceCurve lid1crv1 = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, leftPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
-                    new List<GeoPoint>(new GeoPoint[] { lid1v1, leadingEdge.StartPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid1v1));
+                    new List<GeoPoint>([lid1v1, leadingEdge.StartPoint])).MinBy(dsc => dsc.Curve3D.DistanceTo(lid1v1));
                 if (lid1crv1 == null) return null;
                 lid1crv1.Trim(leadingEdge.StartPoint, lid1v1);
                 IDualSurfaceCurve lid1crv2 = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, leftPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
-                    new List<GeoPoint>(new GeoPoint[] { lid1v2, leadingEdge.StartPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid1v2));
+                    new List<GeoPoint>([lid1v2, leadingEdge.StartPoint])).MinBy(dsc => dsc.Curve3D.DistanceTo(lid1v2));
                 if (lid1crv2 == null) return null;
                 lid1crv2.Trim(lid1v2, leadingEdge.StartPoint);
                 Arc2D arc2DOnLeftPlane = new Arc2D(leftPlane.PositionOf(filletAxisLeft), radius, leftPlane.PositionOf(lid1v1), leftPlane.PositionOf(lid1v2), false);
@@ -1125,11 +1125,11 @@ namespace ShapeIt
                 // the other vertex on the lid, the third vertex is the endpoint of edge edgeToRound
                 // now lets construct the lid as a face
                 IDualSurfaceCurve lid2crv1 = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, rightPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
-                    new List<GeoPoint>(new GeoPoint[] { lid2v1, leadingEdge.EndPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid2v1));
+                    new List<GeoPoint>([lid2v1, leadingEdge.EndPoint])).MinBy(dsc => dsc.Curve3D.DistanceTo(lid2v1));
                 if (lid2crv1 == null) return null;
                 lid2crv1.Trim(lid2v1, leadingEdge.EndPoint);
                 IDualSurfaceCurve lid2crv2 = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, rightPlane, new BoundingRect(GeoPoint2D.Origin, radius, radius),
-                    new List<GeoPoint>(new GeoPoint[] { lid2v2, leadingEdge.EndPoint })).MinBy(dsc => dsc.Curve3D.DistanceTo(lid2v2));
+                    new List<GeoPoint>([lid2v2, leadingEdge.EndPoint])).MinBy(dsc => dsc.Curve3D.DistanceTo(lid2v2));
                 if (lid2crv2 == null) return null;
                 lid2crv2.Trim(leadingEdge.EndPoint, lid2v2);
                 Arc2D arc2DOnRightPlane = new Arc2D(rightPlane.PositionOf(filletAxisRight), radius, rightPlane.PositionOf(lid2v2), rightPlane.PositionOf(lid2v1), false);
@@ -1277,6 +1277,7 @@ namespace ShapeIt
                 else shellsToAdd.Add(filletShell);
             }
 
+            
             Shell toOperateOn = shell.Clone() as Shell;
             bool success = false;
             for (int i = 0; i < shellsToSubtract.Count; i++)

@@ -1797,9 +1797,13 @@ namespace CADability
                             // the intersection edge is reverse to the edge orientation, to eliminate it.
                             bool forward = !edge.Forward(oppositeFace);
                             ICurve2D secondaryCurve2D = edge.Curve2D(oppositeFace).Clone();
-                            if (firstToSecond.IsNull) secondaryCurve2D = mainFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                            if (firstToSecond.IsNull)
+                            {
+                                secondaryCurve2D = mainFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                                if (!edge.Forward(oppositeFace)) secondaryCurve2D.Reverse(); // still to test!
+                            }
                             else secondaryCurve2D = secondaryCurve2D.GetModified(firstToSecond.GetInverse());
-                            if (forward) secondaryCurve2D.Reverse();
+                            // the secsecondaryCurve2D is always correct oriented, we don't need to apply "forward" here
                             Edge overlappingEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), forward,
                                 mainFace, secondaryCurve2D, !forward);
                             overlappingEdge.UseVertices(edge.Vertex1, edge.Vertex2);

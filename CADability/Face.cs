@@ -3010,6 +3010,7 @@ namespace CADability.GeoObject
         {
             this.outline = outline;
             if (holes == null) holes = new Edge[0][];
+            if (surface is ISurfaceImpl surfaceImpl) surfaceImpl.SetBounds(Area.GetExtent());
         }
 
         /// <summary>
@@ -4157,7 +4158,8 @@ namespace CADability.GeoObject
                         if (reversed) ok = false;
                     }
                     if (ok) area = new SimpleShape(soutline, sholes);   // the area has clones of the curves, because the holes are reverse oriented to the 2d curves of the face
-                    // it should always be OK here, if not, something went wrong with the construction of the face and should be fixed there
+                                                                        // it should always be OK here, if not, something went wrong with the construction of the face and should be fixed there
+                    if (surface is ISurfaceImpl si && area!=null) si.usedArea = area.GetExtent();
                 }
                 if (area == null)
                 {
@@ -5353,6 +5355,7 @@ namespace CADability.GeoObject
             }
             res.CopyAttributes(this);
             res.extent = this.extent; // struct, wird kopiert
+            if (res.surface is ISurfaceImpl si) si.SetBounds(Domain);
             return res;
         }
 
