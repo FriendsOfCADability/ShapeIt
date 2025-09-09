@@ -16,10 +16,100 @@ using CADability.Curve2D;
 using CADability.Shapes;
 using MathNet.Numerics.LinearAlgebra;
 
-namespace ShapeIt
+namespace CADability.GeoObject
 {
+    public static class CurveExtensions
+    {
+        /// <summary>
+        /// Computes the curvature circle at a given parameter on a 3D curve.
+        /// </summary>
+        /// <param name="curve">The curve to evaluate.</param>
+        /// <param name="u">The curve parameter.</param>
+        /// <returns>
+        /// A tuple containing:
+        /// - center: the center point of the osculating circle,
+        /// - normal: the normal vector of the osculating plane,
+        /// - radius: the curvature radius (1 / curvature).
+        /// </returns>
+        public static (GeoPoint center, GeoVector normal, double radius) CurvatureAt(this ICurve curve, double u)
+        {
+            IReadOnlyList<GeoVector> ders = curve.PointAndDerivativesAt(u, 2);
+
+            double deriv1Length = ders[1].Length;
+            if (ders[1].Length < 1e-12)
+            {
+                throw new ArgumentException("First derivative is too small to determine curvature.");
+            }
+
+            // Tangent vector
+            GeoVector T = ders[1] / deriv1Length;
+
+            // Normal component of second derivative
+            GeoVector proj = (ders[2] * T) * T;
+            GeoVector normalComponent = ders[2] - proj;
+            GeoPoint point = GeoPoint.Origin + ders[0];
+            double normalLength = normalComponent.Length;
+            if (normalLength < 1e-12)
+            {
+                // Curve is locally straight (e.g. line)
+                return (point, GeoVector.NullVector, double.PositiveInfinity);
+            }
+
+            // Unit normal vector (direction to curvature center)
+            GeoVector N = normalComponent / normalLength;
+
+            // Curvature and radius
+            double curvature = normalLength / (deriv1Length * deriv1Length);
+            double radius = 1.0 / curvature;
+
+            // Center of curvature
+            GeoPoint center = point + radius * N;
+
+            return (center, (ders[1] ^ ders[2]).Normalized, radius);
+        }
+
+        public static double RadiusAt(this ICurve curve, double u)
+        {
+            if (!curve.TryPointDeriv2At(u, out GeoPoint p, out GeoVector d1, out GeoVector d2))
+            {
+                throw new ArgumentException("Curve does not support second derivative at the given parameter.");
+            }
+            double d1l = d1.Length;
+            return d1l * d1l * d1l / (d1 ^ d2).Length;
+        }
+        /// <summary>
+        /// Returns the positions, where the curve has maximal and minimal curature
+        /// </summary>
+        /// <param name="curve"></param>
+        /// <returns>Array of maximal curvature, array of minimal curvature</returns>
+        public static (double[] max, double[] min) CurvatureExtrema(this ICurve curve)
+        {
+            List<double> minima = new List<double>();
+            List<double> maxima = new List<double>();
+            if (curve is Line || (curve is Ellipse e && e.IsCircle) || curve is Polyline) { } // no minima and maxima
+            if (curve is Ellipse ellipse)
+            {
+                double pos = curve.ParameterToPosition(0.0);
+                if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
+                pos = curve.ParameterToPosition(Math.PI);
+                if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
+                pos = curve.ParameterToPosition(Math.PI / 2.0);
+                if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
+                pos = curve.ParameterToPosition(3.0 * Math.PI / 2.0);
+                if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
+            }
+            else
+            {
+                // TODO
+                double[] pp = curve.GetSavePositions();
+            }
+            return (minima.ToArray(), maxima.ToArray());
+        }
+    }
+
+
     [Serializable()]
-    internal class SweptCircle : ISurfaceImpl, ISerializable, IJsonSerialize
+    public class SweptCircle : ISurfaceImpl, ISerializable, IJsonSerialize
     {
         // with help from https://chatgpt.com/c/686bffb7-52b0-8013-955c-8331d5ce2ad2
         private ICurve spine; // spine curve for the pipe
@@ -77,6 +167,15 @@ namespace ShapeIt
                     normal = FindSweepNormal(spine, values); // if normal==null, we use the Frenet frame
                     break;
             }
+        }
+
+        public ICurve Spine
+        {
+            get { return spine; }
+        }
+        public double Radius
+        {
+            get { return radius; }
         }
 
         /// <summary>

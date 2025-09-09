@@ -131,95 +131,6 @@ namespace ShapeIt
             return false;
         }
     }
-
-    internal static class CurveExtensions
-    {
-        /// <summary>
-        /// Computes the curvature circle at a given parameter on a 3D curve.
-        /// </summary>
-        /// <param name="curve">The curve to evaluate.</param>
-        /// <param name="u">The curve parameter.</param>
-        /// <returns>
-        /// A tuple containing:
-        /// - center: the center point of the osculating circle,
-        /// - normal: the normal vector of the osculating plane,
-        /// - radius: the curvature radius (1 / curvature).
-        /// </returns>
-        public static (GeoPoint center, GeoVector normal, double radius) CurvatureAt(this ICurve curve, double u)
-        {
-            IReadOnlyList<GeoVector> ders = curve.PointAndDerivativesAt(u, 2);
-
-            double deriv1Length = ders[1].Length;
-            if (ders[1].Length < 1e-12)
-            {
-                throw new ArgumentException("First derivative is too small to determine curvature.");
-            }
-
-            // Tangent vector
-            GeoVector T = ders[1] / deriv1Length;
-
-            // Normal component of second derivative
-            GeoVector proj = (ders[2] * T) * T;
-            GeoVector normalComponent = ders[2] - proj;
-            GeoPoint point = GeoPoint.Origin + ders[0];
-            double normalLength = normalComponent.Length;
-            if (normalLength < 1e-12)
-            {
-                // Curve is locally straight (e.g. line)
-                return (point, GeoVector.NullVector, double.PositiveInfinity);
-            }
-
-            // Unit normal vector (direction to curvature center)
-            GeoVector N = normalComponent / normalLength;
-
-            // Curvature and radius
-            double curvature = normalLength / (deriv1Length * deriv1Length);
-            double radius = 1.0 / curvature;
-
-            // Center of curvature
-            GeoPoint center = point + radius * N;
-
-            return (center, (ders[1] ^ ders[2]).Normalized, radius);
-        }
-
-        public static double RadiusAt(this ICurve curve, double u)
-        {
-            if (!curve.TryPointDeriv2At(u, out GeoPoint p, out GeoVector d1, out GeoVector d2))
-            {
-                throw new ArgumentException("Curve does not support second derivative at the given parameter.");
-            }
-            double d1l = d1.Length;
-            return d1l * d1l * d1l / (d1 ^ d2).Length;
-        }
-        /// <summary>
-        /// Returns the positions, where the curve has maximal and minimal curature
-        /// </summary>
-        /// <param name="curve"></param>
-        /// <returns>Array of maximal curvature, array of minimal curvature</returns>
-        public static (double[] max, double[] min) CurvatureExtrema(this ICurve curve)
-        {
-            List<double> minima = new List<double>();
-            List<double> maxima = new List<double>();
-            if (curve is Line || (curve is Ellipse e && e.IsCircle) || curve is Polyline) { } // no minima and maxima
-            if (curve is Ellipse ellipse)
-            {
-                double pos = curve.ParameterToPosition(0.0);
-                if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
-                pos = curve.ParameterToPosition(Math.PI);
-                if (pos >= 0.0 && pos <= 1.0) maxima.Add(pos);
-                pos = curve.ParameterToPosition(Math.PI / 2.0);
-                if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
-                pos = curve.ParameterToPosition(3.0 * Math.PI / 2.0);
-                if (pos >= 0.0 && pos <= 1.0) minima.Add(pos);
-            }
-            else
-            {
-                // TODO
-                double[] pp = curve.GetSavePositions();
-            }
-            return (minima.ToArray(), maxima.ToArray());
-        }
-    }
     internal static class ShellExtensions
     {
         public static int GetFaceDistances(this Shell shell, Face distanceFrom, GeoPoint touchingPoint, out List<Face> distanceTo, out List<double> distance, out List<GeoPoint> pointsFrom, out List<GeoPoint> pointsTo)
@@ -1016,6 +927,7 @@ namespace ShapeIt
             if (radius < 0) radius = -radius; // radius always >0
             List<Shell> shellsToSubtract = new List<Shell>();
             List<Shell> shellsToAdd = new List<Shell>();
+            Dictionary<Face, Edge> tangentialEdges = new Dictionary<Face, Edge>(); // edges of the fillet which are tangential to a face of the original shell
             bool isConvex = false;
             foreach (Edge edgeToRound in edges)
             {
@@ -1256,20 +1168,23 @@ namespace ShapeIt
                 GeoPoint2D testpoint2d = sweptCircle.PositionOf(re2.Curve3D.PointAt(0.5));
                 GeoVector testNormal = sweptCircle.GetNormal(testpoint2d);
                 if (testNormal * (filletAxisCurve.Curve3D.EndPoint - re2.Curve3D.PointAt(0.5)) < 0) sweptCircle.ReverseOrientation(); if (isConvex)
-                {   
+                {
                     sweptFace = Face.MakeFace(sweptCircle, new Edge[] { topEdges[0], re2, bottomEdges[3], le2 });
                     double d1 = re2.Curve3D.PointAt(0.5) | filletAxisCurve.Curve3D.StartPoint;
                     double d2 = re2.Curve3D.PointAt(0.5) | filletAxisCurve.Curve3D.EndPoint;
                 }
                 else
                 {
-                     if (testNormal * (filletAxisCurve.Curve3D.EndPoint - re2.Curve3D.PointAt(0.5)) > 0) sweptCircle.ReverseOrientation();
+                    if (testNormal * (filletAxisCurve.Curve3D.EndPoint - re2.Curve3D.PointAt(0.5)) > 0) sweptCircle.ReverseOrientation();
                     sweptFace = Face.MakeFace(sweptCircle, new Edge[] { topEdges[3], le2, bottomEdges[0], re2 });
                 }
                 sweptFace.CheckConsistency();
                 dbgss = sweptFace.Area;
                 Shell filletShell = Shell.FromFaces(sweptFace, bottomFace, topFace, rightLid, leftLid);
-
+                List<Edge> te = [.. sweptFace.Edges.Intersect(bottomFace.Edges)];
+                if (te.Count == 1) tangentialEdges[edgeToRound.SecondaryFace] = te[0];
+                te = [.. sweptFace.Edges.Intersect(topFace.Edges)];
+                if (te.Count == 1) tangentialEdges[edgeToRound.PrimaryFace] = te[0];
 #if DEBUG
                 bool ok = filletShell.CheckConsistency();
 #endif
@@ -1277,13 +1192,14 @@ namespace ShapeIt
                 else shellsToAdd.Add(filletShell);
             }
 
-            
+
             Shell toOperateOn = shell.Clone() as Shell;
             bool success = false;
             for (int i = 0; i < shellsToSubtract.Count; i++)
             {
                 BooleanOperation bo = new BooleanOperation();
                 bo.SetShells(toOperateOn, shellsToSubtract[i], BooleanOperation.Operation.difference);
+                bo.AddTangentialEdges(tangentialEdges);
                 Shell[] bores = bo.Execute();
                 if (bores.Length == 1)
                 {
@@ -1295,6 +1211,7 @@ namespace ShapeIt
             {
                 BooleanOperation bo = new BooleanOperation();
                 bo.SetShells(toOperateOn, shellsToAdd[i], BooleanOperation.Operation.union);
+                bo.AddTangentialEdges(tangentialEdges);
                 Shell[] bores = bo.Execute();
                 if (bores.Length == 1)
                 {

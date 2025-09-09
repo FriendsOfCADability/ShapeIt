@@ -76,6 +76,7 @@ namespace CADability
         Dictionary<Face, HashSet<Edge>> faceToIntersectionEdges; // faces of both shells with their intersection edges
         Dictionary<Face, HashSet<Face>> faceToCommonFaces; // faces which have overlapping common parts on them
         Dictionary<Edge, List<Vertex>> edgesToSplit;
+        Dictionary<Face, Edge> tangentialEdges = new Dictionary<Face, Edge>(); // these edges are tangential to a face on the other shell
         HashSet<Edge> edgesNotToUse; // these edges are identical to intersection edges, but are original edges. They must not be used when collecting faces
         HashSet<IntersectionVertex> intersectionVertices; // die Mange aller gefundenen Schnittpunkte (mit Rückverweis zu Kante und face)
         Dictionary<DoubleFaceKey, List<IntersectionVertex>> facesToIntersectionVertices; // Faces mit den zugehörigen Schnittpunkt
@@ -233,7 +234,11 @@ namespace CADability
                 dc0.Add(pnt, vtx.GetHashCode());
             }
 #endif
-            //previously we had excluded existing edges from beeing created as intersection edges. But now we need those edges too
+            // maybe this intersection is a part of a tangential edge
+            if (tangentialEdges.TryGetValue(fc1, out Edge tangentialEdge) && intersectionVertices.All(v => tangentialEdge.Curve3D.DistanceTo(v.Position) < Precision.eps))
+            {
+
+            }
 
             if (intersectionVertices.Count < 2) return;
 
@@ -3485,7 +3490,7 @@ namespace CADability
                 }
                 if (commonOverlappingFaces.Contains(faceToSplit)) originalEdges.Clear(); // when this face is part of overlapping faces, we do not need the original edges (outline)
                                                                                          // because they are not part of the result
-                // now originalEdges contain all edges of the face, that could be used, intersectionEdges contain all edges that must be used
+                                                                                         // now originalEdges contain all edges of the face, that could be used, intersectionEdges contain all edges that must be used
 #if DEBUG       // show the original edges of the faceToSplit (blue) and the intersection edges (red) for this face, where duplicates and reverses are already removed
                 // in this 2d display it should be easy to see, which loops should be generated
                 double arrowSize = kv.Key.Area.GetExtent().Size * 0.01;
@@ -6123,6 +6128,14 @@ namespace CADability
             }
             anyIntersectionPoint = GeoPoint.Origin;
             return false;
+        }
+
+        public void AddTangentialEdges(Dictionary<Face, Edge> tangentialEdges)
+        {
+            foreach (KeyValuePair<Face, Edge> kv in tangentialEdges)
+            {
+                this.tangentialEdges[kv.Key] = kv.Value;
+            }
         }
 
         public GeoObjectList DebugEdgesToSplit

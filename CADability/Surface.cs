@@ -10,6 +10,8 @@ using System.Collections.Generic;
 using Wintellect.PowerCollections;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System.Linq;
+using MathNet.Numerics;
+
 #if WEBASSEMBLY
 using CADability.WebDrawing;
 #else
@@ -5606,6 +5608,42 @@ namespace CADability.GeoObject
             }
             //return null;
         }
+        internal static IDualSurfaceCurve[] TestTangentialIntersections(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, IList<GeoPoint> points, IList<GeoPoint2D> uvon1, IList<GeoPoint2D> uvon2)
+        {
+            bool isTangential = true;
+            for (int i = 0; i < points.Count; i++)
+            {
+                GeoVector n1 = surface1.GetNormal(uvon1[i]);
+                GeoVector n2 = surface2.GetNormal(uvon2[i]);
+                if (!Precision.SameDirection(n1, n2, false))
+                {
+                    isTangential = false;
+                    break;
+                }
+            }
+            if (isTangential)
+            {
+                if (surface1 is SweptCircle sc1 && (Math.Abs(Math.Abs(surface2.GetDistance(sc1.Spine.StartPoint)) - sc1.Radius) < Precision.eps)
+                    && (Math.Abs(Math.Abs(surface2.GetDistance(sc1.Spine.EndPoint)) - sc1.Radius) < Precision.eps)
+                    && (Math.Abs(Math.Abs(surface2.GetDistance(sc1.Spine.PointAt(0.5))) - sc1.Radius) < Precision.eps))
+                {   // the spine seems to be parallel to surface2, so we have a tangential intersection along the spine
+                    ICurve2D crv2d1 = surface1.GetProjectedCurve(sc1.Spine, Precision.eps);
+                    ICurve2D crv2d2 = surface2.GetProjectedCurve(sc1.Spine, Precision.eps);
+                    ICurve crv = surface2.Make3dCurve(surface2.GetProjectedCurve(sc1.Spine, Precision.eps));
+                    return new IDualSurfaceCurve[] { new DualSurfaceCurve(crv, surface1, crv2d1, surface2, crv2d2) };
+                }
+                if (surface2 is SweptCircle sc2 && (Math.Abs(Math.Abs(surface1.GetDistance(sc2.Spine.StartPoint)) - sc2.Radius) < Precision.eps)
+                    && (Math.Abs(Math.Abs(surface1.GetDistance(sc2.Spine.EndPoint)) - sc2.Radius) < Precision.eps)
+                    && (Math.Abs(Math.Abs(surface1.GetDistance(sc2.Spine.PointAt(0.5))) - sc2.Radius) < Precision.eps))
+                {   // the spine seems to be parallel to surface2, so we have a tangential intersection along the spine
+                    ICurve2D crv2d1 = surface2.GetProjectedCurve(sc2.Spine, Precision.eps);
+                    ICurve2D crv2d2 = surface1.GetProjectedCurve(sc2.Spine, Precision.eps);
+                    ICurve crv = surface1.Make3dCurve(surface1.GetProjectedCurve(sc2.Spine, Precision.eps));
+                    return new IDualSurfaceCurve[] { new DualSurfaceCurve(crv, surface1, crv2d1, surface2, crv2d2) };
+                }
+            }
+            return null;
+        }
         internal static bool Intersect(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, List<GeoPoint> points,
             out ICurve[] crvs3d, out ICurve2D[] crvsOnSurface1, out ICurve2D[] crvsOnSurface2, out double[,] params3d, out double[,] params2dsurf1, out double[,] params2dsurf2,
             out GeoPoint2D[] paramsuvsurf1, out GeoPoint2D[] paramsuvsurf2, double precision)
@@ -5630,6 +5668,8 @@ namespace CADability.GeoObject
                 bounds1.MinMax(paramsuvsurf1[j]);
                 bounds2.MinMax(paramsuvsurf2[j]);
             }
+            // maybe we are tangential here, special case: a swept circle where the spine is on an offset surface
+            IDualSurfaceCurve[] dbg = TestTangentialIntersections(surface1, bounds1, surface2, bounds2, points, paramsuvsurf1, paramsuvsurf2);
             IDualSurfaceCurve[] dscs = surface1.GetDualSurfaceCurves(bounds1, surface2, bounds2, points, null);
 
             if (points.Count > paramsuvsurf1.Length)
