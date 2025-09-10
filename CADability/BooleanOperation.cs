@@ -56,6 +56,10 @@ namespace CADability
         private Shell shell1; // the two shells, which are intersected
         private Shell shell2; // either shell1 and shell2 are set or multipleFaces is set
         private List<Face> multipleFaces; // the faces, which are intersected. 
+        private Dictionary<Edge, Edge> originalToClonedEdges; // points from the original edges to the clones we are working on
+        private Dictionary<Vertex, Vertex> originalToClonedVertices; // points from the original vertices to the clones we are working on
+        private Dictionary<Face, Face> originalToClonedFaces; // points from the original faces to the clones we are working on
+
         private PlaneSurface splittingOnplane; // when splitting a Shell with a plane, this is the surface
         private bool allowOpenEdges;
         private bool dontCombineConnectedFaces = false;
@@ -234,11 +238,6 @@ namespace CADability
                 dc0.Add(pnt, vtx.GetHashCode());
             }
 #endif
-            // maybe this intersection is a part of a tangential edge
-            if (tangentialEdges.TryGetValue(fc1, out Edge tangentialEdge) && intersectionVertices.All(v => tangentialEdge.Curve3D.DistanceTo(v.Position) < Precision.eps))
-            {
-
-            }
 
             if (intersectionVertices.Count < 2) return;
 
@@ -250,61 +249,42 @@ namespace CADability
                 points.Add(v.Position);
             }
 
-            // knownIntersections not implemented yet
-            if (intersectionVertices.Count == 2 && knownIntersections != null)
-            {
-                bool wasKnownintersection = false;
-                foreach (KeyValuePair<Edge, Tuple<Face, Face>> ki in knownIntersections)
+            ICurve[] c3ds = null; // the intersection curves in 3d
+            ICurve2D[] crvsOnSurface1 = null; // the intersection curves in the 2d space of face1
+            ICurve2D[] crvsOnSurface2 = null; // the intersection curves in the 2d space of face2
+            double[,] params3d = null; // the parameters of the intersection points on the 3d curves [curveindex, pointindex]
+            double[,] params2dFace1 = null; // the parameters of the intersection points on the 2d curves on face1 [curveindex, pointindex]
+            double[,] params2dFace2 = null; // the parameters of the intersection points on the 2d curves on face2 [curveindex, pointindex]
+            GeoPoint2D[] paramsuvsurf1 = null; // the uv parameters of the intersection points on surface1 [pointindex]
+            GeoPoint2D[] paramsuvsurf2 = null; // the uv parameters of the intersection points on surface2 [pointindex]
+
+            // maybe this intersection is a part of a tangential edge
+            if ((tangentialEdges.TryGetValue(fc1, out Edge tangentialEdge) && points.All(p => tangentialEdge.Curve3D.DistanceTo(p) < Precision.eps)) ||
+                (tangentialEdges.TryGetValue(fc2, out tangentialEdge) && points.All(p => tangentialEdge.Curve3D.DistanceTo(p) < Precision.eps)))
+            {   // there is a tangential edge, provided by the caller, and all intersection points are on this edge. So this is already the intersection curve.
+                // We will not need to compute the intersection with Surfaces.Intersect
+                // map the points onto the tangential edge
+                List<double> positions = points.ConvertAll(p => tangentialEdge.Curve3D.PositionOf(p));
+                c3ds = new ICurve[] { tangentialEdge.Curve3D.Clone() }; // a single "intersection" curve
+                crvsOnSurface1 = new ICurve2D[] { fc1.Surface.GetProjectedCurve(c3ds[0], 0.0) }; // the 2d curve on face1
+                crvsOnSurface2 = new ICurve2D[] { fc2.Surface.GetProjectedCurve(c3ds[0], 0.0) }; // the 2d curve on face2
+                params3d = new double[1, points.Count]; // the parameters on the tangential edge (often 0 and 1)
+                params2dFace1 = new double[1, points.Count]; // the parameters on the 2d curve on face1
+                params2dFace2 = new double[1, points.Count]; // the parameters on the 2d curve on face2
+                paramsuvsurf1 = new GeoPoint2D[points.Count]; // the uv parameters on surface1
+                paramsuvsurf2 = new GeoPoint2D[points.Count]; // the uv parameters on surface2
+                for (int i = 0; i < positions.Count; i++) // fill the parameter arrays
                 {
-                    // check, whether the two vertices, which define the intersection curve, are located on this tangential (knownIntersection) edge.
-                    if (ki.Value.Item1 == fc1 && ki.Value.Item2 == fc2)
-                    {
-                        // if so, clip the 3d curve and use it as an new intersection edge
-                        double pos1 = ki.Key.Curve3D.PositionOf(usedVertices[0].Position);
-                        double pos2 = ki.Key.Curve3D.PositionOf(usedVertices[1].Position);
-                        // since this are tangential intersections, we must allow greater roundoff errors
-                        if (pos1 > -1e-6 && pos1 < 1 + 1e-6 && pos2 > -1e-6 && pos2 < 1 + 1e-6 && (ki.Key.Curve3D.PointAt(pos1) | usedVertices[0].Position) < 100 * Precision.eps && (ki.Key.Curve3D.PointAt(pos2) | usedVertices[1].Position) < 100 * Precision.eps)
-                        {   // this is a known (and probably tangential) intersection edge, where the edge already exists (e.g. when rounding edges of a shell)
-                            Edge edge;
-                            if (ki.Key.PrimaryFace == fc2) // this is a rounding fillet
-                            {
-                                ICurve crv = ki.Key.Curve3D.Clone();
-                                if (pos1 < pos2) crv.Trim(pos1, pos2);
-                                else crv.Trim(pos2, pos1);
-                                ICurve2D curve2D = fc1.Surface.GetProjectedCurve(crv, 0.0);
-                                if (ki.Key.Forward(ki.Key.PrimaryFace)) curve2D.Reverse();
-                                SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, curve2D);
-                                edge = new Edge(fc1, crv, fc1, curve2D, !ki.Key.Forward(ki.Key.PrimaryFace));
-
-                                //edge.edgeInfo = new EdgeInfo(edge);
-                                //edge.edgeInfo.isIntersection = true;
-                                edge.UseVerticesForce(usedVertices.ToArray()); // use the already existing vertices
-
-                                HashSet<Edge> addTo;
-                                if (!faceToIntersectionEdges.TryGetValue(fc1, out addTo))
-                                {
-                                    addTo = new HashSet<Edge>(); // (new EdgeComparerByVertex()); // damit werden zwei Kanten mit gleichen Vertices nicht zugefügt, nutzt nichts
-                                    faceToIntersectionEdges[fc1] = addTo;
-                                }
-                                addTo.Add(edge);
-                                wasKnownintersection = true;
-                                break; // the loop over knownIntersections
-                            }
-                        }
-                    }
+                    params3d[0, i] = positions[i];
+                    paramsuvsurf1[i] = fc1.Surface.PositionOf(points[i]);
+                    paramsuvsurf2[i] = fc2.Surface.PositionOf(points[i]);
+                    SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref paramsuvsurf1[i]);
+                    SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref paramsuvsurf2[i]);
+                    params2dFace1[0, i] = crvsOnSurface1[0].PositionOf(paramsuvsurf1[i]);
+                    params2dFace2[0, i] = crvsOnSurface2[0].PositionOf(paramsuvsurf2[i]);
                 }
-                if (wasKnownintersection) return; // with the loop over facesToIntersectionVertices, no intersection calculation needed
             }
-
-            ICurve[] c3ds;
-            ICurve2D[] crvsOnSurface1;
-            ICurve2D[] crvsOnSurface2;
-            double[,] params3d;
-            double[,] params2dFace1;
-            double[,] params2dFace2;
-            GeoPoint2D[] paramsuvsurf1;
-            GeoPoint2D[] paramsuvsurf2;
-            if (Surfaces.Intersect(fc1.Surface, fc1.Area.GetExtent(), fc2.Surface, fc2.Area.GetExtent(), points, out c3ds, out crvsOnSurface1, out crvsOnSurface2, out params3d, out params2dFace1, out params2dFace2, out paramsuvsurf1, out paramsuvsurf2, precision))
+            if (c3ds != null || Surfaces.Intersect(fc1.Surface, fc1.Area.GetExtent(), fc2.Surface, fc2.Area.GetExtent(), points, out c3ds, out crvsOnSurface1, out crvsOnSurface2, out params3d, out params2dFace1, out params2dFace2, out paramsuvsurf1, out paramsuvsurf2, precision))
             {
                 if (usedVertices.Count < points.Count)
                 {
@@ -443,6 +423,10 @@ namespace CADability
                         bool dirs1;
                         GeoVector normalsCrossedStart = fc1.Surface.GetNormal(paramsuvsurf1[j1]) ^ fc2.Surface.GetNormal(paramsuvsurf2[j1]);
                         GeoVector normalsCrossedEnd = fc1.Surface.GetNormal(paramsuvsurf1[j2]) ^ fc2.Surface.GetNormal(paramsuvsurf2[j2]);
+#if DEBUG
+                        Line l1 = Line.MakeLine(fc1.Surface.PointAt(paramsuvsurf1[j2]), fc1.Surface.PointAt(paramsuvsurf1[j2]) + 10 * fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized);
+                        Line l2 = Line.MakeLine(fc2.Surface.PointAt(paramsuvsurf2[j2]), fc2.Surface.PointAt(paramsuvsurf2[j2]) + 10 * fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized);
+#endif
                         if (normalsCrossedStart.Length < Precision.eps && normalsCrossedEnd.Length < Precision.eps)
                         {
                             // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
@@ -1631,8 +1615,11 @@ namespace CADability
 
         public void SetShells(Shell s1, Shell s2, Operation operation)
         {
-            shell1 = s1.Clone() as Shell; // we clone the shells to not destroy the originals. We could keep references to the original by UserData
-            shell2 = s2.Clone() as Shell;
+            originalToClonedEdges = new Dictionary<Edge, Edge>();
+            originalToClonedVertices = new Dictionary<Vertex, Vertex>();
+            originalToClonedFaces = new Dictionary<Face, Face>();
+            shell1 = s1.Clone(originalToClonedEdges, originalToClonedVertices, originalToClonedFaces); // we clone the shells to not destroy the originals. We could keep references to the original by UserData
+            shell2 = s2.Clone(originalToClonedEdges, originalToClonedVertices, originalToClonedFaces);
             this.operation = operation;
         }
 
@@ -6130,11 +6117,16 @@ namespace CADability
             return false;
         }
 
+        /// <summary>
+        /// When we know tangential intersections, we can provide them here. They will be taken into account when splitting the faces.
+        /// </summary>
+        /// <param name="tangentialEdges">Face of one Shell contains this edge of the other shell</param>
         public void AddTangentialEdges(Dictionary<Face, Edge> tangentialEdges)
         {
             foreach (KeyValuePair<Face, Edge> kv in tangentialEdges)
             {
-                this.tangentialEdges[kv.Key] = kv.Value;
+                if (originalToClonedFaces.TryGetValue(kv.Key, out Face fc) && originalToClonedEdges.TryGetValue(kv.Value, out Edge edg))
+                    this.tangentialEdges[fc] = edg;
             }
         }
 

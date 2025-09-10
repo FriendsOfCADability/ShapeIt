@@ -635,6 +635,8 @@ namespace CADability.GeoObject
 
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
+            //TetraederHull tetraederHull = new TetraederHull(spine);
+            //double u = tetraederHull.PositionOf(p);
             double u = spine.PositionOf(p);
             if (normal != GeoVector.NullVector)
             {
@@ -910,6 +912,11 @@ namespace CADability.GeoObject
                 this.radius = cc.radius;
                 this.normal = cc.normal;
             }
+        }
+        public override void GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax)
+        {
+            umin = 0.0; umax = 1.0;
+            vmin = 0.0; vmax = 2 * PI;
         }
 
         /// <summary>

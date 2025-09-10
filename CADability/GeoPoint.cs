@@ -455,6 +455,18 @@ namespace CADability
         }
 
         #endregion
+#if DEBUG
+        IGeoObject Debug
+        {
+            get
+            {
+                GeoObject.Point pnt = GeoObject.Point.Construct();
+                pnt.Location = this;
+                pnt.Symbol = PointSymbol.Cross;
+                return pnt;
+            }
+        }
+#endif
     }
 
     /// <summary>

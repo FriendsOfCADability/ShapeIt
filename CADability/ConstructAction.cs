@@ -728,7 +728,7 @@ namespace CADability.Actions
 			void OnActionDone(); // die Aktion wird explizit abgeschlossen
 			bool HasHotspot { get; }
 			GeoPoint HotspotPosition { get; }
-			Image HotSpotIcon { get; }
+			object HotSpotIcon { get; }
 			bool IsFixed();
 			void SetFixed(bool isFixed);
 		}
@@ -928,7 +928,7 @@ namespace CADability.Actions
 				get { return GeoPoint.Origin; }
 			}
 
-			Image IInputObject.HotSpotIcon
+            object IInputObject.HotSpotIcon
 			{
 				get { return null; }
 			}
@@ -1057,7 +1057,7 @@ namespace CADability.Actions
 				get { return GeoPoint.Origin; }
 			}
 
-			Image IInputObject.HotSpotIcon
+			object IInputObject.HotSpotIcon
 			{
 				get { return null; }
 			}
@@ -1427,7 +1427,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 
 			void IInputObject.OnActionDone()
 			{
@@ -1848,7 +1848,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 			void IInputObject.OnActionDone()
 			{   // versuchsweise defaultLength setzen, wenn die Aktion zu ende geht
 				// das müsste noch in den anderen Fällen berücksichtigt werden
@@ -2179,7 +2179,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 
 			void IInputObject.OnActionDone()
 			{
@@ -2653,13 +2653,13 @@ namespace CADability.Actions
 					return Point;
 				}
 			}
-			Image IInputObject.HotSpotIcon
+            object IInputObject.HotSpotIcon
 			{
 				get
 				{
 					if (HotSpotSource != null)
 					{
-                        return (Image)constructAction.Frame.UIService.GetBitmap(HotSpotSource);
+                        return constructAction.Frame.UIService.GetBitmap(HotSpotSource);
                     }
                     return null;
 				}
@@ -3076,7 +3076,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 
 			void IInputObject.OnActionDone() { }
 			IPropertyEntry IInputObject.GetShowProperty()
@@ -3413,7 +3413,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 			void IInputObject.OnActionDone()
 			{
 			}
@@ -3727,7 +3727,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 			void IInputObject.OnActionDone() { }
 
 			IPropertyEntry IInputObject.GetShowProperty()
@@ -3982,7 +3982,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 			void IInputObject.OnActionDone() { }
 			IPropertyEntry IInputObject.GetShowProperty()
 			{
@@ -4187,7 +4187,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 			void IInputObject.OnActionDone()
 			{   // der Anwender hat auf "fertig" gedrückt.
 				// wenn der aktive Index ein neuer Punkt ist, dann müssen wir den entfernen
@@ -4707,7 +4707,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 
 			void IInputObject.OnActionDone()
 			{
@@ -5020,7 +5020,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 			void IInputObject.OnActionDone()
 			{
 				if (selectedGeoObject != null) constructAction.feedBack.RemoveSelected(selectedGeoObject);
@@ -5305,7 +5305,7 @@ namespace CADability.Actions
 					return GeoPoint.Origin;
 				}
 			}
-			Image IInputObject.HotSpotIcon { get { return null; } }
+            object IInputObject.HotSpotIcon { get { return null; } }
 			void IInputObject.OnActionDone()
 			{
 				if (selectedBRepObject != null) constructAction.feedBack.RemoveSelected(BRepObjectToGeoObject(selectedBRepObject));
@@ -5580,7 +5580,7 @@ namespace CADability.Actions
 				}
 			}
 
-			Image IInputObject.HotSpotIcon
+            object IInputObject.HotSpotIcon
 			{
 				get
 				{
@@ -5847,7 +5847,7 @@ namespace CADability.Actions
 				}
 			}
 
-			Image IInputObject.HotSpotIcon
+            object IInputObject.HotSpotIcon
 			{
 				get
 				{
@@ -6135,7 +6135,7 @@ namespace CADability.Actions
 					return new GeoPoint();
 				}
 			}
-			Image IInputObject.HotSpotIcon
+            object IInputObject.HotSpotIcon
 			{
 				get
 				{
@@ -7429,12 +7429,12 @@ namespace CADability.Actions
 				{
 					GeoPoint p = InputDefinitions[i].HotspotPosition;
 					PointF pf = View.Projection.ProjectF(p);
-					Image hsi = InputDefinitions[i].HotSpotIcon;
+					object hsi = InputDefinitions[i].HotSpotIcon;
 					if (hsi != null)
 					{
 						paintTo3D.SetColor(infocolor);
-						paintTo3D.PrepareIcon(hsi as Bitmap); // das ist ja nicht in einer Displayliste
-						paintTo3D.DisplayIcon(p, hsi as Bitmap);
+						paintTo3D.PrepareIcon(hsi); // das ist ja nicht in einer Displayliste
+						paintTo3D.DisplayIcon(p, hsi);
 					}
 					else
 					{

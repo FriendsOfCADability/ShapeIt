@@ -1192,13 +1192,16 @@ namespace ShapeIt
                 else shellsToAdd.Add(filletShell);
             }
 
-
-            Shell toOperateOn = shell.Clone() as Shell;
+            Dictionary<Edge, Edge> clonedEdges = new Dictionary<Edge, Edge>();
+            Dictionary<Vertex, Vertex> clonedVertices = new Dictionary<Vertex, Vertex>();
+            Dictionary<Face, Face> clonedFaces = new Dictionary<Face, Face>();
+            Shell toOperateOn = shell.Clone(clonedEdges, clonedVertices, clonedFaces) as Shell;
             bool success = false;
             for (int i = 0; i < shellsToSubtract.Count; i++)
             {
                 BooleanOperation bo = new BooleanOperation();
                 bo.SetShells(toOperateOn, shellsToSubtract[i], BooleanOperation.Operation.difference);
+                tangentialEdges = tangentialEdges.ToDictionary(kv => clonedFaces[kv.Key], kv => kv.Value);
                 bo.AddTangentialEdges(tangentialEdges);
                 Shell[] bores = bo.Execute();
                 if (bores.Length == 1)
@@ -1211,6 +1214,7 @@ namespace ShapeIt
             {
                 BooleanOperation bo = new BooleanOperation();
                 bo.SetShells(toOperateOn, shellsToAdd[i], BooleanOperation.Operation.union);
+                tangentialEdges = tangentialEdges.ToDictionary(kv => clonedFaces[kv.Key], kv => kv.Value);
                 bo.AddTangentialEdges(tangentialEdges);
                 Shell[] bores = bo.Execute();
                 if (bores.Length == 1)
