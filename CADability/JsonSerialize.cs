@@ -137,6 +137,12 @@ namespace CADability
                 }
             }
 
+            private bool EqualsAt(string value, StringComparison cmp = StringComparison.Ordinal)
+            {
+                if ((uint)actind > (uint)currentline.Length) return false;
+                if (currentline.Length - actind< value.Length) return false;
+                return currentline.AsSpan(actind, value.Length).Equals(value.AsSpan(), cmp);
+            }
             public etoken NextToken(out string line, out int start, out int length)
             {
                 line = null;
@@ -203,8 +209,17 @@ namespace CADability
                     case '7':
                     case '8':
                     case '9':
+                    case 'I':
                         {   // return a number
                             start = actind;
+                            if (EqualsAt("Infinity") || EqualsAt("+Infinity") || EqualsAt("-Infinity"))
+                            {
+                                actind += "Infinity".Length;
+                                if (currentline[start] == '+' || currentline[start] == '-') actind += 1;
+                                length = actind - start;
+                                line = currentline;
+                                return etoken.number;
+                            }
                             ++actind;
                             while (actind < currentline.Length && (char.IsDigit(currentline[actind]) || currentline[actind] == 'E' || currentline[actind] == 'e'
                                 || currentline[actind] == '+' || currentline[actind] == '-' || currentline[actind] == '.')) ++actind;
