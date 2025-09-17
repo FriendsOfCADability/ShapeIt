@@ -709,6 +709,9 @@ namespace CADability
                 for (int i = 0; i < 11; i++)
                 {
                     point2Ds[i] = surface.PositionOf(curve3D.PointAt(i / 10.0));
+                    if (surface.IsUPeriodic) point2Ds[i].x = Math.IEEERemainder(point2Ds[i].x, surface.UPeriod);
+                    if (surface.IsVPeriodic) point2Ds[i].y = Math.IEEERemainder(point2Ds[i].y, surface.VPeriod);
+
 #if DEBUG
                     //(surface as ISurfaceImpl).BoxedSurfaceEx.PositionOf(curve3D.PointAt(i / 10.0), out point2Dsdbg[i]);
 #endif

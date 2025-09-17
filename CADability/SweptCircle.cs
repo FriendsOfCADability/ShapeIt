@@ -113,7 +113,7 @@ namespace CADability.GeoObject
     {
         // with help from https://chatgpt.com/c/686bffb7-52b0-8013-955c-8331d5ce2ad2
         private ICurve spine; // spine curve for the pipe
-        private double radius; // radius of the pipe
+        private double radius; // radius of the pipe, when negative, the normal of the surface points towwards the spine curve
         private GeoVector normal; // when spine curve is planar, this is the normal vector to the plane. When n is the nullvector we use the Frenet frame
         private double[] criticalPositions; // the u parameters, where the spines curvature changes from greater than radius to smaller than radius
 
@@ -247,141 +247,14 @@ namespace CADability.GeoObject
             {
                 if (criticalPositions == null)
                 {
-                    Func<double, double> f = u => spine.CurvatureAt(u).radius - radius;
+                    Func<double, double> f = u => spine.CurvatureAt(u).radius - radius; // radius may be negative here. Is this still correct then?
                     List<double> roots = AdaptiveRootFinder.FindRootsAdaptive(f, 0, 1);
                     criticalPositions = roots.ToArray();
                 }
                 return criticalPositions;
             }
         }
-        [Serializable()]
-        public class FixedUCurve : GeneralCurve, ISerializable, IJsonSerialize
-        {
-            SweptCircle sweptCircle;
-            double u0;
-            double vmin;
-            double vmax;
-            public FixedUCurve(SweptCircle sweptCircle, double u0, double vmin, double vmax)
-            {
-                this.u0 = u0;
-                this.sweptCircle = sweptCircle;
-                this.vmin = vmin;
-                this.vmax = vmax;
-            }
-            private double posToParam(double v)
-            {   // v is in the range [0,1], where 0 is vmin and 1 is vmax
-                return vmin + v * (vmax - vmin);
-            }
-            private double paramToPos(double p)
-            {   // inverse to posToParam
-                return (p - vmin) / (vmax - vmin);
-            }
-            public override IGeoObject Clone()
-            {
-                return new FixedUCurve(sweptCircle, u0, vmin, vmax);
-            }
 
-            public override void CopyGeometry(IGeoObject ToCopyFrom)
-            {
-                if (ToCopyFrom is FixedUCurve fuc)
-                {
-                    u0 = fuc.u0;
-                    vmax = fuc.vmax;
-                    vmin = fuc.vmin;
-                    sweptCircle = fuc.sweptCircle;
-                }
-                else
-                {
-                    throw new ArgumentException("ToCopyFrom must be of type SweptCircle.FixedUCurve");
-                }
-            }
-
-            public override GeoVector DirectionAt(double Position)
-            {
-                // use the first derivation of the SweptCircle but reflect different parameter scaling
-                double f = (vmax - vmin) / (2.0 * PI); // if reversed, this is negative
-                return f * sweptCircle.VDirection(new GeoPoint2D(u0, posToParam(Position)));
-            }
-
-            public override void Modify(ModOp m)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override GeoPoint PointAt(double Position)
-            {
-                return sweptCircle.PointAt(new GeoPoint2D(u0, posToParam(Position)));
-            }
-
-            public override void Reverse()
-            {
-                throw new NotSupportedException("FixedUCurve is immutable");
-            }
-
-            public override ICurve[] Split(double Position)
-            {
-                throw new NotSupportedException("FixedUCurve is immutable");
-            }
-
-            public override void Trim(double StartPos, double EndPos)
-            {
-                throw new NotSupportedException("FixedUCurve is immutable");
-            }
-
-            protected override double[] GetBasePoints()
-            {
-                int minSamples;
-                if (vmax < vmin)
-                    minSamples = (int)Ceiling(4 * (vmin - vmax) / PI); // at least a sample at every 45°
-                else
-                    minSamples = (int)Ceiling(4 * (vmax - vmin) / PI); // at least a sample at every 45°
-                double[] positions = new double[minSamples + 1];
-                double dv = (vmax - vmin) / minSamples; // dv is negative when reversed
-                for (int i = 0; i <= minSamples; i++)
-                {
-                    positions[i] = paramToPos(vmin + i * dv);
-                }
-                return positions;
-            }
-            #region ISerializable
-            protected FixedUCurve(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-            {
-                sweptCircle = (SweptCircle)info.GetValue("SweptCircle", typeof(SweptCircle));
-                u0 = (double)info.GetValue("U0", typeof(double));
-                vmin = (double)info.GetValue("Vmin", typeof(double));
-                vmax = (double)info.GetValue("Vmax", typeof(double));
-            }
-            public override void GetObjectData(SerializationInfo info, StreamingContext context)
-            {
-                base.GetObjectData(info, context);
-                info.AddValue("SweptCircle", sweptCircle, typeof(SweptCircle));
-                info.AddValue("U0", u0, typeof(double));
-                info.AddValue("Vmin", vmin, typeof(double));
-                info.AddValue("Vmax", vmax, typeof(double));
-            }
-            #endregion
-            #region IJsonSerialize
-            protected FixedUCurve() { } // we need this for JsonSerialisation
-            public override void GetObjectData(IJsonWriteData data)
-            {
-                base.GetObjectData(data);
-                data.AddProperty("SweptCircle", sweptCircle);
-                data.AddProperty("U0", u0);
-                data.AddProperty("Vmin", vmin);
-                data.AddProperty("Vmax", vmax);
-            }
-            public override void SetObjectData(IJsonReadData data)
-            {
-                base.SetObjectData(data);
-                sweptCircle = data.GetProperty<SweptCircle>("SweptCircle");
-                u0 = data.GetProperty<double>("U0");
-                vmin = data.GetProperty<double>("Vmin");
-                vmax = data.GetProperty<double>("Vmax");
-            }
-
-            #endregion
-        }
         [Serializable()]
         public class FixedVCurve : GeneralCurve, ISerializable, IJsonSerialize
         {
@@ -522,26 +395,14 @@ namespace CADability.GeoObject
 
             #endregion
         }
-        private (GeoVector T, GeoVector N) FrenetSystem(double u)
-        {
-            var derivs = spine.PointAndDerivativesAt(u, 2);
-            GeoVector T = derivs[1].Normalized;
-            GeoVector N = (derivs[2] - (derivs[2] * T) * T).Normalized;
-            return (T, N);
-        }
-        private (GeoVector T, GeoVector N) FrenetSystem(GeoPoint point, GeoVector deriv1, GeoVector deriv2)
-        {
-            GeoVector T = deriv1.Normalized;
-            GeoVector N = (deriv2 - (deriv2 * T) * T).Normalized;
-            return (T, N);
-        }
+
         public override ICurve FixedU(double u, double vmin, double vmax)
         {
             Plane circlePlane = new Plane(spine.PointAt(u), spine.DirectionAt(u));
             GeoPoint spinePoint = spine.PointAt(u);
             GeoVector tangent = spine.DirectionAt(u).Normalized;
             GeoVector yAxis = (normal ^ tangent).Normalized;
-            GeoVector xAxis = tangent ^ yAxis;
+            GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
             Plane plane = new Plane(spinePoint, xAxis, yAxis);
             Ellipse circularArc = Ellipse.Construct();
             circularArc.SetArcPlaneCenterStartEndPoint(plane, GeoPoint2D.Origin, plane.Project(PointAt(new GeoPoint2D(u, vmin))), plane.Project(PointAt(new GeoPoint2D(u, vmax))), plane, vmin < vmax);
@@ -583,22 +444,6 @@ namespace CADability.GeoObject
             return new GroupProperty("SweptCircleSurface", se.ToArray());
         }
 
-        private (GeoVector T, GeoVector N, GeoVector B) FrameSystem(double u)
-        {
-            GeoVector T, N; // tangential to curve, normal to curve
-            if (!normal.IsNullVector())
-            {
-                T = spine.DirectionAt(u).Normalized;
-                N = normal;
-                return (T, N, N ^ T);
-            }
-            else
-            {
-                (T, N) = FrenetSystem(u);
-                return (T, N, T ^ N); // the orientation of the second normal in the frenet frame is opposite to the "planar" frame, this might lead to errors!
-            }
-        }
-
         public override bool IsUPeriodic => spine.IsClosed;
         public override double UPeriod => spine.IsClosed ? 1.0 : 0.0;
         public override bool IsVPeriodic => true;
@@ -612,7 +457,7 @@ namespace CADability.GeoObject
                 GeoPoint spinePoint = spine.PointAt(u);
                 GeoVector tangent = spine.DirectionAt(u).Normalized;
                 GeoVector yAxis = (normal ^ tangent).Normalized;
-                GeoVector xAxis = tangent ^ yAxis;
+                GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
                 double sinV = Sin(v);
                 double cosV = Cos(v);
                 return spinePoint + radius * (cosV * xAxis + sinV * yAxis);
@@ -626,7 +471,7 @@ namespace CADability.GeoObject
                 GeoVector T = vel.Normalized;
                 // Frenet-Frame 
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
-                GeoVector B = T ^ N;                              // Binormale
+                GeoVector B = Sign(radius) * T ^ N;                              // Binormale
                 double sinV = Sin(v);
                 double cosV = Cos(v);
                 return spinePoint + radius * (cosV * N + sinV * B);
@@ -635,16 +480,25 @@ namespace CADability.GeoObject
 
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
-            //TetraederHull tetraederHull = new TetraederHull(spine);
-            //double u = tetraederHull.PositionOf(p);
-            double u = spine.PositionOf(p);
+            double u;
+            if (spine is Ellipse)
+            {   // Ellipse.PositionOf is wrong implemented for points outside the ellipse
+                TetraederHull tetraederHull = new TetraederHull(spine);
+                u = tetraederHull.PositionOf(p);
+            }
+            else u = spine.PositionOf(p);
             if (normal != GeoVector.NullVector)
             {
                 GeoPoint spinePoint = spine.PointAt(u);
                 GeoVector tangent = spine.DirectionAt(u).Normalized;
                 GeoVector yAxis = (normal ^ tangent).Normalized;
-                GeoVector xAxis = tangent ^ yAxis;
+                GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
                 double v = Atan2((p - spinePoint) * yAxis, (p - spinePoint) * xAxis);
+                if (radius < 0) v = PI + v;
+                GeoPoint2D uv = new GeoPoint2D(u, v);
+                if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
+                uv = new GeoPoint2D(u, v);
+                if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out dist)) return uv;
                 return new GeoPoint2D(u, v);
             }
             else
@@ -656,7 +510,7 @@ namespace CADability.GeoObject
                 GeoVector T = vel.Normalized;
                 // Frenet-Frame 
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
-                GeoVector B = T ^ N;                              // Binormale
+                GeoVector B = Sign(radius) * T ^ N;                              // Binormale
                 double v = Atan2((p - spinePoint) * B, (p - spinePoint) * N);
                 return new GeoPoint2D(u, v);
             }
@@ -738,7 +592,7 @@ namespace CADability.GeoObject
                 // frame vectors
                 GeoVector tangent = vel / speed;                             // T
                 GeoVector yAxis = (normal ^ tangent).Normalized;
-                GeoVector xAxis = tangent ^ yAxis;
+                GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
 
                 // final results
                 double sinV = Sin(v);
@@ -758,7 +612,7 @@ namespace CADability.GeoObject
 
                 // Frenet-Frame 
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
-                GeoVector B = T ^ N;                              // Binormale
+                GeoVector B = Sign(radius) * T ^ N;                              // Binormale
 
                 // final results
                 double sinV = Sin(v);
@@ -797,7 +651,7 @@ namespace CADability.GeoObject
                 // frame vectors
                 GeoVector tangent = vel / speed;                             // T
                 GeoVector yAxis = (normal ^ tangent).Normalized;                        // P
-                GeoVector xAxis = tangent ^ yAxis;
+                GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
                 GeoVector tangent2nd = (curvatureDash * speed + curvature * speedDash)
                                         * yAxis
                                         - curvature * curvature * speed * speed * tangent;
@@ -845,7 +699,7 @@ namespace CADability.GeoObject
 
                 // Frenet-Frame 
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
-                GeoVector B = T ^ N;                              // Binormale
+                GeoVector B = Sign(radius) * T ^ N;                              // Binormale
 
                 // Derivatives of the frame
                 // scaling with s = |c′|
@@ -900,8 +754,9 @@ namespace CADability.GeoObject
         }
         public override ModOp2D ReverseOrientation()
         {
-            spine.Reverse(); // reverse the spine, keep everything else
-            return new ModOp2D(-1, 0, 1, 0, -1, 2*Math.PI);
+            // reversing the radius also afects the orientation of the circle
+            radius = -radius;
+            return new ModOp2D(1, 0, 0, 0, -1, 0);
         }
         public override void CopyData(ISurface CopyFrom)
         {
@@ -927,7 +782,7 @@ namespace CADability.GeoObject
             GeoPoint spinePoint = spine.PointAt(u);
             GeoVector tangent = spine.DirectionAt(u).Normalized;
             GeoVector yAxis = (normal ^ tangent).Normalized;
-            GeoVector xAxis = tangent ^ yAxis;
+            GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
             GeoVector d = (p - spinePoint) / radius;
 
             double x = d * xAxis;
@@ -1250,6 +1105,7 @@ namespace CADability.GeoObject
             data.AddProperty("Spine", spine);
             data.AddProperty("Radius", radius);
             data.AddProperty("Normal", normal);
+
         }
 
         public void SetObjectData(IJsonReadData data)

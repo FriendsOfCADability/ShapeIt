@@ -278,6 +278,9 @@ namespace CADability
                     params3d[0, i] = positions[i];
                     paramsuvsurf1[i] = fc1.Surface.PositionOf(points[i]);
                     paramsuvsurf2[i] = fc2.Surface.PositionOf(points[i]);
+                    double dbgdist = fc1.Surface.PointAt(paramsuvsurf1[i]) | fc2.Surface.PointAt(paramsuvsurf2[i]);
+                    double dbgdist1 = fc1.Surface.PointAt(paramsuvsurf1[i]) | points[i];
+                    double dbgdist2 = fc2.Surface.PointAt(paramsuvsurf2[i]) | points[i];
                     SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref paramsuvsurf1[i]);
                     SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref paramsuvsurf2[i]);
                     params2dFace1[0, i] = crvsOnSurface1[0].PositionOf(paramsuvsurf1[i]);
@@ -421,18 +424,18 @@ namespace CADability
                         // But if the surfaces are tangential in a point the cross product of the normals will be 0. So we take the better one
                         // if both are bad (e.g. two same diameter cylinders), we take a point in the middle
                         bool dirs1;
-                        GeoVector normalsCrossedStart = fc1.Surface.GetNormal(paramsuvsurf1[j1]) ^ fc2.Surface.GetNormal(paramsuvsurf2[j1]);
-                        GeoVector normalsCrossedEnd = fc1.Surface.GetNormal(paramsuvsurf1[j2]) ^ fc2.Surface.GetNormal(paramsuvsurf2[j2]);
+                        GeoVector normalsCrossedStart = fc1.Surface.GetNormal(paramsuvsurf1[j1]).Normalized ^ fc2.Surface.GetNormal(paramsuvsurf2[j1]).Normalized;
+                        GeoVector normalsCrossedEnd = fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized ^ fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized;
 #if DEBUG
                         Line l1 = Line.MakeLine(fc1.Surface.PointAt(paramsuvsurf1[j2]), fc1.Surface.PointAt(paramsuvsurf1[j2]) + 10 * fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized);
                         Line l2 = Line.MakeLine(fc2.Surface.PointAt(paramsuvsurf2[j2]), fc2.Surface.PointAt(paramsuvsurf2[j2]) + 10 * fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized);
 #endif
-                        if (normalsCrossedStart.Length < Precision.eps && normalsCrossedEnd.Length < Precision.eps)
+                        if (normalsCrossedStart.Length < 100*Precision.eps && normalsCrossedEnd.Length < 100*Precision.eps)
                         {
                             // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
                             GeoPoint m = tr.PointAt(0.5);
                             GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m));
-                            if (normalsCrossedMiddle.Length < Precision.eps)
+                            if (normalsCrossedMiddle.Length < 10 * Precision.eps)
                             {
                                 // it is also tangential at the midpoint of the intersection curve
                                 // we now use the uv points in the surfaces and slowly walk from the uv point in the direction of the center of the domain
@@ -460,7 +463,7 @@ namespace CADability
                                     toCenter1 = 2 * toCenter1;
                                     toCenter2 = 2 * toCenter2;
                                     normalsCrossedMiddle = nn1 ^ nn2;
-                                    if (normalsCrossedMiddle.Length > Precision.eps) break;
+                                    if (normalsCrossedMiddle.Length > 10*Precision.eps) break;
                                 }
 
                                 double tangentialPrecision = (fc1.GetExtent(0.0).Size + fc2.GetExtent(0.0).Size) * Precision.eps;

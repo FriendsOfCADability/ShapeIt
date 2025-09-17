@@ -1238,7 +1238,7 @@ namespace CADability
             }
 
         }
-        internal void UseVertices(params Vertex[] toUse)
+        public void UseVertices(params Vertex[] toUse)
         {
             if (curve3d != null)
             {

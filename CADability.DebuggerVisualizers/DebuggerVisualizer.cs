@@ -105,7 +105,7 @@ TargetTypeName = "CADability.DebuggerContainer, CADability", Description = "CADa
 
 namespace CADability.DebuggerVisualizers
 {
- 
+
     public static class DebuggerExtensions
     {
         public static DebuggerContainer Show(this IEnumerable<object> obj)
@@ -128,7 +128,7 @@ namespace CADability.DebuggerVisualizers
             using (var reader = new StreamReader(stream))
             {
                 string json = reader.ReadToEnd();
-                return JsonSerialize.FromString(json) ;
+                return JsonSerialize.FromString(json);
             }
         }
 
@@ -376,13 +376,19 @@ namespace CADability.DebuggerVisualizers
 
             Model m = form.Model;
 
-            GeoPoint p = (GeoPoint)GeneralDebuggerVisualizer.GetObject(objectProvider);
-            Point pnt = Point.Construct();
-            pnt.Location = p;
-            pnt.Symbol = PointSymbol.Cross;
-            VisualizerHelper.AssertColor(pnt);
-            m.Add(pnt);
-
+            object o = GeneralDebuggerVisualizer.GetObject(objectProvider);
+            if (o is GeoPoint p)
+            {
+                Point pnt = Point.Construct();
+                pnt.Location = p;
+                pnt.Symbol = PointSymbol.Cross;
+                VisualizerHelper.AssertColor(pnt);
+                m.Add(pnt);
+            }
+            else if (o is IGeoObject go)
+            {
+                m.Add(VisualizerHelper.AssertColor(go));
+            }
             form.ShowDialog(windowService);
         }
     }
