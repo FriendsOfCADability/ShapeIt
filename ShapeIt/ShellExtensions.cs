@@ -1027,6 +1027,8 @@ namespace ShapeIt
                 Arc2D arc2DOnLeftPlane = new Arc2D(leftPlane.PositionOf(filletAxisLeft), radius, leftPlane.PositionOf(lt.Position), leftPlane.PositionOf(lb.Position), false);
                 if (!isConvex) arc2DOnLeftPlane.Complement();
                 ICurve lid1crv3 = leftPlane.Make3dCurve(arc2DOnLeftPlane);
+                lid1crv3.StartPoint = lt.Position; // for better precision, should be almost equal
+                lid1crv3.EndPoint = lb.Position;
                 Edge le1;
                 Edge le2;
                 Edge le3;
@@ -1077,6 +1079,8 @@ namespace ShapeIt
                 Arc2D arc2DOnRightPlane = new Arc2D(rightPlane.PositionOf(filletAxisRight), radius, rightPlane.PositionOf(rb.Position), rightPlane.PositionOf(rt.Position), false);
                 if (!isConvex) arc2DOnRightPlane.Complement();
                 ICurve lid2crv3 = rightPlane.Make3dCurve(arc2DOnRightPlane);
+                lid2crv3.StartPoint = rb.Position;
+                lid2crv3.EndPoint = rt.Position;
                 Edge re1;
                 Edge re2;
                 Edge re3;
