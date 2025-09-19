@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Text;
@@ -121,10 +122,18 @@ namespace CADability.Forms.NET8
         #endregion PUBLIC METHODS
 
         #region PRIVATE/PROTECTED METHODS
-
+        readonly Stopwatch _idleSw = Stopwatch.StartNew();
+        const int MinIdleCheckMs = 250;
+        bool _idleBusy;
         private void OnIdle(object? sender, EventArgs e)
         {
-            ToolBars.UpdateCommandState(toolStripContainer.TopToolStripPanel);
+            if (_idleBusy) return;
+            if (_idleSw.ElapsedMilliseconds < MinIdleCheckMs) return;
+
+            _idleBusy = true;
+            _idleSw.Restart();
+            try { ToolBars.UpdateCommandState(toolStripContainer.TopToolStripPanel); }
+            finally { _idleBusy = false; }
         }
 
         protected override void OnHandleCreated(EventArgs e)

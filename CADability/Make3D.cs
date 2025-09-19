@@ -2881,9 +2881,9 @@ namespace CADability.GeoObject
                             {
                                 if (Geometry.DistPL(e.Center, axis) < Precision.eps)
                                 {   // a sphere
-                                    GeoVector dirx = (e.StartPoint - e.Center).Normalized;
-                                    GeoVector diry = (axis.Direction ^ dirx).Normalized;
-                                    dirx = (diry ^ axis.Direction).Normalized;
+                                    // GeoVector dirx = (e.StartPoint - e.Center).Normalized;
+                                    GeoVector diry = (axis.Direction ^ e.Plane.Normal).Normalized;
+                                    GeoVector dirx = (diry ^ axis.Direction).Normalized;
                                     surface = new SphericalSurface(e.Center, e.Radius * dirx, e.Radius * diry, e.Radius * axis.Direction.Normalized);
                                 }
                                 else
@@ -2997,6 +2997,16 @@ namespace CADability.GeoObject
                                 {
                                     fc = null;
                                 }
+                            }
+                            else if (surface is SphericalSurface ss)
+                            {   // special case: make a sphere without poles!
+                                ICurve c1 = s1[i].Curve3D;
+                                ICurve c2 = s2[i].Curve3D;
+                                Face[] fcs = Face.MakeNonPolarSphere(ss.Location, ss.ZAxis);
+                                ICurve2D s10 = fcs[0].Surface.GetProjectedCurve(c1, 0.0);
+                                ICurve2D s20 = fcs[0].Surface.GetProjectedCurve(c2, 0.0);
+                                ICurve2D s11 = fcs[1].Surface.GetProjectedCurve(c1, 0.0);
+                                ICurve2D s21 = fcs[1].Surface.GetProjectedCurve(c2, 0.0);
                             }
                             else
                             {

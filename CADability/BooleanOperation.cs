@@ -208,6 +208,24 @@ namespace CADability
                     intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc2, edge));
                 }
             }
+            if (intersectionVertices.Count==1)
+            {
+                intersectionVertices.Clear();
+                foreach (Edge edge in fc2.Edges)
+                {
+                    if (edge.Curve3D != null) // not a pole
+                    {
+                        intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc1, edge));
+                    }
+                }
+                foreach (Edge edge in fc1.Edges)
+                {
+                    if (edge.Curve3D != null) // not a pole
+                    {
+                        intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc2, edge));
+                    }
+                }
+            }
             if (intersectionVertices.Count > 1)
             {
                 CreateIntersectionEdges(fc1, fc2, intersectionVertices);
@@ -430,7 +448,7 @@ namespace CADability
                         Line l1 = Line.MakeLine(fc1.Surface.PointAt(paramsuvsurf1[j2]), fc1.Surface.PointAt(paramsuvsurf1[j2]) + 10 * fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized);
                         Line l2 = Line.MakeLine(fc2.Surface.PointAt(paramsuvsurf2[j2]), fc2.Surface.PointAt(paramsuvsurf2[j2]) + 10 * fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized);
 #endif
-                        if (normalsCrossedStart.Length < 100*Precision.eps && normalsCrossedEnd.Length < 100*Precision.eps)
+                        if (normalsCrossedStart.Length < 100 * Precision.eps && normalsCrossedEnd.Length < 100 * Precision.eps)
                         {
                             // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
                             GeoPoint m = tr.PointAt(0.5);
@@ -463,7 +481,7 @@ namespace CADability
                                     toCenter1 = 2 * toCenter1;
                                     toCenter2 = 2 * toCenter2;
                                     normalsCrossedMiddle = nn1 ^ nn2;
-                                    if (normalsCrossedMiddle.Length > 10*Precision.eps) break;
+                                    if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
                                 }
 
                                 double tangentialPrecision = (fc1.GetExtent(0.0).Size + fc2.GetExtent(0.0).Size) * Precision.eps;

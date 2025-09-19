@@ -764,17 +764,22 @@ namespace CADability.GeoObject
 					Math.Abs(RadiusY - othersphere.RadiusY) < precision &&
 					Math.Abs(RadiusZ - othersphere.RadiusZ) < precision)
 				{
-					GeoPoint2D[] src = new GeoPoint2D[3];
-					GeoPoint2D[] dst = new GeoPoint2D[3];
-					src[0] = GeoPoint2D.Origin;
-					src[1] = new GeoPoint2D(1.0, 0.0);
-					src[2] = new GeoPoint2D(0.0, 1.0);
-					for (int i = 0; i < 3; ++i)
+					if (Precision.SameDirection(this.ZAxis, othersphere.ZAxis, false))
 					{
-						dst[i] = othersphere.PositionOf(PointAt(src[i]));
+						GeoPoint2D[] src = new GeoPoint2D[3];
+						GeoPoint2D[] dst = new GeoPoint2D[3];
+						src[0] = GeoPoint2D.Origin;
+						src[1] = new GeoPoint2D(1.0, 0.0);
+						src[2] = new GeoPoint2D(0.0, 1.0);
+						for (int i = 0; i < 3; ++i)
+						{
+							dst[i] = othersphere.PositionOf(PointAt(src[i]));
+						}
+						firstToSecond = ModOp2D.Fit(src, dst, true);
 					}
-					firstToSecond = ModOp2D.Fit(src, dst, true);
-					return true;
+					else firstToSecond = ModOp2D.Null; // it is the same surface but in 2d
+
+                        return true;
 				}
 				return false;
 			}

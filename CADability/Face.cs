@@ -3376,6 +3376,32 @@ namespace CADability.GeoObject
             PlaneSurface ps = new PlaneSurface(pln);
             return MakeFace(ps, cs.SimpleShapes[0]);
         }
+        public static Face[] MakeNonPolarSphere(GeoPoint location, GeoVector zAxis)
+        {
+            double invsqrt2 = 1.0 / Math.Sqrt(2.0);
+            // start in the unit system
+            Ellipse e0 = Ellipse.Construct();
+            // construct the reference ellipse in the xy plane
+            e0.SetArcPlaneCenterStartEndPoint(Plane.XYPlane, GeoPoint2D.Origin, new GeoPoint2D(0, invsqrt2), new GeoPoint2D(0, -invsqrt2), Plane.XYPlane, true);
+            Ellipse e1 = (e0 as ICurve).CloneModified(ModOp.Translate(0, 0, invsqrt2)) as Ellipse;
+            (e1 as ICurve).Reverse();
+            Ellipse e4 = (e0 as ICurve).CloneModified(ModOp.Rotate(GeoVector.YAxis, new SweepAngle(Math.PI)) * ModOp.Translate(0, -invsqrt2, 0) * ModOp.Rotate(GeoVector.XAxis, new SweepAngle(Math.PI / 2))) as Ellipse;
+            Ellipse e2 = (e0 as ICurve).CloneModified(ModOp.Rotate(GeoVector.YAxis, new SweepAngle(Math.PI)) * ModOp.Translate(0, invsqrt2, 0) * ModOp.Rotate(GeoVector.XAxis, new SweepAngle(-Math.PI / 2))) as Ellipse;
+            Ellipse e3 = (e0 as ICurve).CloneModified(ModOp.Translate(0, 0, -invsqrt2)) as Ellipse;
+            SphericalSurface ss = new SphericalSurface(ModOp.Identity);
+            Face fc1 = MakeFace(ss, new Edge[] {
+                new Edge(null,e1,null,ss.GetProjectedCurve(e1,0),true),
+                new Edge(null,e2,null,ss.GetProjectedCurve(e2,0),true),
+                new Edge(null,e3,null,ss.GetProjectedCurve(e3,0),true),
+                new Edge(null,e4,null,ss.GetProjectedCurve(e4,0),true)
+            });
+            Face fc2 = fc1.Clone() as Face;
+            fc2.Modify(ModOp.Rotate(GeoVector.ZAxis, new SweepAngle(Math.PI)) * ModOp.Rotate(GeoVector.XAxis, new SweepAngle(Math.PI / 2)));
+            ModOp toLocation = ModOp.Translate(location.ToVector())*ModOp.Scale(zAxis.Length)*ModOp.Rotate(GeoPoint.Origin, GeoVector.XAxis, zAxis);
+            fc1.Modify(toLocation);
+            fc2.Modify(toLocation);
+            return new Face[] { fc1, fc2 };
+        }
         protected virtual void SetSurface(ISurface surface)
         {   // nur intern zu verwenden
             this.surface = surface;
@@ -4159,7 +4185,7 @@ namespace CADability.GeoObject
                     }
                     if (ok) area = new SimpleShape(soutline, sholes);   // the area has clones of the curves, because the holes are reverse oriented to the 2d curves of the face
                                                                         // it should always be OK here, if not, something went wrong with the construction of the face and should be fixed there
-                    if (surface is ISurfaceImpl si && area!=null) si.usedArea = area.GetExtent();
+                    if (surface is ISurfaceImpl si && area != null) si.usedArea = area.GetExtent();
                 }
                 if (area == null)
                 {

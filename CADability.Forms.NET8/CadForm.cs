@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Text;
@@ -88,9 +89,20 @@ namespace CADability.Forms.NET8
         public PropertiesExplorer PropertiesExplorer => propertiesExplorer;
         public CadCanvas CadCanvas => cadCanvas;
         public CadFrame CadFrame => cadFrame;
+        
+        // slowdown OnIdle polling:
+        readonly Stopwatch _idleSw = Stopwatch.StartNew();
+        const int MinIdleCheckMs = 250;
+        bool _idleBusy;
         private void OnIdle(object sender, EventArgs e)
         {
-            ToolBars.UpdateCommandState(topToolStripContainer.TopToolStripPanel);
+            if (_idleBusy) return;
+            if (_idleSw.ElapsedMilliseconds < MinIdleCheckMs) return;
+
+            _idleBusy = true;
+            _idleSw.Restart();
+            try { ToolBars.UpdateCommandState(topToolStripContainer.TopToolStripPanel); }
+            finally { _idleBusy = false; }
         }
         protected override void OnClosing(CancelEventArgs e)
         {   // maybe we need to save the project

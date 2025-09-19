@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
@@ -319,31 +320,44 @@ namespace ShapeIt
         /// </summary>
         /// <param name="sender"></param>
         /// <param name="e"></param>
+        // slowdown OnIdle polling:
+        readonly Stopwatch _idleSw = Stopwatch.StartNew();
+        const int MinIdleCheckMs = 250;
+        bool _idleBusy;
         void OnIdle(object sender, EventArgs e)
         {
-            if (projectionChanged)
+            if (_idleBusy) return;
+            if (_idleSw.ElapsedMilliseconds < MinIdleCheckMs) return;
+
+            _idleBusy = true;
+            _idleSw.Restart();
+            try 
             {
-                projectionChanged = false;
-                modellingPropertyEntries.OnProjectionChanged(); // to update the feedback objects, which are projection dependant
-            }
-            if (modifiedSinceLastAutosave && (DateTime.Now - lastSaved).TotalMinutes > 2)
-            {
-                modifiedSinceLastAutosave = false;
-                string path = Path.GetTempPath();
-                path = Path.Combine(path, "ShapeIt");
-                DirectoryInfo dirInfo = Directory.CreateDirectory(path);
-                string currentFileName = CadFrame.Project.FileName;
-                if (string.IsNullOrEmpty(CadFrame.Project.FileName)) path = Path.Combine(path, "noname.cdb.json");
-                else
+                if (projectionChanged)
                 {
-                    string fileName = Path.GetFileNameWithoutExtension(CadFrame.Project.FileName);
-                    if (fileName.EndsWith(".cdb")) fileName = Path.GetFileNameWithoutExtension(fileName); // we usually have two extensions: .cdb.json
-                    path = Path.Combine(path, fileName + "_.cdb.json");
+                    projectionChanged = false;
+                    modellingPropertyEntries.OnProjectionChanged(); // to update the feedback objects, which are projection dependant
                 }
-                CadFrame.Project.WriteToFile(path);
-                CadFrame.Project.FileName = currentFileName; // Project.WriteToFile changes the Project.FileName, restore the current name
-                lastSaved = DateTime.Now;
+                if (modifiedSinceLastAutosave && (DateTime.Now - lastSaved).TotalMinutes > 2)
+                {
+                    modifiedSinceLastAutosave = false;
+                    string path = Path.GetTempPath();
+                    path = Path.Combine(path, "ShapeIt");
+                    DirectoryInfo dirInfo = Directory.CreateDirectory(path);
+                    string currentFileName = CadFrame.Project.FileName;
+                    if (string.IsNullOrEmpty(CadFrame.Project.FileName)) path = Path.Combine(path, "noname.cdb.json");
+                    else
+                    {
+                        string fileName = Path.GetFileNameWithoutExtension(CadFrame.Project.FileName);
+                        if (fileName.EndsWith(".cdb")) fileName = Path.GetFileNameWithoutExtension(fileName); // we usually have two extensions: .cdb.json
+                        path = Path.Combine(path, fileName + "_.cdb.json");
+                    }
+                    CadFrame.Project.WriteToFile(path);
+                    CadFrame.Project.FileName = currentFileName; // Project.WriteToFile changes the Project.FileName, restore the current name
+                    lastSaved = DateTime.Now;
+                }
             }
+            finally { _idleBusy = false; }
         }
         void OnProjectClosed(Project theProject, IFrame theFrame)
         {
