@@ -175,17 +175,15 @@ namespace CADability.Forms.NET8
                 {
                     // show this menu in the MainForm
                     MenuWithHandler[]? mainMenu = MenuResource.LoadMenuDefinition("SDI Menu", true, cadFrame);
-                    #region DebuggerPlayground, you can remove this region
-                    // in the following lines a "DebuggerPlayground" object is created via reflection. This class is a playground to write testcode
-                    // which is not included in the sources. This is why it is constructed via reflection, there is no need to have this class in the project.
-                    Type? dbgplygnd = Type.GetType("CADability.Forms.DebuggerPlayground", false);
-                    if (dbgplygnd != null)
+                    
+                    if (parentForm.MainMenuStrip != null)
                     {
-                        MethodInfo? connect = dbgplygnd.GetMethod("Connect");
-                        if (connect != null) mainMenu = connect.Invoke(null, [cadFrame, mainMenu]) as MenuWithHandler[];
+                        parentForm.Controls.Remove(parentForm.MainMenuStrip);
+                        parentForm.MainMenuStrip.Dispose();
                     }
-                    #endregion DebuggerPlayground
+
                     parentForm.MainMenuStrip = MenuManager.MakeMainMenu(mainMenu);
+                    parentForm.Controls.Add(parentForm.MainMenuStrip); // ?? which one is necessary?
                     Controls.Add(parentForm.MainMenuStrip);
                     cadFrame.FormMenu = parentForm.MainMenuStrip;
                 }

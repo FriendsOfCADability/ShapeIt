@@ -210,7 +210,7 @@ namespace ShapeIt
                 menuDocument.Load(str);
 #if DEBUG
                 // inject an additional menu "Debug", which we can use to directly execute some debugging code
-                XmlNode mainMenu = menuDocument.SelectSingleNode("Menus/MainMenu");
+                XmlNode mainMenu = menuDocument.SelectSingleNode("Menus/MainMenu/Popup[@MenuId='MenuId.Extras']");
                 if (mainMenu != null)
                 {
                     // Create a new MenuItem element.

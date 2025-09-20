@@ -62,7 +62,14 @@ namespace CADability.Forms.NET8
                     if (connect != null) mainMenu = connect.Invoke(null, new object[] { cadFrame, mainMenu }) as MenuWithHandler[];
                 }
             }
+
+            if (this.MainMenuStrip != null)
+            {
+                this.Controls.Remove(this.MainMenuStrip);
+                this.MainMenuStrip.Dispose();
+            }
             MainMenuStrip = MenuManager.MakeMainMenu(mainMenu);
+            this.Controls.Add(MainMenuStrip);
             cadFrame.FormMenu = MainMenuStrip;
         }
         // Access the components of the MainForm from the CadFrame. 
