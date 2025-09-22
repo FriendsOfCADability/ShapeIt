@@ -10,6 +10,7 @@ using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -19,6 +20,7 @@ using System.Windows.Forms.VisualStyles;
 using System.Xml.Linq;
 using Wintellect.PowerCollections;
 using static CADability.Projection;
+using Path = CADability.GeoObject.Path;
 
 namespace ShapeIt
 {
@@ -777,7 +779,8 @@ namespace ShapeIt
                             if (fp != null && fp.SubItems.Length > 0) subEntries.Add(fp);
                         }
                     }
-                    catch (Exception ex) { };
+                    catch (Exception ex) { }
+                    ;
                 }
             }
             if (faces.Count > 0) // are there features defined by the selected faces?
@@ -796,7 +799,8 @@ namespace ShapeIt
                             if (fp != null && fp.SubItems.Length > 0) subEntries.Add(fp);
                         }
                     }
-                    catch (Exception ex) { };
+                    catch (Exception ex) { }
+                    ;
                 }
             }
             // Add the menus for Faces
@@ -1222,27 +1226,7 @@ namespace ShapeIt
             }
             if (paths.Count == 1 && paths[0].IsClosed && paths[0].GetPlanarState() == PlanarState.Planar)
             {
-                Plane pln = paths[0].GetPlane();
-                Face fc = Face.MakeFace(new GeoObjectList(paths[0]));
-                if (fc != null)
-                {
-                    DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
-                    extrude.ExecuteMenu = (frame) =>
-                    {
-                        cadFrame.ControlCenter.ShowPropertyPage("Action");
-                        frame.SetAction(new Constr3DFaceExtrude(fc));
-                        return true;
-                    };
-                    res.Add(extrude);
-                    DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
-                    rotate.ExecuteMenu = (frame) =>
-                    {
-                        cadFrame.ControlCenter.ShowPropertyPage("Action");
-                        frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
-                        return true;
-                    };
-                    res.Add(rotate);
-                }
+                res.AddRange(GetPlanarPathProperties(paths[0], vw, true));
             }
             if (paths.Count > 1 && Curves.GetCommonPlane(paths.Cast<ICurve>().ToList(), out Plane plane))
             {
@@ -1369,6 +1353,101 @@ namespace ShapeIt
                 }
             }
             return res.ToArray();
+        }
+
+        private List<IPropertyEntry> GetPlanarPathProperties(Path path, IView vw, bool addExtrude)
+        {
+            List<IPropertyEntry> res = new List<IPropertyEntry>();
+            Plane pln = path.GetPlane();
+            Face fc = Face.MakeFace(new GeoObjectList(path));
+            if (fc != null && addExtrude)
+            {
+                DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
+                extrude.ExecuteMenu = (frame) =>
+                {
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    frame.SetAction(new Constr3DFaceExtrude(fc));
+                    return true;
+                };
+                res.Add(extrude);
+                DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
+                rotate.ExecuteMenu = (frame) =>
+                {
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                    return true;
+                };
+                res.Add(rotate);
+            }
+            Path2D path2D = path.GetProjectedCurve(pln) as Path2D;
+            if (path2D != null)
+            {
+                GeoPoint2D cnt = Symmetry2D.FindSymmetryAxes2D(path2D, out List<GeoVector2D> axes);
+                BoundingRect ext = path2D.GetExtent();
+                List<DirectMenuEntry> symmEntries = new List<DirectMenuEntry>();
+                foreach (GeoVector2D axis in axes)
+                {
+                    GeoPoint2DWithParameter[] ips = path2D.Intersect(cnt - ext.Size * axis, cnt + ext.Size * axis);
+                    if (ips.Length == 2)
+                    {
+                        Path2D part = path2D.Trim(ips[0].par1, ips[1].par1) as Path2D;
+                        if (part != null)
+                        {
+                            part.Append(new Line2D(part.EndPoint, part.StartPoint));
+                            IGeoObject part3D = part.MakeGeoObject(pln);
+                            if (part3D is Path)
+                            {
+                                DirectMenuEntry symm = new DirectMenuEntry("MenuId.BodyOfRevolution");
+                                symm.IsSelected = (selected, frame) =>
+                                {
+                                    feedback.Clear();
+                                    if (selected)
+                                    {
+                                        IGeoObject revolution = Make3D.Rotate(part3D, new Axis(pln.ToGlobal(cnt), pln.ToGlobal(axis)), Math.PI * 2, 0.0, cadFrame.Project);
+                                        if (revolution != null) feedback.ShadowFaces.Add(revolution);
+                                    }
+                                    feedback.Refresh();
+                                    return true;
+                                };
+                                symm.ExecuteMenu = (frame) =>
+                                {
+                                    IGeoObject revolution = Make3D.Rotate(part3D, new Axis(pln.ToGlobal(cnt), pln.ToGlobal(axis)), Math.PI * 2, 0.0, cadFrame.Project);
+                                    if (revolution is Solid sld)
+                                    {
+                                        vw.Model.Add(sld);
+                                        ComposeModellingEntries(new GeoObjectList(sld), vw, null);
+                                    }
+                                    return true;
+                                };
+                                symmEntries.Add(symm);
+                            }
+                        }
+                    }
+                }
+                if (symmEntries.Count > 0)
+                {
+                    if (symmEntries.Count < 5) res.AddRange(symmEntries);
+                    else
+                    {
+                        SelectEntry rotationEntries = new SelectEntry("MenuId.BodyOfRevolution");
+                        foreach (DirectMenuEntry de in symmEntries) rotationEntries.Add(de);
+                        res.Add(rotationEntries);
+                        rotationEntries.Label = StringTable.GetFormattedString("MenuId.BodyOfRevolution.Count", symmEntries.Count);
+                        rotationEntries.IsSelected = (selected, frame) =>
+                        {
+                            feedback.Clear();
+                            if (selected)
+                            {
+                                feedback.FrontFaces.Add(fc);
+                            }
+                            feedback.Refresh();
+
+                            return true;
+                        };
+                    }
+                }
+            }
+            return res;
         }
         /// <summary>
         /// Empty the modelling tab page, leave only the title
@@ -1514,6 +1593,30 @@ namespace ShapeIt
                     curveMenus.Add(ruled);
                 }
             }
+            if (curve is Ellipse elli && elli.IsCircle)
+            {
+                DirectMenuEntry toSphere = new DirectMenuEntry("MenuId.CircleToSphere");
+                toSphere.ExecuteMenu = (frame) =>
+                {
+                    Solid sphere = Make3D.MakeSphere(elli.Center, elli.MajorRadius);
+                    if ((sphere != null))
+                    {
+                        cadFrame.Project.StyleList.GetDefault(Style.EDefaultFor.Solids)?.Apply(sphere);
+                        vw.Model.Add(sphere); // add the sphere to the model 
+                        ComposeModellingEntries(new GeoObjectList(sphere), frame.ActiveView, null); // and show it in the control center
+                    }
+                    return true;
+                };
+                toSphere.IsSelected = (selected, frame) =>
+                {
+                    feedback.Clear();
+                    if (selected) feedback.ShadowFaces.Add(Make3D.MakeSphere(elli.Center, elli.MajorRadius));
+                    feedback.Refresh();
+                    return true;
+                };
+                curveMenus.Add(toSphere);
+            }
+            if (curve is Path path) curveMenus.Add(GetPlanarPathProperties(path, vw, false));
             return curveMenus;
         }
 
@@ -1868,7 +1971,7 @@ namespace ShapeIt
                     mhSubtractFromAll.ExecuteMenu = (frame) =>
                     {
                         this.Clear();
-                        NewBooleanOperation.OperateWithMany(sld, otherSolids, cadFrame,"MenuId.Solid.RemoveFromAll");
+                        NewBooleanOperation.OperateWithMany(sld, otherSolids, cadFrame, "MenuId.Solid.RemoveFromAll");
                         return true;
                     };
                     mhSubtractFromAll.IsSelected = ShowThisAndAll;

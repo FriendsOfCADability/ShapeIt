@@ -1,4 +1,6 @@
-﻿using System;
+﻿using CADability.Curve2D;
+using CADability.GeoObject;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,7 +19,7 @@ namespace CADability
             axis = new List<GeoVector2D>();
             for (int i = 0; i < sortedIndices.Length - 1; i++)
             {
-                for (int l=i+1; l < sortedIndices.Length; ++l)
+                for (int l = i + 1; l < sortedIndices.Length; ++l)
                 {
                     if (dist[sortedIndices[l]] - dist[sortedIndices[i]] < Precision.eps)
                     {
@@ -68,6 +70,68 @@ namespace CADability
                         {
                             axis.Add(axisCandidate);
                         }
+                    }
+                }
+            }
+            return centroid;
+        }
+        public static GeoPoint2D FindSymmetryAxes2D(Path2D path, out List<GeoVector2D> axis)
+        {
+            List<GeoPoint2D> samples = new List<GeoPoint2D>();
+            foreach (ICurve2D c2d in path.SubCurves)
+            {
+                samples.Add(c2d.EndPoint);
+            }
+            if (samples.Count <= 2)
+            {
+                foreach (ICurve2D c2d in path.SubCurves)
+                {
+                    samples.Add(c2d.PointAt(0.5));
+                }
+            }
+            GeoPoint2D centroid = FindSymmetryAxes2D(samples.ToArray(), out axis);
+            BoundingRect ext = path.GetExtent();
+            for (int i = axis.Count - 1; i >= 0; --i)
+            {
+                GeoPoint2DWithParameter[] ips = path.Intersect(centroid - ext.Size * axis[i], centroid + ext.Size * axis[i]);
+                if (ips.Length == 0)
+                {
+                    axis.RemoveAt(i);
+                    continue;
+                }
+                else
+                {
+                    ModOp2D reflect = ModOp2D.Reflect(centroid, axis[i]);
+                    double[] pars = new double[ips.Length];
+                    for (int j = 0; j < ips.Length; j++) pars[j] = ips[j].par1;
+                    List<ICurve2D> parts = new List<ICurve2D>(path.Split(new double[] { ips[0].par1, ips[1].par1 }));
+                    if (path.IsClosed && Precision.IsEqual(parts.First().StartPoint, parts.Last().EndPoint))
+                    {
+                        parts[0] = new Path2D(new ICurve2D[] { parts.Last(), parts.First() });
+                        (parts[0] as Path2D).Flatten();
+                        parts.RemoveAt(parts.Count - 1);
+                    }
+                    bool ok = false;
+                    if (parts.Count % 2 == 0)
+                    {
+                        ok = true;
+                        for (int j = 0; j < parts.Count / 2; j++)
+                        {
+                            (parts[parts.Count - 1 - j] as Path2D).Flatten();
+                            (parts[j] as Path2D).Flatten();
+                            ICurve2D c = parts[parts.Count - 1 - j].GetModified(reflect);
+                            c.Reverse();
+                            if (!(parts[j].MakeGeoObject(Plane.XYPlane) as ICurve).SameGeometry(c.MakeGeoObject(Plane.XYPlane) as ICurve, Precision.eps))
+                            {
+                                ok = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!ok)
+                    {
+                        axis.RemoveAt(i);
+                        continue;
                     }
                 }
             }

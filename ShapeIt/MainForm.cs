@@ -430,6 +430,7 @@ namespace ShapeIt
             CADability.GeoObject.Solid sld1 = null;
             CADability.GeoObject.Solid sld2 = null;
             CADability.GeoObject.Solid sld3 = null;
+            CADability.GeoObject.Path path = null;
             foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
             {
                 if (go is CADability.GeoObject.Solid sld)
@@ -438,6 +439,13 @@ namespace ShapeIt
                     else if (sld2 == null) sld2 = sld;
                     else sld3 = sld;
                 }
+                if (go is CADability.GeoObject.Path p) { path = p;  }
+            }
+            if (path!=null && path.GetPlanarState()==CADability.GeoObject.PlanarState.Planar)
+            {
+                Plane pln = path.GetPlane();
+                
+                GeoPoint2D cnt = Symmetry2D.FindSymmetryAxes2D(path.GetProjectedCurve(pln) as CADability.Curve2D.Path2D, out List<CADability.GeoVector2D> axes);
             }
             if (sld1 != null)
             {

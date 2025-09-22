@@ -313,6 +313,34 @@ namespace CADability
             res.Matrix12 = 0.0;
             return res;
         }
+        public static ModOp2D Reflect(GeoPoint2D axisPoint, GeoVector2D axisDirection)
+        {
+            // Normalize the axis direction
+            GeoVector2D dir = axisDirection;
+            dir.Norm();
+            double dx = dir.x;
+            double dy = dir.y;
+
+            // Step 1: Translate axisPoint to origin
+            ModOp2D toOrigin = ModOp2D.Translate(-axisPoint.x, -axisPoint.y);
+
+            // Step 2: Rotate axisDirection to x-axis
+            double angle = Math.Atan2(dy, dx);
+            ModOp2D toXAxis = ModOp2D.Rotate(GeoPoint2D.Origin, -angle);
+
+            // Step 3: Reflect across x-axis
+            ModOp2D reflectX = new ModOp2D(1, 0, 0, 0, -1, 0);
+
+            // Step 4: Undo rotation
+            ModOp2D fromXAxis = ModOp2D.Rotate(GeoPoint2D.Origin, angle);
+
+            // Step 5: Undo translation
+            ModOp2D fromOrigin = ModOp2D.Translate(axisPoint.x, axisPoint.y);
+
+            // Combine all transformations: fromOrigin * fromXAxis * reflectX * toXAxis * toOrigin
+            return fromOrigin * fromXAxis * reflectX * toXAxis * toOrigin;
+        }
+
         public static ModOp2D Scale(double factor)
         {
             ModOp2D res;
@@ -1531,7 +1559,7 @@ namespace CADability
             if (Src.Length == 3)
             {
                 //GeoPoint [] AllPoints = new GeoPoint[Src.Length+Dst.Length];
-                //Src.CopyTo(AllPoints,0);
+                //Src.CopyTo(AllPoints, 0);
                 //Dst.CopyTo(AllPoints,Src.Length);
                 //double MaxDist;
                 //Plane Invariant = Plane.FromPoints(AllPoints,out MaxDist);
@@ -2006,6 +2034,8 @@ namespace CADability
             res.Modify(m);
             return res;
         }
+
+
         #region ISerializable Members
         /// <summary>
         /// Constructor required by deserialization

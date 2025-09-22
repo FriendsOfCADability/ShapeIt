@@ -2369,12 +2369,9 @@ namespace CADability.GeoObject
         }
         static public Solid MakeSphere(GeoPoint location, double radius)
         {
-            SphericalSurface ss = new SphericalSurface(location, radius * GeoVector.XAxis, radius * GeoVector.YAxis, radius * GeoVector.ZAxis);
-            Border bdr = Border.MakeRectangle(0, Math.PI, -Math.PI / 2, Math.PI / 2);
-            Face f1 = Face.MakeFace(ss, new SimpleShape(Border.MakeRectangle(0, Math.PI, -Math.PI / 2, Math.PI / 2)));
-            Face f2 = Face.MakeFace(ss, new SimpleShape(Border.MakeRectangle(Math.PI, Math.PI * 2, -Math.PI / 2, Math.PI / 2)));
-            Shell[] sh = SewFaces(new Face[] { f1, f2 });
-            if (sh.Length == 1) return Solid.MakeSolid(sh[0]);
+            Face[] faces = Face.MakeNonPolarSphere(location, radius * GeoVector.ZAxis);
+            Shell[] shells = SewFaces(faces);
+            if (shells!=null && shells.Length==1) return Solid.MakeSolid(shells[0]);
             return null;
         }
         static public Solid MakeTorus(GeoPoint location, GeoVector normal, double radius1, double radius2)
@@ -3074,6 +3071,8 @@ namespace CADability.GeoObject
                 Shell[] shells = SewFaces(faces.ToArray());
                 if (shells.Length == 1)
                 {
+                    Style stl = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
+                    if (stl != null) shells[0].Style = stl;
                     if (shells[0].HasOpenEdgesExceptPoles()) return shells[0];
                     else return Solid.MakeSolid(shells[0]);
                 }

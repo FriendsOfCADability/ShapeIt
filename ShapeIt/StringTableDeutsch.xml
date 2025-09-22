@@ -355,4 +355,16 @@
 	<data name="SelectSolid.Split">
 		<label>Körper aufteilen</label>
 	</data>
+  <data name ="MenuId.BodyOfRevolution">
+    <label>Rotationskörper</label>
+    <info>Diesen Pfad zu einem Rotationskörper machen</info>
+  </data>
+  <data name ="MenuId.BodyOfRevolution.Count">
+    <label>{0} Rotationskörper</label>
+    <info>Einen von mehreren möglichen Rotationskörpern auswählen</info>
+  </data>
+  <data name="MenuId.CircleToSphere">
+    <label>Kugel</label>
+    <info>Erzeuge eine Kugel mit dem Durchmesser und der Lage dieses Kreises</info>
+  </data>
 </root>
