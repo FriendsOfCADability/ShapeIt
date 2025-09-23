@@ -22,72 +22,40 @@ public static class SvgCursorHelper
     [DllImport("gdi32.dll")] private static extern IntPtr CreateBitmap(int nWidth, int nHeight, uint cPlanes, uint cBitsPerPel, IntPtr lpvBits);
 
     /// <summary>
-    /// Reads &lt;desc id="hotspot" x="…" y="…"/&gt; directly from the SVG XML (top-level under &lt;svg&gt;).
+    /// Calculates the center point of the "hotspot" element within the specified SVG document and hides the element.
     /// </summary>
-    public static bool TryReadHotspotFromSvgXml(Stream svgStream, out PointF hotspot)
+    /// <param name="doc">The <see cref="SvgDocument"/> containing the "hotspot" element. Cannot be null.</param>
+    /// <param name="cx">The width, in pixels, of the temporary rendering surface used for layout calculations.</param>
+    /// <param name="cy">The height, in pixels, of the temporary rendering surface used for layout calculations.</param>
+    /// <returns>A <see cref="PointF"/> representing the center point of the "hotspot" element in the SVG document's coordinate
+    /// space. Returns <see cref="PointF.Empty"/> if the "hotspot" element is not found.</returns>
+    static PointF ReadHotspotFromCircleAndHide(SvgDocument doc, int cx, int cy)
     {
-        hotspot = default;
-        if (svgStream.CanSeek) svgStream.Position = 0;
+        var el = doc.GetElementById("hotspot") as SvgVisualElement;
+        if (el == null) return default;
 
-        using var reader = new StreamReader(svgStream, leaveOpen: true);
-        string xml = reader.ReadToEnd();
-        if (string.IsNullOrWhiteSpace(xml)) return false;
-
-        var doc = XDocument.Parse(xml);
-        var svg = doc.Root;
-        if (svg == null || !string.Equals(svg.Name.LocalName, "svg", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        foreach (var desc in svg.Elements())
+        // 1) Determine the circle center in SVG user space
+        // For <circle>, these are CenterX/CenterY (SvgUnit). This also works correctly with transforms,
+        // if we take the document transform into account.
+        // Simpler: use the bounding box and take the average:
+        // We use a temporary renderer instance so Svg.NET resolves all transforms/aspect ratio.
+        using var tmp = new Bitmap(cx, cy);
+        using (var renderer = SvgRenderer.FromImage(tmp))
         {
-            if (!string.Equals(desc.Name.LocalName, "desc", StringComparison.OrdinalIgnoreCase))
-                continue;
+            // Perform a "layout": this draws on tmp, but it's just a throwaway bitmap
+            doc.Draw(renderer);
 
-            var id = (string?)desc.Attribute("id");
-            if (!string.Equals(id, "hotspot", StringComparison.OrdinalIgnoreCase))
-                continue;
+            var path = el.Path(renderer);               // GraphicsPath of the element in the target pixel space
+            var b = path.GetBounds();
+            var px = b.Left + b.Width * 0.5f;
+            var py = b.Top + b.Height * 0.5f;
 
-            if (TryParseFloatAttr(desc, "x", out float x) &&
-                TryParseFloatAttr(desc, "y", out float y))
-            {
-                hotspot = new PointF(x, y);
-                return true;
-            }
+            // 2) Make the hotspot element invisible so it doesn't appear in the final bitmap
+            el.Visibility = "Hidden";       // or: el.Display = "none";
+
+            return new PointF(px, py);
         }
-        return false;
     }
-    static PointF ReadHotspotFromGuide(Stream svgStream)
-    {
-        // 1) XML lesen und Guide finden
-        if (svgStream.CanSeek) svgStream.Position = 0;
-
-        using var reader = new StreamReader(svgStream, leaveOpen: true);
-        string xml = reader.ReadToEnd();
-        if (string.IsNullOrWhiteSpace(xml)) return default;
-
-        var xdoc = XDocument.Parse(xml);
-
-        XNamespace sod = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd";
-        XNamespace ink = "http://www.inkscape.org/namespaces/inkscape";
-
-        var guide = xdoc.Descendants(sod + "guide")
-            .FirstOrDefault(e => (string?)e.Attribute("id") == "hotspot") ??
-                    xdoc.Descendants(sod + "guide").FirstOrDefault();
-
-        if (guide == null) return default;
-
-        var posStr = (string?)guide.Attribute("position");
-        if (string.IsNullOrWhiteSpace(posStr)) return default;
-
-        var parts = posStr.Split(',');
-        if (parts.Length != 2) return default;
-
-        float x = float.Parse(parts[0], CultureInfo.InvariantCulture);
-        float y = float.Parse(parts[1], CultureInfo.InvariantCulture);
-
-        return new PointF(x, y);
-    }
-
 
     /// <summary>
     /// Reads the logical SVG viewport size from viewBox or width/height (in px, pt, mm, cm).
@@ -232,9 +200,6 @@ public static class SvgCursorHelper
 
         // 1) Hotspot from XML
         PointF hotspotSvg = default;
-        bool hasHotspot;
-        using (var msXml = new MemoryStream(svgBytes, writable: false))
-            hotspotSvg = ReadHotspotFromGuide(msXml);
 
         // 2) Logical SVG size (viewBox / width/height)
         SizeF logical;
@@ -251,23 +216,16 @@ public static class SvgCursorHelper
         using (var msSvg = new MemoryStream(svgBytes, writable: false))
         {
             var doc = SvgDocument.Open<SvgDocument>(msSvg);
+            hotspotSvg = ReadHotspotFromCircleAndHide(doc, cx, cy);
             bmp = doc.Draw(cx, cy); // returns a 32bpp ARGB bitmap
-            var vb = doc.ViewBox; // MinX, MinY, Width, Height
-            float s = Math.Min(cx / vb.Width, cy / vb.Height); // meet
-            float dx = (cx - s * vb.Width) * 0.5f;              // xMid
-            float dy = (cy - s * vb.Height) * 0.5f;             // yMid
-
-            float px = (hotspotSvg.X - vb.MinX) * s + dx;
-            float py = (hotspotSvg.Y - vb.MinY) * s + dy;
-            hotspotPx = new Point((int)Math.Round(px), (int)Math.Round(py));
         }
 
         // 5) Map hotspot from SVG coords to pixels (meet + centered)
         // scale = min; offsets center the image inside cx×cy
         float scale = Math.Min(cx / logical.Width, cy / logical.Height);
-        int offsetX = (int)Math.Round((cx - logical.Width * scale) * 0.5f);
-        int offsetY = (int)Math.Round((cy - logical.Height * scale) * 0.5f);
-
+        int offsetX = (int)Math.Round(hotspotSvg.X * scale + (cx - logical.Width * scale) * 0.5f);
+        int offsetY = (int)Math.Round(hotspotSvg.Y * scale + (cy - logical.Height * scale) * 0.5f);
+        hotspotPx = new Point(offsetX, offsetY);
         // 6) Create HCURSOR
         using (bmp)
             return CreateCursorFromBitmap(bmp, hotspotPx);

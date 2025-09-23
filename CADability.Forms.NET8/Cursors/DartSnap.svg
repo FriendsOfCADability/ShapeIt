@@ -24,9 +24,9 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      showgrid="true"
-     inkscape:zoom="11.075084"
-     inkscape:cx="24.017876"
-     inkscape:cy="44.559481"
+     inkscape:zoom="7.831267"
+     inkscape:cx="24.900185"
+     inkscape:cy="35.945652"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
@@ -50,13 +50,6 @@
        gridanglex="30"
        gridanglez="30"
        visible="true" />
-    <sodipodi:guide
-       position="3.1749998,5.0270832"
-       orientation="0,1"
-       id="hotspot"
-       inkscape:locked="false"
-       inkscape:label="hotspot"
-       inkscape:color="rgb(0,134,229)" />
   </sodipodi:namedview>
   <defs
      id="defs1" />
@@ -174,5 +167,11 @@
          d="m 11.892498,14.552083 1.336668,-1.322917 1.322917,1.322917 z"
          id="path12" />
     </g>
+    <circle
+       style="fill:none;stroke:#00ff00;stroke-width:1.5875;stroke-linecap:round;stroke-opacity:1"
+       id="hotspot"
+       cx="3.175"
+       cy="11.90625"
+       r="0.26458332" />
   </g>
 </svg>

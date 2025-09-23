@@ -24,9 +24,9 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      showgrid="true"
-     inkscape:zoom="11.075084"
-     inkscape:cx="33.58891"
-     inkscape:cy="32.640836"
+     inkscape:zoom="62.650136"
+     inkscape:cx="16.488392"
+     inkscape:cy="47.813144"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
@@ -102,5 +102,11 @@
        sodipodi:arc-type="arc"
        d="M 13.503929,5.9230442 A 3.6765478,1.2100319 0 0 1 15.216928,7.2841419 3.6765478,1.2100319 0 0 1 11.665655,8.1809944 3.6765478,1.2100319 0 0 1 8.1143827,7.2841418 3.6765478,1.2100319 0 0 1 9.8273813,5.9230442"
        transform="rotate(45)" />
+    <circle
+       style="fill:none;stroke:#00ff00;stroke-width:1.5875;stroke-linecap:round;stroke-opacity:1"
+       id="hotspot"
+       cx="3.2615843"
+       cy="13.33404"
+       r="0.26458332" />
   </g>
 </svg>
