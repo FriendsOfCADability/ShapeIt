@@ -24,15 +24,16 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      showgrid="true"
-     inkscape:zoom="7.8312671"
-     inkscape:cx="39.712603"
-     inkscape:cy="32.881014"
+     inkscape:zoom="11.075084"
+     inkscape:cx="24.017876"
+     inkscape:cy="44.559481"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
      inkscape:window-y="-9"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1">
+     inkscape:current-layer="layer1"
+     showguides="true">
     <inkscape:grid
        id="grid1"
        units="px"
@@ -49,6 +50,13 @@
        gridanglex="30"
        gridanglez="30"
        visible="true" />
+    <sodipodi:guide
+       position="3.1749998,5.0270832"
+       orientation="0,1"
+       id="hotspot"
+       inkscape:locked="false"
+       inkscape:label="hotspot"
+       inkscape:color="rgb(0,134,229)" />
   </sodipodi:namedview>
   <defs
      id="defs1" />
@@ -56,6 +64,10 @@
      inkscape:label="Ebene 1"
      inkscape:groupmode="layer"
      id="layer1">
+    <desc
+       id="desc1"
+       x="8"
+       y="25" />
     <path
        id="rect1"
        style="stroke-width:1.5875;stroke-linecap:round"

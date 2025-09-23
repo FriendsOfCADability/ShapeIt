@@ -56,6 +56,38 @@ public static class SvgCursorHelper
         }
         return false;
     }
+    static PointF ReadHotspotFromGuide(Stream svgStream)
+    {
+        // 1) XML lesen und Guide finden
+        if (svgStream.CanSeek) svgStream.Position = 0;
+
+        using var reader = new StreamReader(svgStream, leaveOpen: true);
+        string xml = reader.ReadToEnd();
+        if (string.IsNullOrWhiteSpace(xml)) return default;
+
+        var xdoc = XDocument.Parse(xml);
+
+        XNamespace sod = "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd";
+        XNamespace ink = "http://www.inkscape.org/namespaces/inkscape";
+
+        var guide = xdoc.Descendants(sod + "guide")
+            .FirstOrDefault(e => (string?)e.Attribute("id") == "hotspot") ??
+                    xdoc.Descendants(sod + "guide").FirstOrDefault();
+
+        if (guide == null) return default;
+
+        var posStr = (string?)guide.Attribute("position");
+        if (string.IsNullOrWhiteSpace(posStr)) return default;
+
+        var parts = posStr.Split(',');
+        if (parts.Length != 2) return default;
+
+        float x = float.Parse(parts[0], CultureInfo.InvariantCulture);
+        float y = float.Parse(parts[1], CultureInfo.InvariantCulture);
+
+        return new PointF(x, y);
+    }
+
 
     /// <summary>
     /// Reads the logical SVG viewport size from viewBox or width/height (in px, pt, mm, cm).
@@ -202,7 +234,7 @@ public static class SvgCursorHelper
         PointF hotspotSvg = default;
         bool hasHotspot;
         using (var msXml = new MemoryStream(svgBytes, writable: false))
-            hasHotspot = TryReadHotspotFromSvgXml(msXml, out hotspotSvg);
+            hotspotSvg = ReadHotspotFromGuide(msXml);
 
         // 2) Logical SVG size (viewBox / width/height)
         SizeF logical;
@@ -215,10 +247,19 @@ public static class SvgCursorHelper
 
         // 4) Render with Svg.NET; Svg.NET uses preserveAspectRatio="xMidYMid meet" by default.
         Bitmap bmp;
+        Point hotspotPx;
         using (var msSvg = new MemoryStream(svgBytes, writable: false))
         {
             var doc = SvgDocument.Open<SvgDocument>(msSvg);
             bmp = doc.Draw(cx, cy); // returns a 32bpp ARGB bitmap
+            var vb = doc.ViewBox; // MinX, MinY, Width, Height
+            float s = Math.Min(cx / vb.Width, cy / vb.Height); // meet
+            float dx = (cx - s * vb.Width) * 0.5f;              // xMid
+            float dy = (cy - s * vb.Height) * 0.5f;             // yMid
+
+            float px = (hotspotSvg.X - vb.MinX) * s + dx;
+            float py = (hotspotSvg.Y - vb.MinY) * s + dy;
+            hotspotPx = new Point((int)Math.Round(px), (int)Math.Round(py));
         }
 
         // 5) Map hotspot from SVG coords to pixels (meet + centered)
@@ -226,13 +267,6 @@ public static class SvgCursorHelper
         float scale = Math.Min(cx / logical.Width, cy / logical.Height);
         int offsetX = (int)Math.Round((cx - logical.Width * scale) * 0.5f);
         int offsetY = (int)Math.Round((cy - logical.Height * scale) * 0.5f);
-
-        Point hotspotPx = hasHotspot
-            ? new Point(
-                (int)Math.Round(hotspotSvg.X * scale) + offsetX,
-                (int)Math.Round(hotspotSvg.Y * scale) + offsetY
-              )
-            : Point.Empty;
 
         // 6) Create HCURSOR
         using (bmp)
