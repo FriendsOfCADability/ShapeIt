@@ -1402,7 +1402,30 @@ namespace CADability.GeoObject
                     uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
                 }
             }
-            else
+            else if (curve.GetPlanarState() == PlanarState.Planar)
+            {   // planar intersections of the cone are simple. If the other curve is also planar, we can do it in 2D
+                Plane pl = curve.GetPlane();
+                IDualSurfaceCurve[] dsc = GetPlaneIntersection(new PlaneSurface(pl), uvExtent.Left, uvExtent.Right, uvExtent.Bottom, uvExtent.Top, Precision.eps);
+                if (dsc!=null && dsc.Length==1)
+                {
+                    ICurve2D c2dcone = dsc[0].Curve3D.GetProjectedCurve(pl);
+                    ICurve2D c2d = curve.GetProjectedCurve(pl);
+                    GeoPoint2DWithParameter[] ips2d = c2d.Intersect(c2dcone);
+                    if (ips2d != null && ips2d.Length > 0)
+                    {
+                        ips = new GeoPoint[ips2d.Length];
+                        uvOnFaces = new GeoPoint2D[ips2d.Length];
+                        uOnCurve3Ds = new double[ips2d.Length];
+                        for (int i = 0; i < ips2d.Length; i++)
+                        {
+                            ips[i] = pl.ToGlobal(ips2d[i].p);
+                            uvOnFaces[i] = this.PositionOf(ips[i]);
+                            uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
+                        }
+                        return;
+                    }
+                }
+            }
             {
                 base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
             }

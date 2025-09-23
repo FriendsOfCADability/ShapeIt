@@ -1388,9 +1388,16 @@ namespace ShapeIt
                 foreach (GeoVector2D axis in axes)
                 {
                     GeoPoint2DWithParameter[] ips = path2D.Intersect(cnt - ext.Size * axis, cnt + ext.Size * axis);
-                    if (ips.Length == 2)
+                    List<GeoPoint2DWithParameter> lips = new List<GeoPoint2DWithParameter>();
+                    for (int i = 0; i < ips.Length; i++)
                     {
-                        Path2D part = path2D.Trim(ips[0].par1, ips[1].par1) as Path2D;
+                        if (ips[i].par1 < 0.0 || ips[i].par1 > 1.0 || ips[i].par2 < 0.0 || ips[i].par2 > 1.0) continue;
+                        if (lips.Count > 0 && Precision.IsEqual(ips[i].p, lips.Last().p)) continue;
+                        lips.Add(ips[i]);
+                    }
+                    if (lips.Count == 2)
+                    {
+                        Path2D part = path2D.Clone().Trim(lips[0].par1, lips[1].par1) as Path2D;
                         if (part != null)
                         {
                             part.Append(new Line2D(part.EndPoint, part.StartPoint));

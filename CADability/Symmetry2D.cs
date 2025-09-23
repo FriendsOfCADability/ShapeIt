@@ -94,7 +94,14 @@ namespace CADability
             for (int i = axis.Count - 1; i >= 0; --i)
             {
                 GeoPoint2DWithParameter[] ips = path.Intersect(centroid - ext.Size * axis[i], centroid + ext.Size * axis[i]);
-                if (ips.Length == 0)
+                List<GeoPoint2DWithParameter> lips = new List<GeoPoint2DWithParameter>();
+                for (int j = 0; j < ips.Length; j++)
+                {
+                    if (ips[j].par1 < 0.0 || ips[j].par1 > 1.0 || ips[j].par2 < 0.0 || ips[j].par2 > 1.0) continue;
+                    if (lips.Count > 0 && Precision.IsEqual(ips[j].p, lips.Last().p)) continue;
+                    lips.Add(ips[j]);
+                }
+                if (lips.Count == 0)
                 {
                     axis.RemoveAt(i);
                     continue;
@@ -103,8 +110,8 @@ namespace CADability
                 {
                     ModOp2D reflect = ModOp2D.Reflect(centroid, axis[i]);
                     double[] pars = new double[ips.Length];
-                    for (int j = 0; j < ips.Length; j++) pars[j] = ips[j].par1;
-                    List<ICurve2D> parts = new List<ICurve2D>(path.Split(new double[] { ips[0].par1, ips[1].par1 }));
+                    for (int j = 0; j < lips.Count; j++) pars[j] = lips[j].par1;
+                    List<ICurve2D> parts = new List<ICurve2D>(path.Split(new double[] { lips[0].par1, lips[1].par1 }));
                     if (path.IsClosed && Precision.IsEqual(parts.First().StartPoint, parts.Last().EndPoint))
                     {
                         parts[0] = new Path2D(new ICurve2D[] { parts.Last(), parts.First() });

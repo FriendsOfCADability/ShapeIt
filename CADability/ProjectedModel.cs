@@ -287,10 +287,10 @@ namespace CADability
         }
         public void Disconnect(IPaintTo3D paintTo3D)
         {
-            foreach (IPaintTo3DList plist in allCurves) plist?.Dispose();
-            foreach (IPaintTo3DList plist in allFaces) plist?.Dispose();
-            foreach (IPaintTo3DList plist in allTransparent) plist?.Dispose();
-            foreach (IPaintTo3DList plist in allUnscaled) plist?.Dispose();
+            if (allCurves!=null) foreach(IPaintTo3DList plist in allCurves) plist?.Dispose();
+            if (allFaces != null) foreach (IPaintTo3DList plist in allFaces) plist?.Dispose();
+            if (allTransparent != null) foreach (IPaintTo3DList plist in allTransparent) plist?.Dispose();
+            if (allUnscaled != null) foreach (IPaintTo3DList plist in allUnscaled) plist?.Dispose();
             this.paintTo3D = null;
             Settings.GlobalSettings.SettingChangedEvent -= new SettingChangedDelegate(OnSettingChanged);
         }

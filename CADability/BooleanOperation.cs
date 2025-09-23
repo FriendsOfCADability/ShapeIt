@@ -208,7 +208,7 @@ namespace CADability
                     intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc2, edge));
                 }
             }
-            if (intersectionVertices.Count==1)
+            if (intersectionVertices.Count == 1)
             {
                 intersectionVertices.Clear();
                 foreach (Edge edge in fc2.Edges)
@@ -3541,28 +3541,41 @@ namespace CADability
                     dcloops.Add(item.Item1, faceToSplit, arrowSize, Color.Blue, ++dbgc);
                 }
 #endif
-
+                // !!! the following code was commented out, because it doesn't seem to make sense
                 // If there is no positive loop, the outline loop of the face must be available and must be used.
                 // actually we would have to topologically sort the loops in order to decide whether the faces outline must be used or not.
                 // and what about the untouched holes of the face?
-                double biggestArea = double.MinValue;
-                foreach (double a in loops.Keys)
-                {
-                    if (Math.Abs(a) > Math.Abs(biggestArea)) biggestArea = a;
-                }
-                if (biggestArea < 0 && !commonOverlappingFaces.Contains(faceToSplit)) // when no loop, we don't need the outline
-                {
-                    foreach ((List<Edge>, ICurve2D[]) item in loops.Values) faceEdges.ExceptWith(item.Item1);
-                    if (faceEdges.IsSupersetOf(faceToSplit.OutlineEdges))
-                    {
-                        // there is no outline loop, only holes (or nothing). We have to use the outline loop of the face, which is not touched
-                        List<Edge> outline = new List<Edge>(faceToSplit.OutlineEdges);
-                        loops.AddUnique(outline, faceToSplit);
-                        faceEdges.ExceptWith(outline); // we would not need that
-                    }
-                }
+                //double biggestArea = double.MinValue;
+                //foreach (double a in loops.Keys)
+                //{
+                //    if (Math.Abs(a) > biggestArea) biggestArea = Math.Abs(a);
+                //}
+                //if (biggestArea < 0 && !commonOverlappingFaces.Contains(faceToSplit)) // when no loop, we don't need the outline
+                //{
+                //    foreach ((List<Edge>, ICurve2D[]) item in loops.Values) faceEdges.ExceptWith(item.Item1);
+                //    if (faceEdges.IsSupersetOf(faceToSplit.OutlineEdges))
+                //    {
+                //        // there is no outline loop, only holes (or nothing). We have to use the outline loop of the face, which is not touched
+                //        List<Edge> outline = new List<Edge>(faceToSplit.OutlineEdges);
+                //        loops.AddUnique(outline, faceToSplit);
+                //        faceEdges.ExceptWith(outline); // we would not need that
+                //    }
+                //}
                 // we also add the holes of the faceToSplit, as long as it was not used by intersections and is not enclosed by a bigger hole
                 // created from intersection edges
+
+                // if the outline is untouched and we have a positive (ccw) loop, the outline may not be used.
+                // faceToSplit.OutlineEdges
+                if (loops.First().Value.Item1.Count == faceToSplit.OutlineEdges.Length &&
+                    new HashSet<Edge>(loops.First().Value.Item1).SetEquals(faceToSplit.OutlineEdges)
+                    && loops.Count > 1)
+                {
+                    // the biggest loop is identical to the outline of the face
+                    if (loops.ElementAt(1).Key > 0) // the second loop is positive, so the outline is not needed
+                    {
+                        loops.Remove(loops.First().Key);
+                    }
+                }
                 for (int i = 0; i < faceToSplit.HoleCount; i++)
                 {
                     if (faceEdges.IsSupersetOf(faceToSplit.HoleEdges(i))) // this hole is untouched by the loops

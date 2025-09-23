@@ -2,6 +2,7 @@
 using CADability.Actions;
 using CADability.Forms.NET8;
 using CADability.UserInterface;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -427,36 +428,17 @@ namespace ShapeIt
         /// </summary>
         private void Debug()
         {
-            CADability.GeoObject.Solid sld1 = null;
-            CADability.GeoObject.Solid sld2 = null;
-            CADability.GeoObject.Solid sld3 = null;
-            CADability.GeoObject.Path path = null;
+            List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
+            CADability.GeoObject.Solid sldbig = null;
             foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
             {
                 if (go is CADability.GeoObject.Solid sld)
                 {
-                    if (sld1 == null) sld1 = sld;
-                    else if (sld2 == null) sld2 = sld;
-                    else sld3 = sld;
+                    if (sld.Volume(0.1)>90000) sldbig = sld;
+                    else slds.Add(sld);
                 }
-                if (go is CADability.GeoObject.Path p) { path = p;  }
             }
-            if (path!=null && path.GetPlanarState()==CADability.GeoObject.PlanarState.Planar)
-            {
-                Plane pln = path.GetPlane();
-                
-                GeoPoint2D cnt = Symmetry2D.FindSymmetryAxes2D(path.GetProjectedCurve(pln) as CADability.Curve2D.Path2D, out List<CADability.GeoVector2D> axes);
-            }
-            if (sld1 != null)
-            {
-                CADability.GeoObject.Shell[] res1 = sld1.Shells[0].GetOffsetNew(1); // -0.5);
-                //if (res1.Length > 0)
-                //{
-                //    CADability.GeoObject.Shell[] res2 = res1[0].GetOffsetNew(-0.5);
-                //}
-                //CADability.GeoObject.Solid[] res = CADability.GeoObject.Solid.Subtract(sld2, sld1);
-                //bool ok = res[0].Shells[0].CheckConsistency();
-            }
+            NewBooleanOperation.OperateWithMany(sldbig, slds, CadFrame, "MenuId.Solid.RemoveFromAll");
         }
 #endif
     }

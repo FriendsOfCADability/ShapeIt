@@ -903,7 +903,7 @@ namespace CADability.Curve2D
         }
         internal override void GetTriangulationPoints(out GeoPoint2D[] interpol, out double[] interparam)
         {
-            int n = (int)Math.Floor(Math.Abs(sweep) / (Math.PI / 2.0)) + 1;
+            int n = (int)Math.Floor(Math.Abs(sweep + 0.1) / (Math.PI / 2.0)) + 1; // at least every 90°, +0.1 to avoid rounding errors (180° -> 1.9999999)
             if (n == 1) n = 2;
             interparam = new double[n];
             for (int i = 0; i < n; i++)
