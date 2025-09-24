@@ -438,7 +438,7 @@ namespace ShapeIt
                     else slds.Add(sld);
                 }
             }
-            NewBooleanOperation.OperateWithMany(sldbig, slds, CadFrame, "MenuId.Solid.RemoveFromAll");
+            NewBooleanOperation.OperateWithMany(sldbig, slds, CadFrame, "MenuId.Solid.RemoveAll");
         }
 #endif
     }

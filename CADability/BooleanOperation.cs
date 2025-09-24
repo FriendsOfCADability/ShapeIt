@@ -208,21 +208,32 @@ namespace CADability
                     intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc2, edge));
                 }
             }
-            if (intersectionVertices.Count == 1)
+            if (intersectionVertices.Count == 0)
             {
-                intersectionVertices.Clear();
-                foreach (Edge edge in fc2.Edges)
+                // test for inner intersections, where no edges are involved
+                if (!fc1.GetExtent(0.0).Interferes(fc2.GetExtent(0.0))) return; // bounding boxes don't interfere: no intersection
+                IDualSurfaceCurve[] innerCurves = Surfaces.IntersectInner(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain);
+                if (innerCurves?.Length > 0)
                 {
-                    if (edge.Curve3D != null) // not a pole
-                    {
-                        intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc1, edge));
+                    if (innerCurves.Length == 1)
+                    {   // a single closed curve: we split it, because we don't like closed curves
+                        ICurve[] parts = innerCurves[0].Curve3D.Split(0.5);
+                        List<Vertex> vertices = new List<Vertex>();
+                        for (int i = 0; i < parts.Length; i++)
+                        {
+                            vertices.Add(new Vertex(parts[i].StartPoint));
+                        }
+                        CreateIntersectionEdges(fc1, fc2, vertices.ToHashSet(), parts);
                     }
-                }
-                foreach (Edge edge in fc1.Edges)
-                {
-                    if (edge.Curve3D != null) // not a pole
-                    {
-                        intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc2, edge));
+                    else
+                    {   // it must be a closed loop, in most cases consisting of two curves
+                        // multiple closed loops are not implemented yet
+                        List<Vertex> vertices = new List<Vertex>();
+                        for (int i = 0; i < innerCurves.Length; i++)
+                        {
+                            vertices.Add(new Vertex(innerCurves[i].Curve3D.StartPoint));
+                        }
+                        CreateIntersectionEdges(fc1, fc2, vertices.ToHashSet(), innerCurves.Select(c => c.Curve3D).ToList());
                     }
                 }
             }
@@ -233,7 +244,7 @@ namespace CADability
             // TODO: check for inner intersections without any edge involved
         }
 
-        private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices)
+        private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices, IList<ICurve> alreadyCalculated = null)
         {
 #if DEBUG
             // here you can see the two faces and the intersection vertices for this calculation
@@ -303,6 +314,37 @@ namespace CADability
                     SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref paramsuvsurf2[i]);
                     params2dFace1[0, i] = crvsOnSurface1[0].PositionOf(paramsuvsurf1[i]);
                     params2dFace2[0, i] = crvsOnSurface2[0].PositionOf(paramsuvsurf2[i]);
+                }
+            }
+            if (alreadyCalculated != null)
+            {   // the intersection curves are already calculated. This is the case, when faces intersect with no egdes involved
+                c3ds = new ICurve[alreadyCalculated.Count];
+                crvsOnSurface1 = new ICurve2D[alreadyCalculated.Count];
+                crvsOnSurface2 = new ICurve2D[alreadyCalculated.Count];
+                params3d = new double[alreadyCalculated.Count, points.Count]; // the parameters on the tangential edge (often 0 and 1)
+                params2dFace1 = new double[alreadyCalculated.Count, points.Count]; // the parameters on the 2d curve on face1
+                params2dFace2 = new double[alreadyCalculated.Count, points.Count]; // the parameters on the 2d curve on face2
+                paramsuvsurf1 = new GeoPoint2D[points.Count]; // the uv parameters on surface1
+                paramsuvsurf2 = new GeoPoint2D[points.Count]; // the uv parameters on surface2
+                for (int j = 0; j < points.Count; j++)
+                {
+                    paramsuvsurf1[j] = fc1.Surface.PositionOf(points[j]);
+                    paramsuvsurf2[j] = fc2.Surface.PositionOf(points[j]);
+                }
+                for (int i = 0; i < alreadyCalculated.Count; i++)
+                {
+                    c3ds[i] = alreadyCalculated[i].Clone();
+                    crvsOnSurface1[i] = fc1.Surface.GetProjectedCurve(c3ds[i], 0.0);
+                    crvsOnSurface2[i] = fc2.Surface.GetProjectedCurve(c3ds[i], 0.0);
+                    List<double> positions = points.ConvertAll(p => c3ds[i].PositionOf(p));
+                    for (int j = 0; j < positions.Count; j++) // fill the parameter arrays
+                    {
+                        params3d[i, j] = positions[j];
+                        SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref paramsuvsurf1[j]);
+                        SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref paramsuvsurf2[j]);
+                        params2dFace1[i, j] = crvsOnSurface1[i].PositionOf(paramsuvsurf1[j]);
+                        params2dFace2[i, j] = crvsOnSurface2[i].PositionOf(paramsuvsurf2[j]);
+                    }
                 }
             }
             if (c3ds != null || Surfaces.Intersect(fc1.Surface, fc1.Area.GetExtent(), fc2.Surface, fc2.Area.GetExtent(), points, out c3ds, out crvsOnSurface1, out crvsOnSurface2, out params3d, out params2dFace1, out params2dFace2, out paramsuvsurf1, out paramsuvsurf2, precision))
@@ -3576,34 +3618,35 @@ namespace CADability
                         loops.Remove(loops.First().Key);
                     }
                 }
-                for (int i = 0; i < faceToSplit.HoleCount; i++)
-                {
-                    if (faceEdges.IsSupersetOf(faceToSplit.HoleEdges(i))) // this hole is untouched by the loops
-                    {
-                        List<Edge> hole = new List<Edge>(faceToSplit.HoleEdges(i));
-                        ICurve2D[] c2ds = faceToSplit.Get2DCurves(hole);
-                        // find the closest loop, which encloses this faceToSplit's hole. 
-                        // if this loop is positiv oriented (outline), then we need this hole
-                        double area = Border.SignedArea(c2ds); // the area of this hole
-                        double closest = double.MaxValue;
-                        GeoPoint2D testPoint = c2ds[0].StartPoint; // some point on this loop to test, whether this loop is enclosed by another loop
-                        double enclosedBy = 0.0;
-                        foreach (var loop in loops)
-                        {
-                            if ((Math.Abs(loop.Key) > Math.Abs(area)) && (Math.Abs(loop.Key) < closest)) // an enclosing hole must be bigger.
-                            {
-                                if (Border.IsInside(loop.Value.Item2, testPoint) == (loop.Key > 0)) // IsInside respects orientation, that is why "== (loop.Key > 0)" is needed
-                                {
-                                    closest = Math.Abs(loop.Key);
-                                    enclosedBy = loop.Key;
-                                }
-                            }
-                        }
-                        // in order to use a hole, it must be contained in a outer, positive loop
-                        if (enclosedBy > 0.0) loops.AddUnique(area, (hole, c2ds));
-                        faceEdges.ExceptWith(hole); // we would not need that
-                    }
-                }
+                // it looks like the FindLoops algorithm already finds the untouched loops, so we dont need to add them here
+                //for (int i = 0; i < faceToSplit.HoleCount; i++)
+                //{
+                //    if (faceEdges.IsSupersetOf(faceToSplit.HoleEdges(i))) // this hole is untouched by the loops
+                //    {
+                //        List<Edge> hole = new List<Edge>(faceToSplit.HoleEdges(i));
+                //        ICurve2D[] c2ds = faceToSplit.Get2DCurves(hole);
+                //        // find the closest loop, which encloses this faceToSplit's hole. 
+                //        // if this loop is positiv oriented (outline), then we need this hole
+                //        double area = Border.SignedArea(c2ds); // the area of this hole
+                //        double closest = double.MaxValue;
+                //        GeoPoint2D testPoint = c2ds[0].StartPoint; // some point on this loop to test, whether this loop is enclosed by another loop
+                //        double enclosedBy = 0.0;
+                //        foreach (var loop in loops)
+                //        {
+                //            if ((Math.Abs(loop.Key) > Math.Abs(area)) && (Math.Abs(loop.Key) < closest)) // an enclosing hole must be bigger.
+                //            {
+                //                if (Border.IsInside(loop.Value.Item2, testPoint) == (loop.Key > 0)) // IsInside respects orientation, that is why "== (loop.Key > 0)" is needed
+                //                {
+                //                    closest = Math.Abs(loop.Key);
+                //                    enclosedBy = loop.Key;
+                //                }
+                //            }
+                //        }
+                //        // in order to use a hole, it must be contained in a outer, positive loop
+                //        if (enclosedBy > 0.0) loops.AddUnique(area, (hole, c2ds));
+                //        faceEdges.ExceptWith(hole); // we would not need that
+                //    }
+                //}
                 // Now all necessary loops are created. There is one or more outline (ccw) and zero or more holes
                 // If we have more than one outline, we have to match the holes to their enclosing outline
                 double[] areas = new double[loops.Count];

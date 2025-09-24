@@ -6482,10 +6482,10 @@ namespace CADability.GeoObject
                 for (int i = 0; i < extremePositions.Count; i++)
                 {
                     ICurve crv = null;
-                    if (!double.IsNaN(extremePositions[i].Item1) && ext1.Left <= extremePositions[i].Item1 && ext1.Right >= extremePositions[i].Item1) crv = surface1.FixedU(extremePositions[i].Item1, ext2.Bottom, ext2.Top);
-                    else if (!double.IsNaN(extremePositions[i].Item2) && ext1.Bottom <= extremePositions[i].Item2 && ext1.Top >= extremePositions[i].Item2) crv = surface1.FixedV(extremePositions[i].Item2, ext2.Left, ext2.Right);
-                    if (!double.IsNaN(extremePositions[i].Item3) && ext2.Left <= extremePositions[i].Item3 && ext2.Right >= extremePositions[i].Item3) crv = surface2.FixedU(extremePositions[i].Item3, ext1.Bottom, ext1.Top);
-                    else if (!double.IsNaN(extremePositions[i].Item4) && ext2.Bottom <= extremePositions[i].Item4 && ext2.Top >= extremePositions[i].Item4) crv = surface2.FixedV(extremePositions[i].Item4, ext1.Left, ext1.Right);
+                    if (!double.IsNaN(extremePositions[i].Item1) && ext1.Left <= extremePositions[i].Item1 && ext1.Right >= extremePositions[i].Item1) crv = surface1.FixedU(extremePositions[i].Item1, ext1.Bottom, ext1.Top);
+                    else if (!double.IsNaN(extremePositions[i].Item2) && ext1.Bottom <= extremePositions[i].Item2 && ext1.Top >= extremePositions[i].Item2) crv = surface1.FixedV(extremePositions[i].Item2, ext1.Left, ext1.Right);
+                    if (!double.IsNaN(extremePositions[i].Item3) && ext2.Left <= extremePositions[i].Item3 && ext2.Right >= extremePositions[i].Item3) crv = surface2.FixedU(extremePositions[i].Item3, ext2.Bottom, ext2.Top);
+                    else if (!double.IsNaN(extremePositions[i].Item4) && ext2.Bottom <= extremePositions[i].Item4 && ext2.Top >= extremePositions[i].Item4) crv = surface2.FixedV(extremePositions[i].Item4, ext2.Left, ext2.Right);
                     if (crv != null)
                     {
                         if (!double.IsNaN(extremePositions[i].Item1) && !double.IsNaN(extremePositions[i].Item2))
@@ -6523,8 +6523,16 @@ namespace CADability.GeoObject
                     IDualSurfaceCurve[] candidates = surface1.GetDualSurfaceCurves(ext1, surface2, ext2, seeds, null);
                     for (int i = 0; i < candidates.Length; i++)
                     {
-                        if (candidates[i].Curve3D.IsClosed) res.Add(candidates[i]);
-                        else if (Precision.Equals(candidates[i].Curve3D.StartPoint, candidates[i].Curve3D.EndPoint)) res.Add(candidates[i]);
+                        bool isClosed = candidates[i].Curve3D.IsClosed || Precision.Equals(candidates[i].Curve3D.StartPoint, candidates[i].Curve3D.EndPoint);
+                        if (isClosed)
+                        {
+                            if (res.Count > 0)
+                            {
+                                if (res.Last().Curve3D.DistanceTo(candidates[i].Curve3D.StartPoint) < Precision.eps &&
+                                    res.Last().Curve3D.DistanceTo(candidates[i].Curve3D.EndPoint) < Precision.eps) continue; // this is the same closed curve
+                            }
+                            res.Add(candidates[i]);
+                        }
                     }
                 }
             }

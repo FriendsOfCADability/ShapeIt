@@ -2040,12 +2040,25 @@ namespace CADability.GeoObject
                     }
                 case SphericalSurface ss:
                     {
-                        GeoPoint2D[] fp = PerpendicularFoot(ss.Location);
                         extremePositions = new List<Tuple<double, double, double, double>>();
-                        for (int i = 0; i < fp.Length; i++)
+                        double lp = Geometry.LinePar(this.Location, this.Axis, ss.Location);
+                        GeoPoint onAxis = Location + lp * Axis;
+                        GeoVector dir = ss.Location - onAxis;
+                        GeoPoint2D[] ips = this.GetLineIntersection(onAxis, dir); // two points, one is perpendicular
+                        if (ips.Length == 2)
                         {
-                            SurfaceHelper.AdjustPeriodic(this, thisBounds, ref fp[i]);
-                            if (otherBounds.Contains(fp[i])) extremePositions.Add(new Tuple<double, double, double, double>(fp[i].x, fp[i].y, double.NaN, double.NaN));
+                            SurfaceHelper.AdjustPeriodic(this, thisBounds, ref ips[0]);
+                            if (thisBounds.Contains(ips[0])) extremePositions.Add(new Tuple<double, double, double, double>(ips[0].x, ips[0].y, double.NaN, double.NaN));
+                            SurfaceHelper.AdjustPeriodic(this, thisBounds, ref ips[1]);
+                            if (thisBounds.Contains(ips[1])) extremePositions.Add(new Tuple<double, double, double, double>(ips[1].x, ips[1].y, double.NaN, double.NaN));
+                        }
+                        ips = ss.GetLineIntersection(onAxis, dir);
+                        if (ips.Length == 2)
+                        {
+                            SurfaceHelper.AdjustPeriodic(other, otherBounds, ref ips[0]);
+                            if (otherBounds.Contains(ips[0])) extremePositions.Add(new Tuple<double, double, double, double>(double.NaN, double.NaN, ips[0].x, ips[0].y));
+                            SurfaceHelper.AdjustPeriodic(other, otherBounds, ref ips[1]);
+                            if (otherBounds.Contains(ips[1])) extremePositions.Add(new Tuple<double, double, double, double>(double.NaN, double.NaN, ips[1].x, ips[1].y));
                         }
                         return extremePositions.Count;
                     }

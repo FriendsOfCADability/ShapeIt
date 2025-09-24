@@ -9801,7 +9801,7 @@ namespace CADability.GeoObject
             if (!edg2.Forward(this)) curve2.Reverse();
             ICurve combined = Curves.Combine(curve1, curve2, Precision.eps);
             if (combined == null) return false; // too many problems, when the curves cannot easily be combined
-
+            if (combined.IsClosed) return false; // we do not want closed edges. They are not supported by the BRep algorithms
             Face otherface = edg1.OtherFace(this);
             if (edg2.OtherFace(this) != otherface) return false; // the other face of both edges must be the same
             if (edg1.EndVertex(this) != edg2.StartVertex(this)) return false; // edg2 must be the follower of edg1
