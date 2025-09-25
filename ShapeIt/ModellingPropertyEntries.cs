@@ -643,7 +643,7 @@ namespace ShapeIt
                 Model m = Frame.Project.GetActiveModel();
                 foreach (IGeoObject go in m.AllObjects)
                 {   // hidden objects are in a layer named "CADability.Hidden" and contain a reference to their original layer
-                    if (go.Layer != null && go.Layer.Name == "CADability.Hidden" && go.UserData.ContainsData("CADability.OriginalLayer"))
+                    if (go.Layer != null && go.Layer.Name == "CADability.Hidden")
                     {
                         thereAreHiddenObjects = true;
                         break;
@@ -656,9 +656,12 @@ namespace ShapeIt
                     {
                         foreach (IGeoObject go in m.AllObjects)
                         {   // restore the original layer and remove the reference to it in the user data
-                            if (go.Layer != null && go.Layer.Name == "CADability.Hidden" && go.UserData.ContainsData("CADability.OriginalLayer"))
+                            if (go.Layer != null && go.Layer.Name == "CADability.Hidden")
                             {
-                                Layer layer = go.UserData.GetData("CADability.OriginalLayer") as Layer;
+                                Layer layer = null;
+                                if (go.UserData.ContainsData("CADability.OriginalLayer")) layer = go.UserData.GetData("CADability.OriginalLayer") as Layer;
+                                else layer = frame.Project.StyleList.GetDefault(Style.EDefaultFor.Solids).Layer;
+                                if (layer == null) layer = frame.Project.LayerList.Current;
                                 go.Layer = layer;
                                 go.UserData.Remove("CADability.OriginalLayer");
                             }

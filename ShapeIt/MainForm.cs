@@ -434,7 +434,7 @@ namespace ShapeIt
             {
                 if (go is CADability.GeoObject.Solid sld)
                 {
-                    if (sld.Volume(0.1)>90000) sldbig = sld;
+                    if (sld.Volume(0.1)>50000) sldbig = sld;
                     else slds.Add(sld);
                 }
             }
