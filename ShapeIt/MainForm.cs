@@ -131,6 +131,14 @@ namespace ShapeIt
                 logoBox.Location = new Point(2, pex.ClientSize.Height - newHeight - 2);
             };
         }
+
+        private string ReadEmbeddedVersion()
+        {
+            var asm = typeof(Program).Assembly;
+            using var s = asm.GetManifestResourceStream("App.Version");
+            using var sr = new StreamReader(s!);
+            return sr.ReadToEnd().Trim();
+        }
         public MainForm(string[] args) : base(args)
         {   // interpret the command line arguments as a name of a file, which should be opened
 
@@ -164,7 +172,10 @@ namespace ShapeIt
             }
             if (toOpen == null) CadFrame.GenerateNewProject();
             else CadFrame.Project = toOpen;
-            this.Text = "ShapeIt with CADability";
+
+            string version = ReadEmbeddedVersion(); // version from version.txt
+            this.Text = $"ShapeIt with CADability – Version: {version}";
+
             if (!Settings.GlobalSettings.ContainsSetting("UserInterface"))
             {
                 Settings UserInterface = new Settings("UserInterface");
@@ -332,7 +343,7 @@ namespace ShapeIt
 
             _idleBusy = true;
             _idleSw.Restart();
-            try 
+            try
             {
                 if (projectionChanged)
                 {
@@ -434,7 +445,7 @@ namespace ShapeIt
             {
                 if (go is CADability.GeoObject.Solid sld)
                 {
-                    if (sld.Volume(0.1)>50000) sldbig = sld;
+                    if (sld.Volume(0.1) > 50000) sldbig = sld;
                     else slds.Add(sld);
                 }
             }

@@ -1,59 +1,111 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
-    <ImplicitUsings>disable</ImplicitUsings>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>disable</ImplicitUsings>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <IsPublishable>True</IsPublishable>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<IsPublishable>True</IsPublishable>
+	</PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <IsPublishable>True</IsPublishable>
-  </PropertyGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<IsPublishable>True</IsPublishable>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="MenuResource.xml" />
-    <None Remove="Resources\Icon.ico" />
-    <None Remove="Resources\Logo.png" />
-    <None Remove="Resources\ShapeIt2.png" />
-    <None Remove="StringTableDeutsch.xml" />
-    <None Remove="StringTableEnglish.xml" />
-    <None Remove="Upload-ClickOnce.ps1" />
-    <None Remove="UploadShapeIt.cmd" />
-  </ItemGroup>
+	<ItemGroup>
+		<None Remove="MenuResource.xml" />
+		<None Remove="Resources\Icon.ico" />
+		<None Remove="Resources\Logo.png" />
+		<None Remove="Resources\ShapeIt2.png" />
+		<None Remove="StringTableDeutsch.xml" />
+		<None Remove="StringTableEnglish.xml" />
+		<None Remove="Upload-ClickOnce.ps1" />
+		<None Remove="UploadShapeIt.cmd" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="MenuResource.xml" />
-    <EmbeddedResource Include="Resources\Icon.ico" />
-    <EmbeddedResource Include="Resources\Logo.png" />
-    <EmbeddedResource Include="Resources\ShapeIt2.png" />
-    <EmbeddedResource Include="StringTableDeutsch.xml" />
-    <EmbeddedResource Include="StringTableEnglish.xml" />
-  </ItemGroup>
+	<ItemGroup>
+		<EmbeddedResource Include="MenuResource.xml" />
+		<EmbeddedResource Include="Resources\Icon.ico" />
+		<EmbeddedResource Include="Resources\Logo.png" />
+		<EmbeddedResource Include="Resources\ShapeIt2.png" />
+		<EmbeddedResource Include="StringTableDeutsch.xml" />
+		<EmbeddedResource Include="StringTableEnglish.xml" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\CADability.Forms.NET8\CADability.Forms.NET8.csproj" />
-    <ProjectReference Include="..\CADability\CADability.csproj" />
-  </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\CADability.Forms.NET8\CADability.Forms.NET8.csproj" />
+		<ProjectReference Include="..\CADability\CADability.csproj" />
+	</ItemGroup>
 
-  <ItemGroup>
-    <Compile Update="Properties\Settings.Designer.cs">
-      <DesignTimeSharedInput>True</DesignTimeSharedInput>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Settings.settings</DependentUpon>
-    </Compile>
-  </ItemGroup>
+	<ItemGroup>
+		<Compile Update="Properties\Settings.Designer.cs">
+			<DesignTimeSharedInput>True</DesignTimeSharedInput>
+			<AutoGen>True</AutoGen>
+			<DependentUpon>Settings.settings</DependentUpon>
+		</Compile>
+	</ItemGroup>
 
-  <ItemGroup>
-    <None Update="Properties\Settings.settings">
-      <Generator>SettingsSingleFileGenerator</Generator>
-      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
-    </None>
-  </ItemGroup>
+	<ItemGroup>
+		<None Update="Properties\Settings.settings">
+			<Generator>SettingsSingleFileGenerator</Generator>
+			<LastGenOutput>Settings.Designer.cs</LastGenOutput>
+		</None>
+	</ItemGroup>
+
+	<!---->
+	<PropertyGroup>
+		<!-- Pfad zur Versionsdatei -->
+		<VersionFile>$(MSBuildProjectDirectory)\version.txt</VersionFile>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- version.txt als Embedded Resource einbetten -->
+		<EmbeddedResource Include="$(VersionFile)">
+			<!-- Fester Ressourcenname, damit das Auslesen trivial ist -->
+			<LogicalName>App.Version</LogicalName>
+		</EmbeddedResource>
+	</ItemGroup>
+
+	<!-- Mini-Task zum Erhöhen der 4. Stelle (Revision) -->
+	<UsingTask TaskName="BumpVersion"
+			   TaskFactory="CodeTaskFactory"
+			   AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+		<ParameterGroup>
+			<VersionIn ParameterType="System.String" Required="true" />
+			<VersionOut ParameterType="System.String" Output="true" />
+		</ParameterGroup>
+		<Task>
+			<Code Type="Fragment" Language="cs">
+				<![CDATA[
+      var v = new System.Version(VersionIn.Trim());
+      VersionOut = new System.Version(v.Major, v.Minor, v.Build, v.Revision + 1).ToString();
+    ]]>
+			</Code>
+		</Task>
+	</UsingTask>
+
+	<!-- Nur bei Release *vor* dem Kompilieren erhöhen, keine DesignTime-Builds -->
+	<Target Name="BumpVersionOnRelease"
+			BeforeTargets="CoreCompile"
+			Condition="'$(Configuration)' == 'Release' AND '$(DesignTimeBuild)' != 'true'">
+		<ReadLinesFromFile File="$(VersionFile)">
+			<Output TaskParameter="Lines" ItemName="_VersionLine" />
+		</ReadLinesFromFile>
+		<PropertyGroup>
+			<_CurrentVersion>%(_VersionLine.Identity)</_CurrentVersion>
+		</PropertyGroup>
+		<BumpVersion VersionIn="$(_CurrentVersion)">
+			<Output TaskParameter="VersionOut" PropertyName="_NewVersion" />
+		</BumpVersion>
+		<WriteLinesToFile File="$(VersionFile)"
+						  Lines="$(_NewVersion)"
+						  Overwrite="true" />
+		<Message Importance="High" Text="Release-Build → version.txt erhöht auf $(_NewVersion)" />
+	</Target>
+
 
 </Project>

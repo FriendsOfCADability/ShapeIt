@@ -2371,7 +2371,7 @@ namespace CADability.GeoObject
         {
             Face[] faces = Face.MakeNonPolarSphere(location, radius * GeoVector.ZAxis);
             Shell[] shells = SewFaces(faces);
-            if (shells!=null && shells.Length==1) return Solid.MakeSolid(shells[0]);
+            if (shells != null && shells.Length == 1) return Solid.MakeSolid(shells[0]);
             return null;
         }
         static public Solid MakeTorus(GeoPoint location, GeoVector normal, double radius1, double radius2)
@@ -2878,10 +2878,22 @@ namespace CADability.GeoObject
                             {
                                 if (Geometry.DistPL(e.Center, axis) < Precision.eps)
                                 {   // a sphere
-                                    // GeoVector dirx = (e.StartPoint - e.Center).Normalized;
-                                    GeoVector diry = (axis.Direction ^ e.Plane.Normal).Normalized;
-                                    GeoVector dirx = (diry ^ axis.Direction).Normalized;
-                                    surface = new SphericalSurface(e.Center, e.Radius * dirx, e.Radius * diry, e.Radius * axis.Direction.Normalized);
+                                    // make sure the sphere axis doesnt go through the face
+                                    // A sphere only is needed when the center of the circle is on the axis of rotation.
+                                    // In this case, the arc may start or end on the axis. If it both starts and ends on the axis then the resulting body is a full sphere
+                                    // we should check this in the beginning as a special case.
+                                    // in normal cases, the spherical surface only provides less than half a sphere, so no pole inside the face when we use an approopriate
+                                    // axis for the spherical surface:
+                                    GeoPoint p1, p2;
+                                    if (edges[i].Curve3D == null) p1 = edges[i].Vertex1.Position;
+                                    else p1 = edges[i].Curve3D.PointAt(0.5);
+                                    if (edges[i + 1].Curve3D == null) p2 = edges[i + 1].Vertex1.Position;
+                                    else p2 = edges[i + 1].Curve3D.PointAt(0.5);
+                                    GeoVector sphereAxis = (p2 - p1).Normalized;
+                                    sphereAxis.ArbitraryNormals(out GeoVector dirx, out GeoVector diry);
+                                    //GeoVector diry = (axis.Direction ^ e.Plane.Normal).Normalized;
+                                    //GeoVector dirx = (diry ^ axis.Direction).Normalized;
+                                    surface = new SphericalSurface(e.Center, e.Radius * dirx, e.Radius * diry, e.Radius * sphereAxis);
                                 }
                                 else
                                 // circle in the same plane as axis: toriodal surface
@@ -2995,15 +3007,38 @@ namespace CADability.GeoObject
                                     fc = null;
                                 }
                             }
-                            else if (surface is SphericalSurface ss)
-                            {   // special case: make a sphere without poles!
-                                ICurve c1 = s1[i].Curve3D;
-                                ICurve c2 = s2[i].Curve3D;
-                                Face[] fcs = Face.MakeNonPolarSphere(ss.Location, ss.ZAxis);
-                                ICurve2D s10 = fcs[0].Surface.GetProjectedCurve(c1, 0.0);
-                                ICurve2D s20 = fcs[0].Surface.GetProjectedCurve(c2, 0.0);
-                                ICurve2D s11 = fcs[1].Surface.GetProjectedCurve(c1, 0.0);
-                                ICurve2D s21 = fcs[1].Surface.GetProjectedCurve(c2, 0.0);
+                            else if (surface is SphericalSurface)
+                            {   // we do not have the u-parameter orientation as in the general case and maybe one of the edsges is obsolete (a pole)
+                                BoundingRect domain = BoundingRect.EmptyBoundingRect;
+                                domain.MinMax(s12d.GetExtent());
+                                SurfaceHelper.AdjustPeriodic(surface, domain, s22d);
+                                domain.MinMax(s22d.GetExtent());
+                                SurfaceHelper.AdjustPeriodic(surface, domain, s12d);
+                                List<Edge> edgesToUse = new List<Edge>();
+                                List<ICurve2D> curves2d = new List<ICurve2D>();
+                                s2[i].Reverse(fc);
+                                edgesToUse.Add(s2[i]);
+                                if (edges[i].Curve3D != null) edgesToUse.Add(edges[i]);
+                                edgesToUse.Add(s1[i]);
+                                if (edges[i + 1].Curve3D != null) edgesToUse.Add(edges[i + 1]);
+                                for (int j = 0; j < edgesToUse.Count; j++)
+                                {
+                                    if (edgesToUse[j].PrimaryFace != fc && edgesToUse[j].SecondaryFace != fc)
+                                    {
+                                        ICurve2D prc2d = surface.GetProjectedCurve(edgesToUse[j].Curve3D, 0.0);
+                                        SurfaceHelper.AdjustPeriodic(surface, domain, prc2d);
+                                        edgesToUse[j].SetFace(fc, prc2d, true);
+                                        if (edgesToUse[j] == edges[i + 1]) edgesToUse[j].Reverse(fc);
+                                    }
+                                    curves2d.Add(edgesToUse[j].Curve2D(fc));
+                                }
+                                double area = Border.SignedArea(curves2d.ToArray());
+                                if (area < 0)
+                                {   // reverse all 2d curves and the order in the list
+                                    for (int j = 0; j < edgesToUse.Count; j++) edgesToUse[j].Reverse(fc);
+                                    edgesToUse.Reverse();
+                                }
+                                fc.Set(surface, edgesToUse.ToArray(), null, false);
                             }
                             else
                             {

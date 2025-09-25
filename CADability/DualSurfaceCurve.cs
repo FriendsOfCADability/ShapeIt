@@ -1164,6 +1164,21 @@ namespace CADability
                 return res;
             }
         }
+        public ICurve DebugReprojectedCurve3D
+        {
+            get
+            {
+                GeoPoint[] pnts = new GeoPoint[100];
+                for (int i = 0; i < pnts.Length; i++)
+                {
+                    pnts[i] = surface.PointAt(PointAt(i / 99.0));
+
+                }
+                Polyline res = Polyline.Construct();
+                res.SetPoints(pnts, false);
+                return res;
+            }
+        }
 #endif
     }
 }
