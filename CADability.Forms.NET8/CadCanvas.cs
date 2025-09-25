@@ -93,21 +93,72 @@ namespace CADability.Forms.NET8
                     }
                     else
                     {
-                        // fallback wie bisher:
-                        Stream? str = ThisAssembly.GetManifestResourceStream(resBase + ".cur");
-
-                        if (str != null)
+                        // prefer standard cursors
+                        switch (value)
                         {
-                            using (str)
+                            case "Cross":
+                                cursor = Cursors.Cross;
+                                break;
+                            case "Help":
+                                cursor = Cursors.Help;
+                                break;
+                            case "IBeam":
+                                cursor = Cursors.IBeam;
+                                break;
+                            case "No":
+                                cursor = Cursors.No;
+                                break;
+                            case "Move":
+                            case "SizeAll":
+                                cursor = Cursors.SizeAll;
+                                break;
+                            case "SizeNESW":
+                                cursor = Cursors.SizeNESW;
+                                break;
+                            case "SizeNS":
+                                cursor = Cursors.SizeNS;
+                                break;
+                            case "SizeNWSE":
+                                cursor = Cursors.SizeNWSE;
+                                break;
+                            case "SizeWE":
+                                cursor = Cursors.SizeWE;
+                                break;
+                            case "UpArrow":
+                                cursor = Cursors.UpArrow;
+                                break;
+                            case "WaitCursor":
+                                cursor = Cursors.WaitCursor;
+                                break;
+                            case "Arrow":
+                                cursor = Cursors.Arrow;
+                                break;
+                            case "Hand":
+                                cursor = Cursors.Hand;
+                                break;
+                            case "Default":
+                                cursor = null;
+                                break;
+                        }
+                        if (cursor == null)
+                        {   // try to load a *.cur resource
+                            // fallback to *.cur resources
+                            Stream? str = ThisAssembly.GetManifestResourceStream(resBase + ".cur");
+
+                            if (str != null)
                             {
-                                if (str != null) cursor = new Cursor(str);
+                                using (str)
+                                {
+                                    if (str != null) cursor = new Cursor(str);
+                                }
                             }
                         }
-                        else
-                        {   // the name is one of the System.Windows.Forms.Cursors properties
-                            PropertyInfo? propertyInfo = typeof(Cursors).GetProperty(value);
-                            cursor = propertyInfo?.GetMethod?.Invoke(null, new object[] { }) as Cursor;
-                        }
+                        //else
+                        //{   // the name is one of the System.Windows.Forms.Cursors properties
+
+                        //    PropertyInfo? propertyInfo = typeof(Cursors).GetProperty(value);
+                        //    cursor = propertyInfo?.GetMethod?.Invoke(null, new object[] { }) as Cursor;
+                        //}
                     }
                     if (cursor!=null) cursorTable[value] = cursor;
                 }

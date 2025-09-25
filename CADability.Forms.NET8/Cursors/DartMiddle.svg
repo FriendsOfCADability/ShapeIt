@@ -8,7 +8,7 @@
    version="1.1"
    id="svg1"
    inkscape:version="1.3 (0e150ed6c4, 2023-07-21)"
-   sodipodi:docname="DartOrtho.svg"
+   sodipodi:docname="DartMiddle.svg"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
@@ -24,15 +24,16 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      showgrid="true"
-     inkscape:zoom="11.075084"
-     inkscape:cx="40.360868"
-     inkscape:cy="35.981668"
+     inkscape:zoom="7.831267"
+     inkscape:cx="46.735733"
+     inkscape:cy="53.311935"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
      inkscape:window-y="-9"
      inkscape:window-maximized="1"
-     inkscape:current-layer="layer1">
+     inkscape:current-layer="layer1"
+     showguides="true">
     <inkscape:grid
        id="grid1"
        units="px"
@@ -51,18 +52,94 @@
        visible="true" />
   </sodipodi:namedview>
   <defs
-     id="defs1" />
+     id="defs1">
+    <inkscape:path-effect
+       effect="bspline"
+       id="path-effect12"
+       is_visible="true"
+       lpeversion="1.3"
+       weight="33.333333"
+       steps="2"
+       helper_size="0"
+       apply_no_weight="true"
+       apply_with_weight="true"
+       only_selected="false"
+       uniform="false" />
+    <inkscape:path-effect
+       effect="bspline"
+       id="path-effect11"
+       is_visible="true"
+       lpeversion="1.3"
+       weight="33.333333"
+       steps="2"
+       helper_size="0"
+       apply_no_weight="true"
+       apply_with_weight="true"
+       only_selected="false"
+       uniform="false" />
+    <inkscape:path-effect
+       effect="skeletal"
+       id="path-effect9"
+       is_visible="true"
+       lpeversion="1"
+       pattern="M 0,4.9921383 C 0,2.2364779 2.2364779,0 4.9921383,0 c 2.7556603,0 4.9921382,2.2364779 4.9921382,4.9921383 0,2.7556603 -2.2364779,4.9921382 -4.9921382,4.9921382 C 2.2364779,9.9842765 0,7.7477986 0,4.9921383 Z"
+       copytype="single_stretched"
+       prop_scale="1"
+       scale_y_rel="false"
+       spacing="0"
+       normal_offset="0"
+       tang_offset="0"
+       prop_units="false"
+       vertical_pattern="false"
+       hide_knot="false"
+       fuse_tolerance="0" />
+    <inkscape:path-effect
+       effect="bspline"
+       id="path-effect8"
+       is_visible="true"
+       lpeversion="1.3"
+       weight="33.333333"
+       steps="2"
+       helper_size="0"
+       apply_no_weight="true"
+       apply_with_weight="true"
+       only_selected="false"
+       uniform="false" />
+    <inkscape:path-effect
+       effect="bspline"
+       id="path-effect7"
+       is_visible="true"
+       lpeversion="1.3"
+       weight="33.333333"
+       steps="2"
+       helper_size="0"
+       apply_no_weight="true"
+       apply_with_weight="true"
+       only_selected="false"
+       uniform="false" />
+    <inkscape:path-effect
+       effect="bspline"
+       id="path-effect6"
+       is_visible="true"
+       lpeversion="1.3"
+       weight="33.333333"
+       steps="2"
+       helper_size="0"
+       apply_no_weight="true"
+       apply_with_weight="true"
+       only_selected="false"
+       uniform="false" />
+  </defs>
   <g
      inkscape:label="Ebene 1"
      inkscape:groupmode="layer"
      id="layer1">
-    <path
-       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:0.79375;stroke-linecap:square;stroke-dasharray:none;stroke-opacity:1"
-       d="M 6.6145827,16.404166 H 10.31875 V 8.4666664 h 6.085416"
-       id="path13" />
+    <desc
+       id="desc1"
+       x="8"
+       y="25" />
     <g
-       id="dart"
-       transform="translate(-0.00137266,-1.0583333)">
+       id="dart">
       <path
          id="rect1"
          style="stroke-width:1.5875;stroke-linecap:round"
@@ -114,5 +191,26 @@
          cy="13.229167"
          r="0.26458332" />
     </g>
+    <circle
+       style="fill:none;fill-opacity:1;stroke:#000000;stroke-width:1.05833333;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="path12"
+       cx="12.567708"
+       cy="12.567708"
+       r="3.3072915" />
+    <rect
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.46318;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect12"
+       width="1.8520831"
+       height="0.43348312"
+       x="11.641666"
+       y="12.350966" />
+    <rect
+       style="fill:#000000;fill-opacity:1;stroke:none;stroke-width:1.46318;stroke-linecap:round;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1"
+       id="rect12-0"
+       width="1.8520831"
+       height="0.43348312"
+       x="11.641666"
+       y="-12.78445"
+       transform="rotate(90)" />
   </g>
 </svg>

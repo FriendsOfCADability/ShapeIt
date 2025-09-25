@@ -35,9 +35,13 @@
     <None Remove="Cursors\DartFoot.cur" />
     <None Remove="Cursors\DartFoot.svg" />
     <None Remove="Cursors\DartGrid.cur" />
+    <None Remove="Cursors\DartGrid.svg" />
     <None Remove="Cursors\DartIntersect.cur" />
+    <None Remove="Cursors\DartIntersect.svg" />
     <None Remove="Cursors\DartMiddle.cur" />
+    <None Remove="Cursors\DartMiddle.svg" />
     <None Remove="Cursors\DartObject.cur" />
+    <None Remove="Cursors\DartObject.svg" />
     <None Remove="Cursors\DartOrigin.cur" />
     <None Remove="Cursors\DartOrigin.svg" />
     <None Remove="Cursors\DartOrtho.cur" />
@@ -126,9 +130,13 @@
     <EmbeddedResource Include="Cursors\DartFoot.cur" />
     <EmbeddedResource Include="Cursors\DartFoot.svg" />
     <EmbeddedResource Include="Cursors\DartGrid.cur" />
+    <EmbeddedResource Include="Cursors\DartGrid.svg" />
     <EmbeddedResource Include="Cursors\DartIntersect.cur" />
+    <EmbeddedResource Include="Cursors\DartIntersect.svg" />
     <EmbeddedResource Include="Cursors\DartMiddle.cur" />
+    <EmbeddedResource Include="Cursors\DartMiddle.svg" />
     <EmbeddedResource Include="Cursors\DartObject.cur" />
+    <EmbeddedResource Include="Cursors\DartObject.svg" />
     <EmbeddedResource Include="Cursors\DartOrigin.cur" />
     <EmbeddedResource Include="Cursors\DartOrigin.svg" />
     <EmbeddedResource Include="Cursors\DartOrtho.cur" />
