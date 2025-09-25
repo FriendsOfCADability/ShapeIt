@@ -1,6 +1,7 @@
 ﻿using CADability;
 using CADability.Actions;
 using CADability.Forms.NET8;
+using CADability.GeoObject;
 using CADability.UserInterface;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
@@ -21,6 +22,7 @@ using System.Xml;
 using System.Xml.Linq;
 using static ShapeIt.MainForm;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement;
+using Point = System.Drawing.Point;
 
 namespace ShapeIt
 {
@@ -149,7 +151,7 @@ namespace ShapeIt
             System.IO.Stream str;
             using (str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.Icon.ico"))
             {
-                this.Icon = new Icon(str);
+                this.Icon = new System.Drawing.Icon(str);
             }
 
             string fileName = "";
@@ -245,23 +247,23 @@ namespace ShapeIt
                 // exobj.ExceptionObject as Exception;
                 try
                 {
-                    string path = Path.GetTempPath();
-                    path = Path.Combine(path, "ShapeIt");
+                    string path = System.IO.Path.GetTempPath();
+                    path = System.IO.Path.Combine(path, "ShapeIt");
                     DirectoryInfo dirInfo = Directory.CreateDirectory(path);
                     string currentFileName = CadFrame.Project.FileName;
                     if (string.IsNullOrEmpty(CadFrame.Project.FileName))
                     {
-                        path = Path.Combine(path, "crash_" + DateTime.Now.ToString("yyMMddHHmm") + ".cdb.json");
+                        path = System.IO.Path.Combine(path, "crash_" + DateTime.Now.ToString("yyMMddHHmm") + ".cdb.json");
                         currentFileName = "unknown";
                     }
                     else
                     {
-                        string crashFileName = Path.GetFileNameWithoutExtension(CadFrame.Project.FileName);
-                        if (crashFileName.EndsWith(".cdb")) crashFileName = Path.GetFileNameWithoutExtension(crashFileName); // we usually have two extensions: .cdb.json
-                        path = Path.Combine(path, crashFileName + "_X.cdb.json");
+                        string crashFileName = System.IO.Path.GetFileNameWithoutExtension(CadFrame.Project.FileName);
+                        if (crashFileName.EndsWith(".cdb")) crashFileName = System.IO.Path.GetFileNameWithoutExtension(crashFileName); // we usually have two extensions: .cdb.json
+                        path = System.IO.Path.Combine(path, crashFileName + "_X.cdb.json");
                     }
                     CadFrame.Project.WriteToFile(path);
-                    File.WriteAllText(Path.Combine(Path.GetTempPath(), @"ShapeIt\Crash.txt"), currentFileName + "\n" + path);
+                    File.WriteAllText(System.IO.Path.Combine(System.IO.Path.GetTempPath(), @"ShapeIt\Crash.txt"), currentFileName + "\n" + path);
                 }
                 catch (Exception) { }
                 ;
@@ -291,10 +293,10 @@ namespace ShapeIt
             if (!crashChecked)
             {
                 crashChecked = true;
-                string crashPath = Path.Combine(Path.GetTempPath(), @"ShapeIt\Crash.txt");
+                string crashPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), @"ShapeIt\Crash.txt");
                 if (File.Exists(crashPath))
                 {
-                    string[] lines = File.ReadAllLines(Path.Combine(Path.GetTempPath(), @"ShapeIt\Crash.txt"));
+                    string[] lines = File.ReadAllLines(System.IO.Path.Combine(System.IO.Path.GetTempPath(), @"ShapeIt\Crash.txt"));
                     if (lines.Length == 2)
                     {
                         string ask = StringTable.GetFormattedString("ShapeIt.RestoreAfterCrash", lines[0]);
@@ -353,16 +355,16 @@ namespace ShapeIt
                 if (modifiedSinceLastAutosave && (DateTime.Now - lastSaved).TotalMinutes > 2)
                 {
                     modifiedSinceLastAutosave = false;
-                    string path = Path.GetTempPath();
-                    path = Path.Combine(path, "ShapeIt");
+                    string path = System.IO.Path.GetTempPath();
+                    path = System.IO.Path.Combine(path, "ShapeIt");
                     DirectoryInfo dirInfo = Directory.CreateDirectory(path);
                     string currentFileName = CadFrame.Project.FileName;
-                    if (string.IsNullOrEmpty(CadFrame.Project.FileName)) path = Path.Combine(path, "noname.cdb.json");
+                    if (string.IsNullOrEmpty(CadFrame.Project.FileName)) path = System.IO.Path.Combine(path, "noname.cdb.json");
                     else
                     {
-                        string fileName = Path.GetFileNameWithoutExtension(CadFrame.Project.FileName);
-                        if (fileName.EndsWith(".cdb")) fileName = Path.GetFileNameWithoutExtension(fileName); // we usually have two extensions: .cdb.json
-                        path = Path.Combine(path, fileName + "_.cdb.json");
+                        string fileName = System.IO.Path.GetFileNameWithoutExtension(CadFrame.Project.FileName);
+                        if (fileName.EndsWith(".cdb")) fileName = System.IO.Path.GetFileNameWithoutExtension(fileName); // we usually have two extensions: .cdb.json
+                        path = System.IO.Path.Combine(path, fileName + "_.cdb.json");
                     }
                     CadFrame.Project.WriteToFile(path);
                     CadFrame.Project.FileName = currentFileName; // Project.WriteToFile changes the Project.FileName, restore the current name
@@ -441,6 +443,9 @@ namespace ShapeIt
         {
             List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
             CADability.GeoObject.Solid sldbig = null;
+            Face cone = null;
+            Face upper = null;
+            Face lower = null;
             foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
             {
                 if (go is CADability.GeoObject.Solid sld)
@@ -448,8 +453,21 @@ namespace ShapeIt
                     if (sld.Volume(0.1) > 50000) sldbig = sld;
                     else slds.Add(sld);
                 }
+                if (go is Face fc)
+                {
+                    if (fc.Surface is ConicalSurface) cone = fc;
+                    else if (fc.Surface is PlaneSurface pl)
+                    {
+                        if (pl.Location.z>8) upper = fc;
+                        else lower = fc;
+                    }
+                }
             }
-            NewBooleanOperation.OperateWithMany(sldbig, slds, CadFrame, "MenuId.Solid.RemoveAll");
+            if (cone!=null && upper != null && lower != null)
+            {
+                ICurve[] up = cone.GetPlaneIntersection(upper.Surface as PlaneSurface);
+                ICurve[] low = cone.GetPlaneIntersection(lower.Surface as PlaneSurface);
+            }
         }
 #endif
     }

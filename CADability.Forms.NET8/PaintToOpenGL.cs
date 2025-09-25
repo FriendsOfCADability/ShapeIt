@@ -781,8 +781,17 @@ namespace CADability.Forms.NET8
             Gl.glLoadIdentity();
             Gl.glMatrixMode(Gl.GL_PROJECTION);
             Gl.glLoadIdentity();
+            // the role of the bounding cube is to tell the projection, which z values are relevant
+            // when the drawing is flat (z always 0) you cannot show temporary objects, which have a positive or negative z value
+            // e.g. there is a circle and you want to shoe a sphere with the circle as equator. The sphere has positive and negative z values.
+            // When the model changes, the bounding cube is automatically updated, but temporary objects don't change the bounding cube
+            // There is no foolproof way to handle this, but at least the most common cases should work when we alway use a equilateral (regular) cube
+            double size = Math.Max(boundingCube.XDiff, Math.Max(boundingCube.YDiff, boundingCube.ZDiff));
+            GeoPoint center = boundingCube.GetCenter();
+            BoundingCube boundingCubeEquilateral = new BoundingCube(new GeoPoint(center.x - size / 2, center.y - size / 2, center.z - size / 2),
+                                                                    new GeoPoint(center.x + size / 2, center.y + size / 2, center.z + size / 2));
             double[,] mm;
-            mm = projection.GetOpenGLProjection(0, clientwidth, 0, clientheight, boundingCube);
+            mm = projection.GetOpenGLProjection(0, clientwidth, 0, clientheight, boundingCubeEquilateral);
             double[] pmat = new double[16];
             // ACHTUNG: Matrix ist vertauscht!!!
             pmat[0] = mm[0, 0];
