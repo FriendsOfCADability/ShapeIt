@@ -99,7 +99,8 @@ namespace CADability
                     {
                         x = (-b + Math.Sqrt(d)) / (2 * a);
                         y = (-b - Math.Sqrt(d)) / (2 * a);
-                    };
+                    }
+                    ;
                     if (x == y) return 1;
                     return 2;
                 }
@@ -4072,6 +4073,39 @@ namespace CADability
             //}
 #endif
             return res.ToArray();
+        }
+
+        /// <summary>
+        /// Tests whether the point testPoint is "near" the segment defined by startPoint and endPoint.
+        /// The point must be inside both conus defined by startPoint, endPoint and maxDeviationAngle as half angle.
+        /// </summary>
+        /// <param name="startPoint"></param>
+        /// <param name="endPoint"></param>
+        /// <param name="testPoint"></param>
+        /// <param name="maxDeviationAngle"></param>
+        /// <returns></returns>
+        public static bool IsNearSegment(GeoPoint startPoint, GeoPoint endPoint, GeoPoint testPoint, double maxDeviationAngle)
+        {
+            GeoVector u = endPoint - startPoint;
+
+            GeoVector vA = testPoint - startPoint;
+            GeoVector vB = testPoint - endPoint;
+
+            double Lu = u.Length;
+            if (Lu < Precision.eps) return false; // A und B zu nah: Strecke degener
+            double LvA = vA.Length;
+            double LvB = vB.Length;
+            if (LvA < Precision.eps || LvB < Precision.eps) return true; // C≈A oder C≈B: Winkel 0, Abstand 0
+
+            // Winkel via Cosinus vergleichen (keine arccos nötig)
+            double cosThetaA = (1.0 / (Lu * LvA)) * (u * vA);
+            double cosThetaB = (1.0 / (Lu * LvB)) * (-u * vB);
+            double cosAlpha = Math.Cos(maxDeviationAngle);
+
+            if (cosThetaA < cosAlpha - 1e-15) return false;
+            if (cosThetaB < cosAlpha - 1e-15) return false;
+
+            return true;
         }
     }
 }

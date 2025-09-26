@@ -450,23 +450,12 @@ namespace ShapeIt
             {
                 if (go is CADability.GeoObject.Solid sld)
                 {
-                    if (sld.Volume(0.1) > 50000) sldbig = sld;
-                    else slds.Add(sld);
-                }
-                if (go is Face fc)
-                {
-                    if (fc.Surface is ConicalSurface) cone = fc;
-                    else if (fc.Surface is PlaneSurface pl)
-                    {
-                        if (pl.Location.z>8) upper = fc;
-                        else lower = fc;
-                    }
+                    slds.Add(sld);
                 }
             }
-            if (cone!=null && upper != null && lower != null)
+            if (slds.Count > 1)
             {
-                ICurve[] up = cone.GetPlaneIntersection(upper.Surface as PlaneSurface);
-                ICurve[] low = cone.GetPlaneIntersection(lower.Surface as PlaneSurface);
+                Solid res = NewBooleanOperation.Unite(slds[0], slds[1]);
             }
         }
 #endif

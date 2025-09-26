@@ -5229,8 +5229,163 @@ namespace CADability.GeoObject
             throw new Exception("The method or operation is not implemented.");
         }
 
+        private IDualSurfaceCurve[] NewGetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds)
+        {
+            if (seeds.Count < 2) return null;
+            HashSet<BoxedSurfaceEx.ParEpi> pes;
+            if (other is ISurfaceImpl si) pes = BoxedSurfaceEx.GetCommonParEpis((other as ISurfaceImpl).BoxedSurfaceEx);
+            else return null;
+            if (pes.Count == 0) return new IDualSurfaceCurve[0]; // no intersection, because there are no common parepis
+            // find a rough estimate of the size of the intersection curves
+            BoundingCube ext = BoundingCube.EmptyBoundingCube;
+            foreach (var parepi in pes)
+            {
+                ext.MinMax(parepi.pll);
+                ext.MinMax(parepi.pur);
+            }
+            double totalSize = ext.Size;
+            double maxBend = Math.PI / 6; // maximum bending angle between two steps (30°)
+            List<IDualSurfaceCurve> res = new List<IDualSurfaceCurve>();
+            foreach (GeoPoint seed in seeds)
+            {
+                double stepLength = totalSize * 0.05; // 5% of the size of the intersection curves
+                GeoPoint2D seeduvthis = PositionOf(seed);
+                GeoPoint2D seeduvother = other.PositionOf(seed);
+                GeoVector dir = (GetNormal(seeduvthis) ^ other.GetNormal(seeduvother));
+                if (Precision.IsNullVector(dir)) continue; // tangential surfaces, cannot proceed
+                dir.Norm();
+                //DerivationAt(uvthis, out GeoPoint p3d, out GeoVector duthis, out GeoVector dvthis);
+                //other.DerivationAt(uvother, out GeoPoint op3d, out GeoVector duother, out GeoVector dvother);
+                // we are looking for a reasonable length for a step in the direction of the intersection curve
+                //double stepLength = (thisBounds.Width * duthis.Length + thisBounds.Height * dvthis.Length) + (otherBounds.Width * duother.Length + otherBounds.Height * dvother.Length);
+                //stepLength *= 0.01; // 1% of the average extension of the surfaces
+                bool ok = false;
+                for (int i = 0; i < 10; i++) // try 10 times to find a reasonable stepLength
+                {
+                    PlaneSurface ps = new PlaneSurface(new Plane(seed + stepLength * dir, dir));
+                    GeoPoint2D uvPlane = GeoPoint2D.Origin;
+                    GeoPoint ip = seed;
+                    GeoPoint2D uvthis = seeduvthis;
+                    GeoPoint2D uvother = seeduvother;
+                    if (!BoxedSurfaceExtension.SurfacesIntersectionLM(ps, this, other, ref uvPlane, ref uvthis, ref uvother, ref ip))
+                    {
+                        stepLength /= 2;
+                    }
+                    else
+                    {
+                        GeoVector nextdir = (GetNormal(uvthis) ^ other.GetNormal(uvother)).Normalized;
+                        SweepAngle sa = new SweepAngle(dir, nextdir);
+                        if (Math.Abs(sa) > maxBend)
+                        {
+                            stepLength /= 2;
+                        }
+                        else
+                        {
+                            ok = true;
+                            break; // stepLength is ok
+                        }
+                    }
+                }
+                if (!ok) continue; // could not find a reasonable stepLength
+
+                foreach (int forward in new[] { 1, -1 })
+                {
+                    Plane lastplane = new Plane(seed, dir); // to check whether we cross a seed
+                    List<GeoPoint> ips = new List<GeoPoint>();
+                    ips.Add(seed);
+                    List<InterpolatedDualSurfaceCurve.SurfacePoint> surfacePoints = new List<InterpolatedDualSurfaceCurve.SurfacePoint>();
+                    surfacePoints.Add(new InterpolatedDualSurfaceCurve.SurfacePoint(seed, seeduvthis, seeduvother));
+                    GeoPoint endedAtSeed = GeoPoint.Invalid; // if we crossed a seed, we stop there
+                    GeoPoint2D uvthis = seeduvthis;
+                    GeoPoint2D uvother = seeduvother;
+                    while (true)
+                    {
+                        GeoPoint2D uvt = uvthis, uvo = uvother;
+                        GeoPoint2D uvPlane = GeoPoint2D.Origin;
+                        double sl = stepLength;
+                        ok = false;
+                        for (int i = 0; i < 5; i++) // try 5 times to find the next intersection point with decreasing step length
+                        {
+                            GeoPoint ip = ips.Last();
+                            uvthis = uvt; uvother = uvo;
+                            uvPlane = GeoPoint2D.Origin;
+                            PlaneSurface ps = new PlaneSurface(new Plane(ip + forward * sl * dir, dir));
+                            if (!BoxedSurfaceExtension.SurfacesIntersectionLM(ps, this, other, ref uvPlane, ref uvthis, ref uvother, ref ip))
+                            {
+                                sl = sl / 2;
+                            }
+                            else
+                            {
+                                GeoVector nextdir = (GetNormal(uvthis) ^ other.GetNormal(uvother)).Normalized;
+                                if (Precision.IsNullVector(nextdir))
+                                {
+                                    sl /= 2;
+                                }
+                                else
+                                {
+                                    nextdir.Norm();
+                                    SweepAngle sa = new SweepAngle(dir, nextdir);
+                                    if (Math.Abs(sa) > maxBend) // bending too sharp
+                                    {
+                                        sl /= 2;
+                                    }
+                                    else
+                                    {
+                                        ok = true;
+                                        ips.Add(ip);
+                                        surfacePoints.Add(new InterpolatedDualSurfaceCurve.SurfacePoint(ip, uvthis, uvother));
+                                        dir = nextdir; // uvthis and uvother are already adjusted
+                                        break; // intersection point found with small bending angle
+                                    }
+                                }
+                            }
+                        }
+                        if (!ok) break; // finish the search for the next intersection point, we could not find one
+                        Plane currentplane = new Plane(ips.Last(), dir);
+                        SurfaceHelper.AdjustPeriodic(this, thisBounds, ref uvthis);
+                        SurfaceHelper.AdjustPeriodic(other, otherBounds, ref uvother);
+                        // test for crossing a seed before checking the bounds, because the last intersection point could be outside the bounds
+                        foreach (GeoPoint seedTest in seeds)
+                        {
+                            if (lastplane.Distance(seedTest) * currentplane.Distance(seedTest) < 0)
+                            {   // this seed is on different sides of the planes
+                                if (Geometry.IsNearSegment(ips[ips.Count - 2], ips[ips.Count - 1], seedTest, maxBend))
+                                {   // we crossed a seed, stop here
+                                    ok = false;
+                                    endedAtSeed = seedTest;
+                                    ips[ips.Count - 1] = seedTest; // replace the last intersection point with the seed
+                                    surfacePoints[surfacePoints.Count - 1] = new InterpolatedDualSurfaceCurve.SurfacePoint(seedTest, uvthis, uvother);
+                                    break;
+                                }
+                            }
+                        }
+                        lastplane = currentplane;
+                        if (!ok) break;
+                        if (!thisBounds.Contains(uvthis) || !otherBounds.Contains(uvother)) break; // outside the bounds of one of the surfaces
+                    }
+                    // Polyline pl = Polyline.FromPoints(ips.ToArray());
+                    if (seeds.Any(p => Precision.IsEqual(p, ips[0])) && seeds.Any(p => Precision.IsEqual(p, ips[ips.Count - 1])))
+                    { // start and endpoint are seeds
+                        // not sure what it means when there are more than one seeds
+                        res.Add(new InterpolatedDualSurfaceCurve(this, other, surfacePoints.ToArray()));
+                        if (seeds.Count == 2 && !Precision.IsEqual(ips[0], ips[ips.Count - 1]))
+                        {   // only two seeds and the curve uses both, so we are done
+                            return res.ToArray();
+                        }
+                    }
+                }
+            }
+            return res.ToArray();
+        }
         public virtual IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {
+            if ((extremePositions == null || extremePositions.Count == 0) && seeds.Count == 2)
+            {
+                // we are testing here with a new and hopefully more robust and faster approach
+                IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds);
+                if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
+            }
+            // fallback to old method
             if (this is ISurfaceOfRevolution && other is ISurfaceOfRevolution && !(this is SurfaceOfRevolution) && !(other is SurfaceOfRevolution)) // SurfaceOfRevolution rotates in v!
             {
                 ISurfaceOfRevolution tsor = (this as ISurfaceOfRevolution);
@@ -5669,7 +5824,7 @@ namespace CADability.GeoObject
                 bounds2.MinMax(paramsuvsurf2[j]);
             }
             // maybe we are tangential here, special case: a swept circle where the spine is on an offset surface
-            IDualSurfaceCurve[] dbg = TestTangentialIntersections(surface1, bounds1, surface2, bounds2, points, paramsuvsurf1, paramsuvsurf2);
+            //IDualSurfaceCurve[] dbg = TestTangentialIntersections(surface1, bounds1, surface2, bounds2, points, paramsuvsurf1, paramsuvsurf2);
             IDualSurfaceCurve[] dscs = surface1.GetDualSurfaceCurves(bounds1, surface2, bounds2, points, null);
 
             if (points.Count > paramsuvsurf1.Length)
@@ -10146,6 +10301,25 @@ namespace CADability.GeoObject
                 }
             }
             return surface.PointAt(uv);
+        }
+        internal HashSet<ParEpi> GetCommonParEpis(BoxedSurfaceEx other)
+        {
+            HashSet<ParEpi> res = new HashSet<ParEpi>();
+            foreach (ParEpi pe in octtree.GetAllObjects())
+            {
+                ParEpi[] others = other.octtree.GetObjectsCloseTo(pe);
+                bool found = false;
+                foreach (ParEpi op in others)
+                {
+                    if (pe.Interferes(op))
+                    {
+                        res.Add(op);
+                        found = true;
+                    }
+                }
+                if (found) res.Add(pe);
+            }
+            return res;
         }
         public bool PositionOf(GeoPoint p3d, out GeoPoint2D res)
         {
