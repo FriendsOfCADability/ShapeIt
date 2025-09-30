@@ -1277,6 +1277,9 @@ namespace CADability.Attribute
                     this.Add(l.Clone() as Style);
                 }
             }
+            showProperties = null;
+            propertyPage?.Refresh(this);
+
         }
         private void OnMakeGlobal()
         {

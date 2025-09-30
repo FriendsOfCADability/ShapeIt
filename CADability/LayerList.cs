@@ -484,6 +484,8 @@ namespace CADability.Attribute
                     this.Add(l.Clone());
                 }
             }
+            showProperties = null;
+            propertyPage?.Refresh(this);
         }
         private void OnMakeGlobal()
         {

@@ -1,5 +1,6 @@
 ﻿using CADability;
 using CADability.Actions;
+using CADability.Attribute;
 using CADability.Forms.NET8;
 using CADability.GeoObject;
 using CADability.UserInterface;
@@ -436,10 +437,47 @@ namespace ShapeIt
             base.OnSelected(selectedMenuItem, selected);
         }
 #if DEBUG
+        private static Random rnd = new Random();
+        private GeoVector RandomVector(double len)
+        {
+            double fx = 1.0, fy = 1.0, fz = 1.0;
+            if (rnd.NextDouble() < 0.5) fx = -fx;
+            if (rnd.NextDouble() < 0.5) fy = -fy;
+            if (rnd.NextDouble() < 0.5) fz = -fz;
+            return len * (new GeoVector(fx * rnd.NextDouble(), fy * rnd.NextDouble(), fz * rnd.NextDouble())).Normalized;
+        }
+        private double RandomDouble(double min, double max)
+        {
+            return min + (max - min) * rnd.NextDouble();
+        }
         /// <summary>
         /// Here we can add some debug code
         /// </summary>
-        private void Debug()
+        private void DebugX()
+        {
+            Model model = CadFrame.Project.GetActiveModel();
+            Style stl = CadFrame.Project.StyleList.GetDefault(CADability.Attribute.Style.EDefaultFor.Solids);
+            for (int i = 0; i < 64; i++)
+            {
+                double fx = 1.0, fy = 1.0, fz = 1.0;
+                if ((i & 0x1) != 0) fx = -fx;
+                if ((i & 0x2) != 0) fy = -fy;
+                if ((i & 0x4) != 0) fz = -fz;
+                GeoVector dir = RandomVector(RandomDouble(40, 60));
+                GeoPoint center = GeoPoint.Origin + dir;
+                Solid sld = Make3D.MakeSphere(center, 10 + 20 * rnd.NextDouble());
+                ModOp rotate = ModOp.Rotate(center, RandomVector(1.0), SweepAngle.Deg(rnd.NextDouble() * 360.0));
+                sld.Modify(rotate);
+                sld.Style = stl;
+                model.Add(sld);
+            }
+            Solid mainSphere = Make3D.MakeSphere(GeoPoint.Origin, 50);
+            mainSphere.Style = stl;
+            model.Add(mainSphere);
+        }
+
+
+        private void DebugY()
         {
             List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
             CADability.GeoObject.Solid sldbig = null;
@@ -450,12 +488,47 @@ namespace ShapeIt
             {
                 if (go is CADability.GeoObject.Solid sld)
                 {
+                    if (sld.Volume(0.1) > 500000) sldbig = sld;
+                    else slds.Add(sld);
+                }
+            }
+
+            var rng = new Random(71);
+            var order = Enumerable.Range(0, slds.Count).ToArray();
+
+            // Fisher–Yates
+            for (int i = slds.Count - 1; i > 0; i--)
+            {
+                int j = rng.Next(i + 1);
+                (order[i], order[j]) = (order[j], order[i]);
+            }
+
+
+            if (slds.Count > 1 && sldbig != null)
+            {
+
+                for (int i = 0; i < slds.Count; i++)
+                {
+                    Solid[] res = NewBooleanOperation.Subtract(sldbig, slds[order[i]]);
+                    if (res != null && res.Length >= 1) sldbig = res[0];
+                    else { }
+                    //System.Diagnostics.Debug.WriteLine("Unite " + i.ToString() + " -> " + sldbig.GetExtent(0.0).Size.ToString("F0"));
+                }
+            }
+        }
+        private void Debug()
+        {
+            List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
+            foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
+            {
+                if (go is CADability.GeoObject.Solid sld)
+                {
                     slds.Add(sld);
                 }
             }
-            if (slds.Count > 1)
+            if (slds.Count==2)
             {
-                Solid res = NewBooleanOperation.Unite(slds[0], slds[1]);
+                Solid sld = NewBooleanOperation.Unite(slds[0], slds[1]);
             }
         }
 #endif

@@ -1238,6 +1238,7 @@ namespace CADability.GeoObject
                 if (Precision.IsEqual(cnt, GeoPoint.Origin))
                 #region Zwei Linien
                 {
+                    if (Precision.SameDirection(pln.Normal, GeoVector.ZAxis, false)) return new IDualSurfaceCurve[0]; // plane through apex perpendicular to axis
                     Angle ang = new Angle(pln.Normal.x, pln.Normal.y);
                     ModOp mo = ModOp.Rotate(GeoVector.ZAxis, -ang);
                     ModOp mo1 = mo.GetInverse();
@@ -1253,6 +1254,7 @@ namespace CADability.GeoObject
                     GeoPoint2D[] p2D2 = new GeoPoint2D[2];
                     p2D1 = GetLineIntersection(pm13D, wdir);
                     p2D2 = GetLineIntersection(pm23D, wdir);
+                    if (p2D1.Length < 2 || p2D2.Length < 2) return new IDualSurfaceCurve[0]; // plane through apex outside the cone
                     GeoPoint start1, start2, ende1, ende2;
                     int i = 0;
                     if (Geometry.Dist(p2D1[0], p2D2[0]) < Geometry.Dist(p2D1[0], p2D2[1]))
@@ -1407,7 +1409,7 @@ namespace CADability.GeoObject
             {   // planar intersections of the cone are simple. If the other curve is also planar, we can do it in 2D
                 Plane pl = curve.GetPlane();
                 IDualSurfaceCurve[] dsc = GetPlaneIntersection(new PlaneSurface(pl), uvExtent.Left, uvExtent.Right, uvExtent.Bottom, uvExtent.Top, Precision.eps);
-                if (dsc!=null && dsc.Length==1)
+                if (dsc != null && dsc.Length == 1)
                 {
                     ICurve2D c2dcone = dsc[0].Curve3D.GetProjectedCurve(pl);
                     ICurve2D c2d = curve.GetProjectedCurve(pl);
@@ -2016,6 +2018,7 @@ namespace CADability.GeoObject
                                     a2 = Math.Cos(-Math.PI / 2.0 + cs.OpeningAngle / 2.0);
                                     break;
                             }
+                            // TODO: the following might throw an ArgumentException, better check!
                             GaussNewtonMinimizer.LineConnection(p1, nzaxis1, p2, nzaxis2, a1, a2, out s1, out s2);
                             Line intsLine = Line.TwoPoints(p1 + s1 * nzaxis1, p2 + s2 * nzaxis2);
                             GeoPoint2D[] ips = this.GetLineIntersection(intsLine.StartPoint, intsLine.StartDirection); // two points, one is perpendicular

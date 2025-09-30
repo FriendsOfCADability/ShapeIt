@@ -598,7 +598,7 @@ namespace CADability
             Vector<double> observedX = new DenseVector(9); // there is no need to set values
             Vector<double> observedY = new DenseVector(new double[] { 0, 0, 0, 0, 0, 0, 0, 0, 0 }); // this is the data we want to achieve
             GeoPoint lastip = GeoPoint.Origin;
-            LevenbergMarquardtMinimizer lm = new LevenbergMarquardtMinimizer(maximumIterations: 10);
+            LevenbergMarquardtMinimizer lm = new LevenbergMarquardtMinimizer(maximumIterations: 20);
             IObjectiveModel iom = ObjectiveFunction.NonlinearModel(
                 new Func<Vector<double>, Vector<double>, Vector<double>>(delegate (Vector<double> vd, Vector<double> ox) // function
                 {

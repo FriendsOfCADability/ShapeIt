@@ -612,6 +612,21 @@ namespace CADability.GeoObject
             if (pos[0] && pos[1] && pos[2] && pos[3] && pos[4] && pos[5] && pos[6] && pos[7])
                 return false;   //convexity of the inner points 
 
+            // the bounding cube bc is axis oriented
+            // we test the 6 axis extrema points of this sphere
+            foreach (GeoVector axis in new GeoVector[] { GeoVector.XAxis, GeoVector.YAxis, GeoVector.ZAxis })
+            {
+                GeoPoint2D[] isp = GetLineIntersection(Location, axis);
+                for (int i = 0; i < isp.Length; i++)
+                {
+                    if (bc.Contains(PointAt(isp[i])))
+                    {
+                        uv = isp[i];
+                        return true;
+                    }
+                }
+            }
+
             // complete sphere outside of the cube?
             for (int i = 0; i < 8; ++i)
             {
@@ -628,7 +643,7 @@ namespace CADability.GeoObject
             {
                 GeoPoint p = PointAt(planes[i].Project(GeoPoint.Origin));
                 GeoPoint gp = planes[i].ToGlobal(p);
-                if ((bc.Contains(gp, Precision.eps)) && (gp - Location).Length <= 1)
+                if ((bc.Contains(gp, Precision.eps)) && (gp - Location).Length <= RadiusX)
                 {
                     GeoPoint2D[] s = GetLineIntersection(Location, gp - Location);
                     for (int j = 0; j < s.Length; ++j)
@@ -969,21 +984,30 @@ namespace CADability.GeoObject
                         GeoPoint center = Location + a * n;
                         Ellipse elli = Ellipse.Construct();
                         elli.SetCirclePlaneCenterRadius(new Plane(center, n), center, radius);
-                        if (seeds.Count==2)
+                        if (seeds.Count >= 2)
                         {   // check which part of the circle is needed
-                            double par1 = elli.PositionOf(seeds[0]);
-                            double par2 = elli.PositionOf(seeds[1]);
-                            ICurve[] parts = elli.Split(par1, par2);
-                            for (int i = 0; i < parts.Length; i++)
+                            List<double> pars = new List<double>();
+                            for (int i = 0; i < seeds.Count; i++)
                             {
-                                GeoPoint mid = parts[i].PointAt(0.5);
+                                pars.Add(elli.PositionOf(seeds[i]));
+                            }
+                            pars.Sort();
+                            pars.RemoveDuplicatesWithTolerance(1e-6);
+                            for (int i = 0; i < pars.Count; i++)
+                            {
+                                Ellipse clone = elli.Clone() as Ellipse;
+                                double endPar;
+                                if (i == pars.Count - 1) endPar = pars[0] + 1;
+                                else endPar = pars[i + 1];
+                                clone.Trim(pars[i], endPar);
+                                GeoPoint mid = clone.PointAt(0.5);
                                 GeoPoint2D uvt = PositionOf(mid);
                                 GeoPoint2D uvo = sp.PositionOf(mid);
                                 if (thisBounds.ContainsPeriodic(uvt, UPeriod, VPeriod) && otherBounds.ContainsPeriodic(uvo, other.UPeriod, other.VPeriod))
                                 {
-                                    ICurve2D pc = this.GetProjectedCurve(parts[i], 0.0);
-                                    ICurve2D opc = other.GetProjectedCurve(parts[i], 0.0);
-                                    res.Add(new DualSurfaceCurve(parts[i], this, pc, other, opc));
+                                    ICurve2D pc = this.GetProjectedCurve(clone, 0.0);
+                                    ICurve2D opc = other.GetProjectedCurve(clone, 0.0);
+                                    res.Add(new DualSurfaceCurve(clone, this, pc, other, opc));
                                 }
                             }
                         }

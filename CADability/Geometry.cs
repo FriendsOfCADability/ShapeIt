@@ -3949,7 +3949,7 @@ namespace CADability
             // ld = ld/ld.x  [ll=unitLineLocation, ld = unitLineDirection]
             // ll + s*ld = [0, c, e], where c=ll.y, i.e. ll.x+s*ld.x = 0; s = -ll.x/ld.x, ld.x may not be 0, it would be a line in z-direction
             List<GeoPoint> res = new List<GeoPoint>();
-            if (unitLineDirection.x != 0.0)
+            if (!Precision.SameDirection(unitLineDirection,GeoVector.ZAxis,false))
             {
                 // move the line location point along the line, so that the x component becomes 0 and scale the line direction so that the x component becomes 1
                 unitLineDirection = (1 / unitLineDirection.x) * unitLineDirection; // unitLineDirection.x should be 1 now
@@ -4004,6 +4004,10 @@ namespace CADability
             else
             {
                 // a line in z direction. should be easy to solve
+                double a = Math.Atan2(unitLineLocation.y, unitLineLocation.x);
+                GeoPoint onCircle = new GeoPoint(Math.Cos(a), Math.Sin(a), 0);
+                res.Add(toWorld * onCircle);
+                res.Add(toWorld * new GeoPoint(unitLineLocation.x, unitLineLocation.y, 0));
             }
 #if DEBUG
             DebuggerContainer dc = new DebuggerContainer();
@@ -4096,7 +4100,6 @@ namespace CADability
             double LvA = vA.Length;
             double LvB = vB.Length;
             if (LvA < Precision.eps || LvB < Precision.eps) return true; // C≈A oder C≈B: Winkel 0, Abstand 0
-
             // Winkel via Cosinus vergleichen (keine arccos nötig)
             double cosThetaA = (1.0 / (Lu * LvA)) * (u * vA);
             double cosThetaB = (1.0 / (Lu * LvB)) * (-u * vB);

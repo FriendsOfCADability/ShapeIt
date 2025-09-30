@@ -701,7 +701,8 @@ namespace CADability.Attribute
                     this.Add(ds.Clone());
                 }
             }
-            if (propertyPage != null) propertyPage.Refresh(this);
+            subItems = null;
+            propertyPage?.Refresh(this);
         }
         private void OnMakeGlobal()
         {

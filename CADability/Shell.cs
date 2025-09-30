@@ -3367,10 +3367,11 @@ namespace CADability.GeoObject
             }
 #endif
             Vertex[] vertices = Vertices; // damit sie bestimmt werden und die Orientierung stimmt
-            foreach (Face fc in faces)
-            {
-                fc.MakeTopologicalOrientation();
-            }
+            // MakeTopologicalOrientation is very old code. It destroys ProjectedCurves and should neither be necessary nor be called here!
+            //foreach (Face fc in faces)
+            //{
+            //    fc.MakeTopologicalOrientation();
+            //}
             Face correctOriented = null;
             foreach (Edge e in Edges)
             {

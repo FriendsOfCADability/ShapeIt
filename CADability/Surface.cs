@@ -5228,6 +5228,18 @@ namespace CADability.GeoObject
         {
             throw new Exception("The method or operation is not implemented.");
         }
+        private static double DistanceOfLineIntersection(ISurface s1, ISurface s2, GeoPoint startPoint, GeoVector lineDirection)
+        {
+            GeoPoint2D[] ip1 = s1.GetLineIntersection(startPoint, lineDirection);
+            if (ip1 == null || ip1.Length == 0) return double.NaN;
+            GeoPoint2D[] ip2 = s2.GetLineIntersection(startPoint, lineDirection);
+            if (ip2 == null || ip2.Length == 0) return double.NaN;
+            var uv1 = ip1.MinBy(uv => s1.PointAt(uv) | startPoint);
+            var uv2 = ip2.MinBy(uv => s2.PointAt(uv) | startPoint);
+            double pos1 = Geometry.LinePar(startPoint, lineDirection, s1.PointAt(uv1));
+            double pos2 = Geometry.LinePar(startPoint, lineDirection, s2.PointAt(uv2));
+            return pos2 - pos1;
+        }
 
         private IDualSurfaceCurve[] NewGetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds)
         {
@@ -5251,6 +5263,8 @@ namespace CADability.GeoObject
                 double stepLength = totalSize * 0.05; // 5% of the size of the intersection curves
                 GeoPoint2D seeduvthis = PositionOf(seed);
                 GeoPoint2D seeduvother = other.PositionOf(seed);
+                SurfaceHelper.AdjustPeriodic(this, thisBounds, ref seeduvthis);
+                SurfaceHelper.AdjustPeriodic(other, otherBounds, ref seeduvother);
                 GeoVector dir = (GetNormal(seeduvthis) ^ other.GetNormal(seeduvother));
                 if (Precision.IsNullVector(dir)) continue; // tangential surfaces, cannot proceed
                 dir.Norm();
@@ -5304,28 +5318,55 @@ namespace CADability.GeoObject
                         GeoPoint2D uvPlane = GeoPoint2D.Origin;
                         double sl = stepLength;
                         ok = false;
+                        bool reversed = false;
                         for (int i = 0; i < 5; i++) // try 5 times to find the next intersection point with decreasing step length
                         {
                             GeoPoint ip = ips.Last();
                             uvthis = uvt; uvother = uvo;
                             uvPlane = GeoPoint2D.Origin;
                             PlaneSurface ps = new PlaneSurface(new Plane(ip + forward * sl * dir, dir));
+                            ip = ip + forward * sl * dir;
+                            uvthis = this.PositionOf(ip);
+                            uvother = other.PositionOf(ip);
+                            reversed = false;
                             if (!BoxedSurfaceExtension.SurfacesIntersectionLM(ps, this, other, ref uvPlane, ref uvthis, ref uvother, ref ip))
                             {
                                 sl = sl / 2;
+                                GeoVector nt = GetNormal(uvthis).Normalized;
+                                GeoVector no = other.GetNormal(uvother).Normalized;
+                                GeoVector probeDirection = (nt + no).Normalized;
+                                SweepAngle sw = new SweepAngle(nt, no);
+                                if (Math.Abs(sw) < 0.1)
+                                {   // we are approaching a touching point
+                                    GeoVector searchDirection = (dir ^ probeDirection).Normalized;
+                                    DistanceOfLineIntersection(this, other, ip, probeDirection);
+                                }
                             }
                             else
                             {
+                                SurfaceHelper.AdjustPeriodic(this, thisBounds, ref uvthis);
+                                SurfaceHelper.AdjustPeriodic(other, otherBounds, ref uvother);
                                 GeoVector nextdir = (GetNormal(uvthis) ^ other.GetNormal(uvother)).Normalized;
                                 if (Precision.IsNullVector(nextdir))
-                                {
+                                {   // exctely on a touching point
                                     sl /= 2;
                                 }
                                 else
                                 {
                                     nextdir.Norm();
                                     SweepAngle sa = new SweepAngle(dir, nextdir);
-                                    if (Math.Abs(sa) > maxBend) // bending too sharp
+                                    // if we cross a touching point, the direction may reverse. We have to consider touching points seperately!
+                                    if (Math.Abs(sa) > maxBend && Math.Abs(Math.PI - sa) < maxBend)
+                                    {
+                                        // very sharp bending, probably reversing the direction: we could have crossed a touching point!
+                                        reversed = true;
+                                        ok = false;
+                                        ips.Add(ip);
+                                        surfacePoints.Add(new InterpolatedDualSurfaceCurve.SurfacePoint(ip, uvthis, uvother));
+                                        dir = nextdir; // uvthis and uvother are already adjusted
+                                        break; // intersection point found with small bending angle
+                                    }
+                                    else if (Math.Abs(sa) > maxBend) // bending too sharp
                                     {
                                         sl /= 2;
                                     }
@@ -5340,14 +5381,32 @@ namespace CADability.GeoObject
                                 }
                             }
                         }
-                        if (!ok) break; // finish the search for the next intersection point, we could not find one
+                        if (!ok)
+                        {   // maybe we are approaching a tangential point and SurfacesIntersectionLM doesnt converge any more
+                            if (ips.Count > 2 && reversed)
+                            {
+                                foreach (GeoPoint seedTest in seeds)
+                                {
+                                    if (!Precision.IsEqual(seedTest, ips[0]) && Geometry.IsNearSegment(ips[ips.Count - 1], ips[ips.Count - 2], seedTest, maxBend))
+                                    {
+                                        // there is a close seed, not too much bended from last point, lets use it as the endpoint of our sequence
+                                        ips[ips.Count - 1] = seedTest; // replace the last intersection point with the seed
+                                        uvthis = PositionOf(seedTest);
+                                        uvother = other.PositionOf(seedTest);
+                                        surfacePoints[surfacePoints.Count - 1] = new InterpolatedDualSurfaceCurve.SurfacePoint(seedTest, uvthis, uvother);
+                                        break;
+                                    }
+                                }
+                            }
+                            break; // finish the search for the next intersection point, we could not find one
+                        }
                         Plane currentplane = new Plane(ips.Last(), dir);
                         SurfaceHelper.AdjustPeriodic(this, thisBounds, ref uvthis);
                         SurfaceHelper.AdjustPeriodic(other, otherBounds, ref uvother);
                         // test for crossing a seed before checking the bounds, because the last intersection point could be outside the bounds
                         foreach (GeoPoint seedTest in seeds)
                         {
-                            if (lastplane.Distance(seedTest) * currentplane.Distance(seedTest) < 0)
+                            if (!Precision.IsEqual(seedTest, ips[0]) && !Precision.IsEqual(seedTest, ips[ips.Count - 1]) && lastplane.Distance(seedTest) * currentplane.Distance(seedTest) < 0)
                             {   // this seed is on different sides of the planes
                                 if (Geometry.IsNearSegment(ips[ips.Count - 2], ips[ips.Count - 1], seedTest, maxBend))
                                 {   // we crossed a seed, stop here
@@ -5364,13 +5423,28 @@ namespace CADability.GeoObject
                         if (!thisBounds.Contains(uvthis) || !otherBounds.Contains(uvother)) break; // outside the bounds of one of the surfaces
                     }
                     // Polyline pl = Polyline.FromPoints(ips.ToArray());
-                    if (seeds.Any(p => Precision.IsEqual(p, ips[0])) && seeds.Any(p => Precision.IsEqual(p, ips[ips.Count - 1])))
+                    if (ips.Count > 1 && seeds.Any(p => Precision.IsEqual(p, ips[0])) && seeds.Any(p => Precision.IsEqual(p, ips[ips.Count - 1])))
                     { // start and endpoint are seeds
-                        // not sure what it means when there are more than one seeds
                         res.Add(new InterpolatedDualSurfaceCurve(this, other, surfacePoints.ToArray()));
                         if (seeds.Count == 2 && !Precision.IsEqual(ips[0], ips[ips.Count - 1]))
                         {   // only two seeds and the curve uses both, so we are done
+                            // this is a very common case, we return the first intersection curve we found
                             return res.ToArray();
+                        }
+                    }
+                }
+            }
+            // we have to check, whether there are duplicate curves in the result
+            for (int i = 0; i < res.Count - 1; i++)
+            {
+                for (int j = i + 1; j < res.Count; j++)
+                {
+                    if (Precision.IsEqual(res[i].Curve3D.EndPoint, res[j].Curve3D.StartPoint) && Precision.IsEqual(res[i].Curve3D.StartPoint, res[j].Curve3D.EndPoint))
+                    {   // it still could be two segments of a closed curve
+                        if (res[i].Curve3D.DistanceTo(res[j].Curve3D.PointAt(0.5)) < Precision.eps)
+                        {
+                            res.RemoveAt(j); // two identical curves in opposite direction
+                            break;
                         }
                     }
                 }
@@ -5379,11 +5453,18 @@ namespace CADability.GeoObject
         }
         public virtual IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {
-            if ((extremePositions == null || extremePositions.Count == 0) && seeds.Count == 2)
+            if ((extremePositions == null || extremePositions.Count == 0) && seeds.Count >= 2)
             {
                 // we are testing here with a new and hopefully more robust and faster approach
-                IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds);
-                if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
+                try
+                {
+                    IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds);
+                    if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
+                }
+                catch (Exception ex)
+                {
+
+                }
             }
             // fallback to old method
             if (this is ISurfaceOfRevolution && other is ISurfaceOfRevolution && !(this is SurfaceOfRevolution) && !(other is SurfaceOfRevolution)) // SurfaceOfRevolution rotates in v!
@@ -6678,6 +6759,8 @@ namespace CADability.GeoObject
                     IDualSurfaceCurve[] candidates = surface1.GetDualSurfaceCurves(ext1, surface2, ext2, seeds, null);
                     for (int i = 0; i < candidates.Length; i++)
                     {
+                        // here we have different behaviour: some surfaces return closed curves, but sometimes the same curve twice,
+                        // other surfaces return splitted curves which are always open. BooleanOperation can handle both cases
                         bool isClosed = candidates[i].Curve3D.IsClosed || Precision.Equals(candidates[i].Curve3D.StartPoint, candidates[i].Curve3D.EndPoint);
                         if (isClosed)
                         {
@@ -6686,6 +6769,10 @@ namespace CADability.GeoObject
                                 if (res.Last().Curve3D.DistanceTo(candidates[i].Curve3D.StartPoint) < Precision.eps &&
                                     res.Last().Curve3D.DistanceTo(candidates[i].Curve3D.EndPoint) < Precision.eps) continue; // this is the same closed curve
                             }
+                            res.Add(candidates[i]);
+                        }
+                        else
+                        {
                             res.Add(candidates[i]);
                         }
                     }

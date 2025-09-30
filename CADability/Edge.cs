@@ -829,7 +829,7 @@ namespace CADability
         {
             hashCode = hashCodeCounter++; // 
 #if DEBUG
-            if (hashCode == 727)
+            if (hashCode == 1196)
             {
             }
 #endif
@@ -1672,6 +1672,28 @@ namespace CADability
             return null;
         }
         /// <summary>
+        /// Sets the 2d curve for this face. Reverses the curve if the appropriate forward on this face is false
+        /// </summary>
+        /// <param name="onThisFace"></param>
+        /// <param name="curve"></param>
+        /// <exception cref="System.ApplicationException"></exception>
+        public void SetCurve2D(Face onThisFace, ICurve2D curve)
+        {
+            if (onThisFace == primaryFace)
+            {
+                curveOnPrimaryFace = curve;
+                if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
+                return;
+            }
+            if (onThisFace == secondaryFace)
+            {
+                curveOnSecondaryFace = curve;
+                if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
+                return;
+            }
+            throw new System.ApplicationException("Edge.SetCurve2D called with wrong face");
+        }
+        /// <summary>
         /// Returns the 2-dimensional curve of this edge in the u/v system of the surface of the given face.
         /// If this curve has two different representations on the provided Face (which is the case for a seam 
         /// on a periodic surface) then a representation is returned, which is not in the provided array <paramref name="doNotReturn"/>.
@@ -2379,6 +2401,17 @@ namespace CADability
         void IJsonSerializeDone.SerializationDone(JsonSerialize jsonSerialize)
         {
             if (curve3d != null) (curve3d as IGeoObject).Owner = this;
+            if (curveOnPrimaryFace is Path2D && curve3d != null)
+            {   // there sholud not be a path2D as a 2d curve of an edge
+                // old cdb file contain such edges, which is repaired here
+                curveOnPrimaryFace = primaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
+                if (!forwardOnPrimaryFace)  curveOnPrimaryFace.Reverse();
+            }
+            if (curveOnSecondaryFace is Path2D && curve3d != null)
+            {   // same as above
+                curveOnSecondaryFace = secondaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
+                if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
+            }
         }
         #endregion
         #region ISerializable Members
@@ -2839,7 +2872,8 @@ namespace CADability
                     Polyline pdbg = Polyline.Construct();
                     pdbg.SetPoints(pnts, false);
                 }
-                catch (PolylineException) { };
+                catch (PolylineException) { }
+                ;
             }
 #endif
             if (curve3d != null) dist = Math.Max(dist, curve3d.DistanceTo(mp));

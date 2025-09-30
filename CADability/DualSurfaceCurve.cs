@@ -1023,9 +1023,7 @@ namespace CADability
         }
         public override void Reverse()
         {
-            double tmp = startParam;
-            startParam = endParam;
-            endParam = tmp;
+            (startParam, endParam) = (endParam, startParam);
             base.ClearTriangulation();
         }
         public override ICurve2D Clone()
@@ -1102,6 +1100,14 @@ namespace CADability
         }
         public override ICurve2D GetModified(ModOp2D m)
         {
+            // actually we cannot modify a projected curve, because it relies on the 3d curve and the surface
+            if (m.IsIdentity) return Clone();
+            GeoPoint2D sp = m*StartPoint;
+            GeoPoint2D ep = m*EndPoint;
+            if (Precision.IsEqual(sp, EndPoint) && Precision.IsEqual(ep, StartPoint))
+            {
+                return this.CloneReverse(true);
+            }
             return base.GetModified(m);
         }
         #endregion

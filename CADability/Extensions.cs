@@ -349,5 +349,6 @@ namespace CADability
             }
             return res;
         }
+
     }
 }

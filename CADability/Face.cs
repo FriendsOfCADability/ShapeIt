@@ -244,7 +244,7 @@ namespace CADability.GeoObject
             extent = BoundingCube.EmptyBoundingCube;
             if (Constructed != null) Constructed(this);
 #if DEBUG
-            if (hashCode == 288)
+            if (hashCode == 147)
             {
 
             }
@@ -5381,7 +5381,13 @@ namespace CADability.GeoObject
             }
             res.CopyAttributes(this);
             res.extent = this.extent; // struct, wird kopiert
-            if (res.surface is ISurfaceImpl si) si.SetBounds(Domain);
+            if (res.surface is ISurfaceImpl si)
+            {
+                si.SetBounds(Domain);
+#if DEBUG
+                si.SetBounds(Domain);
+#endif
+            }
             return res;
         }
 
@@ -7371,7 +7377,7 @@ namespace CADability.GeoObject
             // outside of the face          (otherwise true)
             //  =>  cube doesn't hit the face
 #if DEBUG
-            if (hashCode == 3061) { }
+            if (hashCode == 63) { }
 #endif
             // not sure, why we need this here, but in some cases usedArea is undefined
             if ((Surface as ISurfaceImpl).usedArea.IsInfinite || (Surface as ISurfaceImpl).usedArea.IsInvalid()) (Surface as ISurfaceImpl).usedArea = Domain;
@@ -9107,11 +9113,21 @@ namespace CADability.GeoObject
             BoundingRect modifiedBounds = Area.GetExtent();
             ModOp2D m = surface.ReverseOrientation();
             modifiedBounds.Modify(m);
+            if (surface is ISurfaceImpl si) si.usedArea.Modify(m);
             ICurve2D[] segments = new ICurve2D[outline.Length];
             for (int i = 0; i < outline.Length; ++i)
             {
-                segments[i] = outline[i].ModifyCurve2D(this, segments, m);
-                segments[i].Reverse();
+                if (outline[i].Curve2D(this) is ProjectedCurve)
+                {
+                    ICurve2D c2d = surface.GetProjectedCurve(outline[i].Curve3D, 0.0).CloneReverse(true);
+                    SurfaceHelper.AdjustPeriodic(surface, modifiedBounds, c2d);
+                    outline[i].SetCurve2D(this, c2d);
+                }
+                else
+                {
+                    segments[i] = outline[i].ModifyCurve2D(this, segments, m);
+                    segments[i].Reverse();
+                }
             }
             Array.Reverse(outline);
             Set<Edge> seam = new Set<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
@@ -9130,8 +9146,17 @@ namespace CADability.GeoObject
             {
                 for (int i = 0; i < holes[j].Length; ++i)
                 {
-                    ICurve2D modified = holes[j][i].ModifyCurve2D(this, null, m);
-                    modified.Reverse();
+                    if (holes[j][i].Curve2D(this) is ProjectedCurve)
+                    {
+                        ICurve2D c2d = surface.GetProjectedCurve(holes[j][i].Curve3D, 0.0).CloneReverse(true);
+                        SurfaceHelper.AdjustPeriodic(surface, modifiedBounds, c2d);
+                        holes[j][i].SetCurve2D(this, c2d);
+                    }
+                    else
+                    {
+                        ICurve2D modified = holes[j][i].ModifyCurve2D(this, null, m);
+                        modified.Reverse();
+                    }
                 }
                 Array.Reverse(holes[j]);
             }

@@ -2856,8 +2856,16 @@ namespace CADability.GeoObject
                                 // surface = new ConicalSurface(apex, dirx, diry, axis.Direction, a, 0.0);
                                 try
                                 {
-                                    ModOp m = ModOp.Fit(new GeoPoint[] { l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI / 2.0) * l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI) * l.StartPoint, apex }, new GeoPoint[] { new GeoPoint(1, 0, 1), new GeoPoint(0, 1, 1), new GeoPoint(-1, 0, 1), GeoPoint.Origin }, true);
-                                    surface = new ConicalSurface(m.GetInverse());
+                                    if (Precision.IsEqual(apex, l.StartPoint))
+                                    {
+                                        ModOp m1 = ModOp.Fit(new GeoPoint[] { l.EndPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI / 2.0) * l.EndPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI) * l.EndPoint, apex }, new GeoPoint[] { new GeoPoint(1, 0, 1), new GeoPoint(0, 1, 1), new GeoPoint(-1, 0, 1), GeoPoint.Origin }, true);
+                                        surface = new ConicalSurface(m1.GetInverse());
+                                    }
+                                    else
+                                    {
+                                        ModOp m = ModOp.Fit(new GeoPoint[] { l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI / 2.0) * l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI) * l.StartPoint, apex }, new GeoPoint[] { new GeoPoint(1, 0, 1), new GeoPoint(0, 1, 1), new GeoPoint(-1, 0, 1), GeoPoint.Origin }, true);
+                                        surface = new ConicalSurface(m.GetInverse());
+                                    }
                                 }
                                 catch (ModOpException)
                                 {
@@ -3045,22 +3053,36 @@ namespace CADability.GeoObject
                                 // a rotated surface: the u-parameter goes from 0 to sweepAngle
                                 GeoPoint2D uv1 = surface.PositionOf(s2[i].Curve3D.StartPoint); // from here
                                 GeoPoint2D uv2 = surface.PositionOf(s1[i].Curve3D.StartPoint); // to here
+                                // keep in mind that s1[i].Curve3D.StartPoint or s2[i].Curve3D.StartPoint may be a pole
                                 if (uv2.x < uv1.x) uv2.x += Math.PI * 2.0;
                                 BoundingRect domain = BoundingRect.EmptyBoundingRect;
-                                domain.MinMax(s12d.GetExtent());
-                                domain.MinMax(s22d.GetExtent());
-                                domain.Left = uv1.x;
-                                domain.Right = uv2.x;
+                                if (edges[i].Curve3D != null)
+                                {
+                                    domain.MinMax(surface.GetProjectedCurve(edges[i].Curve3D, 0.0).GetExtent());
+                                }
+                                else if (edges[i+1].Curve3D != null)
+                                {
+                                    domain.MinMax(surface.GetProjectedCurve(edges[i+1].Curve3D, 0.0).GetExtent());
+                                }
+                                // we cannot have both edges beeing poles!
                                 SurfaceHelper.AdjustPeriodic(surface, domain, s12d);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, s22d);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv1);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv2);
-                                e02d = new Line2D(uv1, uv2);
+                                if (Precision.IsPointOnAxis(s2[i].Curve3D.StartPoint, axis))
+                                {   // make a line of zero length, it will be replaced by the pole line below. So it doesnt disturb area calculation
+                                    uv2 = uv1 = s2[i].Curve2D(fc).StartPoint;
+                                }
+                                e02d = new Line2D(uv1, uv2); // will not be used when a pole
                                 uv1 = surface.PositionOf(s2[i].Curve3D.EndPoint);
                                 uv2 = surface.PositionOf(s1[i].Curve3D.EndPoint);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv1);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv2);
-                                e12d = new Line2D(uv1, uv2);
+                                if (Precision.IsPointOnAxis(s2[i].Curve3D.EndPoint, axis))
+                                {
+                                    uv2 = uv1 = s2[i].Curve2D(fc).EndPoint;
+                                }
+                                e12d = new Line2D(uv1, uv2); // will not be used when a pole
                                 edges[i].SetFace(fc, e02d, true);
                                 edges[i + 1].SetFace(fc, e12d, true);
 

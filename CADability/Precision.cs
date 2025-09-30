@@ -248,6 +248,14 @@ namespace CADability
             }
             return false;
         }
+        public static bool IsPointOnAxis(GeoPoint testPoint, Axis axis)
+        {
+            if (Math.Abs(Geometry.DistPL(testPoint, axis)) < eps)
+            {
+                return true; // on infinite axis
+            }
+            return false;
+        }
         public static bool IsPointOnLine(GeoPoint2D testPoint, GeoPoint2D startPoint, GeoPoint2D endPoint)
         {
             if (Math.Abs(Geometry.DistPL(testPoint, startPoint, endPoint)) < eps)

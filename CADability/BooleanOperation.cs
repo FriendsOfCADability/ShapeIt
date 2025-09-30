@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using Wintellect.PowerCollections;
 #if WEBASSEMBLY
 using CADability.WebDrawing;
@@ -104,7 +105,21 @@ namespace CADability
                 })
                 .Distinct()
                 .ToList();
+            foreach (var leaf in facesOctTree.Leaves)
+            {
+                bool found = false;
+                foreach (Face face in leaf.list)
+                {
+                    if (face.GetHashCode() == 44 || face.GetHashCode() == 39 || face.GetHashCode() == 63) { found = true; }
+                }
+                if (found)
+                {
+                    DebuggerContainer dc = new DebuggerContainer();
 
+                    dc.Add(leaf.cube.AsBox);
+                    dc.Add(new GeoObjectList(leaf.list));
+                }
+            }
             bool useParallel = false; // zum Debuggen ausschalten, für Speed anschalten
             // 2. Iterate over all pairs and calculate the intersection edges
             if (useParallel)
@@ -336,14 +351,27 @@ namespace CADability
                     c3ds[i] = alreadyCalculated[i].Clone();
                     crvsOnSurface1[i] = fc1.Surface.GetProjectedCurve(c3ds[i], 0.0);
                     crvsOnSurface2[i] = fc2.Surface.GetProjectedCurve(c3ds[i], 0.0);
-                    List<double> positions = points.ConvertAll(p => c3ds[i].PositionOf(p));
-                    for (int j = 0; j < positions.Count; j++) // fill the parameter arrays
+                    for (int j = 0; j < points.Count; j++) // fill the parameter arrays
                     {
-                        params3d[i, j] = positions[j];
-                        SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref paramsuvsurf1[j]);
-                        SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref paramsuvsurf2[j]);
-                        params2dFace1[i, j] = crvsOnSurface1[i].PositionOf(paramsuvsurf1[j]);
-                        params2dFace2[i, j] = crvsOnSurface2[i].PositionOf(paramsuvsurf2[j]);
+                        double d = c3ds[i].DistanceTo(points[j]);
+                        if (d > precision)
+                        {   // point is not on the curve
+                            params3d[i, j] = double.MinValue;
+                            params2dFace1[i, j] = double.MinValue;
+                            params2dFace2[i, j] = double.MinValue;
+                        }
+                        else
+                        {
+                            params3d[i, j] = c3ds[i].PositionOf(points[j]);
+                            SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref paramsuvsurf1[j]);
+                            SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref paramsuvsurf2[j]);
+                            params2dFace1[i, j] = crvsOnSurface1[i].PositionOf(paramsuvsurf1[j]);
+                            params2dFace2[i, j] = crvsOnSurface2[i].PositionOf(paramsuvsurf2[j]);
+                            if (params2dFace1[i, j] < -Precision.eps || params2dFace1[i, j] > 1 + Precision.eps) params2dFace1[i, j] = double.MinValue; // point is not on the curve
+                            if (params2dFace2[i, j] < -Precision.eps || params2dFace2[i, j] > 1 + Precision.eps) params2dFace2[i, j] = double.MinValue; // point is not on the curve
+                            if (!Precision.IsEqual(crvsOnSurface1[i].PointAt(params2dFace1[i, j]), paramsuvsurf1[j])) params2dFace1[i, j] = double.MinValue; // point is not on the curve
+                            if (!Precision.IsEqual(crvsOnSurface2[i].PointAt(params2dFace2[i, j]), paramsuvsurf2[j])) params2dFace2[i, j] = double.MinValue; // point is not on the curve
+                        }
                     }
                 }
             }
@@ -1902,21 +1930,28 @@ namespace CADability
                     foreach (Edge edge in otherFace.Edges)
                     {
                         if (mainFace.Contains(edge.Curve3D.PointAt(0.5), false)) // the edge lies on the main face
-                        {   // this edge, which is totally inside the main face, is dealt as an intersection edge of the common face
+                        {   // this edge, which is totally inside the main face (because it is already clipped), is dealt as an intersection edge of the common face
+                            // the new edge (commonEdge) will only have a PrimaryFace
                             Edge commonEdge;
                             ICurve2D curveOnPrimaryFace;
                             if (commonFaceHasMainSurface)
                             {// the common face has the surface of the main face
-                                if (firstToSecond.IsNull) curveOnPrimaryFace = mainFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                                if (firstToSecond.IsNull)
+                                {
+                                    curveOnPrimaryFace = mainFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                                    if (!edge.Forward(otherFace)) curveOnPrimaryFace.Reverse();
+                                }
                                 else curveOnPrimaryFace = edge.Curve2D(otherFace).GetModified(firstToSecond.GetInverse());
-                                if (edge.Forward(otherFace)) curveOnPrimaryFace.Reverse();
                                 commonEdge = new Edge(commonFace, edge.Curve3D.Clone(), commonFace, curveOnPrimaryFace, edge.Forward(otherFace));
                             }
                             else
                             { // the common face has the surface of the other face
-                                if (firstToSecond.IsNull) curveOnPrimaryFace = otherFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                                if (firstToSecond.IsNull)
+                                {
+                                    curveOnPrimaryFace = otherFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
+                                    if (!edge.Forward(otherFace)) curveOnPrimaryFace.Reverse();
+                                }
                                 else curveOnPrimaryFace = edge.Curve2D(otherFace).Clone();
-                                if (!edge.Forward(otherFace)) curveOnPrimaryFace.Reverse();
                                 commonEdge = new Edge(commonFace, edge.Curve3D.Clone(), commonFace, curveOnPrimaryFace, edge.Forward(otherFace));
                             }
                             ICurve dbg = commonFace.Surface.Make3dCurve(curveOnPrimaryFace);
@@ -1930,11 +1965,8 @@ namespace CADability
             foreach (Face fc in commonFaces.Values)
             {   // we have to assign an outline to the common face, otherwise it will generate problems in various situations
                 BoundingRect ext = BoundingRect.EmptyBoundingRect;
-                foreach (Edge edg in faceToIntersectionEdges[fc])
-                {
-                    ext.MinMax(edg.Curve2D(fc).GetExtent());
-                }
-                ext.InflateRelative(1.1); // to create a big egnough outline
+                foreach (Edge edg in faceToIntersectionEdges[fc]) ext.MinMax(edg.Curve2D(fc).GetExtent());
+                ext.InflateRelative(1.1); // to create a outline which doesn't interfere with the intersection edges
                 Face dumy = Face.MakeFace(fc.Surface, ext); // to create appropriate edges
                 // transfer the edges from dumy to fc (very low level, but efficient)
                 foreach (Edge edg in dumy.OutlineEdges)
@@ -3533,8 +3565,9 @@ namespace CADability
                     else if (avoidOriginalEdges.ContainsKey(k1) && SameEdge(avoidOriginalEdges[k1], edg, precision))
                     {   // this is an intersection edge invers to an original outline of the face: remove both the intersection edge and the original edge
                         intersectionEdges.Remove(edg);
-                        originalEdges.Remove(avoidOriginalEdges[k1]);
-                        // in Difference2.cdb.json we need to keep this edge
+                        // originalEdges.Remove(avoidOriginalEdges[k1]);
+                        // in UniteBug15.cdb.json and in Difference2.cdb.json we need to keep the original outline edge.
+                        // we would need a case, when it must be removed and then find out the topological difference to use the correct condition, when to remove and when not
                         edg.DisconnectFromFace(faceToSplit);
                     }
                 }
@@ -3549,8 +3582,8 @@ namespace CADability
                 dcedges.Add(intersectionEdges, faceToSplit, arrowSize, Color.Red, -1);
                 foreach (Edge edg in intersectionEdges)
                 {
-                    dcedges.Add(edg.Vertex1.Position, Color.Blue, edg.Vertex1.GetHashCode());
-                    dcedges.Add(edg.Vertex2.Position, Color.Blue, edg.Vertex2.GetHashCode());
+                    dcedges.Add(edg.Vertex1.GetPositionOnFace(faceToSplit), Color.Blue, edg.Vertex1.GetHashCode());
+                    dcedges.Add(edg.Vertex2.GetPositionOnFace(faceToSplit), Color.Blue, edg.Vertex2.GetHashCode());
                 }
 #endif
                 if (intersectionEdges.Count == 0)
@@ -3583,31 +3616,8 @@ namespace CADability
                     dcloops.Add(item.Item1, faceToSplit, arrowSize, Color.Blue, ++dbgc);
                 }
 #endif
-                // !!! the following code was commented out, because it doesn't seem to make sense
-                // If there is no positive loop, the outline loop of the face must be available and must be used.
-                // actually we would have to topologically sort the loops in order to decide whether the faces outline must be used or not.
-                // and what about the untouched holes of the face?
-                //double biggestArea = double.MinValue;
-                //foreach (double a in loops.Keys)
-                //{
-                //    if (Math.Abs(a) > biggestArea) biggestArea = Math.Abs(a);
-                //}
-                //if (biggestArea < 0 && !commonOverlappingFaces.Contains(faceToSplit)) // when no loop, we don't need the outline
-                //{
-                //    foreach ((List<Edge>, ICurve2D[]) item in loops.Values) faceEdges.ExceptWith(item.Item1);
-                //    if (faceEdges.IsSupersetOf(faceToSplit.OutlineEdges))
-                //    {
-                //        // there is no outline loop, only holes (or nothing). We have to use the outline loop of the face, which is not touched
-                //        List<Edge> outline = new List<Edge>(faceToSplit.OutlineEdges);
-                //        loops.AddUnique(outline, faceToSplit);
-                //        faceEdges.ExceptWith(outline); // we would not need that
-                //    }
-                //}
-                // we also add the holes of the faceToSplit, as long as it was not used by intersections and is not enclosed by a bigger hole
-                // created from intersection edges
 
                 // if the outline is untouched and we have a positive (ccw) loop, the outline may not be used.
-                // faceToSplit.OutlineEdges
                 if (loops.First().Value.Item1.Count == faceToSplit.OutlineEdges.Length &&
                     new HashSet<Edge>(loops.First().Value.Item1).SetEquals(faceToSplit.OutlineEdges)
                     && loops.Count > 1)
@@ -3618,35 +3628,6 @@ namespace CADability
                         loops.Remove(loops.First().Key);
                     }
                 }
-                // it looks like the FindLoops algorithm already finds the untouched loops, so we dont need to add them here
-                //for (int i = 0; i < faceToSplit.HoleCount; i++)
-                //{
-                //    if (faceEdges.IsSupersetOf(faceToSplit.HoleEdges(i))) // this hole is untouched by the loops
-                //    {
-                //        List<Edge> hole = new List<Edge>(faceToSplit.HoleEdges(i));
-                //        ICurve2D[] c2ds = faceToSplit.Get2DCurves(hole);
-                //        // find the closest loop, which encloses this faceToSplit's hole. 
-                //        // if this loop is positiv oriented (outline), then we need this hole
-                //        double area = Border.SignedArea(c2ds); // the area of this hole
-                //        double closest = double.MaxValue;
-                //        GeoPoint2D testPoint = c2ds[0].StartPoint; // some point on this loop to test, whether this loop is enclosed by another loop
-                //        double enclosedBy = 0.0;
-                //        foreach (var loop in loops)
-                //        {
-                //            if ((Math.Abs(loop.Key) > Math.Abs(area)) && (Math.Abs(loop.Key) < closest)) // an enclosing hole must be bigger.
-                //            {
-                //                if (Border.IsInside(loop.Value.Item2, testPoint) == (loop.Key > 0)) // IsInside respects orientation, that is why "== (loop.Key > 0)" is needed
-                //                {
-                //                    closest = Math.Abs(loop.Key);
-                //                    enclosedBy = loop.Key;
-                //                }
-                //            }
-                //        }
-                //        // in order to use a hole, it must be contained in a outer, positive loop
-                //        if (enclosedBy > 0.0) loops.AddUnique(area, (hole, c2ds));
-                //        faceEdges.ExceptWith(hole); // we would not need that
-                //    }
-                //}
                 // Now all necessary loops are created. There is one or more outline (ccw) and zero or more holes
                 // If we have more than one outline, we have to match the holes to their enclosing outline
                 double[] areas = new double[loops.Count];
@@ -4028,31 +4009,59 @@ namespace CADability
             }
             return res.ToArray();
         }
-
         private List<List<Edge>> FindLoops(Face onThisFace, HashSet<Edge> intersectionEdges, HashSet<Edge> originalEdges)
         {
+            const double eps = 1e-3;
             List<List<Edge>> found = new List<List<Edge>>();
             HashSet<Edge> availableEdges = new HashSet<Edge>(intersectionEdges.Union(originalEdges));
-            // 
+            // we need a position in the cyle 0..2pi where we can make a cut while not beeing close to any angles of the egdes
+            // We choose availableEdges*2+1 intervals, because we have at most availableEdges*2 angles and each angle can kick out one interval
+            // so there will always remain one interval where no angle is close to
+            bool[] intervals = new bool[availableEdges.Count * 2 + 1]; // initilized with false
+            double angleToIntervalFactor = (availableEdges.Count * 2 + 1) / (Math.PI * 2);
             Dictionary<Vertex, List<(Edge edge, double angle, bool outgoing)>> nodes = new Dictionary<Vertex, List<(Edge, double, bool)>>();
+            // for each node (connectionpoint of two or more edges) we keep a list of incomming and outgoing edges to this point
+            // the edges are sorted clockwise with respect to the node, so when you enter on an index, the naxt index (modlus) goes to the left.
+            // typically there are only two or three edges in a node
             foreach (Edge edge in availableEdges)
             {
                 ICurve2D c2d = edge.Curve2D(onThisFace);
                 Vertex sv = edge.StartVertex(onThisFace);
                 Vertex ev = edge.EndVertex(onThisFace);
                 if (!nodes.TryGetValue(sv, out List<(Edge edge, double angle, bool outgoing)> list)) nodes[sv] = list = new List<(Edge edge, double angle, bool outgoing)>();
-                list.Add((edge, c2d.StartDirection.Angle, true));
+                double a = c2d.StartDirection.Angle % (Math.PI * 2);
+                intervals[(int)(angleToIntervalFactor * a)] = true; // disable this interval
+                list.Add((edge, a, true));
                 if (!nodes.TryGetValue(ev, out list)) nodes[ev] = list = new List<(Edge edge, double angle, bool outgoing)>();
-                list.Add((edge, (-c2d.EndDirection).Angle, false));
+                a = (-c2d.EndDirection).Angle % (Math.PI * 2);
+                intervals[(int)(angleToIntervalFactor * a)] = true;
+                list.Add((edge, a, false));
             }
+            double cutCycle = 0.0; // we use this as an offset to the angles, which maps this interval to the 0,2pi position
+            int idx = Array.FindIndex(intervals, b => !b);
+            if (idx >= 0) cutCycle = 2 * Math.PI - (idx + 0.5) / angleToIntervalFactor; 
+
             foreach (KeyValuePair<Vertex, List<(Edge edge, double angle, bool outgoing)>> node in nodes)
             {
                 node.Value.Sort((a, b) =>
                 {
-                    if (a.angle < b.angle) return 1;
-                    if (a.angle > b.angle) return -1;
-                    // TODO: same angle do some work
-                    return 0;
+                    double aa = (a.angle + cutCycle) % (Math.PI * 2); // avoids the 0..2pi mess
+                    double bb = (b.angle + cutCycle) % (Math.PI * 2);
+                    if (aa < bb - eps) return 1;
+                    if (aa > bb + eps) return -1;
+                    // tangential position: tha angles are too close to decide
+                    for (double d = 0.02; d < 0.5; d *= 2)
+                    {
+                        aa = a.outgoing ? a.edge.Curve2D(onThisFace).DirectionAt(d).Angle.Radian : (-a.edge.Curve2D(onThisFace).DirectionAt(1 - d)).Angle.Radian;
+                        bb = b.outgoing ? b.edge.Curve2D(onThisFace).DirectionAt(d).Angle.Radian : (-b.edge.Curve2D(onThisFace).DirectionAt(1 - d)).Angle.Radian;
+                        aa = (aa + cutCycle) % (Math.PI * 2); // we map the angles to the middle of the 0..2pi interval
+                        bb = (bb + cutCycle) % (Math.PI * 2);
+                        // now both angles are not close to 0 or 2 pi and can be simply compared 
+                        if (aa < bb - eps) return 1;
+                        if (aa > bb + eps) return -1;
+                        // else repeat farther away from the common point
+                    }
+                    return 0; // should never happen: cannot decide the orientation of two edges
                 }
                 );
             }
