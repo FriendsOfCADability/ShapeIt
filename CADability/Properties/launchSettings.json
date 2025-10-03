@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CADability": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

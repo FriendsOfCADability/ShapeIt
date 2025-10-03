@@ -829,7 +829,7 @@ namespace CADability
         {
             hashCode = hashCodeCounter++; // 
 #if DEBUG
-            if (hashCode == 1196)
+            if (hashCode == 3585 || hashCode==3587)
             {
             }
 #endif
@@ -1635,6 +1635,7 @@ namespace CADability
             // keep vertices
             if (toRemove == primaryFace) RemovePrimaryFace();
             else if (toRemove == secondaryFace) RemoveSecondaryFace();
+            toRemove.InvalidateSecondaryData();
             if (v1 != null) v1.RemovePositionOnFace(toRemove); // better remove, even if still used, because here we cannot decide, whether this is still used, 
             if (v2 != null) v2.RemovePositionOnFace(toRemove); // and PositionOnFace is just a cache, it will be recalculated in case it is still used
             if (primaryFace == null) // secondary is always null then

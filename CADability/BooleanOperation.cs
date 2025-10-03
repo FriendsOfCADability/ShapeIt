@@ -546,6 +546,9 @@ namespace CADability
                                 {
                                     uvf1 += toCenter1;
                                     uvf2 += toCenter2;
+                                    GeoPoint m0 = new GeoPoint(fc1.Surface.PointAt(uvf1), fc2.Surface.PointAt(uvf2)); // middle point
+                                    uvf1 = fc1.PositionOf(m0); // uvf1 and uvf2 must be evaluated at a close position. There was a bug when uvf1 was "running" slower than uvf2
+                                    uvf2 = fc2.PositionOf(m0);
                                     GeoVector nn1 = fc1.Surface.GetNormal(uvf1).Normalized;
                                     GeoVector nn2 = fc2.Surface.GetNormal(uvf2).Normalized;
                                     toCenter1 = 2 * toCenter1;
@@ -1887,6 +1890,7 @@ namespace CADability
                             }
                             else secondaryCurve2D = secondaryCurve2D.GetModified(firstToSecond.GetInverse());
                             // the secsecondaryCurve2D is always correct oriented, we don't need to apply "forward" here
+                            SurfaceHelper.AdjustPeriodic(mainFace.Surface, mainFace.Domain, secondaryCurve2D);
                             Edge overlappingEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), forward,
                                 mainFace, secondaryCurve2D, !forward);
                             overlappingEdge.UseVertices(edge.Vertex1, edge.Vertex2);
@@ -1920,9 +1924,11 @@ namespace CADability
                         commonFaceHasMainSurface = false;
                     }
                     else
-                    {
-                        commonFace = Face.Construct();
-                        commonFace.Surface = mainFace.Surface.Clone();
+                    {   // create a new face. The outline of the new face is the rectangular domain of the main face. The outline will not be used later, but is is needed for the face
+                        // in some situations.
+                        BoundingRect ext = mainFace.Domain;
+                        ext.InflateRelative(1.1);
+                        commonFace = Face.MakeFace(mainFace.Surface.Clone(), ext);
                         commonFaces[(mainFace, otherFace)] = commonFace;
                         commonFaceHasMainSurface = true;
                     }
@@ -1961,20 +1967,6 @@ namespace CADability
                         }
                     }
                 }
-            }
-            foreach (Face fc in commonFaces.Values)
-            {   // we have to assign an outline to the common face, otherwise it will generate problems in various situations
-                BoundingRect ext = BoundingRect.EmptyBoundingRect;
-                foreach (Edge edg in faceToIntersectionEdges[fc]) ext.MinMax(edg.Curve2D(fc).GetExtent());
-                ext.InflateRelative(1.1); // to create a outline which doesn't interfere with the intersection edges
-                Face dumy = Face.MakeFace(fc.Surface, ext); // to create appropriate edges
-                // transfer the edges from dumy to fc (very low level, but efficient)
-                foreach (Edge edg in dumy.OutlineEdges)
-                {
-                    edg.SetPrimary(fc, true);
-                    edg.Owner = fc;
-                }
-                fc.SetOutline(dumy.OutlineEdges);
             }
             commonOverlappingFaces = commonFaces.Values.ToHashSet();
         }
@@ -3565,9 +3557,7 @@ namespace CADability
                     else if (avoidOriginalEdges.ContainsKey(k1) && SameEdge(avoidOriginalEdges[k1], edg, precision))
                     {   // this is an intersection edge invers to an original outline of the face: remove both the intersection edge and the original edge
                         intersectionEdges.Remove(edg);
-                        // originalEdges.Remove(avoidOriginalEdges[k1]);
-                        // in UniteBug15.cdb.json and in Difference2.cdb.json we need to keep the original outline edge.
-                        // we would need a case, when it must be removed and then find out the topological difference to use the correct condition, when to remove and when not
+                        originalEdges.Remove(avoidOriginalEdges[k1]);
                         edg.DisconnectFromFace(faceToSplit);
                     }
                 }

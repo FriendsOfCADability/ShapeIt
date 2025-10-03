@@ -3925,6 +3925,7 @@ namespace CADability.GeoObject
         internal void InvalidateSecondaryData()
         {
             area = null;
+            vertices = null;
             ClearTriangulation();
         }
         internal static GeoObjectList SortForWire(GeoObjectList ToSort)
@@ -9794,7 +9795,11 @@ namespace CADability.GeoObject
                 if (((outline[i].PrimaryFace == outline[j].PrimaryFace) && (outline[i].SecondaryFace == outline[j].SecondaryFace)) ||
                     ((outline[i].SecondaryFace == outline[j].PrimaryFace) && (outline[i].PrimaryFace == outline[j].SecondaryFace)))
                 {
-                    if (combineEdges(outline[i], outline[j])) --i; // outline[j] will be removed, iteration must stay at i
+                    if (combineEdges(outline[i], outline[j]))
+                    {
+                        --i; // outline[j] will be removed, iteration must stay at i
+                        vertices = null; // collect vertices next time Vertices (get) is called
+                    }
                 }
             }
             for (int k = 0; k < holes.Length; k++)
@@ -9807,7 +9812,11 @@ namespace CADability.GeoObject
                     if (((holes[k][i].PrimaryFace == holes[k][j].PrimaryFace) && (holes[k][i].SecondaryFace == holes[k][j].SecondaryFace)) ||
                         ((holes[k][i].SecondaryFace == holes[k][j].PrimaryFace) && (holes[k][i].PrimaryFace == holes[k][j].SecondaryFace)))
                     {
-                        if (combineEdges(holes[k][i], holes[k][j])) --i; // holes[k][j] will be removed, iteration must stay at i
+                        if (combineEdges(holes[k][i], holes[k][j]))
+                        {
+                            --i; // holes[k][j] will be removed, iteration must stay at i
+                            vertices = null; // collect vertices next time Vertices (get) is called
+                        }
                     }
                 }
             }
@@ -9892,6 +9901,7 @@ namespace CADability.GeoObject
                 edg2.Vertex1.RemoveEdge(edg2);
                 edg2.Vertex2.RemoveEdge(edg2);
                 vertices = null;
+                if (otherface != null) otherface.vertices = null; // to force recalculate
                 area = null;
                 return true;
             }
@@ -9966,6 +9976,7 @@ namespace CADability.GeoObject
                         edg2.Vertex1.RemoveEdge(edg2);
                         edg2.Vertex2.RemoveEdge(edg2);
                         vertices = null;
+                        otherface.vertices = null;
                         area = null;
                         return true;
                     }

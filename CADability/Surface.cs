@@ -5413,6 +5413,10 @@ namespace CADability.GeoObject
                                     ok = false;
                                     endedAtSeed = seedTest;
                                     ips[ips.Count - 1] = seedTest; // replace the last intersection point with the seed
+                                    uvthis = PositionOf(seedTest);
+                                    uvother = other.PositionOf(seedTest);
+                                    SurfaceHelper.AdjustPeriodic(this, thisBounds, ref uvthis);
+                                    SurfaceHelper.AdjustPeriodic(other, otherBounds, ref uvother);
                                     surfacePoints[surfacePoints.Count - 1] = new InterpolatedDualSurfaceCurve.SurfacePoint(seedTest, uvthis, uvother);
                                     break;
                                 }

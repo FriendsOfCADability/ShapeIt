@@ -528,7 +528,7 @@ namespace ShapeIt
             }
             if (slds.Count==2)
             {
-                Solid sld = NewBooleanOperation.Unite(slds[0], slds[1]);
+                Solid sld = NewBooleanOperation.Unite(slds[1], slds[0]);
             }
         }
 #endif
