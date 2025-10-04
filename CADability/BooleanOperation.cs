@@ -533,7 +533,7 @@ namespace CADability
                                 Face otherFace = null;
                                 foreach (Edge edg in fc1.AllEdges)
                                 {
-                                    if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position , tr.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, tr.EndPoint)) ||
+                                    if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, tr.EndPoint)) ||
                                         (Precision.IsEqual(edg.Vertex2.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex1.Position, tr.EndPoint))))
                                     {
                                         if (edg.Curve3D != null && edg.Curve3D.DistanceTo(tr.PointAt(0.5)) < Precision.eps)
@@ -559,18 +559,19 @@ namespace CADability
                                         }
                                     }
                                 }
-                                if (edgeFound!=null)
+                                if (edgeFound != null)
                                 {
-                                        bool forward = edgeFound.Forward(faceWithEdge);
-                                        ICurve2D projected = otherFace.Surface.GetProjectedCurve(edgeFound.Curve3D, 0.0);
-                                        if (forward) projected.Reverse();
-                                        Edge tedge = new Edge(otherFace, edgeFound.Curve3D.Clone(), otherFace, projected, !forward);
-                                        if (!faceToIntersectionEdges.TryGetValue(otherFace, out HashSet<Edge> addTo))
-                                        {
-                                            addTo = new HashSet<Edge>(); //  (new EdgeComparerByVertex());
-                                            faceToIntersectionEdges[otherFace] = addTo;
-                                        }
-                                        addTo.Add(tedge);
+                                    bool forward = edgeFound.Forward(faceWithEdge);
+                                    ICurve2D projected = otherFace.Surface.GetProjectedCurve(edgeFound.Curve3D, 0.0);
+                                    if (forward) projected.Reverse();
+                                    Edge tedge = new Edge(otherFace, edgeFound.Curve3D.Clone(), otherFace, projected, !forward);
+                                    tedge.UseVertices(usedVertices.ToArray());
+                                    if (!faceToIntersectionEdges.TryGetValue(otherFace, out HashSet<Edge> addTo))
+                                    {
+                                        addTo = new HashSet<Edge>(); //  (new EdgeComparerByVertex());
+                                        faceToIntersectionEdges[otherFace] = addTo;
+                                    }
+                                    addTo.Add(tedge);
                                     continue;
                                 }
                                 //TODO: not implemented yet:
