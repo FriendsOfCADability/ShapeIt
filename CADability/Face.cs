@@ -8215,6 +8215,19 @@ namespace CADability.GeoObject
                     Surface.SetBounds(Area.GetExtent());
                 }
                 catch { }
+                // repairing poles:
+                for (int i = 0; i < outline.Length; i++)
+                {
+                    if (outline[i].Curve3D == null && outline[i].SecondaryFace == null && outline[i].Curve2D(this) is Line2D l2d)
+                    {
+                        // this is a pole, the 2d curve should be a line
+                        int before = (i + outline.Length - 1) % outline.Length;
+                        int after = (i + + 1) % outline.Length;
+                        l2d.StartPoint = outline[before].Curve2D(this).EndPoint;
+                        l2d.EndPoint = outline[after].Curve2D(this).StartPoint;
+                    }
+
+                }
             }
         }
         #endregion

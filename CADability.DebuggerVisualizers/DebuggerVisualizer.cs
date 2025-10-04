@@ -356,13 +356,19 @@ namespace CADability.DebuggerVisualizers
 
             Model m = form.Model;
 
-            GeoPoint2D p = (GeoPoint2D)GeneralDebuggerVisualizer.GetObject(objectProvider);
-            Point pnt = Point.Construct();
-            pnt.Location = new GeoPoint(p);
-            pnt.Symbol = PointSymbol.Cross;
-            VisualizerHelper.AssertColor(pnt);
-            m.Add(pnt);
-
+            object o = GeneralDebuggerVisualizer.GetObject(objectProvider);
+            if (o is GeoPoint2D p)
+            {
+                Point pnt = Point.Construct();
+                pnt.Location = new GeoPoint(p);
+                pnt.Symbol = PointSymbol.Plus;
+                VisualizerHelper.AssertColor(pnt);
+                m.Add(pnt);
+            }
+            else if (o is IGeoObject go)
+            {
+                m.Add(VisualizerHelper.AssertColor(go));
+            }
             form.ShowDialog(windowService);
         }
     }

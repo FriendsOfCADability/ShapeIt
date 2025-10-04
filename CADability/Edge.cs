@@ -829,7 +829,7 @@ namespace CADability
         {
             hashCode = hashCodeCounter++; // 
 #if DEBUG
-            if (hashCode == 3585 || hashCode==3587)
+            if (hashCode == 3585 || hashCode == 3587)
             {
             }
 #endif
@@ -2406,7 +2406,7 @@ namespace CADability
             {   // there sholud not be a path2D as a 2d curve of an edge
                 // old cdb file contain such edges, which is repaired here
                 curveOnPrimaryFace = primaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
-                if (!forwardOnPrimaryFace)  curveOnPrimaryFace.Reverse();
+                if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
             }
             if (curveOnSecondaryFace is Path2D && curve3d != null)
             {   // same as above

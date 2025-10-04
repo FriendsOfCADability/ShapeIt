@@ -36,6 +36,13 @@ namespace CADability.DebuggerVisualizers.ObjectSource
                 pnt.Symbol = PointSymbol.Cross;
                 target = pnt;
             }
+            else if (target is GeoPoint2D gp2d)
+            {
+                Point pnt = Point.Construct();
+                pnt.Location = new GeoPoint(gp2d);
+                pnt.Symbol = PointSymbol.Plus;
+                target = pnt;
+            }
             string json = JsonSerialize.ToString(target);
             using (StreamWriter writer = new StreamWriter(outgoingData))
             {

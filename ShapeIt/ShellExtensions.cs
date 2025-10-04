@@ -1268,7 +1268,10 @@ namespace ShapeIt
             for (int i = 0; i < shellsToSubtract.Count; i++)
             {
                 BooleanOperation bo = new BooleanOperation();
-                bo.SetShells(toOperateOn, shellsToSubtract[i], BooleanOperation.Operation.difference);
+                List<Face> sweptFaces = new List<Face>(shellsToSubtract[i].Faces.Where(f=>!(f.Surface is PlaneSurface)));
+                Shell dbg = Shell.FromFaces(sweptFaces.ToArray());
+                bo.SetShells(toOperateOn, dbg, BooleanOperation.Operation.difference);
+                // bo.SetShells(toOperateOn, shellsToSubtract[i], BooleanOperation.Operation.difference);
                 tangentialEdges = tangentialEdges.ToDictionary(kv => clonedFaces[kv.Key], kv => kv.Value);
                 bo.AddTangentialEdges(tangentialEdges);
                 Shell[] bores = bo.Execute();
