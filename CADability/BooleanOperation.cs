@@ -559,65 +559,122 @@ namespace CADability
                                         }
                                     }
                                 }
-                                if (edgeFound != null)
-                                {
-                                    bool forward = edgeFound.Forward(faceWithEdge);
-                                    ICurve2D projected = otherFace.Surface.GetProjectedCurve(edgeFound.Curve3D, 0.0);
-                                    if (forward) projected.Reverse();
-                                    Edge tedge = new Edge(otherFace, edgeFound.Curve3D.Clone(), otherFace, projected, !forward);
-                                    tedge.UseVertices(usedVertices.ToArray());
-                                    if (!faceToIntersectionEdges.TryGetValue(otherFace, out HashSet<Edge> addTo))
-                                    {
-                                        addTo = new HashSet<Edge>(); //  (new EdgeComparerByVertex());
-                                        faceToIntersectionEdges[otherFace] = addTo;
-                                    }
-                                    addTo.Add(tedge);
-                                    continue;
-                                }
+                                //if (edgeFound != null)
+                                //{
+                                //    bool forward = edgeFound.Forward(faceWithEdge);
+                                //    ICurve2D projected = otherFace.Surface.GetProjectedCurve(edgeFound.Curve3D, 0.0);
+                                //    if (forward) projected.Reverse();
+                                //    Edge tedge = new Edge(otherFace, edgeFound.Curve3D.Clone(), otherFace, projected, !forward);
+                                //    tedge.UseVertices(usedVertices.ToArray());
+                                //    if (!faceToIntersectionEdges.TryGetValue(otherFace, out HashSet<Edge> addTo))
+                                //    {
+                                //        addTo = new HashSet<Edge>(); //  (new EdgeComparerByVertex());
+                                //        faceToIntersectionEdges[otherFace] = addTo;
+                                //    }
+                                //    addTo.Add(tedge);
+                                //    continue;
+                                //}
                                 //TODO: not implemented yet:
                                 // if we arrive here, there is a tangential intersection which is not an edge on one of the two faces. Now we have two cases: it is either
                                 // a face touching the other face (like a cylinder touches a plane, or it is a real intersection, where one face goes through the other face 
                                 // like an S-curve touches and crosses a line in the middle.
-                                // we now use the uv points in the surfaces and slowly walk from the uv point in the direction of the center of the domain
-                                // (2d extent), until we find a point, where the normals are not parallel any more.
-                                GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
-                                SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvf1);
-                                GeoPoint2D uvf2 = fc2.Surface.PositionOf(m);
-                                SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvf2);
-                                fc1.Surface.DerivationAt(uvf1, out GeoPoint pf1, out GeoVector duf1, out GeoVector dvf1);
-                                fc2.Surface.DerivationAt(uvf2, out GeoPoint pf2, out GeoVector duf2, out GeoVector dvf2);
-                                GeoVector across = ((duf1 ^ dvf1) + (duf2 ^ dvf2)) ^ tr.DirectionAt(0.5); // the direction perpendicular to the combined normals and the curve direction
-                                // in this direction we try to find the orientation of the curve tr
-                                GeoVector uvdirf1 = Geometry.ReBase(across, duf1, dvf1, duf1 ^ dvf1);
-                                GeoVector uvdirf2 = Geometry.ReBase(across, duf2, dvf2, duf2 ^ dvf2);
-                                // typically one of the faces ends at the curve tr
-                                // if this isn't the case we should not create an intersection edge here: example a cylindrical surface touching a plane
-
-                                GeoVector2D toCenter1 = fc1.Domain.GetCenter() - uvf1;
-                                GeoVector2D toCenter2 = fc2.Domain.GetCenter() - uvf2;
-                                // normalis the step vectors to the size of the extent
-                                if (Math.Abs(toCenter1.x) > Math.Abs(toCenter1.y)) toCenter1.Length = fc1.Domain.Width * 1e-3; // 1/1000 of the extent
-                                else if (Math.Abs(toCenter1.y) > 0) toCenter1.Length = fc1.Domain.Height * 1e-3; // 1/1000 of the extent
-                                else toCenter1 = new GeoVector2D(fc1.Domain.Width * 1e-3, fc1.Domain.Height * 1e-3); // was exactely in the center
-                                if (Math.Abs(toCenter2.x) > Math.Abs(toCenter2.y)) toCenter2.Length = fc2.Domain.Width * 1e-3; // 1/1000 of the extent
-                                else if (Math.Abs(toCenter2.y) > 0) toCenter2.Length = fc2.Domain.Height * 1e-3; // 1/1000 of the extent
-                                else toCenter2 = new GeoVector2D(fc2.Domain.Width * 1e-3, fc2.Domain.Height * 1e-3); // was exactely in the center
-                                                                                                                     // walk to the center until the normals are no longer parallel
-                                while (fc1.Domain.ContainsEps(uvf1, -0.01) && fc2.Domain.ContainsEps(uvf2, -0.01))
+                                //we try to find two points close to the middlepoint of the intersection curve where we get stable normals which are not parallel
+                                if (normalsCrossedMiddle.Length < 10 * Precision.eps)
                                 {
-                                    uvf1 += toCenter1;
-                                    uvf2 += toCenter2;
-                                    GeoPoint m0 = new GeoPoint(fc1.Surface.PointAt(uvf1), fc2.Surface.PointAt(uvf2)); // middle point
-                                    uvf1 = fc1.PositionOf(m0); // uvf1 and uvf2 must be evaluated at a close position. There was a bug when uvf1 was "running" slower than uvf2
-                                    uvf2 = fc2.PositionOf(m0);
-                                    GeoVector nn1 = fc1.Surface.GetNormal(uvf1).Normalized;
-                                    GeoVector nn2 = fc2.Surface.GetNormal(uvf2).Normalized;
-                                    toCenter1 = 2 * toCenter1;
-                                    toCenter2 = 2 * toCenter2;
-                                    normalsCrossedMiddle = nn1 ^ nn2;
-                                    if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
-                                }
+                                    GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
+                                    SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvf1);
+                                    GeoPoint2D uvf2 = fc2.Surface.PositionOf(m);
+                                    SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvf2);
+                                    fc1.Surface.DerivationAt(uvf1, out GeoPoint pf1, out GeoVector duf1, out GeoVector dvf1);
+                                    fc2.Surface.DerivationAt(uvf2, out GeoPoint pf2, out GeoVector duf2, out GeoVector dvf2);
+                                    GeoVector across = ((duf1 ^ dvf1) + (duf2 ^ dvf2)) ^ tr.DirectionAt(0.5); // the direction perpendicular to the combined normals and the curve direction
+                                    double stepSize = Math.Min(fc1.GetExtent(0.0).Size, fc2.GetExtent(0.0).Size) * 1e-3;
+                                    Ellipse toTestWith = Ellipse.Construct();
+                                    Plane plane = new Plane(m, tr.DirectionAt(0.5));
+                                    for (int t = 0; t < 10; ++t) // try 10 times
+                                    {
+                                        toTestWith.SetCirclePlaneCenterRadius(plane, m, stepSize);
+                                        fc1.Surface.Intersect(toTestWith, fc1.Domain, out GeoPoint[] ipselli1, out GeoPoint2D[] uvOnFace1, out double[] _);
+                                        fc2.Surface.Intersect(toTestWith, fc2.Domain, out GeoPoint[] ipselli2, out GeoPoint2D[] uvOnFace2, out double[] _);
+                                        for (int k = 0; k < uvOnFace1.Length; ++k) SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvOnFace1[k]);
+                                        for (int k = 0; k < uvOnFace2.Length; ++k) SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvOnFace2[k]);
+                                        // we need a pair of points on the circle/faces intersection which is inside the domains of the faces
+                                        bool pointsFound = false;
+                                        for (int k = 0; k < ipselli1.Length; k++)
+                                        {
+                                            if (fc1.Domain.Contains(uvOnFace1[k]))
+                                            {
+                                                for (int l = 0; l < ipselli2.Length; ++l)
+                                                {
+                                                    if (fc2.Domain.Contains(uvOnFace2[l]))
+                                                    {
+                                                        if ((ipselli1[k] | ipselli2[l]) < stepSize)
+                                                        {
+                                                            pointsFound = true;
+                                                            // a pair of points, not on opposite sides, which is in the domians
+                                                            GeoVector nn1 = fc1.Surface.GetNormal(uvOnFace1[k]).Normalized;
+                                                            GeoVector nn2 = fc2.Surface.GetNormal(uvOnFace2[l]).Normalized;
+                                                            Line ldbg1 = Line.TwoPoints(fc1.Surface.PointAt(uvOnFace1[k]), fc1.Surface.PointAt(uvOnFace1[k]) + 10 * nn1);
+                                                            Line ldbg2 = Line.TwoPoints(fc2.Surface.PointAt(uvOnFace2[l]), fc2.Surface.PointAt(uvOnFace2[l]) + 10 * nn2);
+                                                            normalsCrossedMiddle = nn1 ^ nn2;
+                                                            if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
+                                        }
+                                        if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
+                                        // when we arrive here we either didn't find a suitable pair of points, then the circle was too big
+                                        // or the normals are too close, then the circle was too small
+                                        if (pointsFound) stepSize *= 1.5; // make a bigger circle
+                                        else stepSize /= 4.0; // make a smaller circle
+                                    }
 
+                                }
+                                // following is a fallback to an older approach
+                                if (normalsCrossedMiddle.Length < 10 * Precision.eps)
+                                {
+                                    GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
+                                    SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvf1);
+                                    GeoPoint2D uvf2 = fc2.Surface.PositionOf(m);
+                                    SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvf2);
+                                    fc1.Surface.DerivationAt(uvf1, out GeoPoint pf1, out GeoVector duf1, out GeoVector dvf1);
+                                    fc2.Surface.DerivationAt(uvf2, out GeoPoint pf2, out GeoVector duf2, out GeoVector dvf2);
+                                    GeoVector across = ((duf1 ^ dvf1) + (duf2 ^ dvf2)) ^ tr.DirectionAt(0.5); // the direction perpendicular to the combined normals and the curve direction
+                                                                                                              // in this direction we try to find the orientation of the curve tr
+                                    GeoVector uvdirf1 = Geometry.ReBase(across, duf1, dvf1, duf1 ^ dvf1);
+                                    GeoVector uvdirf2 = Geometry.ReBase(across, duf2, dvf2, duf2 ^ dvf2);
+                                    // typically one of the faces ends at the curve tr
+                                    // if this isn't the case we should not create an intersection edge here: example a cylindrical surface touching a plane
+
+                                    GeoVector2D toCenter1 = fc1.Domain.GetCenter() - uvf1;
+                                    GeoVector2D toCenter2 = fc2.Domain.GetCenter() - uvf2;
+                                    // normalis the step vectors to the size of the extent
+                                    if (Math.Abs(toCenter1.x) > Math.Abs(toCenter1.y)) toCenter1.Length = fc1.Domain.Width * 1e-3; // 1/1000 of the extent
+                                    else if (Math.Abs(toCenter1.y) > 0) toCenter1.Length = fc1.Domain.Height * 1e-3; // 1/1000 of the extent
+                                    else toCenter1 = new GeoVector2D(fc1.Domain.Width * 1e-3, fc1.Domain.Height * 1e-3); // was exactely in the center
+                                    if (Math.Abs(toCenter2.x) > Math.Abs(toCenter2.y)) toCenter2.Length = fc2.Domain.Width * 1e-3; // 1/1000 of the extent
+                                    else if (Math.Abs(toCenter2.y) > 0) toCenter2.Length = fc2.Domain.Height * 1e-3; // 1/1000 of the extent
+                                    else toCenter2 = new GeoVector2D(fc2.Domain.Width * 1e-3, fc2.Domain.Height * 1e-3); // was exactely in the center
+                                                                                                                         // walk to the center until the normals are no longer parallel
+                                    while (fc1.Domain.ContainsEps(uvf1, -0.01) && fc2.Domain.ContainsEps(uvf2, -0.01))
+                                    {
+                                        uvf1 += toCenter1;
+                                        uvf2 += toCenter2;
+                                        GeoPoint m0 = new GeoPoint(fc1.Surface.PointAt(uvf1), fc2.Surface.PointAt(uvf2)); // middle point
+                                        uvf1 = fc1.PositionOf(m0); // uvf1 and uvf2 must be evaluated at a close position. There was a bug when uvf1 was "running" slower than uvf2
+                                        uvf2 = fc2.PositionOf(m0);
+                                        GeoVector nn1 = fc1.Surface.GetNormal(uvf1).Normalized;
+                                        GeoVector nn2 = fc2.Surface.GetNormal(uvf2).Normalized;
+                                        Line ldbg1 = Line.TwoPoints(fc1.Surface.PointAt(uvf1), fc1.Surface.PointAt(uvf1) + 10 * nn1);
+                                        Line ldbg2 = Line.TwoPoints(fc2.Surface.PointAt(uvf2), fc2.Surface.PointAt(uvf2) + 10 * nn2);
+                                        toCenter1 = 2 * toCenter1;
+                                        toCenter2 = 2 * toCenter2;
+                                        normalsCrossedMiddle = nn1 ^ nn2;
+                                        if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
+                                    }
+                                }
                                 double tangentialPrecision = (fc1.GetExtent(0.0).Size + fc2.GetExtent(0.0).Size) * Precision.eps;
                                 // Still ignoring the case where there could be a real intersection e.g. when a surface crosses a plane like the "S" crosses the tangent at the middle
                                 // When this intersection curve coincides with an existing edge on one of the faces, we use the combined normalvector of both involved faces
