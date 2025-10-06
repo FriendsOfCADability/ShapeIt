@@ -127,6 +127,7 @@ namespace ShapeIt
                         }
                         for (int i = 0; i < fragments.Count; i++)
                         {
+                            fragments[i].CopyAttributes(solid);
                             owner.Add(fragments[i]);
                         }
                     }

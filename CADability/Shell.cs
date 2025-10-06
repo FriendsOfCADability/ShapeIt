@@ -6593,12 +6593,15 @@ namespace CADability.GeoObject
                     connectedEdges.ExceptWith(res); // and not the already found edges
                     foreach (Edge connectedEdge in connectedEdges)
                     {
-                        if (((connectedEdge.PrimaryFace == edge.PrimaryFace || connectedEdge.PrimaryFace.SameSurface(edge.PrimaryFace)) &&
-                            (connectedEdge.SecondaryFace == edge.SecondaryFace || connectedEdge.SecondaryFace.SameSurface(edge.SecondaryFace))) ||
-                            ((connectedEdge.SecondaryFace == edge.PrimaryFace || connectedEdge.SecondaryFace.SameSurface(edge.PrimaryFace)) &&
-                            (connectedEdge.PrimaryFace == edge.SecondaryFace || connectedEdge.PrimaryFace.SameSurface(edge.SecondaryFace))))
+                        if (connectedEdge.SecondaryFace != null) // not a pole
                         {
-                            if (res.Add(connectedEdge)) added.Add(connectedEdge);
+                            if (((connectedEdge.PrimaryFace == edge.PrimaryFace || connectedEdge.PrimaryFace.SameSurface(edge.PrimaryFace)) &&
+                                (connectedEdge.SecondaryFace == edge.SecondaryFace || connectedEdge.SecondaryFace.SameSurface(edge.SecondaryFace))) ||
+                                ((connectedEdge.SecondaryFace == edge.PrimaryFace || connectedEdge.SecondaryFace.SameSurface(edge.PrimaryFace)) &&
+                                (connectedEdge.PrimaryFace == edge.SecondaryFace || connectedEdge.PrimaryFace.SameSurface(edge.SecondaryFace))))
+                            {
+                                if (res.Add(connectedEdge)) added.Add(connectedEdge);
+                            }
                         }
                     }
                 }
@@ -6759,21 +6762,23 @@ namespace CADability.GeoObject
                     }
                 }
             }
-            ICurve[] outline = new ICurve[loop.Length];
+            List<ICurve> outline = new List<ICurve>();
+            bool hasPoles = false;
             for (int i = 0; i < loop.Length; i++)
             {
-                outline[i] = loop[i].Curve3D.Clone();
+                if (loop[i].Curve3D != null) outline.Add(loop[i].Curve3D.Clone());
+                else hasPoles = true;
             }
-            if (faceWithSurface != null)
+            if (faceWithSurface != null && !hasPoles)
             {   // the only surface, which sourrounds the loop, makes the face we need to close the loop
-                Face res = Face.FromEdges(faceWithSurface.Surface.Clone(), new ICurve[][] { outline });
+                Face res = Face.FromEdges(faceWithSurface.Surface.Clone(), new ICurve[][] { outline.ToArray() });
                 if (res != null) return new Face[] { res };
             }
             if (Curves.GetCommonPlane(outline, out Plane commonPlane))
             {   // all curves of the loop are in a common plane: we can make a planar face to close the loop
                 // the orientation has to be considered!
                 PlaneSurface ps = new PlaneSurface(commonPlane);
-                Face res = Face.FromEdges(ps, new ICurve[][] { outline });
+                Face res = Face.FromEdges(ps, new ICurve[][] { outline.ToArray() });
                 if (res != null) return new Face[] { res };
             }
             if (boundingFaces.Count == 2 && loop.Length == 2)

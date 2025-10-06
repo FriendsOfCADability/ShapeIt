@@ -458,7 +458,7 @@ namespace CADability.Curve2D
         public ICurve2D[] Split(double[] positions)
         {
             Array.Sort(positions);
-            ICurve2D[] res = new ICurve2D[positions.Length + 1];
+            List<ICurve2D> res = new List<ICurve2D>();
             for (int i = 0; i <= positions.Length; i++)
             {
                 double spar, epar;
@@ -466,9 +466,9 @@ namespace CADability.Curve2D
                 else spar = positions[i - 1];
                 if (i == positions.Length) epar = 1.0;
                 else epar = positions[i];
-                res[i] = Trim(spar, epar);
+                if (spar!=epar) res.Add(Trim(spar, epar));
             }
-            return res;
+            return res.ToArray();
         }
         /// <summary>
         /// Implements <see cref="CADability.Curve2D.ICurve2D.Distance (GeoPoint2D)"/>

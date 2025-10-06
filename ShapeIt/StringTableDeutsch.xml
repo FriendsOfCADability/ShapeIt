@@ -265,7 +265,7 @@
 	</data>
 	<data name="Center.CenterOnToFirst">
 		<label>Eine Seite der Begrenzung</label>
-		<info>Die Begrenzung, ebzüglich der zentriert werden soll</info>
+		<info>Die Begrenzung, bezüglich der zentriert werden soll</info>
 	</data>
 	<data name="Center.CenterOnToSecond">
 		<label>Andere Seite der Begrenzung</label>
@@ -320,7 +320,7 @@
 	</data>
   <data name="UserInterface">
     <label>Benutzeroberfläche</label>
-    <info>EInstellungen für die Benutzeroberfläche (o ist Standard)</info>
+    <info>EInstellungen für die Benutzeroberfläche (0 ist Standard)</info>
   </data>
   <data name="ToolbarButtonSize">
     <label>Schaltflächengröße</label>
