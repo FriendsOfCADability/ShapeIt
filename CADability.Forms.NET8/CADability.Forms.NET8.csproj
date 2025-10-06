@@ -102,7 +102,21 @@
     <None Remove="Icons\MenuId.Constr.Line.TwoTangents.svg" />
     <None Remove="Icons\MenuId.Constr.Point.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
+    <None Remove="Icons\MenuId.Edit.Copy.svg" />
+    <None Remove="Icons\MenuId.Edit.Cut.svg" />
+    <None Remove="Icons\MenuId.Edit.Paste.svg" />
+    <None Remove="Icons\MenuId.Edit.Redo.svg" />
+    <None Remove="Icons\MenuId.Edit.Undo.svg" />
+    <None Remove="Icons\MenuId.File.New.svg" />
+    <None Remove="Icons\MenuId.File.Open.svg" />
+    <None Remove="Icons\MenuId.File.Save.svg" />
     <None Remove="Icons\MenuId.Fillet.svg" />
+    <None Remove="Icons\MenuId.Object.Delete.svg" />
+    <None Remove="Icons\MenuId.Object.Move.svg" />
+    <None Remove="Icons\MenuId.Object.Reflect.svg" />
+    <None Remove="Icons\MenuId.Object.Rotate.svg" />
+    <None Remove="Icons\MenuId.Object.Scale.svg" />
+    <None Remove="Icons\MenuId.Object.Snap.svg" />
     <None Remove="Icons\MenuId.SetGrid.svg" />
   </ItemGroup>
 
@@ -196,7 +210,21 @@
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.TwoTangents.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Point.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Edit.Copy.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Edit.Cut.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Edit.Paste.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Edit.Redo.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Edit.Undo.svg" />
+    <EmbeddedResource Include="Icons\MenuId.File.New.svg" />
+    <EmbeddedResource Include="Icons\MenuId.File.Open.svg" />
+    <EmbeddedResource Include="Icons\MenuId.File.Save.svg" />
     <EmbeddedResource Include="Icons\MenuId.Fillet.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Object.Delete.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Object.Move.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Object.Reflect.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Object.Rotate.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Object.Scale.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Object.Snap.svg" />
     <EmbeddedResource Include="Icons\MenuId.SetGrid.svg" />
   </ItemGroup>
 
