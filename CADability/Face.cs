@@ -3088,6 +3088,26 @@ namespace CADability.GeoObject
             }
             return null;
         }
+        public static Face MakeFace(ICurve curveToExtrude, GeoVector extrusion)
+        {
+            if (curveToExtrude is Ellipse e && e.IsArc && Precision.SameDirection(extrusion,e.Plane.Normal,false))
+            {
+                CylindricalSurface surface = new CylindricalSurface(e.Center,e.MajorAxis,e.MinorAxis,extrusion);
+                Face res = Face.Construct();
+                Edge e1 = new Edge(res, e.Clone() as ICurve, res, surface.GetProjectedCurve(e, 0.0), true);
+                ICurve opposite = curveToExtrude.CloneModified(ModOp.Translate(extrusion));
+                opposite.Reverse();
+                Edge e3 = new Edge(res, opposite, res, surface.GetProjectedCurve(opposite, 0.0), true);
+                ICurve l2 = Line.TwoPoints(e.EndPoint, e.EndPoint + extrusion);
+                Edge e2 = new Edge(res,l2,res,surface.GetProjectedCurve(l2,0.0), true);
+                ICurve l4 = Line.TwoPoints(e.StartPoint, e.StartPoint + extrusion);
+                l4.Reverse();
+                Edge e4 = new Edge(res,l4,res,surface.GetProjectedCurve(l4,0.0), true);
+                res.Set(surface, [[e1, e2, e3, e4]], true);
+                return res;
+            }
+            return null;
+        }
 
         /// <summary>
         /// If there is a outline (or hole) consisting of a single curve (e.g. closed circle) then split this Edge into two parts

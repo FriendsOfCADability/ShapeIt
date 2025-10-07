@@ -530,6 +530,17 @@ namespace ShapeIt
             {
                 Solid sld = NewBooleanOperation.Unite(slds[1], slds[0]);
             }
+            if (slds.Count==1)
+            {
+                Shell shell = slds[0].Shells[0];
+                foreach (Edge edge in shell.Edges)
+                {
+                    if (edge.Curve3D is Line l && Math.Abs(l.StartDirection.z)<0.001)
+                    {
+                        Shell rounded = shell.RoundEdges([edge], 2.0);
+                    }
+                }
+            }
         }
 #endif
     }
