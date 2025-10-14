@@ -5,6 +5,19 @@ using System.Reflection;
 
 namespace CADability.UserInterface
 {
+    public class TextToValueEventArgs<T> : EventArgs
+    {
+        public string Text { get; }
+        public IPropertyEntry PropertyEntry { get; }
+        public T Result { get; set; }
+        public bool Handled { get; set; }
+
+        public TextToValueEventArgs(string text, IPropertyEntry propertyEntry)
+        {
+            Text = text;
+            PropertyEntry = propertyEntry;
+        }
+    }
     /// <summary>
     /// Defines a base class for editable properties shown on a property page (IPropertyPage) in the controlCenter (properties explorer).
     /// It is a single entry in the property page which may have subentries.

@@ -1,6 +1,8 @@
 ﻿using CADability.Actions;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Action = CADability.Actions.Action;
 
 namespace CADability.UserInterface
@@ -86,6 +88,7 @@ namespace CADability.UserInterface
         private NumberFormatInfo numberFormatInfo;
         private GeneralGeoPointAction generalGeoPointAction;
         private bool autoModifyWithMouse;
+
 
         /// <summary>
         /// Delegate definition for the <see cref="SelectionChangedEvent"/>
@@ -202,73 +205,47 @@ namespace CADability.UserInterface
             }
             return p;
         }
+        public static event EventHandler<TextToValueEventArgs<GeoPoint>>? CustomTextToValue;
+        static readonly string InputPattern =
+    @"^\s*(?<x>[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))(?:\s+(?<y>[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))(?:\s+(?<z>[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)))?)?\s*$";
         protected override bool TextToValue(string text, out GeoPoint val)
         {
-            string trimmed = text;
-            char[] WhiteSpace = new char[] { (char)0x9, (char)0xA, (char)0xB, (char)0xC, (char)0xD, (char)0x20, (char)0xA0, (char)0x2000, (char)0x2001, (char)0x2002, (char)0x2003, (char)0x2004, (char)0x2005, (char)0x2006, (char)0x2007, (char)0x2008, (char)0x2009, (char)0x200A, (char)0x200B, (char)0x3000, (char)0xFEFF };
-            string[] Parts = trimmed.Split(WhiteSpace);
-            GeoPoint p = new GeoPoint(0.0, 0.0, 0.0);
-            bool success = false;
-            if (Parts.Length >= 3)
+            text = text.Trim();
+            val = GeoPoint.Invalid;
+            if (string.IsNullOrEmpty(text)) return false;
+            var args = new TextToValueEventArgs<GeoPoint>(text, this);
+
+            // Call all registered handlers
+            CustomTextToValue?.Invoke(this, args);
+
+            if (args.Handled)
             {
-                try
-                {
-                    p.x = double.Parse(Parts[0], numberFormatInfo);
-                    p.y = double.Parse(Parts[1], numberFormatInfo);
-                    p.z = double.Parse(Parts[2], numberFormatInfo);
-                    success = true;
-                }
-                catch (System.FormatException)
-                {
-                    if (Parts[0] == "-" || Parts[1] == "-" || Parts[2] == "-") success = true; // allow to start with "-", some p components will be 0
-                }
-            }
-            else if (Parts.Length == 2)
-            {
-                try
-                {
-                    p.x = double.Parse(Parts[0], numberFormatInfo);
-                    p.y = double.Parse(Parts[1], numberFormatInfo);
-                    p.z = 0.0;
-                    success = true;
-                }
-                catch (System.FormatException)
-                {
-                    if (Parts[0] == "-" || Parts[1] == "-") success = true; // allow to start with "-"
-                }
-            }
-            else if (Parts.Length == 1)
-            {
-                try
-                {
-                    p.x = double.Parse(Parts[0], numberFormatInfo);
-                    p.y = 0.0;
-                    p.z = 0.0;
-                    success = true;
-                }
-                catch (System.FormatException)
-                {
-                    if (Parts[0] == "-") success = true; // allow to start with "-", p.x will stay 0
-                }
-            }
-            if (success)
-            {   // the text value might be in a local coordinate system, the value itself is always in the global system
-                val = LocalToGlobal(p);
+                // a handler has done the parsing
+                val = args.Result;
                 return true;
             }
-            else
+            var m = Regex.Match(text, InputPattern);
+            if (m.Success)
             {
-                try
-                {
-                    //Scripting s = new Scripting();
-                    //val = s.GetGeoPoint(Frame.Project.NamedValues, trimmed); // always global
-                    //return true;
-                }
-                catch //(ScriptingException)
-                {
+                GeoPoint p = new GeoPoint(0.0, 0.0, 0.0);
+                if (m.Groups["x"].Success) p.x = double.Parse(m.Groups["x"].Value, numberFormatInfo);
+                if (m.Groups["y"].Success) p.y = double.Parse(m.Groups["y"].Value, numberFormatInfo);
+                if (m.Groups["z"].Success) p.z = double.Parse(m.Groups["z"].Value, numberFormatInfo);
+                if (m.Groups["x"].Success)
+                {   // the text value might be in a local coordinate system, the value itself is always in the global system
+                    val = LocalToGlobal(p);
+                    return true;
                 }
             }
-            val = GeoPoint.Invalid;
+            else if (Regex.Match(text, @"^@?[A-Za-z_][A-Za-z0-9_]*$").Success)
+            {   // a named value
+                object o = Frame.Project.GetNamedValue(text);
+                if (o is GeoPoint pp)
+                {
+                    val = pp;
+                    return true;
+                }
+            }
             return false;
         }
         protected override string ValueToText(GeoPoint p)
@@ -314,7 +291,7 @@ namespace CADability.UserInterface
                 return subItems;
             }
         }
-       
+
         #region ICommandHandler Members
         bool ICommandHandler.OnCommand(string MenuId)
         {
@@ -549,7 +526,7 @@ namespace CADability.UserInterface
         }
         public bool ForceAbsolute { get; internal set; }
         // the following should be removed and the caller should call SetContextMenu with itself as commandhandler
-        public string ContextMenuId { get => GetContextMenuId(); set => SetContextMenu(value,this); }
+        public string ContextMenuId { get => GetContextMenuId(); set => SetContextMenu(value, this); }
         /// <summary>
         /// Delegate definition for <see cref="FilterCommandEvent"/>
         /// </summary>
