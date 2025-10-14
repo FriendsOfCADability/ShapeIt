@@ -110,7 +110,7 @@ namespace CADability
         {
             uv1 = surface1.PositionOf(planeLocation);
             uv2 = surface2.PositionOf(planeLocation);
-            System.Diagnostics.Trace.WriteLine("ohne Jacobi");
+            // System.Diagnostics.Trace.WriteLine("ohne Jacobi");
 
             var pHat = planeNormal.Normalized;
 
@@ -121,7 +121,7 @@ namespace CADability
             Func<Vector<double>, Vector<double>, Vector<double>> residual = (p, observedXdumy) =>
             {
                 double u1 = p[0], v1 = p[1], u2 = p[2], v2 = p[3];
-                System.Diagnostics.Trace.WriteLine($"uv: {u1}; {v1}; {u2}; {v2}");
+                //System.Diagnostics.Trace.WriteLine($"uv: {u1}; {v1}; {u2}; {v2}");
                 surface1.DerivationAt(new GeoPoint2D(u1, v1), out var P1, out var Su1, out var Sv1);
                 surface2.DerivationAt(new GeoPoint2D(u2, v2), out var P2, out var Su2, out var Sv2);
                 // Residuenblöcke
@@ -175,7 +175,7 @@ namespace CADability
             const double epsPlane = 1e-6;
             const double epsNorm = 1e-3;
 
-            bool ok = result.ReasonForExit == ExitCondition.Converged
+            bool ok = (result.ReasonForExit == ExitCondition.Converged || result.ReasonForExit == ExitCondition.RelativePoints || result.ReasonForExit == ExitCondition.RelativeGradient)
                       && rpNorm <= epsPos && rpiAbs <= epsPlane && rnNorm <= epsNorm;
 
             if (!ok) return false;
@@ -193,7 +193,7 @@ namespace CADability
 
             var pHat = planeNormal.Normalized;
             var p0 = Vector<double>.Build.DenseOfArray(new[] { uv1.x, uv1.y, uv2.x, uv2.y });
-            System.Diagnostics.Trace.WriteLine("mit Jacobi");
+            //System.Diagnostics.Trace.WriteLine("mit Jacobi");
 
             // Gewichte (je nach Maßstab ggf. anpassen)
             double wp = 1.0, wpi = 2.0, wn = 0.5;
@@ -217,7 +217,7 @@ namespace CADability
             Func<Vector<double>, Vector<double>, Vector<double>> function = (p, obsX) =>
             {
                 double u1 = p[0], v1 = p[1], u2 = p[2], v2 = p[3];
-                System.Diagnostics.Trace.WriteLine($"uv: {u1}; {v1}; {u2}; {v2}");
+                //System.Diagnostics.Trace.WriteLine($"uv: {u1}; {v1}; {u2}; {v2}");
 
                 s1.DerivationAt(new GeoPoint2D(u1, v1), out var P1, out var Su1, out var Sv1);
                 s2.DerivationAt(new GeoPoint2D(u2, v2), out var P2, out var Su2, out var Sv2);

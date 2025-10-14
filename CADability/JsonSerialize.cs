@@ -1627,6 +1627,12 @@ namespace CADability
         {
             SerializationDoneCallback.Add(toCall);
         }
+
+        public int GetTypeVersion(Type type)
+        {
+            if (typeVersions.TryGetValue(type.FullName, out int v)) return v;
+            return -1;
+        }
         #endregion
     }
 

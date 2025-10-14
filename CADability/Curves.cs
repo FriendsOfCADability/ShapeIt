@@ -591,11 +591,13 @@ namespace CADability.GeoObject
                     return true; // fertig, alle sind drin.
                 }
             }
-            GeoPoint[] pnts = new GeoPoint[curves.Count * 2];
+            GeoPoint[] pnts = new GeoPoint[curves.Count * 4];
             for (int i = 0; i < curves.Count; ++i)
             {
                 pnts[2 * i] = curves[i].StartPoint;
                 pnts[2 * i + 1] = curves[i].EndPoint;
+                pnts[2 * i + 2] = curves[i].PointAt(1.0/3.0);
+                pnts[2 * i + 3] = curves[i].PointAt(2.0 / 3.0);
             }
             CommonPlane = Plane.FromPoints(pnts, out double maxdist, out bool isLinear);
             if (isLinear)

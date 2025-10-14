@@ -1337,6 +1337,9 @@ namespace ShapeIt
             filletAxisCurve.Trim(filletAxisLeft, filletAxisRight);
             ISurface sweptCircle;
             sweptCircle = SweptCircle.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
+#if DEBUG
+            GeoObjectList dbgsws = (sweptCircle as ISurfaceImpl).DebugGrid;
+#endif
 
             // we need bounds for sweptCircle to enable Makeface to use BoxedSurface methods
             sweptCircle.SetBounds(new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2));
@@ -1348,9 +1351,37 @@ namespace ShapeIt
             GeoVector testNormal = sweptCircle.GetNormal(new GeoPoint2D(0.5, Math.PI));
             GeoPoint testPoint = sweptCircle.PointAt(new GeoPoint2D(0.5, Math.PI));
             if (testNormal * (filletAxisCurve.Curve3D.PointAt(0.5) - testPoint) < 0) sweptCircle.ReverseOrientation();
+            // find the tangential curves at the "long" sides of the sweptSurface
+            List<GeoPoint> intermediatePoints = new List<GeoPoint>();
+            for (int i = 0; i <= 10; i++)
+            {
+                GeoPoint pc = filletAxisCurve.Curve3D.PointAt(i / 10.0);
+                GeoPoint2D[] fp2d = topSurface.PerpendicularFoot(pc);
+                if (fp2d != null && fp2d.Length > 0)
+                {
+                    GeoPoint p = fp2d.Select(p2d => topSurface.PointAt(p2d)).MinBy(p => Math.Abs(filletAxisCurve.Curve3D.DistanceTo(p) - radius));
+                    intermediatePoints.Add(p);
+                }
+            }
+            InterpolatedDualSurfaceCurve dsTopTangentialCurve = new InterpolatedDualSurfaceCurve(topSurface.Clone(), edgeToRound.PrimaryFace.Domain, sweptCircle.Clone(), new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2),
+                intermediatePoints.ToArray(), null, null, true);
+            intermediatePoints.Clear();
+            for (int i = 0; i <= 10; i++)
+            {
+                GeoPoint pc = filletAxisCurve.Curve3D.PointAt(i / 10.0);
+                GeoPoint2D[] fp2d = bottomSurface.PerpendicularFoot(pc);
+                if (fp2d != null && fp2d.Length > 0)
+                {
+                    GeoPoint p = fp2d.Select(p2d => bottomSurface.PointAt(p2d)).MinBy(p => Math.Abs(filletAxisCurve.Curve3D.DistanceTo(p) - radius));
+                    intermediatePoints.Add(p);
+                }
+            }
+            InterpolatedDualSurfaceCurve dsBottomTangentialCurve = new InterpolatedDualSurfaceCurve(bottomSurface.Clone(), edgeToRound.SecondaryFace.Domain, sweptCircle.Clone(), new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2),
+                intermediatePoints.ToArray(), null, null, true);
             sweptCircle.SetBounds(BoundingRect.EmptyBoundingRect);
+
             ICurve topTangentialCurve = topSurface.Make3dCurve(filletAxisCurve.Curve2D1);
-            Edge e1 = new Edge(null, topTangentialCurve, null, sweptCircle.GetProjectedCurve(topTangentialCurve, 0.0), true);
+            Edge e1 = new Edge(null, dsTopTangentialCurve, null, dsTopTangentialCurve.CurveOnSurface2, true);
 
             GeoPoint2D uvswc, uvs;
             GeoPoint rb, rt;
@@ -1377,7 +1408,8 @@ namespace ShapeIt
 
             ICurve bottomTangentialCurve = bottomSurface.Make3dCurve(filletAxisCurve.Curve2D2);
             bottomTangentialCurve.Reverse();
-            Edge e3 = new Edge(null, bottomTangentialCurve, null, sweptCircle.GetProjectedCurve(bottomTangentialCurve, 0.0), true);
+            dsBottomTangentialCurve.Reverse();
+            Edge e3 = new Edge(null, dsBottomTangentialCurve, null, dsBottomTangentialCurve.CurveOnSurface2, true);
 
             GeoPoint lb, lt;
             if (BoxedSurfaceExtension.FindTangentialIntersectionPoint(leftPlane.Location, leftPlane.Normal, sweptCircle, bottomSurface, out uvswc, out uvs))
@@ -1400,7 +1432,7 @@ namespace ShapeIt
             lid1crv3.EndPoint = lb;
             lid1crv3.Reverse();
             Edge e4 = new Edge(null, lid1crv3, null, sweptCircle.GetProjectedCurve(lid1crv3, 0.0), true);
-            
+
             sweptFace = Face.MakeFace(sweptCircle, [e1, e2, e3, e4]);
             sweptFace.ReverseOrientation();
             frontEnd = [e2, e4];
@@ -1439,7 +1471,7 @@ namespace ShapeIt
                                 if (extension2 != null) filletPlusExtension.Add(extension2);
                             }
                         }
-                        if (tangential!=null)
+                        if (tangential != null)
                         {
                             // we expect the tangentials in the correct order!
                             tangentialEdges.Add((edgeToRound.PrimaryFace, tangential[0]));

@@ -505,6 +505,7 @@ namespace CADability.GeoObject
         /// <param name="toPoints"></param>
         /// <returns>The sum of the squared errors</returns>
         double Fit(IEnumerable<GeoPoint> toPoints);
+        bool IsCurveOnSurface(ICurve curve);
     }
 
     /// <summary>
@@ -4748,6 +4749,18 @@ namespace CADability.GeoObject
 #endif
             return md;
             */
+        }
+        public virtual bool IsCurveOnSurface(ICurve curve)
+        {
+            if (GetDistance(curve.StartPoint) > Precision.eps) return false; // surfaces with natural bounds should overwrite this method
+            if (GetDistance(curve.EndPoint) > Precision.eps) return false;
+            for (int i = 0; i < 5; i++)
+            {   // this is a rough test only. Overwrite when necessary
+                GeoPoint2D uv = PositionOf(curve.PointAt(i / 4.0));
+                GeoVector cross = GetNormal(uv).Normalized ^ curve.DirectionAt(i / 4.0).Normalized;
+                if (Math.Abs((GetNormal(uv).Normalized * curve.DirectionAt(i / 4.0).Normalized)) > Precision.eps) return false;
+            }
+            return true;
         }
 
         private GeoPoint2D[] newtonFindTangent(GeoVector dir3d, GeoPoint2D sp, GeoPoint2D ep, GeoVector sn, GeoVector en, double precision)
@@ -15301,6 +15314,10 @@ namespace CADability.GeoObject
                     while (Math.Abs(p2d.y - vm) > Math.Abs(p2d.y + surface.VPeriod - vm)) p2d.y += surface.VPeriod;
                 }
             }
+        }
+        public static void AdjustPeriodic(ISurface surface, ref GeoPoint2D p2d)
+        {
+            if (surface is ISurfaceImpl si) AdjustPeriodic(surface, si.usedArea, ref p2d);
         }
         internal static void AdjustUPeriodic(ISurface surface, BoundingRect bounds, ref double u)
         {

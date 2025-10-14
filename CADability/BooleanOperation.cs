@@ -11,6 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using Wintellect.PowerCollections;
+
 #if WEBASSEMBLY
 using CADability.WebDrawing;
 #else
@@ -213,28 +214,30 @@ namespace CADability
 
             bool tangentialIntersectionFound = false;
             HashSet<Vertex> intersectionVertices = new HashSet<Vertex>();
-            foreach (Edge edge in fc2.Edges)
+            foreach (var (fca, fcb) in new[] { (fc1, fc2), (fc2, fc1) })
             {
-                if (edge.Curve3D != null) // not a pole
+                foreach (Edge edge in fcb.Edges)
                 {
-                    if (tangentialEdges.Contains((fc1, edge)))
+                    if (edge.Curve3D != null) // not a pole
                     {
-                        CreateIntersectionEdges(fc1, fc2, [edge.Vertex1, edge.Vertex2], [edge.Curve3D]);
-                        tangentialIntersectionFound = true;
+                        IEnumerable<Vertex> vtxs = GetFaceEdgeIntersection(fca, edge, out bool curveIsInSurface);
+                        if (curveIsInSurface)
+                        {
+                            List<ICurve> curveParts = new List<ICurve>();
+                            var list = vtxs as IList<Vertex> ?? vtxs.ToList();
+                            for (int i = 0; i < list.Count - 1; i += 2)
+                            {
+                                var a = list[i];
+                                var b = list[i + 1];
+                                ICurve part = edge.Curve3D.Clone();
+                                part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(a.Position));
+                                curveParts.Add(part);
+                            }
+                            CreateIntersectionEdges(fca, fcb, vtxs.ToHashSet(), curveParts.ToList());
+                            tangentialIntersectionFound = true;
+                        }
+                        else intersectionVertices.UnionWith(vtxs);
                     }
-                    else intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc1, edge));
-                }
-            }
-            foreach (Edge edge in fc1.Edges)
-            {
-                if (edge.Curve3D != null) // not a pole
-                {
-                    if (tangentialEdges.Contains((fc2, edge)))
-                    {
-                        CreateIntersectionEdges(fc1, fc2, [edge.Vertex1, edge.Vertex2], [edge.Curve3D]);
-                        tangentialIntersectionFound = true;
-                    }
-                    else intersectionVertices.UnionWith(AddFaceEdgeIntersection(fc2, edge));
                 }
             }
             if (intersectionVertices.Count == 0 && !tangentialIntersectionFound)
@@ -913,21 +916,41 @@ namespace CADability
             }
         }
 
-        private IEnumerable<Vertex> AddFaceEdgeIntersection(Face face, Edge edge)
+        private IEnumerable<Vertex> GetFaceEdgeIntersection(Face face, Edge edge, out bool curveIsInSurface)
         {
             List<Vertex> res = new List<Vertex>();
             GeoPoint[] ip;
             GeoPoint2D[] uvOnFace;
             double[] uOnCurve3D;
             Border.Position[] position;
+            curveIsInSurface = false;
+            if (edge.Curve3D == null) return res;
             double prec = precision / edge.Curve3D.Length;
             //if (knownIntersections != null && knownIntersections.TryGetValue(ef.edge, out Tuple<Face, Face> ki))
             //{
             //    if (ki.Item1 == ef.face || ki.Item2 == ef.face) continue;
             //}
             if (edge.PrimaryFace == face || edge.SecondaryFace == face) return res; // necessary for multipleFaces
-            if (edge.PrimaryFace.Surface.SameGeometry(edge.PrimaryFace.Domain, face.Surface, face.Domain, precision, out ModOp2D _)) return res;
-            if (edge.SecondaryFace != null && edge.SecondaryFace.Surface.SameGeometry(edge.SecondaryFace.Domain, face.Surface, face.Domain, precision, out ModOp2D _)) return res;
+            if (edge.PrimaryFace.Surface.SameGeometry(edge.PrimaryFace.Domain, face.Surface, face.Domain, precision, out ModOp2D _)) { curveIsInSurface = true; return res; }
+            if (edge.SecondaryFace != null && edge.SecondaryFace.Surface.SameGeometry(edge.SecondaryFace.Domain, face.Surface, face.Domain, precision, out ModOp2D _)) { curveIsInSurface = true; return res; }
+            if (face.Surface.IsCurveOnSurface(edge.Curve3D))
+            {
+                ICurve2D c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);
+                double[] parts = face.Area.Clip(c2d, true);
+                for (int i = 0; i < parts.Length; i++)
+                {
+                    GeoPoint2D uv = c2d.PointAt(parts[i]);
+                    GeoPoint p = face.Surface.PointAt(uv);
+                    Vertex v = CreateOrFindVertex(p);
+                    v.AddPositionOnFace(face, uv);
+                    // not sure whether we still need IntersectionVertex
+                    if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
+                    edgesToSplit[edge].Add(v);
+                    res.Add(v);
+                }
+                curveIsInSurface = true;
+                return res;
+            }
             face.IntersectAndPosition(edge, out ip, out uvOnFace, out uOnCurve3D, out position, precision);
             for (int i = 0; i < ip.Length; ++i)
             {

@@ -713,6 +713,11 @@ namespace CADability.GeoObject
         {
             return Precision.IsPerpendicular(Normal, direction, false);
         }
+        public override bool IsCurveOnSurface(ICurve curve)
+        {
+            if (curve.GetPlanarState() == PlanarState.Planar && curve.GetPlane().SamePlane(Plane)) return true;
+            return false;
+        }
         #endregion
         #region ISerializable Members
         protected PlaneSurface(SerializationInfo info, StreamingContext context)

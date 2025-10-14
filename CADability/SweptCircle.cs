@@ -489,6 +489,9 @@ namespace CADability.GeoObject
             else u = spine.PositionOf(p);
             if (normal != GeoVector.NullVector)
             {
+#if DEBUG
+                GeoObjectList dbgl = this.DebugGrid;
+#endif
                 GeoPoint spinePoint = spine.PointAt(u);
                 GeoVector tangent = spine.DirectionAt(u).Normalized;
                 GeoVector yAxis = (normal ^ tangent).Normalized;

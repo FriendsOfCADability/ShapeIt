@@ -384,5 +384,10 @@ namespace CADability
         {
             return original.IsRotated(rotationAxis);
         }
+
+        public bool IsCurveOnSurface(ICurve curve)
+        {
+            throw new NotImplementedException();
+        }
     }
 }
