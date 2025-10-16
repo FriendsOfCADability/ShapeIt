@@ -239,11 +239,14 @@ namespace CADability.UserInterface
             }
             else if (Regex.Match(text, @"^@?[A-Za-z_][A-Za-z0-9_]*$").Success)
             {   // a named value
-                object o = Frame.Project.GetNamedValue(text);
-                if (o is GeoPoint pp)
+                if (Frame.Project.NamedValues.Table.ContainsKey(text))
                 {
-                    val = pp;
-                    return true;
+                    object o = Frame.Project.NamedValues.Table[text];
+                    if (o is GeoPoint pp)
+                    {
+                        val = pp;
+                        return true;
+                    }
                 }
             }
             return false;

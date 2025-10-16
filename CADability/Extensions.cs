@@ -4,9 +4,42 @@ using System.Collections.Generic;
 using CADability.GeoObject;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
+using System.Collections.Immutable;
 
 namespace CADability
 {
+
+    sealed class ImmutableSetComparer<T> : IEqualityComparer<ImmutableHashSet<T>>
+    {
+        private readonly IEqualityComparer<T> _elem;
+
+        public ImmutableSetComparer(IEqualityComparer<T> elementComparer = null)
+            => _elem = elementComparer ?? EqualityComparer<T>.Default;
+
+        public bool Equals(ImmutableHashSet<T> x, ImmutableHashSet<T> y)
+        {
+            if (ReferenceEquals(x, y)) return true;
+            if (x is null || y is null) return false;
+            // Set-Gleichheit (inhaltlich)
+            return x.SetEquals(y);
+        }
+
+        public int GetHashCode(ImmutableHashSet<T> set)
+        {
+            if (set is null) return 0;
+
+            // Ordnungunabhängiger Hash: Summe der Element-Hashes (kommutativ).
+            // Alternativen: XOR, oder HashCode.Aggregate (aber Summen sind stabil & simpel).
+            int hash = 0;
+            foreach (var item in set)
+            {
+                // Null-handling nur relevant, falls T nullable ist
+                hash = unchecked(hash + (_elem.GetHashCode(item!) * 397));
+            }
+            return hash;
+        }
+    }
+
     sealed class UnorderedPairComparer<T> : IEqualityComparer<(T A, T B)>
     {
         private static readonly IEqualityComparer<T> C = EqualityComparer<T>.Default;

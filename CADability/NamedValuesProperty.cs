@@ -12,12 +12,12 @@ namespace CADability
     /// 
     /// </summary>
     [Serializable]
-    internal class NamedValuesProperty : IShowPropertyImpl, ICommandHandler, ISerializable, IJsonSerialize
+    public class NamedValuesProperty : IShowPropertyImpl, ICommandHandler, ISerializable, IJsonSerialize
     {
-        private Hashtable namedValues;
+        private Dictionary<string,object> namedValues;
         public NamedValuesProperty()
         {
-            namedValues = new Hashtable();
+            namedValues = new Dictionary<string, object>();
             this.resourceIdInternal = "NamedValues";
         }
         public object GetNamedValue(string name)
@@ -70,7 +70,7 @@ namespace CADability
         public string GetCode()
         {
             StringBuilder sb = new StringBuilder();
-            foreach (DictionaryEntry de in namedValues)
+            foreach (KeyValuePair<string,object> de in namedValues)
             {
                 // GeoPoint p1 { get { return (GeoPoint)namedValues["p1"]; } }
                 string pattern = @"%type% %name% { get { return (%type%)namedValues[""%name%""]; } }
@@ -81,7 +81,7 @@ namespace CADability
             }
             return sb.ToString();
         }
-        public Hashtable Table { get { return namedValues; } }
+        public Dictionary<string,object> Table { get { return namedValues; } }
         #region IShowPropertyImpl Overrides
         private IShowProperty[] subEntries;
         /// <summary>
@@ -145,7 +145,7 @@ namespace CADability
                 {
                     ArrayList res = new ArrayList();
 
-                    foreach (DictionaryEntry de in namedValues)
+                    foreach (KeyValuePair<string,object> de in namedValues)
                     {
                         string currentName = de.Key as string;
                         if (de.Value is double)
@@ -355,7 +355,11 @@ namespace CADability
         protected NamedValuesProperty(SerializationInfo info, StreamingContext context)
             : this()
         {
-            namedValues = info.GetValue("NamedValues", typeof(Hashtable)) as Hashtable;
+            Hashtable ht = info.GetValue("NamedValues", typeof(Hashtable)) as Hashtable;
+            foreach (DictionaryEntry de in ht)
+            {
+                namedValues[(string)de.Key] = de.Value;
+            }
         }
         /// <summary>
         /// Implements <see cref="ISerializable.GetObjectData"/>
@@ -370,7 +374,7 @@ namespace CADability
         public void GetObjectData(IJsonWriteData data)
         {
             Dictionary<string, object> typedDict = new Dictionary<string, object>();
-            foreach (DictionaryEntry de in namedValues)
+            foreach (KeyValuePair<string, object> de in namedValues)
             {
                 // It starts with a "(" to avoid conflicts with "$" and to specify the type
                 // to be able to restore the correct type in case of GeoPoint, GeoVector or others

@@ -1,4 +1,4 @@
-﻿// Roslyn-Version of the old scripting class using CSharpCodeProvider
+﻿// Roslyn-Version deiner Scripting-Klasse
 using System;
 using System.Collections;
 using System.IO;
@@ -52,7 +52,7 @@ namespace CADability
             // Basis
             Add(typeof(object).Assembly);                // System.Private.CoreLib / mscorlib
             Add(typeof(Enumerable).Assembly);            // System.Linq
-            Add(typeof(Hashtable).Assembly);             // System.Collections
+            Add(typeof(Dictionary<string,object>).Assembly);             // System.Collections
             Add(typeof(Regex).Assembly);                 // System.Text.RegularExpressions
 
             // CADability selbst (GeoPoint/GeoVector liegen hier)
@@ -85,8 +85,8 @@ public class ScriptClass
     GeoVector v(double x, double y, double z) { return new GeoVector(x,y,z); }
     GeoPoint p(double x, double y, double z) { return new GeoPoint(x,y,z); }
     %namedValues%
-    Hashtable namedValues;
-    public ScriptClass(Hashtable namedValues)
+    Dictionary<string,object> namedValues;
+    public ScriptClass(Dictionary<string,object> namedValues)
     {
         this.namedValues = namedValues;
     }
@@ -135,7 +135,7 @@ public class ScriptClass
             try
             {
                 var scriptType = generatedAssembly.GetType("ScriptClass", throwOnError: true);
-                var ctor = scriptType.GetConstructor(new Type[] { typeof(Hashtable) });
+                var ctor = scriptType.GetConstructor(new Type[] { typeof(Dictionary<string, object>) });
                 if (ctor == null) throw new ScriptingException("Constructor not found");
 
                 var scriptInstance = ctor.Invoke(new object[] { namedValues.Table });

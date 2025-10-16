@@ -672,13 +672,14 @@ namespace CADability
             try
             {
                 NonlinearMinimizationResult mres = lm.FindMinimum(iom, new DenseVector(new double[] { uv1.x, uv1.y, uv2.x, uv2.y, uv3.x, uv3.y }));
-                if (mres.ReasonForExit == ExitCondition.Converged)
+                if (mres.ReasonForExit == ExitCondition.Converged || mres.ReasonForExit == ExitCondition.RelativeGradient || mres.ReasonForExit == ExitCondition.RelativePoints)
                 {
                     uv1 = new GeoPoint2D(mres.MinimizingPoint[0], mres.MinimizingPoint[1]);
                     uv2 = new GeoPoint2D(mres.MinimizingPoint[2], mres.MinimizingPoint[3]);
                     uv3 = new GeoPoint2D(mres.MinimizingPoint[4], mres.MinimizingPoint[5]);
                     GeoPoint p1 = surface1.PointAt(uv1);
                     ip = new GeoPoint(surface1.PointAt(uv1), surface2.PointAt(uv2), surface3.PointAt(uv3));
+                    // we could use the distances of the three points to decide whether the result is good
                     return true;
                 }
                 else

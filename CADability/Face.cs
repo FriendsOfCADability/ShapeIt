@@ -4321,6 +4321,7 @@ namespace CADability.GeoObject
                         // conical surface v-offset
                     }
                 }
+                if (surface is ISurfaceImpl si1 && area != null) si1.usedArea = area.GetExtent();
                 return area;
             }
         }
@@ -8232,7 +8233,8 @@ namespace CADability.GeoObject
                 }
                 try
                 {
-                    Surface.SetBounds(Area.GetExtent());
+                    // Surface.SetBounds(Area.GetExtent());
+                    // problem: outline no completely deserialized here
                 }
                 catch { }
                 // repairing poles:

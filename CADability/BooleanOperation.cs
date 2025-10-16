@@ -7,6 +7,7 @@ using MathNet.Numerics;
 using Microsoft.VisualStudio.DebuggerVisualizers;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -230,7 +231,7 @@ namespace CADability
                                 var a = list[i];
                                 var b = list[i + 1];
                                 ICurve part = edge.Curve3D.Clone();
-                                part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(a.Position));
+                                part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(b.Position));
                                 curveParts.Add(part);
                             }
                             CreateIntersectionEdges(fca, fcb, vtxs.ToHashSet(), curveParts.ToList());
@@ -240,7 +241,8 @@ namespace CADability
                     }
                 }
             }
-            if (intersectionVertices.Count == 0 && !tangentialIntersectionFound)
+            if (tangentialIntersectionFound) return; // if there is a tangential intersection, we don't need to calculate further intersections
+            if (intersectionVertices.Count == 0)
             {
                 // test for inner intersections, where no edges are involved
                 if (!fc1.GetExtent(0.0).Interferes(fc2.GetExtent(0.0))) return; // bounding boxes don't interfere: no intersection
@@ -647,7 +649,9 @@ namespace CADability
                                     }
 
                                 }
-                                // following is a fallback to an older approach
+                                if (normalsCrossedMiddle.Length < 10 * Precision.eps) continue; // we didn't find a good pair of normals, so we cannot determine the direction of the edge
+                                // following is a fallback to an older approach, which is not executed any more
+                                // in SplitBug1 we explicitely cannot use this intersection
                                 if (normalsCrossedMiddle.Length < 10 * Precision.eps)
                                 {
                                     GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
@@ -3628,6 +3632,7 @@ namespace CADability
 #endif
             HashSet<Face> discardedFaces = new HashSet<Face>(faceToIntersectionEdges.Keys); // these faces may not appear in the final result, because they will be trimmed
             HashSet<Face> trimmedFaces = new HashSet<Face>(); // collection of faces which are trimmed (spitted, cut, edged) during this process
+            HashSet<Face> trimmedOverlappingFaces = new HashSet<Face>(); // collection of faces which are the result of overlapping faces
             VertexConnectionSet nonManifoldEdges = new VertexConnectionSet();
             HashSet<Face> nonManifoldCandidates = new HashSet<Face>(); // faces, which are only added because they contain nonManifoldEdges.
             splittedFaces = new Dictionary<Face, List<Face>>(); // maybe the caller wants to know which faces have been splitted into which faces
@@ -3691,7 +3696,7 @@ namespace CADability
                             // two inverse intersection edges are also identical with an original edge:
                             // this will make an ambiguous situation
                             nonManifoldEdges.Add(edg);
-                            hasNonManifoldEdge = true;
+                            // hasNonManifoldEdge = true; // excluded for debugging SplitBug1
                         }
                     }
                     else
@@ -3715,7 +3720,7 @@ namespace CADability
                         edg.DisconnectFromFace(faceToSplit);
                     }
                 }
-                if (commonOverlappingFaces.Contains(faceToSplit)) originalEdges.Clear(); // when this face is part of overlapping faces, we do not need the original edges (outline)
+                if (commonOverlappingFaces.Contains(faceToSplit)) originalEdges.Clear(); // when this face is an overlapping face, we do not need the original edges (outline)
                                                                                          // because they are not part of the result
                                                                                          // now originalEdges contain all edges of the face, that could be used, intersectionEdges contain all edges that must be used
 #if DEBUG       // show the original edges of the faceToSplit (blue) and the intersection edges (red) for this face, where duplicates and reverses are already removed
@@ -3855,8 +3860,8 @@ namespace CADability
                         SimpleShape ss = fc.Area;
                     }
 #endif
-
-                    trimmedFaces.Add(fc);
+                    if (commonOverlappingFaces.Contains(faceToSplit)) trimmedOverlappingFaces.Add(fc);
+                    else trimmedFaces.Add(fc);
                     if (!splittedFaces.TryGetValue(faceToSplit, out List<Face> newFaces)) splittedFaces[faceToSplit] = newFaces = new List<Face>();
                     newFaces.Add(fc);
                 }
@@ -3883,7 +3888,48 @@ namespace CADability
                 }
             }
 #endif
+            // OVERLAPPING: we could probably work without using (same orientation) overlapping, because the overlapping faces are also contained in 
+            // faceTointersectionEdges and should return the correct result. The problem might be that there are multiple identical results, which are
+            // removed by the following code
+            // find all faces in trimmedFaces, which are identical to trimmedOverlappingFaces
+            HashSet<Face> availableFaces = [.. shell1.Faces, ..shell2.Faces];
+            availableFaces.ExceptWith(discardedFaces);
+            if (trimmedOverlappingFaces.Count > 0) // usually this is empty
+            {
+                var setComparer = new ImmutableSetComparer<Vertex>(EqualityComparer<Vertex>.Default);
+                // remove the identical faces from trimmedFaces, and use the trimmedOverlappingFaces instead
+                Dictionary<ImmutableHashSet<Vertex>, List<Face>> trimmedFaceSignatures = new Dictionary<ImmutableHashSet<Vertex>, List<Face>>(setComparer);
+                // Create and populate the dictionary: faces with the same vertices are kept in a single list
+                foreach (var tfc in trimmedFaces.Union(availableFaces))
+                {
+                    var key = tfc.Vertices.ToImmutableHashSet(EqualityComparer<Vertex>.Default);
+                    if (!trimmedFaceSignatures.TryGetValue(key, out var list)) trimmedFaceSignatures[key] = list = new List<Face>();
+                    list.Add(tfc);
+                }
+                foreach (List<Face> lf in trimmedFaceSignatures.Values)
+                {
+                    if (lf.Count > 1)
+                    {
+                        trimmedFaces.ExceptWith(lf.Skip(1));
+                        availableFaces.ExceptWith(lf.Skip(1));
+                        discardedFaces.UnionWith(lf.Skip(1));
+                    }
+                }
+                // the following relies on overlapping faces, which I think we dont even need any more
+                // now remove all faces from trimmedFaces, which have the same vertices as a face in trimmedOverlappingFaces
+                // and add the faces from trimmedOverlappingFaces instead
+                //foreach (var ofc in trimmedOverlappingFaces)
+                //{
+                //    var key = ofc.Vertices.ToImmutableHashSet(EqualityComparer<Vertex>.Default);
+                //    if (trimmedFaceSignatures.TryGetValue(key, out var list))
+                //    {
+                //        trimmedFaces.ExceptWith(list);
+                //    }
+                //}
+                //trimmedFaces.UnionWith(trimmedOverlappingFaces);
+            }
             // to avoid oppositeCommonFaces to be connected with the trimmedFaces, we destroy these faces
+
             foreach (Face fce in discardedFaces) fce.DisconnectAllEdges(); // to avoid connecting with discardedFaces
                                                                            // if we have two open edges in the trimmed faces which are identical, connect them
             Dictionary<DoubleVertexKey, Edge> trimmedEdges = new Dictionary<DoubleVertexKey, Edge>();
@@ -4038,6 +4084,7 @@ namespace CADability
 #if DEBUG
             foreach (Face fce in allFaces)
             {
+                fce.AssureTriangles(0.1);
                 bool ok = fce.CheckConsistency();
             }
 #endif

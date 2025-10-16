@@ -2640,6 +2640,22 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public virtual GeoVector GetNormal(GeoPoint2D uv)
         {
+#if DEBUG
+            GeoVector du = new GeoVector(
+                Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).x, uv.x),
+                Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).y, uv.x),
+                Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).z, uv.x));
+            GeoVector dv = new GeoVector(
+                Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).x, uv.y),
+                Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).y, uv.y),
+                Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).z, uv.y));
+            SweepAngle au = new SweepAngle(du, UDirection(uv));
+            SweepAngle av = new SweepAngle(dv, VDirection(uv));
+            if (Math.Abs(au)>0.1 || Math.Abs(av) > 0.1)
+            {
+                
+            }
+#endif
             return (this as ISurface).UDirection(uv) ^ (this as ISurface).VDirection(uv);
             // return new GeoVector(Helper.GetNormal(uv.ToCndHlp()));
         }
@@ -5442,7 +5458,7 @@ namespace CADability.GeoObject
                     // Polyline pl = Polyline.FromPoints(ips.ToArray());
                     if (ips.Count > 1 && seeds.Any(p => Precision.IsEqual(p, ips[0])) && seeds.Any(p => Precision.IsEqual(p, ips[ips.Count - 1])))
                     { // start and endpoint are seeds
-                        res.Add(new InterpolatedDualSurfaceCurve(this, other, surfacePoints.ToArray()));
+                        res.Add(new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, surfacePoints.ToArray()));
                         if (seeds.Count == 2 && !Precision.IsEqual(ips[0], ips[ips.Count - 1]))
                         {   // only two seeds and the curve uses both, so we are done
                             // this is a very common case, we return the first intersection curve we found
@@ -5942,6 +5958,7 @@ namespace CADability.GeoObject
             List<int> toRemove = new List<int>();
             for (int i = 0; i < dscs.Length; i++)
             {
+
                 if (dscs[i].Curve3D.IsClosed)
                 {
                     List<GeoPoint> pointsOnCurve = new List<GeoPoint>();
@@ -6010,43 +6027,6 @@ namespace CADability.GeoObject
                     }
                 }
             }
-            //Set<int> unusedPoints = new Set<int>();
-            //for (int i = 0; i < points.Count; i++)
-            //{
-            //    unusedPoints.Add(i);
-            //}
-            //while (unusedPoints.Count > 0)
-            //{
-            //    int ind = unusedPoints.GetAny();
-            //    ICurve cv = Intersect(surface1, bounds1, surface2, bounds2, points[ind]);
-            //    if (cv != null)
-            //    {
-            //        lcrvs3d.Add(cv);
-            //        ICurve2D cvons1 = surface1.GetProjectedCurve(cv, Precision.eps);
-            //        ICurve2D cvons2 = surface2.GetProjectedCurve(cv, Precision.eps);
-            //        SurfaceHelper.AdjustPeriodic(surface1, bounds1, cvons1);
-            //        SurfaceHelper.AdjustPeriodic(surface2, bounds2, cvons2);
-            //        lcrvsOnSurface1.Add(cvons1);
-            //        lcrvsOnSurface2.Add(cvons2);
-            //        for (int i = 0; i < points.Count; i++)
-            //        {
-            //            bool close = cv.DistanceTo(points[i]) < Precision.eps;
-            //            if (unusedPoints.Contains(i) && close)
-            //            {
-            //                unusedPoints.Remove(i);
-            //                params3d[i] = cv.PositionOf(points[i]);
-            //                paramsuvsurf1[i] = surface1.PositionOf(points[i]);
-            //                paramsuvsurf2[i] = surface2.PositionOf(points[i]);
-            //                SurfaceHelper.AdjustPeriodic(surface1, bounds1, ref paramsuvsurf1[i]);
-            //                SurfaceHelper.AdjustPeriodic(surface2, bounds2, ref paramsuvsurf2[i]);
-            //                params2dsurf1[i] = cvons1.PositionOf(paramsuvsurf1[i]);
-            //                params2dsurf2[i] = cvons2.PositionOf(paramsuvsurf2[i]);
-            //            }
-            //            if (close) pointOnCurveindex[i]= lcrvs3d.Count - 1;
-            //        }
-            //    }
-            //    unusedPoints.Remove(ind); // der muss weg, damit keine Endlosschleife
-            //}
             crvs3d = lcrvs3d.ToArray();
             crvsOnSurface1 = lcrvsOnSurface1.ToArray();
             crvsOnSurface2 = lcrvsOnSurface2.ToArray();
@@ -9583,6 +9563,10 @@ namespace CADability.GeoObject
             cube.nul.NormIfNotNull();
             cube.nur.NormIfNotNull();
 #if DEBUG
+            if (Math.Abs(cube.Volume) < Precision.eps)
+            {
+                Face dbgfc = Face.MakeFace(surface, uvPatch);
+            }
             DebuggerContainer dc1 = new DebuggerContainer();
             dc1.Add(Line.MakeLine(cube.pll, cube.plr));
             dc1.Add(Line.MakeLine(cube.plr, cube.pur));
@@ -10035,7 +10019,7 @@ namespace CADability.GeoObject
                     cube.normal = normal; // ZDiff==0.0 ist ein echtes problem, also ein komplett ebenes stück
                                           // das sollte man extra vermerken und in verschiedenen Situationen darauf rücksicht nehmen
                     cube.isFlat = bc.ZDiff < Precision.eps;
-                    if (cube.normal.IsNullVector())
+                    if (Math.Abs(cube.Volume) < Precision.eps)
                     {
                     }
 

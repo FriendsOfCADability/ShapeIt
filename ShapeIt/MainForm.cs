@@ -528,7 +528,7 @@ namespace ShapeIt
             }
             if (slds.Count==2)
             {
-                Solid sld = NewBooleanOperation.Unite(slds[1], slds[0]);
+                Solid[] sld = NewBooleanOperation.Intersect(slds[1], slds[0]);
             }
             if (slds.Count==1)
             {

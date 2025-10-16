@@ -70,10 +70,12 @@
 		</EmbeddedResource>
 	</ItemGroup>
 
+	<ItemGroup>
+	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+	</ItemGroup>
+
 	<!-- Mini-Task zum Erhöhen der 4. Stelle (Revision) -->
-	<UsingTask TaskName="BumpVersion"
-			   TaskFactory="CodeTaskFactory"
-			   AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+	<UsingTask TaskName="BumpVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
 		<ParameterGroup>
 			<VersionIn ParameterType="System.String" Required="true" />
 			<VersionOut ParameterType="System.String" Output="true" />
@@ -89,9 +91,7 @@
 	</UsingTask>
 
 	<!-- Nur bei Release *vor* dem Kompilieren erhöhen, keine DesignTime-Builds -->
-	<Target Name="BumpVersionOnRelease"
-			BeforeTargets="CoreCompile"
-			Condition="'$(Configuration)' == 'Release' AND '$(DesignTimeBuild)' != 'true'">
+	<Target Name="BumpVersionOnRelease" BeforeTargets="CoreCompile" Condition="'$(Configuration)' == 'Release' AND '$(DesignTimeBuild)' != 'true'">
 		<ReadLinesFromFile File="$(VersionFile)">
 			<Output TaskParameter="Lines" ItemName="_VersionLine" />
 		</ReadLinesFromFile>
@@ -101,9 +101,7 @@
 		<BumpVersion VersionIn="$(_CurrentVersion)">
 			<Output TaskParameter="VersionOut" PropertyName="_NewVersion" />
 		</BumpVersion>
-		<WriteLinesToFile File="$(VersionFile)"
-						  Lines="$(_NewVersion)"
-						  Overwrite="true" />
+		<WriteLinesToFile File="$(VersionFile)" Lines="$(_NewVersion)" Overwrite="true" />
 		<Message Importance="High" Text="Release-Build → version.txt erhöht auf $(_NewVersion)" />
 	</Target>
 

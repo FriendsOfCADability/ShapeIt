@@ -411,7 +411,6 @@ namespace CADability.GeoObject
                 if (vmin < vmax) circularArc.SweepParameter = 2 * PI;
                 else circularArc.SweepParameter = -2 * PI;
             }
-            GeoPoint2D dbg1 = PositionOf(circularArc.EndPoint);
             double pos = circularArc.PositionOf(PointAt(new GeoPoint2D(u, (vmin + vmax) / 2.0)));
             if (Math.Abs(0.5 - pos) > 0.5)
             {   // this is the 
@@ -499,6 +498,9 @@ namespace CADability.GeoObject
                 double v = Atan2((p - spinePoint) * yAxis, (p - spinePoint) * xAxis);
                 if (radius < 0) v = PI + v;
                 GeoPoint2D uv = new GeoPoint2D(u, v);
+#if DEBUG
+                DebuggerContainer dc = this.BoxedSurfaceEx.Debug;
+#endif
                 if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
                 uv = new GeoPoint2D(u, v);
                 if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out dist)) return uv;

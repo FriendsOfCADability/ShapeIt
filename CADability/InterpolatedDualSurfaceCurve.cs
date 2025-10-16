@@ -34,7 +34,7 @@ namespace CADability
     {
         ISurface surface1; // the two surfaces
         ISurface surface2;
-        BoundingRect bounds1=BoundingRect.EmptyBoundingRect, bounds2 = BoundingRect.EmptyBoundingRect; // the uv region, where these surfaces are beeing used
+        BoundingRect bounds1 = BoundingRect.EmptyBoundingRect, bounds2 = BoundingRect.EmptyBoundingRect; // the uv region, where these surfaces are beeing used
         SurfacePoint[] basePoints; // some points, especially start and endpoint, of the curve, that have been calculated
         bool forwardOriented; // the crossproduct surface1.Normal^surface2.Normal is the direction of the curve if true
         bool isTangential = false; // we need a different point approximation for curves which describe the tangential intersection of two surfaces
@@ -629,6 +629,10 @@ namespace CADability
 #endif
         }
         internal InterpolatedDualSurfaceCurve(ISurface surface1, ISurface surface2, SurfacePoint[] basePoints, bool isTangential = false)
+            : this(surface1,BoundingRect.EmptyBoundingRect,surface2,BoundingRect.EmptyBoundingRect,basePoints,isTangential)
+        {   // we should always have bounds
+        }
+        internal InterpolatedDualSurfaceCurve(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, SurfacePoint[] basePoints, bool isTangential = false)
             : this()
         {
             // der 1. und der letzte Punkt müssen exakt sein, die anderen nur Näherungswerte, die aber eindeutig zur Fläche führen
@@ -637,6 +641,8 @@ namespace CADability
             this.surface2 = surface2;
             this.basePoints = basePoints;
             this.isTangential = isTangential;
+            this.bounds1 = bounds1;
+            this.bounds2 = bounds2;
             // wierum orientiert?
             // manchmal am Anfang oder Ende tangetial, deshalb besser in der mitte testen
             int n = basePoints.Length / 2; // es müssen mindesten 3 sein
@@ -662,7 +668,7 @@ namespace CADability
             CheckSurfaceParameters();
 #endif
         }
-        public InterpolatedDualSurfaceCurve(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, GeoPoint startPoint, GeoPoint endPoint, bool isTangential=false)
+        public InterpolatedDualSurfaceCurve(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, GeoPoint startPoint, GeoPoint endPoint, bool isTangential = false)
             : this()
         {
             // die Bounds dienen dazu bei periodischen Flächen die richtigen Parameterwerte zu finden
@@ -1075,6 +1081,10 @@ namespace CADability
 #if DEBUG
         internal void CheckSurfaceParameters()
         {   // check auf parameterfehler im 2d
+            for (int i = 0; i < basePoints.Length - 1; i++)
+            {
+                if (Math.Abs(basePoints[i + 1].psurface2.x - basePoints[i].psurface2.x) > 3) { }
+            }
             if ((basePoints[basePoints.Length - 1].p3d | basePoints[basePoints.Length - 2].p3d) == 0.0 || (basePoints[0].p3d | basePoints[1].p3d) == 0.0)
             {
 
@@ -1228,6 +1238,13 @@ namespace CADability
             //        }
             //    }
             //}
+        }
+        internal void AdjustPeriodic(ref GeoPoint2D uv1, ref GeoPoint2D uv2)
+        {
+            if (bounds1.IsEmpty() || bounds1.IsInfinite || bounds1.IsInvalid()) bounds1 = (surface1 as ISurfaceImpl).usedArea;
+            if (bounds2.IsEmpty() || bounds2.IsInfinite || bounds2.IsInvalid()) bounds2 = (surface2 as ISurfaceImpl).usedArea;
+            SurfaceHelper.AdjustPeriodic(surface1, bounds1, ref uv1);
+            SurfaceHelper.AdjustPeriodic(surface2, bounds2, ref uv2);
         }
         internal void AdjustPeriodic(BoundingRect bounds1, BoundingRect bounds2)
         {   // we need to consider the whole curve, not just individual points, because the bounds may be too narrow and some points fall outside
@@ -1924,6 +1941,7 @@ namespace CADability
         {
             get
             {
+                if (approxBSpline != null) return approxBSpline;
                 approxBSpline = BSpline.Construct();
                 approxBSpline.ThroughPoints(basePoints.Select(bp => bp.p3d).ToArray(), 3, false);
                 // this BSpline has non uniform knot values. They are calculated by the distance of the base points
@@ -1934,7 +1952,7 @@ namespace CADability
                     ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
                     bpl[pos] = p; // p is calculated with the above approxBSpline as a start value
                 }
-                bpl = RefineByAngle(bpl, Math.PI/2.0);
+                bpl = RefineByAngle(bpl, Math.PI / 2.0);
                 approxBSpline.ThroughPoints(bpl.Values.ToArray(), 3, false); // new BSpline with refined points
                 GeoPoint[] knpnts = approxBSpline.KnotPoints; // this are the points on the BSpline at the knot values, we want to use them as uniformly distributed base points
                 basePoints = new SurfacePoint[knpnts.Length];
@@ -1942,6 +1960,7 @@ namespace CADability
                 {
                     GeoPoint2D uv1 = surface1.PositionOf(knpnts[i]);
                     GeoPoint2D uv2 = surface2.PositionOf(knpnts[i]);
+                    AdjustPeriodic(ref uv1, ref uv2);
                     basePoints[i] = new SurfacePoint(knpnts[i], uv1, uv2);
                 }
                 return approxBSpline;
@@ -1988,8 +2007,7 @@ namespace CADability
                         //CheckPeriodic(ref uv1, true, ind);
                         //CheckPeriodic(ref uv2, false, ind);
                         p = new GeoPoint(surface1.PointAt(uv1), surface2.PointAt(uv2));
-                        SurfaceHelper.AdjustPeriodic(Surface1, ref uv1);
-                        SurfaceHelper.AdjustPeriodic(Surface2, ref uv2);
+                        AdjustPeriodic(ref uv1, ref uv2);
                         SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
                         // AdjustPeriodic(ref spt, ind);
                         //uv1 = spt.psurface1;
@@ -2005,12 +2023,10 @@ namespace CADability
                     GeoPoint2D uvplane = GeoPoint2D.Origin;
                     uv1 = surface1.PositionOf(normalPlane.Location);
                     uv2 = surface2.PositionOf(normalPlane.Location);
-                    SurfaceHelper.AdjustPeriodic(surface1, ref uv1);
-                    SurfaceHelper.AdjustPeriodic(surface2, ref uv2);
+                    AdjustPeriodic(ref uv1, ref uv2);
                     if (BoxedSurfaceExtension.SurfacesIntersectionLM(ps, surface1, surface2, ref uvplane, ref uv1, ref uv2, ref p))
                     {
-                        SurfaceHelper.AdjustPeriodic(surface1, ref uv1);
-                        SurfaceHelper.AdjustPeriodic(surface2, ref uv2);
+                        AdjustPeriodic(ref uv1, ref uv2);
                         SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
                         hashedPositions[position] = spt;
                         return;
@@ -2453,11 +2469,9 @@ namespace CADability
             else
             {
                 dir = surface1.GetNormal(uv1) ^ surface2.GetNormal(uv2);
+                dir.Length = (ApproxBSpline as ICurve).DirectionAt(Position).Length; // make the same lengt as the approximating BSpline would have. This is very close
             }
             if (!forwardOriented) dir.Reverse();
-            int ind = SegmentOfParameter(Position);
-            double l = (basePoints[ind + 1].p3d | basePoints[ind].p3d) / (basePoints.Length - 1);
-            dir.Length = l;
             return dir;
         }
         public override GeoPoint PointAt(double Position)
@@ -2762,7 +2776,7 @@ namespace CADability
             {   // we need a deep copy, independant surface points
                 spnts[i] = new SurfacePoint(basePoints[i].p3d, basePoints[i].psurface1, basePoints[i].psurface2);
             }
-            return new InterpolatedDualSurfaceCurve(surface1.Clone(), bounds1, surface2.Clone(), bounds2, basePoints.Select(sp => sp.p3d).ToArray(), null, null, isTangential); 
+            return new InterpolatedDualSurfaceCurve(surface1.Clone(), bounds1, surface2.Clone(), bounds2, basePoints.Select(sp => sp.p3d).ToArray(), null, null, isTangential);
             // Clone introduced because of independant surfaces for BRep operations
             // forwardOriented is calculated by the order of the base points
         }
