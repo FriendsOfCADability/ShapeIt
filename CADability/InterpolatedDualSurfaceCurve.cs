@@ -629,7 +629,7 @@ namespace CADability
 #endif
         }
         internal InterpolatedDualSurfaceCurve(ISurface surface1, ISurface surface2, SurfacePoint[] basePoints, bool isTangential = false)
-            : this(surface1,BoundingRect.EmptyBoundingRect,surface2,BoundingRect.EmptyBoundingRect,basePoints,isTangential)
+            : this(surface1, BoundingRect.EmptyBoundingRect, surface2, BoundingRect.EmptyBoundingRect, basePoints, isTangential)
         {   // we should always have bounds
         }
         internal InterpolatedDualSurfaceCurve(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, SurfacePoint[] basePoints, bool isTangential = false)
@@ -2032,7 +2032,16 @@ namespace CADability
                         return;
                     }
                 }
-                throw new ApplicationException("InterpolatedDualSurfaceCurve: intermediate point could not be calculated");
+#if DEBUG
+                p = normalPlane.Location;
+                uv1 = surface1.PositionOf(normalPlane.Location);
+                uv2 = surface2.PositionOf(normalPlane.Location);
+                // throw new ApplicationException("InterpolatedDualSurfaceCurve: intermediate point could not be calculated");
+#else
+                    p = normalPlane.Location;
+                    uv1 = surface1.PositionOf(normalPlane.Location);
+                    uv2 = surface2.PositionOf(normalPlane.Location);
+#endif
             }
         }
         private void ApproximatePositionOld(double position, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p, bool refineBasePoints)

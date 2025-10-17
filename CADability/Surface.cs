@@ -2651,9 +2651,9 @@ namespace CADability.GeoObject
                 Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).z, uv.y));
             SweepAngle au = new SweepAngle(du, UDirection(uv));
             SweepAngle av = new SweepAngle(dv, VDirection(uv));
-            if (Math.Abs(au)>0.1 || Math.Abs(av) > 0.1)
+            if (Math.Abs(au) > 0.1 || Math.Abs(av) > 0.1)
             {
-                
+
             }
 #endif
             return (this as ISurface).UDirection(uv) ^ (this as ISurface).VDirection(uv);
@@ -5287,9 +5287,18 @@ namespace CADability.GeoObject
             double totalSize = ext.Size;
             double maxBend = Math.PI / 6; // maximum bending angle between two steps (30°)
             List<IDualSurfaceCurve> res = new List<IDualSurfaceCurve>();
+            double minDist = double.MaxValue;
+            for (int i = 0; i < seeds.Count - 1; i++)
+            {
+                for (int j = i + 1; j < seeds.Count; j++)
+                {
+                    double d = seeds[i] | seeds[j];
+                    if (d > Precision.eps && d < minDist) minDist = d;
+                }
+            }
             foreach (GeoPoint seed in seeds)
             {
-                double stepLength = totalSize * 0.05; // 5% of the size of the intersection curves
+                double stepLength = Math.Min(totalSize * 0.05, minDist * 0.1); // 5% of the size of the intersection curves or 1/10 of the minimal distance between seeds
                 GeoPoint2D seeduvthis = PositionOf(seed);
                 GeoPoint2D seeduvother = other.PositionOf(seed);
                 SurfaceHelper.AdjustPeriodic(this, thisBounds, ref seeduvthis);

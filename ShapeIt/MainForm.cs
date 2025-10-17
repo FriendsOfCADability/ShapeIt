@@ -519,23 +519,62 @@ namespace ShapeIt
         private void Debug()
         {
             List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
+            Solid operand1 = null, operand2 = null;
+            List<Solid> difference = new List<Solid>();
+            List<Solid> intersection = new List<Solid>();
+            List<Solid> union = new List<Solid>();
             foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
             {
                 if (go is CADability.GeoObject.Solid sld)
                 {
                     slds.Add(sld);
+                    if (sld.Style != null)
+                    {
+                        if (sld.Style.Name == "Operand1") operand1 = sld;
+                        else if (sld.Style.Name == "Operand2") operand2 = sld;
+                        else if (sld.Style.Name == "Difference") difference.Add(sld);
+                        else if (sld.Style.Name == "Union") union.Add(sld);
+                        else if (sld.Style.Name == "Intersection") intersection.Add(sld);
+                    }
                 }
             }
-            if (slds.Count==2)
+            if (operand1!=null && operand2 != null)
             {
-                Solid[] sld = NewBooleanOperation.Intersect(slds[1], slds[0]);
+                if (difference.Count>0)
+                {
+                    Solid[] sres = NewBooleanOperation.Subtract(operand1,operand2);
+                    if (sres.Length > 0)
+                    {
+                        Project proj = Project.CreateSimpleProject();
+                        proj.GetActiveModel().Add(sres);
+                        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
+                    }
+                }
             }
-            if (slds.Count==1)
+            if (slds.Count == 2)
+            {
+                Solid[] sld;
+                if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
+                {
+                    sld = NewBooleanOperation.Subtract(slds[0], slds[1]);
+                }
+                else
+                {
+                    sld = NewBooleanOperation.Subtract(slds[1], slds[0]);
+                }
+                if (sld.Length > 0)
+                {
+                    Project proj = Project.CreateSimpleProject();
+                    proj.GetActiveModel().Add(sld);
+                    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
+                }
+            }
+            if (slds.Count == 1)
             {
                 Shell shell = slds[0].Shells[0];
                 foreach (Edge edge in shell.Edges)
                 {
-                    if (edge.Curve3D is Line l && Math.Abs(l.StartDirection.z)<0.001)
+                    if (edge.Curve3D is Line l && Math.Abs(l.StartDirection.z) < 0.001)
                     {
                         Shell rounded = shell.RoundEdges([edge], 2.0);
                     }
