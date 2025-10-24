@@ -318,5 +318,25 @@ namespace ShapeIt
             GeoPoint p2 = point + arrowLength * dir.Normalized - (arrowLength / 2) * hor;
             return Face.MakeFace(p1, p2, point);
         }
+        public static Face[] MakePyramidArrow(GeoPoint point, GeoVector dir, Projection projection)
+        {
+            GeoVector hor = projection.Direction ^ dir;
+            if (hor.IsNullVector()) hor = GeoVector.XAxis ^ dir;
+            if (hor.IsNullVector()) hor = GeoVector.YAxis ^ dir;
+            hor.Norm();
+            GeoVector ver = dir ^ hor;
+            ver.Norm();
+            double arrowLength = projection.DeviceToWorldFactor * arrowSize;
+            GeoPoint p1 = point + arrowLength * dir.Normalized + (arrowLength) * hor + (arrowLength) * ver;
+            GeoPoint p2 = point + arrowLength * dir.Normalized - (arrowLength) * hor + (arrowLength) * ver;
+            GeoPoint p3 = point + arrowLength * dir.Normalized - (arrowLength) * hor - (arrowLength) * ver;
+            GeoPoint p4 = point + arrowLength * dir.Normalized + (arrowLength) * hor - (arrowLength) * ver;
+            Face[] res = new Face[4];
+            res[0] = Face.MakeFace(point, p1, p2);
+            res[1] = Face.MakeFace(point, p2, p3);
+            res[2] = Face.MakeFace(point, p3, p4);
+            res[3] = Face.MakeFace(point, p4, p1);
+            return res;
+        }
     }
 }

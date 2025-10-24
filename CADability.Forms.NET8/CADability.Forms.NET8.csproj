@@ -91,6 +91,17 @@
     <None Remove="Icons\MenuId.Colors.svg" />
     <None Remove="Icons\MenuId.Connnect.svg" />
     <None Remove="Icons\MenuId.Constr.3DObjects.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.2PointsRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.3Points.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.CenterRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.CenterStartEnd.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.TangentPointRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.ThreeTangents.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.TwoPointsRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.TwoTangentsPoint.svg" />
+    <None Remove="Icons\MenuId.Constr.Arc.TwoTangentsRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.BSpline.Points.svg" />
     <None Remove="Icons\MenuId.Constr.Circle.2Points.svg" />
     <None Remove="Icons\MenuId.Constr.Circle.3Points.svg" />
     <None Remove="Icons\MenuId.Constr.Circle.CenterPoint.svg" />
@@ -101,6 +112,12 @@
     <None Remove="Icons\MenuId.Constr.Circle.TwoPointsRadius.svg" />
     <None Remove="Icons\MenuId.Constr.Circle.TwoTangentsPoint.svg" />
     <None Remove="Icons\MenuId.Constr.Circle.TwoTangentsRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.Ellipse.2PointsDirections.svg" />
+    <None Remove="Icons\MenuId.Constr.Ellipse.CenterRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.Ellipse.svg" />
+    <None Remove="Icons\MenuId.Constr.Ellipsearc.2PointsDirections.svg" />
+    <None Remove="Icons\MenuId.Constr.Ellipsearc.CenterRadius.svg" />
+    <None Remove="Icons\MenuId.Constr.Ellipsearc.svg" />
     <None Remove="Icons\MenuId.Constr.Line.BisectAngle.svg" />
     <None Remove="Icons\MenuId.Constr.Line.MiddlePerp.svg" />
     <None Remove="Icons\MenuId.Constr.Line.ParallelDist.svg" />
@@ -111,11 +128,15 @@
     <None Remove="Icons\MenuId.Constr.Line.TwoPoints.svg" />
     <None Remove="Icons\MenuId.Constr.Line.TwoTangents.svg" />
     <None Remove="Icons\MenuId.Constr.Point.svg" />
+    <None Remove="Icons\MenuId.Constr.Polyline.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.2DiagonalPoints.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.2PointsHeight.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.PointWidthHeightAngle.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.svg" />
+    <None Remove="Icons\MenuId.Constr.Text.1Point.svg" />
+    <None Remove="Icons\MenuId.Constr.Text.2Points.svg" />
+    <None Remove="Icons\MenuId.Constr.Text.svg" />
     <None Remove="Icons\MenuId.Edit.Copy.svg" />
     <None Remove="Icons\MenuId.Edit.Cut.svg" />
     <None Remove="Icons\MenuId.Edit.Paste.svg" />
@@ -131,7 +152,25 @@
     <None Remove="Icons\MenuId.Object.Rotate.svg" />
     <None Remove="Icons\MenuId.Object.Scale.svg" />
     <None Remove="Icons\MenuId.Object.Snap.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.FromBack.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.FromBottom.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.FromFront.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.FromLeft.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.FromRight.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.FromTop.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.Isometric.svg" />
+    <None Remove="Icons\MenuId.Projection.Direction.svg" />
     <None Remove="Icons\MenuId.SetGrid.svg" />
+    <None Remove="Icons\MenuId.Snap.DropPoint.svg" />
+    <None Remove="Icons\MenuId.Snap.Intersections.svg" />
+    <None Remove="Icons\MenuId.Snap.ObjectCenter.svg" />
+    <None Remove="Icons\MenuId.Snap.ObjectPoint.svg" />
+    <None Remove="Icons\MenuId.Snap.ObjectSnapPoint.svg" />
+    <None Remove="Icons\MenuId.Snap.Surface.svg" />
+    <None Remove="Icons\MenuId.Snap.TangentPoint.svg" />
+    <None Remove="Icons\MenuId.Tools.svg" />
+    <None Remove="Icons\MenuId.Trim.Split.svg" />
+    <None Remove="Icons\MenuId.Trim.svg" />
   </ItemGroup>
 
   <ItemGroup>
@@ -213,6 +252,17 @@
     <EmbeddedResource Include="Icons\MenuId.Colors.svg" />
     <EmbeddedResource Include="Icons\MenuId.Connnect.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.3DObjects.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.2PointsRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.3Points.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.CenterRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.CenterStartEnd.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.TangentPointRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.ThreeTangents.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.TwoPointsRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.TwoTangentsPoint.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Arc.TwoTangentsRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.BSpline.Points.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Circle.2Points.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Circle.3Points.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Circle.CenterPoint.svg" />
@@ -223,6 +273,12 @@
     <EmbeddedResource Include="Icons\MenuId.Constr.Circle.TwoPointsRadius.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Circle.TwoTangentsPoint.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Circle.TwoTangentsRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Ellipse.2PointsDirections.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Ellipse.CenterRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Ellipse.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Ellipsearc.2PointsDirections.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Ellipsearc.CenterRadius.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Ellipsearc.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.BisectAngle.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.MiddlePerp.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.ParallelDist.svg" />
@@ -233,11 +289,15 @@
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.TwoPoints.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.TwoTangents.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Point.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Polyline.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.2DiagonalPoints.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.2PointsHeight.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.Parallelogram.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.PointWidthHeightAngle.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Text.1Point.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Text.2Points.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Text.svg" />
     <EmbeddedResource Include="Icons\MenuId.Edit.Copy.svg" />
     <EmbeddedResource Include="Icons\MenuId.Edit.Cut.svg" />
     <EmbeddedResource Include="Icons\MenuId.Edit.Paste.svg" />
@@ -253,7 +313,25 @@
     <EmbeddedResource Include="Icons\MenuId.Object.Rotate.svg" />
     <EmbeddedResource Include="Icons\MenuId.Object.Scale.svg" />
     <EmbeddedResource Include="Icons\MenuId.Object.Snap.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.FromBack.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.FromBottom.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.FromFront.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.FromLeft.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.FromRight.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.FromTop.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.Isometric.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Projection.Direction.svg" />
     <EmbeddedResource Include="Icons\MenuId.SetGrid.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Snap.DropPoint.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Snap.Intersections.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Snap.ObjectCenter.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Snap.ObjectPoint.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Snap.ObjectSnapPoint.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Snap.Surface.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Snap.TangentPoint.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Tools.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Trim.Split.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Trim.svg" />
   </ItemGroup>
 
   <ItemGroup>
