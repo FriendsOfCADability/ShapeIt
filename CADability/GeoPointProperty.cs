@@ -237,16 +237,13 @@ namespace CADability.UserInterface
                     return true;
                 }
             }
-            else if (Regex.Match(text, @"^@?[A-Za-z_][A-Za-z0-9_]*$").Success)
-            {   // a named value
-                if (Frame.Project.NamedValues.Table.ContainsKey(text))
+            else
+            {
+                object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                if (o is GeoPoint pp)
                 {
-                    object o = Frame.Project.NamedValues.Table[text];
-                    if (o is GeoPoint pp)
-                    {
-                        val = pp;
-                        return true;
-                    }
+                    val = pp;
+                    return true;
                 }
             }
             return false;

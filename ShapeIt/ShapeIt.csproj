@@ -70,10 +70,6 @@
 		</EmbeddedResource>
 	</ItemGroup>
 
-	<ItemGroup>
-	  <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
-	</ItemGroup>
-
 	<!-- Mini-Task zum Erhöhen der 4. Stelle (Revision) -->
 	<UsingTask TaskName="BumpVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
 		<ParameterGroup>
