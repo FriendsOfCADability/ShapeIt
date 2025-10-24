@@ -244,7 +244,7 @@ namespace CADability.GeoObject
             extent = BoundingCube.EmptyBoundingCube;
             if (Constructed != null) Constructed(this);
 #if DEBUG
-            if (hashCode == 147)
+            if (hashCode == 43)
             {
 
             }

@@ -553,6 +553,7 @@ namespace ShapeIt
             }
             if (slds.Count == 2)
             {
+                Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
                 Solid[] sld;
                 if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
                 {

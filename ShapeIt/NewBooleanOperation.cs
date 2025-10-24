@@ -30,6 +30,7 @@ namespace ShapeIt
         static public Solid[] Subtract(Solid first, Solid second)
         {
             BooleanOperation bo = new BooleanOperation();
+            // bo.DontCombineConnectedFaces = true; // performance test!
             bo.SetShells(first.Shells[0], second.Shells[0], BooleanOperation.Operation.difference);
             Shell[] res = bo.Execute();
             Solid[] sres = new Solid[res.Length];

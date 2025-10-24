@@ -106,10 +106,19 @@ namespace CADability
                 return false;
             }
         }
-        public static bool FindTangentialIntersectionPoint(GeoPoint planeLocation, GeoVector planeNormal, ISurface surface1, ISurface surface2, out GeoPoint2D uv1, out GeoPoint2D uv2)
+        public static bool FindTangentialIntersectionPoint(GeoPoint planeLocation, GeoVector planeNormal, ISurface surface1, ISurface surface2, out GeoPoint2D uv1, out GeoPoint2D uv2,
+            GeoPoint2D? uv1s = null, GeoPoint2D? uv2s = null)
         {
-            uv1 = surface1.PositionOf(planeLocation);
-            uv2 = surface2.PositionOf(planeLocation);
+            if (uv1s.HasValue && uv2s.HasValue)
+            {
+                uv1 = uv1s.Value;
+                uv2 = uv2s.Value;
+            }
+            else
+            {
+                uv1 = surface1.PositionOf(planeLocation);
+                uv2 = surface2.PositionOf(planeLocation);
+            }
             // System.Diagnostics.Trace.WriteLine("ohne Jacobi");
 
             var pHat = planeNormal.Normalized;

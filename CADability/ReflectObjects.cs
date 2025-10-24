@@ -157,10 +157,7 @@ namespace CADability.Actions
 
         public override void OnDone()
         {
-            // ist die Shift Taste gehalten, so werden Kopien gemacht, d.h. der die Elemente
-            // des blocks werden eingefügt. Ansonsten werden die original-Objekte verändert
-            // TODO: Feedback über Cursor bei Shift-Taste fehlt noch
-            // TODO: die neuen oder veränderten Objekte sollten markiert sein.
+            // reflection inverses the orientation of the objects. For Shells and Solids this is probably not intended. So we reverse the orientation after modification
             using (Frame.Project.Undo.UndoFrame)
             {
                 if (((Frame.UIService.ModifierKeys & Keys.Shift) != 0) || copyObject)
@@ -170,6 +167,20 @@ namespace CADability.Actions
                     {
                         IGeoObject cl = go.Clone();
                         cl.Modify(reflectModOp);
+                        if (reflectModOp.Determinant < 0)
+                        {
+                            if (cl is Solid sld)
+                            {
+                                for (int i = 0; i < sld.Shells.Length; i++)
+                                {
+                                    sld.Shells[i].ReverseOrientation();
+                                }
+                            }
+                            else if (cl is Shell sh)
+                            {
+                                sh.ReverseOrientation();
+                            }
+                        }
                         cloned.Add(cl);
                     }
                     base.Frame.Project.GetActiveModel().Add(cloned);
@@ -177,6 +188,23 @@ namespace CADability.Actions
                 else
                 {
                     originals.Modify(reflectModOp);
+                    if (reflectModOp.Determinant < 0)
+                    {
+                        foreach (IGeoObject go in originals)
+                        {
+                            if (go is Solid sld)
+                            {
+                                for (int i = 0; i < sld.Shells.Length; i++)
+                                {
+                                    sld.Shells[i].ReverseOrientation();
+                                }
+                            }
+                            else if (go is Shell sh)
+                            {
+                                sh.ReverseOrientation();
+                            }
+                        }
+                    }
                 }
             }
             base.ActiveObject = null; // damit es nicht gleich eingefügt wird

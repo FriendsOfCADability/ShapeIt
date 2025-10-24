@@ -2116,16 +2116,6 @@ namespace CADability.GeoObject
             se.Add(openingAngle);
             return new GroupProperty("ConicalSurface", se.ToArray());
         }
-#if DEBUG
-        new Face DebugAsFace
-        {
-            get
-            {
-                Face res = Face.MakeFace(this, new SimpleShape(Border.MakeRectangle(0.0, 2 * Math.PI, 0.0, 10.0)));
-                return res;
-            }
-        }
-#endif
         #region ISurfaceOfRevolution Members
         Axis ISurfaceOfRevolution.Axis
         {

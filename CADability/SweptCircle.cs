@@ -489,7 +489,7 @@ namespace CADability.GeoObject
             if (normal != GeoVector.NullVector)
             {
 #if DEBUG
-                GeoObjectList dbgl = this.DebugGrid;
+                // GeoObjectList dbgl = this.DebugGrid;
 #endif
                 GeoPoint spinePoint = spine.PointAt(u);
                 GeoVector tangent = spine.DirectionAt(u).Normalized;
@@ -499,11 +499,12 @@ namespace CADability.GeoObject
                 if (radius < 0) v = PI + v;
                 GeoPoint2D uv = new GeoPoint2D(u, v);
 #if DEBUG
-                DebuggerContainer dc = this.BoxedSurfaceEx.Debug;
+                // DebuggerContainer dc = this.BoxedSurfaceEx.Debug;
 #endif
-                if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
-                uv = new GeoPoint2D(u, v);
-                if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out dist)) return uv;
+                // commented out, because it too often throws exceptions
+                //if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
+                //uv = new GeoPoint2D(u, v);
+                if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out double dist)) return uv;
                 return new GeoPoint2D(u, v);
             }
             else

@@ -6660,14 +6660,14 @@ namespace CADability.GeoObject
                     if (!faces.Contains(edg.OtherFace(face))) openEdges.Add(edg);
                 }
             }
-            if (openEdges.Count > 0) return FeatureFromLoops(openEdges, out featureFaces, out connection, out isGap);
-            else
-            {
-                featureFaces = null;
-                connection = null;
-                isGap = false;
-                return false;
-            }
+            //if (openEdges.Count > 0) return FeatureFromLoops(openEdges, out featureFaces, out connection, out isGap);
+            //else
+            //{
+            featureFaces = null;
+            connection = null;
+            isGap = false;
+            return false;
+            //}
         }
 
         /// <summary>
@@ -6769,11 +6769,12 @@ namespace CADability.GeoObject
                 if (loop[i].Curve3D != null) outline.Add(loop[i].Curve3D.Clone());
                 else hasPoles = true;
             }
-            if (faceWithSurface != null && !hasPoles)
-            {   // the only surface, which sourrounds the loop, makes the face we need to close the loop
-                Face res = Face.FromEdges(faceWithSurface.Surface.Clone(), new ICurve[][] { outline.ToArray() });
-                if (res != null) return new Face[] { res };
-            }
+            // the following is not working correctly, so we comment it out:
+            //if (faceWithSurface != null && !hasPoles)
+            //{   // the only surface, which sourrounds the loop, makes the face we need to close the loop
+            //    Face res = Face.FromEdges(faceWithSurface.Surface.Clone(), new ICurve[][] { outline.ToArray() });
+            //    if (res != null) return new Face[] { res };
+            //}
             if (Curves.GetCommonPlane(outline, out Plane commonPlane))
             {   // all curves of the loop are in a common plane: we can make a planar face to close the loop
                 // the orientation has to be considered!

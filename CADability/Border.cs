@@ -49,14 +49,14 @@ namespace CADability.Shapes
             {
                 int next = i + 1;
                 if (next >= segment.Length) next = 0;
-                if (segment[i].EndPoint != segment[next].StartPoint)
+                if (!Precision.IsEqual(segment[i].EndPoint, segment[next].StartPoint)) // changed from != to !Precision.IsEqual 24.10.25 for performance
                 {
                     segment[next].StartPoint = segment[i].EndPoint;
                 }
             }
             if (close)
             {
-                if (segment[0].StartPoint != segment[segment.Length - 1].EndPoint)
+                if (!Precision.IsEqual(segment[0].StartPoint, segment[segment.Length - 1].EndPoint))
                 {
                     segment[0].StartPoint = segment[segment.Length - 1].EndPoint;
                 }
@@ -3440,7 +3440,7 @@ namespace CADability.Shapes
             {
                 ICurve2D c;
                 // we cannot modify a projected curve. This should be handled in InterpolatedDualSurfaceCurve.ProjectedCurve, but maybe this would have a side effect
-                if (segment[i] is InterpolatedDualSurfaceCurve.ProjectedCurve pc) c = pc.ToBSpline(0.0).GetModified(m); 
+                if (segment[i] is InterpolatedDualSurfaceCurve.ProjectedCurve pc) c = pc.ToBSpline(0.0).GetModified(m);
                 else c = segment[i].GetModified(m);
                 if (c != null) segs.Add(c);
             }

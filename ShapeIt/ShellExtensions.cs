@@ -1337,17 +1337,19 @@ namespace ShapeIt
             filletAxisCurve.Trim(filletAxisLeft, filletAxisRight);
             ISurface sweptCircle;
             sweptCircle = SweptCircle.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
-#if DEBUG
-            GeoObjectList dbgsws = (sweptCircle as ISurfaceImpl).DebugGrid;
-#endif
 
             // we need bounds for sweptCircle to enable Makeface to use BoxedSurface methods
             sweptCircle.SetBounds(new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2));
+#if DEBUG
+            GeoObjectList dbgsws = (sweptCircle as ISurfaceImpl).DebugGrid;
+            GeoObjectList dbgswd = (sweptCircle as ISurfaceImpl).DebugDirectionsGrid;
+#endif
             Face sweptFace;
             // how to test for correct orientation of the sweptCircle?
             // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface in both cases
             // In the covex-edge case the fillet shell is removed, the result will be a convex swept surface
             // In the concave-edge case the fillet shell is added, the result will be a concave swept surface
+            
             GeoVector testNormal = sweptCircle.GetNormal(new GeoPoint2D(0.5, Math.PI));
             GeoPoint testPoint = sweptCircle.PointAt(new GeoPoint2D(0.5, Math.PI));
             if (testNormal * (filletAxisCurve.Curve3D.PointAt(0.5) - testPoint) < 0) sweptCircle.ReverseOrientation();
@@ -1365,6 +1367,9 @@ namespace ShapeIt
             }
             InterpolatedDualSurfaceCurve dsTopTangentialCurve = new InterpolatedDualSurfaceCurve(topSurface.Clone(), edgeToRound.PrimaryFace.Domain, sweptCircle.Clone(), new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2),
                 intermediatePoints.ToArray(), null, null, true);
+#if DEBUG
+            DebuggerContainer dc100 = (dsTopTangentialCurve.CurveOnSurface2 as GeneralCurve2D).Debug100DirPoints;
+#endif
             intermediatePoints.Clear();
             for (int i = 0; i <= 10; i++)
             {

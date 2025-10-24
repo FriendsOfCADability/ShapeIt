@@ -80,6 +80,8 @@ namespace CADability
         Dictionary<DoubleFaceKey, ModOp2D> oppositeFaces; // Faces von verschiedenen Shells, die auf der gleichen Surface beruhen und sich überlappen aber verschieden orientiert sind
         Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOverlappingFaces; // all faces which overlap with this face
         Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOppositeFaces; // all faces which are opposite oriented to this face and the ModOp2D to transform 2d curves from one face to the other
+        Dictionary<(Edge edge, Face face), (List<Vertex> vertices, bool curveIsInSurface)> FaceEdgeIntersections; // to avoid duplicate calls to GetFaceEdgeIntersection
+
         HashSet<Face> commonOverlappingFaces; // Faces, which have been newly created as common parts of overlapping faces
         HashSet<Face> cancelledfaces; // Faces, which cancel each other, they have the same area but are opposite oriented 
         Dictionary<Face, HashSet<Edge>> faceToIntersectionEdges; // faces of both shells with their intersection edges
@@ -234,8 +236,11 @@ namespace CADability
                                 part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(b.Position));
                                 curveParts.Add(part);
                             }
-                            CreateIntersectionEdges(fca, fcb, vtxs.ToHashSet(), curveParts.ToList());
-                            tangentialIntersectionFound = true;
+                            if (curveParts.Count > 0 && vtxs.Count() > 1)
+                            {
+                                CreateIntersectionEdges(fca, fcb, vtxs.ToHashSet(), curveParts.ToList());
+                                tangentialIntersectionFound = true;
+                            }
                         }
                         else intersectionVertices.UnionWith(vtxs);
                     }
@@ -781,7 +786,7 @@ namespace CADability
                         (tr as IGeoObject).UserData.Add("DebugIntersectionBy2", fc2.GetHashCode());
                         if (con2 is InterpolatedDualSurfaceCurve.ProjectedCurve)
                         {
-                            BSpline2D dbgbsp2d = (con2 as InterpolatedDualSurfaceCurve.ProjectedCurve).ToBSpline(0.0);
+                            // BSpline2D dbgbsp2d = (con2 as InterpolatedDualSurfaceCurve.ProjectedCurve).ToBSpline(0.0);
                         }
 #endif
                         if (dirs1) // the trimming of BSplines is sometimes not very exact
@@ -922,6 +927,11 @@ namespace CADability
 
         private IEnumerable<Vertex> GetFaceEdgeIntersection(Face face, Edge edge, out bool curveIsInSurface)
         {
+            if (FaceEdgeIntersections.TryGetValue((edge, face), out var found))
+            {   // this is often called twice for the same edge/face pair, because the edges are on two faces
+                curveIsInSurface = found.curveIsInSurface;
+                return found.vertices;
+            }
             List<Vertex> res = new List<Vertex>();
             GeoPoint[] ip;
             GeoPoint2D[] uvOnFace;
@@ -953,6 +963,7 @@ namespace CADability
                     res.Add(v);
                 }
                 curveIsInSurface = true;
+                FaceEdgeIntersections[(edge, face)] = (res, curveIsInSurface);
                 return res;
             }
             face.IntersectAndPosition(edge, out ip, out uvOnFace, out uOnCurve3D, out position, precision);
@@ -964,38 +975,6 @@ namespace CADability
                     // Beim Aufteilen der kanten dürfen die Endpunkte allerdings nicht mit verwendet werden
                     continue;
                 }
-                //if (knownIntersections != null)
-                //{   // knownIntersections are often tangential intersections of round fillets. The precision of tangential intersections is often bad,
-                //    // so we try to correct those intersection points with the vertices of known intersection edges, so that the connection of intersection edges is kept.
-                //    if (Math.Abs(edge.Curve3D.DirectionAt(uOnCurve3D[i]).Normalized * face.Surface.GetNormal(uvOnFace[i]).Normalized) < 1e-3)
-                //    {   // a (rather) tangential intersection, maybe we are close to a known intersection. Tangential intersections have a bad precision.
-                //        foreach (KeyValuePair<Edge, Tuple<Face, Face>> item in knownIntersections)
-                //        {
-                //            if ((face == item.Value.Item1 && (edge.PrimaryFace == item.Value.Item2 || edge.SecondaryFace == item.Value.Item2)) ||
-                //                (face == item.Value.Item2 && (edge.PrimaryFace == item.Value.Item1 || edge.SecondaryFace == item.Value.Item1)))
-                //            {
-                //                if ((item.Key.Vertex1.Position | ip[i]) < (item.Key.Vertex2.Position | ip[i]))
-                //                {
-                //                    if ((item.Key.Vertex1.Position | ip[i]) < prec * 100)
-                //                    {
-                //                        ip[i] = item.Key.Vertex1.Position;
-                //                        uvOnFace[i] = face.PositionOf(ip[i]);
-                //                        uOnCurve3D[i] = edge.Curve3D.PositionOf(ip[i]);
-                //                    }
-                //                }
-                //                else
-                //                {
-                //                    if ((item.Key.Vertex2.Position | ip[i]) < prec * 100)
-                //                    {
-                //                        ip[i] = item.Key.Vertex2.Position;
-                //                        uvOnFace[i] = face.PositionOf(ip[i]);
-                //                        uOnCurve3D[i] = edge.Curve3D.PositionOf(ip[i]);
-                //                    }
-                //                }
-                //            }
-                //        }
-                //    }
-                //}
                 Vertex v = CreateOrFindVertex(ip[i]);
                 v.AddPositionOnFace(face, uvOnFace[i]);
                 // not sure whether we still need IntersectionVertex
@@ -1020,6 +999,7 @@ namespace CADability
                 }
                 if (operation == Operation.testonly) return res; // ein Schnittpunkt reicht hier
             }
+            FaceEdgeIntersections[(edge, face)] = (res, curveIsInSurface);
             return res;
         }
 
@@ -1972,6 +1952,7 @@ namespace CADability
             faceToIntersectionEdges = new Dictionary<Face, HashSet<Edge>>();
             faceToOverlappingFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
             faceToOppositeFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
+            FaceEdgeIntersections = new Dictionary<(Edge, Face), (List<Vertex>, bool)>();
 
             CreateFaceIntersections();
 
@@ -3565,39 +3546,6 @@ namespace CADability
             {
                 if (edg.Curve3D != null) dcis.Add(edg.Curve3D as IGeoObject, edg.GetHashCode());
             }
-            Dictionary<Face, DebuggerContainer> debugTrimmedFaces = new Dictionary<Face, DebuggerContainer>();
-            foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
-            {
-                if (kv.Key.OutlineEdges == null || kv.Key.OutlineEdges.Length == 0) continue; // this are faces created from overlapping faces, which do not have outline edges
-                debugTrimmedFaces[kv.Key] = new DebuggerContainer();
-                debugTrimmedFaces[kv.Key].Add(kv.Key.Clone(), Color.Black, kv.Key.GetHashCode());
-                int dbgclr = 1;
-                foreach (Edge edg in kv.Value)
-                {
-                    Face other = edg.OtherFace(kv.Key);
-                    if (other != null) debugTrimmedFaces[kv.Key].Add(other.Clone() as Face, DebuggerContainer.FromInt(dbgclr++), other.GetHashCode());
-                }
-            }
-            Dictionary<Face, GeoObjectList> faceToMixedEdgesDebug = new Dictionary<Face, GeoObjectList>();
-            foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
-            {
-                GeoObjectList l = new GeoObjectList();
-                faceToMixedEdgesDebug[kv.Key] = l;
-                l.Add(kv.Key);
-                foreach (Edge edg in kv.Value)
-                {
-                    if (edg.Curve3D != null)
-                    {
-                        if (edg.Forward(kv.Key)) l.Add(edg.Curve3D as IGeoObject);
-                        else
-                        {
-                            ICurve c3d = edg.Curve3D.Clone();
-                            c3d.Reverse();
-                            l.Add(c3d as IGeoObject);
-                        }
-                    }
-                }
-            }
 #endif
 #if DEBUG
             Dictionary<Face, DebuggerContainer> dbgFaceTointersectionEdges = new Dictionary<Face, DebuggerContainer>();
@@ -3639,10 +3587,6 @@ namespace CADability
             foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
             {   // faceToIntersectionEdges contains all faces, which are intersected by faces of the relative other shell, as well as those intersection edges
                 Face faceToSplit = kv.Key;
-#if DEBUG       // show the faceToSplit and all other faces, which caused the intersectionEdges
-                // does not work for overlapping faces
-                debugTrimmedFaces.TryGetValue(kv.Key, out DebuggerContainer dcInvolvedFaces);
-#endif
                 HashSet<Edge> faceEdges = new HashSet<Edge>(faceToSplit.Edges.ToHashSet()); // all outline edges and holes of the face, used edges will be removed
                 HashSet<Edge> intersectionEdges = kv.Value.Clone();
                 HashSet<Edge> originalEdges = faceToSplit.Edges.ToHashSet();
@@ -3854,11 +3798,7 @@ namespace CADability
                     fc.CopyAttributes(faceToSplit);
                     if (faceToSplit.Owner != null) fc.UserData["BRepIntersection.IsPartOf"] = faceToSplit.Owner.GetHashCode(); // only hash code here to avoid cloning user data of damaged faces
 #if DEBUG
-                    System.Diagnostics.Debug.Assert(fc.CheckConsistency());
-                    if (fc.GetHashCode() == 115)
-                    {
-                        SimpleShape ss = fc.Area;
-                    }
+                    fc.AssureTriangles(0.1);
 #endif
                     if (commonOverlappingFaces.Contains(faceToSplit)) trimmedOverlappingFaces.Add(fc);
                     else trimmedFaces.Add(fc);
@@ -3888,11 +3828,9 @@ namespace CADability
                 }
             }
 #endif
-            // OVERLAPPING: we could probably work without using (same orientation) overlapping, because the overlapping faces are also contained in 
-            // faceTointersectionEdges and should return the correct result. The problem might be that there are multiple identical results, which are
-            // removed by the following code
             // find all faces in trimmedFaces, which are identical to trimmedOverlappingFaces
-            HashSet<Face> availableFaces = [.. shell1.Faces, ..shell2.Faces];
+            // these faces ar created multiple times and we only need one of them
+            HashSet<Face> availableFaces = [.. shell1.Faces, .. shell2.Faces];
             availableFaces.ExceptWith(discardedFaces);
             if (trimmedOverlappingFaces.Count > 0) // usually this is empty
             {
@@ -3915,18 +3853,17 @@ namespace CADability
                         discardedFaces.UnionWith(lf.Skip(1));
                     }
                 }
-                // the following relies on overlapping faces, which I think we dont even need any more
                 // now remove all faces from trimmedFaces, which have the same vertices as a face in trimmedOverlappingFaces
                 // and add the faces from trimmedOverlappingFaces instead
-                //foreach (var ofc in trimmedOverlappingFaces)
-                //{
-                //    var key = ofc.Vertices.ToImmutableHashSet(EqualityComparer<Vertex>.Default);
-                //    if (trimmedFaceSignatures.TryGetValue(key, out var list))
-                //    {
-                //        trimmedFaces.ExceptWith(list);
-                //    }
-                //}
-                //trimmedFaces.UnionWith(trimmedOverlappingFaces);
+                foreach (var ofc in trimmedOverlappingFaces)
+                {
+                    var key = ofc.Vertices.ToImmutableHashSet(EqualityComparer<Vertex>.Default);
+                    if (trimmedFaceSignatures.TryGetValue(key, out var list))
+                    {
+                        trimmedFaces.ExceptWith(list);
+                    }
+                }
+                trimmedFaces.UnionWith(trimmedOverlappingFaces);
             }
             // to avoid oppositeCommonFaces to be connected with the trimmedFaces, we destroy these faces
 
@@ -4182,21 +4119,6 @@ namespace CADability
                     }
                     else
                     {
-                        // Try to fix missing faces. This helps to close shells, but it is actually a bug in the above code.
-                        // when some of the faces are nonmanifold faces, we don't try to fix, because we know, these faces are uncertain candidates
-                        try
-                        {
-                            if (operation != Operation.connectMultiple && !nonManifoldCandidates.Intersect(shell.Faces).Any() && TryFixMissingFaces(shell))
-                            {
-                                if (!dontCombineConnectedFaces)
-                                    shell.CombineConnectedFaces(); // two connected faces which have the same surface are merged into one face
-                                if (operation == Operation.union) shell.ReverseOrientation(); // both had been reversed and the intersection had been calculated
-                                if (shell.Volume(Precision.eps) > Precision.eps * 100) res.Add(shell); // we sometimes get two identical faces, which are inverse oriented
-                            }
-                            shell.RecalcVertices();
-                            shell.TryConnectOpenEdges();
-                        }
-                        catch (Exception) { }
                     }
                 }
             }
