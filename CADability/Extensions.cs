@@ -384,4 +384,46 @@ namespace CADability
         }
 
     }
+    public static class SortedListSearchExtensions
+    {
+        // Erstes Index >= key (LowerBound), oder list.Count wenn alle < key
+        public static int LowerBound<TKey, TValue>(this SortedList<TKey, TValue> list, TKey key)
+        {
+            int lo = 0, hi = list.Count;
+            var cmp = list.Comparer;
+            while (lo < hi)
+            {
+                int mid = lo + ((hi - lo) >> 1);
+                if (cmp.Compare(list.Keys[mid], key) < 0)
+                    lo = mid + 1;
+                else
+                    hi = mid;
+            }
+            return lo;
+        }
+
+        // Nachbarn zu key ermitteln; falls exakt vorhanden: Nachbarn um den Treffer herum
+        public static (bool hasLower, TKey lowerKey, TValue lowerValue,
+                       bool hasUpper, TKey upperKey, TValue upperValue,
+                       bool exact, int exactIndex)
+            Neighbors<TKey, TValue>(this SortedList<TKey, TValue> list, TKey key)
+        {
+            int i = list.LowerBound(key); // erstes >= key
+            bool exact = i < list.Count && list.Comparer.Compare(list.Keys[i], key) == 0;
+
+            int lowerIdx = exact ? i - 1 : i - 1;         // größeres < key
+            int upperIdx = exact ? i + 1 : i;             // kleinstes >= key
+
+            bool hasLower = lowerIdx >= 0;
+            bool hasUpper = upperIdx < list.Count;
+
+            TKey lowerKey = hasLower ? list.Keys[lowerIdx] : default!;
+            TValue lowerVal = hasLower ? list.Values[lowerIdx] : default!;
+            TKey upperKey = hasUpper ? list.Keys[upperIdx] : default!;
+            TValue upperVal = hasUpper ? list.Values[upperIdx] : default!;
+
+            return (hasLower, lowerKey, lowerVal, hasUpper, upperKey, upperVal, exact, exact ? i : -1);
+        }
+    }
+
 }

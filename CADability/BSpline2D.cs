@@ -1,4 +1,5 @@
 ﻿using CADability.GeoObject;
+using MathNet.Numerics.RootFinding;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -112,7 +113,7 @@ namespace CADability.Curve2D
             if (weights == null)
             {
                 GeoPoint2D[] npoles;
-                
+
                 //Unreachable code
                 /* if (false)
                 //if (periodic)
@@ -139,11 +140,11 @@ namespace CADability.Curve2D
                 //else
                 //{
 
-                    npoles = new GeoPoint2D[poles.Length];
-                    for (int i = 0; i < poles.Length; ++i)
-                    {
-                        npoles[i] = poles[i];
-                    }
+                npoles = new GeoPoint2D[poles.Length];
+                for (int i = 0; i < poles.Length; ++i)
+                {
+                    npoles[i] = poles[i];
+                }
                 //}
                 this.nubs = new Nurbs<GeoPoint2D, GeoPoint2DPole>(degree, npoles, knotslist.ToArray());
                 nubs.InitDeriv1();
@@ -151,7 +152,7 @@ namespace CADability.Curve2D
             else
             {
                 GeoPoint2DH[] npoles;
-                
+
                 //Unreachable code
                 /*if (false)
                 // if (periodic)
@@ -169,11 +170,11 @@ namespace CADability.Curve2D
                 }
                 else
                 {*/
-                    npoles = new GeoPoint2DH[poles.Length];
-                    for (int i = 0; i < poles.Length; ++i)
-                    {
-                        npoles[i] = new GeoPoint2DH(poles[i], weights[i]);
-                    }
+                npoles = new GeoPoint2DH[poles.Length];
+                for (int i = 0; i < poles.Length; ++i)
+                {
+                    npoles[i] = new GeoPoint2DH(poles[i], weights[i]);
+                }
                 //}
                 this.nurbs = new Nurbs<GeoPoint2DH, GeoPoint2DHPole>(degree, npoles, knotslist.ToArray());
                 nurbs.InitDeriv1();
@@ -479,11 +480,9 @@ namespace CADability.Curve2D
             {
                 RepairHighMultiplicities();
                 MakeFlat(); // es gibt immer auch die flachen
+                // now we keep the second derivatives
                 if (nubs != null) nubs.InitDeriv2();
                 else nurbs.InitDeriv2();
-                // MakeTriangulation();
-                if (nubs != null) nubs.ClearDeriv2();
-                else nurbs.ClearDeriv2();
             }
             catch (System.ArithmeticException)
             {
@@ -961,10 +960,7 @@ namespace CADability.Curve2D
 
             // statt Init(); 
             nubs.InitDeriv1();
-
-            nubs.InitDeriv2();
-            //MakeTriangulation();
-            nubs.ClearDeriv2();
+            nubs.InitDeriv2(); // we also keep the second derivatives
 
             parameterEpsilon = Math.Max(Math.Abs(startParam), Math.Abs(endParam)) * 1e-14;
             BoundingRect ext = BoundingRect.EmptyBoundingRect;
@@ -1022,10 +1018,7 @@ namespace CADability.Curve2D
 
             // statt Init();
             nubs.InitDeriv1();
-
             nubs.InitDeriv2();
-            //MakeTriangulation();
-            nubs.ClearDeriv2();
 
             parameterEpsilon = Math.Max(Math.Abs(startParam), Math.Abs(endParam)) * 1e-14;
             BoundingRect ext = BoundingRect.EmptyBoundingRect;
@@ -2732,11 +2725,45 @@ namespace CADability.Curve2D
             }
             return true;
         }
+        public override double[] GetInflectionPoints()
+        {
+            List<double> inflections = new List<double>();
+            for (int i = 0; i < knots.Length - 1; ++i)
+            {
+                double u1 = knots[i];
+                double u2 = knots[i + 1];
+                if (u2 > u1)
+                {
+                    int cnt = 0;
+                    Func<double, double> f = u =>
+                    {
+                        ++cnt;
+                        PointDirAt2(u, out GeoPoint2D ptmp, out GeoVector2D dir1, out GeoVector2D dir2);
+                        return dir1.x * dir2.y - dir1.y * dir2.x;
+                    };
+                    // im Intervall [u1,u2] nach Wendepunkten suchen
+                    GeoVector2D dir1start, dir2start, dir1end, dir2end;
+                    GeoPoint2D ptmp;
+                    PointDirAt2(u1, out ptmp, out dir1start, out dir2start);
+                    PointDirAt2(u2, out ptmp, out dir1end, out dir2end);
+                    double wstart = dir1start.x * dir2start.y - dir1start.y * dir2start.x;
+                    double wend = dir1end.x * dir2end.y - dir1end.y * dir2end.x;
+                    if (Math.Sign(wstart) != Math.Sign(wend))
+                    {
+
+                        double infpar = Brent.FindRoot(f, u1, u2, Math.Max(Math.Abs(startParam), Math.Abs(endParam)) * 1e-6, 100);
+                        infpar = (infpar - startParam) / (endParam - startParam);
+                        inflections.Add(infpar);
+                    }
+                }
+            }
+            return inflections.ToArray();
+        }
         public override double GetArea()
         {
             // ExplicitPCurve2D uses alot of memory, it is a WeakReference now
             ExplicitPCurve2D epc2d = (this as IExplicitPCurve2D).GetExplicitPCurve2D();
-            if (epc2d==null || epc2d.IsRational) return base.GetArea();
+            if (epc2d == null || epc2d.IsRational) return base.GetArea();
             else
             {
                 double epca = epc2d.Area();

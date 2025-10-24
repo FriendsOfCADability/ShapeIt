@@ -2857,14 +2857,6 @@ namespace CADability.GeoObject
                 return res;
             }
         }
-        override public Face DebugAsFace
-        {
-            get
-            {
-                BoundingRect ext = new BoundingRect(0.0, 0.0, 6.0, 6.0);
-                return Face.MakeFace(this, new CADability.Shapes.SimpleShape(ext));
-            }
-        }
 
 #endif
     }

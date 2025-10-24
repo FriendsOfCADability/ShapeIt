@@ -732,7 +732,7 @@ namespace CADability.GeoObject
         }
         BoundingCube ICurve.GetExtent()
         {
-            
+
             // int xmin, xmax, ymin, ymax, zmin, zmax; // Indizes der extremen Vertexpunkte
             // noch nicht sauber implementiert: Gesucht werden müssen die lokalen
             // Minima und Maxima in x, y und z.
@@ -759,7 +759,7 @@ namespace CADability.GeoObject
             return GetBasePoints();
         }
         double[] ICurve.GetExtrema(GeoVector direction)
-        {   
+        {
             return TetraederHull.GetExtrema(direction);
         }
         double[] ICurve.GetPlaneIntersection(Plane plane)
@@ -806,11 +806,20 @@ namespace CADability.GeoObject
         /// <param name="deriv"></param>
         /// <param name="deriv2"></param>
         /// <returns></returns>
-        public virtual bool TryPointDeriv2At(double position, out GeoPoint point, out GeoVector deriv, out GeoVector deriv2)
+        public virtual bool TryPointDeriv2At(double u, out GeoPoint point, out GeoVector deriv, out GeoVector deriv2)
         {
-            point = GeoPoint.Origin;
-            deriv = deriv2 = GeoVector.NullVector;
-            return false;
+            double h = 1e-6;
+            if (u < h) u = h; // so that the parameter range is not left
+            if (u > 1 - h) u = 1 - h;
+            point = PointAt(u);
+            deriv = DirectionAt(u);
+            var rpPlus = DirectionAt(u + h);
+            var rpMinus = DirectionAt(u - h);
+            deriv2 = (1 / (2 * h)) * (rpPlus - rpMinus);
+            return true;
+            //point = GeoPoint.Origin;
+            //deriv = deriv2 = GeoVector.NullVector;
+            //return false;
         }
         public virtual IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
         {

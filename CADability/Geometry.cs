@@ -3438,6 +3438,52 @@ namespace CADability
         /// <param name="sysDiry"></param>
         /// <param name="sysDirz"></param>
         /// <returns></returns>
+        /// <summary>
+        /// Zerlegt d in d = s*u + t*v + r*(u×v). Gibt true, wenn {u,v} lin. unabhängig sind.
+        /// Bei nahezu kollinearen u,v wird auf die stärkere Richtung projiziert (Least-Squares in 1D) und false zurückgegeben.
+        /// </summary>
+        public static bool DecomposeInPlane(GeoVector u, GeoVector v, GeoVector d, out double s, out double t, double eps = 1e-12)
+        {
+            // Gram-Matrix G = [[a, b],[b, c]]
+            double a = u * u;
+            double b = u * v;
+            double c = v * v;
+            double bu = u * d;
+            double bv = v * d;
+
+            // Determinante von G
+            double det = a * c - b * b;
+
+            // Skalen-invariante Toleranz
+            double scale = Math.Max(Math.Max(a, c), 1.0);
+            if (Math.Abs(det) > eps * scale * scale)
+            {
+                // Cramersche Regel
+                s = (bu * c - bv * b) / det;
+                t = (bv * a - bu * b) / det;
+                return true;
+            }
+            else
+            {
+                // u und v (fast) kollinear -> projeziere auf die "stärkere" Richtung
+                if (a >= c && a > eps)
+                {
+                    s = bu / a;
+                    t = 0.0;
+                }
+                else if (c > eps)
+                {
+                    s = 0.0;
+                    t = bv / c;
+                }
+                else
+                {
+                    // u und v sind praktisch Nullvektoren
+                    s = t = 0.0;
+                }
+                return false;
+            }
+        }
         public static GeoVector ReBase(GeoVector toRebase, GeoVector sysDirx, GeoVector sysDiry, GeoVector sysDirz)
         {
             return new GeoVector(toRebase * sysDirx / sysDirx.LengthSqared, toRebase * sysDiry / sysDiry.LengthSqared, toRebase * sysDirz / sysDirz.LengthSqared);
@@ -3949,7 +3995,7 @@ namespace CADability
             // ld = ld/ld.x  [ll=unitLineLocation, ld = unitLineDirection]
             // ll + s*ld = [0, c, e], where c=ll.y, i.e. ll.x+s*ld.x = 0; s = -ll.x/ld.x, ld.x may not be 0, it would be a line in z-direction
             List<GeoPoint> res = new List<GeoPoint>();
-            if (!Precision.SameDirection(unitLineDirection,GeoVector.ZAxis,false))
+            if (!Precision.SameDirection(unitLineDirection, GeoVector.ZAxis, false))
             {
                 // move the line location point along the line, so that the x component becomes 0 and scale the line direction so that the x component becomes 1
                 unitLineDirection = (1 / unitLineDirection.x) * unitLineDirection; // unitLineDirection.x should be 1 now
