@@ -86,8 +86,7 @@ namespace CADability.Actions
                     CurrentMouseView.Canvas.Cursor = "WaitCursor";
                     GeoObjectList ToAdd = new GeoObjectList();
                     Model m = base.Frame.ActiveView.Model;
-                    BRepOperation brepOp = new BRepOperation(toSplit.Shells[0], plane);
-                    (Shell[] upper, Shell[] lower) = BRepOperation.SplitByPlane(toSplit.Shells[0], plane);
+                    (Shell[] upper, Shell[] lower) = BooleanOperation.SplitByPlane(toSplit.Shells[0], plane);
                     for (int i = 0; i < upper.Length; i++)
                     {
                         ToAdd.Add(Solid.MakeSolid(upper[i]));

@@ -2145,6 +2145,7 @@ namespace CADability
                     double h = a; a = b; b = h;
                     h = x0; x0 = y0; y0 = h;
                 }
+                if (y0 == 0) return new GeoPoint2D[0];
                 double c = (1 - sqr(b / a)) / (2 * y0);
                 double d = -x0 / y0;
                 double e = (sqr(b) - rr + sqr(x0) + sqr(y0)) / (2 * y0);
@@ -2772,7 +2773,54 @@ namespace CADability
             if (OnSameSide(p3, p4, p1, p2)) return false;
             return true;
         }
+        /// <summary>
+        /// Berechnet die beiden Hauptachsenvektoren (Richtungen und Längen)
+        /// der Schnittellipse zwischen einem elliptischen Zylinder
+        /// (x²/a² + y²/b² = 1) und der Ebene z = p*x + q*y + r.
+        /// Der Mittelpunkt liegt bei (0, 0, r).
+        /// </summary>
+        /// <param name="a">Halbachse der Ellipse in x-Richtung</param>
+        /// <param name="b">Halbachse der Ellipse in y-Richtung</param>
+        /// <param name="p">Steigung der Ebene in x-Richtung</param>
+        /// <param name="q">Steigung der Ebene in y-Richtung</param>
+        /// <param name="r">z-Versatz der Ebene (Mittelpunkt der Ellipse)</param>
+        /// <returns>Zwei 3D-Vektoren, die die Hauptachsen (Richtung + Länge) beschreiben</returns>
+        public static (GeoVector Axis1, GeoVector Axis2) EllipticalCylinderPlaneIntersection(double a, double b, double p, double q, double r)
+        {
+            // Abbildungsmatrix M: von (cos t, sin t) -> (u, v) im Raum
+            var M = DenseMatrix.OfArray(new double[,]
+            {
+                { a * Math.Sqrt(1 + p * p), p * q * b / Math.Sqrt(1 + p * p) },
+                { p * q * a / Math.Sqrt(1 + q * q), b * Math.Sqrt(1 + q * q) }
+            });
 
+            // Hauptachsen aus Singulärwertzerlegung:
+            var MtM = M.TransposeThisAndMultiply(M);
+            var evd = MtM.Evd(Symmetricity.Symmetric);
+            var eigenValues = evd.EigenValues.Real();
+            var eigenVectors = evd.EigenVectors;
+
+            // Halbachsenlängen
+            double A = Math.Sqrt(eigenValues[0]);
+            double B = Math.Sqrt(eigenValues[1]);
+
+            // Eigenvektoren in der Ebene (2D)
+            var v1 = eigenVectors.Column(0);
+            var v2 = eigenVectors.Column(1);
+
+            // Richtungen im 3D-Raum
+            // Ebene: Basisvektoren in der Ebene z = p*x + q*y + r
+            var e1 = DenseVector.OfArray(new double[] { 1, 0, p });
+            var e2 = DenseVector.OfArray(new double[] { 0, 1, q });
+            e1 = e1 / e1.L2Norm();
+            e2 = e2 / e2.L2Norm();
+
+            // Hauptachsen im Raum:
+            var axis1 = A * (v1[0] * e1 + v1[1] * e2);
+            var axis2 = B * (v2[0] * e1 + v2[1] * e2);
+
+            return (new GeoVector(axis1[0], axis1[1], axis1[2]), new GeoVector(axis2[0], axis2[1], axis2[2]));
+        }
         private static double DistancePointEllipseSpecial(double dU, double dV, double dA,
             double dB, double dEpsilon, int iMax, ref int riIFinal,
             ref double rdX, ref double rdY)

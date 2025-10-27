@@ -847,6 +847,15 @@ namespace CADability
         {
             return Location + p.x * DirectionX + p.y * DirectionY;
         }
+        /// <summary>
+        /// Returns the explicit form of the plane: Ax + By + Cz + D = 0
+        /// </summary>
+        /// <returns></returns>
+        public double[] Explicit()
+        {
+            double d = -(Normal * Location.ToVector());
+            return [ Normal.x, Normal.y, Normal.z, d ];
+        }
         public GeoPoint FootPoint(GeoPoint fromHere)
         {
             GeoPoint onPlane = coordSys.GlobalToLocal* fromHere;

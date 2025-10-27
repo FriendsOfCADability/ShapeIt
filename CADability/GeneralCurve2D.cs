@@ -2028,11 +2028,14 @@ namespace CADability.Curve2D
 
                     try
                     {
-                        double root = Brent.FindRoot(g, a, b, 1e-8, 100);
-                        // Validierung: echtes Vorzeichenwechsel?
-                        double left = g(root - 1e-6);
-                        double right = g(root + 1e-6);
-                        if (left * right < 0) list.Add(root);
+                        if (g(a) * g(b) < 0.0)
+                        {
+                            double root = Brent.FindRoot(g, a, b, 1e-8, 100);
+                            // Validierung: echtes Vorzeichenwechsel?
+                            double left = g(root - 1e-6);
+                            double right = g(root + 1e-6);
+                            if (left * right < 0) list.Add(root);
+                        }
                     }
                     catch { /* kein gültiger Root in diesem Intervall */ }
                 }

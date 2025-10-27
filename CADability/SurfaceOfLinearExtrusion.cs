@@ -507,7 +507,28 @@ namespace CADability.GeoObject
                     return new IDualSurfaceCurve[] { dsc };
                 }
             }
-            // keine Lösung gefunden
+            if (basisCurve is Ellipse elli)
+            {   // the extrusion of an ellipse is an elliptical cylinder, the intersection with a plane is an ellipse (or empty, or a point, or a line)
+                // create 5 points as intersection of the ellipse and the plane
+                List<GeoPoint> points = new List<GeoPoint>();
+                for (int i = 0; i < 5; i++)
+                {
+                    GeoPoint pe = elli.PointAtParam(i*Math.PI/2.5);
+                    if (pl.Plane.Intersect(pe, direction, out GeoPoint pi))
+                    {
+                        points.Add(pi);
+                    }
+                }
+                // make an ellipse from these 5 points
+                if (points.Count==5)
+                {
+                    Ellipse intsElli = Ellipse.FromFivePoints(points.ToArray(), true);
+                    DualSurfaceCurve dsc = new DualSurfaceCurve(intsElli, this, this.GetProjectedCurve(intsElli,0.0), pl, pl.GetProjectedCurve(intsElli, 0.0));
+                    return new IDualSurfaceCurve[] { dsc };
+
+                }
+            }
+            // no special case, use general approach
             double[] upos = basisCurve.GetSavePositions();
             InterpolatedDualSurfaceCurve.SurfacePoint[] sp = new InterpolatedDualSurfaceCurve.SurfacePoint[upos.Length];
             for (int i = 0; i < upos.Length; ++i)
@@ -522,8 +543,8 @@ namespace CADability.GeoObject
                     sp[i] = new InterpolatedDualSurfaceCurve.SurfacePoint(p3d, new GeoPoint2D(pos, v), ips[0]);
                 }
             }
-            InterpolatedDualSurfaceCurve idsc = new InterpolatedDualSurfaceCurve(this, pl, sp, true);
-            return new IDualSurfaceCurve[] { idsc.ToDualSurfaceCurve() };
+            InterpolatedDualSurfaceCurve idsc = new InterpolatedDualSurfaceCurve(this, pl, sp, false);
+            return [idsc.ToDualSurfaceCurve()];
             //return base.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
         }
 
@@ -534,7 +555,7 @@ namespace CADability.GeoObject
                 IDualSurfaceCurve[] res = GetPlaneIntersection(ps, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, Precision.eps);
                 // don't swao, order is correct: for (int i = 0; i < res.Length; i++) res[i].SwapSurfaces();
                 return res;
-                
+
             }
             return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
         }

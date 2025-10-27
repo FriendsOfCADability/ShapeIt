@@ -1854,6 +1854,35 @@ namespace CADability
             this.operation = operation;
         }
 
+        public static Solid[] SplitSolidByPlane(Solid solidToSplit, Plane splitBy)
+        {
+            Shell shellToSplit = solidToSplit.Shells[0];
+            BoundingCube ext = shellToSplit.GetExtent(0.0);
+            GeoPoint2D cnt2d = splitBy.Project(ext.GetCenter());
+            BoundingRect br = new BoundingRect(cnt2d, 2 * ext.DiagonalLength, 2 * ext.DiagonalLength);
+            Face fcpl = Face.MakeFace(new PlaneSurface(splitBy), br);
+            Face fcpl1 = fcpl.Clone() as Face;
+            fcpl1.MakeInverseOrientation();
+            Shell splittingShell = Shell.MakeShell([fcpl] , false); // the plane as a shell with only one face, which exceeds the solid
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(shellToSplit, splittingShell, Operation.difference);
+            Shell[] resultShells = bo.Execute();
+            List<Solid> resultSolids = new List<Solid>();
+            for (int i = 0; i < resultShells.Length; i++)
+            {
+                resultSolids.Add(Solid.MakeSolid(resultShells[i]));
+            }
+            bo = new BooleanOperation();
+            splittingShell = Shell.MakeShell([fcpl1], false); // the same plane but inversed
+            bo.SetShells(shellToSplit, splittingShell, Operation.difference);
+            resultShells = bo.Execute();
+            for (int i = 0; i < resultShells.Length; i++)
+            {
+                resultSolids.Add(Solid.MakeSolid(resultShells[i]));
+            }
+            return resultSolids.ToArray();
+        }
+
         public Shell[] Execute()
         {   // we expect the shell sare in a proper state: outward oriented, no full periodic faces
             // don't know, whether we need the followin:
@@ -2133,13 +2162,22 @@ namespace CADability
 
         public static (Shell[] upperPart, Shell[] lowerPart) SplitByPlane(Shell shell, Plane pln)
         {
-            //BooleanOperation brep = new BooleanOperation(shell, pln);
-            //Shell[] upper = brep.Result();
-            //pln = new Plane(pln.Location, pln.DirectionY, pln.DirectionX); // the same plane, but reversed
-            //brep = new BooleanOperation(shell, pln);
-            //Shell[] lower = brep.Result();
-            //return (upper, lower);
-            throw new NotImplementedException();
+            Shell shellToSplit = shell;
+            BoundingCube ext = shellToSplit.GetExtent(0.0);
+            GeoPoint2D cnt2d = pln.Project(ext.GetCenter());
+            BoundingRect br = new BoundingRect(cnt2d, 2 * ext.DiagonalLength, 2 * ext.DiagonalLength);
+            Face fcpl = Face.MakeFace(new PlaneSurface(pln), br);
+            Face fcpl1 = fcpl.Clone() as Face;
+            fcpl1.MakeInverseOrientation();
+            Shell splittingShell = Shell.MakeShell([fcpl], false); // the plane as a shell with only one face, which exceeds the solid
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(shellToSplit, splittingShell, Operation.difference);
+            Shell[] lp = bo.Execute();
+            bo = new BooleanOperation();
+            splittingShell = Shell.MakeShell([fcpl1], false); // the same plane but inversed
+            bo.SetShells(shellToSplit, splittingShell, Operation.difference);
+            Shell[] up = bo.Execute();
+            return (up, lp);
         }
         public static (Shell[] upperPart, Shell[] lowerPart) SplitByFace(Shell toSplit, Face splitBy)
         {
@@ -3548,15 +3586,15 @@ namespace CADability
             }
 #endif
 #if DEBUG
-            Dictionary<Face, DebuggerContainer> dbgFaceTointersectionEdges = new Dictionary<Face, DebuggerContainer>();
-            foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
-            {
-                DebuggerContainer dc = new DebuggerContainer();
-                dbgFaceTointersectionEdges[kv.Key] = dc;
-                double arrowSize = kv.Key.Area.GetExtent().Size * 0.02;
-                dc.Add(kv.Value, kv.Key, arrowSize, Color.Red, 0);
-                dc.Add(kv.Key.Edges, kv.Key, arrowSize, Color.Blue, 0);
-            }
+            //Dictionary<Face, DebuggerContainer> dbgFaceTointersectionEdges = new Dictionary<Face, DebuggerContainer>();
+            //foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
+            //{
+            //    DebuggerContainer dc = new DebuggerContainer();
+            //    dbgFaceTointersectionEdges[kv.Key] = dc;
+            //    double arrowSize = kv.Key.Area.GetExtent().Size * 0.02;
+            //    dc.Add(kv.Value, kv.Key, arrowSize, Color.Red, 0);
+            //    dc.Add(kv.Key.Edges, kv.Key, arrowSize, Color.Blue, 0);
+            //}
 #endif
 #if DEBUG
             DebuggerContainer dcif = new DebuggerContainer();

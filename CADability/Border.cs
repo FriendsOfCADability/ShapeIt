@@ -1849,8 +1849,15 @@ namespace CADability.Shapes
                 for (int k = 0; k < segment.Count; k++)
                 {
                     GeoPoint2DWithParameter[] ip = segment[k].Intersect(fromHere - length * dir, fromHere + length * dir); // Mitte am Testpunkt, geht über alle segmente hinaus
+                    Array.Sort(ip, (pp1,pp2) =>pp1.par2.CompareTo(pp2.par2));
+
                     for (int j = 0; j < ip.Length; j++)
                     {
+                        if (j>0 && Precision.IsEqual(ip[j].par2, ip[j-1].par2))
+                        {
+                            // GeneralCurve2D sometimes returns multiple intersection points at the same parameter value
+                            continue;
+                        }
                         if (Math.Abs(ip[j].par1) < 1e-6 || Math.Abs(1.0 - ip[j].par1) < 1e-6)
                         {   // Schnitt durch einen Eckpunkt ist schlecht
                             badPoint = true;

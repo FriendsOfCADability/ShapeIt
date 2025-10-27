@@ -916,11 +916,16 @@ namespace CADability.Curve2D
         /// <param name="throughpoints">the points to be interpolated</param>
         /// <param name="degree">the degree of the BSpline2D</param>
         /// <param name="periodic">true for periodic (closed) false otherwise</param>
-        public BSpline2D(GeoPoint2D[] throughpoints, int degree, bool periodic)
+        /// <param name="throughpointsparam">if an array is provided, it maus have the same length as throughpoints and returns the parameters, which result in the throughpoints</param>
+        public BSpline2D(GeoPoint2D[] throughpoints, int degree, bool periodic, double[] throughpointsparam = null)
         {
             degree = Math.Min(degree, throughpoints.Length - 1); // bei 2 Punkten nur 1. Grad, also Linie, u.s.w
-            double[] throughpointsparam;
-            nubs = new Nurbs<GeoPoint2D, GeoPoint2DPole>(degree, throughpoints, periodic, out throughpointsparam);
+            double[] tp;
+            nubs = new Nurbs<GeoPoint2D, GeoPoint2DPole>(degree, throughpoints, periodic, out tp);
+            if (throughpointsparam != null)
+            {
+                for (int i = 0; i < tp.Length; i++) throughpointsparam[i] = tp[i];
+            }
             poles = nubs.Poles;
             double[] flatknots = nubs.UKnots;
             List<double> hknots = new List<double>();

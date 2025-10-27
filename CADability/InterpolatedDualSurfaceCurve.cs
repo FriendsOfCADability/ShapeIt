@@ -284,64 +284,54 @@ namespace CADability
                     if (onSurface1) bp = curve3d.basePoints.Select(bp => bp.psurface1).ToArray();
                     else bp = curve3d.basePoints.Select(bp => bp.psurface2).ToArray();
                     approxBSpline = new BSpline2D(bp, 3, false);
-                    double prec = Math.Max(curve3d.GetExtent(0.0).Size * 1e-5, Precision.eps);
-                    int n = bp.Length;
-                    for (int k = 0; k < 10; k++)
+                    SortedList<double, GeoPoint2D> throughPoints = new SortedList<double, GeoPoint2D>();
+                    for (int i = 0; i < bp.Length; i++) throughPoints[curve3d.PositionOf(curve3d.basePoints[i].p3d)] = bp[i];
+                    double prec = new BoundingRect(bp).Size * 1e-3;
+                    do
                     {
-                        bool ok = true;
-                        double dp = 1 / (double)(2 * n - 2);
-                        for (int i = 0; i < n - 1; i++)
+                        SortedList<double, GeoPoint2D> refinedPoints = new SortedList<double, GeoPoint2D>();
+
+                        for (int i = 0; i < throughPoints.Count - 1; i++)
                         {
-                            double par = i / (double)(n - 1) + dp; // intermediate position
-                            GeoPoint2D ps = approxBSpline.PointAt(par);
-                            // we cannot use the distance of the BSpline to this real curve, since calculating this distance needs the BSpline again
-                            double dist;
-                            if (onSurface1)
-                            {
-                                dist = curve3d.surface2.GetDistance(curve3d.surface1.PointAt(ps));
-                            }
-                            else
-                            {
-                                dist = curve3d.surface1.GetDistance(curve3d.surface2.PointAt(ps));
-                            }
+                            double par = throughPoints.Keys[i] + 0.5 * (throughPoints.Keys[i + 1] - throughPoints.Keys[i]);
+                            curve3d.ApproximatePosition(par, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p3d);
+                            GeoPoint2D uv = onSurface1 ? uv1 : uv2;
+                            double dist = approxBSpline.Distance(uv);
+                            // we cannot use the distance of the BSpline to this real curve, since calculating this distance would need the BSpline again
                             if (dist > prec)
                             {
-                                ok = false;
-                                break;
+                                refinedPoints[par] = uv;
                             }
                         }
-                        if (ok) break;
-                        n *= 2;
-                        bp = new GeoPoint2D[n];
-                        for (int i = 0; i < n; i++)
-                        {
-                            bp[i] = PointAt(i / (double)(n - 1));
-                        }
+                        if (refinedPoints.Count == 0) break; // all ok
+                        foreach (var kvp in refinedPoints) throughPoints[kvp.Key] = kvp.Value;
+                        bp = throughPoints.Values.ToArray();
                         approxBSpline = new BSpline2D(bp, 3, false);
-                        double[] infl = approxBSpline.GetInflectionPoints();
-                        List<GeoPoint2D> inflp = new List<GeoPoint2D>();
-                        for (int i = 0; i < infl.Length; i++)
-                        {
-                            inflp.Add(approxBSpline.PointAt(infl[i]));
-                        }
-                    }
+                        if (bp.Length > 100) break; // something is wrong
+                    } while (true);
+
                     return approxBSpline;
                 }
             }
             public override double GetArea()
             {
-                return ApproxBSpline.GetArea();
+                double a = ApproxBSpline.GetArea();
+                if (Precision.IsEqual(ApproxBSpline.StartPoint,PointAt(0))==reversed) { }
+                if (reversed) return -a;
+                else return a;
             }
             public override double GetAreaFromPoint(GeoPoint2D p)
             {
-                return ApproxBSpline.GetAreaFromPoint(p);
+                double a = ApproxBSpline.GetAreaFromPoint(p);
+                if (reversed) return -a;
+                else return a;
             }
             public override BoundingRect GetExtent()
             {
                 return ApproxBSpline.GetExtent();
             }
             public override double Length => ApproxBSpline.Length;
-            public override double Sweep => ApproxBSpline.Sweep;
+            public override double Sweep => reversed ? -ApproxBSpline.Sweep : ApproxBSpline.Sweep;
             public override GeoVector2D DirectionAt(double par)
             {
                 GeoPoint2D uv1, uv2;
@@ -756,6 +746,7 @@ namespace CADability
             forwardOriented = (a.Radian < Math.PI / 2.0);
             CheckSurfaceExtents();
             AdjustBasePointsPeriodic();
+            BSpline toUpdateBasepoints = ApproxBSpline;
 #if DEBUG
             CheckSurfaceParameters();
 #endif
