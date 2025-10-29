@@ -431,25 +431,25 @@ namespace CADability
 					}
 
 					octTree = new OctTree<IGeoObject>(Extent, displayListPrecision);
-					//for (int i = 0; i < geoObjects.Count; ++i)
-					//{
-					//    AddOctreeObjects(geoObjects[i], octTree);
-					//}
-					try
+					for (int i = 0; i < geoObjects.Count; ++i)
 					{
-						Parallel.For(0, geoObjects.Count, i =>
-						{
-							AddOctreeObjectsParallel(geoObjects[i], octTree);
-						});
+						AddOctreeObjects(geoObjects[i], octTree);
 					}
-					catch (NullReferenceException)
-					{   // mysterious exception when opening a simple dxf file from the recent files menu
-						octTree = new OctTree<IGeoObject>(Extent, displayListPrecision);
-						for (int i = 0; i < geoObjects.Count; ++i)
-						{
-							AddOctreeObjects(geoObjects[i], octTree);
-						}
-					}
+					//try
+					//{
+					//	Parallel.For(0, geoObjects.Count, i =>
+					//	{
+					//		AddOctreeObjectsParallel(geoObjects[i], octTree);
+					//	});
+					//}
+					//catch (NullReferenceException)
+					//{   // mysterious exception when opening a simple dxf file from the recent files menu
+					//	octTree = new OctTree<IGeoObject>(Extent, displayListPrecision);
+					//	for (int i = 0; i < geoObjects.Count; ++i)
+					//	{
+					//		AddOctreeObjects(geoObjects[i], octTree);
+					//	}
+					//}
 					int time = Environment.TickCount - tcstart;
 				}
 			}

@@ -316,7 +316,7 @@ namespace CADability
             public override double GetArea()
             {
                 double a = ApproxBSpline.GetArea();
-                if (Precision.IsEqual(ApproxBSpline.StartPoint,PointAt(0))==reversed) { }
+                if (Precision.IsEqual(ApproxBSpline.StartPoint, PointAt(0)) == reversed) { }
                 if (reversed) return -a;
                 else return a;
             }
@@ -980,6 +980,7 @@ namespace CADability
                 ApproximatePosition((double)i / (double)(basePoints.Length - 1), out uv1, out uv2, out basePoints[i].p3d, true);
                 basePoints[i].psurface1 = uv1;
                 basePoints[i].psurface2 = uv2;
+                hashedPositions.Clear(); // die Werte hier sind unnütz, da die basePoints sich ja immer noch ändern
             }
             AdjustPeriodic(bounds1, bounds2);
 
@@ -2127,6 +2128,47 @@ namespace CADability
                 return approxBSpline;
             }
         }
+
+        // F ist Polynom in 2 Variablen "x","y" (bei dir u,v)
+        private bool IsLocallyAlmostLinear(Polynom F, double tau = 0.005)
+        {
+            // Wir holen die Koeffizienten:
+            // a*x^2 + b*x*y + c*y^2 + d*x + e*y + f
+
+            double a = F.Get(2, 0);   // x^2
+            double b = F.Get(1, 1);   // x*y
+            double c = F.Get(0, 2);   // y^2
+            double d = F.Get(1, 0);   // x
+            double e = F.Get(0, 1);   // y
+                                      // f = F.Get(0,0); // brauchen wir hier nicht
+
+            double Qscale = Math.Max(Math.Abs(a), Math.Max(Math.Abs(b), Math.Abs(c)));
+            double Lscale = Math.Max(Math.Abs(d), Math.Abs(e));
+
+            // Fallunterscheidungen:
+            if (Qscale == 0.0 && Lscale == 0.0)
+            {
+                // Das Polynom ist konstant -> entweder kein Schnitt oder "alles Schnitt".
+                // Das ist pathologisch, behandeln wir wie degeneriert.
+                return true;
+            }
+            if (Qscale == 0.0)
+            {
+                // rein linear => degeneriert
+                return true;
+            }
+            if (Lscale == 0.0)
+            {
+                // rein quadratisch (z.B. perfekter Kreis um Ursprung)
+                // => krasse Krümmung, nicht degeneriert.
+                return false;
+            }
+
+            double R = Qscale / Lscale;
+
+            return (R < tau);
+        }
+
         private void ApproximatePosition(double position, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p, bool refineBasePoints)
         {
             lock (hashedPositions)
@@ -2143,6 +2185,7 @@ namespace CADability
                     return;
                 }
                 Plane normalPlane; // Plane normal tu the BSpline or segment-polyline at position
+                double precision = 1e-6;
                 if (approxBSpline == null)
                 {   // in the constructor we need to calculate a few basepoints before we can build the BSpline
 
@@ -2156,10 +2199,85 @@ namespace CADability
                     if (ind == basePoints.Length - 1) --ind;
                     GeoVector normal = basePoints[ind + 1].p3d - basePoints[ind].p3d;
                     normalPlane = new Plane(location, normal);
+                    precision = normal.Length / 1000.0;
                 }
                 else
                 {
-                    normalPlane = new Plane((approxBSpline as ICurve).PointAt(position), (approxBSpline as ICurve).DirectionAt(position));
+                    GeoVector normal = (approxBSpline as ICurve).DirectionAt(position);
+                    normalPlane = new Plane((approxBSpline as ICurve).PointAt(position), normal);
+                    precision = normal.Length / 10000.0;
+                }
+                Polynom sec1, sec2;
+                if (surface1 is ISurfaceImpl s1 && surface2 is ISurfaceImpl s2)
+                {
+                    Polynom ps1 = s1.GetImplicitPolynomial();
+                    Polynom ps2 = s2.GetImplicitPolynomial();
+                    if (ps1 != null && ps2 != null)
+                    {
+                        sec1 = ISurfaceImpl.GetSectionInPlane(normalPlane, ps1);
+                        sec2 = ISurfaceImpl.GetSectionInPlane(normalPlane, ps2);
+                        if (sec1.Degree == 2 && sec2.Degree == 2 && sec1.Dimension == 2 && sec2.Dimension == 2 && !IsLocallyAlmostLinear(sec1) && !IsLocallyAlmostLinear(sec2))
+                        {   // both are quadrics
+                            List<double[]> uv = Polynom.SolveTwoSquared(sec1, sec2);
+                            if (uv.Count > 0)
+                            {
+                                double[] minuv = uv.MinBy(p => Math.Sqrt(p[0] * p[0] + p[1] * p[1]));
+                                GeoPoint2D found = new GeoPoint2D(minuv[0], minuv[1]);
+                                p = normalPlane.ToGlobal(found);
+                                if ((p | normalPlane.Location) < 100 * precision)
+                                {   // this is close egnough for a valid solution
+                                    uv1 = surface1.PositionOf(p);
+                                    uv2 = surface2.PositionOf(p);
+                                    SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
+                                    if (hasLower) spt.FixAgainstNeighbour(lowerValue, surface1, surface2);
+                                    else if (hasUpper) spt.FixAgainstNeighbour(upperValue, surface1, surface2);
+                                    else AdjustPeriodic(ref spt.psurface1, ref spt.psurface2);
+                                    hashedPositions[position] = spt;
+                                    uv1 = spt.psurface1;
+                                    uv2 = spt.psurface2;
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    PlaneSurface normalSurface = new PlaneSurface(normalPlane);
+                    IDualSurfaceCurve[] isc1 = surface1.GetPlaneIntersection(normalSurface, bounds1.Left, bounds1.Right, bounds1.Bottom, bounds1.Top, precision);
+                    IDualSurfaceCurve[] isc2 = surface2.GetPlaneIntersection(normalSurface, bounds2.Left, bounds2.Right, bounds2.Bottom, bounds2.Top, precision);
+                    GeoPoint bestIntersection = GeoPoint.Invalid;
+                    for (int i = 0; i < isc1.Length; i++)
+                    {
+                        if (!(isc1[i].Curve2D2 is Line2D || isc1[i].Curve2D2 is Ellipse2D || isc1[i].Curve2D2 is Circle2D)) continue;
+                        // only intersect lines and ellipsesor circles, not InterpolatedDualSurfaceCurves.ProjectedCurve
+                        for (int j = 0; j < isc2.Length; j++)
+                        {
+                            if (!(isc2[j].Curve2D2 is Line2D || isc2[j].Curve2D2 is Ellipse2D || isc2[j].Curve2D2 is Circle2D)) continue;
+                            GeoPoint2DWithParameter[] ips = isc1[i].Curve2D2.Intersect(isc2[j].Curve2D2);
+                            for (int k = 0; k < ips.Length; k++)
+                            {
+                                GeoPoint testP = normalSurface.PointAt(ips[k].p);
+                                if (!bestIntersection.IsValid || (testP | normalPlane.Location) < (bestIntersection | normalPlane.Location))
+                                {
+                                    bestIntersection = testP;
+                                }
+                            }
+                        }
+                    }
+                    if (bestIntersection.IsValid && (bestIntersection | normalPlane.Location) < 100 * precision)
+                    {   // this is close egnough for a valid solution
+                        p = bestIntersection;
+                        uv1 = surface1.PositionOf(p);
+                        uv2 = surface2.PositionOf(p);
+                        SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
+                        if (hasLower) spt.FixAgainstNeighbour(lowerValue, surface1, surface2);
+                        else if (hasUpper) spt.FixAgainstNeighbour(upperValue, surface1, surface2);
+                        else AdjustPeriodic(ref spt.psurface1, ref spt.psurface2);
+                        hashedPositions[position] = spt;
+                        uv1 = spt.psurface1;
+                        uv2 = spt.psurface2;
+                        return;
+                    }
+
+
                 }
                 if (isTangential)
                 {
@@ -2783,6 +2901,7 @@ namespace CADability
 #if DEBUG
             // double oldLength = hashedPositionsLength();
 #endif
+            var dumy = ApproxBSpline; // a better syntax needed here to ensure that approxPolynom is initialized
             ApproximatePosition(Position, out uv1, out uv2, out p);
 #if DEBUG
             //if (oldLength > 0.0 && hashedPositionsLength() / oldLength > 2)
@@ -3434,6 +3553,7 @@ namespace CADability
                 }
             }
 #if DEBUG
+            // cannot calculate ApproxBSpline here, because may other objects are not finally constructed
             CheckSurfaceParameters();
 #endif
         }

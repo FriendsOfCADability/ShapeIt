@@ -3818,6 +3818,30 @@ namespace CADability.GeoObject
             }
             return res;
         }
+
+        public static Polynom GetSectionInPlane(Plane plane, Polynom F)
+        {
+
+            // baue x(u,v), y(u,v), z(u,v)
+            Polynom xUV = new Polynom(
+                plane.Location.x, "",
+                plane.DirectionX.x, "x",
+                plane.DirectionY.x, "y"
+            );
+            Polynom yUV = new Polynom(
+                plane.Location.y, "",
+                plane.DirectionX.y, "x",
+                plane.DirectionY.y, "y"
+            );
+            Polynom zUV = new Polynom(
+                plane.Location.z, "",
+                plane.DirectionX.z, "x",
+                plane.DirectionY.z, "y"
+            );
+
+            return F.Substitute(xUV, yUV, zUV); // jetzt dim==2
+        }
+
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.GetPolynomialParameters ()"/>
         /// </summary>
@@ -3828,6 +3852,28 @@ namespace CADability.GeoObject
         }
         public virtual Polynom GetImplicitPolynomial()
         {
+            double[] par = GetPolynomialParameters();
+            if (par != null)
+            {
+                List<object> def = new List<object>(20);
+
+                if (par[0] != 0.0) { def.Add(par[0]); def.Add("x2"); }
+                if (par[1] != 0.0) { def.Add(par[1]); def.Add("y2"); }
+                if (par[2] != 0.0) { def.Add(par[2]); def.Add("z2"); }
+                if (par[3] != 0.0) { def.Add(par[3]); def.Add("xy"); }
+                if (par[4] != 0.0) { def.Add(par[4]); def.Add("yz"); }
+                if (par[5] != 0.0) { def.Add(par[5]); def.Add("xz"); }
+                if (par[6] != 0.0) { def.Add(par[6]); def.Add("x"); }
+                if (par[7] != 0.0) { def.Add(par[7]); def.Add("y"); }
+                if (par[8] != 0.0) { def.Add(par[8]); def.Add("z"); }
+                if (par[9] != 0.0) { def.Add(par[9]); def.Add(""); }
+
+                if (def.Count == 0)
+                {
+                    return new Polynom(0.0, "");
+                }
+                return new Polynom(def.ToArray());
+            }
             return null;
         }
 

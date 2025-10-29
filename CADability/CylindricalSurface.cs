@@ -2172,6 +2172,7 @@ namespace CADability.GeoObject
             }
             return implicitPolynomial;
         }
+
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetExtrema ()"/>
         /// </summary>

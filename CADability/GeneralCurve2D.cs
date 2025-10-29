@@ -537,7 +537,7 @@ namespace CADability.Curve2D
                 GeoVector2D sec = points[i] - points[i - 1];
                 SweepAngle sa0 = new SweepAngle(directions[i - 1], sec);
                 SweepAngle sa1 = new SweepAngle(directions[i], sec);
-                if (directions[i - 1].Length < 1e-6 || directions[i].Length < 1e-6)
+                if (directions[i - 1].Length < 1e-6 || directions[i].Length < 1e-6 || sec.Length<1e-6)
                 {   // wenn eine Richtung ein Nullvektor ist, wird nicht unterteilt
                     continue;
                 }

@@ -523,8 +523,11 @@ namespace CADability.GeoObject
                 if (points.Count==5)
                 {
                     Ellipse intsElli = Ellipse.FromFivePoints(points.ToArray(), true);
-                    DualSurfaceCurve dsc = new DualSurfaceCurve(intsElli, this, this.GetProjectedCurve(intsElli,0.0), pl, pl.GetProjectedCurve(intsElli, 0.0));
-                    return new IDualSurfaceCurve[] { dsc };
+                    if (intsElli!=null && intsElli.MajorRadius / intsElli.MinorRadius < 100)
+                    {   // dont return degenerated ellipses
+                        DualSurfaceCurve dsc = new DualSurfaceCurve(intsElli, this, this.GetProjectedCurve(intsElli, 0.0), pl, pl.GetProjectedCurve(intsElli, 0.0));
+                        return new IDualSurfaceCurve[] { dsc };
+                    }
 
                 }
             }
