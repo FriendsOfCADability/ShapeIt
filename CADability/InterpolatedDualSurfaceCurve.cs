@@ -343,7 +343,7 @@ namespace CADability
                 {
                     GeoPoint2D pp = onSurface1 ? uv1 : uv2;
                     double pos = ApproxBSpline.PositionOf(pp); // the parameters of the BSpline are not the same as those of this curve
-                    return ApproxBSpline.DirectionAt(pos); // no good results with the following in case of tangential
+                    return reversed ? -ApproxBSpline.DirectionAt(pos) : ApproxBSpline.DirectionAt(pos); // no good results with the following in case of tangential
                 }
                 else
                 {
@@ -352,7 +352,7 @@ namespace CADability
                     {   // no good value for dir, use the BSpline approximation
                         GeoPoint2D pp = onSurface1 ? uv1 : uv2;
                         double pos = ApproxBSpline.PositionOf(pp); // the parameters of the BSpline are not the same as those of this curve
-                        return ApproxBSpline.DirectionAt(pos); // no good results with the following in case of tangential
+                        return reversed ? -ApproxBSpline.DirectionAt(pos) : ApproxBSpline.DirectionAt(pos); // no good results with the following in case of tangential
                     }
                 }
                 if (!curve3d.forwardOriented) dir.Reverse();
@@ -3154,12 +3154,14 @@ namespace CADability
                 for (int i = 0; i < basePoints.Length; ++i)
                 {
                     double pos = (double)i / (double)(basePoints.Length - 1);
+                    pos = PositionOf(basePoints[i].p3d);
                     // keine fast identischen Punkte zufügen, die führen zu Nullvektoren in der Differenz
                     if (pos > StartPos + 1e-3) spl.Add(basePoints[i]);
                 }
                 for (int i = 1; i < basePoints.Length; ++i)
                 {
                     double pos = (double)i / (double)(basePoints.Length - 1);
+                    pos = PositionOf(basePoints[i].p3d);
                     // keine fast identischen Punkte zufügen, die führen zu Nullvektoren in der Differenz
                     if (pos < EndPos - 1e-3) spl.Add(basePoints[i]);
                     else break;
@@ -3170,6 +3172,7 @@ namespace CADability
                 for (int i = 0; i < basePoints.Length; ++i)
                 {
                     double pos = (double)i / (double)(basePoints.Length - 1);
+                    pos = PositionOf(basePoints[i].p3d);
                     // keine fast identischen Punkte zufügen, die führen zu Nullvektoren in der Differenz
                     if (pos > StartPos + 1e-3 && pos < EndPos - 1e-3) spl.Add(basePoints[i]);
                 }
@@ -3187,6 +3190,7 @@ namespace CADability
             CheckSurfaceParameters();
 #endif
             InvalidateSecondaryData();
+            BSpline init = ApproxBSpline;
         }
         public override IGeoObject Clone()
         {

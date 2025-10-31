@@ -540,7 +540,7 @@ namespace ShapeIt
             }
             if (operand1!=null && operand2 != null)
             {
-                if (difference.Count>0)
+                //if (difference.Count>0)
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand1,operand2);
                     if (sres.Length > 0)

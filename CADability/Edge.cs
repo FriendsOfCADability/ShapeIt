@@ -829,7 +829,7 @@ namespace CADability
         {
             hashCode = hashCodeCounter++; // 
 #if DEBUG
-            if (hashCode == 3585 || hashCode == 3587)
+            if (hashCode == 464 || hashCode == 462)
             {
             }
 #endif
@@ -3076,6 +3076,7 @@ namespace CADability
                     splittedEdge.curve3d = (curve3d as InterpolatedDualSurfaceCurve).CloneTrimmed(startpos, endpos, curveOnPrimaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve, curveOnSecondaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve, out splittedEdge.curveOnPrimaryFace, out splittedEdge.curveOnSecondaryFace);
 #if DEBUG
                     (splittedEdge.curve3d as InterpolatedDualSurfaceCurve).CheckSurfaceParameters();
+                    splittedEdge.curveOnSecondaryFace.GetArea();
 #endif
                     (splittedEdge.curve3d as IGeoObject).Owner = splittedEdge;
                     if ((startVertex.Position | endVertex.Position) > precision)
