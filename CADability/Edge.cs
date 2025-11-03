@@ -1900,7 +1900,7 @@ namespace CADability
             forwardOnSecondaryFace = forward;
             oriented = true;
         }
-        internal void UpdateInterpolatedDualSurfaceCurve()
+        internal void UpdateInterpolatedDualSurfaceCurve(BoundingRect bounds1, BoundingRect bounds2)
         {
             if (curve3d is InterpolatedDualSurfaceCurve)
             {
@@ -1917,8 +1917,6 @@ namespace CADability
                     GeoVector n1e = PrimaryFace.Surface.GetNormal(uv1e);
                     GeoVector n2s = SecondaryFace.Surface.GetNormal(uv2s);
                     GeoVector n2e = SecondaryFace.Surface.GetNormal(uv2e);
-                    BoundingRect bounds1 = primaryFace.Area.GetExtent();
-                    BoundingRect bounds2 = secondaryFace.Area.GetExtent();
                     primaryFace.Surface.SetBounds(bounds1);
                     secondaryFace.Surface.SetBounds(bounds2); // these bounds were not set under certain circumstances
                     if ((new Angle(n1s, n2s)).Radian < 0.01 && (new Angle(n1e, n2e)).Radian < 0.01) // the condition was "||", but we get along with curves that are tangential at one end
@@ -1944,97 +1942,6 @@ namespace CADability
 #endif
                         return;
 
-                        //Unreachable code
-                        /*
-                        //BoundingRect bounds1 = curveOnPrimaryFace.GetExtent();
-                        //BoundingRect bounds2 = curveOnSecondaryFace.GetExtent();
-                        // sicher ist hier, dass StartVertex und EndVertex stimmen
-                        // also Vertex1, Vertex2 und forwardOnPrimaryFace, forwardOnSecondaryFace sind richtig gesetzt
-                        if (dsc.Surface1 == primaryFace.internalSurface && dsc.Surface2 == secondaryFace.internalSurface)
-                        {   // nichts zu tun
-                            if (curveOnPrimaryFace is InterpolatedDualSurfaceCurve.ProjectedCurve)
-                            {
-                                (curveOnPrimaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve).SetCurve3d(dsc);
-                                (curveOnPrimaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve).IsOnSurface1 = true;
-                            }
-                            else
-                            {
-                                dsc.RecalcSurfacePoints(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
-                            }
-                            if (curveOnSecondaryFace is InterpolatedDualSurfaceCurve.ProjectedCurve)
-                            {
-                                (curveOnSecondaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve).SetCurve3d(dsc);
-                                (curveOnSecondaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve).IsOnSurface1 = false;
-                            }
-                            else
-                            {
-                                dsc.RecalcSurfacePoints(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
-                            }
-                            curveOnPrimaryFace = dsc.CurveOnSurface1;
-                            if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
-                            curveOnSecondaryFace = dsc.CurveOnSurface2;
-                            if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
-                            dsc.AdjustPeriodic(bounds1, bounds2);
-#if DEBUG
-                            dsc.CheckSurfaceParameters();
-#endif
-                            return; // die 2d Kurven stimmen hoffentlich auch. Wenn es Fälle gibt, wo nicht, dann muss das untere noch ausgeführt werden
-                        }
-                        else if (dsc.Surface2 == primaryFace.internalSurface && dsc.Surface1 == secondaryFace.internalSurface)
-                        {   // surfaces vertauschen
-                            dsc.SetSurfaces(primaryFace.internalSurface, secondaryFace.internalSurface, true);
-                            dsc.RecalcSurfacePoints(bounds1, bounds2);
-                            dsc.AdjustPeriodic(bounds1, bounds2);
-                            curveOnPrimaryFace = dsc.CurveOnSurface1;
-                            if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
-                            curveOnSecondaryFace = dsc.CurveOnSurface2;
-                            if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
-#if DEBUG
-                            dsc.CheckSurfaceParameters();
-#endif
-                            return; // die 2d Kurven stimmen hoffentlich auch. Wenn es Fälle gibt, wo nicht, dann muss das untere noch ausgeführt werden
-                        }
-                        else
-                        {   // es sind vermutlich clones der surfaces gegeben.
-                            // am einfachsten zu unterscheiden, wenn verschiedene Typen
-                            if (secondaryFace.internalSurface.GetType() != primaryFace.internalSurface.GetType())
-                            {
-                                if (dsc.Surface1.GetType() == primaryFace.internalSurface.GetType() && dsc.Surface2.GetType() == secondaryFace.internalSurface.GetType())
-                                {
-                                    dsc.SetSurfaces(primaryFace.internalSurface, secondaryFace.internalSurface, false);
-                                }
-                                else
-                                {   // surfaces vertauschen
-                                    dsc.SetSurfaces(primaryFace.internalSurface, secondaryFace.internalSurface, true);
-                                }
-                            }
-                            else
-                            {
-                                ModOp2D fts;
-                                if (dsc.Surface1.SameGeometry(primaryFace.Area.GetExtent(), primaryFace.internalSurface, primaryFace.Area.GetExtent(), Precision.eps, out fts))
-                                {
-                                    dsc.SetSurfaces(primaryFace.internalSurface, secondaryFace.internalSurface, false);
-                                }
-                                else
-                                {   // surfaces vertauschen
-                                    dsc.SetSurfaces(primaryFace.internalSurface, secondaryFace.internalSurface, true);
-                                }
-                            }
-                        }
-                        if ((dsc.StartPoint | Vertex1.Position) + (dsc.EndPoint | Vertex2.Position) > (dsc.StartPoint | Vertex2.Position) + (dsc.EndPoint | Vertex1.Position))
-                        {
-                            dsc.Reverse();
-                        }
-                        curveOnPrimaryFace = dsc.CurveOnSurface1;
-                        if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
-                        curveOnSecondaryFace = dsc.CurveOnSurface2;
-                        if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
-                        dsc.RecalcSurfacePoints(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
-                        dsc.AdjustPeriodic(bounds1, bounds2);
-#if DEBUG
-                        dsc.CheckSurfaceParameters();
-#endif
-                        */
                     }
                 }
                 else
@@ -2068,8 +1975,6 @@ namespace CADability
                     }
                     else
                     {
-                        BoundingRect bounds1 = curveOnPrimaryFace.GetExtent();
-                        BoundingRect bounds2 = curveOnSecondaryFace.GetExtent();
                         InterpolatedDualSurfaceCurve dsc = new InterpolatedDualSurfaceCurve(primaryFace.Surface, bounds1,
                             secondaryFace.Surface, bounds2, new List<GeoPoint>((Curve3D as BSpline).ThroughPoint));
                         curveOnPrimaryFace = dsc.CurveOnSurface1;
@@ -3300,15 +3205,14 @@ namespace CADability
             else if (from == secondaryFace) secondaryFace = to;
             else throw new ApplicationException("ReplaceFace, invalid parameter");
         }
-        internal bool ReplaceFace(Face from, Face to, ModOp2D m)
+        internal bool ReplaceFace(Face from, Face to, ModOp2D m, BoundingRect domain)
         {
             if (from == primaryFace)
             {
-                GeoPoint2D expmp2d = m * PrimaryCurve2D.PointAt(0.5); // the expected middle point used to find correct period for periodic surfaces
                 primaryFace = to;
                 if (Curve3D is InterpolatedDualSurfaceCurve)
                 {
-                    UpdateInterpolatedDualSurfaceCurve();
+                    UpdateInterpolatedDualSurfaceCurve(domain,secondaryFace.Domain);
                 }
                 else if (m.IsNull)
                 {
@@ -3328,43 +3232,15 @@ namespace CADability
                     this.owner = primaryFace;
                     if (m.Determinant < 0) forwardOnPrimaryFace = !forwardOnPrimaryFace;
                 }
-                if (primaryFace.Surface.IsUPeriodic)
-                {
-                    GeoPoint2D mp2d = PrimaryCurve2D.PointAt(0.5);
-                    while (mp2d.x > expmp2d.x + primaryFace.Surface.UPeriod * 0.5)
-                    {
-                        PrimaryCurve2D.Move(-primaryFace.Surface.UPeriod, 0);
-                        mp2d = PrimaryCurve2D.PointAt(0.5);
-                    }
-                    while (mp2d.x < expmp2d.x - primaryFace.Surface.UPeriod * 0.5)
-                    {
-                        PrimaryCurve2D.Move(primaryFace.Surface.UPeriod, 0);
-                        mp2d = PrimaryCurve2D.PointAt(0.5);
-                    }
-                }
-                if (primaryFace.Surface.IsVPeriodic)
-                {
-                    GeoPoint2D mp2d = PrimaryCurve2D.PointAt(0.5);
-                    while (mp2d.y > expmp2d.y + primaryFace.Surface.VPeriod * 0.5)
-                    {
-                        PrimaryCurve2D.Move(0, -primaryFace.Surface.VPeriod);
-                        mp2d = PrimaryCurve2D.PointAt(0.5);
-                    }
-                    while (mp2d.y < expmp2d.y - primaryFace.Surface.VPeriod * 0.5)
-                    {
-                        PrimaryCurve2D.Move(0, primaryFace.Surface.VPeriod);
-                        mp2d = PrimaryCurve2D.PointAt(0.5);
-                    }
-                }
+                SurfaceHelper.AdjustPeriodic(primaryFace.Surface, domain, PrimaryCurve2D);
                 return true;
             }
             else if (from == secondaryFace)
             {
-                GeoPoint2D expmp2d = m * SecondaryCurve2D.PointAt(0.5); // the expected middle point used to find correct period for periodic surfaces
                 secondaryFace = to;
                 if (Curve3D is InterpolatedDualSurfaceCurve)
                 {
-                    UpdateInterpolatedDualSurfaceCurve();
+                    UpdateInterpolatedDualSurfaceCurve(primaryFace.Domain,domain);
                 }
                 else if (m.IsNull)
                 {
@@ -3381,34 +3257,7 @@ namespace CADability
                     SecondaryCurve2D = SecondaryCurve2D.GetModified(m);
                     if (m.Determinant < 0) forwardOnSecondaryFace = !forwardOnSecondaryFace;
                 }
-                if (secondaryFace.Surface.IsUPeriodic)
-                {
-                    GeoPoint2D mp2d = SecondaryCurve2D.PointAt(0.5);
-                    while (mp2d.x > expmp2d.x + secondaryFace.Surface.UPeriod * 0.5)
-                    {
-                        SecondaryCurve2D.Move(-secondaryFace.Surface.UPeriod, 0);
-                        mp2d = SecondaryCurve2D.PointAt(0.5);
-                    }
-                    while (mp2d.x < expmp2d.x - secondaryFace.Surface.UPeriod * 0.5)
-                    {
-                        SecondaryCurve2D.Move(secondaryFace.Surface.UPeriod, 0);
-                        mp2d = SecondaryCurve2D.PointAt(0.5);
-                    }
-                }
-                if (secondaryFace.Surface.IsVPeriodic)
-                {
-                    GeoPoint2D mp2d = SecondaryCurve2D.PointAt(0.5);
-                    while (mp2d.y > expmp2d.y + secondaryFace.Surface.VPeriod * 0.5)
-                    {
-                        SecondaryCurve2D.Move(0, -secondaryFace.Surface.VPeriod);
-                        mp2d = SecondaryCurve2D.PointAt(0.5);
-                    }
-                    while (mp2d.y < expmp2d.y - secondaryFace.Surface.VPeriod * 0.5)
-                    {
-                        SecondaryCurve2D.Move(0, secondaryFace.Surface.VPeriod);
-                        mp2d = SecondaryCurve2D.PointAt(0.5);
-                    }
-                }
+                SurfaceHelper.AdjustPeriodic(secondaryFace.Surface, domain, SecondaryCurve2D);
                 return true;
             }
             else return false;

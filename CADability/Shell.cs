@@ -5827,7 +5827,7 @@ namespace CADability.GeoObject
                             }
                             foreach (Edge edge1 in combinedFace.Edges)
                             {
-                                edge1.UpdateInterpolatedDualSurfaceCurve();
+                                edge1.UpdateInterpolatedDualSurfaceCurve(edge1.PrimaryFace.Domain, edge1.SecondaryFace.Domain);
                             }
                             if (toRemove != null && toRemove.Count > 0)
                             {

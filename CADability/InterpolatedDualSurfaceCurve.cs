@@ -168,6 +168,7 @@ namespace CADability
                 this.curve3d = curve3d;
                 this.onSurface1 = toCloneFrom.onSurface1;
                 reversed = toCloneFrom.reversed;
+                BSpline2D init = ApproxBSpline;
             }
             public ProjectedCurve(InterpolatedDualSurfaceCurve curve3d, bool onSurface1, bool reversed)
             {
@@ -574,6 +575,7 @@ namespace CADability
                 }
                 curve3d.InvalidateSecondaryData();
                 base.ClearTriangulation();
+                approxBSpline = null;
             }
             #region ISerializable Members
             protected ProjectedCurve(SerializationInfo info, StreamingContext context)

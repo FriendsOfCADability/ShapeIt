@@ -1336,27 +1336,6 @@ namespace CADability
             }
         }
 #endif
-        internal void AddHole(Cycle hole, Face thisFace, Face otherFace)
-        {
-            ModOp2D otherToThis;
-            if (otherFace.Surface.SameGeometry(otherFace.Area.GetExtent(), thisFace.Surface, thisFace.Area.GetExtent(), Precision.eps, out otherToThis))
-            {
-                for (int i = 0; i < hole.Count; i++)
-                {
-                    ICurve2D tmp = hole[i];
-                    Edge edg = hole[i].UserData.GetData("edge") as Edge;
-                    edg.ReplaceFace(otherFace, thisFace, otherToThis);
-                    hole[i] = edg.Curve2D(thisFace);
-                    hole[i].UserData.CloneFrom(tmp.UserData); // nicht sicher, was davon gebraucht wird
-                }
-                if (holes == null) holes = new List<Cycle>();
-                holes.Add(hole);
-            }
-            else
-            {
-                throw new ApplicationException("internal error in BRepOperation (AddHole)");
-            }
-        }
     }
     public static class Extension
     {

@@ -3090,19 +3090,19 @@ namespace CADability.GeoObject
         }
         public static Face MakeFace(ICurve curveToExtrude, GeoVector extrusion)
         {
-            if (curveToExtrude is Ellipse e && e.IsArc && Precision.SameDirection(extrusion,e.Plane.Normal,false))
+            if (curveToExtrude is Ellipse e && e.IsArc && Precision.SameDirection(extrusion, e.Plane.Normal, false))
             {
-                CylindricalSurface surface = new CylindricalSurface(e.Center,e.MajorAxis,e.MinorAxis,extrusion);
+                CylindricalSurface surface = new CylindricalSurface(e.Center, e.MajorAxis, e.MinorAxis, extrusion);
                 Face res = Face.Construct();
                 Edge e1 = new Edge(res, e.Clone() as ICurve, res, surface.GetProjectedCurve(e, 0.0), true);
                 ICurve opposite = curveToExtrude.CloneModified(ModOp.Translate(extrusion));
                 opposite.Reverse();
                 Edge e3 = new Edge(res, opposite, res, surface.GetProjectedCurve(opposite, 0.0), true);
                 ICurve l2 = Line.TwoPoints(e.EndPoint, e.EndPoint + extrusion);
-                Edge e2 = new Edge(res,l2,res,surface.GetProjectedCurve(l2,0.0), true);
+                Edge e2 = new Edge(res, l2, res, surface.GetProjectedCurve(l2, 0.0), true);
                 ICurve l4 = Line.TwoPoints(e.StartPoint, e.StartPoint + extrusion);
                 l4.Reverse();
-                Edge e4 = new Edge(res,l4,res,surface.GetProjectedCurve(l4,0.0), true);
+                Edge e4 = new Edge(res, l4, res, surface.GetProjectedCurve(l4, 0.0), true);
                 res.Set(surface, [[e1, e2, e3, e4]], true);
                 return res;
             }
@@ -3417,7 +3417,7 @@ namespace CADability.GeoObject
             });
             Face fc2 = fc1.Clone() as Face;
             fc2.Modify(ModOp.Rotate(GeoVector.ZAxis, new SweepAngle(Math.PI)) * ModOp.Rotate(GeoVector.XAxis, new SweepAngle(Math.PI / 2)));
-            ModOp toLocation = ModOp.Translate(location.ToVector())*ModOp.Scale(zAxis.Length)*ModOp.Rotate(GeoPoint.Origin, GeoVector.XAxis, zAxis);
+            ModOp toLocation = ModOp.Translate(location.ToVector()) * ModOp.Scale(zAxis.Length) * ModOp.Rotate(GeoPoint.Origin, GeoVector.XAxis, zAxis);
             fc1.Modify(toLocation);
             fc2.Modify(toLocation);
             return new Face[] { fc1, fc2 };
@@ -8244,7 +8244,7 @@ namespace CADability.GeoObject
                     {
                         // this is a pole, the 2d curve should be a line
                         int before = (i + outline.Length - 1) % outline.Length;
-                        int after = (i + + 1) % outline.Length;
+                        int after = (i + +1) % outline.Length;
                         l2d.StartPoint = outline[before].Curve2D(this).EndPoint;
                         l2d.EndPoint = outline[after].Curve2D(this).StartPoint;
                     }
@@ -10188,7 +10188,7 @@ namespace CADability.GeoObject
             toReplace.Vertex1.RemoveEdge(toReplace);    // aus den Vertices entfernen, denn toreplace hat auch kein Face mehr
             toReplace.Vertex2.RemoveEdge(toReplace);
             vertices = null;
-            replaceWith.UpdateInterpolatedDualSurfaceCurve();
+            replaceWith.UpdateInterpolatedDualSurfaceCurve(replaceWith.PrimaryFace.Domain, replaceWith.SecondaryFace.Domain);
             for (int i = 0; i < outline.Length; ++i)
             {
                 if (outline[i] == toReplace)
@@ -10478,6 +10478,53 @@ namespace CADability.GeoObject
             }
             return res.ToArray();
         }
+
+        private static double BestPeriodShift(double amin, double amax, double bmin, double bmax, double period)
+        {
+            double bminShifted, bmaxShifted;
+            // Mittelpunkte der Intervalle
+            double centerA = 0.5 * (amin + amax);
+            double centerB = 0.5 * (bmin + bmax);
+
+            // "Ideale" (reelle) Verschiebung der Mittelpunkte
+            double kReal = (centerA - centerB) / period;
+
+            // Nur zwei ganzzahlige Kandidaten sind relevant: floor und floor+1
+            int k0 = (int)Math.Floor(kReal);
+            int k1 = k0 + 1;
+
+            double BestLength(int k, out double sBmin, out double sBmax)
+            {
+                double shift = k * period;
+                sBmin = bmin + shift;
+                sBmax = bmax + shift;
+
+                double globalMin = Math.Min(amin, sBmin);
+                double globalMax = Math.Max(amax, sBmax);
+                return globalMax - globalMin;
+            }
+
+            double len0 = BestLength(k0, out double b0min, out double b0max);
+            double len1 = BestLength(k1, out double b1min, out double b1max);
+
+            int kBest;
+            if (len0 <= len1)
+            {
+                kBest = k0;
+                bminShifted = b0min;
+                bmaxShifted = b0max;
+            }
+            else
+            {
+                kBest = k1;
+                bminShifted = b1min;
+                bmaxShifted = b1max;
+            }
+
+            // Rückgabe ist die optimale Gesamtverschiebung von B
+            return kBest * period;
+        }
+
         /// <summary>
         /// Combine this face with the provided other face. The faces must have geometrical identical surfaces.
         /// </summary>
@@ -10572,6 +10619,14 @@ namespace CADability.GeoObject
             int outerLoop = -1;
             ModOp2D toThisSurface = ModOp2D.Null;
             if (!toOtherSurface.IsNull) toThisSurface = toOtherSurface.GetInverse();
+            // find the correct common domain
+            BoundingRect otherDomain = other.Domain.GetModified(toThisSurface);
+            double du = 0.0, dv = 0.0;
+            if (surface.IsUPeriodic) du = BestPeriodShift(Domain.Left, Domain.Right, otherDomain.Left, otherDomain.Right, surface.UPeriod);
+            if (surface.IsVPeriodic) dv = BestPeriodShift(Domain.Bottom, Domain.Top, otherDomain.Bottom, otherDomain.Top, surface.VPeriod);
+            if (du != 0.0 || dv != 0.0) otherDomain.Move(new GeoVector2D(du, dv));
+            BoundingRect commonDomain = otherDomain;
+            commonDomain.MinMax(Domain);
             for (int i = 0; i < loops.Count; i++)
             {
                 List<ICurve2D> segments = new List<ICurve2D>();
@@ -10580,7 +10635,7 @@ namespace CADability.GeoObject
                     Edge edg = loops[i][j];
                     if (edg.PrimaryFace == other || edg.SecondaryFace == other)
                     {
-                        edg.ReplaceFace(other, this, toThisSurface);
+                        edg.ReplaceFace(other, this, toThisSurface, commonDomain);
                     }
                     segments.Add(edg.Curve2D(this).Clone());
                 }
