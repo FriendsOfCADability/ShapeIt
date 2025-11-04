@@ -776,13 +776,13 @@ public static class Evaluator
                                     fres = GeometryOps.FuncLen(args[0]);
                                     break;
 
-                                // NEU: p(x,y,z) => GeoPoint
+                                // p(x,y,z) => GeoPoint
                                 case "p":
                                     CheckArgCount(call, args, 3);
                                     fres = MakePoint(args);
                                     break;
 
-                                // NEU: v(x,y,z) => GeoVector
+                                // v(x,y,z) => GeoVector
                                 case "v":
                                     CheckArgCount(call, args, 3);
                                     fres = MakeVector(args);

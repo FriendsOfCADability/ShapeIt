@@ -98,7 +98,7 @@ namespace CADability.Curve2D
             }
             else
             {
-                if (toAdd.Length > Precision.eps) addTo.Add(toAdd);
+                if (toAdd != null && toAdd.Length > Precision.eps) addTo.Add(toAdd);
             }
         }
         private void AddFlattend(ArrayList addTo, ICurve2D[] toAdd)
@@ -466,7 +466,11 @@ namespace CADability.Curve2D
                 else spar = positions[i - 1];
                 if (i == positions.Length) epar = 1.0;
                 else epar = positions[i];
-                if (spar!=epar) res.Add(Trim(spar, epar));
+                if (spar < epar - 1e-6)
+                {
+                    ICurve2D trimmed = Trim(spar, epar);
+                    if (trimmed != null) res.Add(trimmed);
+                }
             }
             return res.ToArray();
         }
@@ -552,7 +556,7 @@ namespace CADability.Curve2D
                 if (sind > 0)
                 {
                     double par = sp - sind + 1;
-                    if (par < 1.0)
+                    if (par < 1.0 - 1e-6)
                     {
                         ICurve2D curve = subCurves[sind - 1].Clone();
                         curve = curve.Trim(par, 1.0);
@@ -570,7 +574,7 @@ namespace CADability.Curve2D
                     {
                         ICurve2D curve = subCurves[eind].Clone();
                         curve = curve.Trim(0.0, par);
-                        if (curve!=null) res.Add(curve);
+                        if (curve != null) res.Add(curve);
                     }
                 }
             }
@@ -647,7 +651,7 @@ namespace CADability.Curve2D
                                 double maxp1 = 0.0;
                                 for (int j = 0; j < ips.Length; j++)
                                 {
-                                    if (ips[j].par1>0 && ips[j].par1<=1.0&& ips[j].par2 > 0 && ips[j].par2 <= 1.0 && ips[j].par1 > maxp1)
+                                    if (ips[j].par1 > 0 && ips[j].par1 <= 1.0 && ips[j].par2 > 0 && ips[j].par2 <= 1.0 && ips[j].par1 > maxp1)
                                     {
                                         ind = j;
                                         maxp1 = ips[j].par1;

@@ -106,7 +106,7 @@ namespace CADability
                     axis.RemoveAt(i);
                     continue;
                 }
-                else
+                else if (lips.Count == 2)
                 {
                     ModOp2D reflect = ModOp2D.Reflect(centroid, axis[i]);
                     double[] pars = new double[ips.Length];
