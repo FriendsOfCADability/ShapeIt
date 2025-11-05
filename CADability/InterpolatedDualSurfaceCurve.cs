@@ -746,6 +746,7 @@ namespace CADability
                 v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
             Angle a = new Angle(v, v0);
             forwardOriented = (a.Radian < Math.PI / 2.0);
+            if (basePoints.Length==2) RefineBasePoints();
             CheckSurfaceExtents();
             AdjustBasePointsPeriodic();
             BSpline toUpdateBasepoints = ApproxBSpline;
@@ -2016,7 +2017,7 @@ namespace CADability
                 for (int i = 0; i < basePoints.Length - 1; i++)
                 {
                     double d = basePoints[i + 1].p3d | basePoints[i].p3d;
-                    if (d > 1.5 * length)
+                    if (d > 1.5 * length || basePoints.Length==2)
                     {
                         changed = true;
                         approxBSpline = null;
@@ -2242,44 +2243,46 @@ namespace CADability
                             }
                         }
                     }
-                    PlaneSurface normalSurface = new PlaneSurface(normalPlane);
-                    IDualSurfaceCurve[] isc1 = surface1.GetPlaneIntersection(normalSurface, bounds1.Left, bounds1.Right, bounds1.Bottom, bounds1.Top, precision);
-                    IDualSurfaceCurve[] isc2 = surface2.GetPlaneIntersection(normalSurface, bounds2.Left, bounds2.Right, bounds2.Bottom, bounds2.Top, precision);
-                    GeoPoint bestIntersection = GeoPoint.Invalid;
-                    for (int i = 0; i < isc1.Length; i++)
-                    {
-                        if (!(isc1[i].Curve2D2 is Line2D || isc1[i].Curve2D2 is Ellipse2D || isc1[i].Curve2D2 is Circle2D)) continue;
-                        // only intersect lines and ellipsesor circles, not InterpolatedDualSurfaceCurves.ProjectedCurve
-                        for (int j = 0; j < isc2.Length; j++)
+                    if (ps1 != null && ps2 != null)
+                    {   // for simple surfaces only. We need another criterion here. RuledSurface leeds to an infinite loop when making the boxed surface...
+                        PlaneSurface normalSurface = new PlaneSurface(normalPlane);
+                        IDualSurfaceCurve[] isc1 = surface1.GetPlaneIntersection(normalSurface, bounds1.Left, bounds1.Right, bounds1.Bottom, bounds1.Top, precision);
+                        IDualSurfaceCurve[] isc2 = surface2.GetPlaneIntersection(normalSurface, bounds2.Left, bounds2.Right, bounds2.Bottom, bounds2.Top, precision);
+                        GeoPoint bestIntersection = GeoPoint.Invalid;
+                        for (int i = 0; i < isc1.Length; i++)
                         {
-                            if (!(isc2[j].Curve2D2 is Line2D || isc2[j].Curve2D2 is Ellipse2D || isc2[j].Curve2D2 is Circle2D)) continue;
-                            GeoPoint2DWithParameter[] ips = isc1[i].Curve2D2.Intersect(isc2[j].Curve2D2);
-                            for (int k = 0; k < ips.Length; k++)
+                            if (!(isc1[i].Curve2D2 is Line2D || isc1[i].Curve2D2 is Ellipse2D || isc1[i].Curve2D2 is Circle2D)) continue;
+                            // only intersect lines and ellipsesor circles, not InterpolatedDualSurfaceCurves.ProjectedCurve
+                            for (int j = 0; j < isc2.Length; j++)
                             {
-                                GeoPoint testP = normalSurface.PointAt(ips[k].p);
-                                if (!bestIntersection.IsValid || (testP | normalPlane.Location) < (bestIntersection | normalPlane.Location))
+                                if (!(isc2[j].Curve2D2 is Line2D || isc2[j].Curve2D2 is Ellipse2D || isc2[j].Curve2D2 is Circle2D)) continue;
+                                GeoPoint2DWithParameter[] ips = isc1[i].Curve2D2.Intersect(isc2[j].Curve2D2);
+                                for (int k = 0; k < ips.Length; k++)
                                 {
-                                    bestIntersection = testP;
+                                    GeoPoint testP = normalSurface.PointAt(ips[k].p);
+                                    if (!bestIntersection.IsValid || (testP | normalPlane.Location) < (bestIntersection | normalPlane.Location))
+                                    {
+                                        bestIntersection = testP;
+                                    }
                                 }
                             }
                         }
-                    }
-                    if (bestIntersection.IsValid && (bestIntersection | normalPlane.Location) < 100 * precision)
-                    {   // this is close egnough for a valid solution
-                        p = bestIntersection;
-                        uv1 = surface1.PositionOf(p);
-                        uv2 = surface2.PositionOf(p);
-                        SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
-                        if (hasLower) spt.FixAgainstNeighbour(lowerValue, surface1, surface2);
-                        else if (hasUpper) spt.FixAgainstNeighbour(upperValue, surface1, surface2);
-                        else AdjustPeriodic(ref spt.psurface1, ref spt.psurface2);
-                        hashedPositions[position] = spt;
-                        uv1 = spt.psurface1;
-                        uv2 = spt.psurface2;
-                        return;
-                    }
+                        if (bestIntersection.IsValid && (bestIntersection | normalPlane.Location) < 100 * precision)
+                        {   // this is close egnough for a valid solution
+                            p = bestIntersection;
+                            uv1 = surface1.PositionOf(p);
+                            uv2 = surface2.PositionOf(p);
+                            SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
+                            if (hasLower) spt.FixAgainstNeighbour(lowerValue, surface1, surface2);
+                            else if (hasUpper) spt.FixAgainstNeighbour(upperValue, surface1, surface2);
+                            else AdjustPeriodic(ref spt.psurface1, ref spt.psurface2);
+                            hashedPositions[position] = spt;
+                            uv1 = spt.psurface1;
+                            uv2 = spt.psurface2;
+                            return;
+                        }
 
-
+                    }
                 }
                 if (isTangential)
                 {

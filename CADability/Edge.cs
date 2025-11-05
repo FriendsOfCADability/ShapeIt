@@ -829,7 +829,7 @@ namespace CADability
         {
             hashCode = hashCodeCounter++; // 
 #if DEBUG
-            if (hashCode == 464 || hashCode == 462)
+            if (hashCode == 141 || hashCode == 1133)
             {
             }
 #endif

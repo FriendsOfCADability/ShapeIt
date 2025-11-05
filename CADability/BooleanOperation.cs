@@ -13,6 +13,7 @@ using System.Text;
 using System.Threading;
 using Wintellect.PowerCollections;
 
+
 #if WEBASSEMBLY
 using CADability.WebDrawing;
 #else
@@ -398,7 +399,8 @@ namespace CADability
                     }
                 }
             }
-            if (c3ds != null || Surfaces.Intersect(fc1.Surface, fc1.Area.GetExtent(), fc2.Surface, fc2.Area.GetExtent(), points, out c3ds, out crvsOnSurface1, out crvsOnSurface2, out params3d, out params2dFace1, out params2dFace2, out paramsuvsurf1, out paramsuvsurf2, precision))
+            if (c3ds != null || Surfaces.Intersect(fc1.Surface, fc1.Area.GetExtent(), fc2.Surface, fc2.Area.GetExtent(), points, out c3ds,
+                out crvsOnSurface1, out crvsOnSurface2, out params3d, out params2dFace1, out params2dFace2, out paramsuvsurf1, out paramsuvsurf2, precision))
             {
                 if (usedVertices.Count < points.Count)
                 {
@@ -1863,7 +1865,7 @@ namespace CADability
             Face fcpl = Face.MakeFace(new PlaneSurface(splitBy), br);
             Face fcpl1 = fcpl.Clone() as Face;
             fcpl1.MakeInverseOrientation();
-            Shell splittingShell = Shell.MakeShell([fcpl] , false); // the plane as a shell with only one face, which exceeds the solid
+            Shell splittingShell = Shell.MakeShell([fcpl], false); // the plane as a shell with only one face, which exceeds the solid
             BooleanOperation bo = new BooleanOperation();
             bo.SetShells(shellToSplit, splittingShell, Operation.difference);
             Shell[] resultShells = bo.Execute();
@@ -3597,25 +3599,48 @@ namespace CADability
             //}
 #endif
 #if DEBUG
-            DebuggerContainer dcif = new DebuggerContainer();
-            foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
+            //DebuggerContainer dcif = new DebuggerContainer();
+            //foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
+            //{
+            //    dcif.Add(kv.Key, kv.Key.GetHashCode());
+            //    foreach (Edge edg in kv.Value)
+            //    {
+            //        dcif.Add(edg.Curve3D as IGeoObject, edg.GetHashCode());
+            //    }
+            //}
+            //Dictionary<Face, DebuggerContainer> dbgEdgePositions = new Dictionary<Face, DebuggerContainer>();
+            //foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
+            //{
+            //    DebuggerContainer dc = new DebuggerContainer();
+            //    dbgEdgePositions[kv.Key] = dc;
+            //    double arrowSize = kv.Key.Area.GetExtent().Size * 0.02;
+            //    dc.Add(kv.Value, kv.Key, arrowSize, Color.Red, 0);
+            //    dc.Add(kv.Key.Edges, kv.Key, arrowSize, Color.Blue, 0);
+            //}
+#endif
+            // if a face is overlapping both in the same orientaiation and the opposite orientation with some other faces
+            // there might be intersectionEdges which cross an existing vertex. This is refined here.
+            // Maybe this condition also applies to othe faces which are overlapping in the same orientaiation or the opposite orientation, but no case found yet
+            Dictionary<Edge, List<Edge>> refinedintersectionEdges = new Dictionary<Edge, List<Edge>>();
+            foreach (Face fc in faceToOppositeFaces.Keys.Intersect(faceToOverlappingFaces.Keys))
             {
-                dcif.Add(kv.Key, kv.Key.GetHashCode());
-                foreach (Edge edg in kv.Value)
+                splitIntersectionEdges(faceToIntersectionEdges[fc], fc, refinedintersectionEdges);
+            }
+            foreach (KeyValuePair<Edge, List<Edge>> kv in refinedintersectionEdges)
+            {
+                foreach (Face fc in new Face[] { kv.Key.PrimaryFace, kv.Key.SecondaryFace })
                 {
-                    dcif.Add(edg.Curve3D as IGeoObject, edg.GetHashCode());
+                    if (faceToIntersectionEdges.TryGetValue(fc, out HashSet<Edge> edges))
+                    {
+                        if (edges.Contains(kv.Key))
+                        {
+                            edges.Remove(kv.Key);
+                            edges.UnionWith(kv.Value);
+                        }
+                    }
                 }
             }
-            Dictionary<Face, DebuggerContainer> dbgEdgePositions = new Dictionary<Face, DebuggerContainer>();
-            foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
-            {
-                DebuggerContainer dc = new DebuggerContainer();
-                dbgEdgePositions[kv.Key] = dc;
-                double arrowSize = kv.Key.Area.GetExtent().Size * 0.02;
-                dc.Add(kv.Value, kv.Key, arrowSize, Color.Red, 0);
-                dc.Add(kv.Key.Edges, kv.Key, arrowSize, Color.Blue, 0);
-            }
-#endif
+
             HashSet<Face> discardedFaces = new HashSet<Face>(faceToIntersectionEdges.Keys); // these faces may not appear in the final result, because they will be trimmed
             HashSet<Face> trimmedFaces = new HashSet<Face>(); // collection of faces which are trimmed (spitted, cut, edged) during this process
             HashSet<Face> trimmedOverlappingFaces = new HashSet<Face>(); // collection of faces which are the result of overlapping faces
@@ -3759,8 +3784,18 @@ namespace CADability
                 {
                     // the biggest loop is identical to the outline of the face
                     if (loops.ElementAt(1).Key > 0) // the second loop is positive, so the outline is not needed
-                    {
-                        loops.Remove(loops.First().Key);
+                    {   // but maybe the second loop is just an island inside a negative loop, then we still need it
+                        double potentialOutline = loops.ElementAt(1).Key;
+                        bool removeOutline = true;
+                        foreach (KeyValuePair<double, (List<Edge>, ICurve2D[])> item in loops)
+                        {
+                            if (item.Key < 0 && -item.Key > potentialOutline)
+                            {
+                                removeOutline = false; // do we also have to check containment?
+                                break;
+                            }
+                        }
+                        if (removeOutline) loops.Remove(loops.First().Key);
                     }
                 }
                 // Now all necessary loops are created. There is one or more outline (ccw) and zero or more holes
@@ -4166,6 +4201,58 @@ namespace CADability
             }
             return res.ToArray();
         }
+
+        private void splitIntersectionEdges(HashSet<Edge> intersectionEdges, Face faceToSplit, Dictionary<Edge, List<Edge>> refined)
+        {   // in some cases there might be intersectionEdges passing through a vertex
+            // they have to be splitted at the vertex position
+#if DEBUG
+            DebuggerContainer dc = new DebuggerContainer();
+            foreach (var item in intersectionEdges)
+            {
+                dc.Add(item.Curve2D(faceToSplit), Color.Red, item.GetHashCode());
+                dc.Add(item.Vertex1.GetPositionOnFace(faceToSplit),Color.Blue, item.Vertex1.GetHashCode());
+                dc.Add(item.Vertex2.GetPositionOnFace(faceToSplit),Color.Blue, item.Vertex2.GetHashCode());
+            }
+#endif
+            bool found = false;
+            do
+            {
+                found = false;
+                foreach (Edge ie1 in intersectionEdges.Clone())
+                {
+                    foreach (Edge ie2 in intersectionEdges.Clone())
+                    {
+                        if (ie1 == ie2) continue;
+                        foreach (Vertex vtx in new Vertex[] { ie1.Vertex1, ie1.Vertex2 })
+                        {
+                            if (vtx != ie2.Vertex1 && vtx != ie2.Vertex2)
+                            {
+                                GeoPoint2D uv = vtx.GetPositionOnFace(faceToSplit);
+                                ICurve2D c2d = ie2.Curve2D(faceToSplit);
+                                double pos = c2d.PositionOf(uv);
+                                if (pos > 1e-6 && pos < 1-1e-6 && Precision.IsEqual(uv, c2d.PointAt(pos)))
+                                {   // we need to split ie2
+                                    Edge[] splitted = ie2.Split(ie2.Curve3D.PositionOf(vtx.Position));
+                                    if (splitted != null && splitted.Length > 0)
+                                    {
+                                        for (int i = 0; i < splitted.Length; i++) splitted[i].UseVertices(vtx);
+                                        intersectionEdges.Remove(ie2);
+                                        intersectionEdges.UnionWith(splitted);
+                                        if (!refined.TryGetValue(ie2, out List<Edge> list)) refined[ie2] = list = new List<Edge>();
+                                        list.AddRange(splitted);
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (found) break;
+                    }
+                }
+            }
+            while (found);
+        }
+
         /// <summary>
         /// Find the loops of the provided edges (<paramref name="intersectionEdges"/> and <paramref name="originalEdges"/>) on the face <paramref name="onThisFace"/>.
         /// the edges are connected by their vertices. <paramref name="onThisFace"/> specifies the 2d surface space on which to find the loops.

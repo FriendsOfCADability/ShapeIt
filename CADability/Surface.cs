@@ -5547,7 +5547,7 @@ namespace CADability.GeoObject
                 try
                 {
                     IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds);
-                    if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
+                    if (testWithNewAlgorithm != null) return testWithNewAlgorithm;
                 }
                 catch (Exception ex)
                 {

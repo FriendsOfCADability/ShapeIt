@@ -478,6 +478,14 @@ namespace CADability
             }
             return base.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
         }
+        public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
+        {
+            if (other is PlaneSurface ps)
+            {
+                return GetPlaneIntersection(ps, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, 0.0);
+            }
+            return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
+        }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Make3dCurve (ICurve2D)"/>
         /// </summary>

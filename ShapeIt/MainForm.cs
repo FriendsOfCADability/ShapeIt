@@ -554,21 +554,21 @@ namespace ShapeIt
             if (slds.Count == 2)
             {
                 Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
-                Solid[] sld;
-                if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
-                {
-                    sld = NewBooleanOperation.Subtract(slds[0], slds[1]);
-                }
-                else
-                {
-                    sld = NewBooleanOperation.Subtract(slds[1], slds[0]);
-                }
-                if (sld.Length > 0)
-                {
-                    Project proj = Project.CreateSimpleProject();
-                    proj.GetActiveModel().Add(sld);
-                    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
-                }
+                //Solid[] sld;
+                //if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
+                //{
+                //    sld = NewBooleanOperation.Subtract(slds[0], slds[1]);
+                //}
+                //else
+                //{
+                //    sld = NewBooleanOperation.Subtract(slds[1], slds[0]);
+                //}
+                //if (sld.Length > 0)
+                //{
+                //    Project proj = Project.CreateSimpleProject();
+                //    proj.GetActiveModel().Add(sld);
+                //    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
+                //}
             }
             if (slds.Count == 1)
             {
