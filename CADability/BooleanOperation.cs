@@ -117,7 +117,7 @@ namespace CADability
                 bool found = false;
                 foreach (Face face in leaf.list)
                 {
-                    if (face.GetHashCode() == 44 || face.GetHashCode() == 39 || face.GetHashCode() == 63) { found = true; }
+                    if (face.GetHashCode() == 700 || face.GetHashCode() == 701 || face.GetHashCode() == 672) { found = true; }
                 }
                 if (found)
                 {
@@ -375,6 +375,8 @@ namespace CADability
                     c3ds[i] = alreadyCalculated[i].Clone();
                     crvsOnSurface1[i] = fc1.Surface.GetProjectedCurve(c3ds[i], 0.0);
                     crvsOnSurface2[i] = fc2.Surface.GetProjectedCurve(c3ds[i], 0.0);
+                    SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, crvsOnSurface1[i]);
+                    SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, crvsOnSurface2[i]);
                     for (int j = 0; j < points.Count; j++) // fill the parameter arrays
                     {
                         double d = c3ds[i].DistanceTo(points[j]);

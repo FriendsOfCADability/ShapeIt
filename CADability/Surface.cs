@@ -6349,6 +6349,40 @@ namespace CADability.GeoObject
         {
             ISurface[] surfaces = new ISurface[] { surface1, surface2, surface3 };
             BoundingRect[] bounds = new BoundingRect[] { bounds1, bounds2, bounds3 };
+            // if two of the surfaces are planes, use the surface/line intersection
+            int pln1 = -1, pln2 = -1, other = -1;
+            for (int i = 0; i < 3; i++)
+            {
+                if (surfaces[i] is PlaneSurface)
+                {
+                    if (pln1 < 0) pln1 = i;
+                    else if (pln2 < 0) pln2 = i;
+                    else other = i;
+                }
+                else
+                {
+                    other = i;
+                }
+            }
+            if (pln2 >= 0)
+            {
+                // two planar surfaces
+                IDualSurfaceCurve[] isl = surfaces[pln1].GetPlaneIntersection(surfaces[pln2] as PlaneSurface, bounds[pln1].Left, bounds[pln1].Right, bounds[pln1].Bottom, bounds[pln1].Top, 0.0);
+                if (isl.Length == 1 && isl[0].Curve3D is Line line)
+                {
+                    GeoPoint2D[] ips = surfaces[other].GetLineIntersection(line.StartPoint, line.EndPoint - line.StartPoint);
+                    if (ips.Length > 0)
+                    {
+                        GeoPoint tp = ip;
+                        GeoPoint2D uvo = ips.MinBy(p => surfaces[other].PointAt(p) | tp);
+                        ip = surfaces[other].PointAt(uvo);
+                        uv1 = surface1.PositionOf(ip);
+                        uv2 = surface2.PositionOf(ip);
+                        uv3 = surface3.PositionOf(ip);
+                        return true;
+                    }
+                }
+            }
             // if one of the surfaces is a planar surface handle it on the plans 2d system
             List<GeoPoint> candidates = new List<GeoPoint>();
             for (int i = 0; i < 3; i++)

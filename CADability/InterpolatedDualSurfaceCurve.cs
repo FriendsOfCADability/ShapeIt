@@ -746,7 +746,7 @@ namespace CADability
                 v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
             Angle a = new Angle(v, v0);
             forwardOriented = (a.Radian < Math.PI / 2.0);
-            if (basePoints.Length==2) RefineBasePoints();
+            if (basePoints.Length == 2) RefineBasePoints();
             CheckSurfaceExtents();
             AdjustBasePointsPeriodic();
             BSpline toUpdateBasepoints = ApproxBSpline;
@@ -2017,7 +2017,7 @@ namespace CADability
                 for (int i = 0; i < basePoints.Length - 1; i++)
                 {
                     double d = basePoints[i + 1].p3d | basePoints[i].p3d;
-                    if (d > 1.5 * length || basePoints.Length==2)
+                    if (d > 1.5 * length || basePoints.Length == 2)
                     {
                         changed = true;
                         approxBSpline = null;
@@ -2243,9 +2243,9 @@ namespace CADability
                             }
                         }
                     }
+                    PlaneSurface normalSurface = new PlaneSurface(normalPlane);
                     if (ps1 != null && ps2 != null)
                     {   // for simple surfaces only. We need another criterion here. RuledSurface leeds to an infinite loop when making the boxed surface...
-                        PlaneSurface normalSurface = new PlaneSurface(normalPlane);
                         IDualSurfaceCurve[] isc1 = surface1.GetPlaneIntersection(normalSurface, bounds1.Left, bounds1.Right, bounds1.Bottom, bounds1.Top, precision);
                         IDualSurfaceCurve[] isc2 = surface2.GetPlaneIntersection(normalSurface, bounds2.Left, bounds2.Right, bounds2.Bottom, bounds2.Top, precision);
                         GeoPoint bestIntersection = GeoPoint.Invalid;
@@ -2282,6 +2282,20 @@ namespace CADability
                             return;
                         }
 
+                    }
+                    p = normalPlane.Location;
+                    // some reasonable size:
+                    double planeSize = (basePoints[0].p3d | basePoints[basePoints.Length / 2].p3d) + (basePoints[basePoints.Length - 1].p3d | basePoints[basePoints.Length / 2].p3d);
+                    if (Surfaces.IntersectThreeSurfaces(surface1, bounds1, surface2, bounds2, normalSurface, new BoundingRect(GeoPoint2D.Origin, planeSize, planeSize), ref p, out GeoPoint2D uv1t, out GeoPoint2D uv2t, out GeoPoint2D uv3))
+                    {
+                        SurfacePoint spt = new SurfacePoint(p, uv1t, uv2t);
+                        if (hasLower) spt.FixAgainstNeighbour(lowerValue, surface1, surface2);
+                        else if (hasUpper) spt.FixAgainstNeighbour(upperValue, surface1, surface2);
+                        else AdjustPeriodic(ref spt.psurface1, ref spt.psurface2);
+                        hashedPositions[position] = spt;
+                        uv1 = spt.psurface1;
+                        uv2 = spt.psurface2;
+                        return;
                     }
                 }
                 if (isTangential)

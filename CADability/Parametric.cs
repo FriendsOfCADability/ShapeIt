@@ -653,9 +653,10 @@ namespace CADability
             // the difference in uCylinder and uCone is how we rotate the cone to fit the cylinder in the u coordinates (not sure whether nesessary)
             ModOp rotate = ModOp.Rotate(cyl.Location, cyl.Axis, new SweepAngle(uCylinder - uCone));
             cone.Modify(rotate);
-            uCone = cone.PositionOf(toChange.StartPoint).x; // to debig correct rotation
+            uCone = cone.PositionOf(toChange.StartPoint).x; // to debug correct rotation
             foreach (Vertex vtx in face.Vertices)
             {
+                if (vtx.IsPeriodicOnFace(face)) periodicVertices[(vtx, face)] = vtx.GetPositionOnFace(face);
                 if (vtx == edge.StartVertex(face))
                 {
                     if (edge.Forward(face)) verticesToRecalculate[vtx] = toChange.StartPoint;
@@ -761,22 +762,23 @@ namespace CADability
                 if (edg.PrimaryFace.Surface.SameGeometry(edg.PrimaryFace.Domain, primarySurface, edge.PrimaryFace.Domain, Precision.eps, out ModOp2D _))
                 {
                     if (edg.PrimaryFace.Surface is CylindricalSurface) ModifyCylinder(edg.PrimaryFace, edg, newRadius, fixP);
-                    if (edg.PrimaryFace.Surface is ConicalSurface) ModifyCone(edg.PrimaryFace, edg, newRadius, fixP);
+                    else if (edg.PrimaryFace.Surface is ConicalSurface) ModifyCone(edg.PrimaryFace, edg, newRadius, fixP);
+                    // the else is important, because in the line above the facees surface is beeing changed to  a conical surface
                 }
                 if (edg.SecondaryFace.Surface.SameGeometry(edg.SecondaryFace.Domain, primarySurface, edge.PrimaryFace.Domain, Precision.eps, out ModOp2D _))
                 {
                     if (edg.SecondaryFace.Surface is CylindricalSurface) ModifyCylinder(edg.SecondaryFace, edg, newRadius, fixP);
-                    if (edg.SecondaryFace.Surface is ConicalSurface) ModifyCone(edg.SecondaryFace, edg, newRadius, fixP);
+                    else if (edg.SecondaryFace.Surface is ConicalSurface) ModifyCone(edg.SecondaryFace, edg, newRadius, fixP);
                 }
                 if (edg.PrimaryFace.Surface.SameGeometry(edg.PrimaryFace.Domain, secondarySurface, edge.SecondaryFace.Domain, Precision.eps, out ModOp2D _))
                 {
                     if (edg.PrimaryFace.Surface is CylindricalSurface) ModifyCylinder(edg.PrimaryFace, edg, newRadius, fixS);
-                    if (edg.PrimaryFace.Surface is ConicalSurface) ModifyCone(edg.PrimaryFace, edg, newRadius, fixS);
+                    else if (edg.PrimaryFace.Surface is ConicalSurface) ModifyCone(edg.PrimaryFace, edg, newRadius, fixS);
                 }
                 if (edg.SecondaryFace.Surface.SameGeometry(edg.SecondaryFace.Domain, secondarySurface, edge.SecondaryFace.Domain, Precision.eps, out ModOp2D _))
                 {
                     if (edg.SecondaryFace.Surface is CylindricalSurface) ModifyCylinder(edg.SecondaryFace, edg, newRadius, fixS);
-                    if (edg.SecondaryFace.Surface is ConicalSurface) ModifyCone(edg.SecondaryFace, edg, newRadius, fixS);
+                    else if (edg.SecondaryFace.Surface is ConicalSurface) ModifyCone(edg.SecondaryFace, edg, newRadius, fixS);
                 }
                 edgesToRecalculate.UnionWith(edg.PrimaryFace.AllEdges);
                 edgesToRecalculate.UnionWith(edg.SecondaryFace.AllEdges);
@@ -1003,7 +1005,9 @@ namespace CADability
                         // now we go on, maybe the next operation yields correct vertices again
                     }
                 }
+#if DEBUG
                 clonedShell.CheckConsistency();
+#endif
 
                 foreach (Edge edge in edgesToRecalculate)
                 {

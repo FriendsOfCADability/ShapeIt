@@ -842,7 +842,6 @@ namespace CADability.GeoObject
             #region Hyperbola
             {   //Hier kommt ein Hyperbel, ein Punkt oder nichts raus
                 // System.Diagnostics.Trace.WriteLine("Hyperbel");
-
                 ICurve topCircle;
                 if (vmax < 0) topCircle = FixedV(vmin, 0, Math.PI * 2); // vmin and vmax must have the same sign!
                 else topCircle = FixedV(vmax, 0, Math.PI * 2);

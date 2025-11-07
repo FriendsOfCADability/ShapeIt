@@ -14,7 +14,7 @@ namespace ShapeIt
         private IEnumerable<Edge> edges; // the edges, which must be circles and have a cylindrical or conical surfaces at least at one face
         private GeoPoint touchingPoint; // the point, where the edge was touched
         private bool useDiameter; // use diameter instead of radius
-        private Shell shell; // the shell beeing manipulated by this action
+        private Shell? shell; // the shell beeing manipulated by this action
         private double radius;
         private HashSet<Face> affectedFaces;
         private Feedback feedback;
@@ -36,7 +36,7 @@ namespace ShapeIt
             this.touchingPoint = touchingPoint;
             this.useDiameter = useDiameter;
             shell = edges.First().Owner.Owner as Shell;
-            radius = (edges.First().Curve3D as Ellipse).Radius;
+            radius = (edges.First().Curve3D as Ellipse)!.Radius;
             affectedFaces = new HashSet<Face>();
             foreach (Edge edge in edges)
             {

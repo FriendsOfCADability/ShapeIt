@@ -1362,7 +1362,13 @@ namespace ShapeIt
         {
             List<IPropertyEntry> res = new List<IPropertyEntry>();
             Plane pln = path.GetPlane();
-            Face fc = Face.MakeFace(new GeoObjectList(path));
+            Path2D? path2D = path.GetProjectedCurve(pln) as Path2D;
+            Face fc = null;
+            if (path2D != null && path2D.IsClosed)
+            {
+                Border bdr = new Border((path2D.Clone() as Path2D).SubCurves); // clonning, because Border may reverse the direction and path2D is used below
+                fc = Face.MakeFace(new PlaneSurface(pln), new SimpleShape(bdr));
+            }
             if (fc != null && addExtrude)
             {
                 DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
@@ -1382,7 +1388,7 @@ namespace ShapeIt
                 };
                 res.Add(rotate);
             }
-            Path2D path2D = path.GetProjectedCurve(pln) as Path2D;
+
             if (path2D != null)
             {
                 GeoPoint2D cnt = Symmetry2D.FindSymmetryAxes2D(path2D, out List<GeoVector2D> axes);
