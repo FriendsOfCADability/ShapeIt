@@ -3800,6 +3800,24 @@ namespace CADability
                         if (removeOutline) loops.Remove(loops.First().Key);
                     }
                 }
+                // the first loop is alwas >0, if the second loop is also>0 and contained in the first, then we must remove the first loop
+                // e.g.
+                // maybe we would have to consider the more general case: if a positive loop contains another positive loop with no negative loop in between
+                // we must remove the first. 
+                if (loops.Count > 1 && loops.ElementAt(1).Key > 0)
+                {
+                    if (Border.IsInside(loops.First().Value.Item2, loops.ElementAt(1).Value.Item2[0].StartPoint))
+                    {   // if we are removing a loop which contains intersection edges, free these intersection edges from this faceToSplit
+                        // so we dont later connect to this edge again
+                        foreach (Edge edg in loops.First().Value.Item1)
+                        {
+                            if (intersectionEdges.Contains(edg)) edg.RemoveFace(faceToSplit);
+                        }
+
+                        loops.Remove(loops.First().Key);
+                    }
+
+                }
                 // Now all necessary loops are created. There is one or more outline (ccw) and zero or more holes
                 // If we have more than one outline, we have to match the holes to their enclosing outline
                 double[] areas = new double[loops.Count];
@@ -3921,11 +3939,19 @@ namespace CADability
                 }
                 foreach (List<Face> lf in trimmedFaceSignatures.Values)
                 {
-                    if (lf.Count > 1)
+                    if (lf.Count > 1) // there is more than one: these faces might be identical
                     {
-                        trimmedFaces.ExceptWith(lf.Skip(1));
-                        availableFaces.ExceptWith(lf.Skip(1));
-                        discardedFaces.UnionWith(lf.Skip(1));
+                        for (int i = 1; i < lf.Count; i++) // there are only two, cannot imagine a case with more than two identical faces
+                        {
+                            // check the case where all vertices of two faces are identical, but the faces are not
+                            // eg. two halves of a cylinder
+                            if (IdenticalFaces(lf[0], lf[i]))
+                            {
+                                trimmedFaces.Remove(lf[i]);
+                                availableFaces.Remove(lf[i]);
+                                discardedFaces.Add(lf[i]);
+                            }
+                        }
                     }
                 }
                 // now remove all faces from trimmedFaces, which have the same vertices as a face in trimmedOverlappingFaces
@@ -3939,6 +3965,18 @@ namespace CADability
                     }
                 }
                 trimmedFaces.UnionWith(trimmedOverlappingFaces);
+            }
+            foreach (Face fc in trimmedOverlappingFaces)
+            {
+                HashSet<Vertex> fcv = new(fc.Vertices);
+                foreach (Face fc1 in availableFaces)
+                {
+                    if (!discardedFaces.Contains(fc1) && fcv.SetEquals(fc1.Vertices))
+                    {
+                        discardedFaces.Add(fc1);
+                        break;
+                    }
+                }
             }
             // to avoid oppositeCommonFaces to be connected with the trimmedFaces, we destroy these faces
 
@@ -4167,7 +4205,7 @@ namespace CADability
                 bool ok = shell.CheckConsistency();
 #endif
                 // res should not have open edges! If so, something went wrong
-                if (shell.HasOpenEdgesExceptPoles())
+                if (!allowOpenEdges && shell.HasOpenEdgesExceptPoles())
                 {
                     shell.TryConnectOpenEdges();
                 }
@@ -4204,6 +4242,34 @@ namespace CADability
             return res.ToArray();
         }
 
+        private bool IdenticalFaces(Face face1, Face face2)
+        {
+            bool isSameFace = true;
+            foreach (Edge edg in face2.AllEdges)
+            {
+                if (!isSameFace) break;
+                bool edgeFound = false;
+                foreach (Edge edg1 in Vertex.ConnectingEdges(edg.Vertex1, edg.Vertex1))
+                {
+                    if (edg1.PrimaryFace == face1 || edg1.SecondaryFace == face1)
+                    {
+                        edgeFound = true;
+                        if (edg.StartVertex(face2) != edg1.StartVertex(face2))
+                        {// different direction: not the same face
+                            isSameFace = false;
+                            break;
+                        }
+                    }
+                }
+                if (!edgeFound)
+                {
+                    isSameFace = false;
+                    break;
+                }
+            }
+            return isSameFace;
+        }
+
         private void splitIntersectionEdges(HashSet<Edge> intersectionEdges, Face faceToSplit, Dictionary<Edge, List<Edge>> refined)
         {   // in some cases there might be intersectionEdges passing through a vertex
             // they have to be splitted at the vertex position
@@ -4212,8 +4278,8 @@ namespace CADability
             foreach (var item in intersectionEdges)
             {
                 dc.Add(item.Curve2D(faceToSplit), Color.Red, item.GetHashCode());
-                dc.Add(item.Vertex1.GetPositionOnFace(faceToSplit),Color.Blue, item.Vertex1.GetHashCode());
-                dc.Add(item.Vertex2.GetPositionOnFace(faceToSplit),Color.Blue, item.Vertex2.GetHashCode());
+                dc.Add(item.Vertex1.GetPositionOnFace(faceToSplit), Color.Blue, item.Vertex1.GetHashCode());
+                dc.Add(item.Vertex2.GetPositionOnFace(faceToSplit), Color.Blue, item.Vertex2.GetHashCode());
             }
 #endif
             bool found = false;
@@ -4232,7 +4298,7 @@ namespace CADability
                                 GeoPoint2D uv = vtx.GetPositionOnFace(faceToSplit);
                                 ICurve2D c2d = ie2.Curve2D(faceToSplit);
                                 double pos = c2d.PositionOf(uv);
-                                if (pos > 1e-6 && pos < 1-1e-6 && Precision.IsEqual(uv, c2d.PointAt(pos)))
+                                if (pos > 1e-6 && pos < 1 - 1e-6 && Precision.IsEqual(uv, c2d.PointAt(pos)))
                                 {   // we need to split ie2
                                     Edge[] splitted = ie2.Split(ie2.Curve3D.PositionOf(vtx.Position));
                                     if (splitted != null && splitted.Length > 0)
