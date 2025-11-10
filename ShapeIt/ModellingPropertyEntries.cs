@@ -338,7 +338,7 @@ namespace ShapeIt
                     // when only a single click (not dragging a selections rectangle) then we also want to show the parent objects (i.e. the solid)
                     // when the control key is pressed, we want to add or remove from the current selection
                     bool addOrRemove = (cadFrame.UIService.ModifierKeys & Keys.Control) == Keys.Control;
-                    ComposeModellingEntries(objectsUnderCursor, vw, pickArea, true, addOrRemove); // when should we use alsoParent==false?
+                    ComposeModellingEntries(objectsUnderCursor, vw, pickArea, !onlyInside, addOrRemove); // when should we use alsoParent==false?
                     IsOpen = true;
                     Refresh();
                 }
@@ -574,7 +574,7 @@ namespace ShapeIt
         }
 
         private string resourceIdOfLastSelectedCategory = String.Empty; // what was selected last time? edge, face, solid etc.
-        private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea pickArea, bool alsoParent = true, bool addRemove = false)
+        private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea? pickArea, bool alsoParent = true, bool addRemove = false)
         {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by 
             // the object(s) under the mouse cursor
             // what to focus after the selection changed?
@@ -724,13 +724,16 @@ namespace ShapeIt
                 else if (go is Face fc)
                 {
                     faces.Add(fc);
-                    if (alsoParent && fc.Owner is Shell sh)
+                    if (fc.Owner is Shell sh)
                     {
                         if (sh.Owner is Solid solid)
                         {
-                            solids.Add(solid);
-                            if (!solidToFaces.TryGetValue(solid, out List<Face> fcs)) solidToFaces[solid] = fcs = new List<Face>();
-                            fcs.Add(fc);
+                            if (alsoParent || solid.HitTest(pickArea, true))
+                            {
+                                solids.Add(solid);
+                                if (!solidToFaces.TryGetValue(solid, out List<Face>? fcs)) solidToFaces[solid] = fcs = new List<Face>();
+                                fcs.Add(fc);
+                            }
                         }
                         else shells.Add(sh);
                     }
@@ -743,7 +746,7 @@ namespace ShapeIt
                     }
                     else if (go.UserData.Contains("CADability.AxisOf"))
                     {
-                        Face faceWithAxis = (go).UserData.GetData("CADability.AxisOf") as Face;
+                        Face? faceWithAxis = go.UserData.GetData("CADability.AxisOf") as Face;
                         if (faceWithAxis != null) axis.Add(faceWithAxis);
                     }
                     else
@@ -1005,56 +1008,6 @@ namespace ShapeIt
 
             res.Add(ModifyMenu(solids));
 
-            DirectMenuEntry exportSTL = new DirectMenuEntry("MenuId.Export.Solid"); // export this solids to a stl or step file
-            exportSTL.ExecuteMenu = (frame) =>
-            {   // show open file dialog
-                string filter = StringTable.GetString("File.STEP.Filter") + "|" + StringTable.GetString("File.STL.Filter");
-
-                int filterIndex = 1;
-                string filename = null;
-                if (cadFrame.UIService.ShowSaveFileDlg("MenuId.Export", StringTable.GetString("MenuId.Export"), filter, ref filterIndex, ref filename) == DialogResult.OK
-                    && filename != null)
-                {
-                    switch (filterIndex)
-                    {
-                        case 1:
-                            {
-                                Project stepProject = Project.CreateSimpleProject();
-                                Model model = stepProject.GetActiveModel();
-                                foreach (Solid sld in solids)
-                                {
-                                    model.Add(sld.Clone()); // add a clone, otherwise sld will be removed from the current model
-                                }
-                                ExportStep exportStep = new ExportStep();
-                                exportStep.WriteToFile(filename, stepProject);
-                            }
-                            break;
-                        case 2:
-                            using (PaintToSTL pstl = new PaintToSTL(filename, Settings.GlobalSettings.GetDoubleValue("Export.STL.Precision", 0.005)))
-                            {
-                                pstl.Init();
-                                foreach (Solid sld in solids)
-                                {
-                                    sld.PaintTo3D(pstl);
-                                }
-                            }
-                            break;
-                    }
-                }
-                return true;
-            };
-            exportSTL.IsSelected = (selected, frame) =>
-            {   // this is the standard selection behaviour for BRep operations
-                feedback.Clear();
-                if (selected)
-                {
-                    feedback.ShadowFaces.AddRange(solids);
-                }
-                feedback.Refresh();
-                return true;
-            };
-            res.Add(exportSTL);
-
             DirectMenuEntry uniteAll = new DirectMenuEntry("MenuId.Solid.UniteAll"); // unite all solids
             uniteAll.IsSelected = (selected, frame) =>
             {   // this is the standard selection behaviour for BRep operations
@@ -1108,6 +1061,75 @@ namespace ShapeIt
                 return true;
             };
             res.Add(uniteAll);
+
+            DirectMenuEntry mapToCurve = new DirectMenuEntry("MenuId.Solids.MapToCurve"); // unite all solids
+            uniteAll.IsSelected = (selected, frame) =>
+            {   // this is the standard selection behaviour for BRep operations
+                feedback.Clear();
+                if (selected)
+                {
+                    feedback.ShadowFaces.AddRange(solids);
+                }
+                feedback.Refresh();
+                return true;
+            };
+            uniteAll.ExecuteMenu = (frame) =>
+            {
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                frame.SetAction(new MapToCurveAction(solids));
+                return true;
+            };
+            res.Add(mapToCurve);
+
+            DirectMenuEntry exportSTL = new DirectMenuEntry("MenuId.Export.Solid"); // export this solids to a stl or step file
+            exportSTL.ExecuteMenu = (frame) =>
+            {   // show open file dialog
+                string filter = StringTable.GetString("File.STEP.Filter") + "|" + StringTable.GetString("File.STL.Filter");
+
+                int filterIndex = 1;
+                string filename = null;
+                if (cadFrame.UIService.ShowSaveFileDlg("MenuId.Export", StringTable.GetString("MenuId.Export"), filter, ref filterIndex, ref filename) == DialogResult.OK
+                    && filename != null)
+                {
+                    switch (filterIndex)
+                    {
+                        case 1:
+                            {
+                                Project stepProject = Project.CreateSimpleProject();
+                                Model model = stepProject.GetActiveModel();
+                                foreach (Solid sld in solids)
+                                {
+                                    model.Add(sld.Clone()); // add a clone, otherwise sld will be removed from the current model
+                                }
+                                ExportStep exportStep = new ExportStep();
+                                exportStep.WriteToFile(filename, stepProject);
+                            }
+                            break;
+                        case 2:
+                            using (PaintToSTL pstl = new PaintToSTL(filename, Settings.GlobalSettings.GetDoubleValue("Export.STL.Precision", 0.005)))
+                            {
+                                pstl.Init();
+                                foreach (Solid sld in solids)
+                                {
+                                    sld.PaintTo3D(pstl);
+                                }
+                            }
+                            break;
+                    }
+                }
+                return true;
+            };
+            exportSTL.IsSelected = (selected, frame) =>
+            {   // this is the standard selection behaviour for BRep operations
+                feedback.Clear();
+                if (selected)
+                {
+                    feedback.ShadowFaces.AddRange(solids);
+                }
+                feedback.Refresh();
+                return true;
+            };
+            res.Add(exportSTL);
 
             DirectMenuEntry mhhide = new DirectMenuEntry("MenuId.Solid.Hide"); // hide this solid
             mhhide.ExecuteMenu = (frame) =>
@@ -1361,8 +1383,13 @@ namespace ShapeIt
         private List<IPropertyEntry> GetPlanarPathProperties(Path path, IView vw, bool addExtrude)
         {
             List<IPropertyEntry> res = new List<IPropertyEntry>();
-            Plane pln = path.GetPlane();
-            Path2D? path2D = path.GetProjectedCurve(pln) as Path2D;
+            Plane pln = Plane.XYPlane;
+            Path2D path2D = null;
+            if (path.GetPlanarState() == PlanarState.Planar)
+            {
+                pln = path.GetPlane();
+                path2D = path.GetProjectedCurve(pln) as Path2D;
+            }
             Face fc = null;
             if (path2D != null && path2D.IsClosed)
             {

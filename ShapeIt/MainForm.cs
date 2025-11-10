@@ -540,7 +540,7 @@ namespace ShapeIt
             }
             if (operand1!=null && operand2 != null)
             {
-                //if (difference.Count>0)
+                if (difference.Count>0)
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand1,operand2);
                     if (sres.Length > 0)
@@ -553,7 +553,7 @@ namespace ShapeIt
             }
             if (slds.Count == 2)
             {
-                //Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
+                Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
                 Solid[] sld;
                 if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
                 {
