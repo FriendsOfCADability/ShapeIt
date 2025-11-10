@@ -367,4 +367,31 @@
     <label>Kugel</label>
     <info>Erzeuge eine Kugel mit dem Durchmesser und der Lage dieses Kreises</info>
   </data>
+  <data name="MapToCurve.SourceCurve">
+    <label>Ausgangskurve</label>
+    <info>Ausgangskurve für die Abbildung oder Verformung</info>
+  </data>
+  <data name="MapToCurve.TargetCurve">
+    <label>Zielkurve</label>
+    <info>Zielkurve für die Abbildung oder Verformung</info>
+  </data>
+  <data name="MapToCurve.Reverse">
+    <label>Richtung</label>
+    <info>Richtung der Zielkurve</info>
+  </data>
+  <data name="MapToCurve.Reverse.Values">
+    <label>|vorwärts|rückwärts</label>
+  </data>
+  <data name="MapToCurve.Mode">
+    <label>Modus</label>
+    <info>Modus der Abbildung bzw. Verformung</info>
+  </data>
+  <data name="MapToCurve.Mode.Values">
+    <label>|nur verschieben|verschieben und drehen|skalieren|verformen</label>
+  </data>
+  <data name="MenuId.Solids.MapToCurve">
+    <label>Entlang Kurve abbilden</label>
+    <info>die Körper von einer Ausgangskurve zu einer Zielkurve abbilden</info>
+  </data>
+  
 </root>

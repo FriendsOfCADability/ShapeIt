@@ -1063,7 +1063,7 @@ namespace ShapeIt
             res.Add(uniteAll);
 
             DirectMenuEntry mapToCurve = new DirectMenuEntry("MenuId.Solids.MapToCurve"); // unite all solids
-            uniteAll.IsSelected = (selected, frame) =>
+            mapToCurve.IsSelected = (selected, frame) =>
             {   // this is the standard selection behaviour for BRep operations
                 feedback.Clear();
                 if (selected)
@@ -1073,7 +1073,7 @@ namespace ShapeIt
                 feedback.Refresh();
                 return true;
             };
-            uniteAll.ExecuteMenu = (frame) =>
+            mapToCurve.ExecuteMenu = (frame) =>
             {
                 cadFrame.ControlCenter.ShowPropertyPage("Action");
                 frame.SetAction(new MapToCurveAction(solids));
