@@ -2215,7 +2215,7 @@ namespace CADability
                 {
                     Polynom ps1 = s1.GetImplicitPolynomial();
                     Polynom ps2 = s2.GetImplicitPolynomial();
-                    if (ps1 != null && ps2 != null)
+                    if (ps1 != null && ps2 != null & ps1.Degree < 4 && ps2.Degree < 4)
                     {
                         sec1 = ISurfaceImpl.GetSectionInPlane(normalPlane, ps1);
                         sec2 = ISurfaceImpl.GetSectionInPlane(normalPlane, ps2);

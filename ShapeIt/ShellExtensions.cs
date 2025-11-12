@@ -1349,44 +1349,11 @@ namespace ShapeIt
             // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface in both cases
             // In the covex-edge case the fillet shell is removed, the result will be a convex swept surface
             // In the concave-edge case the fillet shell is added, the result will be a concave swept surface
-            
+
             GeoVector testNormal = sweptCircle.GetNormal(new GeoPoint2D(0.5, Math.PI));
             GeoPoint testPoint = sweptCircle.PointAt(new GeoPoint2D(0.5, Math.PI));
             if (testNormal * (filletAxisCurve.Curve3D.PointAt(0.5) - testPoint) < 0) sweptCircle.ReverseOrientation();
             // find the tangential curves at the "long" sides of the sweptSurface
-            List<GeoPoint> intermediatePoints = new List<GeoPoint>();
-            for (int i = 0; i <= 10; i++)
-            {
-                GeoPoint pc = filletAxisCurve.Curve3D.PointAt(i / 10.0);
-                GeoPoint2D[] fp2d = topSurface.PerpendicularFoot(pc);
-                if (fp2d != null && fp2d.Length > 0)
-                {
-                    GeoPoint p = fp2d.Select(p2d => topSurface.PointAt(p2d)).MinBy(p => Math.Abs(filletAxisCurve.Curve3D.DistanceTo(p) - radius));
-                    intermediatePoints.Add(p);
-                }
-            }
-            InterpolatedDualSurfaceCurve dsTopTangentialCurve = new InterpolatedDualSurfaceCurve(topSurface.Clone(), edgeToRound.PrimaryFace.Domain, sweptCircle.Clone(), new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2),
-                intermediatePoints.ToArray(), null, null, true);
-#if DEBUG
-            DebuggerContainer dc100 = (dsTopTangentialCurve.CurveOnSurface2 as GeneralCurve2D).Debug100DirPoints;
-#endif
-            intermediatePoints.Clear();
-            for (int i = 0; i <= 10; i++)
-            {
-                GeoPoint pc = filletAxisCurve.Curve3D.PointAt(i / 10.0);
-                GeoPoint2D[] fp2d = bottomSurface.PerpendicularFoot(pc);
-                if (fp2d != null && fp2d.Length > 0)
-                {
-                    GeoPoint p = fp2d.Select(p2d => bottomSurface.PointAt(p2d)).MinBy(p => Math.Abs(filletAxisCurve.Curve3D.DistanceTo(p) - radius));
-                    intermediatePoints.Add(p);
-                }
-            }
-            InterpolatedDualSurfaceCurve dsBottomTangentialCurve = new InterpolatedDualSurfaceCurve(bottomSurface.Clone(), edgeToRound.SecondaryFace.Domain, sweptCircle.Clone(), new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2),
-                intermediatePoints.ToArray(), null, null, true);
-            sweptCircle.SetBounds(BoundingRect.EmptyBoundingRect);
-
-            ICurve topTangentialCurve = topSurface.Make3dCurve(filletAxisCurve.Curve2D1);
-            Edge e1 = new Edge(null, dsTopTangentialCurve, null, dsTopTangentialCurve.CurveOnSurface2, true);
 
             GeoPoint2D uvswc, uvs;
             GeoPoint rb, rt;
@@ -1411,10 +1378,6 @@ namespace ShapeIt
             lid2crv3.Reverse();
             Edge e2 = new Edge(null, lid2crv3, null, sweptCircle.GetProjectedCurve(lid2crv3, 0.0), true);
 
-            ICurve bottomTangentialCurve = bottomSurface.Make3dCurve(filletAxisCurve.Curve2D2);
-            bottomTangentialCurve.Reverse();
-            dsBottomTangentialCurve.Reverse();
-            Edge e3 = new Edge(null, dsBottomTangentialCurve, null, dsBottomTangentialCurve.CurveOnSurface2, true);
 
             GeoPoint lb, lt;
             if (BoxedSurfaceExtension.FindTangentialIntersectionPoint(leftPlane.Location, leftPlane.Normal, sweptCircle, bottomSurface, out uvswc, out uvs))
@@ -1437,6 +1400,31 @@ namespace ShapeIt
             lid1crv3.EndPoint = lb;
             lid1crv3.Reverse();
             Edge e4 = new Edge(null, lid1crv3, null, sweptCircle.GetProjectedCurve(lid1crv3, 0.0), true);
+
+            BoundingRect sweptBounds = new BoundingRect(sweptCircle.PositionOf(rt), sweptCircle.PositionOf(rb), sweptCircle.PositionOf(lt), sweptCircle.PositionOf(lb));
+            IDualSurfaceCurve[] tcCandidates = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([lt, rt]));
+            if (tcCandidates == null || tcCandidates.Length == 0) return null;
+            IDualSurfaceCurve[] bcCandidates = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([rb, lb]));
+            if (bcCandidates == null || bcCandidates.Length == 0) return null;
+            if (tcCandidates.Length > 1)
+            {
+                // select best solution here
+            }
+            if (bcCandidates.Length > 1)
+            {
+                // select best solution here
+            }
+            if ((bcCandidates[0].Curve3D.StartPoint | rb) + (bcCandidates[0].Curve3D.EndPoint | lb) > (bcCandidates[0].Curve3D.StartPoint | lb) + (bcCandidates[0].Curve3D.EndPoint | rb))
+            {
+                bcCandidates[0].Reverse();
+            }
+            if ((tcCandidates[0].Curve3D.StartPoint | lt) + (tcCandidates[0].Curve3D.EndPoint | rt) > (tcCandidates[0].Curve3D.StartPoint | rt) + (tcCandidates[0].Curve3D.EndPoint | lt))
+            {
+                tcCandidates[0].Reverse();
+            }
+            Edge e1 = new Edge(null, tcCandidates[0].Curve3D, null, tcCandidates[0].Curve2D2, true);
+            Edge e3 = new Edge(null, bcCandidates[0].Curve3D, null, bcCandidates[0].Curve2D2, true);
+
 
             sweptFace = Face.MakeFace(sweptCircle, [e1, e2, e3, e4]);
             sweptFace.ReverseOrientation();
@@ -1527,6 +1515,7 @@ namespace ShapeIt
                 bo.SetClosedShells(true, false);
                 bo.SetTangentialEdges(tangentialEdges);
                 Shell[] roundedShells = bo.Execute();
+                if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
             }
 
             return toOperateOn;

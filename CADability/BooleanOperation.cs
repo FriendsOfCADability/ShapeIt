@@ -516,11 +516,13 @@ namespace CADability
                         {   // we need this test with the trimmed 3d curve in a strange case: a quarter of an ellipse is exactely outside a threequarter cylinder
                             // this part of a 2d curve gets arbitrarily wrong periodic adjusted
                             GeoPoint2D uv = fc1.Surface.PositionOf(tr.PointAt(0.5));
+                            SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uv);
                             if (!fc1.Contains(ref uv, true))
                             {   // still too strong condition, we only need to exclude e.g. wrong halves of a circle
                                 if (fc1.Area.GetPosition(uv, fc1.Domain.Size * 1e-5) == Border.Position.Outside) continue;
                             }
                             uv = fc2.Surface.PositionOf(tr.PointAt(0.5));
+                            SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uv);
                             if (!fc2.Contains(ref uv, true))
                             {   // still too strong condition, we only need to exclude e.g. wrong halves of a circle
                                 if (fc2.Area.GetPosition(uv, fc2.Domain.Size * 1e-5) == Border.Position.Outside) continue;
