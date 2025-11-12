@@ -785,12 +785,12 @@ namespace CADability.GeoObject
             }
             else
             {
-                if (pos >= 0.0)
+                if (pos <= 1e-6)
                 {
                     GeoPoint pCurve = PointAt(pos);
                     return Math.Min(p | StartPoint, pCurve | p);
                 }
-                else if (pos < 1.0)
+                else if (pos >= 1.0 - 1e-6)
                 {
                     GeoPoint pCurve = PointAt(pos);
                     return Math.Min(p | EndPoint, pCurve | p);
