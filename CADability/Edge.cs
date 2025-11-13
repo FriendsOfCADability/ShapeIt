@@ -3666,6 +3666,13 @@ namespace CADability
             if (pf == sf) return null;
             return pf ? secondaryFace : primaryFace;
         }
+
+        public static Face CommonFace(Edge edge1, Edge edge2)
+        {
+            if (edge1.primaryFace == edge2.primaryFace || edge1.primaryFace == edge2.secondaryFace) return edge1.primaryFace;
+            if (edge1.secondaryFace == edge2.primaryFace || edge1.secondaryFace == edge2.secondaryFace) return edge1.secondaryFace;
+            return null;
+        }
 #if DEBUG
         public bool IsDebug
         {
@@ -3676,6 +3683,7 @@ namespace CADability
             }
         }
 
+        public IEnumerable<Vertex> Vertices => new Vertex[] { v1, v2 };
 
 #endif
     }

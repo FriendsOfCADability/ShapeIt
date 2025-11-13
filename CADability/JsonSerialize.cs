@@ -1744,7 +1744,7 @@ namespace CADability
             return res;
         }
     }
-    internal class JsonProxyType : Hashtable, IJsonSerialize
+    internal class JsonProxyType : Hashtable, IJsonSerialize, ISerializable
     {
         Dictionary<string, object> dict;
         protected JsonProxyType()
@@ -1775,6 +1775,14 @@ namespace CADability
             }
         }
         public int OriginalTypeVersion => (int)dict["$TypeVersion"];
+        public override void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
+        }
+        protected JsonProxyType(SerializationInfo info, StreamingContext context): base(info, context)
+        {
+        }
+
     }
     internal class JSonSubstitute : IJsonSerialize, IJsonConvert
     {

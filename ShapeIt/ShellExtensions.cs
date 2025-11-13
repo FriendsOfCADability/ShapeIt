@@ -12,6 +12,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms.VisualStyles;
 using Wintellect.PowerCollections;
 
 namespace ShapeIt
@@ -1437,41 +1438,165 @@ namespace ShapeIt
         {
             if (radius < 0) radius = -radius; // radius always >0
 
+            // cluster the edges into connected groups
+            List<List<Edge>> clusteredEdges = [];
+            while (edges.Any())
+            {
+                Edge startEdge = edges.First();
+                edges = edges.Except(new List<Edge> { startEdge });
+                List<Edge> cluster = new List<Edge> { startEdge };
+                Queue<Edge> toProcess = new Queue<Edge>();
+                toProcess.Enqueue(startEdge);
+                while (toProcess.Count > 0)
+                {
+                    Edge current = toProcess.Dequeue();
+                    List<Edge> connected = edges.Where(e => e.IsConnected(current)).ToList();
+                    foreach (Edge ce in connected)
+                    {
+                        cluster.Add(ce);
+                        toProcess.Enqueue(ce);
+                    }
+                    edges = edges.Except(connected);
+                }
+                clusteredEdges.Add(cluster);
+            }
+
             List<Shell> roundedEdges = new List<Shell>();
             HashSet<(Face, Edge)> tangentialEdges = new HashSet<(Face, Edge)>();
-            foreach (Edge edgeToRound in edges)
+            foreach (List<Edge> edgeCluster in clusteredEdges)
             {
-                if (Adjacency(edgeToRound) == AdjacencyType.Convex)
-                {   // TODO: extend to tangentially connected edges
-                    List<Face> filletPlusExtension = new List<Face>();
-                    Face? filletFace = MakeConvexFilletFace(edgeToRound, radius, out Edge[]? frontEnd, out Edge[]? tangential);
-                    if (filletFace != null)
+                // we must differentiate between vertices at the open end of the cluster and vertices inside the cluster
+                // inside the cluster, vertices may be connected to two edges or three (or more) edges, where more than three is currently not supported
+                Dictionary<Vertex, List<Edge>> connectedVertices = new Dictionary<Vertex, List<Edge>>(); // how many and which edges of this cluster are connected to the vertex
+                foreach (Edge edgeToRound in edgeCluster)
+                {
+                    foreach (Vertex vtx in edgeToRound.Vertices)
                     {
-                        filletPlusExtension.Add(filletFace);
-                        if (frontEnd != null)
+                        if (!connectedVertices.TryGetValue(vtx, out List<Edge>? edgesAtVertex)) connectedVertices[vtx] = edgesAtVertex = new List<Edge>();
+                        edgesAtVertex.Add(edgeToRound);
+                    }
+                }
+                List<Face> involvedFaces = []; // collect all faces for a cluster of edges
+                Dictionary<Edge, (Face fillet, Edge[]? frontEnd)> edgeToFillet = new Dictionary<Edge, (Face fillet, Edge[]? frontEnd)>();
+                foreach (Edge edgeToRound in edgeCluster)
+                {
+                    if (Adjacency(edgeToRound) == AdjacencyType.Convex)
+                    {   // TODO: extend to tangentially connected edges
+                        Face? filletFace = MakeConvexFilletFace(edgeToRound, radius, out Edge[]? frontEnd, out Edge[]? tangential);
+                        if (filletFace != null)
                         {
-                            // we expect the ellipses to be oriented: the normal of the plane points outward
-                            Ellipse? e1 = frontEnd[0].Curve3D as Ellipse;
-                            if (e1 != null)
+                            involvedFaces.Add(filletFace);
+                            edgeToFillet[edgeToRound] = (filletFace, frontEnd);
+                            if (tangential != null)
                             {
-                                Face extension1 = Face.MakeFace(e1, radius * e1.Plane.Normal.Normalized);
-                                if (extension1 != null) filletPlusExtension.Add(extension1);
-                            }
-                            Ellipse? e2 = frontEnd[1].Curve3D as Ellipse;
-                            if (e2 != null)
-                            {
-                                Face extension2 = Face.MakeFace(e2, radius * e2.Plane.Normal.Normalized);
-                                if (extension2 != null) filletPlusExtension.Add(extension2);
+                                // we expect the tangentials in the correct order!
+                                tangentialEdges.Add((edgeToRound.PrimaryFace, tangential[0]));
+                                tangentialEdges.Add((edgeToRound.SecondaryFace, tangential[1]));
                             }
                         }
-                        if (tangential != null)
-                        {
-                            // we expect the tangentials in the correct order!
-                            tangentialEdges.Add((edgeToRound.PrimaryFace, tangential[0]));
-                            tangentialEdges.Add((edgeToRound.SecondaryFace, tangential[1]));
+                    }
+                }
+                foreach (var item in connectedVertices)
+                {
+                    if (item.Value.Count == 1)
+                    {   // this is an open end
+                        Edge? openEdge = edgeToFillet[item.Value[0]].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(item.Key.Position));
+                        Ellipse? ellipse = openEdge?.Curve3D as Ellipse;
+                        if (ellipse != null)
+                        {   // make an extension of the arc of the fillet of size radius. This size is arbitrary and could be evaluated better
+                            Face extension = Face.MakeFace(ellipse, 4 * radius * ellipse.Plane.Normal.Normalized);
+                            if (extension != null) involvedFaces.Add(extension);
                         }
-                        Shell roundedEdge = Shell.FromFaces(filletPlusExtension.ToArray());
-                        if (roundedEdge != null) roundedEdges.Add(roundedEdge);
+                    }
+                    else if (item.Value.Count == 2)
+                    {
+                        // try to make a torus segment to fill the gap
+                        Ellipse?[] ellipses = new Ellipse?[2];
+                        for (int i = 0; i < 2; i++)
+                        {
+                            Edge? openEdge = edgeToFillet[item.Value[i]].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(item.Key.Position));
+                            ellipses[i] = openEdge?.Curve3D as Ellipse;
+                        }
+                        foreach (Ellipse? ellipse in ellipses)
+                        {
+                            if (ellipse == null) continue;
+                            Face extension = Face.MakeFace(ellipse, 4 * radius * ellipse.Plane.Normal.Normalized);
+                            if (extension != null) involvedFaces.Add(extension);
+                        }
+                        List<Edge> thirdEdge = new List<Edge>(item.Key.AllEdges.Except(item.Value));
+                        if (thirdEdge.Count == 1 && ellipses[0] != null && ellipses[1] != null)
+                        {
+                            ISurface aroundThirdEdge = SweptCircle.MakePipeSurface(thirdEdge[0].Curve3D, radius, ellipses[0].Normal.Normalized + ellipses[1].Normal.Normalized);
+                            Face? commonFace = Edge.CommonFace(item.Value[0], item.Value[1]);
+                            if (commonFace != null)
+                            {
+                                ISurface offset = commonFace.Surface.GetOffsetSurface(-radius);
+                                if (offset != null)
+                                {
+                                    GeoPoint ip1 = item.Key.Position;
+                                    GeoPoint ip2 = item.Key.Position;
+                                    bool ok = CADability.GeoObject.Surfaces.IntersectThreeSurfaces(offset, commonFace.Domain,
+                                                                    thirdEdge[0].PrimaryFace.Surface, thirdEdge[0].PrimaryFace.Domain,
+                                                                    aroundThirdEdge, new BoundingRect(0, 0, 1, 2 * Math.PI),
+                                                                    ref ip1, out GeoPoint2D puv1, out GeoPoint2D puv2, out GeoPoint2D puv3);
+                                    ok &= CADability.GeoObject.Surfaces.IntersectThreeSurfaces(offset, commonFace.Domain,
+                                                                    thirdEdge[0].SecondaryFace.Surface, thirdEdge[0].SecondaryFace.Domain,
+                                                                    aroundThirdEdge, new BoundingRect(0, 0, 1, 2 * Math.PI),
+                                                                    ref ip2, out GeoPoint2D suv1, out GeoPoint2D suv2, out GeoPoint2D suv3);
+                                    BoundingRect aroundThirdEdgeDomain = new BoundingRect(puv3);
+                                    SurfaceHelper.AdjustPeriodic(aroundThirdEdge, aroundThirdEdgeDomain, ref suv3);
+                                    aroundThirdEdgeDomain.MinMax(suv3);
+                                    if (ok)
+                                    {
+                                        IDualSurfaceCurve[] dsc = offset.GetDualSurfaceCurves(commonFace.Domain, aroundThirdEdge, aroundThirdEdgeDomain, [ellipses[0].Center, ellipses[1].Center]);
+                                        if (dsc.Length > 0)
+                                        {
+                                            ISurface connectingToroid = SweptCircle.MakePipeSurface(dsc[0].Curve3D, radius, commonFace.Surface.GetNormal(commonFace.Surface.PositionOf(item.Key.Position)));
+                                            Face torusFace = Face.MakeFace(connectingToroid, new BoundingRect(0, 0, 1, Math.PI));
+                                            Solid sph0 = Make3D.MakeSphere(dsc[0].Curve3D.PointAt(0), radius);
+                                            Solid sph1 = Make3D.MakeSphere(dsc[0].Curve3D.PointAt(0.25), radius);
+                                            Solid sph2 = Make3D.MakeSphere(dsc[0].Curve3D.PointAt(0.5), radius);
+                                            Solid sph3 = Make3D.MakeSphere(dsc[0].Curve3D.PointAt(0.75), radius);
+                                            Solid sph4 = Make3D.MakeSphere(dsc[0].Curve3D.PointAt(1), radius);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        else if (item.Value.Count == 3)
+                        {
+                            // vertex connected to three edges, make a sphere segment to fill the gap
+                            List<Face> offsetFaces = [];
+                            foreach (Edge edge in item.Value)
+                            {
+                                ISurface offsetSurface = null;
+                                if (Adjacency(edge) == AdjacencyType.Convex)
+                                {
+                                    offsetSurface = edge.PrimaryFace.Surface.GetOffsetSurface(-radius);
+                                }
+                                else if (Adjacency(edge) == AdjacencyType.Concave)
+                                {
+                                    offsetSurface = edge.PrimaryFace.Surface.GetOffsetSurface(radius);
+                                }
+                                if (offsetSurface != null)
+                                {
+                                    offsetFaces.Add(Face.MakeFace(offsetSurface, edge.PrimaryFace.Domain));
+                                }
+                            }
+                            if (offsetFaces.Count == 3)
+                            {
+                                GeoPoint ip = item.Key.Position;
+                                if (CADability.GeoObject.Surfaces.IntersectThreeSurfaces(offsetFaces[0].Surface, offsetFaces[0].Domain,
+                                    offsetFaces[1].Surface, offsetFaces[1].Domain,
+                                    offsetFaces[2].Surface, offsetFaces[2].Domain,
+                                    ref ip, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3))
+                                {
+                                    //Solid sld = Make3D.MakeSphere(ip, radius);
+                                    //Shell sphereShell = sld.Shells[0];
+                                    //involvedFaces.Add(sphereShell);
+                                }
+                            }
+                        }
                     }
                 }
                 // make spheres at the vertices
@@ -1504,6 +1629,7 @@ namespace ShapeIt
                 //    }
 
                 //}
+                roundedEdges.AddIfNotNull(Shell.FromFaces(involvedFaces.ToArray()));
             }
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
