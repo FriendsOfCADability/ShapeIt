@@ -13,6 +13,7 @@ using CADability.Attribute;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using static CADability.PrintToGDI;
 using System.Numerics;
+using CADability.Shapes;
 
 namespace CADability
 {
@@ -52,12 +53,16 @@ namespace CADability
         public Stack<GeoObjectList> listStack;
         Dictionary<string, string> styles; // current element styles
         Dictionary<string, ColorDef> FillStyles = new Dictionary<string, ColorDef>();
+        private readonly Stack<Dictionary<string, string>> _styleStack = new Stack<Dictionary<string, string>>();
+        public enum SvgFillRule { NonZero, EvenOdd }
         public ImportSVG()
         {
             _transformStack = new Stack<ModOp2D>();
             _transformStack.Push(ModOp2D.Identity);
             listStack = new Stack<GeoObjectList>();
             listStack.Push(new GeoObjectList());
+            // Basis-Style (root)
+            _styleStack.Push(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
         }
 
         /// <summary>
@@ -106,7 +111,8 @@ namespace CADability
                 ModOp2D current = _transformStack.Peek();
                 _transformStack.Push(t * current);
             }
-            styles = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var computed = ComputeElementStyles(reader);  // geerbte + Präsentationsattribute + inline style
+            styles = new Dictionary<string, string>(computed, StringComparer.OrdinalIgnoreCase); // falls du 'styles' später brauchst (z.B. für fill)
             string styleAttr = reader.GetAttribute("style");
             if (!string.IsNullOrEmpty(styleAttr))
             {
@@ -130,7 +136,18 @@ namespace CADability
             // Gruppeneinstieg
             if (reader.Name.Equals("g", StringComparison.OrdinalIgnoreCase))
             {
-                EnterGroup(currentTransform, styles);
+                // Die Gruppe bekommt ihre eigenen Styles: wir mergen sie in einen neuen Stack-Frame
+                var parent = _styleStack.Peek();
+                var groupFrame = new Dictionary<string, string>(parent, StringComparer.OrdinalIgnoreCase);
+
+                // Präsentationsattribute + inline-style der Gruppe nochmals direkt lesen (damit auch dann klappt,
+                // wenn ComputeElementStyles oben schon styles erzeugt hat)
+                ReadPresentationAttributes(reader, groupFrame);
+                var inlineGroup = ParseStyleAttribute(reader.GetAttribute("style"));
+                MergeInto(groupFrame, inlineGroup);
+
+                _styleStack.Push(groupFrame);
+                EnterGroup(_transformStack.Peek(), groupFrame);
             }
             // Element-Typ prüfen und Aufruf generieren
             switch (reader.Name)
@@ -205,6 +222,7 @@ namespace CADability
             if (reader.Name.Equals("g", StringComparison.OrdinalIgnoreCase))
             {
                 ExitGroup();
+                if (_styleStack.Count > 1) _styleStack.Pop();
             }
             // Nach Verlassen des Elements Transformationsmatrix zurücksetzen
             if (!string.IsNullOrEmpty(transformAttr))
@@ -212,15 +230,19 @@ namespace CADability
                 _transformStack.Pop();
             }
         }
-        #region Stubs für Gruppierung
-        protected virtual void EnterGroup(ModOp2D transform, Dictionary<string, string> styles)
+        #region Stubs_für_Gruppierung
+        protected virtual void EnterGroup(ModOp2D transform, Dictionary<string, string> unused)
         {
-            // TODO: Gruppeneigenschaften verarbeiten
+            // Effektive Gruppen-Styles aus Attributen/inline-style des <g> berechnen.
+            // Wir haben hier keinen Reader – deshalb: Aufrufer (ImportElement) übergibt uns vorher die berechneten Styles.
+            // => Wir ändern ImportElement so, dass EnterGroup styles = computedStyles übergeben bekommt.
+            // Hier einfach pushen:
+            _styleStack.Push(new Dictionary<string, string>(_styleStack.Peek(), StringComparer.OrdinalIgnoreCase));
         }
 
         protected virtual void ExitGroup()
         {
-            // TODO: Gruppenschluss verarbeiten
+            if (_styleStack.Count > 1) _styleStack.Pop();
         }
         #endregion
 
@@ -554,7 +576,24 @@ namespace CADability
 
             GeoObjectList list = listStack.Pop();
             if (list.Count > 0) subPaths.Add(list);
+            var fillRule = GetEffectiveFillRule(styles);
+            ColorDef cd = ColorDef.CDfromParent;
+            bool fill = false;
+            if (styles.TryGetValue("fill", out string color))
+            {
+                fill = true;
+                System.Drawing.Color clr = ParseSvgColor(color);
+                if (!clr.IsEmpty)
+                {
+                    if (!FillStyles.TryGetValue("SVG+" + clr.Name, out cd))
+                    {
+                        cd = new ColorDef("SVG+" + clr.Name, clr);
+                        FillStyles["SVG+" + clr.Name] = cd;
+                    }
+                }
+            }
             // wir müssen die Paths der Größe nach sortieren und überprüfen, welches Inseln sind und entsprechende SimpleShapes erzeugen
+            List<Path2D> oriented2DPaths = new List<Path2D>();
             for (int j = 0; j < subPaths.Count; j++)
             {
                 List<ICurve> lgo = new List<ICurve>(subPaths[j].OfType<ICurve>());
@@ -579,35 +618,120 @@ namespace CADability
                 }
                 if (!path.IsClosed) { }
                 bool added = false;
-                if (styles.TryGetValue("fill", out string color))
+                if (fill)
                 {
-                    System.Drawing.Color clr = ParseSvgColor(color);
-                    if (!clr.IsEmpty)
-                    {
-                        if (!FillStyles.TryGetValue("SVG+" + clr.Name, out ColorDef cd))
-                        {
-                            cd = new ColorDef("SVG+" + clr.Name, clr);
-                            FillStyles["SVG+" + clr.Name] = cd;
-                        }
-                        List<ICurve2D> segments = new List<ICurve2D>();
-                        for (int k = 0; k < lgo.Count; k++)
-                        {
-                            ICurve2D c2d = lgo[k].GetProjectedCurve(Plane.XYPlane);
-                            if (c2d.Length > 1e-3) segments.Add(c2d);
-                        }
-                        Shapes.Border bdr = Shapes.Border.FromUnorientedList(segments.ToArray(), true);
-                        if (bdr != null)
-                        {
-                            Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), new Shapes.SimpleShape(bdr));
-                            fc.ColorDef = cd;
-                            listStack.Peek().Add(fc);
-                        }
-                        added = true;
-                    }
+                    Path2D p2d = path.GetProjectedCurve(Plane.XYPlane) as Path2D;
+                    if (p2d != null) oriented2DPaths.Add(p2d);
+                    added = true;
+                    //System.Drawing.Color clr = ParseSvgColor(color);
+                    //if (!clr.IsEmpty)
+                    //{
+                    //    if (!FillStyles.TryGetValue("SVG+" + clr.Name, out ColorDef cd))
+                    //    {
+                    //        cd = new ColorDef("SVG+" + clr.Name, clr);
+                    //        FillStyles["SVG+" + clr.Name] = cd;
+                    //    }
+                    //    List<ICurve2D> segments = new List<ICurve2D>();
+                    //    for (int k = 0; k < lgo.Count; k++)
+                    //    {
+                    //        ICurve2D c2d = lgo[k].GetProjectedCurve(Plane.XYPlane);
+                    //        if (c2d.Length > 1e-3) segments.Add(c2d);
+                    //    }
+                    //    Shapes.Border bdr = Shapes.Border.FromUnorientedList(segments.ToArray(), true);
+                    //    if (bdr != null)
+                    //    {
+                    //        Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), new Shapes.SimpleShape(bdr));
+                    //        fc.ColorDef = cd;
+                    //        listStack.Peek().Add(fc);
+                    //    }
+                    //    added = true;
+                    //}
                 }
                 if (!added || styles.ContainsKey("stroke")) listStack.Peek().Add(path);
             }
+            // sort the 2d paths in a hierarchy
+            if (fillRule == SvgFillRule.NonZero)
+            {
+                oriented2DPaths.Sort((p1, p2) => -p1.GetArea().CompareTo(p2.GetArea())); // biggest area first, holes have negative area
+                HashSet<Path2D> alreadyUsed = new HashSet<Path2D>();
+                for (int j = 0; j < oriented2DPaths.Count; j++)
+                {
+                    if (alreadyUsed.Contains(oriented2DPaths[j])) continue;
+                    if (oriented2DPaths[j].GetArea() < 0) break; // dont use holes as a shape
+                    SimpleShape ss = new SimpleShape(new Border(oriented2DPaths[j]));
+                    for (int k = j + 1; k < oriented2DPaths.Count; k++)
+                    {
+                        if (alreadyUsed.Contains(oriented2DPaths[k])) continue;
+                        SimpleShape ssk = new SimpleShape(new Border(oriented2DPaths[k]));
+                        if (oriented2DPaths[k].GetArea() > 0)
+                        {
+                            switch (SimpleShape.GetPosition(ss, ssk))
+                            {
+                                case SimpleShape.Position.disjunct:
+                                    break; // this shape is independant
+                                case SimpleShape.Position.firstcontainscecond:
+                                    // in nonzero mode this makes no sense
+                                    break;
+                                case SimpleShape.Position.intersecting:
+                                    {
+                                        CompoundShape cs = SimpleShape.Intersect(ss, ssk);
+                                        if (cs != null && cs.SimpleShapes.Length == 1)
+                                        {
+                                            ss = cs.SimpleShapes[0];
+                                            alreadyUsed.Add(oriented2DPaths[k]);
+                                        }
+                                        // multiple results not implemented
+                                    }
+                                    break;
+                                case SimpleShape.Position.secondcontainsfirst:
+                                    // this cannot happen because of descending order
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            switch (SimpleShape.GetPosition(ss, ssk))
+                            {
+                                case SimpleShape.Position.disjunct:
+                                    break; // this shape is independant
+                                case SimpleShape.Position.firstcontainscecond:
+                                    {
+                                        CompoundShape cs = SimpleShape.Subtract(ss, ssk);
+                                        if (cs != null && cs.SimpleShapes.Length == 1)
+                                        {
+                                            ss = cs.SimpleShapes[0];
+                                            alreadyUsed.Add(oriented2DPaths[k]);
+                                        }
+                                    }
+                                    break;
+                                case SimpleShape.Position.intersecting:
+                                    {
+                                        CompoundShape cs = SimpleShape.Subtract(ss, ssk);
+                                        if (cs != null && cs.SimpleShapes.Length == 1)
+                                        {
+                                            ss = cs.SimpleShapes[0];
+                                            alreadyUsed.Add(oriented2DPaths[k]);
+                                        }
+                                        // multiple results not implemented
+                                    }
+                                    break;
+                                case SimpleShape.Position.secondcontainsfirst:
+                                    // this cannot happen because of descending order
+                                    break;
+                            }
+                        }
+                    }
+
+                    if (ss != null)
+                    {
+                        Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), ss);
+                        fc.ColorDef = cd;
+                        listStack.Peek().Add(fc);
+                    }
+                }
+            }
         }
+
         #endregion
 
         private static float ParseFloat(string s)
@@ -731,5 +855,78 @@ namespace CADability
             }
             return result;
         }
+        private static void MergeInto(Dictionary<string, string> target, IDictionary<string, string> src)
+        {
+            if (src == null) return;
+            foreach (var kv in src)
+                target[kv.Key] = kv.Value;
+        }
+
+        private static Dictionary<string, string> ParseStyleAttribute(string styleAttr)
+        {
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(styleAttr)) return dict;
+            var declarations = styleAttr.Split(';');
+            foreach (var decl in declarations)
+            {
+                var kv = decl.Split(new[] { ':' }, 2);
+                if (kv.Length == 2)
+                {
+                    var name = kv[0].Trim();
+                    var value = kv[1].Trim();
+                    if (name.Length > 0) dict[name] = value;
+                }
+            }
+            return dict;
+        }
+
+        // Nimmt Präsentationsattribute direkt am Element mit auf (z.B. fill, fill-rule, stroke, fill-opacity …)
+        private static void ReadPresentationAttributes(XmlReader reader, Dictionary<string, string> dict)
+        {
+            // Die wichtigsten fürs Füllen
+            var fr = reader.GetAttribute("fill-rule");
+            if (!string.IsNullOrEmpty(fr)) dict["fill-rule"] = fr;
+
+            var fill = reader.GetAttribute("fill");
+            if (!string.IsNullOrEmpty(fill)) dict["fill"] = fill;
+
+            var fillOpacity = reader.GetAttribute("fill-opacity");
+            if (!string.IsNullOrEmpty(fillOpacity)) dict["fill-opacity"] = fillOpacity;
+
+            var stroke = reader.GetAttribute("stroke");
+            if (!string.IsNullOrEmpty(stroke)) dict["stroke"] = stroke;
+
+            var strokeWidth = reader.GetAttribute("stroke-width");
+            if (!string.IsNullOrEmpty(strokeWidth)) dict["stroke-width"] = strokeWidth;
+        }
+
+        // Effektive Styles für ein Element berechnen: geerbte Werte (Stack Top) + Präsentationsattribute + inline style
+        private Dictionary<string, string> ComputeElementStyles(XmlReader reader)
+        {
+            var computed = new Dictionary<string, string>(_styleStack.Peek(), StringComparer.OrdinalIgnoreCase);
+
+            // Präsentationsattribute zuerst (damit inline style sie überschreiben kann)
+            var presentational = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            ReadPresentationAttributes(reader, presentational);
+            MergeInto(computed, presentational);
+
+            // inline style="..."
+            string styleAttr = reader.GetAttribute("style");
+            var inline = ParseStyleAttribute(styleAttr);
+            MergeInto(computed, inline);
+
+            return computed;
+        }
+        private static SvgFillRule GetEffectiveFillRule(IReadOnlyDictionary<string, string> computedStyles)
+        {
+            if (computedStyles != null && computedStyles.TryGetValue("fill-rule", out var fr))
+            {
+                // SVG erlaubt "nonzero" (Default) und "evenodd"
+                if (fr.Equals("evenodd", StringComparison.OrdinalIgnoreCase)) return SvgFillRule.EvenOdd;
+                // Alles andere wie "nonzero" behandeln (inkl. leer/unkannt -> nonzero)
+            }
+            return SvgFillRule.NonZero;
+        }
+
     }
 }
