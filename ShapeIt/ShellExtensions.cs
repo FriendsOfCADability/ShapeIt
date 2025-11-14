@@ -1313,8 +1313,9 @@ namespace ShapeIt
             if (topOffset == null || bottomOffset == null) return null; // e.g. a sphere shrinking to a point
             topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
             bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
-            PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint, -leadingEdge.StartDirection));
-            PlaneSurface rightPlane = new PlaneSurface(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection));
+            PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint - radius * leadingEdge.StartDirection.Normalized, -leadingEdge.StartDirection));
+            PlaneSurface rightPlane = new PlaneSurface(new Plane(leadingEdge.EndPoint + radius * leadingEdge.EndDirection.Normalized, leadingEdge.EndDirection));
+            // moving the leftPlane and rightPlane a little bit more outwards
             GeoPoint filletAxisLeft = leadingEdge.StartPoint; // a first guess for the intersection, typically a good start
             GeoPoint filletAxisRight = leadingEdge.EndPoint; // the start and endpoint of the axis (spine) of the swept circle
             BoundingRect plnBounds = new BoundingRect(GeoPoint2D.Origin, radius, radius);
@@ -1546,6 +1547,7 @@ namespace ShapeIt
                                     BoundingRect aroundThirdEdgeDomain = new BoundingRect(puv3);
                                     SurfaceHelper.AdjustPeriodic(aroundThirdEdge, aroundThirdEdgeDomain, ref suv3);
                                     aroundThirdEdgeDomain.MinMax(suv3);
+                                    Face dbgAround = Face.MakeFace(aroundThirdEdge, aroundThirdEdgeDomain);
                                     if (ok)
                                     {
                                         IDualSurfaceCurve[] dsc = offset.GetDualSurfaceCurves(commonFace.Domain, aroundThirdEdge, aroundThirdEdgeDomain, [ellipses[0].Center, ellipses[1].Center]);
