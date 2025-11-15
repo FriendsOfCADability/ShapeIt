@@ -68,6 +68,7 @@ namespace CADability
 
         private PlaneSurface splittingOnplane; // when splitting a Shell with a plane, this is the surface
         private bool allowOpenEdges;
+        private bool dontReturnShell2 = false;
         private bool dontCombineConnectedFaces = false;
         private bool shellsAreUnchanged;
         private List<Face> unusedFaces; // faces, which ware not used in the multipleFaces mode
@@ -1549,10 +1550,11 @@ namespace CADability
         public static Face[] ClipFace(Face toClip, Face clipBy)
         {
             Shell shellToClip = Shell.MakeShell([toClip], false);
-            Shell clippingShell = Shell.MakeShell([clipBy], false); // the plane as a shell with only one face, which exceeds the solid
+            Shell clippingShell = Shell.MakeShell([clipBy], false); 
             BooleanOperation bo = new BooleanOperation();
             bo.SetShells(shellToClip, clippingShell, Operation.difference);
             bo.SetClosedShells(false, false);
+            bo.DontReturnShell2 = true;
             bo.AllowOpenEdges = true;
             Shell[] resultShells = bo.Execute();
             if (resultShells.Length > 0)
@@ -2532,6 +2534,11 @@ namespace CADability
         {
             set => allowOpenEdges = value;
         }
+
+        public bool DontReturnShell2
+        {
+            set => dontReturnShell2 = value;
+        }
         public bool DontCombineConnectedFaces
         {
             set => dontCombineConnectedFaces = value;
@@ -3030,6 +3037,8 @@ namespace CADability
                 HashSet<Edge> intersectionEdges = kv.Value.Clone();
                 HashSet<Edge> originalEdges = faceToSplit.Edges.ToHashSet();
                 HashSet<Vertex> faceVertices = new HashSet<Vertex>(faceToSplit.Vertices);
+                if (dontReturnShell2 && faceToSplit.Owner == shell2) continue; // when shell2 is not wanted in the result, skip all its faces
+
 #if DEBUG
                 DebuggerContainer dcIntersectingFaces = new DebuggerContainer();
                 foreach (Edge edg in intersectionEdges)
@@ -3274,6 +3283,8 @@ namespace CADability
                 }
             }
             if (operation == Operation.clip) return ClippedParts(trimmedFaces);
+            if (dontReturnShell2) discardedFaces.UnionWith(shell2.Faces);
+
             // Now trimmedFaces contains all faces which are cut by faces of the relative other shell, even those, where the other shell cuts 
             // exactly along existing edges and nothing has been created.
             // The faces, which have been cut, i.e. faceToIntersectionEdges.Keys, are invalid now, we disconnect all edges from these faces
@@ -3485,6 +3496,7 @@ namespace CADability
                     }
                 }
             }
+            
             if (allFaces.Count == 0 && discardedFaces.Count > 0)
             {   // there were no intersections, only identical opposite faces, like when glueing two parts together
                 // this remains empty in case of intersection and returns the full body in case of union

@@ -220,6 +220,22 @@ namespace CADability
         {
             return new LookedUpEnumerable<T>(enumertor, lookUp);
         }
+        public static T TheOnlyOrDefault<T>(this IEnumerable<T> source)
+        {
+            using (var enumerator = source.GetEnumerator())
+            {
+                if (!enumerator.MoveNext())
+                {
+                    return default(T);
+                }
+                T first = enumerator.Current;
+                if (enumerator.MoveNext())
+                {
+                    return default(T);
+                }
+                return first;
+            }
+        }
         public static Matrix RowVector(params GeoVector[] v)
         {
             double[,] A = new double[3, v.Length];

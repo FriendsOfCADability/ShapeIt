@@ -15,6 +15,7 @@ using MathNet.Numerics.RootFinding;
 using CADability.Curve2D;
 using CADability.Shapes;
 using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.Financial;
 
 namespace CADability.GeoObject
 {
@@ -109,7 +110,7 @@ namespace CADability.GeoObject
 
 
     [Serializable()]
-    public class SweptCircle : ISurfaceImpl, ISerializable, IJsonSerialize
+    public class SweptCircle : ISurfaceImpl, ISerializable, IJsonSerialize, ISurfaceOfExtrusion
     {
         // with help from https://chatgpt.com/c/686bffb7-52b0-8013-955c-8331d5ce2ad2
         private ICurve spine; // spine curve for the pipe
@@ -447,6 +448,13 @@ namespace CADability.GeoObject
         public override double UPeriod => spine.IsClosed ? 1.0 : 0.0;
         public override bool IsVPeriodic => true;
         public override double VPeriod => 2 * PI;
+
+        IOrientation ISurfaceOfExtrusion.Orientation => null; // do we need this?
+
+        public ICurve ExtrudedCurve => FixedU(0.0, 0.0, 2 * Math.PI);
+
+        public bool ExtrusionDirectionIsV => false;
+
         public override GeoPoint PointAt(GeoPoint2D uv)
         {
             double u = uv.x;
@@ -1119,6 +1127,16 @@ namespace CADability.GeoObject
             spine = data.GetProperty<ICurve>("Spine");
             radius = data.GetProperty<double>("Radius");
             normal = data.GetProperty<GeoVector>("Normal");
+        }
+
+        public ICurve Axis(BoundingRect domain)
+        {
+            return spine;
+        }
+
+        public bool ModifyAxis(GeoPoint throughPoint)
+        {
+            return false;
         }
 
         #endregion
