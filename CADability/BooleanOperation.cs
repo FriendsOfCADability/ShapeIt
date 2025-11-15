@@ -1546,6 +1546,22 @@ namespace CADability
             this.operation = operation;
         }
 
+        public static Face[] ClipFace(Face toClip, Face clipBy)
+        {
+            Shell shellToClip = Shell.MakeShell([toClip], false);
+            Shell clippingShell = Shell.MakeShell([clipBy], false); // the plane as a shell with only one face, which exceeds the solid
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(shellToClip, clippingShell, Operation.difference);
+            bo.SetClosedShells(false, false);
+            bo.AllowOpenEdges = true;
+            Shell[] resultShells = bo.Execute();
+            if (resultShells.Length > 0)
+            {
+                return resultShells[0].Faces;
+            }
+            return null;
+        }
+
         public static Solid[] SplitSolidByPlane(Solid solidToSplit, Plane splitBy)
         {
             Shell shellToSplit = solidToSplit.Shells[0];
@@ -3147,15 +3163,15 @@ namespace CADability
                     KeyValuePair<double, (List<Edge>, ICurve2D[])>? containingLoop = null; // find the smalles containing loop
                     foreach (var item in loops) // look for a loop which contains "loop"
                     {
-                        if (Math.Abs(item.Key) <= loop.Key) continue; // too small, cannot be a container
+                        if (Math.Abs(item.Key) <= loop.Key) continue; // too small, cannot be a container, or same loop
                         if (keysToRemove.Contains(item.Key)) continue; // already marked as to remove
-                        if (Border.IsInside(item.Value.Item2, loop.Value.Item2[0].StartPoint)==item.Key>0)
+                        if (Border.IsInside(item.Value.Item2, loop.Value.Item2[0].StartPoint) == item.Key > 0)
                         {   // item contains loop
                             if (containingLoop.HasValue && Math.Abs(containingLoop.Value.Key) < Math.Abs(item.Key)) continue; // we already hav a smaller container, don't want this one
                             containingLoop = item;
                         }
                     }
-                    if (containingLoop.HasValue && containingLoop.Value.Key>0)
+                    if (containingLoop.HasValue && containingLoop.Value.Key > 0)
                     {   // there is a positive loop directly contained by a positive loop. We need to remove the outer one
                         keysToRemove.Add(containingLoop.Value.Key);
                     }
@@ -3169,6 +3185,11 @@ namespace CADability
                         if (intersectionEdges.Contains(edg)) edg.RemoveFace(faceToSplit);
                     }
                     loops.Remove(key);
+                }
+                if (loops.Count == 1 && faceToSplit.AllEdges.ToHashSet().SetEquals(loops.First().Value.Item1))
+                {   // this would produce an identical face to faceToSplit. So we don't do anything here but allow the faceToSplit to be used in the result when required
+                    discardedFaces.Remove(faceToSplit);
+                    continue;
                 }
 
                 // Now all necessary loops are created. There is one or more outline (ccw) and zero or more holes

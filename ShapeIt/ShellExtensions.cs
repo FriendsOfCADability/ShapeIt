@@ -1600,6 +1600,14 @@ namespace ShapeIt
                                         if (dsc.Length > 0)
                                         {
                                             ISurface connectingToroid = SweptCircle.MakePipeSurface(dsc[0].Curve3D, radius, commonFace.Surface.GetNormal(commonFace.Surface.PositionOf(item.Key.Position)));
+                                            PlaneSurface pln0 = new PlaneSurface(new Plane(dsc[0].Curve3D.StartPoint, dsc[0].Curve3D.StartDirection));
+                                            Face toClipWith0 = Face.MakeFace(pln0, new BoundingRect(GeoPoint2D.Origin, radius * 1.1, radius * 1.1));
+                                            PlaneSurface pln1 = new PlaneSurface(new Plane(dsc[0].Curve3D.EndPoint, -dsc[0].Curve3D.EndDirection));
+                                            Face toClipWith1 = Face.MakeFace(pln1, new BoundingRect(GeoPoint2D.Origin, radius * 1.1, radius * 1.1));
+                                            //Face[] fillet0Clipped = BooleanOperation.ClipFace(edgeToFillet[item.Value[0]].fillet, toClipWith0);
+                                            //Face[] fillet1Clipped = BooleanOperation.ClipFace(edgeToFillet[item.Value[1]].fillet, toClipWith1);
+
+
                                             Face torusFace = Face.MakeFace(connectingToroid, new BoundingRect(0, 0, 1, Math.PI));
                                             ICurve toClipFillet0 = null, toClipFillet1 = null;
                                             GeoPoint2D uvClip = edgeToFillet[item.Value[0]].fillet.Surface.PositionOf(torSp.Value);
