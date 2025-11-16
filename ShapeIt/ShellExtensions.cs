@@ -1599,42 +1599,96 @@ namespace ShapeIt
                                 Face toClipWith2 = Face.MakeFace(pln2, new BoundingRect(GeoPoint2D.Origin, radius * 1.1, radius * 1.1));
                                 Face fillet1Clipped = BooleanOperation.ClipFace(fillet1, toClipWith1).TheOnlyOrDefault();
                                 Face fillet2Clipped = BooleanOperation.ClipFace(fillet2, toClipWith2).TheOnlyOrDefault();
+                                bool tangentialEdgeGoesFrom1to2 = false; // the tangential edge on the common face connects fillet1 and fillet2, but in which direction?
                                 if (fillet1Clipped != null && fillet2Clipped != null)
                                 {
                                     // create the torus face, which is not a real torus but a segment of a swept circle surface
                                     // the two fillet faces have two edges of the torus face a third edge is the (tangential) intersection with the common face, the fourth
                                     // edge is the segment of the third edge
                                     // find the edges
-                                    List<ICurve> edgesToTrimconnectingToroid = [];
+                                    List<Edge> edgesToTrimConnectingToroid = [];
                                     List<GeoPoint> trimPointsOnCommonFace = [];
+                                    Face torusFace = Face.Construct();
                                     foreach (Edge edge in fillet1Clipped.AllEdges)
                                     {
                                         if (Math.Abs(pln1.GetDistance(edge.Vertex1.Position)) < Precision.eps && Math.Abs(pln1.GetDistance(edge.Vertex2.Position)) < Precision.eps)
                                         {
-                                            edgesToTrimconnectingToroid.Add(edge.Curve3D);
-                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex1.Position)) < Precision.eps) trimPointsOnCommonFace.Add(edge.Vertex1.Position);
-                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex2.Position)) < Precision.eps) trimPointsOnCommonFace.Add(edge.Vertex2.Position);
+                                            ICurve2D onct = connectingToroid.GetProjectedCurve(edge.Curve3D, 0.0);
+                                            if (edge.Forward(fillet1Clipped))
+                                            {
+                                                onct.Reverse();
+                                                edge.SetFace(torusFace, onct, false);
+                                            }
+                                            else
+                                            {
+                                                edge.SetFace(torusFace, onct, true);
+                                            }
+                                            edgesToTrimConnectingToroid.Add(edge);
+                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.StartVertex(fillet1Clipped).Position)) < Precision.eps)
+                                            {
+                                                trimPointsOnCommonFace.Add(edge.StartVertex(fillet1Clipped).Position);
+                                                tangentialEdgeGoesFrom1to2 = false;
+                                            }
+                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.EndVertex(fillet1Clipped).Position)) < Precision.eps)
+                                            {
+                                                trimPointsOnCommonFace.Add(edge.EndVertex(fillet1Clipped).Position);
+                                                tangentialEdgeGoesFrom1to2 = true;
+                                            }
                                         }
                                     }
                                     foreach (Edge edge in fillet2Clipped.AllEdges)
                                     {
                                         if (Math.Abs(pln2.GetDistance(edge.Vertex1.Position)) < Precision.eps && Math.Abs(pln2.GetDistance(edge.Vertex2.Position)) < Precision.eps)
                                         {
-                                            edgesToTrimconnectingToroid.Add(edge.Curve3D);
+                                            ICurve2D onct = connectingToroid.GetProjectedCurve(edge.Curve3D, 0.0);
+                                            if (edge.Forward(fillet2Clipped))
+                                            {
+                                                onct.Reverse();
+                                                edge.SetFace(torusFace, onct, false);
+                                            }
+                                            else
+                                            {
+                                                edge.SetFace(torusFace, onct, true);
+                                            }
+                                            edgesToTrimConnectingToroid.Add(edge);
                                             if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex1.Position)) < Precision.eps) trimPointsOnCommonFace.Add(edge.Vertex1.Position);
                                             if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex2.Position)) < Precision.eps) trimPointsOnCommonFace.Add(edge.Vertex2.Position);
                                         }
                                     }
+                                    // find a domain on connectingToroid. it is in both directions (u and v) less than 180°
+                                    // so we 
+                                    BoundingRect toroidDomain = BoundingRect.EmptyBoundingRect;
+                                    for (int i = 0; i < edgesToTrimConnectingToroid.Count; i++)
+                                    {
+                                        GeoPoint2D uv = connectingToroid.PositionOf(edgesToTrimConnectingToroid[i].Vertex1.Position);
+                                        if (i > 0) SurfaceHelper.AdjustPeriodic(connectingToroid, toroidDomain, ref uv);
+                                        toroidDomain.MinMax(uv);
+                                        uv = connectingToroid.PositionOf(edgesToTrimConnectingToroid[i].Vertex2.Position);
+                                        SurfaceHelper.AdjustPeriodic(connectingToroid, toroidDomain, ref uv);
+                                        toroidDomain.MinMax(uv);
+                                    }
+                                    if (trimPointsOnCommonFace.Count != 2 || edgesToTrimConnectingToroid.Count != 2) continue;
+                                    // we must have two points on the common face here and two curves (arcs)
                                     double pos1 = thirdEdge.Curve3D.PositionOf(ips1[0]);
                                     double pos2 = thirdEdge.Curve3D.PositionOf(ips2[0]);
                                     if (pos1 > pos2) (pos1, pos2) = (pos2, pos1);
                                     ICurve thirdEdgeSegment = thirdEdge.Curve3D.Clone();
-                                    thirdEdgeSegment.Trim(pos1, pos2);
+                                    thirdEdgeSegment.Trim(pos1, pos2); // this is the connection between the two arcs on thirdEdge
+                                    Edge tsEdge = new Edge(torusFace, thirdEdgeSegment, torusFace, connectingToroid.GetProjectedCurve(thirdEdgeSegment, 0.0), true);
+                                    edgesToTrimConnectingToroid.Add(tsEdge); // we have to orient it correctly later
+                                    IDualSurfaceCurve? onCommonFace = connectingToroid.GetDualSurfaceCurves(toroidDomain, commonFace.Surface, commonFace.Domain, trimPointsOnCommonFace).TheOnlyOrDefault();
+                                    if (onCommonFace == null)
+                                    {
+                                        onCommonFace = new InterpolatedDualSurfaceCurve(commonFace.Surface, commonFace.Domain, connectingToroid, toroidDomain, trimPointsOnCommonFace[0], trimPointsOnCommonFace[1], true);
+                                    }
+                                    if (onCommonFace == null) continue; // there must be a tangential intersection between the connecting toroid and the common face
+                                    Edge cfEdge = new Edge(torusFace, onCommonFace.Curve3D, commonFace, onCommonFace.Curve2D1, true);
+                                    edgesToTrimConnectingToroid.Add(cfEdge);
 
-                                    Face torusFace = Face.MakeFace(connectingToroid, new BoundingRect(0, Math.PI, 1, 2 * Math.PI));
+                                    torusFace.Set(connectingToroid, [edgesToTrimConnectingToroid.ToArray()], false);
                                     involvedFaces.Add(torusFace);
-                                    involvedFaces.Add(fillet0Clipped[0]);
-                                    involvedFaces.Add(fillet1Clipped[0]);
+                                    involvedFaces.Add(fillet1Clipped);
+                                    involvedFaces.Add(fillet2Clipped);
                                 }
                             }
 

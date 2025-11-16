@@ -2286,12 +2286,24 @@ namespace CADability
                     p = normalPlane.Location;
                     // some reasonable size:
                     double planeSize = (basePoints[0].p3d | basePoints[basePoints.Length / 2].p3d) + (basePoints[basePoints.Length - 1].p3d | basePoints[basePoints.Length / 2].p3d);
-                    if (Surfaces.IntersectThreeSurfaces(surface1, bounds1, surface2, bounds2, normalSurface, new BoundingRect(GeoPoint2D.Origin, planeSize, planeSize), ref p, out GeoPoint2D uv1t, out GeoPoint2D uv2t, out GeoPoint2D uv3))
+                    bool ok = false;
+                    if (isTangential)
                     {
-                        SurfacePoint spt = new SurfacePoint(p, uv1t, uv2t);
+                        GeoPoint2D uv1s = surface1.PositionOf(p);
+                        GeoPoint2D uv2s = surface2.PositionOf(p);
+                        ok = BoxedSurfaceExtension.FindTangentialIntersectionPoint(normalPlane.Location, normalPlane.Normal, surface1, surface2, out uv1, out uv2, uv1s, uv2s);
+                        p = new GeoPoint(surface1.PointAt(uv1), surface2.PointAt(uv2));
+                    }
+                    else
+                    {
+                        ok = Surfaces.IntersectThreeSurfaces(surface1, bounds1, surface2, bounds2, normalSurface, new BoundingRect(GeoPoint2D.Origin, planeSize, planeSize), ref p, out uv1, out uv2, out GeoPoint2D uv3);
+                    }
+                    if (ok)
+                    {
+                        SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
                         if (hasLower) spt.FixAgainstNeighbour(lowerValue, surface1, surface2);
                         else if (hasUpper) spt.FixAgainstNeighbour(upperValue, surface1, surface2);
-                        else AdjustPeriodic(ref spt.psurface1, ref spt.psurface2);
+                        else AdjustPeriodic(bounds1, bounds2);
                         hashedPositions[position] = spt;
                         uv1 = spt.psurface1;
                         uv2 = spt.psurface2;

@@ -748,7 +748,38 @@ namespace CADability.GeoObject
                 dvv = -radius * cosV * N - radius * sinV * B;   // = –(location–spinePoint)
             }
         }
+        public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface otherSurface, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
+        {   // test, whether it is a tangential intersection, e.g. when rounding edges
+            double ds = otherSurface.GetDistance(spine.StartPoint);
+            if (Abs(Abs(ds) - radius) < Precision.eps)
+            {
+                double de = otherSurface.GetDistance(spine.EndPoint);
+                if (Abs(Abs(de) - radius) < Precision.eps)
+                {
+                    ISurface offsetSurface;
+                    if (ds < 0) offsetSurface = otherSurface.GetOffsetSurface(radius);
+                    else offsetSurface = otherSurface.GetOffsetSurface(-radius);
+                    if (offsetSurface.IsCurveOnSurface(spine)) // Make sure, all surfaces support this as a quick check
+                    {
+                        ICurve2D spineOnOffset = offsetSurface.GetProjectedCurve(spine, 0.0);
+                        ICurve res = otherSurface.Make3dCurve(spineOnOffset); // this is the perpendicular projection of the spine onto otherSurface for most surfaces
+                        bool ok = true;
+                        for (int i = 0; i < seeds.Count; i++)
+                        {
+                            ok &= res.DistanceTo(seeds[i]) < Precision.eps;
+                            if (!ok) break;
+                        }
+                        if (ok)
+                        {
+                            GeoPoint2D uv = PositionOf(res.StartPoint);
+                            return [new DualSurfaceCurve(res, this, spineOnOffset, otherSurface, new Line2D(new GeoPoint2D(otherBounds.Left, uv.y), new GeoPoint2D(otherBounds.Right, uv.y)))]; // it is not required to clip the curve
+                        }
+                    }
+                }
 
+            }
+            return base.GetDualSurfaceCurves(thisBounds, otherSurface, otherBounds, seeds, extremePositions);
+        }
         public override ISurface Clone()
         {
             return new SweptCircle(spine, radius);

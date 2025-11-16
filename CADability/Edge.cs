@@ -2826,7 +2826,7 @@ namespace CADability
             }
             else throw new System.ApplicationException("Edge.SetFace called with already two faces set");
         }
-        internal void SetFace(Face face, ICurve2D curve2D, bool forward)
+        public void SetFace(Face face, ICurve2D curve2D, bool forward)
         {
             if (primaryFace == null)
             {
