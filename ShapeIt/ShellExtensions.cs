@@ -1502,7 +1502,7 @@ namespace ShapeIt
                         Face? filletFace = MakeConvexFilletFace(edgeToRound, radius, out Edge[]? frontEnd, out Edge[]? tangential);
                         if (filletFace != null)
                         {
-                            involvedFaces.Add(filletFace);
+                            // involvedFaces.Add(filletFace); they might be changed, so we add them at the end
                             edgeToFillet[edgeToRound] = (filletFace, frontEnd, tangential);
                         }
                     }
@@ -1513,11 +1513,12 @@ namespace ShapeIt
                     {   // this is an open end
                         Edge? openEdge = edgeToFillet[item.Value[0]].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(item.Key.Position));
                         Ellipse? ellipse = openEdge?.Curve3D as Ellipse;
-                        if (ellipse != null)
-                        {   // make an extension of the arc of the fillet of size radius. This size is arbitrary and could be evaluated better
-                            Face extension = Face.MakeFace(ellipse, 4 * radius * ellipse.Plane.Normal.Normalized);
-                            if (extension != null) involvedFaces.Add(extension);
-                        }
+                        // the fillets already overshoot the vertex, so we do not need to extend them
+                        //if (ellipse != null)
+                        //{   // make an extension of the arc of the fillet of size radius. This size is arbitrary and could be evaluated better
+                        //    Face extension = Face.MakeFace(ellipse, 4 * radius * ellipse.Plane.Normal.Normalized);
+                        //    if (extension != null) involvedFaces.Add(extension);
+                        //}
                     }
                     else if (item.Value.Count == 2)
                     {
@@ -1606,8 +1607,9 @@ namespace ShapeIt
                                     // the two fillet faces have two edges of the torus face a third edge is the (tangential) intersection with the common face, the fourth
                                     // edge is the segment of the third edge
                                     // find the edges
-                                    List<Edge> edgesToTrimConnectingToroid = [];
-                                    List<GeoPoint> trimPointsOnCommonFace = [];
+                                    Edge? arcEdgeOn1 = null, arcEdgeOn2 = null, tangentialEdge = null, thirdEdgeSegment = null;
+                                    GeoPoint tangentialp1 = GeoPoint.Invalid, tangentialp2 = GeoPoint.Invalid; // points on the tangential edge
+                                    GeoPoint thirdEdgep1 = GeoPoint.Invalid, thirdEdgep2 = GeoPoint.Invalid; // points on the third edge
                                     Face torusFace = Face.Construct();
                                     foreach (Edge edge in fillet1Clipped.AllEdges)
                                     {
@@ -1623,17 +1625,19 @@ namespace ShapeIt
                                             {
                                                 edge.SetFace(torusFace, onct, true);
                                             }
-                                            edgesToTrimConnectingToroid.Add(edge);
+                                            arcEdgeOn1 = edge;
                                             if (Math.Abs(commonFace.Surface.GetDistance(edge.StartVertex(fillet1Clipped).Position)) < Precision.eps)
                                             {
-                                                trimPointsOnCommonFace.Add(edge.StartVertex(fillet1Clipped).Position);
+                                                tangentialp1 = edge.StartVertex(fillet1Clipped).Position;
                                                 tangentialEdgeGoesFrom1to2 = false;
                                             }
+                                            else thirdEdgep1 = edge.StartVertex(fillet1Clipped).Position;
                                             if (Math.Abs(commonFace.Surface.GetDistance(edge.EndVertex(fillet1Clipped).Position)) < Precision.eps)
                                             {
-                                                trimPointsOnCommonFace.Add(edge.EndVertex(fillet1Clipped).Position);
+                                                tangentialp1 = edge.EndVertex(fillet1Clipped).Position;
                                                 tangentialEdgeGoesFrom1to2 = true;
                                             }
+                                            else thirdEdgep1 = edge.EndVertex(fillet1Clipped).Position;
                                         }
                                     }
                                     foreach (Edge edge in fillet2Clipped.AllEdges)
@@ -1650,96 +1654,78 @@ namespace ShapeIt
                                             {
                                                 edge.SetFace(torusFace, onct, true);
                                             }
-                                            edgesToTrimConnectingToroid.Add(edge);
-                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex1.Position)) < Precision.eps) trimPointsOnCommonFace.Add(edge.Vertex1.Position);
-                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex2.Position)) < Precision.eps) trimPointsOnCommonFace.Add(edge.Vertex2.Position);
+                                            arcEdgeOn2 = edge;
+                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex1.Position)) < Precision.eps) tangentialp2 = edge.Vertex1.Position;
+                                            else thirdEdgep2 = edge.Vertex1.Position;
+                                            if (Math.Abs(commonFace.Surface.GetDistance(edge.Vertex2.Position)) < Precision.eps) tangentialp2 = edge.Vertex2.Position;
+                                            else thirdEdgep2 = edge.Vertex2.Position;
                                         }
                                     }
+                                    if (arcEdgeOn1 == null || arcEdgeOn2 == null) continue; // no edges found, should not happen
+                                    if (!tangentialp1.IsValid || !tangentialp2.IsValid) continue; // we need two points to make the tangential edge
                                     // find a domain on connectingToroid. it is in both directions (u and v) less than 180°
-                                    // so we 
+                                    // so we can adjust the uv points close to each other
                                     BoundingRect toroidDomain = BoundingRect.EmptyBoundingRect;
-                                    for (int i = 0; i < edgesToTrimConnectingToroid.Count; i++)
+                                    foreach (Edge edg in (List<Edge>)[arcEdgeOn1, arcEdgeOn2])
                                     {
-                                        GeoPoint2D uv = connectingToroid.PositionOf(edgesToTrimConnectingToroid[i].Vertex1.Position);
-                                        if (i > 0) SurfaceHelper.AdjustPeriodic(connectingToroid, toroidDomain, ref uv);
+                                        GeoPoint2D uv = connectingToroid.PositionOf(edg.Vertex1.Position);
+                                        if (!toroidDomain.IsEmpty()) SurfaceHelper.AdjustPeriodic(connectingToroid, toroidDomain, ref uv);
                                         toroidDomain.MinMax(uv);
-                                        uv = connectingToroid.PositionOf(edgesToTrimConnectingToroid[i].Vertex2.Position);
+                                        uv = connectingToroid.PositionOf(edg.Vertex2.Position);
                                         SurfaceHelper.AdjustPeriodic(connectingToroid, toroidDomain, ref uv);
                                         toroidDomain.MinMax(uv);
                                     }
-                                    if (trimPointsOnCommonFace.Count != 2 || edgesToTrimConnectingToroid.Count != 2) continue;
                                     // we must have two points on the common face here and two curves (arcs)
+
+                                    // construct the edge segment on the third edge between the two intersection points
                                     double pos1 = thirdEdge.Curve3D.PositionOf(ips1[0]);
                                     double pos2 = thirdEdge.Curve3D.PositionOf(ips2[0]);
                                     if (pos1 > pos2) (pos1, pos2) = (pos2, pos1);
-                                    ICurve thirdEdgeSegment = thirdEdge.Curve3D.Clone();
-                                    thirdEdgeSegment.Trim(pos1, pos2); // this is the connection between the two arcs on thirdEdge
-                                    Edge tsEdge = new Edge(torusFace, thirdEdgeSegment, torusFace, connectingToroid.GetProjectedCurve(thirdEdgeSegment, 0.0), true);
-                                    edgesToTrimConnectingToroid.Add(tsEdge); // we have to orient it correctly later
-                                    IDualSurfaceCurve? onCommonFace = connectingToroid.GetDualSurfaceCurves(toroidDomain, commonFace.Surface, commonFace.Domain, trimPointsOnCommonFace).TheOnlyOrDefault();
+                                    ICurve tes = thirdEdge.Curve3D.Clone();
+                                    tes.Trim(pos1, pos2); // this is the connection between the two arcs on thirdEdge
+                                    if (tangentialEdgeGoesFrom1to2)
+                                    {
+                                        if ((tes.StartPoint | thirdEdgep1) + (tes.EndPoint | thirdEdgep2) > (tes.StartPoint | thirdEdgep2) + (tes.EndPoint | thirdEdgep1)) tes.Reverse();
+                                    }
+                                    else
+                                    {
+                                        if ((tes.StartPoint | thirdEdgep2) + (tes.EndPoint | thirdEdgep1) > (tes.StartPoint | thirdEdgep1) + (tes.EndPoint | thirdEdgep2)) tes.Reverse();
+                                    }
+                                    thirdEdgeSegment = new Edge(torusFace, tes, torusFace, connectingToroid.GetProjectedCurve(tes, 0.0), true);
+
+                                    // construct the tangential edge on the common face
+                                    IDualSurfaceCurve? onCommonFace = connectingToroid.GetDualSurfaceCurves(toroidDomain, commonFace.Surface, commonFace.Domain, [tangentialp1, tangentialp2]).TheOnlyOrDefault();
                                     if (onCommonFace == null)
                                     {
-                                        onCommonFace = new InterpolatedDualSurfaceCurve(commonFace.Surface, commonFace.Domain, connectingToroid, toroidDomain, trimPointsOnCommonFace[0], trimPointsOnCommonFace[1], true);
+                                        onCommonFace = new InterpolatedDualSurfaceCurve(commonFace.Surface, commonFace.Domain, connectingToroid, toroidDomain, tangentialp1, tangentialp2, true);
                                     }
                                     if (onCommonFace == null) continue; // there must be a tangential intersection between the connecting toroid and the common face
-                                    Edge cfEdge = new Edge(torusFace, onCommonFace.Curve3D, commonFace, onCommonFace.Curve2D1, true);
-                                    edgesToTrimConnectingToroid.Add(cfEdge);
+                                    if (tangentialEdgeGoesFrom1to2) onCommonFace.Trim(tangentialp2, tangentialp1);
+                                    else onCommonFace.Trim(tangentialp1, tangentialp2);
+                                    tangentialEdge = new Edge(torusFace, onCommonFace.Curve3D, torusFace, onCommonFace.Curve2D1, true);
+#if DEBUG
+                                    DebuggerContainer dbg3d = new DebuggerContainer();
+                                    dbg3d.Add(arcEdgeOn1.Curve3D as IGeoObject, arcEdgeOn1.GetHashCode());
+                                    dbg3d.Add(arcEdgeOn2.Curve3D as IGeoObject, arcEdgeOn2.GetHashCode());
+                                    dbg3d.Add(tangentialEdge.Curve3D as IGeoObject, tangentialEdge.GetHashCode());
+                                    dbg3d.Add(thirdEdgeSegment.Curve3D as IGeoObject, thirdEdgeSegment.GetHashCode());
+                                    DebuggerContainer dbg2d = new DebuggerContainer();
+                                    dbg2d.Add(arcEdgeOn1.Curve2D(torusFace), System.Drawing.Color.Red, arcEdgeOn1.GetHashCode());
+                                    dbg2d.Add(arcEdgeOn2.Curve2D(torusFace), System.Drawing.Color.Red, arcEdgeOn2.GetHashCode());
+                                    dbg2d.Add(tangentialEdge.Curve2D(torusFace), System.Drawing.Color.Red, tangentialEdge.GetHashCode());
+                                    dbg2d.Add(thirdEdgeSegment.Curve2D(torusFace), System.Drawing.Color.Red, thirdEdgeSegment.GetHashCode());
+#endif
 
-                                    torusFace.Set(connectingToroid, [edgesToTrimConnectingToroid.ToArray()], false);
+                                    // construct the "torus" face
+                                    if (tangentialEdgeGoesFrom1to2) torusFace.Set(connectingToroid, [[arcEdgeOn2, tangentialEdge, arcEdgeOn1, thirdEdgeSegment]], false);
+                                    else torusFace.Set(connectingToroid, [[arcEdgeOn1, tangentialEdge, arcEdgeOn2, thirdEdgeSegment]], false);
                                     involvedFaces.Add(torusFace);
-                                    involvedFaces.Add(fillet1Clipped);
-                                    involvedFaces.Add(fillet2Clipped);
+                                    //involvedFaces.Add(fillet1Clipped); // fillets are added at the end
+                                    //involvedFaces.Add(fillet2Clipped);
+                                    edgeToFillet[item.Value[0]] = (fillet1Clipped, edgeToFillet[item.Value[0]].frontEnd,edgeToFillet[item.Value[0]].tangent);
+                                    edgeToFillet[item.Value[1]] = (fillet2Clipped, edgeToFillet[item.Value[1]].frontEnd,edgeToFillet[item.Value[1]].tangent);
                                 }
                             }
-
-
-                            //BoundingRect aroundThirdEdgeDomain = new BoundingRect(puv3);
-                            //SurfaceHelper.AdjustPeriodic(aroundThirdEdge, aroundThirdEdgeDomain, ref suv3);
-                            //aroundThirdEdgeDomain.MinMax(suv3);
-                            //if (ok && torEp.HasValue && torSp.HasValue)
-                            //{
-                            //    // make the domain beig egnought to include both torSp and torEp
-                            //    GeoPoint2D uv = aroundThirdEdge.PositionOf(torSp.Value);
-                            //    SurfaceHelper.AdjustPeriodic(aroundThirdEdge, aroundThirdEdgeDomain, ref uv);
-                            //    aroundThirdEdgeDomain.MinMax(uv);
-                            //    uv = aroundThirdEdge.PositionOf(torEp.Value);
-                            //    SurfaceHelper.AdjustPeriodic(aroundThirdEdge, aroundThirdEdgeDomain, ref uv);
-                            //    aroundThirdEdgeDomain.MinMax(uv);
-                            //    IDualSurfaceCurve[] dsc = offset.GetDualSurfaceCurves(commonFace.Domain, aroundThirdEdge, aroundThirdEdgeDomain, [torSp.Value, torEp.Value]);
-                            //    if (dsc.Length > 0)
-                            //    {
-                            //        ISurface connectingToroid = SweptCircle.MakePipeSurface(dsc[0].Curve3D, radius, commonFace.Surface.GetNormal(commonFace.Surface.PositionOf(item.Key.Position)));
-                            //        PlaneSurface pln0 = new PlaneSurface(new Plane(dsc[0].Curve3D.StartPoint, -dsc[0].Curve3D.StartDirection));
-                            //        Face toClipWith0 = Face.MakeFace(pln0, new BoundingRect(GeoPoint2D.Origin, radius * 1.1, radius * 1.1));
-                            //        PlaneSurface pln1 = new PlaneSurface(new Plane(dsc[0].Curve3D.EndPoint, dsc[0].Curve3D.EndDirection));
-                            //        Face toClipWith1 = Face.MakeFace(pln1, new BoundingRect(GeoPoint2D.Origin, radius * 1.1, radius * 1.1));
-                            //        Face[] fillet0Clipped = BooleanOperation.ClipFace(edgeToFillet[item.Value[1]].fillet, toClipWith0);
-                            //        Face[] fillet1Clipped = BooleanOperation.ClipFace(edgeToFillet[item.Value[0]].fillet, toClipWith1);
-
-
-                            //        Face torusFace = Face.MakeFace(connectingToroid, new BoundingRect(0, 0, 1, Math.PI));
-                            //        ICurve toClipFillet0 = null, toClipFillet1 = null;
-                            //        GeoPoint2D uvClip = edgeToFillet[item.Value[0]].fillet.Surface.PositionOf(torSp.Value);
-                            //        if (edgeToFillet[item.Value[0]].fillet.Surface is ToroidalSurface || edgeToFillet[item.Value[0]].fillet.Surface is SweptCircle)
-                            //        {   // the v-Parameter describes the circle 
-                            //            toClipFillet0 = edgeToFillet[item.Value[0]].fillet.Surface.FixedU(uvClip.x, edgeToFillet[item.Value[0]].fillet.Domain.Bottom, edgeToFillet[item.Value[0]].fillet.Domain.Top);
-                            //        }
-                            //        else
-                            //        {
-                            //            toClipFillet0 = edgeToFillet[item.Value[0]].fillet.Surface.FixedV(uvClip.y, edgeToFillet[item.Value[0]].fillet.Domain.Left, edgeToFillet[item.Value[0]].fillet.Domain.Right);
-                            //        }
-                            //        uvClip = edgeToFillet[item.Value[1]].fillet.Surface.PositionOf(torEp.Value);
-                            //        if (edgeToFillet[item.Value[1]].fillet.Surface is ToroidalSurface || edgeToFillet[item.Value[1]].fillet.Surface is SweptCircle)
-                            //        {   // the v-Parameter describes the circle 
-                            //            toClipFillet1 = edgeToFillet[item.Value[1]].fillet.Surface.FixedU(uvClip.x, edgeToFillet[item.Value[0]].fillet.Domain.Bottom, edgeToFillet[item.Value[0]].fillet.Domain.Top);
-                            //        }
-                            //        else
-                            //        {
-                            //            toClipFillet1 = edgeToFillet[item.Value[1]].fillet.Surface.FixedV(uvClip.y, edgeToFillet[item.Value[0]].fillet.Domain.Left, edgeToFillet[item.Value[0]].fillet.Domain.Right);
-                            //        }
-                            //        // now we have two curves to trim the two fillets with
-                            //    }
-                            //}
                         }
                     }
                     else if (item.Value.Count == 3)
@@ -1776,6 +1762,10 @@ namespace ShapeIt
                             }
                         }
                     }
+                }
+                foreach (var item in edgeToFillet)
+                {
+                    involvedFaces.Add(item.Value.fillet);
                 }
                 roundedEdges.AddIfNotNull(Shell.FromFaces(involvedFaces.ToArray()));
             }

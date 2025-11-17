@@ -771,8 +771,12 @@ namespace CADability.GeoObject
                         }
                         if (ok)
                         {
-                            GeoPoint2D uv = PositionOf(res.StartPoint);
-                            return [new DualSurfaceCurve(res, this, spineOnOffset, otherSurface, new Line2D(new GeoPoint2D(otherBounds.Left, uv.y), new GeoPoint2D(otherBounds.Right, uv.y)))]; // it is not required to clip the curve
+                            GeoPoint2D sp2d = PositionOf(res.StartPoint);
+                            GeoPoint2D ep2d = PositionOf(res.EndPoint);
+                            SurfaceHelper.AdjustPeriodic(this,thisBounds, ref sp2d);
+                            SurfaceHelper.AdjustPeriodic(this,thisBounds, ref ep2d);
+                            Line2D l2d = new Line2D(sp2d, ep2d);
+                            return [new DualSurfaceCurve(res, this, l2d, otherSurface, spineOnOffset)]; // it is not required to clip the curve
                         }
                     }
                 }
