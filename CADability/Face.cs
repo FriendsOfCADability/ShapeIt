@@ -3396,6 +3396,52 @@ namespace CADability.GeoObject
             PlaneSurface ps = new PlaneSurface(pln);
             return MakeFace(ps, cs.SimpleShapes[0]);
         }
+        public static Face MakeNonPolarSphere(Ellipse Arc0, Ellipse Arc1, Ellipse Arc2)
+        {
+            GeoPoint C = Arc0.Center;
+            GeoPoint A = Arc0.StartPoint;
+            GeoPoint B = Arc0.EndPoint;
+            GeoPoint C3;
+            if (!Precision.IsEqual(Arc1.StartPoint, A) && !Precision.IsEqual(Arc1.StartPoint, B)) C3 = Arc1.StartPoint;
+            else C3 = Arc1.EndPoint;
+            // Gegeben: Center C, Radius R, drei Eckpunkte A,B,C3 und drei Bögen arcAB, arcBC, arcCA (mit .Normal)
+            // Ziel: Achsrichtung a (Einheitsvektor), deren Pole nicht im Dreieck liegen
+
+            GeoVector vA = (A - C).Normalized;
+            GeoVector vB = (B - C).Normalized;
+            GeoVector vC = (C3 - C).Normalized;
+
+            GeoVector nAB = Arc0.Normal.Normalized;
+            GeoVector nBC = Arc1.Normal.Normalized;
+            GeoVector nCA = Arc2.Normal.Normalized;
+
+            // Innenorientierung herstellen
+            if ((nAB * vC) < 0) nAB = -nAB;
+            if ((nBC * vA) < 0) nBC = -nBC;
+            if ((nCA * vB) < 0) nCA = -nCA;
+
+            // Innenpunkt als Summe der Innen-Normalen
+            GeoVector m = (nAB + nBC + nCA);
+            if (m.Length < 1e-12) throw new InvalidOperationException("Degeneriertes sphärisches Dreieck.");
+            m = m.Normalized;
+
+            // Achse orthogonal zu m
+            GeoVector a = (m ^ vA);
+            if (a.Length < 1e-12) a = (m ^ vB);
+            if (a.Length < 1e-12) a = (m ^ vC);
+            if (a.Length < 1e-12) throw new InvalidOperationException("Numerisch instabil.");
+            a = a.Normalized; // <- gesuchte Achsrichtung
+
+            double radius = Arc0.Radius;
+            GeoVector directionz = a;
+            a.ArbitraryNormals(out GeoVector directionx, out GeoVector directiony);
+            directionx.Length = radius;
+            directiony.Length = radius;
+            directionz.Length = radius;
+            SphericalSurface sphericalSurface = new SphericalSurface(C, directionx, directiony, directionz);
+
+            return MakeFace(sphericalSurface, new List<ICurve>([Arc0, Arc1, Arc2]));
+        }
         public static Face[] MakeNonPolarSphere(GeoPoint location, GeoVector zAxis)
         {
             double invsqrt2 = 1.0 / Math.Sqrt(2.0);

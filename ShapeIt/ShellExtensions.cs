@@ -1489,7 +1489,8 @@ namespace ShapeIt
                         edgesAtVertex.Add(edgeToRound);
                     }
                 }
-                List<Face> involvedFaces = []; // collect all faces for a cluster of edges
+                // patchToFillets helps to make shells from the fillets and the patches (torus or pipe segments) later
+                Dictionary<Face, List<Face>> patchToFillets = new Dictionary<Face, List<Face>>();
                 // edgeToFillet collects infos regarding the fillet, which was created for this edge:
                 // - fillet: the faceexceeding the bounds of the edge
                 // - frontEnd: the two arcs at the end of the fillet face
@@ -1498,11 +1499,10 @@ namespace ShapeIt
                 foreach (Edge edgeToRound in edgeCluster)
                 {
                     if (Adjacency(edgeToRound) == AdjacencyType.Convex)
-                    {   // TODO: extend to tangentially connected edges
+                    {
                         Face? filletFace = MakeConvexFilletFace(edgeToRound, radius, out Edge[]? frontEnd, out Edge[]? tangential);
                         if (filletFace != null)
                         {
-                            // involvedFaces.Add(filletFace); they might be changed, so we add them at the end
                             edgeToFillet[edgeToRound] = (filletFace, frontEnd, tangential);
                         }
                     }
@@ -1514,11 +1514,7 @@ namespace ShapeIt
                         Edge? openEdge = edgeToFillet[item.Value[0]].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(item.Key.Position));
                         Ellipse? ellipse = openEdge?.Curve3D as Ellipse;
                         // the fillets already overshoot the vertex, so we do not need to extend them
-                        //if (ellipse != null)
-                        //{   // make an extension of the arc of the fillet of size radius. This size is arbitrary and could be evaluated better
-                        //    Face extension = Face.MakeFace(ellipse, 4 * radius * ellipse.Plane.Normal.Normalized);
-                        //    if (extension != null) involvedFaces.Add(extension);
-                        //}
+                        // we need to check whether we need a face extension on the third (impact) face here
                     }
                     else if (item.Value.Count == 2)
                     {
@@ -1719,11 +1715,19 @@ namespace ShapeIt
                                     // construct the "torus" face
                                     if (tangentialEdgeGoesFrom1to2) torusFace.Set(connectingToroid, [[arcEdgeOn2, tangentialEdge, arcEdgeOn1, thirdEdgeSegment]], false);
                                     else torusFace.Set(connectingToroid, [[arcEdgeOn1, tangentialEdge, arcEdgeOn2, thirdEdgeSegment]], false);
-                                    involvedFaces.Add(torusFace);
-                                    //involvedFaces.Add(fillet1Clipped); // fillets are added at the end
-                                    //involvedFaces.Add(fillet2Clipped);
-                                    edgeToFillet[item.Value[0]] = (fillet1Clipped, edgeToFillet[item.Value[0]].frontEnd,edgeToFillet[item.Value[0]].tangent);
-                                    edgeToFillet[item.Value[1]] = (fillet2Clipped, edgeToFillet[item.Value[1]].frontEnd,edgeToFillet[item.Value[1]].tangent);
+                                    // now we substitute fillet1 and fillet2 by fillet1Clipped and fillet2Clipped
+                                    // we must do this in edgeToFillet and patchToFillets
+                                    ReplaceFace(item.Value[0], edgeToFillet, fillet1, fillet1Clipped);
+                                    ReplaceFace(item.Value[1], edgeToFillet, fillet2, fillet2Clipped);
+                                    ReplaceFace(patchToFillets, fillet1, fillet1Clipped);
+                                    ReplaceFace(patchToFillets, fillet2, fillet2Clipped);
+                                    // connect the patch with the two fillets here
+                                    if (!patchToFillets.TryGetValue(torusFace, out List<Face>? fillets1))
+                                    {
+                                        patchToFillets[torusFace] = fillets1 = new List<Face>();
+                                    }
+                                    fillets1.Add(fillet1Clipped);
+                                    fillets1.Add(fillet2Clipped);
                                 }
                             }
                         }
@@ -1731,43 +1735,95 @@ namespace ShapeIt
                     else if (item.Value.Count == 3)
                     {
                         // vertex connected to three edges, make a sphere segment to fill the gap
-                        List<Face> offsetFaces = [];
-                        foreach (Edge edge in item.Value)
+                        // all edges must be convex
+                        List<Face> offsetFaces = new(item.Key.InvolvedFaces);
+                        List<Edge> vertexEdges = new(item.Key.AllEdges);
+                        List<ISurface> offsetSurfaces = [];
+                        for (int i = 0; i < offsetFaces.Count; i++)
                         {
-                            ISurface offsetSurface = null;
-                            if (Adjacency(edge) == AdjacencyType.Convex)
-                            {
-                                offsetSurface = edge.PrimaryFace.Surface.GetOffsetSurface(-radius);
-                            }
-                            else if (Adjacency(edge) == AdjacencyType.Concave)
-                            {
-                                offsetSurface = edge.PrimaryFace.Surface.GetOffsetSurface(radius);
-                            }
-                            if (offsetSurface != null)
-                            {
-                                offsetFaces.Add(Face.MakeFace(offsetSurface, edge.PrimaryFace.Domain));
-                            }
+                            offsetSurfaces.AddIfNotNull(offsetFaces[i].Surface.GetOffsetSurface(-radius));
                         }
-                        if (offsetFaces.Count == 3)
+                        if (offsetSurfaces.Count == 3 && offsetFaces.Count == 3 && vertexEdges.Count == 3)
                         {
                             GeoPoint ip = item.Key.Position;
-                            if (CADability.GeoObject.Surfaces.IntersectThreeSurfaces(offsetFaces[0].Surface, offsetFaces[0].Domain,
-                                offsetFaces[1].Surface, offsetFaces[1].Domain,
-                                offsetFaces[2].Surface, offsetFaces[2].Domain,
-                                ref ip, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3))
+                            if (CADability.GeoObject.Surfaces.IntersectThreeSurfaces(offsetSurfaces[0], offsetFaces[0].Domain, offsetSurfaces[1], offsetFaces[1].Domain,
+                                offsetSurfaces[2], offsetFaces[2].Domain, ref ip, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3))
                             {
-                                //Solid sld = Make3D.MakeSphere(ip, radius);
-                                //Shell sphereShell = sld.Shells[0];
-                                //involvedFaces.Add(sphereShell);
+                                // create sphere segment here. The spherical surface connects the three fillets
+                                Solid dbgsph = Make3D.MakeSphere(ip, radius);
+                                List<Ellipse> ellipseArcs = [];
+                                List<Face> clippedFillets = [];
+                                foreach (var edge in vertexEdges)
+                                {
+                                    var fillet = edgeToFillet[edge].fillet;
+                                    if (fillet.Surface is not ISurfaceOfExtrusion ex) continue; // sollte nie passieren
+
+                                    ICurve axis = ex.Axis(fillet.Domain);
+                                    double pos = axis.PositionOf(ip);
+                                    var dir = axis.DirectionAt(pos);
+                                    if (pos > 0.5) dir = -dir;
+                                    var plane = new Plane(ip, dir);
+                                    var planeSurface = new PlaneSurface(plane);
+                                    var toClipWith = Face.MakeFace(planeSurface, new BoundingRect(GeoPoint2D.Origin, radius * 1.1, radius * 1.1));
+
+                                    var filletClipped = BooleanOperation.ClipFace(fillet, toClipWith).TheOnlyOrDefault();
+                                    clippedFillets.Add(filletClipped);
+                                    foreach (var edg in filletClipped.AllEdges.Where(e => e.Curve3D is Ellipse))
+                                    {
+                                        if (Math.Abs(planeSurface.GetDistance(edg.Vertex1.Position)) < Precision.eps && Math.Abs(planeSurface.GetDistance(edg.Vertex2.Position)) < Precision.eps)
+                                        {
+                                            var ellipse = edg.Curve3D as Ellipse;
+                                            if (ellipse != null)
+                                            {
+                                                ellipseArcs.Add(ellipse);
+                                            }
+                                        }
+                                    }
+
+                                    ReplaceFace(edge, edgeToFillet, fillet, filletClipped);
+                                    ReplaceFace(patchToFillets, fillet, filletClipped);
+                                }
+                                if (ellipseArcs.Count == 3)
+                                {
+                                    Face sphericalPatch = Face.MakeNonPolarSphere(ellipseArcs[0], ellipseArcs[1], ellipseArcs[2]);
+                                    patchToFillets[sphericalPatch] = clippedFillets;
+#if DEBUG
+                                    DebuggerContainer dc = new DebuggerContainer();
+                                    dc.Add(sphericalPatch, System.Drawing.Color.Green, sphericalPatch.GetHashCode());
+                                    dc.Add(clippedFillets[0], System.Drawing.Color.Red, clippedFillets[0].GetHashCode());
+                                    dc.Add(clippedFillets[1], System.Drawing.Color.Red, clippedFillets[1].GetHashCode());
+                                    dc.Add(clippedFillets[2], System.Drawing.Color.Red, clippedFillets[2].GetHashCode());
+#endif
+                                }
                             }
                         }
                     }
                 }
-                foreach (var item in edgeToFillet)
+                HashSet<Face> allFillets = new HashSet<Face>(edgeToFillet.Values.Select(v => v.fillet));
+                foreach (var ptf in patchToFillets)
                 {
-                    involvedFaces.Add(item.Value.fillet);
+                    HashSet<Face> shellAroundPatch = new([ptf.Key]);
+                    shellAroundPatch.UnionWith(ptf.Value);
+                    allFillets.ExceptWith(ptf.Value);
+                    foreach (var ptf1 in patchToFillets)
+                    {
+                        if (ptf1.Key != ptf.Key)
+                        {
+                            if (allFillets.Contains(ptf1.Value[0]))
+                            {
+                                shellAroundPatch.Add(ptf1.Key);
+                                shellAroundPatch.UnionWith(ptf1.Value);
+                                allFillets.ExceptWith(ptf1.Value);
+                            }
+                        }
+                    }
+                    // shellAroundPatch contains all patches an their fillets which are connected
+                    Face[] s = shellAroundPatch.ToArray();
+                    Shell.ConnectFaces(s, Precision.eps);
+                    roundedEdges.AddIfNotNull(Shell.FromFaces(s));
                 }
-                roundedEdges.AddIfNotNull(Shell.FromFaces(involvedFaces.ToArray()));
+                // the remaining fillets (which are not connected to patches) are used as singl-face shells
+                foreach (Face fillet in allFillets) roundedEdges.AddIfNotNull(Shell.FromFaces(fillet));
             }
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
@@ -1783,6 +1839,22 @@ namespace ShapeIt
             }
 
             return toOperateOn;
+        }
+
+        private static void ReplaceFace(Dictionary<Face, List<Face>> patchToFillets, Face fillet1, Face fillet1Clipped)
+        {
+            foreach (var ptf in patchToFillets)
+            {
+                for (int i = 0; i < ptf.Value.Count; i++)
+                {
+                    if (ptf.Value[i] == fillet1) ptf.Value[i] = fillet1Clipped;
+                }
+            }
+        }
+
+        private static void ReplaceFace(Edge key, Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)> edgeToFillet, Face fillet1, Face fillet1Clipped)
+        {
+            edgeToFillet[key] = (fillet1Clipped, edgeToFillet[key].frontEnd, edgeToFillet[key].tangent);
         }
     }
 }

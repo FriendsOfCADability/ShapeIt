@@ -1245,6 +1245,7 @@ namespace CADability.GeoObject
         {
             toSphere = (ModOp)info.GetValue("ToSphere", typeof(ModOp));
         }
+
         void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
         {
             info.AddValue("ToSphere", toSphere, typeof(ModOp));
