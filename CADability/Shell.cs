@@ -4965,7 +4965,7 @@ namespace CADability.GeoObject
         }
         public static void ConnectFaces(Face[] toConnect, double precision)
         {
-            Set<Vertex> toAdd = new Set<Vertex>(); // alle vertices von offenen Kanten
+            HashSet<Vertex> toAdd = new HashSet<Vertex>(); // alle vertices von offenen Kanten
             BoundingCube ext = BoundingCube.EmptyBoundingCube;
             for (int i = 0; i < toConnect.Length; i++)
             {
@@ -4980,16 +4980,17 @@ namespace CADability.GeoObject
                     }
                 }
             }
+            // collect all vertices in an octtree to find close vertices fast
             OctTree<Vertex> ovtx = new OctTree<Vertex>(ext, ext.Size * 1e-8);
             foreach (Vertex vtx in toAdd)
             {
                 ovtx.AddObject(vtx);
             }
-            Set<Vertex> allVertices = new Set<Vertex>(ovtx.GetAllObjects());
-            Set<Vertex> mergedVertices = new Set<Vertex>();
-            while (allVertices.Count > 0)
+            HashSet<Vertex> allVertices = new HashSet<Vertex>(ovtx.GetAllObjects());
+            HashSet<Vertex> mergedVertices = new HashSet<Vertex>();
+            while (allVertices.Any())
             {
-                Vertex vtx = allVertices.GetAny();
+                Vertex vtx = allVertices.First();
                 allVertices.Remove(vtx);
                 Vertex[] hits = ovtx.GetObjectsFromBox(new BoundingCube(vtx.Position, precision), null);
                 for (int i = 0; i < hits.Length; i++)
@@ -5018,7 +5019,7 @@ namespace CADability.GeoObject
             DebuggerContainer dc1 = new DebuggerContainer();
             foreach (Vertex vtx in toAdd)
             {
-                Set<Edge> toShow = new Set<Edge>();
+                HashSet<Edge> toShow = new HashSet<Edge>();
                 foreach (Edge edg in vtx.AllEdges)
                 {
                     toShow.Add(edg);
@@ -5071,7 +5072,7 @@ namespace CADability.GeoObject
             DebuggerContainer dc2 = new DebuggerContainer();
             foreach (Vertex vtx in toAdd)
             {
-                Set<Edge> toShow = new Set<Edge>();
+                HashSet<Edge> toShow = new HashSet<Edge>();
                 foreach (Edge edg in vtx.AllEdges)
                 {
                     toShow.Add(edg);

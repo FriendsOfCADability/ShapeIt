@@ -573,11 +573,11 @@ namespace ShapeIt
             if (slds.Count == 1)
             {
                 Shell shell = slds[0].Shells[0];
-                foreach (Edge edge in shell.Edges)
+                foreach (var vtx in shell.Vertices)
                 {
-                    if (edge.Curve3D is Line l && Math.Abs(l.StartDirection.z) < 0.001)
+                    if ((vtx.Position|new GeoPoint(58,12,17))<3)
                     {
-                        Shell rounded = shell.RoundEdges([edge], 2.0);
+                        Shell rounded = shell.RoundEdges(vtx.Edges, 2);
                     }
                 }
             }

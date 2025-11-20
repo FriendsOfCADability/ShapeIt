@@ -1785,6 +1785,7 @@ namespace ShapeIt
                                 }
                                 if (ellipseArcs.Count == 3)
                                 {
+                                    for (int i = 0; i < 3; i++) ellipseArcs[i] = ellipseArcs[i].Clone() as Ellipse;
                                     Face sphericalPatch = Face.MakeNonPolarSphere(ellipseArcs[0], ellipseArcs[1], ellipseArcs[2]);
                                     patchToFillets[sphericalPatch] = clippedFillets;
 #if DEBUG

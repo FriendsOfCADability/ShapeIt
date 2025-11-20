@@ -3398,18 +3398,18 @@ namespace CADability.GeoObject
         }
         public static Face MakeNonPolarSphere(Ellipse Arc0, Ellipse Arc1, Ellipse Arc2)
         {
-            GeoPoint C = Arc0.Center;
+            GeoPoint Center = Arc0.Center;
             GeoPoint A = Arc0.StartPoint;
             GeoPoint B = Arc0.EndPoint;
-            GeoPoint C3;
-            if (!Precision.IsEqual(Arc1.StartPoint, A) && !Precision.IsEqual(Arc1.StartPoint, B)) C3 = Arc1.StartPoint;
-            else C3 = Arc1.EndPoint;
+            GeoPoint C;
+            if (!Precision.IsEqual(Arc1.StartPoint, A) && !Precision.IsEqual(Arc1.StartPoint, B)) C = Arc1.StartPoint;
+            else C = Arc1.EndPoint;
             // Gegeben: Center C, Radius R, drei Eckpunkte A,B,C3 und drei Bögen arcAB, arcBC, arcCA (mit .Normal)
             // Ziel: Achsrichtung a (Einheitsvektor), deren Pole nicht im Dreieck liegen
 
-            GeoVector vA = (A - C).Normalized;
-            GeoVector vB = (B - C).Normalized;
-            GeoVector vC = (C3 - C).Normalized;
+            GeoVector vA = (A - Center).Normalized;
+            GeoVector vB = (B - Center).Normalized;
+            GeoVector vC = (C - Center).Normalized;
 
             GeoVector nAB = Arc0.Normal.Normalized;
             GeoVector nBC = Arc1.Normal.Normalized;
@@ -3438,7 +3438,17 @@ namespace CADability.GeoObject
             directionx.Length = radius;
             directiony.Length = radius;
             directionz.Length = radius;
-            SphericalSurface sphericalSurface = new SphericalSurface(C, directionx, directiony, directionz);
+            SphericalSurface sphericalSurface = new SphericalSurface(Center, directionx, directiony, directionz);
+            // it is important to set the bounds of the spherical surface according to the triangle so MakeFace can create the correct edges
+            BoundingRect domain = BoundingRect.EmptyBoundingRect;
+            domain.MinMax(sphericalSurface.PositionOf(A));
+            GeoPoint2D uv = sphericalSurface.PositionOf(B);
+            SurfaceHelper.AdjustPeriodic(sphericalSurface, domain, ref uv);
+            domain.MinMax(uv);
+            uv = sphericalSurface.PositionOf(C);
+            SurfaceHelper.AdjustPeriodic(sphericalSurface, domain, ref uv);
+            domain.MinMax(uv);
+            sphericalSurface.SetBounds(domain);
 
             return MakeFace(sphericalSurface, new List<ICurve>([Arc0, Arc1, Arc2]));
         }
