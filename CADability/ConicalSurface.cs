@@ -881,33 +881,36 @@ namespace CADability.GeoObject
                         {
                             GeoPoint2D pHypMidPoint = pl.PositionOf(PointAt(hypMidPoint[i]));
                             BSpline2D crvOnPlane = BSpline2D.MakeHyperbola(puv1, puv2, pHypMidPoint, tangentIntersectionPoint);
-                            BSpline crv3d = pl.Make3dCurve(crvOnPlane) as BSpline;
-                            ICurve2D onCone = new ProjectedCurve(crv3d, this, true, domain);
-#if DEBUG
-                            // The following yields exactely the same curve as "onCone"
-                            // We would need a 2d curve "SecantCurve2D" analoguous to SineCurve2D, which has the "f" as property (besides a ModOp2D to enable modifications)
-                            // This would probably be faster than the ProjectedCurve
-                            // Maybe we could make some general curve, which takes a formula (u,v)->(x,y) and the derivations, but how could you serialize that?
-                            // some direction and periodic adjustement cases would have to be discriminated
-                            double u1 = cuv1.x;
-                            double u2 = cuv2.x;
-                            SurfaceHelper.AdjustPeriodic(this, domain, ref hypMidPoint[i]);
-                            double um = hypMidPoint[i].x;
-                            double du = Math.PI / 2 - um;
-                            double y1 = 1.0 / Math.Sin(u1 + du);
-                            double y2 = 1.0 / Math.Sin(u2 + du);
-                            double ym = 1.0 / Math.Sin(um + du);
-                            double f = (hypMidPoint[i].y - cuv1.y) / (ym - y1);
-                            GeoPoint2D[] pnts = new GeoPoint2D[100];
-                            for (int j = 0; j < pnts.Length; j++)
+                            if (crvOnPlane != null)
                             {
-                                double u = u2 + du + j / 99.0 * (u1 - u2);
-                                pnts[j] = new GeoPoint2D(u - du, f / Math.Sin(u));
-                            }
-                            Polyline2D pl2d = new Polyline2D(pnts);
+                                BSpline crv3d = pl.Make3dCurve(crvOnPlane) as BSpline;
+                                ICurve2D onCone = new ProjectedCurve(crv3d, this, true, domain);
+#if DEBUG
+                                // The following yields exactely the same curve as "onCone"
+                                // We would need a 2d curve "SecantCurve2D" analoguous to SineCurve2D, which has the "f" as property (besides a ModOp2D to enable modifications)
+                                // This would probably be faster than the ProjectedCurve
+                                // Maybe we could make some general curve, which takes a formula (u,v)->(x,y) and the derivations, but how could you serialize that?
+                                // some direction and periodic adjustement cases would have to be discriminated
+                                double u1 = cuv1.x;
+                                double u2 = cuv2.x;
+                                SurfaceHelper.AdjustPeriodic(this, domain, ref hypMidPoint[i]);
+                                double um = hypMidPoint[i].x;
+                                double du = Math.PI / 2 - um;
+                                double y1 = 1.0 / Math.Sin(u1 + du);
+                                double y2 = 1.0 / Math.Sin(u2 + du);
+                                double ym = 1.0 / Math.Sin(um + du);
+                                double f = (hypMidPoint[i].y - cuv1.y) / (ym - y1);
+                                GeoPoint2D[] pnts = new GeoPoint2D[100];
+                                for (int j = 0; j < pnts.Length; j++)
+                                {
+                                    double u = u2 + du + j / 99.0 * (u1 - u2);
+                                    pnts[j] = new GeoPoint2D(u - du, f / Math.Sin(u));
+                                }
+                                Polyline2D pl2d = new Polyline2D(pnts);
 #endif
-                            DualSurfaceCurve dsc = new DualSurfaceCurve(crv3d, this, onCone, pl, crvOnPlane);
-                            return new IDualSurfaceCurve[] { dsc };
+                                DualSurfaceCurve dsc = new DualSurfaceCurve(crv3d, this, onCone, pl, crvOnPlane);
+                                return new IDualSurfaceCurve[] { dsc };
+                            }
                         }
                     }
                 }

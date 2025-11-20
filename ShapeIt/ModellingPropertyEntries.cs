@@ -1087,7 +1087,9 @@ namespace ShapeIt
                 string filter = StringTable.GetString("File.STEP.Filter") + "|" + StringTable.GetString("File.STL.Filter");
 
                 int filterIndex = 1;
-                string filename = null;
+                string filename = frame.Project.FileName;
+                while (!string.IsNullOrEmpty(System.IO.Path.GetExtension(filename))) filename = System.IO.Path.GetFileNameWithoutExtension(filename);
+
                 if (cadFrame.UIService.ShowSaveFileDlg("MenuId.Export", StringTable.GetString("MenuId.Export"), filter, ref filterIndex, ref filename) == DialogResult.OK
                     && filename != null)
                 {
@@ -2113,7 +2115,9 @@ namespace ShapeIt
                 string filter = StringTable.GetString("File.STEP.Filter") + "|" + StringTable.GetString("File.STL.Filter");
 
                 int filterIndex = 1;
-                string filename = null;
+                string filename = frame.Project.FileName;
+                while (!string.IsNullOrEmpty(System.IO.Path.GetExtension(filename))) filename = System.IO.Path.GetFileNameWithoutExtension(filename);
+
                 if (cadFrame.UIService.ShowSaveFileDlg("MenuId.Export", StringTable.GetString("MenuId.Export"), filter, ref filterIndex, ref filename) == DialogResult.OK
                     && filename != null)
                 {

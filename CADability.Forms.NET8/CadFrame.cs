@@ -209,7 +209,10 @@ namespace CADability.Forms.NET8
             {
                 saveFileDialog.RestoreDirectory = true;
             }
-
+            if (!string.IsNullOrWhiteSpace(fileName))
+            {
+                saveFileDialog.FileName = fileName;
+            }
             Substitutes.DialogResult res = (Substitutes.DialogResult)saveFileDialog.ShowDialog(Application.OpenForms[0]);
             if (res == Substitutes.DialogResult.OK)
             {

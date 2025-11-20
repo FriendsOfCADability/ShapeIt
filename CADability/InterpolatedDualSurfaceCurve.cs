@@ -2244,7 +2244,7 @@ namespace CADability
                         }
                     }
                     PlaneSurface normalSurface = new PlaneSurface(normalPlane);
-                    if (ps1 != null && ps2 != null)
+                    if (ps1 != null && ps2 != null && !bounds1.IsEmpty() && !bounds2.IsEmpty())
                     {   // for simple surfaces only. We need another criterion here. RuledSurface leeds to an infinite loop when making the boxed surface...
                         IDualSurfaceCurve[] isc1 = surface1.GetPlaneIntersection(normalSurface, bounds1.Left, bounds1.Right, bounds1.Bottom, bounds1.Top, precision);
                         IDualSurfaceCurve[] isc2 = surface2.GetPlaneIntersection(normalSurface, bounds2.Left, bounds2.Right, bounds2.Bottom, bounds2.Top, precision);
