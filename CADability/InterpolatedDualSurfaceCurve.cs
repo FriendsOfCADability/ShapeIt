@@ -1784,6 +1784,16 @@ namespace CADability
                 return res;
             }
         }
+        public DebuggerContainer DebugFaces
+        {
+            get
+            {
+                DebuggerContainer res = new DebuggerContainer();
+                res.Add(Face.MakeFace(surface1, bounds1), System.Drawing.Color.MediumVioletRed);
+                res.Add(Face.MakeFace(surface2, bounds2), System.Drawing.Color.SeaShell);
+                return res;
+            }
+        }
 #endif
         #region IGeoObject override
         /// <summary>

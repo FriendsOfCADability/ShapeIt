@@ -311,9 +311,112 @@ namespace ShapeIt
                     }
                     File.Delete(crashPath);
                 }
+#if DEBUG
+                AutoDebug();
+#endif
             }
             base.OnActivated(e);
         }
+#if DEBUG
+        private void AutoDebug()
+        {
+            // return;
+            // add code here to be executed automatically upon start in debug mode
+            // there is no mouse interaction before this code is finished
+            string[] mru = MRUFiles.GetMRUFiles();
+            if (mru.Length>0) CadFrame.Project = Project.ReadFromFile(mru.Last().Split(';')[0]);
+
+            List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
+            Solid operand1 = null, operand2 = null;
+            List<Solid> difference = new List<Solid>();
+            List<Solid> intersection = new List<Solid>();
+            List<Solid> union = new List<Solid>();
+            List<ICurve> edgeMarkers = new List<ICurve>();
+            foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
+            {
+                if (go is CADability.GeoObject.Solid sld)
+                {
+                    slds.Add(sld);
+                    if (sld.Style != null)
+                    {
+                        if (sld.Style.Name == "Operand1") operand1 = sld;
+                        else if (sld.Style.Name == "Operand2") operand2 = sld;
+                        else if (sld.Style.Name == "Difference") difference.Add(sld);
+                        else if (sld.Style.Name == "Union") union.Add(sld);
+                        else if (sld.Style.Name == "Intersection") intersection.Add(sld);
+                    }
+                }
+                if (go is ICurve curve)
+                {
+                    if (go.Style.Name == "EdgeMarker")
+                    {
+                        edgeMarkers.Add(curve);
+                    }
+                }
+            }
+            if (operand1 != null && operand2 != null)
+            {
+                if (difference.Count > 0)
+                {
+                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
+                    if (sres.Length > 0)
+                    {
+                        Project proj = Project.CreateSimpleProject();
+                        proj.GetActiveModel().Add(sres);
+                        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
+                    }
+                }
+            }
+            if (slds.Count == 2)
+            {
+                //Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
+                Solid[] sld;
+                if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
+                {
+                    sld = NewBooleanOperation.Subtract(slds[0], slds[1]);
+                }
+                else
+                {
+                    sld = NewBooleanOperation.Subtract(slds[1], slds[0]);
+                }
+                //if (sld.Length > 0)
+                //{
+                //    Project proj = Project.CreateSimpleProject();
+                //    proj.GetActiveModel().Add(sld);
+                //    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
+                //}
+            }
+            if (edgeMarkers.Count > 0)
+            {
+                foreach (Solid s in slds)
+                {
+                    foreach (Edge edg in s.Shells[0].Edges)
+                    {
+                        foreach (ICurve em in edgeMarkers)
+                        {
+                            if (edg.Curve3D.SameGeometry(em, 0.1))
+                            {
+                                Shell rounded = s.Shells[0].RoundEdges(new Edge[] { edg }, 2);
+                            }
+                        }
+                    }
+                }
+            }
+            //if (slds.Count == 1)
+            //{
+            //    Shell shell = slds[0].Shells[0];
+            //    foreach (var vtx in shell.Vertices)
+            //    {
+            //        if ((vtx.Position | new GeoPoint(58, 12, 17)) < 3)
+            //        {
+            //            Shell rounded = shell.RoundEdges(vtx.Edges, 2);
+            //        }
+            //    }
+            //}
+
+        }
+#endif
+
         /// <summary>
         /// Filter the escape key for the modelling property page
         /// </summary>
@@ -523,6 +626,7 @@ namespace ShapeIt
             List<Solid> difference = new List<Solid>();
             List<Solid> intersection = new List<Solid>();
             List<Solid> union = new List<Solid>();
+            List<ICurve> edgeMarkers = new List<ICurve>();
             foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
             {
                 if (go is CADability.GeoObject.Solid sld)
@@ -537,12 +641,19 @@ namespace ShapeIt
                         else if (sld.Style.Name == "Intersection") intersection.Add(sld);
                     }
                 }
-            }
-            if (operand1!=null && operand2 != null)
-            {
-                if (difference.Count>0)
+                if (go is ICurve curve)
                 {
-                    Solid[] sres = NewBooleanOperation.Subtract(operand1,operand2);
+                    if (go.Style.Name == "EdgeMarker")
+                    {
+                        edgeMarkers.Add(curve);
+                    }
+                }
+            }
+            if (operand1 != null && operand2 != null)
+            {
+                if (difference.Count > 0)
+                {
+                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                     if (sres.Length > 0)
                     {
                         Project proj = Project.CreateSimpleProject();
@@ -570,17 +681,33 @@ namespace ShapeIt
                 //    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
                 //}
             }
-            if (slds.Count == 1)
+            if (edgeMarkers.Count > 0)
             {
-                Shell shell = slds[0].Shells[0];
-                foreach (var vtx in shell.Vertices)
+                foreach (Solid s in slds)
                 {
-                    if ((vtx.Position|new GeoPoint(58,12,17))<3)
+                    foreach (Edge edg in s.Shells[0].Edges)
                     {
-                        Shell rounded = shell.RoundEdges(vtx.Edges, 2);
+                        foreach (ICurve em in edgeMarkers)
+                        {
+                            if (edg.Curve3D.SameGeometry(em, 0.1))
+                            {
+                                Shell rounded = s.Shells[0].RoundEdges(new Edge[] { edg }, 2);
+                            }
+                        }
                     }
                 }
             }
+            //if (slds.Count == 1)
+            //{
+            //    Shell shell = slds[0].Shells[0];
+            //    foreach (var vtx in shell.Vertices)
+            //    {
+            //        if ((vtx.Position | new GeoPoint(58, 12, 17)) < 3)
+            //        {
+            //            Shell rounded = shell.RoundEdges(vtx.Edges, 2);
+            //        }
+            //    }
+            //}
         }
 #endif
     }

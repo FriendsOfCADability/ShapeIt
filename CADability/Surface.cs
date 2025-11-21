@@ -11852,29 +11852,16 @@ namespace CADability.GeoObject
                                 GeoPoint ip;
                                 if (curve is InterpolatedDualSurfaceCurve dsc)
                                 {
-                                    GeoPoint closePoint = new GeoPoint(surface.PointAt(uvStart), curve.PointAt(tStart));
-                                    ////Polynom implicitSurface1 = null, implicitSurface2 = null, implicitSurface3 = null;
-                                    ////if (dsc.Surface1 is ISurfaceImpl si1) implicitSurface1 = si1.GetImplicitPolynomial();
-                                    ////if (dsc.Surface2 is ISurfaceImpl si2) implicitSurface2 = si2.GetImplicitPolynomial();
-                                    ////if (surface is ISurfaceImpl si3) implicitSurface3 = si3.GetImplicitPolynomial();
-                                    ////if (implicitSurface1 != null && implicitSurface2 != null && implicitSurface3 != null)
-                                    ////{
-                                    ////    // Performance test: 3 surfaces intersection in parametric and implicit form: implicit form is a little slower
-                                    ////    for (int ii = 0; ii < 1000; ii++)
-                                    ////    {
-                                    ////        ip = closePoint;
-                                    ////        BoxedSurfaceExtension.SurfacesIntersectionLM(implicitSurface1, implicitSurface2, implicitSurface3, ref ip);
-                                    ////    }
-                                    ////    for (int ii = 0; ii < 1000; ii++)
-                                    ////    {
-                                    ////        GeoPoint2D uv11 = dsc.Surface1.PositionOf(curve.PointAt(tStart));
-                                    ////        GeoPoint2D uv22 = dsc.Surface2.PositionOf(curve.PointAt(tStart));
-                                    ////        ip = closePoint;
-                                    ////        BoxedSurfaceExtension.SurfacesIntersectionLM(dsc.Surface1, dsc.Surface2, surface, ref uv11, ref uv22, ref uvStart, ref ip);
-                                    ////    }
-                                    ////}
+                                    GeoPoint closePoint;
+                                    // choose a starting point in the middle of either the tetraeder or the uv patch, which ever is smaller
+                                    double thDist = th.TetraederVertex[i] | th.TetraederVertex[i + 1];
+                                    double cubeSize = cubes[j].Size;
+                                    if (thDist < cubeSize) closePoint = curve.PointAt(tStart);
+                                    else closePoint = surface.PointAt(uvStart);
+
                                     GeoPoint2D uv1 = dsc.Surface1.PositionOf(curve.PointAt(tStart));
                                     GeoPoint2D uv2 = dsc.Surface2.PositionOf(curve.PointAt(tStart));
+                                    uvStart = surface.PositionOf(closePoint);
                                     ip = closePoint;
                                     if (BoxedSurfaceExtension.SurfacesIntersectionLM(dsc.Surface1, dsc.Surface2, surface, ref uv1, ref uv2, ref uvStart, ref ip))
                                     {
