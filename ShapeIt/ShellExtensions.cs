@@ -1447,6 +1447,7 @@ namespace ShapeIt
 
             return sweptFace;
         }
+        enum EdgeConnection { Convex, Concave, Tangential };
         public static Shell RoundEdges(this Shell shell, IEnumerable<Edge> edges, double radius)
         {
             if (radius < 0) radius = -radius; // radius always >0
@@ -1525,16 +1526,28 @@ namespace ShapeIt
                         // in most cases we have a vertex with three faces meeting, so one common face and one third edge
                         // if there are more than three faces meeting at the vertex, we cannot handle this currently
                         if (commonFace == null || thirdEdge == null) continue;
+                        GeoVector normalCommon = commonFace.Surface.GetNormal(item.Key.GetPositionOnFace(commonFace)).Normalized;
                         // for brevity:
                         Vertex vtx = item.Key;
                         Face fillet1 = edgeToFillet[item.Value[0]].fillet;
                         Face fillet2 = edgeToFillet[item.Value[1]].fillet;
                         Face touchedByFillet1 = Edge.CommonFace(item.Value[0], thirdEdge);
                         Face touchedByFillet2 = Edge.CommonFace(item.Value[1], thirdEdge);
-                        // now we have to differentiate between the two cases: the third edge is convex or concave
+                        GeoVector normal1 = touchedByFillet1.Surface.GetNormal(item.Key.GetPositionOnFace(touchedByFillet1)).Normalized;
+                        GeoVector normal2 = touchedByFillet2.Surface.GetNormal(item.Key.GetPositionOnFace(touchedByFillet2)).Normalized;
+                        bool forwardConnected;
+                        if (item.Value[0].EndVertex(commonFace) == item.Value[1].StartVertex(commonFace)) forwardConnected = true;
+                        else if (item.Value[0].StartVertex(commonFace) == item.Value[1].EndVertex(commonFace)) forwardConnected = false;
+                        else continue; // edges are not connected properly
+                        double orientation = (forwardConnected ? 1 : -1) * normalCommon * (normal1 ^ normal2); // >0: convex, <0: concave, ==0: tangential
+                        EdgeConnection edgeConnection;
+                        if (orientation > 1e-6) edgeConnection = EdgeConnection.Convex;
+                        else if (orientation < -1e-6) edgeConnection = EdgeConnection.Concave;
+                        else edgeConnection = EdgeConnection.Tangential;
+                        // now we have to differentiate between the cases: the third edge is convex or concave or tangential
                         ICurve? spine1 = (fillet1.Surface as ISurfaceOfExtrusion)?.Axis(fillet1.Domain);
                         ICurve? spine2 = (fillet2.Surface as ISurfaceOfExtrusion)?.Axis(fillet2.Domain);
-                        // the fillets "overshoot" the leading edge, which they are rounding, so we shold find an intersection with the third edge.
+                        // the fillets "overshoot" the leading edge, which they are rounding, so we should find an intersection with the third edge.
                         // the fillets should stop ehere and a toroidal surface should connect the two fillets
                         // it is a tangential intersection here, there should be only one intersection point
                         fillet1.Surface.Intersect(thirdEdge.Curve3D, fillet1.Domain, out GeoPoint[] ips1, out GeoPoint2D[] uvs1, out double[] uOnCurve1);
