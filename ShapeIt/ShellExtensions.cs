@@ -1504,14 +1504,65 @@ namespace ShapeIt
                         Edge? openEdge = edgeToFillet[item.Value[0]].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(item.Key.Position));
                         Ellipse? ellipse = openEdge?.Curve3D as Ellipse;
                         // we need to check whether we need a face extension on the third (impact) face here
-                        // following is the case where the impact face is truncated by the fillet if the fillet was extented egnough
-                        // we construct a torus extension that bends the fillet outwards
                         if (ellipse == null) continue; // should not happen
                         GeoPoint cnt = ellipse.Center;
-                        GeoVector edgeDirAtTheEnd;
+                        GeoVector edgeDirAtTheEnd; // the direction at the end of the fillet, at the position of this vertex, poiting outward in the extension of the fillet
                         if (item.Key == item.Value[0].Vertex1) edgeDirAtTheEnd = -item.Value[0].Curve3D.StartDirection;
                         else if (item.Key == item.Value[0].Vertex2) edgeDirAtTheEnd = item.Value[0].Curve3D.EndDirection;
                         else continue; // this should not happen
+                        IEnumerable<Face> thirdFaces = item.Key.Faces.Except([item.Value[0].PrimaryFace, item.Value[0].SecondaryFace]);
+                        GeoVector dirOfImpactFaces = GeoVector.NullVector;
+                        foreach (Face fc in thirdFaces)
+                        {
+                            dirOfImpactFaces += fc.Surface.GetNormal(item.Key.GetPositionOnFace(fc)).Normalized;
+                        }
+                        if (dirOfImpactFaces.IsNullVector()) continue; // no impact faces?
+                        // we have to decide how to extent the fillet in this direction, there is no simple, definite and obvious solution
+                        // first check, whether the two tangents of the fillet intersect the shell
+                        if (edgeToFillet[item.Value[0]].tangent == null || edgeToFillet[item.Value[0]].tangent.Length != 2) continue; // there must be two tangents where the fillet touches the shell
+                        bool shortExtensionIsOk = true;
+                        foreach (GeoPoint startPoint in new List<GeoPoint>([ellipse.PointAt(0.05), ellipse.PointAt(0.5), ellipse.PointAt(0.95)]))
+                        {
+                            // lets see, whether the extension intersects the shell close to the point
+                            if (shell.IsInside(startPoint)) // this point on the fillet ellipse is inside, check whether we can savely expand it
+                            {
+                                GeoPoint[] extIntsect = shell.GetLineIntersection(startPoint, edgeDirAtTheEnd);
+                                bool ok = false;
+                                for (int i = 0; i < extIntsect.Length; i++)
+                                {
+                                    if ((extIntsect[i] | startPoint) < 2 * radius)
+                                    {
+                                        ok = true;
+                                        break;
+                                    }
+                                }
+                                if (!ok)
+                                {
+                                    shortExtensionIsOk = false;
+                                    break;
+                                }
+                            }
+                        }
+                        double impact = dirOfImpactFaces.Normalized * edgeDirAtTheEnd.Normalized;
+                        // if the impact faces point in the same direction as the fillet, they are probably trimmed by the fillet
+                        // if it points the other way, it may have to be extended
+                        if (!shortExtensionIsOk && impact < 0)
+                        {
+                            Face impactFace = item.Key.Faces.Except([item.Value[0].PrimaryFace, item.Value[0].SecondaryFace]).First(); // how to deal with multiple?
+                            GeoPoint2D[] impInts = impactFace.Surface.GetLineIntersection(ellipse.StartPoint, edgeDirAtTheEnd);
+                            if (impInts.Length > 0)
+                            {
+                                GeoPoint2D firstPoint = impInts.MinBy(uv =>
+                                {
+                                    double par = Geometry.LinePar(ellipse.StartPoint, edgeDirAtTheEnd, impactFace.Surface.PointAt(uv));
+                                    if (par < 0) return double.MaxValue;
+                                    else return par;
+                                });
+                                GeoPoint ip = impactFace.Surface.PointAt(firstPoint);
+                            }
+                        }
+                        // following is the case where the impact face is truncated by the fillet if the fillet was extented egnough
+                        // we construct a torus extension that bends the fillet outwards
                         GeoVector torusXAxis = (item.Key.Position - cnt).Normalized;
                         ToroidalSurface ts = new ToroidalSurface(item.Key.Position, torusXAxis, edgeDirAtTheEnd.Normalized, -(torusXAxis ^ edgeDirAtTheEnd).Normalized, item.Key.Position | cnt, radius);
                         // the ellipse lies on the torus surface, but we need to define a domain that covers the ellipse
