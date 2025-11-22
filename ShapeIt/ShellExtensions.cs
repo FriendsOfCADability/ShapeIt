@@ -1313,34 +1313,23 @@ namespace ShapeIt
             if (topOffset == null || bottomOffset == null) return null; // e.g. a sphere shrinking to a point
             topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
             bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
-            PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint - radius * leadingEdge.StartDirection.Normalized, -leadingEdge.StartDirection));
-            PlaneSurface rightPlane = new PlaneSurface(new Plane(leadingEdge.EndPoint + radius * leadingEdge.EndDirection.Normalized, leadingEdge.EndDirection));
-            // moving the leftPlane and rightPlane a little bit more outwards to make sure the tangential edges of the fillet surface cross the edges of the adjacent faces
+            // construct the two planes at the front and end side of the fillet
+            // we did move them a little bit outwards but rejected this solution again, because we need it at the exact endposition sometimes
+            PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint, -leadingEdge.StartDirection));
+            PlaneSurface rightPlane = new PlaneSurface(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection));
             GeoPoint filletAxisLeft = leadingEdge.StartPoint; // a first guess for the intersection, typically a good start
             GeoPoint filletAxisRight = leadingEdge.EndPoint; // the start and endpoint of the axis (spine) of the swept circle
             BoundingRect plnBounds = new BoundingRect(GeoPoint2D.Origin, radius, radius);
             BoundingRect topDomain = edgeToRound.PrimaryFace.Domain; // the domains of the top and bottom surfaces may be a little bit bigger than the original domains
             BoundingRect bottomDomain = edgeToRound.SecondaryFace.Domain;
             if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, leftPlane, plnBounds,
-                ref filletAxisLeft, out GeoPoint2D uv11, out GeoPoint2D uv12, out GeoPoint2D uv13))
-            {
-                leftPlane.Modify(ModOp.Translate(radius * leadingEdge.StartDirection.Normalized)); // move the plane back to the endpoint of the leading edge
-                if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, leftPlane, plnBounds,
-                    ref filletAxisLeft, out uv11, out uv12, out uv13))
-                    return null;
-            }
+                ref filletAxisLeft, out GeoPoint2D uv11, out GeoPoint2D uv12, out GeoPoint2D uv13)) return null;
             SurfaceHelper.AdjustPeriodic(topSurface, topDomain, ref uv11);
             SurfaceHelper.AdjustPeriodic(bottomSurface, bottomDomain, ref uv12);
             topDomain.MinMax(uv11);
             bottomDomain.MinMax(uv12);
             if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, rightPlane, plnBounds,
-                ref filletAxisRight, out GeoPoint2D uv21, out GeoPoint2D uv22, out GeoPoint2D uv23))
-            {
-                rightPlane.Modify(ModOp.Translate(-radius * leadingEdge.EndDirection.Normalized)); // move the plane back to the endpoint of the leading edge
-                if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, rightPlane, plnBounds,
-                    ref filletAxisRight, out uv21, out uv22, out uv23))
-                    return null;
-            }
+                ref filletAxisRight, out GeoPoint2D uv21, out GeoPoint2D uv22, out GeoPoint2D uv23)) return null;
             SurfaceHelper.AdjustPeriodic(topSurface, topDomain, ref uv21);
             SurfaceHelper.AdjustPeriodic(bottomSurface, bottomDomain, ref uv22);
             topDomain.MinMax(uv21);
@@ -1514,8 +1503,29 @@ namespace ShapeIt
                     {   // this is an open end
                         Edge? openEdge = edgeToFillet[item.Value[0]].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(item.Key.Position));
                         Ellipse? ellipse = openEdge?.Curve3D as Ellipse;
-                        // the fillets already overshoot the vertex, so we do not need to extend them
                         // we need to check whether we need a face extension on the third (impact) face here
+                        // following is the case where the impact face is truncated by the fillet if the fillet was extented egnough
+                        // we construct a torus extension that bends the fillet outwards
+                        if (ellipse == null) continue; // should not happen
+                        GeoPoint cnt = ellipse.Center;
+                        GeoVector edgeDirAtTheEnd;
+                        if (item.Key == item.Value[0].Vertex1) edgeDirAtTheEnd = -item.Value[0].Curve3D.StartDirection;
+                        else if (item.Key == item.Value[0].Vertex2) edgeDirAtTheEnd = item.Value[0].Curve3D.EndDirection;
+                        else continue; // this should not happen
+                        GeoVector torusXAxis = (item.Key.Position - cnt).Normalized;
+                        ToroidalSurface ts = new ToroidalSurface(item.Key.Position, torusXAxis, edgeDirAtTheEnd.Normalized, -(torusXAxis ^ edgeDirAtTheEnd).Normalized, item.Key.Position | cnt, radius);
+                        // the ellipse lies on the torus surface, but we need to define a domain that covers the ellipse
+                        GeoPoint2D uvsp = ts.PositionOf(ellipse.StartPoint);
+                        GeoPoint2D uvep = ts.PositionOf(ellipse.EndPoint);
+                        BoundingRect torusDomain = new BoundingRect(uvep, uvsp); // this should work without periodic adjustments, because we are at the inside of the torus surface
+                        torusDomain.Left = torusDomain.Right - Math.PI; // a 180° segment is sufficient
+                        Face torusFace = Face.MakeFace(ts, torusDomain);
+                        torusFace.ReverseOrientation();
+                        if (!patchToFillets.TryGetValue(torusFace, out List<Face>? patchFillets))
+                        {
+                            patchToFillets[torusFace] = patchFillets = new List<Face>();
+                        }
+                        patchFillets.Add(edgeToFillet[item.Value[0]].fillet);
                     }
                     else if (item.Value.Count == 2)
                     {
@@ -1814,20 +1824,21 @@ namespace ShapeIt
                     }
                 }
                 HashSet<Face> allFillets = new HashSet<Face>(edgeToFillet.Values.Select(v => v.fillet));
-                foreach (var ptf in patchToFillets)
+                while (patchToFillets.Any())
                 {
-                    HashSet<Face> shellAroundPatch = new([ptf.Key]);
-                    shellAroundPatch.UnionWith(ptf.Value);
-                    allFillets.ExceptWith(ptf.Value);
+                    Face ptf = patchToFillets.First().Key;
+                    HashSet<Face> shellAroundPatch = new([ptf]);
+                    shellAroundPatch.UnionWith(patchToFillets[ptf]);
+                    List<Face> patchesToRemove = [ptf];
                     foreach (var ptf1 in patchToFillets)
                     {
-                        if (ptf1.Key != ptf.Key)
+                        if (ptf1.Key != ptf)
                         {
-                            if (allFillets.Contains(ptf1.Value[0]))
+                            if (shellAroundPatch.Overlaps(ptf1.Value))
                             {
                                 shellAroundPatch.Add(ptf1.Key);
                                 shellAroundPatch.UnionWith(ptf1.Value);
-                                allFillets.ExceptWith(ptf1.Value);
+                                patchesToRemove.Add(ptf1.Key);
                             }
                         }
                     }
@@ -1835,6 +1846,8 @@ namespace ShapeIt
                     Face[] s = shellAroundPatch.ToArray();
                     Shell.ConnectFaces(s, Precision.eps);
                     roundedEdges.AddIfNotNull(Shell.FromFaces(s));
+                    allFillets.ExceptWith(shellAroundPatch);
+                    foreach (var patch in patchesToRemove) patchToFillets.Remove(patch);
                 }
                 // the remaining fillets (which are not connected to patches) are used as singl-face shells
                 foreach (Face fillet in allFillets) roundedEdges.AddIfNotNull(Shell.FromFaces(fillet));
