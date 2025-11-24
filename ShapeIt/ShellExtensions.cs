@@ -1300,7 +1300,7 @@ namespace ShapeIt
             else return null;
         }
 
-        private static Face? MakeConvexFilletFace(Edge edgeToRound, double radius, out Edge[]? frontEnd, out Edge[]? tangential)
+        public static Face? MakeConvexFilletFace(Edge edgeToRound, double radius, out Edge[]? frontEnd, out Edge[]? tangential)
         {
             frontEnd = null;
             tangential = null;
@@ -1439,6 +1439,11 @@ namespace ShapeIt
         enum EdgeConnection { Convex, Concave, Tangential };
         public static Shell RoundEdges(this Shell shell, IEnumerable<Edge> edges, double radius)
         {
+            RoundEdges re = new RoundEdges(shell, edges, radius);
+            return re.Execute();
+        }
+        public static Shell RoundEdgesX(this Shell shell, IEnumerable<Edge> edges, double radius)
+        {
             if (radius < 0) radius = -radius; // radius always >0
 
             // cluster the edges into connected groups
@@ -1464,7 +1469,7 @@ namespace ShapeIt
                 clusteredEdges.Add(cluster);
             }
 
-            List<Shell> roundedEdges = new List<Shell>();
+            List<Shell> shellsForRounding = new List<Shell>();
             HashSet<(Face, Edge)> tangentialEdges = new HashSet<(Face, Edge)>();
             foreach (List<Edge> edgeCluster in clusteredEdges)
             {
@@ -1482,7 +1487,7 @@ namespace ShapeIt
                 // patchToFillets helps to make shells from the fillets and the patches (torus or pipe segments) later
                 Dictionary<Face, List<Face>> patchToFillets = new Dictionary<Face, List<Face>>();
                 // edgeToFillet collects infos regarding the fillet, which was created for this edge:
-                // - fillet: the faceexceeding the bounds of the edge
+                // - fillet: the face the bounds of the edge
                 // - frontEnd: the two arcs at the end of the fillet face
                 // - tangent: the edges tangential to the primary face [0] and secondary face [1]
                 Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)> edgeToFillet = new Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)>();
@@ -1896,20 +1901,20 @@ namespace ShapeIt
                     // shellAroundPatch contains all patches an their fillets which are connected
                     Face[] s = shellAroundPatch.ToArray();
                     Shell.ConnectFaces(s, Precision.eps);
-                    roundedEdges.AddIfNotNull(Shell.FromFaces(s));
+                    shellsForRounding.AddIfNotNull(Shell.FromFaces(s));
                     allFillets.ExceptWith(shellAroundPatch);
                     foreach (var patch in patchesToRemove) patchToFillets.Remove(patch);
                 }
                 // the remaining fillets (which are not connected to patches) are used as singl-face shells
-                foreach (Face fillet in allFillets) roundedEdges.AddIfNotNull(Shell.FromFaces(fillet));
+                foreach (Face fillet in allFillets) shellsForRounding.AddIfNotNull(Shell.FromFaces(fillet));
             }
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
             Shell toOperateOn = shell;
-            for (int i = 0; i < roundedEdges.Count; i++)
+            for (int i = 0; i < shellsForRounding.Count; i++)
             {
                 BooleanOperation bo = new BooleanOperation();
-                bo.SetShells(toOperateOn, roundedEdges[i], BooleanOperation.Operation.intersection);
+                bo.SetShells(toOperateOn, shellsForRounding[i], BooleanOperation.Operation.intersection);
                 bo.SetClosedShells(true, false);
                 bo.SetTangentialEdges(tangentialEdges);
                 Shell[] roundedShells = bo.Execute();

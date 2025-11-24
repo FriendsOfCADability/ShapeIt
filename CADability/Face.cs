@@ -8961,7 +8961,7 @@ namespace CADability.GeoObject
             uvOnFace = luvOnFace.ToArray();
             uOnCurve3D = luOnCurve3D.ToArray();
         }
-        internal void Intersect(ICurve curve, out GeoPoint[] ip, out GeoPoint2D[] uvOnFace, out double[] uOnCurve)
+        public void Intersect(ICurve curve, out GeoPoint[] ip, out GeoPoint2D[] uvOnFace, out double[] uOnCurve)
         {
             GeoPoint[] ips;
             GeoPoint2D[] uvOnFaces;
