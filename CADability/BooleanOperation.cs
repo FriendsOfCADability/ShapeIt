@@ -2970,37 +2970,6 @@ namespace CADability
                 if (edg.Curve3D != null) dcis.Add(edg.Curve3D as IGeoObject, edg.GetHashCode());
             }
 #endif
-#if DEBUG
-            //Dictionary<Face, DebuggerContainer> dbgFaceTointersectionEdges = new Dictionary<Face, DebuggerContainer>();
-            //foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
-            //{
-            //    DebuggerContainer dc = new DebuggerContainer();
-            //    dbgFaceTointersectionEdges[kv.Key] = dc;
-            //    double arrowSize = kv.Key.Area.GetExtent().Size * 0.02;
-            //    dc.Add(kv.Value, kv.Key, arrowSize, Color.Red, 0);
-            //    dc.Add(kv.Key.Edges, kv.Key, arrowSize, Color.Blue, 0);
-            //}
-#endif
-#if DEBUG
-            //DebuggerContainer dcif = new DebuggerContainer();
-            //foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
-            //{
-            //    dcif.Add(kv.Key, kv.Key.GetHashCode());
-            //    foreach (Edge edg in kv.Value)
-            //    {
-            //        dcif.Add(edg.Curve3D as IGeoObject, edg.GetHashCode());
-            //    }
-            //}
-            //Dictionary<Face, DebuggerContainer> dbgEdgePositions = new Dictionary<Face, DebuggerContainer>();
-            //foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
-            //{
-            //    DebuggerContainer dc = new DebuggerContainer();
-            //    dbgEdgePositions[kv.Key] = dc;
-            //    double arrowSize = kv.Key.Area.GetExtent().Size * 0.02;
-            //    dc.Add(kv.Value, kv.Key, arrowSize, Color.Red, 0);
-            //    dc.Add(kv.Key.Edges, kv.Key, arrowSize, Color.Blue, 0);
-            //}
-#endif
             // if a face is overlapping both in the same orientaiation and the opposite orientation with some other faces
             // there might be intersectionEdges which cross an existing vertex. This is refined here.
             // Maybe this condition also applies to othe faces which are overlapping in the same orientaiation or the opposite orientation, but no case found yet

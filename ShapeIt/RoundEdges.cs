@@ -40,16 +40,16 @@ namespace ShapeIt
             concaveEdges = edges.Where(e => e.Adjacency() == ShellExtensions.AdjacencyType.Concave);
         }
 
-        public Shell Execute()
+        public Shell? Execute()
         {
-            // make a raw fillet for each edge. The fillet is a swept circle around a spine curve. The spine curve is the intersection
+            // 1. make a raw fillet for each edge. The fillet is a swept circle around a spine curve. The spine curve is the intersection
             // of two offset surfaces of the adjacent faces. The fillet starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the fillet faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
             edgeToFillet = createFillets(convexEdges);
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges);
 
-            List<HashSet<Face>> roundingShells = [];
+            List<HashSet<Face>> roundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
             foreach (var ve in vertexToEdges)
             {
                 if (ve.Value.Count == 1)
@@ -62,7 +62,7 @@ namespace ShapeIt
             Combine(roundingShells);
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
-            Shell toOperateOn = shell.Clone() as Shell;
+            Shell? toOperateOn = shell.Clone() as Shell;
             for (int i = 0; i < roundingShells.Count; i++)
             {
                 Face[] s = roundingShells[i].ToArray();
@@ -122,6 +122,8 @@ namespace ShapeIt
         {
             if (edgeToFillet == null) return null;
             Face fillet = edgeToFillet[edge].fillet;
+            ISurfaceOfExtrusion? filletSurface = fillet.Surface as ISurfaceOfExtrusion;
+            if (filletSurface == null) return null;
             Edge? openEdge = edgeToFillet[edge].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(vtx.Position));
             Ellipse? ellipse = openEdge?.Curve3D as Ellipse;
             // we need to check whether we need a face extension on the third (impact) face here
@@ -180,77 +182,128 @@ namespace ShapeIt
                 return [extruded, fillet];
             }
             Face impactFace = vtx.Faces.Except([edge.PrimaryFace, edge.SecondaryFace]).First(); // how to deal with multiple?
-            if (impact < 0 && impactFace != null && extruded != null)
-            {   // maybe we can extend the impact face to the rounding extension
-                GeoPoint2D[] spInts = impactFace.Surface.GetLineIntersection(ellipse.StartPoint, edgeDirAtTheEnd);
-                GeoPoint2D[] epInts = impactFace.Surface.GetLineIntersection(ellipse.EndPoint, edgeDirAtTheEnd);
-                if (spInts != null && spInts.Length > 0 && epInts != null && epInts.Length > 0)
-                {
-                    GeoPoint sp = GeoPoint.Invalid;
-                    GeoPoint ep = GeoPoint.Invalid;
-                    double mindist = double.MaxValue;
-                    for (int i = 0; i < spInts.Length; i++)
-                    {
-                        GeoPoint p = impactFace.Surface.PointAt(spInts[i]);
-                        double par = Geometry.LinePar(ellipse.StartPoint, edgeDirAtTheEnd, p);
-                        if (par > 0 && par < mindist)
-                        {
-                            mindist = par;
-                            sp = p;
-                        }
-                    }
-                    mindist = double.MaxValue;
-                    for (int i = 0; i < spInts.Length; i++)
-                    {
-                        GeoPoint p = impactFace.Surface.PointAt(epInts[i]);
-                        double par = Geometry.LinePar(ellipse.EndPoint, edgeDirAtTheEnd, p);
-                        if (par > 0 && par < mindist)
-                        {
-                            mindist = par;
-                            ep = p;
-                        }
-                    }
-                    if (sp.IsValid && ep.IsValid)
-                    {
-                        // both edges of the extruded face lie on the impact face.
-                        // now there must be two edges of the impact face at this vertex, which contain the points sp and ep
-                        List<Edge> edgesOnImpactFace = vtx.EdgesOnFace(impactFace);
-                        List<ICurve2D> curvesForImpactFaceExtension = [];
-                        for (int i = 0; i < edgesOnImpactFace.Count; i++)
-                        {
-                            if (edgesOnImpactFace[i].Curve3D.DistanceTo(sp) < Precision.eps)
-                            {
-                                ICurve curve = edgesOnImpactFace[i].Curve3D.Clone();
-                                double pos = curve.PositionOf(sp);
-                                if (edgesOnImpactFace[i].Vertex1 == vtx) curve.Trim(0, pos);
-                                else curve.Trim(pos, 1.0);
-                                curvesForImpactFaceExtension.Add(impactFace.Surface.GetProjectedCurve(curve, 0.0));
-                            }
-                        }
-                        if (curvesForImpactFaceExtension.Count == 2)
-                        {
-                            // now create a face from the two curves and the intersection of the extruded face with the impactFace
-                            BoundingRect ext = impactFace.Domain;
-                            GeoPoint2D uv = impactFace.Surface.PositionOf(sp);
-                            SurfaceHelper.AdjustPeriodic(impactFace.Surface, ext, ref uv);
-                            ext.MinMax(uv);
-                            uv = impactFace.Surface.PositionOf(ep);
-                            SurfaceHelper.AdjustPeriodic(impactFace.Surface, ext, ref uv);
-                            ext.MinMax(uv);
-                            IDualSurfaceCurve[] iscurve = impactFace.Surface.GetDualSurfaceCurves(ext, extruded.Surface, extruded.Domain, [sp, ep]);
-                            if (iscurve != null && iscurve.Length == 1)
-                            {
-                                curvesForImpactFaceExtension.Add(iscurve[0].Curve2D1);
-                                Face? extendedImpactFace = Face.MakeFace(impactFace.Surface.Clone(), [curvesForImpactFaceExtension]);
-                                if (extendedImpactFace != null)
-                                {
-                                    return [extendedImpactFace, fillet];
-                                }
-                            }
-                        }
-                    }
+            if (impact < 0 && impactFace != null)
+            {   // we brutally end the fillet with a perpendicular plane surface
+                // the vertex should lie in the ellipse plane
+                if (Math.Abs(ellipse.Plane.Distance(vtx.Position)) < Precision.eps)
+                {   // one edge of the plane is the ellipse, the other edges is a circular arc through the vertex and the two ellipse end points
+                    //GeoPoint intersectionByImpactFace = GeoPoint.Invalid;
+                    //double mindist = double.MaxValue;
+                    //for (int i = 0; i < edgeToFillet[edge].tangent.Length; i++)
+                    //{
+                    //    impactFace.Surface.Intersect(edgeToFillet[edge].tangent[i].Curve3D, impactFace.Domain, out GeoPoint[] ips, out GeoPoint2D[] uvOnFace, out double[] uOnCurve);
+                    //    for (int j = 0; j < ips.Length; j++)
+                    //    {
+                    //        if (uOnCurve[j] < 1.0 && uOnCurve[j] > 0.0)
+                    //        {
+                    //            double d = ips[j] | vtx.Position;
+                    //            if (d < mindist)
+                    //            {
+                    //                intersectionByImpactFace = ips[j];
+                    //            }
+                    //        }
+                    //    }
+                    //}
+                    //Plane plane = ellipse.Plane;
+                    //if (intersectionByImpactFace.IsValid)
+                    //{
+                    //    ICurve spine = filletSurface.Axis(fillet.Domain);
+                    //    double pos = spine.PositionOf(intersectionByImpactFace);
+                    //    GeoVector dir = spine.DirectionAt(pos);
+                    //    plane = new Plane(spine.PointAt(pos), spine.DirectionAt(pos));
+                    //    BooleanOperation splitFillet = new BooleanOperation();
+                    //    splitFillet.SetShells(Shell.FromFaces(fillet), Shell.FromFaces(Face.MakeFace(new PlaneSurface(plane),new BoundingRect(GeoPoint2D.Origin,2*radius,2*radius))),BooleanOperation.Operation.clip);
+                    //    Shell[] splitted = splitFillet.Execute();
+                    //}
+                    /* so sollte es gehen: erzeuge die Flächen für ein Solid (nach innenorientiert) aus dem fillet, den beiden ebenen Endkappen und den beiden anliegenden Faces, die durch
+                     * die abzurundende Kante, die Tangenten und die Kanten der Endkappe definiert sind. Die Endkappen entstehen durch den Endbogen und einem ebenen Schnitt (Ellipsenebene)
+                     * mit den anliegenden Faces. Sollte dieser ebene Schnitt außerhal des jeweiligen anliegenden Faces liegen, dann Linie nehmen (wir befinden und dann im Körper.
+                     */
+                    Plane plane = new Plane(vtx.Position, edgeDirAtTheEnd); // origin is vtx.Position
+                    Arc2D? filletEndArc = ellipse.GetProjectedCurve(plane) as Arc2D;
+                    Line2D l1 = new Line2D(filletEndArc.EndPoint, GeoPoint2D.Origin);
+                    Line2D l2 = new Line2D(GeoPoint2D.Origin, filletEndArc.StartPoint);
+
+                        SimpleShape ss = new SimpleShape(Border.FromUnorientedList([filletEndArc,l1,l2], true));
+                        PlaneSurface pln = new PlaneSurface(plane);
+                        Face planarEnd = Face.MakeFace(pln, ss);
+                        if (pln.Normal * edgeDirAtTheEnd > 0) planarEnd.ReverseOrientation();
+                        //return [fillet, planarEnd];
                 }
             }
+            #region tried_impact_face
+            //if (impact < 0 && impactFace != null && extruded != null)
+            //{   // maybe we can extend the impact face to the rounding extension
+            //    GeoPoint2D[] spInts = impactFace.Surface.GetLineIntersection(ellipse.StartPoint, edgeDirAtTheEnd);
+            //    GeoPoint2D[] epInts = impactFace.Surface.GetLineIntersection(ellipse.EndPoint, edgeDirAtTheEnd);
+            //    if (spInts != null && spInts.Length > 0 && epInts != null && epInts.Length > 0)
+            //    {
+            //        GeoPoint sp = GeoPoint.Invalid;
+            //        GeoPoint ep = GeoPoint.Invalid;
+            //        double mindist = double.MaxValue;
+            //        for (int i = 0; i < spInts.Length; i++)
+            //        {
+            //            GeoPoint p = impactFace.Surface.PointAt(spInts[i]);
+            //            double par = Geometry.LinePar(ellipse.StartPoint, edgeDirAtTheEnd, p);
+            //            if (par > 0 && par < mindist)
+            //            {
+            //                mindist = par;
+            //                sp = p;
+            //            }
+            //        }
+            //        mindist = double.MaxValue;
+            //        for (int i = 0; i < spInts.Length; i++)
+            //        {
+            //            GeoPoint p = impactFace.Surface.PointAt(epInts[i]);
+            //            double par = Geometry.LinePar(ellipse.EndPoint, edgeDirAtTheEnd, p);
+            //            if (par >= 0 && par < mindist)
+            //            {
+            //                mindist = par;
+            //                ep = p;
+            //            }
+            //        }
+            //        if (sp.IsValid && ep.IsValid)
+            //        {
+            //            // both edges of the extruded face lie on the impact face.
+            //            // now there must be two edges of the impact face at this vertex, which contain the points sp and ep
+            //            List<Edge> edgesOnImpactFace = vtx.EdgesOnFace(impactFace);
+            //            List<ICurve2D> curvesForImpactFaceExtension = [];
+            //            for (int i = 0; i < edgesOnImpactFace.Count; i++)
+            //            {
+            //                if (edgesOnImpactFace[i].Curve3D.DistanceTo(sp) < Precision.eps)
+            //                {
+            //                    ICurve curve = edgesOnImpactFace[i].Curve3D.Clone();
+            //                    double pos = curve.PositionOf(sp);
+            //                    if (edgesOnImpactFace[i].Vertex1 == vtx) curve.Trim(0, pos);
+            //                    else curve.Trim(pos, 1.0);
+            //                    curvesForImpactFaceExtension.Add(impactFace.Surface.GetProjectedCurve(curve, 0.0));
+            //                }
+            //            }
+            //            if (curvesForImpactFaceExtension.Count == 2)
+            //            {
+            //                // now create a face from the two curves and the intersection of the extruded face with the impactFace
+            //                BoundingRect ext = impactFace.Domain;
+            //                GeoPoint2D uv = impactFace.Surface.PositionOf(sp);
+            //                SurfaceHelper.AdjustPeriodic(impactFace.Surface, ext, ref uv);
+            //                ext.MinMax(uv);
+            //                uv = impactFace.Surface.PositionOf(ep);
+            //                SurfaceHelper.AdjustPeriodic(impactFace.Surface, ext, ref uv);
+            //                ext.MinMax(uv);
+            //                IDualSurfaceCurve[] iscurve = impactFace.Surface.GetDualSurfaceCurves(ext, extruded.Surface, extruded.Domain, [sp, ep]);
+            //                if (iscurve != null && iscurve.Length == 1)
+            //                {
+            //                    curvesForImpactFaceExtension.Add(iscurve[0].Curve2D1);
+            //                    Face? extendedImpactFace = Face.MakeFace(impactFace.Surface.Clone(), [curvesForImpactFaceExtension]);
+            //                    if (extendedImpactFace != null)
+            //                    {
+            //                        return [extendedImpactFace, fillet];
+            //                    }
+            //                }
+            //            }
+            //        }
+            //    }
+            //}
+            #endregion
             // if nothing worked out, 
             GeoVector torusXAxis = (vtx.Position - cnt).Normalized;
             ToroidalSurface ts = new ToroidalSurface(vtx.Position, torusXAxis, edgeDirAtTheEnd.Normalized, -(torusXAxis ^ edgeDirAtTheEnd).Normalized, vtx.Position | cnt, radius);

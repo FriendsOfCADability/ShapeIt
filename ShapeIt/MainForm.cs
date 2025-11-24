@@ -320,7 +320,7 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            // return;
+            return;
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             string[] mru = MRUFiles.GetMRUFiles();
