@@ -1301,9 +1301,8 @@ namespace ShapeIt
             else return null;
         }
 
-        public static Shell? MakeConvexFilletShell(Edge edgeToRound, double radius, out Face[]? endFaces)
+        public static Shell? MakeConvexFilletShell(Edge edgeToRound, double radius)
         {
-            endFaces = null;
             ISurface topSurface = edgeToRound.PrimaryFace.Surface; // for previty
             ISurface bottomSurface = edgeToRound.SecondaryFace.Surface;
             ICurve leadingEdge = edgeToRound.Curve3D.Clone();
@@ -1473,7 +1472,9 @@ namespace ShapeIt
             leftEndFace.Set(leftPlane, [[e4, ebl, etl]]);
             Shell res = Shell.FromFaces(sweptFace, topFace, bottomFace, rightEndFace, leftEndFace);
             res.RecalcVertices();
-            endFaces = [rightEndFace, leftEndFace];
+            rightEndFace.UserData.Add("CADability.Fillet.EndFace", "endface"); // categorize faces
+            leftEndFace.UserData.Add("CADability.Fillet.EndFace", "endface");
+            sweptFace.UserData.Add("CADability.Fillet.SweptFace", "sweptface");
 #if DEBUG
             bool ok = res.CheckConsistency();
 #endif

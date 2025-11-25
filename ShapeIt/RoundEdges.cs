@@ -24,8 +24,7 @@ namespace ShapeIt
         /// - frontEnd: the two arcs at the end of the fillet face
         /// - tangent: the edges tangential to the primary face [0] and secondary face [1]
         /// </summary>
-        Dictionary<Edge, (Shell fillet, Face[]? endFaces)>? edgeToFillet;
-        List<Face> dontUseForOverlapping = [];
+        Dictionary<Edge, Shell>? edgeToFillet;
         /// <summary>
         /// Tool to round the given edges of a shell with the given radius.
         /// </summary>
@@ -59,6 +58,11 @@ namespace ShapeIt
                     HashSet<Shell>? filletAndExtension = createDeadEndExtension(ve.Key, ve.Value[0]);
                     if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
                 }
+                else if (ve.Value.Count == 2)
+                {
+                    HashSet<Shell>? filletAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1]);
+                    if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
+                }
             }
             Combine(roundingShells);
 
@@ -78,6 +82,38 @@ namespace ShapeIt
             return toOperateOn;
         }
 
+        private HashSet<Shell>? createExtensionTwoEdges(Vertex vtx, Edge edge1, Edge edge2)
+        {
+            Face? commonFace = Edge.CommonFace(edge1, edge2);
+            Edge? thirdEdge = vtx.AllEdges.Except([edge1, edge2]).TheOnlyOrDefault();
+            // in most cases we have a vertex with three faces meeting, so one common face and one third edge
+            // if there are more than three faces meeting at the vertex, we cannot handle this currently
+            if (commonFace == null) return null; // there must be a common face
+            GeoVector normalCommon = commonFace.Surface.GetNormal(vtx.GetPositionOnFace(commonFace)).Normalized;
+            Shell? fillet1 = edgeToFillet?[edge1];
+            Shell? fillet2 = edgeToFillet?[edge2];
+            if (fillet1 == null || fillet2 == null) return null;
+            Face? endFace1 = fillet1.Faces.Where(f => f.UserData.Contains("CADability.Fillet.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            Face? endFace2 = fillet2.Faces.Where(f => f.UserData.Contains("CADability.Fillet.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            if (endFace1 == null && endFace2 == null) return null;
+            GeoVector n1 = (endFace1.Surface as PlaneSurface).Normal.Normalized; // endfaces are always PlaneSurfaces
+            GeoVector n2 = (endFace2.Surface as PlaneSurface).Normal.Normalized;
+            double orientation = (n1 ^ n2) * normalCommon;
+            if (Math.Abs(orientation)<1e-6)
+            {   // tangential connection, we need the two fillets without any connection patch in between
+                return [fillet1, fillet2];
+            }
+            if (orientation<0)
+            {
+                // convex connection, we have to extent the fillets at this point
+                Shell? extension1 = (Make3D.Extrude(endFace1, 2 * radius * n1,null) as Solid)?.Shells[0];
+                Shell? extension2 = (Make3D.Extrude(endFace2, 2 * radius * n2,null) as Solid)?.Shells[0];
+                if (extension1!=null && extension2!=null) return [fillet1, fillet2, extension1, extension2];
+            }
+            return [fillet1, fillet2];
+
+        }
+
         /// <summary>
         /// Create a fillet as a single face, consisting of a ISurfaceOfExtrusion surface (cylinder, torus, sweptCircle) and four edges:
         /// two arcs at the ends and two tangential curves to the adjacent faces
@@ -89,15 +125,15 @@ namespace ShapeIt
         /// - tangent: the edges tangential to the primary face [0] and secondary face [1]
         /// for each edge
         /// </returns>
-        private Dictionary<Edge, (Shell fillet, Face[]? endFaces)> createFillets(IEnumerable<Edge> edges)
+        private Dictionary<Edge, Shell> createFillets(IEnumerable<Edge> edges)
         {
-            Dictionary<Edge, (Shell fillet, Face[]? endFaces)> edgeToFillet = new(); 
+            Dictionary<Edge, Shell> edgeToFillet = new();
             foreach (Edge edgeToRound in edges)
             {
-                Shell? filletShell = MakeConvexFilletShell(edgeToRound, radius, out Face[]? endFaces);
+                Shell? filletShell = MakeConvexFilletShell(edgeToRound, radius);
                 if (filletShell != null)
                 {
-                    edgeToFillet[edgeToRound] = (filletShell, endFaces);
+                    edgeToFillet[edgeToRound] = filletShell;
                 }
             }
             return edgeToFillet;
@@ -120,7 +156,7 @@ namespace ShapeIt
         private HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge)
         {
             if (edgeToFillet == null) return null;
-            Shell fillet = edgeToFillet[edge].fillet;
+            Shell fillet = edgeToFillet[edge];
             return [fillet];
             /*
             ISurfaceOfExtrusion? filletSurface = fillet.Surface as ISurfaceOfExtrusion;

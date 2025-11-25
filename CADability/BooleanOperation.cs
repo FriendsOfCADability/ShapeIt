@@ -95,7 +95,6 @@ namespace CADability
         Dictionary<DoubleFaceKey, List<IntersectionVertex>> facesToIntersectionVertices; // Faces mit den zugehörigen Schnittpunkt
         Dictionary<Edge, Tuple<Face, Face>> knownIntersections; // already known intersection edges, some open edges when rounding edges are known before and are tangential
         bool shell1IsClosed = true, shell2IsClosed = true; // set to false, if a shell is not required to be closed
-        HashSet<Face> dontUseForOverlapping = []; // dont use these faces for overlapping. Special requirenment from RoundEdges, normally empty
         /// <summary>
         /// Create the new intersection edges and collect them in faceToIntersectionEdges
         /// </summary>
@@ -145,8 +144,7 @@ namespace CADability
         private void AddFaceFaceIntersection(Face fc1, Face fc2)
         {
             // Test for overlapping faces:
-            if (!dontUseForOverlapping.Contains(fc1) && !dontUseForOverlapping.Contains(fc2) && 
-                fc1.Surface.SameGeometry(fc1.Domain, fc2.Surface, fc2.Domain, this.precision, out ModOp2D firstToSecond))
+            if (fc1.Surface.SameGeometry(fc1.Domain, fc2.Surface, fc2.Domain, this.precision, out ModOp2D firstToSecond))
             {
                 // These are overlapping faces, we don't intersect them
                 // but we have to remember them in faceToOverlappingFaces and faceToOppositeFaces for later processing
@@ -1552,7 +1550,7 @@ namespace CADability
         public static Face[] ClipFace(Face toClip, Face clipBy)
         {
             Shell shellToClip = Shell.MakeShell([toClip], false);
-            Shell clippingShell = Shell.MakeShell([clipBy], false); 
+            Shell clippingShell = Shell.MakeShell([clipBy], false);
             BooleanOperation bo = new BooleanOperation();
             bo.SetShells(shellToClip, clippingShell, Operation.difference);
             bo.SetClosedShells(false, false);
@@ -1598,7 +1596,7 @@ namespace CADability
         public Shell[] Execute()
         {   // we expect the shell sare in a proper state: outward oriented, no full periodic faces
             // don't know, whether we need the followin:
-            if (shell1IsClosed && shell1.HasOpenEdgesExceptPoles()&& shell1IsClosed) shell1.TryConnectOpenEdges();
+            if (shell1IsClosed && shell1.HasOpenEdgesExceptPoles() && shell1IsClosed) shell1.TryConnectOpenEdges();
             if (shell2IsClosed && shell2.HasOpenEdgesExceptPoles() && shell2IsClosed) shell2.TryConnectOpenEdges();
             //shell1.RecalcVertices();
             //shell2.RecalcVertices();
@@ -3467,7 +3465,7 @@ namespace CADability
                     }
                 }
             }
-            
+
             if (allFaces.Count == 0 && discardedFaces.Count > 0)
             {   // there were no intersections, only identical opposite faces, like when glueing two parts together
                 // this remains empty in case of intersection and returns the full body in case of union
@@ -5323,13 +5321,6 @@ namespace CADability
             this.shell2IsClosed = shell2IsClosed;
         }
 
-        public void NoOverlapping(List<Face> dontUseForOverlapping)
-        {
-            for (int i = 0; i < dontUseForOverlapping.Count; i++)
-            {
-                if (originalToClonedFaces.TryGetValue(dontUseForOverlapping[i], out Face fc)) this.dontUseForOverlapping.Add(fc);
-            }
-        }
     }
 
     public static class BOExtension
