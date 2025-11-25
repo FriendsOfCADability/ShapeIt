@@ -25,6 +25,7 @@ namespace ShapeIt
         /// - tangent: the edges tangential to the primary face [0] and secondary face [1]
         /// </summary>
         Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)>? edgeToFillet;
+        List<Face> dontUseForOverlapping = [];
         /// <summary>
         /// Tool to round the given edges of a shell with the given radius.
         /// </summary>
@@ -71,6 +72,7 @@ namespace ShapeIt
                 BooleanOperation bo = new BooleanOperation();
                 bo.SetShells(toOperateOn, toIntersectWith, BooleanOperation.Operation.intersection);
                 bo.SetClosedShells(true, false);
+                bo.NoOverlapping(dontUseForOverlapping);
                 // bo.SetTangentialEdges(tangentialEdges);
                 Shell[] roundedShells = bo.Execute();
                 if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
@@ -125,7 +127,9 @@ namespace ShapeIt
             ISurfaceOfExtrusion? filletSurface = fillet.Surface as ISurfaceOfExtrusion;
             if (filletSurface == null) return null;
             Edge? openEdge = edgeToFillet[edge].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(vtx.Position));
+            if (openEdge == null) return null;
             Ellipse? ellipse = openEdge?.Curve3D as Ellipse;
+            bool ellipseIsForwardOnFillet = openEdge.Forward(fillet);
             // we need to check whether we need a face extension on the third (impact) face here
             if (ellipse == null) return null; // should not happen
             GeoPoint cnt = ellipse.Center;
@@ -187,48 +191,130 @@ namespace ShapeIt
                 // the vertex should lie in the ellipse plane
                 if (Math.Abs(ellipse.Plane.Distance(vtx.Position)) < Precision.eps)
                 {   // one edge of the plane is the ellipse, the other edges is a circular arc through the vertex and the two ellipse end points
-                    //GeoPoint intersectionByImpactFace = GeoPoint.Invalid;
-                    //double mindist = double.MaxValue;
-                    //for (int i = 0; i < edgeToFillet[edge].tangent.Length; i++)
-                    //{
-                    //    impactFace.Surface.Intersect(edgeToFillet[edge].tangent[i].Curve3D, impactFace.Domain, out GeoPoint[] ips, out GeoPoint2D[] uvOnFace, out double[] uOnCurve);
-                    //    for (int j = 0; j < ips.Length; j++)
-                    //    {
-                    //        if (uOnCurve[j] < 1.0 && uOnCurve[j] > 0.0)
-                    //        {
-                    //            double d = ips[j] | vtx.Position;
-                    //            if (d < mindist)
-                    //            {
-                    //                intersectionByImpactFace = ips[j];
-                    //            }
-                    //        }
-                    //    }
-                    //}
-                    //Plane plane = ellipse.Plane;
-                    //if (intersectionByImpactFace.IsValid)
-                    //{
-                    //    ICurve spine = filletSurface.Axis(fillet.Domain);
-                    //    double pos = spine.PositionOf(intersectionByImpactFace);
-                    //    GeoVector dir = spine.DirectionAt(pos);
-                    //    plane = new Plane(spine.PointAt(pos), spine.DirectionAt(pos));
-                    //    BooleanOperation splitFillet = new BooleanOperation();
-                    //    splitFillet.SetShells(Shell.FromFaces(fillet), Shell.FromFaces(Face.MakeFace(new PlaneSurface(plane),new BoundingRect(GeoPoint2D.Origin,2*radius,2*radius))),BooleanOperation.Operation.clip);
-                    //    Shell[] splitted = splitFillet.Execute();
-                    //}
-                    /* so sollte es gehen: erzeuge die Flächen für ein Solid (nach innenorientiert) aus dem fillet, den beiden ebenen Endkappen und den beiden anliegenden Faces, die durch
-                     * die abzurundende Kante, die Tangenten und die Kanten der Endkappe definiert sind. Die Endkappen entstehen durch den Endbogen und einem ebenen Schnitt (Ellipsenebene)
-                     * mit den anliegenden Faces. Sollte dieser ebene Schnitt außerhal des jeweiligen anliegenden Faces liegen, dann Linie nehmen (wir befinden und dann im Körper.
-                     */
-                    Plane plane = new Plane(vtx.Position, edgeDirAtTheEnd); // origin is vtx.Position
+                    Plane plane = new Plane(vtx.Position, -edgeDirAtTheEnd); // origin is vtx.Position, pointing towards the fillet
+                    PlaneSurface endCapPlane = new PlaneSurface(plane);
                     Arc2D? filletEndArc = ellipse.GetProjectedCurve(plane) as Arc2D;
-                    Line2D l1 = new Line2D(filletEndArc.EndPoint, GeoPoint2D.Origin);
-                    Line2D l2 = new Line2D(GeoPoint2D.Origin, filletEndArc.StartPoint);
-
-                        SimpleShape ss = new SimpleShape(Border.FromUnorientedList([filletEndArc,l1,l2], true));
-                        PlaneSurface pln = new PlaneSurface(plane);
-                        Face planarEnd = Face.MakeFace(pln, ss);
-                        if (pln.Normal * edgeDirAtTheEnd > 0) planarEnd.ReverseOrientation();
-                        //return [fillet, planarEnd];
+                    // which endpoint of the arc is on which face?
+                    GeoPoint pointOnPrimaryFace, pointOnSecondaryFace;
+                    bool orientation;
+                    if (Math.Abs(edge.PrimaryFace.Surface.GetDistance(ellipse.StartPoint)) + Math.Abs(edge.SecondaryFace.Surface.GetDistance(ellipse.EndPoint)) < Math.Abs(edge.PrimaryFace.Surface.GetDistance(ellipse.EndPoint)) + Math.Abs(edge.SecondaryFace.Surface.GetDistance(ellipse.StartPoint)))
+                    {
+                        orientation = ellipseIsForwardOnFillet;
+                        pointOnPrimaryFace = ellipse.StartPoint;
+                        pointOnSecondaryFace = ellipse.EndPoint;
+                    }
+                    else
+                    {
+                        orientation = !ellipseIsForwardOnFillet;
+                        pointOnPrimaryFace = ellipse.EndPoint;
+                        pointOnSecondaryFace = ellipse.StartPoint;
+                    }
+                    double d = pointOnPrimaryFace | vtx.Position;
+                    ICurve? crvPrimFace = null, crvSecFace = null;
+                    ICurve2D? crv2dPrimFace = null, crv2dSecFace = null;
+                    IDualSurfaceCurve[] dscOnPrimFace = edge.PrimaryFace.Surface.GetDualSurfaceCurves(edge.PrimaryFace.Domain, endCapPlane, new BoundingRect(GeoPoint2D.Origin, 2 * d, 2 * d), [vtx.Position, pointOnPrimaryFace]);
+                    IDualSurfaceCurve[] dscOnSecFace = edge.SecondaryFace.Surface.GetDualSurfaceCurves(edge.SecondaryFace.Domain, endCapPlane, new BoundingRect(GeoPoint2D.Origin, 2 * d, 2 * d), [vtx.Position, pointOnPrimaryFace]);
+                    if (dscOnPrimFace != null && dscOnSecFace != null && dscOnPrimFace.Length > 0 && dscOnSecFace.Length > 0)
+                    {
+                        dscOnPrimFace[0].Trim(pointOnPrimaryFace, vtx.Position);
+                        crvPrimFace = dscOnPrimFace[0].Curve3D;
+                        crv2dPrimFace = dscOnPrimFace[0].Curve2D2;
+                        if (!orientation)
+                        {
+                            crv2dPrimFace.Reverse();
+                            crvPrimFace.Reverse();
+                        }
+                        dscOnSecFace[0].Trim(pointOnSecondaryFace, vtx.Position);
+                        crvSecFace = dscOnSecFace[0].Curve3D;
+                        crv2dSecFace = dscOnSecFace[0].Curve2D2;
+                        if (orientation)
+                        {
+                            crv2dSecFace.Reverse();
+                            crvSecFace.Reverse();
+                        }
+                        Face planarEnd = Face.Construct(); // this will be the end cap, outlined by the arc and the two intersections with the adjacent faces
+                        ICurve2D eArc2d = ellipse.GetProjectedCurve(plane);
+                        if (ellipseIsForwardOnFillet) eArc2d.Reverse();
+                        Edge eArc = new Edge(planarEnd, ellipse.Clone() as ICurve, planarEnd, eArc2d, !ellipseIsForwardOnFillet);
+                        Edge ePrimFace = new Edge(planarEnd, crvPrimFace, planarEnd, crv2dPrimFace, true);
+                        Edge eSecFace = new Edge(planarEnd, crvSecFace, planarEnd, crv2dSecFace, true);
+                        if (orientation) planarEnd.Set(endCapPlane, [[eArc, ePrimFace, eSecFace]]);
+                        else planarEnd.Set(endCapPlane, [[eArc, eSecFace, ePrimFace]]);
+                        // now we go half way back to the center of the fillet and make two faces: the parts of the adjacent faces that are to be cut off.
+                        // This helps to get out of the solid, if we went into it with the fillet
+                        ICurve2D? tangentOnPrim = null, tangentOnSec = null;
+                        ISurface primSurface = edge.PrimaryFace.Surface.Clone();
+                        ISurface secSurface = edge.SecondaryFace.Surface.Clone();
+                        primSurface.ReverseOrientation();
+                        secSurface.ReverseOrientation();
+                        ICurve2D capOnPrim = primSurface.GetProjectedCurve(crvPrimFace, 0.0);
+                        ICurve2D capOnSec = secSurface.GetProjectedCurve(crvSecFace, 0.0);
+                        GeoPoint2D tmp = GeoPoint2D.Invalid, tms = GeoPoint2D.Invalid, emp, ems; // middle points on primary, secondary surface
+                        foreach (Edge tedg in edgeToFillet[edge].tangent)
+                        {
+                            if (Math.Abs(edge.PrimaryFace.Surface.GetDistance(tedg.Curve3D.PointAt(0.5))) < Math.Abs(edge.SecondaryFace.Surface.GetDistance(tedg.Curve3D.PointAt(0.5))))
+                            {
+                                // tedg is on primary face
+                                tangentOnPrim = primSurface.GetProjectedCurve(tedg.Curve3D, 0.0);
+                                if ((tedg.Curve3D.EndPoint | vtx.Position) < (tedg.Curve3D.StartPoint | vtx.Position))
+                                {
+                                    tangentOnPrim = tangentOnPrim.Trim(0.5, 1.0);
+                                    tmp = tangentOnPrim.StartPoint;
+                                }
+                                else
+                                {
+                                    tangentOnPrim = tangentOnPrim.Trim(0.0, 0.5);
+                                    tmp = tangentOnPrim.EndPoint;
+                                }
+                            }
+                            else
+                            {
+                                // tedg is on primary face
+                                tangentOnSec = secSurface.GetProjectedCurve(tedg.Curve3D, 0.0);
+                                if ((tedg.Curve3D.EndPoint | vtx.Position) < (tedg.Curve3D.StartPoint | vtx.Position))
+                                {
+                                    tangentOnSec = tangentOnSec.Trim(0.5, 1.0);
+                                    tms = tangentOnSec.StartPoint;
+                                }
+                                else
+                                {
+                                    tangentOnSec = tangentOnSec.Trim(0.0, 0.5);
+                                    tms = tangentOnSec.EndPoint;
+                                }
+                            }
+                        }
+                        ICurve2D edgOnPrim = primSurface.GetProjectedCurve(edge.Curve3D, 0.0);
+                        ICurve2D edgOnSec = secSurface.GetProjectedCurve(edge.Curve3D, 0.0);
+                        if (tangentOnPrim != null && tangentOnSec != null && edgOnPrim != null && edgOnSec != null)
+                        {
+                            if ((edgOnPrim.StartPoint | capOnPrim.PointAt(0.5)) < (edgOnPrim.EndPoint | capOnPrim.PointAt(0.5)))
+                            {
+                                edgOnPrim = edgOnPrim.Trim(0.0, 0.5);
+                                emp = edgOnPrim.EndPoint;
+                            }
+                            else
+                            {
+                                edgOnPrim = edgOnPrim.Trim(0.5, 1.0);
+                                emp = edgOnPrim.StartPoint;
+                            }
+                            if ((edgOnSec.StartPoint | capOnSec.PointAt(0.5)) < (edgOnSec.EndPoint | capOnSec.PointAt(0.5)))
+                            {
+                                edgOnSec = edgOnSec.Trim(0.0, 0.5);
+                                ems = edgOnSec.EndPoint;
+                            }
+                            else
+                            {
+                                edgOnSec = edgOnSec.Trim(0.5, 1.0);
+                                ems = edgOnSec.StartPoint;
+                            }
+                            Border bPrim = Border.FromUnorientedList([edgOnPrim, capOnPrim, tangentOnPrim, new Line2D(emp, tmp)], true);
+                            Border bSec = Border.FromUnorientedList([edgOnSec, capOnSec, tangentOnSec, new Line2D(ems, tms)], true);
+                            Face primStrip = Face.MakeFace(primSurface, new SimpleShape(bPrim));
+                            Face secStrip = Face.MakeFace(secSurface, new SimpleShape(bSec));
+                            dontUseForOverlapping.AddRange([primStrip, secStrip]);
+                            return [fillet, planarEnd, primStrip, secStrip]; // don't use primStrip and secStrip as overlapping in BooleanOperation!!!
+                        }
+                    }
                 }
             }
             #region tried_impact_face
