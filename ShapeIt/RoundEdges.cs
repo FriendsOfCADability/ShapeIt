@@ -24,7 +24,7 @@ namespace ShapeIt
         /// - frontEnd: the two arcs at the end of the fillet face
         /// - tangent: the edges tangential to the primary face [0] and secondary face [1]
         /// </summary>
-        Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)>? edgeToFillet;
+        Dictionary<Edge, (Shell fillet, Face[]? endFaces)>? edgeToFillet;
         List<Face> dontUseForOverlapping = [];
         /// <summary>
         /// Tool to round the given edges of a shell with the given radius.
@@ -50,13 +50,13 @@ namespace ShapeIt
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges);
 
-            List<HashSet<Face>> roundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
+            List<HashSet<Shell>> roundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
             foreach (var ve in vertexToEdges)
             {
                 if (ve.Value.Count == 1)
                 { // the fillet ends here, there are different cases:
                     // There is one or more "impact" faces
-                    HashSet<Face>? filletAndExtension = createDeadEndExtension(ve.Key, ve.Value[0]);
+                    HashSet<Shell>? filletAndExtension = createDeadEndExtension(ve.Key, ve.Value[0]);
                     if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
                 }
             }
@@ -66,16 +66,13 @@ namespace ShapeIt
             Shell? toOperateOn = shell.Clone() as Shell;
             for (int i = 0; i < roundingShells.Count; i++)
             {
-                Face[] s = roundingShells[i].ToArray();
-                Shell.ConnectFaces(s, Precision.eps);
-                Shell toIntersectWith = Shell.FromFaces(s);
-                BooleanOperation bo = new BooleanOperation();
-                bo.SetShells(toOperateOn, toIntersectWith, BooleanOperation.Operation.intersection);
-                bo.SetClosedShells(true, false);
-                bo.NoOverlapping(dontUseForOverlapping);
-                // bo.SetTangentialEdges(tangentialEdges);
-                Shell[] roundedShells = bo.Execute();
-                if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
+                foreach (var item in roundingShells[i])
+                {
+                    BooleanOperation bo = new BooleanOperation();
+                    bo.SetShells(toOperateOn, item, BooleanOperation.Operation.difference);
+                    Shell[] roundedShells = bo.Execute();
+                    if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
+                }
             }
 
             return toOperateOn;
@@ -92,15 +89,15 @@ namespace ShapeIt
         /// - tangent: the edges tangential to the primary face [0] and secondary face [1]
         /// for each edge
         /// </returns>
-        private Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)> createFillets(IEnumerable<Edge> edges)
+        private Dictionary<Edge, (Shell fillet, Face[]? endFaces)> createFillets(IEnumerable<Edge> edges)
         {
-            Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)> edgeToFillet = new Dictionary<Edge, (Face fillet, Edge[]? frontEnd, Edge[]? tangent)>();
+            Dictionary<Edge, (Shell fillet, Face[]? endFaces)> edgeToFillet = new(); 
             foreach (Edge edgeToRound in edges)
             {
-                Face? filletFace = ShellExtensions.MakeConvexFilletFace(edgeToRound, radius, out Edge[]? frontEnd, out Edge[]? tangential);
-                if (filletFace != null)
+                Shell? filletShell = MakeConvexFilletShell(edgeToRound, radius, out Face[]? endFaces);
+                if (filletShell != null)
                 {
-                    edgeToFillet[edgeToRound] = (filletFace, frontEnd, tangential);
+                    edgeToFillet[edgeToRound] = (filletShell, endFaces);
                 }
             }
             return edgeToFillet;
@@ -120,10 +117,12 @@ namespace ShapeIt
             return vertexToEdges;
         }
 
-        private HashSet<Face>? createDeadEndExtension(Vertex vtx, Edge edge)
+        private HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge)
         {
             if (edgeToFillet == null) return null;
-            Face fillet = edgeToFillet[edge].fillet;
+            Shell fillet = edgeToFillet[edge].fillet;
+            return [fillet];
+            /*
             ISurfaceOfExtrusion? filletSurface = fillet.Surface as ISurfaceOfExtrusion;
             if (filletSurface == null) return null;
             Edge? openEdge = edgeToFillet[edge].frontEnd?.MinBy(edg => edg.Curve3D.DistanceTo(vtx.Position));
@@ -401,6 +400,7 @@ namespace ShapeIt
             Face torusFace = Face.MakeFace(ts, torusDomain);
             torusFace.ReverseOrientation();
             return [torusFace, fillet];
+            */
         }
         private bool curveIntersectsShell(ICurve curve)
         {
@@ -418,7 +418,7 @@ namespace ShapeIt
         /// Combine overlapping sets into single sets
         /// </summary>
         /// <param name="sets"></param>
-        private void Combine(List<HashSet<Face>> sets)
+        private void Combine(List<HashSet<Shell>> sets)
         {
             bool mergedSomething;
             do
