@@ -2,7 +2,7 @@
 using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
-
+using ExCSS;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -99,16 +99,16 @@ namespace ShapeIt
             GeoVector n1 = (endFace1.Surface as PlaneSurface).Normal.Normalized; // endfaces are always PlaneSurfaces
             GeoVector n2 = (endFace2.Surface as PlaneSurface).Normal.Normalized;
             double orientation = (n1 ^ n2) * normalCommon;
-            if (Math.Abs(orientation)<1e-6)
+            if (Math.Abs(orientation) < 1e-6)
             {   // tangential connection, we need the two fillets without any connection patch in between
                 return [fillet1, fillet2];
             }
-            if (orientation<0)
+            if (orientation < 0)
             {
                 // convex connection, we have to extent the fillets at this point
-                Shell? extension1 = (Make3D.Extrude(endFace1, 2 * radius * n1,null) as Solid)?.Shells[0];
-                Shell? extension2 = (Make3D.Extrude(endFace2, 2 * radius * n2,null) as Solid)?.Shells[0];
-                if (extension1!=null && extension2!=null) return [fillet1, fillet2, extension1, extension2];
+                Shell? extension1 = (Make3D.Extrude(endFace1.Clone(), 2 * radius * n1, null) as Solid)?.Shells[0];
+                Shell? extension2 = (Make3D.Extrude(endFace2.Clone(), 2 * radius * n2, null) as Solid)?.Shells[0];
+                if (extension1 != null && extension2 != null) return [fillet1, fillet2, extension1, extension2];
             }
             return [fillet1, fillet2];
 
@@ -153,11 +153,55 @@ namespace ShapeIt
             return vertexToEdges;
         }
 
+        private double minBeamDist(GeoPoint from, GeoVector direction)
+        {
+            GeoPoint[] ints = shell.GetLineIntersection(from, direction);
+            double dist = double.MaxValue;
+            for (int i = 0; i < ints.Length; i++)
+            {
+                double pos = Geometry.LinePar(from, direction, ints[i]);
+                if (pos > Precision.eps && pos < dist)
+                {
+                    dist = pos;
+                }
+            }
+            if (dist == double.MaxValue) dist = 0.0; // means no outside intersection
+            return dist;
+        }
         private HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge)
         {
             if (edgeToFillet == null) return null;
             Shell fillet = edgeToFillet[edge];
+            Face? endFace = fillet.Faces.Where(f => f.UserData.Contains("CADability.Fillet.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            if (endFace == null) return [fillet]; // should not happen
+            // the end face of the simple fillet has 3 edges and 3 vertices: the two edges, which are connected to vtx and the third edge, which is a circular arc
+            // and convex from the vtx position. We test the beam from the vertex vtx to the outside of the shell,  and the two beams from the arc to the outside.
+            // if the vertex beam is totally outside the shell and the two other beams leave the shell in a short distance (<2*radius), then we extend the fillet
+            GeoPoint2D uv = vtx.GetPositionOnFace(endFace);
+            GeoVector beamDirection = endFace.Surface.GetNormal(uv).Normalized;
+            double vtxbeam = minBeamDist(vtx.Position, beamDirection);
+            Edge endArc = endFace.AllEdges.First(e => e.Vertex1 != vtx && e.Vertex2 != vtx);
+            if (endArc == null) return [fillet]; // should not happen
+            double startbeam = minBeamDist(endArc.Curve3D.PointAt(0.01), beamDirection); // not exactely endpoint, because it is tangential to a face
+            double endbeam = minBeamDist(endArc.Curve3D.PointAt(0.99), beamDirection);
+            double middlebeam = minBeamDist(endArc.Curve3D.PointAt(0.5), beamDirection);
+#if DEBUG
+            // to watch the position:
+            DebuggerContainer dcPos = new DebuggerContainer();
+            dcPos.Add(shell);
+            dcPos.Add(fillet);
+            dcPos.Add(Line.MakeLine(vtx.Position, vtx.Position + 3 * radius * beamDirection), System.Drawing.Color.Red);
+            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.01), endArc.Curve3D.PointAt(0.01) + 3 * radius * beamDirection), System.Drawing.Color.Green);
+            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.99), endArc.Curve3D.PointAt(0.99) + 3 * radius * beamDirection), System.Drawing.Color.Green);
+            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.5), endArc.Curve3D.PointAt(0.5) + 3 * radius * beamDirection), System.Drawing.Color.Green);
+#endif
+            if (vtxbeam == 0.0 && startbeam < 3 * radius && endbeam < 3 * radius && middlebeam < 3 * radius)
+            {   // the beamm from the vertex is outside the shell, the other two beams leave the shell in a short distance or ar outside: make a short extension
+                Shell? extension = (Make3D.Extrude(endFace.Clone(), 3 * radius * beamDirection, null) as Solid)?.Shells[0];
+                if (extension != null) return [fillet, extension];
+            }
             return [fillet];
+
             /*
             ISurfaceOfExtrusion? filletSurface = fillet.Surface as ISurfaceOfExtrusion;
             if (filletSurface == null) return null;

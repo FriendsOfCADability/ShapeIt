@@ -6350,6 +6350,7 @@ namespace CADability.GeoObject
             ISurface[] surfaces = new ISurface[] { surface1, surface2, surface3 };
             BoundingRect[] bounds = new BoundingRect[] { bounds1, bounds2, bounds3 };
             // if two of the surfaces are planes, use the surface/line intersection
+            bool simplePlaneIntersection = true;
             int pln1 = -1, pln2 = -1, other = -1;
             for (int i = 0; i < 3; i++)
             {
@@ -6363,6 +6364,7 @@ namespace CADability.GeoObject
                 {
                     other = i;
                 }
+                if (!(surfaces[i] is PlaneSurface || surfaces[i] is CylindricalSurface || surfaces[i] is ConicalSurface || surfaces[i] is SphericalSurface)) simplePlaneIntersection = false;
             }
             if (pln2 >= 0)
             {
@@ -6385,29 +6387,32 @@ namespace CADability.GeoObject
             }
             // if one of the surfaces is a planar surface handle it on the plans 2d system
             List<GeoPoint> candidates = new List<GeoPoint>();
-            for (int i = 0; i < 3; i++)
-            {
-                if (surfaces[i] is PlaneSurface pls)
+            if (simplePlaneIntersection)
+            {   // for surfaces, which provide a simple plane intersection, the following is good. If not, better use NewtonIntersect
+                for (int i = 0; i < 3; i++)
                 {
-                    int o1 = (i + 1) % 3;
-                    int o2 = (i + 2) % 3;
-                    IDualSurfaceCurve[] dsc1 = surfaces[o1].GetPlaneIntersection(pls, bounds[o1].Left, bounds[o1].Right, bounds[o1].Bottom, bounds[o1].Top, 0.0);
-                    IDualSurfaceCurve[] dsc2 = surfaces[o2].GetPlaneIntersection(pls, bounds[o2].Left, bounds[o2].Right, bounds[o2].Bottom, bounds[o2].Top, 0.0);
-                    if (dsc1 != null && dsc2 != null)
+                    if (surfaces[i] is PlaneSurface pls)
                     {
-                        for (int j = 0; j < dsc1.Length; ++j)
+                        int o1 = (i + 1) % 3;
+                        int o2 = (i + 2) % 3;
+                        IDualSurfaceCurve[] dsc1 = surfaces[o1].GetPlaneIntersection(pls, bounds[o1].Left, bounds[o1].Right, bounds[o1].Bottom, bounds[o1].Top, 0.0);
+                        IDualSurfaceCurve[] dsc2 = surfaces[o2].GetPlaneIntersection(pls, bounds[o2].Left, bounds[o2].Right, bounds[o2].Bottom, bounds[o2].Top, 0.0);
+                        if (dsc1 != null && dsc2 != null)
                         {
-                            for (int k = 0; k < dsc2.Length; k++)
+                            for (int j = 0; j < dsc1.Length; ++j)
                             {
-                                ICurve2D c1, c2;
-                                if (dsc1[j].Surface1 == pls) c1 = dsc1[j].Curve2D1;
-                                else c1 = dsc1[j].Curve2D2;
-                                if (dsc2[k].Surface1 == pls) c2 = dsc2[k].Curve2D1;
-                                else c2 = dsc2[k].Curve2D2;
-                                GeoPoint2DWithParameter[] ips2d = c1.Intersect(c2);
-                                for (int l = 0; l < ips2d.Length; l++)
+                                for (int k = 0; k < dsc2.Length; k++)
                                 {
-                                    candidates.Add(pls.PointAt(ips2d[l].p));
+                                    ICurve2D c1, c2;
+                                    if (dsc1[j].Surface1 == pls) c1 = dsc1[j].Curve2D1;
+                                    else c1 = dsc1[j].Curve2D2;
+                                    if (dsc2[k].Surface1 == pls) c2 = dsc2[k].Curve2D1;
+                                    else c2 = dsc2[k].Curve2D2;
+                                    GeoPoint2DWithParameter[] ips2d = c1.Intersect(c2);
+                                    for (int l = 0; l < ips2d.Length; l++)
+                                    {
+                                        candidates.Add(pls.PointAt(ips2d[l].p));
+                                    }
                                 }
                             }
                         }
@@ -6423,7 +6428,12 @@ namespace CADability.GeoObject
                 uv3 = surface3.PositionOf(ip);
                 return true;
             }
+            uv1 = surface1.PositionOf(ip);
+            uv2 = surface2.PositionOf(ip);
+            uv3 = surface3.PositionOf(ip);
+            if (BoxedSurfaceExtension.SurfacesIntersectionLM(surface1, surface2, surface3, ref uv1, ref uv2, ref uv3, ref ip)) return true;
             return NewtonIntersect(surface1, bounds1, surface2, bounds2, surface3, bounds3, ref ip, out uv1, out uv2, out uv3);
+
         }
         internal static bool NewtonIntersect(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, ISurface surface3, BoundingRect bounds3, ref GeoPoint ip,
             out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3)

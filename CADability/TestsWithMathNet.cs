@@ -568,42 +568,6 @@ namespace CADability
 
         public static bool SurfacesIntersectionLM(ISurface surface1, ISurface surface2, ISurface surface3, ref GeoPoint2D uv1, ref GeoPoint2D uv2, ref GeoPoint2D uv3, ref GeoPoint ip)
         {
-            //Polynom implicitSurface1 = null, implicitSurface2 = null, implicitSurface3 = null;
-            //if (surface1 is ISurfaceImpl si1) implicitSurface1 = si1.GetImplicitPolynomial();
-            //if (surface2 is ISurfaceImpl si2) implicitSurface2 = si2.GetImplicitPolynomial();
-            //if (surface3 is ISurfaceImpl si3) implicitSurface3 = si3.GetImplicitPolynomial();
-            //List<ISurface> notimpl = new List<ISurface>();
-            //notimpl.Add(surface1); notimpl.Add(surface2); notimpl.Add(surface3);
-            //List<Polynom> polynoms = new List<Polynom>();
-            //List<GeoPoint2D> luv = new List<GeoPoint2D>(new GeoPoint2D[] { uv1, uv2, uv3 });
-            //if (implicitSurface3 != null)
-            //{
-            //    notimpl.RemoveAt(2);
-            //    luv.RemoveAt(2);
-            //    polynoms.Add(implicitSurface3);
-            //}
-            //if (implicitSurface2 != null)
-            //{
-            //    notimpl.RemoveAt(1);
-            //    luv.RemoveAt(1);
-            //    polynoms.Add(implicitSurface2);
-            //}
-            //if (implicitSurface1 != null)
-            //{
-            //    notimpl.RemoveAt(0);
-            //    luv.RemoveAt(0);
-            //    polynoms.Add(implicitSurface1);
-            //}
-            //if (polynoms.Count == 3)
-            //{
-            //    if (SurfacesIntersectionLM(polynoms[0], polynoms[1], polynoms[2], ref ip))
-            //    {
-            //        uv1 = surface1.PositionOf(ip);
-            //        uv2 = surface2.PositionOf(ip);
-            //        uv3 = surface3.PositionOf(ip);
-            //        return true;
-            //    }
-            //}
             Vector<double> observedX = new DenseVector(9); // there is no need to set values
             Vector<double> observedY = new DenseVector(new double[] { 0, 0, 0, 0, 0, 0, 0, 0, 0 }); // this is the data we want to achieve
             GeoPoint lastip = GeoPoint.Origin;

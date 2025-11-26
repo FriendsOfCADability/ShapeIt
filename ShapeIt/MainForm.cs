@@ -321,10 +321,15 @@ namespace ShapeIt
         private void AutoDebug()
         {
             return;
+            string filename = "F:\\Zeichnungen\\RoundTest3.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
-            string[] mru = MRUFiles.GetMRUFiles();
-            if (mru.Length>0) CadFrame.Project = Project.ReadFromFile(mru.Last().Split(';')[0]);
+            if (string.IsNullOrEmpty(filename))
+            {
+                string[] mru = MRUFiles.GetMRUFiles();
+                if (mru.Length > 0) filename = mru.Last().Split(';')[0];
+            }
+            if (!string.IsNullOrEmpty(filename)) CadFrame.Project = Project.ReadFromFile(filename);
 
             List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
             Solid operand1 = null, operand2 = null;

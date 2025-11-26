@@ -188,11 +188,6 @@ namespace ShapeIt
                 GeoPoint p = hsp.GetHotspotPosition();
                 PointF pf = view.Projection.ProjectF(p);
                 PaintTo3D.PaintHandle(PaintToSelect, pf, handleSize, handleColor);
-                Face[] pyr = FeedbackArrow.MakePyramidArrow(p, GeoVector.XAxis, view.Projection);
-                for (int i = 0; i < pyr.Length; i++)
-                {
-                    pyr[i].PaintTo3D(PaintToSelect);
-                }
             }
             if (selectedHotSpot != null)
             {

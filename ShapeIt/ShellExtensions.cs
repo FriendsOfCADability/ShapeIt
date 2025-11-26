@@ -1348,12 +1348,11 @@ namespace ShapeIt
 #endif
             Face sweptFace;
             // how to test for correct orientation of the sweptCircle?
-            // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface in both cases
-            // In the covex-edge case the fillet shell is removed, the result will be a convex swept surface
-            // In the concave-edge case the fillet shell is added, the result will be a concave swept surface
-
-            GeoVector testNormal = sweptCircle.GetNormal(new GeoPoint2D(0.5, Math.PI));
-            GeoPoint testPoint = sweptCircle.PointAt(new GeoPoint2D(0.5, Math.PI));
+            // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface 
+            GeoPoint facnt = filletAxisCurve.Curve3D.PointAt(0.5);
+            GeoPoint2D facnt2d = sweptCircle.PositionOf(facnt);
+            GeoVector testNormal = sweptCircle.GetNormal(facnt2d);
+            GeoPoint testPoint = sweptCircle.PointAt(facnt2d);
             if (testNormal * (filletAxisCurve.Curve3D.PointAt(0.5) - testPoint) < 0) sweptCircle.ReverseOrientation();
             // find the tangential curves at the "long" sides of the sweptSurface
 
@@ -1716,7 +1715,7 @@ namespace ShapeIt
                 Dictionary<Vertex, List<Edge>> connectedVertices = new Dictionary<Vertex, List<Edge>>(); // how many and which edges of this cluster are connected to the vertex
                 foreach (Edge edgeToRound in edgeCluster)
                 {
-                    foreach (Vertex vtx in edgeToRound.Vertices)
+                    foreach (Vertex vtx in new List<Vertex>([edgeToRound.Vertex1, edgeToRound.Vertex1]))
                     {
                         if (!connectedVertices.TryGetValue(vtx, out List<Edge>? edgesAtVertex)) connectedVertices[vtx] = edgesAtVertex = new List<Edge>();
                         edgesAtVertex.Add(edgeToRound);

@@ -478,6 +478,7 @@ namespace CADability.GeoObject
             catch (ApplicationException) { }
             return sol.ToArray();
         }
+
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetPlaneIntersection (PlaneSurface, double, double, double, double, double)"/>
         /// </summary>
@@ -1362,11 +1363,17 @@ namespace CADability.GeoObject
                                 r2 = Math.Abs(tp[0].x);
                             }
                             tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r1);
-                            alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
-                            aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                            if (tp.Length > 0)
+                            {
+                                alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
+                                aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                            }
                             tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r2);
-                            alp2.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
-                            aln2.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                            if (tp.Length > 0)
+                            {
+                                alp2.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
+                                aln2.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                            }
                         }
                     }
                     tp = Geometry.IntersectLC(new GeoPoint2D(G1.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, 1);
@@ -1388,19 +1395,22 @@ namespace CADability.GeoObject
                     GeoPoint2D pd = np1 + (i * df) * dirp;
                     double r1;
                     tp = Geometry.IntersectLC(pd, GeoVector2D.XAxis, cent1, minorRadius);
-                    if (tp.Length == 1)
-                        r1 = Math.Abs(tp[0].x);
-                    else if (Math.Abs(tp[0].x) > Math.Abs(cent1.x))
+                    if (tp.Length > 0)
                     {
-                        r1 = Math.Abs(tp[0].x);
+                        if (tp.Length == 1)
+                            r1 = Math.Abs(tp[0].x);
+                        else if (Math.Abs(tp[0].x) > Math.Abs(cent1.x))
+                        {
+                            r1 = Math.Abs(tp[0].x);
+                        }
+                        else
+                        {
+                            r1 = Math.Abs(tp[1].x);
+                        }
+                        tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r1);
+                        alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
+                        aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
                     }
-                    else
-                    {
-                        r1 = Math.Abs(tp[1].x);
-                    }
-                    tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r1);
-                    alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
-                    aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
                 }
                 bool lestepunkt = true;
                 do
@@ -1408,21 +1418,24 @@ namespace CADability.GeoObject
                     double r2 = 0;
                     GeoPoint2D pd = np2;
                     GeoPoint2D[] tp = Geometry.IntersectLC(np2, GeoVector2D.XAxis, cent1, minorRadius);
-                    if (tp.Length == 1) r2 = Math.Abs(tp[0].x);
-                    if (Math.Abs(tp[0].x) < Math.Abs(tp[1].x))
+                    if (tp.Length > 0)
                     {
-                        r2 = Math.Abs(tp[1].x);
-                    }
-                    else
-                    {
-                        r2 = Math.Abs(tp[0].x);
-                    }
-                    alp2.Add(m1 * new GeoPoint(pd.x, 0, pd.y));
-                    aln2.Add(m1 * new GeoPoint(pd.x, 0, pd.y));
+                        if (tp.Length == 1) r2 = Math.Abs(tp[0].x);
+                        if (Math.Abs(tp[0].x) < Math.Abs(tp[1].x))
+                        {
+                            r2 = Math.Abs(tp[1].x);
+                        }
+                        else
+                        {
+                            r2 = Math.Abs(tp[0].x);
+                        }
+                        alp2.Add(m1 * new GeoPoint(pd.x, 0, pd.y));
+                        aln2.Add(m1 * new GeoPoint(pd.x, 0, pd.y));
 
-                    tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r2);
-                    alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
-                    aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                        tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r2);
+                        alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
+                        aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                    }
                     lestepunkt = false;
                 } while (lestepunkt);
 
@@ -1447,22 +1460,25 @@ namespace CADability.GeoObject
                                 r2 = Math.Abs(tp[0].x);
                             }
                             tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r1);
-                            //if (tp.Length != 0)
-                            //{
-                            alp2.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
-                            aln2.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
-                            //}
+                            if (tp.Length > 0)
+                            {
+                                alp2.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
+                                aln2.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                            }
                             tp = Geometry.IntersectLC(new GeoPoint2D(pd.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, r2);
-                            //if (tp.Length != 0)
-                            //{
-                            alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
-                            aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
-                            //}
+                            if (tp.Length > 0)
+                            {
+                                alp1.Add(m1 * new GeoPoint(pd.x, Math.Abs(tp[0].y), pd.y));
+                                aln1.Add(m1 * new GeoPoint(pd.x, -Math.Abs(tp[0].y), pd.y));
+                            }
                         }
                     }
                     tp = Geometry.IntersectLC(new GeoPoint2D(G2.x, 0), GeoVector2D.YAxis, GeoPoint2D.Origin, 1);
-                    alp1.Add(m1 * new GeoPoint(G2.x, Math.Abs(tp[0].y), G2.y));
-                    aln1.Add(m1 * new GeoPoint(G2.x, -Math.Abs(tp[0].y), G2.y));
+                    if (tp.Length > 0)
+                    {
+                        alp1.Add(m1 * new GeoPoint(G2.x, Math.Abs(tp[0].y), G2.y));
+                        aln1.Add(m1 * new GeoPoint(G2.x, -Math.Abs(tp[0].y), G2.y));
+                    }
                     alp2.Reverse();
                     aln2.Reverse();
                     alp1.AddRange(alp2);
