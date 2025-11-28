@@ -3600,7 +3600,7 @@ namespace CADability.GeoObject
         internal static Face MakeFace(ISurface surface, IEnumerable<ICurve> outline)
         {
             // simple linear search for best curve
-            HashSet<ICurve> allCurves = new HashSet<ICurve>(outline);
+            HashSet<ICurve> allCurves = [.. outline.Where(c=>c!=null)]; // poles will be genrated
             List<ICurve> sortedCurves = new List<ICurve>();
             ICurve current = allCurves.First();
             allCurves.Remove(current);
@@ -3632,19 +3632,57 @@ namespace CADability.GeoObject
                 if (!forward) next.Reverse();
                 sortedCurves.Add(next);
             }
-            ICurve2D[] bounds2d = new ICurve2D[sortedCurves.Count];
+            List<ICurve2D> bounds2d = [];
+            BoundingRect domain = BoundingRect.EmptyBoundingRect;
             for (int i = 0; i < sortedCurves.Count; ++i)
             {
-                bounds2d[i] = surface.GetProjectedCurve(sortedCurves[i], 0.0);
+                bounds2d.Add(surface.GetProjectedCurve(sortedCurves[i], 0.0));
+                if (i == 0) domain.MinMax(bounds2d[i].GetExtent());
+                else
+                {
+                    SurfaceHelper.AdjustPeriodic(surface, domain, bounds2d[i]);
+                    domain.MinMax(bounds2d[i].GetExtent());
+                }
             }
-            if (!Precision.IsEqual(bounds2d[0].StartPoint, bounds2d[bounds2d.Length - 1].EndPoint)) return null;
+            double[] us = surface.GetUSingularities();
+            double[] vs = surface.GetVSingularities();
+            for (int i = 0; i < us.Length; i++)
+            {
+                for (int j = 0; j < bounds2d.Count; j++)
+                {
+                    int k = (j + 1) % bounds2d.Count;
+                    if (Math.Abs(bounds2d[j].EndPoint.x - us[i]) < Precision.eps && Math.Abs(bounds2d[k].StartPoint.x - us[i]) < Precision.eps)
+                    {   // there is a pole
+                        bounds2d.Insert(k, new Line2D(bounds2d[j].EndPoint, bounds2d[k].StartPoint));
+                        sortedCurves.Insert(k, null); // keep synchronous
+                        ++j; // skip this inserted curve
+                    }
+                }
+            }
+            for (int i = 0; i < vs.Length; i++)
+            {
+                for (int j = 0; j < bounds2d.Count; j++)
+                {
+                    int k = (j + 1) % bounds2d.Count;
+                    if (Math.Abs(bounds2d[j].EndPoint.y - vs[i]) < Precision.eps && Math.Abs(bounds2d[k].StartPoint.y - vs[i]) < Precision.eps
+                        && !Precision.IsEqual(bounds2d[j].EndPoint, bounds2d[k].StartPoint))
+                    {   // there is a pole
+                        bounds2d.Insert(k, new Line2D(bounds2d[j].EndPoint, bounds2d[k].StartPoint));
+                        sortedCurves.Insert(k, null); // keep synchronous, add a pole
+                        ++j; // skip this inserted curve
+                    }
+                }
+            }
+            if (!Precision.IsEqual(bounds2d[0].StartPoint, bounds2d[bounds2d.Count - 1].EndPoint)) return null;
             double area = Border.SignedArea(bounds2d);
             if (area < 0)
             {
                 sortedCurves.Reverse();
+                bounds2d.Reverse();
                 for (int i = 0; i < sortedCurves.Count; i++)
                 {
                     sortedCurves[i].Reverse();
+                    bounds2d[i].Reverse();
                 }
             }
             Edge[] edges = new Edge[sortedCurves.Count];
@@ -3652,7 +3690,7 @@ namespace CADability.GeoObject
             res.surface = surface;
             for (int i = 0; i < sortedCurves.Count; i++)
             {
-                edges[i] = new Edge(res, sortedCurves[i], res, surface.GetProjectedCurve(sortedCurves[i], 0.0), true);
+                edges[i] = new Edge(res, sortedCurves[i], res, bounds2d[i], true);
             }
             res.Set(surface, new Edge[][] { edges }, true);
             return res;

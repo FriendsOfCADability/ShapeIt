@@ -2764,9 +2764,15 @@ namespace CADability.GeoObject
                 List<Vertex> allvertices = Edge.RecalcVertices(allSideEdges);
                 for (int k = 0; k < sweepAngles.Length; k++)
                 {   // one or two passes, depending on full rotation or not
+                    // later remove the following 3 since we now use curves instead of edges
                     Edge[] s1 = sideEdges[k];
                     Edge[] s2 = sideEdges[k + 1]; // rotation goes from s2 edges to s1 edges
                     Edge[] edges = new Edge[path.CurveCount + 1];
+                    // we are using Face.MakeFace with a list of ICurve, which connects and orients the curves
+                    // at the end we use Shell.SewFaces, which connects the edges of the Faces. So the generated faces have independant edges
+                    ICurve[] arcs = new ICurve[path.CurveCount + 1]; // the vertices of the side face creates arcs upon rotation
+                    ICurve[] s1c = new ICurve[path.CurveCount]; // the starting side curves
+                    ICurve[] s2c = new ICurve[path.CurveCount]; // the ending side curves
 
                     ModOp rot = ModOp.Rotate(axis.Location, axis.Direction, sweepAngles[k]);
                     ModOp roffset = ModOp.Rotate(axis.Location, axis.Direction, offsetAngles[k]);
@@ -2779,6 +2785,7 @@ namespace CADability.GeoObject
                         {   // a point on the axis doesn't create an edge, it is a pole or shrinks to some useless edge
                             edges[i] = new Edge(null, null); // a pole, edge will be completed later
                             edges[i].SetVertices(s1[i].Vertex1, s1[i].Vertex1);
+                            arcs[i] = null;
                         }
                         else
                         {
@@ -2789,11 +2796,15 @@ namespace CADability.GeoObject
                             a3d.SetArcPlaneCenterStartEndPoint(pln, GeoPoint2D.Origin, pln.Project(startPoint), pln.Project(endPoint), pln, rotation.Radian > 0);
                             edges[i] = new Edge(null, a3d);
                             edges[i].SetVertices(s2[i].Vertex1, s1[i].Vertex1);
+                            arcs[i] = a3d;
                         }
+                        s1c[i] = sideEdges[k][i].Curve3D.Clone();
+                        s2c[i] = sideEdges[k + 1][i].Curve3D.Clone();
                     }
                     if (path.IsClosed)
                     {
                         edges[edges.Length - 1] = edges[0];
+                        arcs[arcs.Length - 1] = arcs[0];
                     }
                     else
                     {
@@ -2804,17 +2815,18 @@ namespace CADability.GeoObject
                         GeoPoint2D endPoint = pln.Project(rot * path.Curve(path.CurveCount - 1).EndPoint);
                         a3d.SetArcPlaneCenterStartEndPoint(pln, GeoPoint2D.Origin, startPoint, endPoint, pln, rotation.Radian > 0);
                         edges[edges.Length - 1] = new Edge(null, a3d);
+                        arcs[arcs.Length - 1] = a3d;
                     }
 #if DEBUG
                     DebuggerContainer dc = new DebuggerContainer();
                     for (int i = 0; i < s1.Length; i++)
                     {
-                        if (s1[i].Curve3D != null) dc.Add(s1[i].Curve3D as IGeoObject, System.Drawing.Color.Red, i); // to here
-                        if (s2[i].Curve3D != null) dc.Add(s2[i].Curve3D as IGeoObject, System.Drawing.Color.Blue, i); // from here
+                        if (s1c[i] != null) dc.Add(s1c[i] as IGeoObject, System.Drawing.Color.Red, i); // to here
+                        if (s2c[i] != null) dc.Add(s2c[i] as IGeoObject, System.Drawing.Color.Blue, i); // from here
                     }
                     for (int i = 0; i < edges.Length; i++)
                     {
-                        if (edges[i].Curve3D != null) dc.Add(edges[i].Curve3D as IGeoObject, System.Drawing.Color.Green, i); // connecting arcs
+                        if (arcs[i] != null) dc.Add(arcs[i] as IGeoObject, System.Drawing.Color.Green, i); // connecting arcs
                     }
 #endif
                     for (int i = 0; i < path.CurveCount; i++)
@@ -2840,7 +2852,7 @@ namespace CADability.GeoObject
                                 if (edges[i] != null || edges[i + 1] != null)
                                 {
                                     Plane pls;
-                                    if (edges[i].Curve3D != null) pls = (edges[i].Curve3D as ICurve).GetPlane();
+                                    if (arcs[i] != null) pls = (arcs[i] as ICurve).GetPlane();
                                     else pls = (edges[i + 1].Curve3D as ICurve).GetPlane();
                                     surface = new PlaneSurface(pls);
                                 }
@@ -2893,8 +2905,8 @@ namespace CADability.GeoObject
                                     // in normal cases, the spherical surface only provides less than half a sphere, so no pole inside the face when we use an approopriate
                                     // axis for the spherical surface:
                                     GeoPoint p1, p2;
-                                    if (edges[i].Curve3D == null) p1 = edges[i].Vertex1.Position;
-                                    else p1 = edges[i].Curve3D.PointAt(0.5);
+                                    if (arcs[i] == null) p1 = edges[i].Vertex1.Position;
+                                    else p1 = arcs[i].PointAt(0.5);
                                     if (edges[i + 1].Curve3D == null) p2 = edges[i + 1].Vertex1.Position;
                                     else p2 = edges[i + 1].Curve3D.PointAt(0.5);
                                     GeoVector sphereAxis = (p2 - p1).Normalized;
@@ -2938,8 +2950,8 @@ namespace CADability.GeoObject
                             // so we can construct the 2d lines here
                             // if we have rotated surface, edges[i] and edges[i+1] will be horizontal lines in 2d of the surface
                             // if we have a plane, edges[i] and edges[i+1] will be arcs
-                            ICurve2D s12d = surface.GetProjectedCurve(s1[i].Curve3D, 0.0);
-                            ICurve2D s22d = surface.GetProjectedCurve(s2[i].Curve3D, 0.0);
+                            ICurve2D s12d = surface.GetProjectedCurve(s1c[i], 0.0);
+                            ICurve2D s22d = surface.GetProjectedCurve(s2c[i], 0.0);
                             Face fc = Face.Construct(); // empty face to be filled with data
                             s1[i].SetFace(fc, s12d, true);
                             s2[i].SetFace(fc, s22d, true);
@@ -2948,7 +2960,7 @@ namespace CADability.GeoObject
                             {
                                 // the 2 edges of the original face or path beeing roteted plus two arcs build the face
                                 // there might be one of the arcs missing, when it is a pole
-                                if (edges[i].Curve3D != null) e02d = surface.GetProjectedCurve(edges[i].Curve3D, 0.0);
+                                if (arcs[i] != null) e02d = surface.GetProjectedCurve(arcs[i], 0.0);
                                 else e02d = null;
                                 if (edges[i + 1].Curve3D != null) e12d = surface.GetProjectedCurve(edges[i + 1].Curve3D, 0.0);
                                 else e12d = null;
@@ -2972,6 +2984,7 @@ namespace CADability.GeoObject
                                     {
                                         fc.Set(surface, new Edge[] { s2[i], edges[i], s1[i], edges[i + 1] }, null, false);
                                     }
+                                    fc = Face.MakeFace(surface, [s2c[i], arcs[i], s1c[i], arcs[i + 1]]);
                                 }
                                 else if (e02d != null)
                                 {   // edges[i+1] is a pole
@@ -2990,6 +3003,7 @@ namespace CADability.GeoObject
                                     {
                                         fc.Set(surface, new Edge[] { s2[i], edges[i], s1[i] }, null, false);
                                     }
+                                    fc = Face.MakeFace(surface, [s2c[i], arcs[i], s1c[i]]);
                                 }
                                 else if (e12d != null)
                                 {   //edges[i] is a pole
@@ -3009,6 +3023,7 @@ namespace CADability.GeoObject
                                     {
                                         fc.Set(surface, new Edge[] { s2[i], s1[i], edges[i + 1] }, null, false);
                                     }
+                                    fc = Face.MakeFace(surface, [s2c[i], s1c[i], arcs[i + 1]]);
                                 }
                                 else
                                 {
@@ -3023,11 +3038,18 @@ namespace CADability.GeoObject
                                 domain.MinMax(s22d.GetExtent());
                                 SurfaceHelper.AdjustPeriodic(surface, domain, s12d);
                                 List<Edge> edgesToUse = new List<Edge>();
+                                List<ICurve> curvesToUse = [];
                                 List<ICurve2D> curves2d = new List<ICurve2D>();
                                 s2[i].Reverse(fc);
                                 edgesToUse.Add(s2[i]);
-                                if (edges[i].Curve3D != null) edgesToUse.Add(edges[i]);
+                                curvesToUse.Add(s2c[i]);
+                                if (arcs[i] != null)
+                                {
+                                    edgesToUse.Add(edges[i]);
+                                    curvesToUse.Add(arcs[i]);
+                                }
                                 edgesToUse.Add(s1[i]);
+                                curvesToUse.Add(s1c[i]);
                                 if (edges[i + 1].Curve3D != null) edgesToUse.Add(edges[i + 1]);
                                 for (int j = 0; j < edgesToUse.Count; j++)
                                 {
@@ -3047,38 +3069,39 @@ namespace CADability.GeoObject
                                     edgesToUse.Reverse();
                                 }
                                 fc.Set(surface, edgesToUse.ToArray(), null, false);
+                                fc = Face.MakeFace(surface, curvesToUse);
                             }
                             else
                             {
                                 // a rotated surface: the u-parameter goes from 0 to sweepAngle
-                                GeoPoint2D uv1 = surface.PositionOf(s2[i].Curve3D.StartPoint); // from here
-                                GeoPoint2D uv2 = surface.PositionOf(s1[i].Curve3D.StartPoint); // to here
-                                // keep in mind that s1[i].Curve3D.StartPoint or s2[i].Curve3D.StartPoint may be a pole
+                                GeoPoint2D uv1 = surface.PositionOf(s2c[i].StartPoint); // from here
+                                GeoPoint2D uv2 = surface.PositionOf(s1c[i].StartPoint); // to here
+                                // keep in mind that s1c[i].StartPoint or s2c[i].StartPoint may be a pole
                                 if (uv2.x < uv1.x) uv2.x += Math.PI * 2.0;
                                 BoundingRect domain = BoundingRect.EmptyBoundingRect;
-                                if (edges[i].Curve3D != null)
+                                if (arcs[i] != null)
                                 {
-                                    domain.MinMax(surface.GetProjectedCurve(edges[i].Curve3D, 0.0).GetExtent());
+                                    domain.MinMax(surface.GetProjectedCurve(arcs[i], 0.0).GetExtent());
                                 }
-                                else if (edges[i+1].Curve3D != null)
+                                else if (edges[i + 1].Curve3D != null)
                                 {
-                                    domain.MinMax(surface.GetProjectedCurve(edges[i+1].Curve3D, 0.0).GetExtent());
+                                    domain.MinMax(surface.GetProjectedCurve(edges[i + 1].Curve3D, 0.0).GetExtent());
                                 }
                                 // we cannot have both edges beeing poles!
                                 SurfaceHelper.AdjustPeriodic(surface, domain, s12d);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, s22d);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv1);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv2);
-                                if (Precision.IsPointOnAxis(s2[i].Curve3D.StartPoint, axis))
+                                if (Precision.IsPointOnAxis(s2c[i].StartPoint, axis))
                                 {   // make a line of zero length, it will be replaced by the pole line below. So it doesnt disturb area calculation
                                     uv2 = uv1 = s2[i].Curve2D(fc).StartPoint;
                                 }
                                 e02d = new Line2D(uv1, uv2); // will not be used when a pole
-                                uv1 = surface.PositionOf(s2[i].Curve3D.EndPoint);
-                                uv2 = surface.PositionOf(s1[i].Curve3D.EndPoint);
+                                uv1 = surface.PositionOf(s2c[i].EndPoint);
+                                uv2 = surface.PositionOf(s1c[i].EndPoint);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv1);
                                 SurfaceHelper.AdjustPeriodic(surface, domain, ref uv2);
-                                if (Precision.IsPointOnAxis(s2[i].Curve3D.EndPoint, axis))
+                                if (Precision.IsPointOnAxis(s2c[i].EndPoint, axis))
                                 {
                                     uv2 = uv1 = s2[i].Curve2D(fc).EndPoint;
                                 }
@@ -3102,6 +3125,7 @@ namespace CADability.GeoObject
                                 {
                                     fc.Set(surface, new Edge[] { s2[i], edges[i], s1[i], edges[i + 1] }, null, false);
                                 }
+                                fc = Face.MakeFace(surface, [s2c[i], arcs[i], s1c[i], arcs[i + 1]]);
                                 for (int j = 0; j < fc.OutlineEdges.Length; j++)
                                 {
                                     if (fc.OutlineEdges[j].Curve3D == null)
