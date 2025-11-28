@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms.VisualStyles;
@@ -1434,10 +1435,11 @@ namespace ShapeIt
             // The swept circle points to the outward.
             ICurve? topRight = null, topLeft = null, bottomRight = null, bottomLeft = null;
             IDualSurfaceCurve[] dsctr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [leadingEdge.EndPoint, e2.Vertex1.Position], null);
-            topRight = dsctr.MinBy(dsc => { dsc.Trim(leadingEdge.EndPoint, e2.Vertex1.Position);  return dsc.Curve3D.Length; })?.Curve3D; // when there are more, take the shortest
+            topRight = dsctr.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.EndPoint)+ dsc.Curve3D.DistanceTo(e2.Vertex1.Position))?.Curve3D; // when there are more, , take the one closest to the endpoints
+            topRight?.Trim(topRight.PositionOf(leadingEdge.EndPoint), topRight.PositionOf(e2.Vertex1.Position));
             IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [e4.Vertex2.Position, leadingEdge.StartPoint], null);
-            topLeft = dsctl.MinBy(dsc => { dsc.Trim(e4.Vertex2.Position, leadingEdge.StartPoint); return dsc.Curve3D.Length; })?.Curve3D; // when there are more, take the shortest
-
+            topLeft = dsctl.MinBy(dsc => dsc.Curve3D.DistanceTo(e4.Vertex2.Position) + dsc.Curve3D.DistanceTo(leadingEdge.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
+            topLeft?.Trim(topLeft.PositionOf(e4.Vertex2.Position), topLeft.PositionOf(leadingEdge.StartPoint));
             Face topFace = Face.Construct();
             topSurface = edgeToRound.PrimaryFace.Surface.Clone();
             Edge etr = new Edge(topFace, topRight, topFace, topSurface.GetProjectedCurve(topRight, 0.0), true);
@@ -1447,9 +1449,11 @@ namespace ShapeIt
             topFace.Set(topSurface, [[etr, e1, etl, lde]]);
 
             IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [e2.Vertex2.Position, leadingEdge.EndPoint], null);
-            bottomRight = dscbr.MinBy(dsc => { dsc.Trim(e2.Vertex2.Position, leadingEdge.EndPoint); return dsc.Curve3D.Length; })?.Curve3D; // when there are more, take the shortest
+            bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(e2.Vertex2.Position)+ dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
+            bottomRight?.Trim(bottomRight.PositionOf(e2.Vertex2.Position), bottomRight.PositionOf(leadingEdge.EndPoint));
             IDualSurfaceCurve[] dscbl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [leadingEdge.StartPoint, e4.Vertex1.Position], null);
-            bottomLeft = dscbl.MinBy(dsc => { dsc.Trim(leadingEdge.StartPoint, e4.Vertex1.Position); return dsc.Curve3D.Length; })?.Curve3D; // when there are more, take the shortest
+            bottomLeft = dscbl.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.StartPoint) + dsc.Curve3D.DistanceTo(e4.Vertex1.Position))?.Curve3D; // when there are more, take the shortest
+            bottomLeft?.Trim(bottomLeft.PositionOf(leadingEdge.StartPoint), bottomLeft.PositionOf(e4.Vertex1.Position));
 
             Face bottomFace = Face.Construct();
             bottomSurface = edgeToRound.SecondaryFace.Surface.Clone();

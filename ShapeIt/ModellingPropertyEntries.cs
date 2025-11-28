@@ -3389,7 +3389,8 @@ namespace ShapeIt
                 case "MenuId.Edit.Copy":
                     {
                         GeoObjectList toCopy;
-                        toCopy = new GeoObjectList(selectedObjects);
+                        if (selectedChildObjects!=null && selectedChildObjects.Count>0) toCopy = new GeoObjectList(selectedChildObjects);
+                        else toCopy = new GeoObjectList(selectedObjects);
                         cadFrame.UIService.SetClipboardData(toCopy, true);
                     }
                     return true;
@@ -3422,7 +3423,7 @@ namespace ShapeIt
                         {
                             if (go.UserData.ContainsData("CADability.OriginalLayer"))
                             {
-                                Layer layer = go.UserData.GetData("CADability.OriginalLayer") as Layer;
+                                Layer? layer = go.UserData.GetData("CADability.OriginalLayer") as Layer;
                                 if (layer != null) go.Layer = layer;
                             }
                         }

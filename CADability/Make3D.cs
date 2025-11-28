@@ -2661,7 +2661,7 @@ namespace CADability.GeoObject
                 ICurve[] crvs = new ICurve[(faceShellPathCurve as Face).OutlineEdges.Length];
                 for (int i = 0; i < (faceShellPathCurve as Face).OutlineEdges.Length; i++)
                 {
-                    crvs[i] = (faceShellPathCurve as Face).OutlineEdges[i].Curve3D;
+                    crvs[i] = (faceShellPathCurve as Face).OutlineEdges[i].Curve3D.Clone();
                     if (!(faceShellPathCurve as Face).OutlineEdges[i].Forward(faceShellPathCurve as Face)) crvs[i].Reverse();
                 }
                 pth.Set(crvs);

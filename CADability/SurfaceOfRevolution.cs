@@ -220,11 +220,11 @@ namespace CADability.GeoObject
                 {   // the plane must intersect the curve, if not, we take the start or endpoint
                     if (Math.Abs(pln.Distance(curveToRotate.StartPoint)) < Math.Abs(pln.Distance(curveToRotate.EndPoint)))
                     {
-                        ipar = new double[] { 0.0 };
+                        ipar = new double[] { 0.0 + Precision.eps };
                     }
                     else
                     {
-                        ipar = new double[] { 1.0 };
+                        ipar = new double[] { 1.0 - Precision.eps };
                     }
                 }
                 GeoPoint2D res = GeoPoint2D.Invalid;
@@ -1626,6 +1626,23 @@ namespace CADability.GeoObject
                 }
             }
             return base.GetCanonicalForm(precision, bounds);
+        }
+        public override double[] GetVSingularities()
+        {
+            if (curveToRotate != null)
+            {
+                List<double> res = [];
+                double[] ippars = Curves.Intersect(curveToRotate, Line.TwoPoints(axisLocation, axisLocation + axisDirection), false);
+                for (int i = 0; i < ippars.Length; i++)
+                {
+                    if (ippars[i]>-Precision.eps && ippars[i]<1+Precision.eps)
+                    {
+                        res.Add(curveToRotate.PositionToParameter(ippars[i]));
+                    }
+                }
+                return res.ToArray();
+            }
+            return base.GetVSingularities();
         }
         #endregion
         public override IPropertyEntry GetPropertyEntry(IFrame frame)

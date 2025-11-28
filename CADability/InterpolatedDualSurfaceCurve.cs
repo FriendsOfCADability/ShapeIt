@@ -1174,17 +1174,20 @@ namespace CADability
                     (surface2.IsVPeriodic && Math.Abs(basePoints[i + 1].psurface2.y - basePoints[i].psurface2.y) > 1))
                 { }
             }
-            if (hashedPositions.Any())
+            lock (hashedPositions)
             {
-                SurfacePoint sfp = hashedPositions.First().Value;
-                foreach (var item in hashedPositions)
+                if (hashedPositions.Any())
                 {
-                    if ((surface1.IsUPeriodic && Math.Abs(sfp.psurface1.x - item.Value.psurface1.x) > 1) ||
-                        (surface1.IsVPeriodic && Math.Abs(sfp.psurface1.y - item.Value.psurface1.y) > 1) ||
-                        (surface2.IsUPeriodic && Math.Abs(sfp.psurface2.x - item.Value.psurface2.x) > 1) ||
-                        (surface2.IsVPeriodic && Math.Abs(sfp.psurface2.y - item.Value.psurface2.y) > 1))
-                    { }
-                    sfp = item.Value;
+                    SurfacePoint sfp = hashedPositions.First().Value;
+                    foreach (var item in hashedPositions)
+                    {
+                        if ((surface1.IsUPeriodic && Math.Abs(sfp.psurface1.x - item.Value.psurface1.x) > 1) ||
+                            (surface1.IsVPeriodic && Math.Abs(sfp.psurface1.y - item.Value.psurface1.y) > 1) ||
+                            (surface2.IsUPeriodic && Math.Abs(sfp.psurface2.x - item.Value.psurface2.x) > 1) ||
+                            (surface2.IsVPeriodic && Math.Abs(sfp.psurface2.y - item.Value.psurface2.y) > 1))
+                        { }
+                        sfp = item.Value;
+                    }
                 }
             }
             if ((basePoints[basePoints.Length - 1].p3d | basePoints[basePoints.Length - 2].p3d) == 0.0 || (basePoints[0].p3d | basePoints[1].p3d) == 0.0)
