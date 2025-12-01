@@ -3597,6 +3597,12 @@ namespace CADability.GeoObject
             }
             if (surface is ISurfaceImpl si) si.usedArea = Domain;
         }
+        /// <summary>
+        /// Create a face with the provided surface and an (unordered) set of ICurves, which define the outline
+        /// </summary>
+        /// <param name="surface"></param>
+        /// <param name="outline"></param>
+        /// <returns></returns>
         internal static Face MakeFace(ISurface surface, IEnumerable<ICurve> outline)
         {
             // simple linear search for best curve
@@ -3651,7 +3657,8 @@ namespace CADability.GeoObject
                 for (int j = 0; j < bounds2d.Count; j++)
                 {
                     int k = (j + 1) % bounds2d.Count;
-                    if (Math.Abs(bounds2d[j].EndPoint.x - us[i]) < Precision.eps && Math.Abs(bounds2d[k].StartPoint.x - us[i]) < Precision.eps)
+                    if (Math.Abs(bounds2d[j].EndPoint.x - us[i]) < Precision.eps && Math.Abs(bounds2d[k].StartPoint.x - us[i]) < Precision.eps
+                        && !Precision.IsEqual(bounds2d[j].EndPoint, bounds2d[k].StartPoint))
                     {   // there is a pole
                         bounds2d.Insert(k, new Line2D(bounds2d[j].EndPoint, bounds2d[k].StartPoint));
                         sortedCurves.Insert(k, null); // keep synchronous

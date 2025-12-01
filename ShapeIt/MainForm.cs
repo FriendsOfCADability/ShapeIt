@@ -321,7 +321,7 @@ namespace ShapeIt
         private void AutoDebug()
         {
             return;
-            string filename = "F:\\Zeichnungen\\RoundTest3.cdb.json";
+            string? filename = "C:\\Users\\gerha\\Documents\\Zeichnungen\\RotateSurface1.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -361,9 +361,9 @@ namespace ShapeIt
             }
             if (operand1 != null && operand2 != null)
             {
-                if (difference.Count > 0)
+                //if (difference.Count > 0)
                 {
-                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
+                    Solid[] sres = NewBooleanOperation.Subtract(operand2, operand1);
                     if (sres.Length > 0)
                     {
                         Project proj = Project.CreateSimpleProject();

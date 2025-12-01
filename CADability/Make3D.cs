@@ -2764,10 +2764,6 @@ namespace CADability.GeoObject
                 List<Vertex> allvertices = Edge.RecalcVertices(allSideEdges);
                 for (int k = 0; k < sweepAngles.Length; k++)
                 {   // one or two passes, depending on full rotation or not
-                    // later remove the following 3 since we now use curves instead of edges
-                    Edge[] s1 = sideEdges[k];
-                    Edge[] s2 = sideEdges[k + 1]; // rotation goes from s2 edges to s1 edges
-                    Edge[] edges = new Edge[path.CurveCount + 1];
                     // we are using Face.MakeFace with a list of ICurve, which connects and orients the curves
                     // at the end we use Shell.SewFaces, which connects the edges of the Faces. So the generated faces have independant edges
                     ICurve[] arcs = new ICurve[path.CurveCount + 1]; // the vertices of the side face creates arcs upon rotation
@@ -2783,8 +2779,6 @@ namespace CADability.GeoObject
                         GeoPoint sp = roffset * path.Curve(i).StartPoint;
                         if (Precision.IsEqual(cnt, sp))
                         {   // a point on the axis doesn't create an edge, it is a pole or shrinks to some useless edge
-                            edges[i] = new Edge(null, null); // a pole, edge will be completed later
-                            edges[i].SetVertices(s1[i].Vertex1, s1[i].Vertex1);
                             arcs[i] = null;
                         }
                         else
@@ -2794,8 +2788,6 @@ namespace CADability.GeoObject
                             GeoPoint startPoint = roffset * path.Curve(i).StartPoint;
                             GeoPoint endPoint = rot * startPoint;
                             a3d.SetArcPlaneCenterStartEndPoint(pln, GeoPoint2D.Origin, pln.Project(startPoint), pln.Project(endPoint), pln, rotation.Radian > 0);
-                            edges[i] = new Edge(null, a3d);
-                            edges[i].SetVertices(s2[i].Vertex1, s1[i].Vertex1);
                             arcs[i] = a3d;
                         }
                         s1c[i] = sideEdges[k][i].Curve3D.Clone();
@@ -2803,7 +2795,6 @@ namespace CADability.GeoObject
                     }
                     if (path.IsClosed)
                     {
-                        edges[edges.Length - 1] = edges[0];
                         arcs[arcs.Length - 1] = arcs[0];
                     }
                     else
@@ -2814,17 +2805,16 @@ namespace CADability.GeoObject
                         GeoPoint2D startPoint = pln.Project(roffset * path.Curve(path.CurveCount - 1).EndPoint);
                         GeoPoint2D endPoint = pln.Project(rot * path.Curve(path.CurveCount - 1).EndPoint);
                         a3d.SetArcPlaneCenterStartEndPoint(pln, GeoPoint2D.Origin, startPoint, endPoint, pln, rotation.Radian > 0);
-                        edges[edges.Length - 1] = new Edge(null, a3d);
                         arcs[arcs.Length - 1] = a3d;
                     }
 #if DEBUG
                     DebuggerContainer dc = new DebuggerContainer();
-                    for (int i = 0; i < s1.Length; i++)
+                    for (int i = 0; i < s1c.Length; i++)
                     {
                         if (s1c[i] != null) dc.Add(s1c[i] as IGeoObject, System.Drawing.Color.Red, i); // to here
                         if (s2c[i] != null) dc.Add(s2c[i] as IGeoObject, System.Drawing.Color.Blue, i); // from here
                     }
-                    for (int i = 0; i < edges.Length; i++)
+                    for (int i = 0; i < arcs.Length; i++)
                     {
                         if (arcs[i] != null) dc.Add(arcs[i] as IGeoObject, System.Drawing.Color.Green, i); // connecting arcs
                     }
@@ -2833,9 +2823,8 @@ namespace CADability.GeoObject
                     {
                         ISurface surface = null;
                         Plane pln;
-                        if (path.Curve(i) is Line)
+                        if (path.Curve(i) is Line l)
                         {
-                            Line l = path.Curve(i) as Line;
                             if (Precision.SameDirection(l.StartDirection, axis.Direction, false))
                             {
                                 // a line parallel to the axis: cylindrical surface
@@ -2849,11 +2838,10 @@ namespace CADability.GeoObject
                             }
                             else if (Precision.IsPerpendicular(axis.Direction, l.StartDirection, false))
                             {   // a line, perpendicular to the rotation axis makes a plane
-                                if (edges[i] != null || edges[i + 1] != null)
+                                Plane pls;
+                                if (arcs[i] != null)
                                 {
-                                    Plane pls;
-                                    if (arcs[i] != null) pls = (arcs[i] as ICurve).GetPlane();
-                                    else pls = (edges[i + 1].Curve3D as ICurve).GetPlane();
+                                    pls = (arcs[i] as ICurve).GetPlane();
                                     surface = new PlaneSurface(pls);
                                 }
                             }
@@ -2898,21 +2886,17 @@ namespace CADability.GeoObject
                             {
                                 if (Geometry.DistPL(e.Center, axis) < Precision.eps)
                                 {   // a sphere
-                                    // make sure the sphere axis doesnt go through the face
+                                    // make sure the sphere axis doesn't go through the face
                                     // A sphere only is needed when the center of the circle is on the axis of rotation.
                                     // In this case, the arc may start or end on the axis. If it both starts and ends on the axis then the resulting body is a full sphere
                                     // we should check this in the beginning as a special case.
                                     // in normal cases, the spherical surface only provides less than half a sphere, so no pole inside the face when we use an approopriate
                                     // axis for the spherical surface:
                                     GeoPoint p1, p2;
-                                    if (arcs[i] == null) p1 = edges[i].Vertex1.Position;
-                                    else p1 = arcs[i].PointAt(0.5);
-                                    if (edges[i + 1].Curve3D == null) p2 = edges[i + 1].Vertex1.Position;
-                                    else p2 = edges[i + 1].Curve3D.PointAt(0.5);
+                                    p1 = arcs[i].PointAt(0.5);
+                                    p2 = arcs[i + 1].PointAt(0.5);
                                     GeoVector sphereAxis = (p2 - p1).Normalized;
                                     sphereAxis.ArbitraryNormals(out GeoVector dirx, out GeoVector diry);
-                                    //GeoVector diry = (axis.Direction ^ e.Plane.Normal).Normalized;
-                                    //GeoVector dirx = (diry ^ axis.Direction).Normalized;
                                     surface = new SphericalSurface(e.Center, e.Radius * dirx, e.Radius * diry, e.Radius * sphereAxis);
                                 }
                                 else
@@ -2942,204 +2926,10 @@ namespace CADability.GeoObject
                             catch (SurfaceOfRevolutionException) { } // e.g. a Line identical with the axis
                         }
                         if (surface != null)
-                        {
-                            // in all rotated surfaces (CylindricalSurface, ConicalSurface, SphericalSurface, ToroidalSurface, SurfaceOfRevolution) the u parameter
-                            // goes along with our rotation, which is from offset to 0 to sweepangle
-                            // only the plane has independant parameters.
-                            // If there is a pole in a rotated surface, we must make a 2d horizontal line as the 2d curve. s1[i] should have u==0, s2[i] should have u==sweepAngle
-                            // so we can construct the 2d lines here
-                            // if we have rotated surface, edges[i] and edges[i+1] will be horizontal lines in 2d of the surface
-                            // if we have a plane, edges[i] and edges[i+1] will be arcs
-                            ICurve2D s12d = surface.GetProjectedCurve(s1c[i], 0.0);
-                            ICurve2D s22d = surface.GetProjectedCurve(s2c[i], 0.0);
-                            Face fc = Face.Construct(); // empty face to be filled with data
-                            s1[i].SetFace(fc, s12d, true);
-                            s2[i].SetFace(fc, s22d, true);
-                            ICurve2D e02d, e12d; // 2d curves of edges[i], edges[i+1]
-                            if (surface is PlaneSurface)
-                            {
-                                // the 2 edges of the original face or path beeing roteted plus two arcs build the face
-                                // there might be one of the arcs missing, when it is a pole
-                                if (arcs[i] != null) e02d = surface.GetProjectedCurve(arcs[i], 0.0);
-                                else e02d = null;
-                                if (edges[i + 1].Curve3D != null) e12d = surface.GetProjectedCurve(edges[i + 1].Curve3D, 0.0);
-                                else e12d = null;
-                                if (e02d != null && e12d != null)
-                                {   // normal case, all 4 edges are defined
-                                    edges[i].SetFace(fc, e02d, true);
-                                    edges[i + 1].SetFace(fc, e12d, true);
-                                    edges[i + 1].Reverse(fc); // one of the arcs must be reversed
-                                    s2[i].Reverse(fc);
-                                    // now the 2d curves should be connected, but not sure ccw
-                                    double area = Border.SignedArea(new ICurve2D[] { s2[i].Curve2D(fc), edges[i].Curve2D(fc), s1[i].Curve2D(fc), edges[i + 1].Curve2D(fc) });
-                                    if (area < 0)
-                                    {   // reverse all 2d curves
-                                        s1[i].Reverse(fc);
-                                        s2[i].Reverse(fc);
-                                        edges[i].Reverse(fc);
-                                        edges[i + 1].Reverse(fc);
-                                        fc.Set(surface, new Edge[] { s1[i], edges[i], s2[i], edges[i + 1] }, null, false);
-                                    }
-                                    else
-                                    {
-                                        fc.Set(surface, new Edge[] { s2[i], edges[i], s1[i], edges[i + 1] }, null, false);
-                                    }
-                                    fc = Face.MakeFace(surface, [s2c[i], arcs[i], s1c[i], arcs[i + 1]]);
-                                }
-                                else if (e02d != null)
-                                {   // edges[i+1] is a pole
-                                    edges[i].SetFace(fc, e02d, true);
-                                    s2[i].Reverse(fc);
-                                    // now the 2d curves should be connected, but not sure ccw
-                                    double area = Border.SignedArea(new ICurve2D[] { s1[i].Curve2D(fc), edges[i].Curve2D(fc), s2[i].Curve2D(fc) });
-                                    if (area < 0)
-                                    {   // reverse all 2d curves
-                                        s1[i].Reverse(fc);
-                                        s2[i].Reverse(fc);
-                                        edges[i].Reverse(fc);
-                                        fc.Set(surface, new Edge[] { s1[i], edges[i], s2[i] }, null, false);
-                                    }
-                                    else
-                                    {
-                                        fc.Set(surface, new Edge[] { s2[i], edges[i], s1[i] }, null, false);
-                                    }
-                                    fc = Face.MakeFace(surface, [s2c[i], arcs[i], s1c[i]]);
-                                }
-                                else if (e12d != null)
-                                {   //edges[i] is a pole
-                                    edges[i + 1].SetFace(fc, e12d, true);
-                                    edges[i + 1].Reverse(fc); // one of the arcs must be reversed
-                                    s2[i].Reverse(fc);
-                                    // now the 2d curves should be connected, but not sure ccw
-                                    double area = Border.SignedArea(new ICurve2D[] { s1[i].Curve2D(fc), s2[i].Curve2D(fc), edges[i + 1].Curve2D(fc) });
-                                    if (area < 0)
-                                    {   // reverse all 2d curves
-                                        s1[i].Reverse(fc);
-                                        s2[i].Reverse(fc);
-                                        edges[i + 1].Reverse(fc);
-                                        fc.Set(surface, new Edge[] { s1[i], s2[i], edges[i + 1] }, null, false);
-                                    }
-                                    else
-                                    {
-                                        fc.Set(surface, new Edge[] { s2[i], s1[i], edges[i + 1] }, null, false);
-                                    }
-                                    fc = Face.MakeFace(surface, [s2c[i], s1c[i], arcs[i + 1]]);
-                                }
-                                else
-                                {
-                                    fc = null;
-                                }
-                            }
-                            else if (surface is SphericalSurface)
-                            {   // we do not have the u-parameter orientation as in the general case and maybe one of the edsges is obsolete (a pole)
-                                BoundingRect domain = BoundingRect.EmptyBoundingRect;
-                                domain.MinMax(s12d.GetExtent());
-                                SurfaceHelper.AdjustPeriodic(surface, domain, s22d);
-                                domain.MinMax(s22d.GetExtent());
-                                SurfaceHelper.AdjustPeriodic(surface, domain, s12d);
-                                List<Edge> edgesToUse = new List<Edge>();
-                                List<ICurve> curvesToUse = [];
-                                List<ICurve2D> curves2d = new List<ICurve2D>();
-                                s2[i].Reverse(fc);
-                                edgesToUse.Add(s2[i]);
-                                curvesToUse.Add(s2c[i]);
-                                if (arcs[i] != null)
-                                {
-                                    edgesToUse.Add(edges[i]);
-                                    curvesToUse.Add(arcs[i]);
-                                }
-                                edgesToUse.Add(s1[i]);
-                                curvesToUse.Add(s1c[i]);
-                                if (edges[i + 1].Curve3D != null) edgesToUse.Add(edges[i + 1]);
-                                for (int j = 0; j < edgesToUse.Count; j++)
-                                {
-                                    if (edgesToUse[j].PrimaryFace != fc && edgesToUse[j].SecondaryFace != fc)
-                                    {
-                                        ICurve2D prc2d = surface.GetProjectedCurve(edgesToUse[j].Curve3D, 0.0);
-                                        SurfaceHelper.AdjustPeriodic(surface, domain, prc2d);
-                                        edgesToUse[j].SetFace(fc, prc2d, true);
-                                        if (edgesToUse[j] == edges[i + 1]) edgesToUse[j].Reverse(fc);
-                                    }
-                                    curves2d.Add(edgesToUse[j].Curve2D(fc));
-                                }
-                                double area = Border.SignedArea(curves2d.ToArray());
-                                if (area < 0)
-                                {   // reverse all 2d curves and the order in the list
-                                    for (int j = 0; j < edgesToUse.Count; j++) edgesToUse[j].Reverse(fc);
-                                    edgesToUse.Reverse();
-                                }
-                                fc.Set(surface, edgesToUse.ToArray(), null, false);
-                                fc = Face.MakeFace(surface, curvesToUse);
-                            }
-                            else
-                            {
-                                // a rotated surface: the u-parameter goes from 0 to sweepAngle
-                                GeoPoint2D uv1 = surface.PositionOf(s2c[i].StartPoint); // from here
-                                GeoPoint2D uv2 = surface.PositionOf(s1c[i].StartPoint); // to here
-                                // keep in mind that s1c[i].StartPoint or s2c[i].StartPoint may be a pole
-                                if (uv2.x < uv1.x) uv2.x += Math.PI * 2.0;
-                                BoundingRect domain = BoundingRect.EmptyBoundingRect;
-                                if (arcs[i] != null)
-                                {
-                                    domain.MinMax(surface.GetProjectedCurve(arcs[i], 0.0).GetExtent());
-                                }
-                                else if (edges[i + 1].Curve3D != null)
-                                {
-                                    domain.MinMax(surface.GetProjectedCurve(edges[i + 1].Curve3D, 0.0).GetExtent());
-                                }
-                                // we cannot have both edges beeing poles!
-                                SurfaceHelper.AdjustPeriodic(surface, domain, s12d);
-                                SurfaceHelper.AdjustPeriodic(surface, domain, s22d);
-                                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv1);
-                                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv2);
-                                if (Precision.IsPointOnAxis(s2c[i].StartPoint, axis))
-                                {   // make a line of zero length, it will be replaced by the pole line below. So it doesnt disturb area calculation
-                                    uv2 = uv1 = s2[i].Curve2D(fc).StartPoint;
-                                }
-                                e02d = new Line2D(uv1, uv2); // will not be used when a pole
-                                uv1 = surface.PositionOf(s2c[i].EndPoint);
-                                uv2 = surface.PositionOf(s1c[i].EndPoint);
-                                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv1);
-                                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv2);
-                                if (Precision.IsPointOnAxis(s2c[i].EndPoint, axis))
-                                {
-                                    uv2 = uv1 = s2[i].Curve2D(fc).EndPoint;
-                                }
-                                e12d = new Line2D(uv1, uv2); // will not be used when a pole
-                                edges[i].SetFace(fc, e02d, true);
-                                edges[i + 1].SetFace(fc, e12d, true);
-
-                                s2[i].Reverse(fc);
-                                edges[i + 1].Reverse(fc);
-                                // now the 2d curves should be connected, but not sure ccw
-                                double area = Border.SignedArea(new ICurve2D[] { s2[i].Curve2D(fc), edges[i].Curve2D(fc), s1[i].Curve2D(fc), edges[i + 1].Curve2D(fc) });
-                                if (area < 0)
-                                {   // reverse all 2d curves
-                                    s1[i].Reverse(fc);
-                                    s2[i].Reverse(fc);
-                                    edges[i].Reverse(fc);
-                                    edges[i + 1].Reverse(fc);
-                                    fc.Set(surface, new Edge[] { s1[i], edges[i], s2[i], edges[i + 1] }, null, false);
-                                }
-                                else
-                                {
-                                    fc.Set(surface, new Edge[] { s2[i], edges[i], s1[i], edges[i + 1] }, null, false);
-                                }
-                                fc = Face.MakeFace(surface, [s2c[i], arcs[i], s1c[i], arcs[i + 1]]);
-                                for (int j = 0; j < fc.OutlineEdges.Length; j++)
-                                {
-                                    if (fc.OutlineEdges[j].Curve3D == null)
-                                    {   // a pole: the 2d curve mus be the connection of the previous edge end point with the next edge startpoint
-                                        int next = (j + 1) % fc.OutlineEdges.Length;
-                                        int prev = (j - 1 + fc.OutlineEdges.Length) % fc.OutlineEdges.Length;
-                                        ICurve2D pcurve2d = fc.OutlineEdges[prev].Curve2D(fc);
-                                        ICurve2D ncurve2d = fc.OutlineEdges[next].Curve2D(fc);
-                                        if (fc.OutlineEdges[j].PrimaryFace == fc) fc.OutlineEdges[j].PrimaryCurve2D = new Line2D(pcurve2d.EndPoint, ncurve2d.StartPoint);
-                                        else fc.OutlineEdges[j].SecondaryCurve2D = new Line2D(pcurve2d.EndPoint, ncurve2d.StartPoint);
-                                    }
-                                }
-                            }
-                            if (fc != null) faces.Add(fc.Clone() as Face); // erstmal clone, damit die edges unabhängig sind. Sonst gibts bei sewfaces einen fehler. Allerdings muss SewFaces gefixt werden
+                        {   // Face.MakeFace sorts and orients the curves as needed. If a curve is null, it will not be used.
+                            // poles will be generated by Face.MakeFace
+                            Face fc = Face.MakeFace(surface, [s2c[i].Clone(), arcs[i].Clone(), s1c[i].Clone(), arcs[i + 1].Clone()]);
+                            if (fc != null) faces.Add(fc);
 #if DEBUG
                             bool ccok = faces[faces.Count - 1].CheckConsistency();
                             faces[faces.Count - 1].GetTriangulation(0.01, out GeoPoint[] tp, out GeoPoint2D[] uv, out int[] ind, out BoundingCube bc);
@@ -3149,9 +2939,24 @@ namespace CADability.GeoObject
                         }
                     }
                 }
+#if DEBUG
+                for (int i = 0; i < faces.Count; i++)
+                {
+                    foreach (Edge edg in faces[i].Edges)
+                    {
+                        if (edg.Vertex1 == edg.Vertex2) { }
+                    }
+                }
+#endif
                 Shell[] shells = SewFaces(faces.ToArray());
                 if (shells.Length == 1)
                 {
+#if DEBUG
+                    foreach (Edge edg in shells[0].Edges)
+                    {
+                        if (edg.Vertex1 == edg.Vertex2) { }
+                    }
+#endif
                     Style stl = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
                     if (stl != null) shells[0].Style = stl;
                     if (shells[0].HasOpenEdgesExceptPoles()) return shells[0];
