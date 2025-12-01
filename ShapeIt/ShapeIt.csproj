@@ -70,6 +70,10 @@
 		</EmbeddedResource>
 	</ItemGroup>
 
+	<ItemGroup>
+	  <PackageReference Include="MethodDecorator.Fody" Version="1.1.1" />
+	</ItemGroup>
+
 	<!-- Mini-Task zum Erhöhen der 4. Stelle (Revision) -->
 	<UsingTask TaskName="BumpVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
 		<ParameterGroup>

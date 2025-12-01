@@ -3606,7 +3606,7 @@ namespace CADability.GeoObject
         internal static Face MakeFace(ISurface surface, IEnumerable<ICurve> outline)
         {
             // simple linear search for best curve
-            HashSet<ICurve> allCurves = [.. outline.Where(c=>c!=null)]; // poles will be genrated
+            HashSet<ICurve> allCurves = [.. outline.Where(c => c != null).Select(c => c.Clone())]; // poles will be generated below, use Clone() because the curves might be reversed
             List<ICurve> sortedCurves = new List<ICurve>();
             ICurve current = allCurves.First();
             allCurves.Remove(current);
@@ -3642,7 +3642,7 @@ namespace CADability.GeoObject
             BoundingRect domain = BoundingRect.EmptyBoundingRect;
             for (int i = 0; i < sortedCurves.Count; ++i)
             {
-                bounds2d.Add(surface.GetProjectedCurve(sortedCurves[i], 0.0));
+                bounds2d.Add(surface.GetProjectedCurve(sortedCurves[i].Clone(), 0.0)); // .Clone, because when it is a ProjectedCurve, then it must be independant from the Edge curve
                 if (i == 0) domain.MinMax(bounds2d[i].GetExtent());
                 else
                 {
@@ -3650,6 +3650,7 @@ namespace CADability.GeoObject
                     domain.MinMax(bounds2d[i].GetExtent());
                 }
             }
+            if (surface is ISurfaceImpl si) si.SetBounds(domain);
             double[] us = surface.GetUSingularities();
             double[] vs = surface.GetVSingularities();
             for (int i = 0; i < us.Length; i++)
@@ -3684,12 +3685,14 @@ namespace CADability.GeoObject
             double area = Border.SignedArea(bounds2d);
             if (area < 0)
             {
+                // 1. reverse the arrays
                 sortedCurves.Reverse();
                 bounds2d.Reverse();
+                // 2. reverse the 2d and 3d curves
                 for (int i = 0; i < sortedCurves.Count; i++)
                 {
-                    sortedCurves[i].Reverse();
-                    bounds2d[i].Reverse();
+                    bounds2d[i].Reverse(); // ProjectedCurves are independant from the 3d curves
+                    if (sortedCurves[i] != null) sortedCurves[i].Reverse(); // it might be a pole
                 }
             }
             Edge[] edges = new Edge[sortedCurves.Count];
@@ -3699,7 +3702,7 @@ namespace CADability.GeoObject
             {
                 edges[i] = new Edge(res, sortedCurves[i], res, bounds2d[i], true);
             }
-            res.Set(surface, new Edge[][] { edges }, true);
+            res.Set(surface, [edges], false); // outline needs not to be checked
             return res;
         }
 

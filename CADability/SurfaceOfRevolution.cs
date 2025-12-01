@@ -1,5 +1,7 @@
-﻿using CADability.Curve2D;
+﻿using CADability.Attribute;
+using CADability.Curve2D;
 using CADability.UserInterface;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
@@ -11,7 +13,7 @@ namespace CADability.GeoObject
     {
         public SurfaceOfRevolutionException(string msg) : base(msg) { }
     }
-    [Serializable()]
+    [Serializable(), Log]
     public class SurfaceOfRevolution : ISurfaceImpl, ISurfaceOfRevolution, ISerializable, IExportStep, IJsonSerialize, IJsonSerializeDone, IDeserializationCallback
     {
         // the following properties should be removed:
@@ -124,6 +126,7 @@ namespace CADability.GeoObject
                     {
                         Polyline plu = Polyline.Construct();
                         plu.SetPoints(pu, false);
+                        plu.ColorDef = new ColorDef("plu", System.Drawing.Color.Blue);
                         res.Add(plu);
                     }
                     catch (PolylineException)
@@ -137,6 +140,7 @@ namespace CADability.GeoObject
                     {
                         Polyline plv = Polyline.Construct();
                         plv.SetPoints(pv, false);
+                        plv.ColorDef = new ColorDef("plv", System.Drawing.Color.Blue);
                         res.Add(plv);
                     }
                     catch (PolylineException)
@@ -145,6 +149,19 @@ namespace CADability.GeoObject
                         pntv.Location = pv[0];
                         pntv.Symbol = PointSymbol.Cross;
                         res.Add(pntv);
+                    }
+                    if (i == 0)
+                    {
+                        GeoVector du = UDirection(new GeoPoint2D(umin, vmin));
+                        GeoVector dv = VDirection(new GeoPoint2D(umin, vmin));
+                        GeoPoint p00 = PointAt(new GeoPoint2D(umin, vmin));
+
+                        Line ldu = Line.TwoPoints(p00, p00 + du);
+                        Line ldv = Line.TwoPoints(p00, p00 + dv);
+                        ldu.ColorDef = new ColorDef("du", System.Drawing.Color.Red);
+                        ldv.ColorDef = new ColorDef("dv", System.Drawing.Color.Green);
+                        res.Add(ldu);
+                        res.Add(ldv);
                     }
                 }
                 GeoPoint2D c2d = new GeoPoint2D((umax + umin) / 2, (vmax + vmin) / 2);
@@ -1635,7 +1652,7 @@ namespace CADability.GeoObject
                 double[] ippars = Curves.Intersect(curveToRotate, Line.TwoPoints(axisLocation, axisLocation + axisDirection), false);
                 for (int i = 0; i < ippars.Length; i++)
                 {
-                    if (ippars[i]>-Precision.eps && ippars[i]<1+Precision.eps)
+                    if (ippars[i] > -Precision.eps && ippars[i] < 1 + Precision.eps)
                     {
                         res.Add(curveToRotate.PositionToParameter(ippars[i]));
                     }

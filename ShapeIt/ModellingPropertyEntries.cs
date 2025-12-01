@@ -858,7 +858,7 @@ namespace ShapeIt
                 }
                 subEntries.Add(multipleEdges);
             }
-            else if (edges.Any()) subEntries.Add(GetEdgeProperties(vw, edges.First(), clickBeam));
+            else if (edges.Any()) subEntries.AddIfNotNull(GetEdgeProperties(vw, edges.First(), clickBeam));
 
             // add the menus for Solids 
             if (solids.Count > 1)
@@ -2231,6 +2231,10 @@ namespace ShapeIt
         }
         private IPropertyEntry GetEdgeProperties(IView vw, Edge edg, Axis clickBeam)
         {
+            if (edg.PrimaryFace == null || edg.SecondaryFace == null || !(edg.PrimaryFace.Owner is Shell)) return null;
+            Shell? owningShell = edg.PrimaryFace.Owner as Shell;
+
+
             SelectEntry edgeMenus = new SelectEntry("MenuId.Edge", true); // the container for all edge related menus or properties
             HashSet<Edge> edges = Shell.ConnectedSameGeometryEdges(new Edge[] { edg });
             GeoObjectList selection = Helper.ThickCurvesFromEdges(edges);
@@ -2247,7 +2251,6 @@ namespace ShapeIt
                 return true;
             };
 
-            Shell owningShell = edg.PrimaryFace.Owner as Shell;
 
             if (edg.Curve3D is Ellipse && (edg.PrimaryFace.Surface is CylindricalSurface || edg.SecondaryFace.Surface is CylindricalSurface
                 || edg.PrimaryFace.Surface is ConicalSurface || edg.SecondaryFace.Surface is ConicalSurface))

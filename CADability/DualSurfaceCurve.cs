@@ -960,6 +960,11 @@ namespace CADability
             double par3d = Get3dParameter(pos);
             uv = surface.PositionOf(curve3D.PointAt(par3d));
             if (!periodicDomain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref uv);
+            if (par3d < 1e-6 && startPoint2d.x == 0.0 && startPoint2d.y == 0.0)
+            {
+                startPoint2d = (endParam > startParam) ? surface.PositionOf(curve3D.StartPoint) : surface.PositionOf(curve3D.EndPoint);
+                if (!periodicDomain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref startPoint2d);
+            }
             if (par3d < 1e-6 && startPointIsPole) uv = startPoint2d;
             if (par3d > 1 - 1e-6 && endPointIsPole) uv = endPoint2d;
             if ((surface.IsUPeriodic && periodicDomain.Width > surface.UPeriod * (1 - 1e-6)) || (surface.IsVPeriodic && periodicDomain.Height > surface.VPeriod * (1 - 1e-6)))
@@ -979,6 +984,21 @@ namespace CADability
             if (s.IsValid())
             {   // what about the length? Added the .Normalized, because in "HyperCube Evolution - Double Z motor 1.stp" the direction length is definitely wrong
                 dir = (endParam - startParam) * new GeoVector2D(s[0], s[1]).Normalized;
+                double tstPar;
+                if (pos<0.05)
+                {
+                    double pos1 = pos + 0.05;
+                    GeoPoint2D uv1 = PointAt(pos1);
+                    GeoVector2D dir1 = uv1 - uv;
+                    if (dir1 * dir < 0.0) dir = -dir;
+                }
+                else
+                {
+                    double pos1 = pos - 0.05;
+                    GeoPoint2D uv1 = PointAt(pos1);
+                    GeoVector2D dir1 = uv - uv1;
+                    if (dir1 * dir < 0.0) dir = -dir;
+                }
             }
             else
             {
@@ -1151,6 +1171,11 @@ namespace CADability
             point = GeoPoint2D.Origin;
             deriv = deriv2 = GeoVector2D.NullVector;
             return false;
+        }
+
+        internal void InvalidateSecondaryData()
+        {
+            ClearTriangulation();
         }
 
         #endregion
