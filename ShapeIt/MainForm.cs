@@ -320,8 +320,8 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            return;
-            string? filename = "C:\\Users\\gerha\\Documents\\Zeichnungen\\RotateSurface1.cdb.json";
+            // return;
+            string? filename = null; // "C:\\Users\\gerha\\Documents\\Zeichnungen\\RotateSurface1.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -361,7 +361,7 @@ namespace ShapeIt
             }
             if (operand1 != null && operand2 != null)
             {
-                //if (difference.Count > 0)
+                if (difference.Count > 0)
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand2, operand1);
                     if (sres.Length > 0)
@@ -393,6 +393,8 @@ namespace ShapeIt
             }
             if (edgeMarkers.Count > 0)
             {
+                List<Edge> edgesToRound = [];
+                Shell? shellToRound = null;
                 foreach (Solid s in slds)
                 {
                     foreach (Edge edg in s.Shells[0].Edges)
@@ -401,11 +403,13 @@ namespace ShapeIt
                         {
                             if (edg.Curve3D.SameGeometry(em, 0.1))
                             {
-                                Shell rounded = s.Shells[0].RoundEdges(new Edge[] { edg }, 2);
+                                edgesToRound.Add(edg);
+                                shellToRound = s.Shells[0];
                             }
                         }
                     }
                 }
+                Shell? rounded = shellToRound?.RoundEdges(edgesToRound, 2);
             }
             //if (slds.Count == 1)
             //{
