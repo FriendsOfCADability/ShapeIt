@@ -661,7 +661,11 @@ namespace CADability
         ICurve curve3D;
         ISurface surface;
         BoundingRect periodicDomain; // only for periodic domains: to which period the 3d points should be mapped
+#if DEBUG
+        public
+#endif
         GeoPoint2D startPoint2d, endPoint2d;
+
         bool startPointIsPole, endPointIsPole;
 #if DEBUG
         static int debugCounter = 0;
@@ -677,72 +681,25 @@ namespace CADability
             this.surface = surface;
             List<GeoPoint> lpoles = new List<GeoPoint>();
             List<GeoPoint2D> lpoles2d = new List<GeoPoint2D>();
-            GeoPoint2D cnt2d = domain.GetCenter();
             GeoPoint sp = curve3D.StartPoint;
             GeoPoint ep = curve3D.EndPoint;
             double[] us = surface.GetUSingularities();
             double prec = precision;
             if (prec == 0.0) prec = curve3D.Length * 1e-3; // changed to 1e-3, it is used to snap endpoints to poles
-            startPoint2d = surface.PositionOf(curve3D.StartPoint);
-            endPoint2d = surface.PositionOf(curve3D.EndPoint);
-            if ((surface.IsUPeriodic && Math.Abs(startPoint2d.x - endPoint2d.x) < surface.UPeriod * 1e-3) ||
-                (surface.IsVPeriodic && Math.Abs(startPoint2d.y - endPoint2d.y) < surface.VPeriod * 1e-3))
-            {   // adjust start and endpoint according to its neighbors
-                GeoPoint2D p2d = surface.PositionOf(curve3D.PointAt(0.1));
-                SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref p2d);
-                BoundingRect ext = new BoundingRect(p2d);
-                SurfaceHelper.AdjustPeriodic(surface, ext, ref startPoint2d);
-                p2d = surface.PositionOf(curve3D.PointAt(0.9));
-                SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref p2d);
-                ext.MinMax(p2d);
-                SurfaceHelper.AdjustPeriodic(surface, ext, ref endPoint2d);
-            }
             periodicDomain = domain;
-            if (periodicDomain.IsEmpty() && (surface.IsUPeriodic || surface.IsVPeriodic))
+            GeoPoint2D[] point2Ds = new GeoPoint2D[11];
+            // make a few points and assure that they don't jump over the periodic seam
+            // if the curve3d doesn't jump around wildly, this should work. Maybe use curve3D.GetSavePositions?
+            for (int i = 0; i < 11; i++)
             {
-                // make a few points and assure that they don't jump over the periodic seam
-                // if the curve3d doesn't jump around wildly, this should work. Maybe use curve3D.GetSavePositions?
-                GeoPoint2D[] point2Ds = new GeoPoint2D[11];
-#if DEBUG
-                GeoPoint2D[] point2Dsdbg = new GeoPoint2D[11];
-#endif
-                for (int i = 0; i < 11; i++)
-                {
-                    point2Ds[i] = surface.PositionOf(curve3D.PointAt(i / 10.0));
-                    if (surface.IsUPeriodic) point2Ds[i].x = Math.IEEERemainder(point2Ds[i].x, surface.UPeriod);
-                    if (surface.IsVPeriodic) point2Ds[i].y = Math.IEEERemainder(point2Ds[i].y, surface.VPeriod);
-
-#if DEBUG
-                    //(surface as ISurfaceImpl).BoxedSurfaceEx.PositionOf(curve3D.PointAt(i / 10.0), out point2Dsdbg[i]);
-#endif
-                }
-                for (int i = 0; i < 10; i++)
-                {
-                    GeoVector2D offset = GeoVector2D.NullVector;
-                    if (surface.IsUPeriodic && Math.Abs(point2Ds[i + 1].x - point2Ds[i].x) > surface.UPeriod / 2.0)
-                    {
-                        if ((point2Ds[i + 1].x - point2Ds[i].x) < 0) offset.x = surface.UPeriod;
-                        else offset.x = -surface.UPeriod;
-                    }
-                    if (surface.IsVPeriodic && Math.Abs(point2Ds[i + 1].y - point2Ds[i].y) > surface.VPeriod / 2.0)
-                    {
-                        if ((point2Ds[i + 1].y - point2Ds[i].y) < 0) offset.y = surface.VPeriod;
-                        else offset.y = -surface.VPeriod;
-                    }
-                    point2Ds[i + 1] += offset;
-                }
-                for (int i = 0; i < 11; i++)
-                {
-                    periodicDomain.MinMax(point2Ds[i]);
-                }
-                startPoint2d = point2Ds[0];
-                endPoint2d = point2Ds[10];
+                point2Ds[i] = surface.PositionOf(curve3D.PointAt(i / 10.0));
+                if (i > 0 || !domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref point2Ds[i]);
+                if (domain.IsEmpty()) periodicDomain.MinMax(point2Ds[i]);
             }
-            if (!periodicDomain.IsEmpty() && (!surface.IsUPeriodic || periodicDomain.Width < surface.UPeriod * (1 - 1e-6)) && (!surface.IsVPeriodic || periodicDomain.Height < surface.VPeriod * (1 - 1e-6)))
-            {
-                SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref startPoint2d);
-                SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref endPoint2d);
-            }
+            startPoint2d = point2Ds[0];
+            endPoint2d = point2Ds[10];
+            // there must be a better way to set starting and ending points in case of a pole?
+            GeoPoint2D cnt2d = periodicDomain.GetCenter();
             startPointIsPole = endPointIsPole = false;
             for (int i = 0; i < us.Length; i++)
             {
@@ -801,6 +758,17 @@ namespace CADability
             this.startParam = startParam;
             this.endParam = endParam;
             periodicDomain = domain;
+            GeoPoint2D[] point2Ds = new GeoPoint2D[11];
+            // make a few points and assure that they don't jump over the periodic seam
+            // if the curve3d doesn't jump around wildly, this should work. Maybe use curve3D.GetSavePositions?
+            for (int i = 0; i < 11; i++)
+            {
+                point2Ds[i] = surface.PositionOf(curve3D.PointAt(i / 10.0));
+                if (i > 0 || !domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref point2Ds[i]);
+                if (domain.IsEmpty()) periodicDomain.MinMax(point2Ds[i]);
+            }
+            startPoint2d = point2Ds[0];
+            endPoint2d = point2Ds[10];
         }
         internal override void GetTriangulationPoints(out GeoPoint2D[] interpol, out double[] interparam)
         {
@@ -972,12 +940,22 @@ namespace CADability
                 if (par3d < 1e-6) uv = startPoint2d;
                 else if (par3d > 1 - 1e-6) uv = endPoint2d;
             }
+            GeoPoint2D duv = uv;
+            if (par3d < 1e-6 && startPointIsPole)
+            {
+                duv = surface.PositionOf(curve3D.PointAt(0.05));
+            }
+            if (par3d > 1 - 1e-6 && endPointIsPole)
+            {
+                duv = surface.PositionOf(curve3D.PointAt(0.95));
+            }
+
             GeoVector dir3d = curve3D.DirectionAt(par3d);
             // Punkt auf der Fläche und Richtung im Raum:
             // wie drückt sich diese Raumrichtung in diru und dirv aus
             GeoPoint loc;
             GeoVector diru, dirv;
-            surface.DerivationAt(uv, out loc, out diru, out dirv);
+            surface.DerivationAt(duv, out loc, out diru, out dirv);
             Matrix m = DenseMatrix.OfColumnArrays(diru, dirv, diru ^ dirv);
             Vector b = new DenseVector(dir3d);
             Vector s = (Vector)m.Solve(b);
@@ -985,10 +963,11 @@ namespace CADability
             {   // what about the length? Added the .Normalized, because in "HyperCube Evolution - Double Z motor 1.stp" the direction length is definitely wrong
                 dir = (endParam - startParam) * new GeoVector2D(s[0], s[1]).Normalized;
                 double tstPar;
-                if (pos<0.05)
+                if (pos < 0.05)
                 {
                     double pos1 = pos + 0.05;
                     GeoPoint2D uv1 = PointAt(pos1);
+                    SurfaceHelper.AdjustPeriodic(surface, new BoundingRect(uv), ref uv1);
                     GeoVector2D dir1 = uv1 - uv;
                     if (dir1 * dir < 0.0) dir = -dir;
                 }
@@ -996,6 +975,7 @@ namespace CADability
                 {
                     double pos1 = pos - 0.05;
                     GeoPoint2D uv1 = PointAt(pos1);
+                    SurfaceHelper.AdjustPeriodic(surface, new BoundingRect(uv), ref uv1);
                     GeoVector2D dir1 = uv - uv1;
                     if (dir1 * dir < 0.0) dir = -dir;
                 }
@@ -1122,8 +1102,8 @@ namespace CADability
         {
             // actually we cannot modify a projected curve, because it relies on the 3d curve and the surface
             if (m.IsIdentity) return Clone();
-            GeoPoint2D sp = m*StartPoint;
-            GeoPoint2D ep = m*EndPoint;
+            GeoPoint2D sp = m * StartPoint;
+            GeoPoint2D ep = m * EndPoint;
             if (Precision.IsEqual(sp, EndPoint) && Precision.IsEqual(ep, StartPoint))
             {
                 return this.CloneReverse(true);
