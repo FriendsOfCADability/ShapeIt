@@ -1370,7 +1370,7 @@ namespace CADability.GeoObject
                     ip[i].y *= minorRadius;
                     GeoPoint p = plane.ToGlobal(ip[i]);
                     double par = (this as ICurve).PositionOf(p);
-                    if (par >= 0.0 && par <= 1.0) res.Add(p);
+                    if (par >-Precision.eps && par < 1.0+Precision.eps) res.Add(p);
                 }
             }
 
@@ -2721,6 +2721,7 @@ namespace CADability.GeoObject
             if (other is Ellipse)
             {
                 Ellipse o = other as Ellipse;
+                if (precision == 0.0) precision = Precision.eps;
                 if ((Center | o.Center) < precision)
                 {
                     // geändert wg. Dan Swope 18.9.15. gegeneinadner verderehte Kreise und invers orientierte Bögen sollen gleich sein

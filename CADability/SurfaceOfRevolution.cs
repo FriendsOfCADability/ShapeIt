@@ -13,7 +13,7 @@ namespace CADability.GeoObject
     {
         public SurfaceOfRevolutionException(string msg) : base(msg) { }
     }
-    [Serializable(), Log]
+    [Serializable()]
     public class SurfaceOfRevolution : ISurfaceImpl, ISurfaceOfRevolution, ISerializable, IExportStep, IJsonSerialize, IJsonSerializeDone, IDeserializationCallback
     {
         // the following properties should be removed:
@@ -524,6 +524,36 @@ namespace CADability.GeoObject
         }
         public override ICurve2D GetProjectedCurve(ICurve curve, double precision)
         {
+            if (curve is Ellipse elli)
+            {
+                if (Geometry.DistPL(elli.Center, axisLocation, axisDirection) < Precision.eps && Precision.SameDirection(elli.Normal, axisDirection, false))
+                {   // this is a concentric circle or arc to the surface axis
+                    GeoPoint2D sp = PositionOf(curve.StartPoint);
+                    GeoPoint2D mp = PositionOf(curve.PointAt(0.5));
+                    GeoPoint2D ep = PositionOf(curve.EndPoint);
+                    if (!usedArea.IsEmpty())
+                    {
+                        SurfaceHelper.AdjustPeriodic(this, usedArea, ref sp);
+                        SurfaceHelper.AdjustPeriodic(this, usedArea, ref mp);
+                        SurfaceHelper.AdjustPeriodic(this, usedArea, ref ep);
+                    }
+                    return new Line2D(sp, ep);
+                }
+            }
+            if (curveToRotate != null)
+            {
+                double[] vs = GetVSingularities();
+                GeoPoint2D uv = PositionOf(curve.PointAt(0.5)); // this shhould not be a pole
+                ICurve rotated = curveToRotate.CloneModified(ModOp.Rotate(axisLocation, axisDirection, uv.x));
+                if (rotated.SameGeometry(curve, 0.0))
+                {
+                    GeoPoint2D sp = PositionOf(curve.StartPoint);
+                    GeoPoint2D ep = PositionOf(curve.EndPoint);
+                    sp.x = uv.x; // in case one of the points is a pole
+                    ep.x = uv.x;
+                    return new Line2D(sp, ep);
+                }
+            }
             return new ProjectedCurve(curve, this, true, usedArea); // works also with empty usedArea
         }
         /// <summary>
