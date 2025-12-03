@@ -702,7 +702,7 @@ namespace CADability.GeoObject
             IGeoObject res = MakeRuledShellX(firstPath, secondPath, true, project);
             if (res is Solid) return res as Solid;
 
-            throw new NotImplementedException();
+            return null;
         }
         /// <summary>
         /// Connects the two wires with a ruled surface. The two wires must have the same number of segments.
@@ -781,8 +781,8 @@ namespace CADability.GeoObject
                 Plane secondpln = secondPath.GetPlane();
                 if (firstpln.Normal * secondpln.Normal < 0) secondpln.Reverse();
                 Plane pln = new Plane(new GeoPoint(firstpln.Location, secondpln.Location), new GeoVector(firstpln.Normal, secondpln.Normal));
-                double a1 = Border.FromOrientedList((firstPath.GetProjectedCurve(pln) as Path2D).SubCurves, true).Area;
-                double a2 = Border.FromOrientedList((secondPath.GetProjectedCurve(pln) as Path2D).SubCurves, true).Area;
+                double a1 = Border.SignedArea((firstPath.GetProjectedCurve(pln) as Path2D).SubCurves);
+                double a2 = Border.SignedArea((secondPath.GetProjectedCurve(pln) as Path2D).SubCurves);
                 if (Math.Sign(a1) != Math.Sign(a2)) (secondPath as ICurve).Reverse();
             }
             if (firstPath.IsClosed && secondPath.IsClosed)

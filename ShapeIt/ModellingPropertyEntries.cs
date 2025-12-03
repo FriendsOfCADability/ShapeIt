@@ -1229,24 +1229,28 @@ namespace ShapeIt
                 {
                     try
                     {
-                        Solid sld = Make3D.MakeRuledSolid(paths[0], paths[1], cadFrame.Project);
-                        if (sld != null)
+                        DirectMenuEntry makeRuledSolid = new DirectMenuEntry("MenuId.Constr.Solid.RuledSolid");
+                        makeRuledSolid.IsSelected = (selected, frame) =>
                         {
-                            DirectMenuEntry makeRuledSolid = new DirectMenuEntry("MenuId.Constr.Solid.RuledSolid");
-                            makeRuledSolid.IsSelected = (selected, frame) =>
-                            {
-                                feedback.Clear();
-                                if (selected) feedback.FrontFaces.Add(sld);
-                                feedback.Refresh();
-                                return true;
-                            };
-                            makeRuledSolid.ExecuteMenu = (frame) =>
+                            feedback.Clear();
+                            Solid sld = Make3D.MakeRuledSolid(paths[0], paths[1], cadFrame.Project);
+                            if (selected && sld != null) feedback.FrontFaces.Add(sld);
+                            feedback.Refresh();
+                            return true;
+                        };
+                        makeRuledSolid.ExecuteMenu = (frame) =>
+                        {
+                            Solid sld = Make3D.MakeRuledSolid(paths[0], paths[1], cadFrame.Project);
+                            if (sld != null)
                             {
                                 frame.Project.GetActiveModel().Add(sld);
-                                return true;
-                            };
-                            res.Add(makeRuledSolid);
-                        }
+                                Clear(); // clear the control center menu
+                                ComposeModellingEntries(new GeoObjectList(sld), frame.ActiveView, null, false, false); // show the resulting solid in the controlcenter
+
+                            }
+                            return true;
+                        };
+                        res.Add(makeRuledSolid);
                     }
                     catch (NotImplementedException) { }
                 }
@@ -3392,7 +3396,7 @@ namespace ShapeIt
                 case "MenuId.Edit.Copy":
                     {
                         GeoObjectList toCopy;
-                        if (selectedChildObjects!=null && selectedChildObjects.Count>0) toCopy = new GeoObjectList(selectedChildObjects);
+                        if (selectedChildObjects != null && selectedChildObjects.Count > 0) toCopy = new GeoObjectList(selectedChildObjects);
                         else toCopy = new GeoObjectList(selectedObjects);
                         cadFrame.UIService.SetClipboardData(toCopy, true);
                     }

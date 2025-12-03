@@ -190,7 +190,7 @@ namespace ShapeIt
                 MenuSize.IntegerValue = 0;
                 UserInterface.AddSetting("MenuSize", MenuSize);
             }
-            Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false); // we start face extrus with newly generated face, which has no owner
+            Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false); 
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);
             Settings.GlobalSettings.SetValue("ShapeIt.Initialized", true);
@@ -320,7 +320,7 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            // return;
+            return;
             string? filename = null; // "C:\\Users\\gerha\\Documents\\Zeichnungen\\RotateSurface1.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished

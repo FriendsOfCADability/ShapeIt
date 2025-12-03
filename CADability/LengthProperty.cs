@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace CADability.UserInterface
 {
@@ -137,30 +138,48 @@ namespace CADability.UserInterface
         protected override bool TextToValue(string text, out double val)
         {
             bool success = false;
-            if (numberFormatInfo.NumberDecimalSeparator == ".")
-                text = text.Replace(",", ".");
 
-            if (numberFormatInfo.NumberDecimalSeparator == ",")
-                text = text.Replace(".", ",");
+            Match m = Match.Empty;
+            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d+)?\s*$");
+                // text = text.Replace(",", ".");
 
-            //Remove duplicate NumberDecimalSeparator from end to start.
-            text = StringHelper.RemoveExtraStrings(text, numberFormatInfo.NumberDecimalSeparator);
-                
-            val = 0.0;
-            try
-            {
-                val = double.Parse(text, numberFormatInfo);
-                success = true;
+            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d+)?\s*$");
+            // text = text.Replace(".", ",");
+            if (m.Success)
+            {   // this seems to be a valid double literal
+                //Remove duplicate NumberDecimalSeparator from end to start.
+                text = StringHelper.RemoveExtraStrings(text, numberFormatInfo.NumberDecimalSeparator);
+
+                val = 0.0;
+                try
+                {
+                    val = double.Parse(text, numberFormatInfo);
+                    success = true;
+                }
+                catch (FormatException)
+                {
+                    if (text == "-") success = true; // allow to start with "-"
+                }
+                catch (OverflowException)
+                {
+                }
+
+                return success;
             }
-            catch (FormatException)
+            else
             {
-                if (text == "-") success = true; // allow to start with "-"
+                object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                if (o is double dd)
+                {
+                    val = dd;
+                    return true;
+                }
+                else
+                {
+                    val = 0.0;
+                    return false;
+                }
             }
-            catch (OverflowException)
-            {
-            }
-            
-            return success;
         }
         
         protected override string ValueToText(double val)

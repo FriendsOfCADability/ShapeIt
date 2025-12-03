@@ -172,6 +172,27 @@ public static class GeometryOps
         throw new InvalidOperationException($"Operator '*' ist nicht definiert für {a.Kind} * {b.Kind}.");
     }
 
+    public static Value Div(Value a, Value b)
+    {
+
+        // v / d -> v (dividing a vector)
+        if (a.Kind == ValueKind.Vector && b.Kind == ValueKind.Scalar)
+        {
+            return Value.FromVector(new GeoVector(
+                a.Vector.x / b.Scalar,
+                a.Vector.y / b.Scalar,
+                a.Vector.z / b.Scalar));
+        }
+
+        // scalar * scalar -> scalar
+        if (a.Kind == ValueKind.Scalar && b.Kind == ValueKind.Scalar)
+        {
+            return Value.FromScalar(a.Scalar / b.Scalar);
+        }
+
+        // Operator '/' is not defined for {a.Kind} * {b.Kind}.
+        throw new InvalidOperationException($"Operator '/' ist nicht definiert für {a.Kind} * {b.Kind}.");
+    }
     public static Value Cross(Value a, Value b)
     {
         // v ^ v -> v (cross product)
@@ -249,7 +270,7 @@ public enum TokenType
 {
     Number,
     Identifier,
-    Plus, Minus, Star, Caret, Pipe,
+    Plus, Minus, Star, Slash, Caret, Pipe,
     LParen, RParen,
     Comma, // für evtl. mehrargumentige Funktionen in Zukunft
 }
@@ -320,6 +341,7 @@ public static class Lexer
                 case '+': tokens.Add(new Token(TokenType.Plus, "+")); i++; continue;
                 case '-': tokens.Add(new Token(TokenType.Minus, "-")); i++; continue;
                 case '*': tokens.Add(new Token(TokenType.Star, "*")); i++; continue;
+                case '/': tokens.Add(new Token(TokenType.Slash, "/")); i++; continue;
                 case '^': tokens.Add(new Token(TokenType.Caret, "^")); i++; continue;
                 case '|': tokens.Add(new Token(TokenType.Pipe, "|")); i++; continue;
                 case '(': tokens.Add(new Token(TokenType.LParen, "(")); i++; continue;
@@ -358,6 +380,7 @@ public static class Parser
     {
         { TokenType.Caret, new OpInfo { Prec = 3, Assoc = Assoc.Left, Symbol="^" } },
         { TokenType.Star,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="*" } },
+        { TokenType.Slash,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="/" } },
         { TokenType.Pipe,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="|" } },
         { TokenType.Plus,  new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol="+" } },
         { TokenType.Minus, new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol="-" } },
@@ -540,6 +563,7 @@ public static class Parser
                 case TokenType.Plus:
                 case TokenType.Minus:
                 case TokenType.Star:
+                case TokenType.Slash:
                 case TokenType.Caret:
                 case TokenType.Pipe:
                     {
@@ -670,6 +694,7 @@ public static class Evaluator
                     case Token t when t.Type == TokenType.Plus ||
                                        t.Type == TokenType.Minus ||
                                        t.Type == TokenType.Star ||
+                                       t.Type == TokenType.Slash||
                                        t.Type == TokenType.Caret ||
                                        t.Type == TokenType.Pipe:
                         {
@@ -690,6 +715,9 @@ public static class Evaluator
                                     break;
                                 case TokenType.Star:
                                     res = GeometryOps.Mul(a, b);
+                                    break;
+                                case TokenType.Slash:
+                                    res = GeometryOps.Div(a, b);
                                     break;
                                 case TokenType.Caret:
                                     res = GeometryOps.Cross(a, b);
