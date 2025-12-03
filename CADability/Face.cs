@@ -6194,62 +6194,6 @@ namespace CADability.GeoObject
             SimpleShape ss = Area; // damit es sicher bestimmt ist
                                    // wenn die Fläche Knicke hat, dann entlang der Knicke aufteilen
 
-            //Code unreachable
-            /*
-            ICurve2D[] discontinuities;
-            
-            if (false)
-            // if (surface.HasDiscontinuousDerivative(out discontinuities))
-            {
-                // Das Face an den Knicken aufteilen. Die erste Aufteilung, die wirklich zwei Teilfaces
-                // liefert, ruft rekursiv die Triangulierung auf. Es muss sichergestellt werden
-                // dass die Rekursion zu Ende kommt: Einmal an einer Kante geteilt liefert Unterflächen,
-                // die an dieser Kante nicht mehr teilbar sind.
-                // Wenn es hier garnicht zur Aufteilung kommt, dann wird der Normalfall durchgeführt
-
-                // ein weiteres noch ungelöstes Problem an dieser Stelle ist, dass der Normalenvektor
-                // an der Kante eigentlich undefiniert ist bzw. zwei Werte hat.
-                // Deshalb sehen die Flächen oft nicht kantig genug aus.
-                for (int i = 0; i < discontinuities.Length; i++)
-                {
-                    Border splitWith = new Border(discontinuities[i]);
-                    CompoundShape splitted = Area.Split(splitWith);
-                    if (splitted.SimpleShapes.Length > 1)
-                    {
-                        List<GeoPoint> lsttrianglePoint = new List<GeoPoint>();
-                        List<GeoPoint2D> lsttriangleUVPoint = new List<GeoPoint2D>();
-                        List<int> lsttriangleIndex = new List<int>();
-                        for (int j = 0; j < splitted.SimpleShapes.Length; j++)
-                        {
-                            CompoundShape shrink = splitted.SimpleShapes[j].Shrink(splitted.SimpleShapes[j].GetExtent().Size * 1e-6);
-                            SimpleShape sss;
-                            if (shrink.SimpleShapes.Length == 1) sss = shrink.SimpleShapes[0];
-                            else sss = splitted.SimpleShapes[j];
-                            Face fc = Face.MakeFace(surface, sss);
-                            GeoPoint[] tmptrianglePoint;
-                            GeoPoint2D[] tmptriangleUVPoint;
-                            int[] tmptriangleIndex;
-                            BoundingCube tmptriangleExtent;
-                            fc.GetTriangulation(precision, out tmptrianglePoint, out tmptriangleUVPoint, out tmptriangleIndex, out tmptriangleExtent);
-                            for (int k = 0; k < tmptriangleIndex.Length; k++)
-                            {
-                                tmptriangleIndex[k] += lsttrianglePoint.Count;
-                            }
-                            lsttrianglePoint.AddRange(tmptrianglePoint);
-                            lsttriangleUVPoint.AddRange(tmptriangleUVPoint);
-                            lsttriangleIndex.AddRange(tmptriangleIndex);
-                        }
-                        lock (lockTriangulationData)
-                        {
-                            trianglePoint = lsttrianglePoint.ToArray();
-                            triangleUVPoint = lsttriangleUVPoint.ToArray();
-                            triangleIndex = lsttriangleIndex.ToArray();
-                        }
-                        return;
-                    }            
-                }                
-            }
-            */
 
 #if DEBUG
             // System.Diagnostics.Trace.WriteLine("Triangulate: " + hashCode.ToString() + ", prec: " + precision.ToString() + ", " + (System.Environment.TickCount / 100).ToString());
@@ -8357,6 +8301,57 @@ namespace CADability.GeoObject
                         l2d.EndPoint = outline[after].Curve2D(this).StartPoint;
                     }
 
+                }
+                if (jsonSerialize.FileVersion <= Version.Parse("1.0.22.0"))
+                {   // fixing a bug with wrong connected 2d curves
+                    try
+                    {
+                        jsonSerialize.InvokeSerializationDoneCallback(surface);
+                        if (surface.IsUPeriodic || surface.IsVPeriodic)
+                        {
+                            foreach (Edge edg in Edges)
+                            {
+                                jsonSerialize.InvokeSerializationDoneCallback(edg);
+                            }
+                            if ((surface.IsUPeriodic && Domain.Width > surface.UPeriod) || (surface.IsVPeriodic && Domain.Height > surface.VPeriod))
+                            {
+                                BoundingRect ext = BoundingRect.EmptyBoundingRect;
+                                for (int i = 0; i < outline.Length; i++)
+                                {
+                                    GeoPoint2D uv = surface.PositionOf(outline[i].StartVertex(this).Position);
+                                    if (i > 0) SurfaceHelper.AdjustPeriodic(surface, ext, ref uv);
+                                    ext.MinMax(uv);
+                                }
+                                surface.SetBounds(ext);
+                                foreach (Edge edg in Edges)
+                                {
+                                    if (edg.PrimaryFace == this)
+                                    {
+                                        if (edg.Curve3D is InterpolatedDualSurfaceCurve ipdsc && ipdsc.Surface1.SameGeometry(ext, surface, ext, Precision.eps, out _))
+                                        {
+                                            ipdsc.Surface1.SetBounds(ext);
+                                            ipdsc.SetBounds(ext, BoundingRect.EmptyBoundingRect);
+                                        }
+                                        edg.PrimaryCurve2D = surface.GetProjectedCurve(edg.Curve3D, 0.0);
+                                        if (!edg.Forward(this)) edg.PrimaryCurve2D.Reverse();
+                                        SurfaceHelper.AdjustPeriodic(surface, ext, edg.PrimaryCurve2D);
+                                    }
+                                    if (edg.SecondaryFace == this)
+                                    {
+                                        if (edg.Curve3D is InterpolatedDualSurfaceCurve ipdsc && ipdsc.Surface2.SameGeometry(ext, surface, ext, Precision.eps, out _))
+                                        {
+                                            ipdsc.Surface2.SetBounds(ext);
+                                            ipdsc.SetBounds(BoundingRect.EmptyBoundingRect, ext);
+                                        }
+                                        edg.SecondaryCurve2D = surface.GetProjectedCurve(edg.Curve3D, 0.0);
+                                        if (!edg.Forward(this)) edg.SecondaryCurve2D.Reverse();
+                                        SurfaceHelper.AdjustPeriodic(surface, ext, edg.SecondaryCurve2D);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception) { }
                 }
             }
         }

@@ -37,6 +37,9 @@ namespace CADability
     {
         ISurface surface1; // the two surfaces
         ISurface surface2;
+#if DEBUG
+        internal
+#endif
         BoundingRect bounds1 = BoundingRect.EmptyBoundingRect, bounds2 = BoundingRect.EmptyBoundingRect; // the uv region, where these surfaces are beeing used
         SurfacePoint[] basePoints; // some points, especially start and endpoint, of the curve, that have been calculated
         bool forwardOriented; // the crossproduct surface1.Normal^surface2.Normal is the direction of the curve if true
@@ -3286,6 +3289,7 @@ namespace CADability
                             }
                         }
                         hashedPositions.Clear();
+                        (bounds1, bounds2) = (bounds2, bounds1);
                     }
                     return;
                 }
@@ -3664,6 +3668,14 @@ namespace CADability
             double posSp = PositionOf(startPoint);
             double posEp = PositionOf(endPoint);
             Trim(posSp, posEp);
+        }
+
+        internal void SetBounds(BoundingRect bounds1, BoundingRect bounds2)
+        {
+            if (!bounds1.IsEmpty()) this.bounds1 = bounds1;
+            if (!bounds2.IsEmpty()) this.bounds2 = bounds2;
+            hashedPositions.Clear();
+            RecalcSurfacePoints(bounds1, bounds2);
         }
 
         #endregion

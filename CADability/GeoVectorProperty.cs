@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using Action = CADability.Actions.Action;
 
 namespace CADability.UserInterface
@@ -302,14 +303,15 @@ namespace CADability.UserInterface
             propertyPage?.Refresh(this);
         }
 
+        static readonly string InputPattern =
+@"^\s*(?<x>[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))(?:\s+(?<y>[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+))(?:\s+(?<z>[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)))?)?\s*$";
         protected override bool TextToValue(string text, out GeoVector val)
         {
-            string trimmed = text;
-            trimmed = trimmed.Replace("°", ""); // remove the degree character
-            char[] WhiteSpace = new char[] { (char)0x9, (char)0xA, (char)0xB, (char)0xC, (char)0xD, (char)0x20, (char)0xA0, (char)0x2000, (char)0x2001, (char)0x2002, (char)0x2003, (char)0x2004, (char)0x2005, (char)0x2006, (char)0x2007, (char)0x2008, (char)0x2009, (char)0x200A, (char)0x200B, (char)0x3000, (char)0xFEFF };
-            string[] Parts = trimmed.Split(WhiteSpace);
-            GeoVector v = new GeoVector(0.0, 0.0, 0.0);
-            bool success = false;
+
+            text = text.Trim();
+            val = GeoVector.Invalid;
+            if (string.IsNullOrEmpty(text)) return false;
+
             if (isAngle)
             {
                 Plane pl = planeForAngle;
@@ -317,128 +319,68 @@ namespace CADability.UserInterface
                 {
                     pl = Frame.ActiveView.Projection.DrawingPlane;
                 }
-                if (Parts.Length == 1)
-                {
+                Match m = Match.Empty;
+                if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d+)?\s*$");
+                if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d+)?\s*$");
+                if (m.Success)
+                {   // this seems to be a valid double literal
+                    //Remove duplicate NumberDecimalSeparator from end to start.
+                    text = StringHelper.RemoveExtraStrings(text, numberFormatInfo.NumberDecimalSeparator);
+
                     try
                     {
                         Angle a = new Angle();
-                        a.Degree = double.Parse(Parts[0], numberFormatInfo);
-                        v = pl.ToGlobal(new GeoVector2D(a));
-                        success = true;
+                        a.Degree = double.Parse(text, numberFormatInfo);
+                        val = pl.ToGlobal(new GeoVector2D(a));
+                        return true;
                     }
-                    catch (System.FormatException)
+                    catch (FormatException)
                     {
-                        if (Parts[0] == "-") success = true; // allow to start with "-", v will be unchanged
+                        if (text == "-") return true; // allow to start with "-"
+                    }
+                    catch (OverflowException)
+                    {
                     }
                 }
-                else if (Parts.Length == 2)
+                else
                 {
-                    try
+                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                    if (o is double dd)
                     {
-                        Angle longitude = new Angle(), latitude = new Angle();
-                        longitude.Degree = double.Parse(Parts[0], numberFormatInfo);
-                        latitude.Degree = double.Parse(Parts[1], numberFormatInfo);
-                        v = pl.ToGlobal(new GeoVector(longitude, latitude));
-                        success = true;
-                    }
-                    catch (System.FormatException)
-                    {
-                        if (Parts[0] == "-" || Parts[1] == "-") success = true; // allow to start with "-"
+                        Angle a = new Angle();
+                        a.Degree = dd;
+                        val = pl.ToGlobal(new GeoVector2D(a));
+                        return true;
                     }
                 }
             }
             else
             {
-                if (Parts.Length >= 3)
+                var m = Regex.Match(text, InputPattern);
+                if (m.Success)
                 {
-                    try
-                    {
-                        v.x = double.Parse(Parts[0], numberFormatInfo);
-                        v.y = double.Parse(Parts[1], numberFormatInfo);
-                        v.z = double.Parse(Parts[2], numberFormatInfo);
-                        success = true;
-                    }
-                    catch (System.FormatException)
-                    {
-                        if (Parts[0] == "-" || Parts[1] == "-" || Parts[2] == "-") success = true; // allow to start with "-", some v components will be 0
+                    GeoVector v = GeoVector.NullVector;
+                    if (m.Groups["x"].Success) v.x = double.Parse(m.Groups["x"].Value, numberFormatInfo);
+                    if (m.Groups["y"].Success) v.y = double.Parse(m.Groups["y"].Value, numberFormatInfo);
+                    if (m.Groups["z"].Success) v.z = double.Parse(m.Groups["z"].Value, numberFormatInfo);
+                    if (m.Groups["x"].Success)
+                    {   // the text value might be in a local coordinate system, the value itself is always in the global system
+                        val = LocalToGlobal(v);
+                        return true;
                     }
                 }
-                else if (Parts.Length == 2)
+                else
                 {
-                    try
+                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                    if (o is GeoVector pp)
                     {
-                        v.x = double.Parse(Parts[0], numberFormatInfo);
-                        v.y = double.Parse(Parts[1], numberFormatInfo);
-                        v.z = 0.0;
-                        success = true;
-                    }
-                    catch (System.FormatException)
-                    {
-                        if (Parts[0] == "-" || Parts[1] == "-") success = true; // allow to start with "-", some v components will be 0
-                    }
-                }
-                else if (Parts.Length == 1)
-                {
-                    try
-                    {
-                        v.x = double.Parse(Parts[0], numberFormatInfo);
-                        v.y = 0.0;
-                        v.z = 0.0;
-                        success = true;
-                    }
-                    catch (System.FormatException)
-                    {
-                        if (Parts[0] == "-") success = true; // allow to start with "-", some v components will be 0
+                        val = pp;
+                        return true;
                     }
                 }
             }
-            if (success)
-            {   // ggf. lokale Eingabe berücksichtigen
-                val = LocalToGlobal(v);
-                return true;
-            }
-            else
-            {
-                if (isAngle)
-                {
-                    try
-                    {
-                        //Scripting s = new Scripting();
-                        //if (Frame != null)
-                        //{
-                        //    Plane pl = planeForAngle;
-                        //    if (!pl.IsValid())
-                        //    {
-                        //        pl = Frame.ActiveView.Projection.DrawingPlane;
-                        //    }
-                        //    Angle a = new Angle();
-                        //    a.Degree = s.GetDouble(Frame.Project.NamedValues, trimmed);
-                        //    val = pl.ToGlobal(new GeoVector2D(a));
-                        //    return true;
-                        //}
-                    }
-                    catch //(ScriptingException)
-                    {
-                    }
-                }
-                if (!success)
-                {
-                    try
-                    {
-                        //Scripting s = new Scripting();
-                        //if (Frame != null)
-                        //{
-                        //    val = s.GetGeoVector(Frame.Project.NamedValues, trimmed);
-                        //    return true;
-                        //}
-                    }
-                    catch //(ScriptingException)
-                    {
-                    }
-                }
-                val = GeoVector.Invalid;
-                return false;
-            }
+            return false;
+
         }
         protected override string ValueToText(GeoVector p)
         {

@@ -509,6 +509,7 @@ namespace CADability
         Dictionary<int, int> typeIndexToVersion;
         Queue<Tuple<IJsonSerialize, JsonDict>> deferred;
         private bool verbose;
+        private string fileVersion;
 
         public JsonSerialize()
         {
@@ -693,7 +694,7 @@ namespace CADability
                 JsonDict cdb = allObjects["CADability"] as JsonDict;
                 if (cdb != null)
                 {
-                    string versionstring = cdb["Version"] as string;
+                    fileVersion = cdb["Version"] as string;
                 }
                 if (!allObjects.ContainsKey("Entities")) return null;
                 List<object> entities = allObjects["Entities"] as List<object>;
@@ -739,6 +740,7 @@ namespace CADability
         {
             get { return outStream!=null; }   
         }
+        public Version FileVersion { get { return new Version(fileVersion); } }
         private SerializationInfo SerializationInfoFromJsonData(JsonDict data, Type tp, List<object> entities, HashSet<ulong> underConstruction)
         {
             SerializationInfo si = new SerializationInfo(tp, new FormatterConverter());
