@@ -1285,6 +1285,8 @@ namespace CADability.GeoObject
                     }
                 }
 
+                return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
+                // the following returns bad results with more than two seeds, and it is too complex
 
 
                 ImplicitPSurface ips = (torus as IImplicitPSurface).GetImplicitPSurface();
@@ -1787,7 +1789,9 @@ namespace CADability.GeoObject
             double u = Math.Atan2(c.y, c.x);
             if (u < 0.0) u += 2.0 * Math.PI;
             double v = c.z;
-            return new GeoPoint2D(u, v);
+            GeoPoint2D res = new GeoPoint2D(u, v);
+            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+            return res;
         }
         private GeoPoint2D PositionOfUnit(GeoPoint p)
         {
@@ -1922,7 +1926,9 @@ namespace CADability.GeoObject
                 {
                     double u = Math.Atan2(l.StartPoint.y, l.StartPoint.x);
                     if (u < 0.0) u += 2.0 * Math.PI;
-                    return new Line2D(new GeoPoint2D(u, l.StartPoint.z), new GeoPoint2D(u, l.EndPoint.z));
+                    ICurve2D res = new Line2D(new GeoPoint2D(u, l.StartPoint.z), new GeoPoint2D(u, l.EndPoint.z));
+                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    return res;
                 }
             }
             else if (crvunit is Ellipse)
@@ -1951,14 +1957,19 @@ namespace CADability.GeoObject
                         }
                         // Grenzfälle: ustart oder uend liegen auf 0.0 oder 2*pi
                         // dann weiß man nicht ob der Punkt zyklisch richtig ist
-                        return new Line2D(new GeoPoint2D(ustart, e.Center.z), new GeoPoint2D(uend, e.Center.z));
+                        ICurve2D res = new Line2D(new GeoPoint2D(ustart, e.Center.z), new GeoPoint2D(uend, e.Center.z));
+                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        return res;
                     }
                     else
                     {
+                        ICurve2D res;
                         if (forward)
-                            return new Line2D(new GeoPoint2D(0.0, e.Center.z), new GeoPoint2D(2.0 * Math.PI, e.Center.z));
+                            res = new Line2D(new GeoPoint2D(0.0, e.Center.z), new GeoPoint2D(2.0 * Math.PI, e.Center.z));
                         else
-                            return new Line2D(new GeoPoint2D(2.0 * Math.PI, e.Center.z), new GeoPoint2D(0.0, e.Center.z));
+                            res = new Line2D(new GeoPoint2D(2.0 * Math.PI, e.Center.z), new GeoPoint2D(0.0, e.Center.z));
+                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        return res;
                     }
                 }
                 else
@@ -1987,7 +1998,11 @@ namespace CADability.GeoObject
                         else if (curve.DistanceTo(PointAt(sc2.PointAt(1.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5 && curve.DistanceTo(PointAt(sc2.PointAt(2.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5) sc = sc2;
                         else if (curve.DistanceTo(PointAt(sc3.PointAt(1.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5 && curve.DistanceTo(PointAt(sc3.PointAt(2.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5) sc = sc3;
                         else if (curve.DistanceTo(PointAt(sc4.PointAt(1.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5 && curve.DistanceTo(PointAt(sc4.PointAt(2.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5) sc = sc4;
-                        if (sc != null) return sc;
+                        if (sc != null)
+                        {
+                            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, sc); // must be adjusted to usedArea
+                            return sc;
+                        }
                     }
                 }
             }

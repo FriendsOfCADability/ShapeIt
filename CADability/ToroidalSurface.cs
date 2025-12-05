@@ -12,6 +12,9 @@ namespace CADability.GeoObject
     /// the "big" circles around the main axis, the v parameter describes the "small" circles.
     /// </summary>
     [Serializable()]
+#if DEBUG
+    [Log]
+#endif
     public class ToroidalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IImplicitPSurface, IExportStep, ISurfaceOfArcExtrusion, ISurfaceOfRevolution
     {
         private ModOp toTorus; // diese ModOp modifiziert den Einheitstorus in den konkreten Torus
@@ -117,11 +120,13 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
-            GeoPoint pu = toUnit * p;
-            return PositionOfInUnit(pu);
+            GeoPoint2D res = PositionOfInUnit(toUnit * p);
+            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+            return res;
         }
         private GeoPoint2D PositionOfInUnit(GeoPoint pu)
         {
+            GeoPoint2D res;
             double a = Math.Sqrt(pu.x * pu.x + pu.y * pu.y) - 1.0; // Abstand des Fußpunkts vom Einheitskreis
             double u = Math.Atan2(pu.y, pu.x);
             double v = Math.Atan2(pu.z, a);
@@ -142,14 +147,16 @@ namespace CADability.GeoObject
 
                 }
 #endif
-                if (dd1 < dd2) return new GeoPoint2D(u, v);
-                else return new GeoPoint2D(u + Math.PI, v2);
+                if (dd1 < dd2) res = new GeoPoint2D(u, v);
+                else res = new GeoPoint2D(u + Math.PI, v2);
             }
             else
             {
                 if (minorRadius < 0) v += Math.PI;
-                return new GeoPoint2D(u, v);
+                res = new GeoPoint2D(u, v);
             }
+            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+            return res;
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetZMinMax (Projection, double, double, double, double, ref double, ref double)"/>
@@ -2218,11 +2225,13 @@ namespace CADability.GeoObject
 #if DEBUG
                                 ICurve dbg = Make3dCurve(res);
 #endif
+                                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
                                 return res;
                             }
                             else
                             {
                                 Line2D res = new Line2D(new GeoPoint2D(uv.x, uv.y), new GeoPoint2D(uv.x - Math.Abs(e.SweepParameter), uv.y));
+                                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
                                 return res;
                             }
                         }
@@ -2237,6 +2246,7 @@ namespace CADability.GeoObject
                             {
                                 res = new Line2D(new GeoPoint2D(uv.x + Math.PI * 2.0, uv.y), new GeoPoint2D(uv.x, uv.y));
                             }
+                            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
                             return res;
                         }
                     }
@@ -2266,11 +2276,13 @@ namespace CADability.GeoObject
                             {
                                 // beides gleiche Richtung
                                 Line2D res = new Line2D(new GeoPoint2D(uv.x, uv.y), new GeoPoint2D(uv.x, uv.y + Math.Abs(e.SweepParameter)));
+                                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
                                 return res;
                             }
                             else
                             {
                                 Line2D res = new Line2D(new GeoPoint2D(uv.x, uv.y), new GeoPoint2D(uv.x, uv.y - Math.Abs(e.SweepParameter)));
+                                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
                                 return res;
                             }
                         }
@@ -2285,6 +2297,7 @@ namespace CADability.GeoObject
                             {
                                 res = new Line2D(new GeoPoint2D(uv.x, uv.y + Math.PI * 2.0), new GeoPoint2D(uv.x, uv.y));
                             }
+                            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
                             return res;
                         }
                     }
@@ -2357,7 +2370,9 @@ namespace CADability.GeoObject
             boxedSurfaceEx = null;
             toTorus = toTorus * new ModOp(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0); // umkehrung von y
             toUnit = toTorus.GetInverse();
-            return new ModOp2D(-1, 0, 2.0 * Math.PI, 0, 1, 0);
+            ModOp2D res = new ModOp2D(-1, 0, 2.0 * Math.PI, 0, 1, 0);
+            if (!usedArea.IsEmpty()) usedArea.Modify(res);
+            return res;
         }
 
         /// <summary>

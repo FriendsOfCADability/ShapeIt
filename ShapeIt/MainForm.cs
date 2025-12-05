@@ -320,8 +320,8 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            return;
-            string? filename = null; // "C:\\Users\\gerha\\Documents\\Zeichnungen\\RotateSurface1.cdb.json";
+            // return;
+            string? filename = @"F:\Zeichnungen\RoundTest5.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))

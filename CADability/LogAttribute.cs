@@ -2,6 +2,7 @@
 using System;
 using System.Reflection;
 using CADability;
+using CADability.GeoObject;
 #if DEBUG
 [AttributeUsage(AttributeTargets.Method | AttributeTargets.Constructor | AttributeTargets.Class)]
 public class LogAttribute : Attribute, IMethodDecorator
@@ -17,13 +18,10 @@ public class LogAttribute : Attribute, IMethodDecorator
     // Wird nach erfolgreichem Ende ausgeführt
     public void OnExit()
     {
-        if (methodName.EndsWith("get_Surface1") || methodName.EndsWith("get_Surface2")) return; // would cause recursion
-        if (instance is InterpolatedDualSurfaceCurve ipdsc)
+        // if (methodName.EndsWith("get_Surface1") || methodName.EndsWith("get_Surface2")) return; // would cause recursion
+        if (instance is ISurfaceImpl si)
         {
-            if (ipdsc.Surface1.IsUPeriodic && ipdsc.bounds1.Width > ipdsc.Surface1.UPeriod ||
-                ipdsc.Surface1.IsVPeriodic && ipdsc.bounds1.Height > ipdsc.Surface1.VPeriod ||
-                ipdsc.Surface2.IsUPeriodic && ipdsc.bounds2.Width > ipdsc.Surface2.UPeriod ||
-                ipdsc.Surface2.IsVPeriodic && ipdsc.bounds2.Height > ipdsc.Surface2.VPeriod)
+            if (Math.Abs(si.usedArea.Left - 3.1191820062517275) < 1e-6)
             {
 
             }

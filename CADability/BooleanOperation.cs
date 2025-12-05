@@ -3203,8 +3203,24 @@ namespace CADability
                     for (int j = numOutlines - 1; j >= 0; --j) // for all outlines, begin with the smallest outline
                     {
                         if (Border.IsInside(loops2D[j], loops2D[i][0].StartPoint))
-                        {
-                            outlineToHoles[j].Add(i); // this hole (i) has found its outline (j)
+                        {   // this loop (i) is a potential hole for outline j. But we still need to check for holes covering each other
+                            // (holes covering each other only occurs with overlapping faces)
+                            bool doAdd = true;
+                            for (int k = 0; k < outlineToHoles[j].Count; k++)
+                            {   // check the position of hole i to other holes of outline j
+                                if (!Border.IsInside(loops2D[outlineToHoles[j][k]], loops2D[i][0].StartPoint)) // since loops2D[..] is a hole, !IsInside means inside the hole
+                                {   // the hole we ant to add is contained in another hole of this outline
+                                    // actually this never should happen, since we begin with the smalles hole and proceed with the bigger ones
+                                    doAdd = false;
+                                }
+                                else if (!Border.IsInside(loops2D[i],loops2D[outlineToHoles[j][k]][0].StartPoint))
+                                {
+                                    // this hole i covers another hole of this outline j
+                                    outlineToHoles[j][k] = i; // replace the covered hole by this covering hole
+                                    doAdd = false;
+                                }
+                            }
+                            if (doAdd) outlineToHoles[j].Add(i); // this hole (i) has found its outline (j)
                             break;
                         }
                     }
@@ -3276,7 +3292,7 @@ namespace CADability
             }
 #endif
             // find all faces in trimmedFaces, which are identical to trimmedOverlappingFaces
-            // these faces ar created multiple times and we only need one of them
+            // these faces are created multiple times and we only need one of them
             HashSet<Face> availableFaces = [.. shell1.Faces, .. shell2.Faces];
             availableFaces.ExceptWith(discardedFaces);
             if (trimmedOverlappingFaces.Count > 0) // usually this is empty

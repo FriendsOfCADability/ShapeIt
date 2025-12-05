@@ -484,7 +484,6 @@ namespace CADability.GeoObject
                 return spinePoint + radius * (cosV * N + sinV * B);
             }
         }
-
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
             double u;
@@ -512,6 +511,7 @@ namespace CADability.GeoObject
                 // commented out, because it too often throws exceptions
                 //if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
                 //uv = new GeoPoint2D(u, v);
+                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref uv); // must be adjusted to usedArea
                 if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out double dist)) return uv;
                 return new GeoPoint2D(u, v);
             }
@@ -526,7 +526,9 @@ namespace CADability.GeoObject
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
                 GeoVector B = Sign(radius) * T ^ N;                              // Binormale
                 double v = Atan2((p - spinePoint) * B, (p - spinePoint) * N);
-                return new GeoPoint2D(u, v);
+                GeoPoint2D res = new GeoPoint2D(u, v);
+                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+                return res;
             }
         }
         public override GeoVector UDirection(GeoPoint2D uv)
@@ -589,7 +591,6 @@ namespace CADability.GeoObject
                 return vel + radius * (cosV * N_u + sinV * B_u);
             }
         }
-
         public override GeoVector VDirection(GeoPoint2D uv)
         {
             double u = uv.x;
@@ -634,7 +635,11 @@ namespace CADability.GeoObject
                 return -radius * sinV * N + radius * cosV * B;
             }
         }
-
+        public override ICurve2D GetProjectedCurve(ICurve curve, double precision)
+        {
+            // TODO: implement for circular arcs which are fixed-u curves
+            return base.GetProjectedCurve(curve, precision);
+        }
         public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             double u = uv.x;

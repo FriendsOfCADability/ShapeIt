@@ -480,7 +480,9 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
-            return PositionOfUnit(toUnit * p);
+            GeoPoint2D res = PositionOfUnit(toUnit * p);
+            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+            return res;
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetZMinMax (Projection, double, double, double, double, ref double, ref double)"/>
@@ -1079,7 +1081,9 @@ namespace CADability.GeoObject
                             }
                         }
                     }
-                    return new Line2D(sp, ep);
+                    ICurve2D res = new Line2D(sp, ep);
+                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    return res;
                 }
                 else if (Precision.IsPerpendicular(elli.Normal, ZAxis, false) && Precision.IsEqual(elli.Center, Location))
                 {
@@ -1107,7 +1111,9 @@ namespace CADability.GeoObject
                             ep.y += Math.PI * 2;
                         }
                     }
-                    return new Line2D(sp, ep);
+                    ICurve2D res = new Line2D(sp, ep);
+                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    return res;
                 }
                 if (elli.IsCircle && this.IsRealSphere) // it is not a longitudinal or latitudial circle
                 {

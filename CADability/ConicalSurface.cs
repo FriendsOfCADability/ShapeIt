@@ -209,10 +209,13 @@ namespace CADability.GeoObject
                             res = r;
                         }
                     }
+                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
                     return res;
                 }
             }
-            return new GeoPoint2D(0.0, (toUnit * p).z);
+            GeoPoint2D uv = new GeoPoint2D(0.0, (toUnit * p).z);
+            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref uv); // must be adjusted to usedArea
+            return uv;
 
             // this is the old implementation, which was bad for points outside the surface
             //GeoPoint pu = toUnit * p;
@@ -1772,6 +1775,7 @@ namespace CADability.GeoObject
         }
         public override ICurve2D GetProjectedCurve(ICurve curve, double precision)
         {
+            ICurve2D res = null;
             if (curve is Ellipse elli)
             {   // we need the projected curve where the curve itself might have some distance to the cone. The projection must be perpendicular
                 if (Geometry.DistPL(elli.Center, Location, Axis) < Precision.eps)
@@ -1822,7 +1826,9 @@ namespace CADability.GeoObject
                                 ep = mp;
                             }
                         }
-                        return new Line2D(sp, ep);
+                        res = new Line2D(sp, ep);
+                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        return res;
                     }
                 }
             }
@@ -1835,7 +1841,9 @@ namespace CADability.GeoObject
                     double u = Math.Atan2(mp.y, mp.x);
                     if (l.StartPoint.z + l.EndPoint.z < 0) u += Math.PI; // start- or endpoint could be 0, crossing z=0 is not allowed
                     if (u < 0.0) u += 2.0 * Math.PI;
-                    return new Line2D(new GeoPoint2D(u, l.StartPoint.z - voffset), new GeoPoint2D(u, l.EndPoint.z - voffset));
+                    res = new Line2D(new GeoPoint2D(u, l.StartPoint.z - voffset), new GeoPoint2D(u, l.EndPoint.z - voffset));
+                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    return res;
                 }
                 else
                 {
@@ -1846,7 +1854,9 @@ namespace CADability.GeoObject
                         GeoPoint2D p1 = PositionOf(curve.StartPoint);
                         GeoPoint2D p2 = PositionOf(curve.EndPoint);
                         SurfaceHelper.AdjustPeriodicStartPoint(this, p1, ref p2);
-                        return new Line2D(p1, p2);
+                        res = new Line2D(p1, p2);
+                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        return res;
                     }
                 }
             }
@@ -1888,7 +1898,9 @@ namespace CADability.GeoObject
                         {
                             ep.x += 2 * Math.PI; // noch nicht getestet
                         }
-                        return new Line2D(sp, ep);
+                        res = new Line2D(sp, ep);
+                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        return res;
 
                         //Unreachable code
                         /*
@@ -1905,7 +1917,9 @@ namespace CADability.GeoObject
                     }
                     // Grenzfälle: ustart oder uend liegen auf 0.0 oder 2*pi
                     // dann weiß man nicht ob der Punkt zyklisch richtig ist
-                    return new Line2D(new GeoPoint2D(ustart, e.Center.z), new GeoPoint2D(uend, e.Center.z));
+                    res = new Line2D(new GeoPoint2D(ustart, e.Center.z), new GeoPoint2D(uend, e.Center.z));
+                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    return res;
                 }
                 else
                 {
@@ -1947,7 +1961,6 @@ namespace CADability.GeoObject
                         double u1 = -Math.Acos(ac / Math.Sqrt(s));
                         double u3 = -Math.Acos(-ac / Math.Sqrt(s));
                         double minDist = double.MaxValue;
-                        SineCurve2D res = null;
                         foreach (double u in new double[] { u1, -u1, u3, -u3 })
                         {   // find the correct solution of the 4 possible solutions
                             double fy = (pee.y - pse.y) / (Math.Sin(u + b) - Math.Sin(u));
@@ -1962,7 +1975,11 @@ namespace CADability.GeoObject
                                 res = s2cx;
                             }
                         }
-                        if (minDist < Precision.eps) return res;
+                        if (minDist < Precision.eps && res != null)
+                        {
+                            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                            return res;
+                        }
                     }
 
                 }
