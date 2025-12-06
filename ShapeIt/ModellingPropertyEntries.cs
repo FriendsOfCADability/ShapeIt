@@ -1200,6 +1200,24 @@ namespace ShapeIt
                 return true;
             };
             res.Add(makeFillet);
+
+
+            DirectMenuEntry makeChamfer = new DirectMenuEntry("MenuId.Chamfer");
+            makeChamfer.ExecuteMenu = (frame) =>
+            {
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                cadFrame.SetAction(new ChamferEdgesAction(edges));
+                return true;
+            };
+            makeChamfer.IsSelected = (selected, frame) =>
+            {
+                feedback.Clear();
+                if (selected) feedback.ShadowFaces.AddRange(curves.OfType<IGeoObject>());
+                feedback.Refresh();
+                return true;
+            };
+            res.Add(makeChamfer);
+
             return res.ToArray();
         }
 
@@ -2317,6 +2335,22 @@ namespace ShapeIt
                     return true;
                 };
                 edgeMenus.Add(makeFillet);
+
+                DirectMenuEntry makeChamfer = new DirectMenuEntry("MenuId.Chamfer");
+                makeChamfer.ExecuteMenu = (frame) =>
+                {
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    cadFrame.SetAction(new ChamferEdgesAction(edges));
+                    return true;
+                };
+                makeChamfer.IsSelected = (selected, frame) =>
+                {
+                    feedback.Clear();
+                    if (selected) feedback.ShadowFaces.AddRange(selection);
+                    feedback.Refresh();
+                    return true;
+                };
+                edgeMenus.Add(makeChamfer);
 
                 (Axis rotationAxis1, GeoVector fromHere1, GeoVector toHere1) = ParametricsAngleAction.GetRotationAxis(edg.PrimaryFace, edg.SecondaryFace, clickBeam);
                 if (rotationAxis1.IsValid)

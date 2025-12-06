@@ -277,7 +277,10 @@ namespace CADability
         {
             throw new NotImplementedException();
         }
-
+        public BoundingRect GetBounds()
+        {
+            throw new NotImplementedException();
+        }
         public GeoPoint2D[] PerpendicularFoot(GeoPoint fromHere)
         {
             throw new NotImplementedException();

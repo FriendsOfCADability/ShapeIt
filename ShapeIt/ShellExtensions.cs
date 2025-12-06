@@ -1497,9 +1497,14 @@ namespace ShapeIt
             return sweptFace;
         }
         public enum EdgeConnection { Convex, Concave, Tangential };
-        public static Shell RoundEdges(this Shell shell, IEnumerable<Edge> edges, double radius)
+        public static Shell? RoundEdges(this Shell shell, IEnumerable<Edge> edges, double radius)
         {
             RoundEdges re = new RoundEdges(shell, edges, radius);
+            return re.Execute();
+        }
+        public static Shell? ChamferEdges(this Shell shell, IEnumerable<Edge> edges, double length1, double length2)
+        {
+            ChamferEdges re = new ChamferEdges(shell, edges, length1, length2);
             return re.Execute();
         }
         public static Shell RoundEdgesX(this Shell shell, IEnumerable<Edge> edges, double radius)

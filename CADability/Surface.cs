@@ -368,7 +368,7 @@ namespace CADability.GeoObject
         ICurve FixedV(double v, double umin, double umax);
         double[] GetPolynomialParameters();
         /// <summary>
-        /// Mostly used internally
+        /// Set the bounds of the surface to match the periodicity
         /// </summary>
         /// <param name="boundingRect"></param>
         void SetBounds(BoundingRect boundingRect);
@@ -506,6 +506,7 @@ namespace CADability.GeoObject
         /// <returns>The sum of the squared errors</returns>
         double Fit(IEnumerable<GeoPoint> toPoints);
         bool IsCurveOnSurface(ICurve curve);
+        BoundingRect GetBounds();
     }
 
     /// <summary>
@@ -3685,6 +3686,15 @@ namespace CADability.GeoObject
         public virtual void SetBounds(BoundingRect boundingRect)
         {
             usedArea = boundingRect;
+        }
+        public virtual BoundingRect GetBounds()
+        {
+            if (usedArea.IsEmpty())
+            {
+                GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax);
+                return new BoundingRect(umin, vmin, umax, vmax);
+            }
+            return usedArea;
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.PerpendicularFoot (GeoPoint)"/>
