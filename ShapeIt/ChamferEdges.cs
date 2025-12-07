@@ -165,7 +165,7 @@ namespace ShapeIt
             dscs = edgeToChamfer.PrimaryFace.Surface.GetDualSurfaceCurves(edgeToChamfer.PrimaryFace.Domain, sweptCircle, sweptCircle.GetBounds(), [sp, ep]);
             if (dscs == null) return null; // there should only be one
             ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp));
-            if (topCurve == null) return null;
+            if (bottomCurve == null) return null;
             pos1 = bottomCurve.PositionOf(sp);
             pos2 = bottomCurve.PositionOf(ep);
             if (Math.Abs(pos1) > 1e-6 || Math.Abs(1 - pos2) > 1e-6)
@@ -173,10 +173,13 @@ namespace ShapeIt
                 bottomCurve.Trim(pos1, pos2);
             }
             ISurface chamferSurface = Make3D.MakeRuledSurface(topCurve, bottomCurve);
-            foreach (GeoPoint point in new List<GeoPoint>([topCurve.StartPoint, ]))
+            foreach (GeoPoint p in new List<GeoPoint>([topCurve.StartPoint, topCurve.PointAt(0.5), topCurve.EndPoint,bottomCurve.StartPoint,bottomCurve.EndPoint]))
             {
-
+                chamferSurface.ExtendBoundsTo(p);
             }
+
+            Plane leftPlane = new Plane(leadingEdge.StartPoint, -leadingEdge.StartDirection);
+            Plane rightPlane = new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection);
 
             /*
             ISurface topOffset = topSurface.GetOffsetSurface(-radius);

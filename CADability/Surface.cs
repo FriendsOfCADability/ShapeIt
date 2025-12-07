@@ -509,6 +509,17 @@ namespace CADability.GeoObject
         BoundingRect GetBounds();
     }
 
+    public static class SurfaceExtension
+    {
+        public static void ExtendBoundsTo(this ISurface surface, GeoPoint p)
+        {
+            GeoPoint2D uv = surface.PositionOf(p);
+            BoundingRect ext = surface.GetBounds();
+            ext.MinMax(uv);
+            surface.SetBounds(ext);
+        }
+    }
+
     /// <summary>
     /// Soll von Flächen implementiert werden, deren Schnitte mit Ebenen einfach sind (Linien, Ellipsen) um numerisch iterierte
     /// Lösungen zu vermeiden
