@@ -511,6 +511,11 @@ namespace CADability.GeoObject
 
     public static class SurfaceExtension
     {
+        /// <summary>
+        ///  
+        /// </summary>
+        /// <param name="surface"></param>
+        /// <param name="p"></param>
         public static void ExtendBoundsTo(this ISurface surface, GeoPoint p)
         {
             GeoPoint2D uv = surface.PositionOf(p);
@@ -518,6 +523,38 @@ namespace CADability.GeoObject
             if (ext.IsInfinite) ext = BoundingRect.EmptyBoundingRect;
             ext.MinMax(uv);
             surface.SetBounds(ext);
+        }
+        /// <summary>
+        /// Adjusts the provided UV coordinates to align with a pole on the surface, if the coordinates are near a
+        /// singularity.
+        /// </summary>
+        /// <remarks>This method checks if the provided UV coordinates are close to any singularities
+        /// (poles) on the surface. If a singularity is detected within a small tolerance, the UV coordinates are
+        /// adjusted to align with the specified <paramref name="alignTo"/> point.</remarks>
+        /// <param name="surface">The surface on which the alignment is performed.</param>
+        /// <param name="uv">The UV coordinates to adjust. This parameter is passed by reference and will be modified if alignment
+        /// occurs.</param>
+        /// <param name="alignTo">The 3D point to which the UV coordinates should align if they are near a singularity.</param>
+        public static void AlignIfPole(this ISurface surface, ref GeoPoint2D uv, GeoPoint alignTo)
+        {
+            double[] us = surface.GetVSingularities();
+            for (int i = 0; i < us.Length; i++)
+            {
+                if (Math.Abs(uv.x - us[i]) < 1e-6)
+                {
+                    GeoPoint2D alignTo2D = surface.PositionOf(alignTo);
+                    uv.y = alignTo2D.y;
+                }
+            }
+            double[] vs = surface.GetVSingularities();
+            for (int i = 0; i < vs.Length; i++)
+            {
+                if (Math.Abs(uv.y - vs[i])<1e-6)
+                {
+                    GeoPoint2D alignTo2D = surface.PositionOf(alignTo);
+                    uv.x = alignTo2D.x;
+                }
+            }
         }
     }
 
@@ -11823,7 +11860,14 @@ namespace CADability.GeoObject
                         // 3. Es gibt keinen Schnittpunkt. Dann braucht man auch nicht aufteilen.
                         // Die Fälle sind allerdings nicht leicht zu unterscheiden, deshalb hier einfach mal auf 1/100 der Maximalgröße 
                         // abprüfen und dann abbrechen. Das ist aber nicht sehr effektiv
-                        if (cube.Size > octtree.Extend.Size / 100)
+                        uv = cube.uvPatch.GetCenter();
+                        u = 0.5; // in der Mitte, unwichtig
+                        if (BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u, out GeoPoint dbgip))
+                        {
+                            lips.Add(ip);
+                            luvOnFace.Add(uv);
+                            luOnCurve.Add(u);
+                        } else if (cube.Size > octtree.Extend.Size / 100)
                         {
                             ParEpi[] splitted = SplitCube(cube);
                             for (int i = 0; i < splitted.Length; ++i)
@@ -11852,6 +11896,7 @@ namespace CADability.GeoObject
             uv = cube.uvPatch.GetCenter();
             u = 0.5; // in der Mitte, unwichtig
                      // BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u);
+            // BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u, out GeoPoint dbgip);
             GeoVector udir = surface.UDirection(uv);
             GeoVector vdir = surface.VDirection(uv); // die müssen auch von der Länge her stimmen!
             GeoPoint loc = surface.PointAt(uv);

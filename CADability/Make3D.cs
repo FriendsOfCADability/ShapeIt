@@ -2954,8 +2954,11 @@ namespace CADability.GeoObject
                         if (edg.Vertex1 == edg.Vertex2) { }
                     }
 #endif
-                    Style stl = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
-                    if (stl != null) shells[0].Style = stl;
+                    if (project != null)
+                    {
+                        Style stl = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
+                        if (stl != null) shells[0].Style = stl;
+                    }
                     if (shells[0].HasOpenEdgesExceptPoles()) return shells[0];
                     else return Solid.MakeSolid(shells[0]);
                 }

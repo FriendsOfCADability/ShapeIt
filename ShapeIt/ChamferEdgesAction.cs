@@ -1,6 +1,7 @@
 ﻿
 using CADability;
 using CADability.Actions;
+using CADability.Attribute;
 using CADability.GeoObject;
 using ExCSS;
 using System;
@@ -19,9 +20,12 @@ namespace ShapeIt
         Shell shell;
         LengthInput length1Input;
         LengthInput length2Input;
+        BooleanInput sameLengthInput;
         double length1, length2;
         private Feedback feedback;
         Shell? result;
+        Layer transparent;
+        Layer original;
 
         public override string GetID()
         {
@@ -30,33 +34,65 @@ namespace ShapeIt
         public ChamferEdgesAction(IEnumerable<Edge> edges)
         {
             this.edges = edges.ToList();
-            shell = edges.First().Owner.Owner as Shell; // owner of the edge is a face, owner of the face is a shell
+            if (!(edges.First().Owner.Owner is Shell s)) throw new ApplicationException("ChamferEdgesAction: edges are not part of a shell");
+            shell = s; // owner of the edge is a face, owner of the face is a shell
             this.edges = new List<Edge>();
             foreach (Edge edge in edges)
             {
                 if (edge.Owner.Owner == shell) this.edges.Add(edge); // only edges of a songle shell should be used, all other edges are ignored
             }
+            feedback = new Feedback();
+            transparent = new Layer("TransparentForAction");
+            transparent.Transparency = 128;
+            original = shell.Layer;
         }
         public override void OnSetAction()
         {
-            TitleId = "Construct.CamferEdges";
+            TitleId = "Construct.ChamferEdges";
 
-            length1Input = new LengthInput("CamferEdges.Distance1");
+            sameLengthInput = new BooleanInput("ChamferEdges.Symmetric", "ChamferEdges.Symmetric.Values");
+            sameLengthInput.SetBooleanEvent += SameLengthChanged;
+            sameLengthInput.Optional = true;
+
+            length1Input = new LengthInput("ChamferEdges.Distance1");
             length1Input.SetLengthEvent += Length1Changed;
+            length1Input.GetLengthEvent += GetLength1;
 
-            length2Input = new LengthInput("CamferEdges.Distance1");
+            length2Input = new LengthInput("ChamferEdges.Distance2");
             length2Input.SetLengthEvent += Length2Changed;
+            length2Input.Optional = true;
+            length2Input.GetLengthEvent += GetLength2;
+
             length1 = length2 = 2.0;
-            SetInput(length1Input, length2Input);
+            SetInput(sameLengthInput, length1Input, length2Input);
 
             base.OnSetAction();
-            feedback = new Feedback();
             feedback.Attach(CurrentMouseView);
-            base.OnSetAction();
+            shell.Layer = transparent;
+            sameLengthInput.ForceValue(true);
+            length2Input.Optional = true;
+            length2Input.ReadOnly = true;
         }
+
+        private double GetLength1()
+        {
+            return length1;
+        }
+        private double GetLength2()
+        {
+            return length2;
+        }
+
+        private void SameLengthChanged(bool val)
+        {
+            length2Input.Optional = val;
+            length2Input.ReadOnly = val;
+        }
+
         private bool Length1Changed(double length)
         {
             length1 = length;
+            if (sameLengthInput.Value) length2 = length1;
             return Recalc();
         }
         private bool Length2Changed(double length)
@@ -67,15 +103,18 @@ namespace ShapeIt
 
         private bool Recalc()
         {
+            shell.Layer = transparent;
+            CurrentMouseView.InvalidateAll();
             feedback.Clear();
-            
+
             Dictionary<Edge, Edge> clonedEdges = new Dictionary<Edge, Edge>();
             Shell shellToRound = shell.Clone(clonedEdges);
+            shellToRound.Layer = original;
             IEnumerable<Edge> cledges = clonedEdges.Where(kv => edges.Contains(kv.Key)).Select(kv => kv.Value);
             result = shellToRound.ChamferEdges(cledges, Math.Abs(length1), Math.Abs(length2));
             if (result != null)
             {
-                feedback.FrontFaces.Add(shellToRound);
+                feedback.FrontFaces.Add(result);
                 feedback.Refresh();
                 return true;
             }
@@ -113,8 +152,10 @@ namespace ShapeIt
         }
         public override void OnRemoveAction()
         {
+            shell.Layer = original;
             feedback.Detach();
             base.OnRemoveAction();
+            CurrentMouseView.InvalidateAll();
         }
     }
 }

@@ -190,7 +190,7 @@ namespace ShapeIt
                 MenuSize.IntegerValue = 0;
                 UserInterface.AddSetting("MenuSize", MenuSize);
             }
-            Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false); 
+            Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false);
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);
             Settings.GlobalSettings.SetValue("ShapeIt.Initialized", true);
@@ -320,8 +320,8 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            return;
-            string? filename = @"F:\Zeichnungen\RoundTest5.cdb.json";
+            // return;
+            string? filename = null; // @"F:\Zeichnungen\RoundTest5.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -331,6 +331,7 @@ namespace ShapeIt
             }
             if (!string.IsNullOrEmpty(filename)) CadFrame.Project = Project.ReadFromFile(filename);
 
+            string command = "";
             List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
             Solid operand1 = null, operand2 = null;
             List<Solid> difference = new List<Solid>();
@@ -358,6 +359,10 @@ namespace ShapeIt
                         edgeMarkers.Add(curve);
                     }
                 }
+                if (go is Text txt)
+                {
+                    command = txt.TextString; // there sould only be one
+                }
             }
             if (operand1 != null && operand2 != null)
             {
@@ -370,6 +375,13 @@ namespace ShapeIt
                         proj.GetActiveModel().Add(sres);
                         proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
                     }
+                }
+            }
+            if (operand1 != null && operand2 != null)
+            {
+                if (command.Equals("Difference", StringComparison.OrdinalIgnoreCase))
+                {
+                    Solid[] sres = NewBooleanOperation.Subtract(operand2, operand1);
                 }
             }
             if (slds.Count == 2)

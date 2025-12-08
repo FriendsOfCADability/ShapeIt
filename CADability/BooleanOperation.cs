@@ -370,7 +370,10 @@ namespace CADability
                 for (int j = 0; j < points.Count; j++)
                 {
                     paramsuvsurf1[j] = fc1.Surface.PositionOf(points[j]);
+                    fc1.Surface.AlignIfPole(ref paramsuvsurf1[j], points[points.Count - 1 - j]); // we assume two points here, which should always be the case
+                    // if there are cases with more than two points, there are probaly several curves and we have to assiciate the correct points to the curves
                     paramsuvsurf2[j] = fc2.Surface.PositionOf(points[j]);
+                    fc2.Surface.AlignIfPole(ref paramsuvsurf1[j], points[points.Count - 1 - j]); // we assume two points here, which should always be the case
                 }
                 for (int i = 0; i < alreadyCalculated.Count; i++)
                 {
@@ -618,7 +621,7 @@ namespace CADability
                                     fc1.Surface.DerivationAt(uvf1, out GeoPoint pf1, out GeoVector duf1, out GeoVector dvf1);
                                     fc2.Surface.DerivationAt(uvf2, out GeoPoint pf2, out GeoVector duf2, out GeoVector dvf2);
                                     GeoVector across = ((duf1 ^ dvf1) + (duf2 ^ dvf2)) ^ tr.DirectionAt(0.5); // the direction perpendicular to the combined normals and the curve direction
-                                    double stepSize = Math.Min(fc1.GetExtent(0.0).Size, fc2.GetExtent(0.0).Size) * 1e-3;
+                                    double stepSize = Math.Min(fc1.GetExtent(0.0).Size, fc2.GetExtent(0.0).Size) * 1e-2;
                                     Ellipse toTestWith = Ellipse.Construct();
                                     Plane plane = new Plane(m, tr.DirectionAt(0.5));
                                     for (int t = 0; t < 10; ++t) // try 10 times
@@ -638,7 +641,7 @@ namespace CADability
                                                 {
                                                     if (fc2.Domain.Contains(uvOnFace2[l]))
                                                     {
-                                                        if ((ipselli1[k] | ipselli2[l]) < stepSize)
+                                                        if ((ipselli1[k] | ipselli2[l]) < 2 * stepSize)
                                                         {
                                                             pointsFound = true;
                                                             // a pair of points, not on opposite sides, which is in the domians
@@ -838,6 +841,7 @@ namespace CADability
                                     for (int k = 0; k < le.Count; k++)
                                     {
                                         if (le[k] == edge) continue;
+                                        if (le[k].Curve3D == null) continue; // a pole
                                         if (le[k].Vertex1 == edge.Vertex1 && Precision.SameDirection(le[k].Curve3D.StartDirection, edge.Curve3D.StartDirection, false)) tangential = true;
                                         else if (le[k].Vertex2 == edge.Vertex1 && Precision.SameDirection(le[k].Curve3D.EndDirection, edge.Curve3D.StartDirection, false)) tangential = true;
                                     }
@@ -845,6 +849,7 @@ namespace CADability
                                     for (int k = 0; k < le.Count; k++)
                                     {
                                         if (le[k] == edge) continue;
+                                        if (le[k].Curve3D == null) continue; // a pole
                                         if (le[k].Vertex1 == edge.Vertex2 && Precision.SameDirection(le[k].Curve3D.StartDirection, edge.Curve3D.EndDirection, false)) tangential = true;
                                         else if (le[k].Vertex2 == edge.Vertex2 && Precision.SameDirection(le[k].Curve3D.EndDirection, edge.Curve3D.EndDirection, false)) tangential = true;
                                     }
@@ -3213,7 +3218,7 @@ namespace CADability
                                     // actually this never should happen, since we begin with the smalles hole and proceed with the bigger ones
                                     doAdd = false;
                                 }
-                                else if (!Border.IsInside(loops2D[i],loops2D[outlineToHoles[j][k]][0].StartPoint))
+                                else if (!Border.IsInside(loops2D[i], loops2D[outlineToHoles[j][k]][0].StartPoint))
                                 {
                                     // this hole i covers another hole of this outline j
                                     outlineToHoles[j][k] = i; // replace the covered hole by this covering hole

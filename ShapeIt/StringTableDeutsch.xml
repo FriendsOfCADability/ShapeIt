@@ -393,5 +393,23 @@
     <label>Entlang Kurve abbilden</label>
     <info>die Körper von einer Ausgangskurve zu einer Zielkurve abbilden</info>
   </data>
-  
+	<data name="Construct.ChamferEdges">
+		<label>Kanten fasen</label>
+		<info>Die ausgewählten Kanten anfasen</info>
+	</data>
+	<data name="ChamferEdges.Symmetric">
+		<label>Symmetrisch</label>
+		<info>Beide Fasen mit gleichem Abstand </info>
+	</data>
+	<data name="ChamferEdges.Symmetric.Values">
+		<label>|gleiche Abstände|verschiedene Abstände</label>
+	</data>
+	<data name="ChamferEdges.Distance1">
+		<label>1. Abstand</label>
+		<info>Abstand der Fase zur Kante</info>
+	</data>
+	<data name="ChamferEdges.Distance2">
+		<label>2. Abstand</label>
+		<info>Abstand der Fase zur Kante</info>
+	</data>
 </root>
