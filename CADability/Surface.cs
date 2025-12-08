@@ -515,6 +515,7 @@ namespace CADability.GeoObject
         {
             GeoPoint2D uv = surface.PositionOf(p);
             BoundingRect ext = surface.GetBounds();
+            if (ext.IsInfinite) ext = BoundingRect.EmptyBoundingRect;
             ext.MinMax(uv);
             surface.SetBounds(ext);
         }

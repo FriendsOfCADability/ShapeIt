@@ -3603,7 +3603,7 @@ namespace CADability.GeoObject
         /// <param name="surface"></param>
         /// <param name="outline"></param>
         /// <returns></returns>
-        internal static Face MakeFace(ISurface surface, IEnumerable<ICurve> outline)
+        public static Face MakeFace(ISurface surface, IEnumerable<ICurve> outline)
         {
             // simple linear search for best curve
             HashSet<ICurve> allCurves = [.. outline.Where(c => c != null).Select(c => c.Clone())]; // poles will be generated below, use Clone() because the curves might be reversed
@@ -3647,7 +3647,7 @@ namespace CADability.GeoObject
                 if (i > 0) SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
                 domain.MinMax(uv);
             }
-            if (surface is ISurfaceImpl si) si.SetBounds(domain);
+            surface.SetBounds(domain);
             for (int i = 0; i < sortedCurves.Count; ++i)
             {
                 bounds2d.Add(surface.GetProjectedCurve(sortedCurves[i].Clone(), 0.0)); // .Clone, because when it is a ProjectedCurve, then it must be independant from the Edge curve
