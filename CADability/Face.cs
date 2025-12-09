@@ -3640,21 +3640,18 @@ namespace CADability.GeoObject
             }
             List<ICurve2D> bounds2d = [];
             BoundingRect domain = BoundingRect.EmptyBoundingRect;
+            surface.SetBounds(BoundingRect.EmptyBoundingRect);
             // find a domain for the surface
             for (int i = 0; i < sortedCurves.Count; i++)
             {
-                GeoPoint2D uv = surface.PositionOf(sortedCurves[i].StartPoint);
-                if (i > 0) SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
-                domain.MinMax(uv);
+                surface.ExtendBoundsTo(sortedCurves[i].StartPoint);
+                surface.ExtendBoundsTo(sortedCurves[i].PointAt(0.5));
             }
-            surface.SetBounds(domain);
             for (int i = 0; i < sortedCurves.Count; ++i)
             {
                 bounds2d.Add(surface.GetProjectedCurve(sortedCurves[i].Clone(), 0.0)); // .Clone, because when it is a ProjectedCurve, then it must be independant from the Edge curve
-                SurfaceHelper.AdjustPeriodic(surface, domain, bounds2d[i]);
-                domain.MinMax(bounds2d[i].GetExtent());
+                SurfaceHelper.AdjustPeriodic(surface, surface.GetBounds(), bounds2d[i]);
             }
-            if (surface is ISurfaceImpl) (surface as ISurfaceImpl).SetBounds(domain);
             double[] us = surface.GetUSingularities();
             double[] vs = surface.GetVSingularities();
             for (int i = 0; i < us.Length; i++)

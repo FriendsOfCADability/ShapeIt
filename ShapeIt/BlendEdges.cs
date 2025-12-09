@@ -96,8 +96,6 @@ namespace ShapeIt
             Edge? thirdEdge = vtx.AllEdges.Except([edge1, edge2]).TheOnlyOrDefault();
             // in most cases we have a vertex with three faces meeting, so one common face and one third edge
             // if there are more than three faces meeting at the vertex, we cannot handle this currently
-            if (commonFace == null) return null; // there must be a common face
-            GeoVector normalCommon = commonFace.Surface.GetNormal(vtx.GetPositionOnFace(commonFace)).Normalized;
             Shell? fillet1 = edgeToCutter?[edge1];
             Shell? fillet2 = edgeToCutter?[edge2];
             if (fillet1 == null || fillet2 == null) return null;
@@ -106,6 +104,20 @@ namespace ShapeIt
             if (endFace1 == null || endFace2 == null) return null;
             GeoVector n1 = (endFace1.Surface as PlaneSurface)!.Normal.Normalized; // endfaces are always PlaneSurfaces
             GeoVector n2 = (endFace2.Surface as PlaneSurface)!.Normal.Normalized;
+            if (commonFace == null)
+            {
+                // convex connection, we have to extent the fillets at this point
+                Shell? extension1 = (Make3D.Extrude(endFace1.Clone(), length * n1, null) as Solid)?.Shells[0];
+                Shell? extension2 = (Make3D.Extrude(endFace2.Clone(), length * n2, null) as Solid)?.Shells[0];
+                if (extension1 != null && extension2 != null)
+                {
+                    extension1.CopyAttributes(edge1.PrimaryFace);
+                    extension2.CopyAttributes(edge2.PrimaryFace);
+                    return [fillet1, fillet2, extension1, extension2];
+                }
+                return null;
+            }
+            GeoVector normalCommon = commonFace.Surface.GetNormal(vtx.GetPositionOnFace(commonFace)).Normalized;
             double orientation = (n1 ^ normalCommon) * (n2 ^ normalCommon);
             GeoVector dir1, dir2;
             if (edge1.EndVertex(commonFace) == vtx)
