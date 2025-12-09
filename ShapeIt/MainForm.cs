@@ -381,7 +381,7 @@ namespace ShapeIt
             {
                 if (command.Equals("Difference", StringComparison.OrdinalIgnoreCase))
                 {
-                    Solid[] sres = NewBooleanOperation.Subtract(operand2, operand1);
+                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                 }
             }
             if (slds.Count == 2)
@@ -421,20 +421,19 @@ namespace ShapeIt
                         }
                     }
                 }
-                Shell? rounded = shellToRound?.RoundEdges(edgesToRound, 2);
+                if (command.StartsWith("RoundEdges", StringComparison.OrdinalIgnoreCase))
+                {
+                    string[] parts = command.Split(':');
+                    if (parts.Length==2)
+                    {
+                        double d = double.Parse(parts[1]);
+                        if (d>0)
+                        {
+                            Shell? rounded = shellToRound?.RoundEdges(edgesToRound, d);
+                        }
+                    }
+                }
             }
-            //if (slds.Count == 1)
-            //{
-            //    Shell shell = slds[0].Shells[0];
-            //    foreach (var vtx in shell.Vertices)
-            //    {
-            //        if ((vtx.Position | new GeoPoint(58, 12, 17)) < 3)
-            //        {
-            //            Shell rounded = shell.RoundEdges(vtx.Edges, 2);
-            //        }
-            //    }
-            //}
-
         }
 #endif
 

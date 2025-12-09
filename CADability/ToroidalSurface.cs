@@ -2626,7 +2626,7 @@ namespace CADability.GeoObject
                         double v1 = Math.Asin(Math.Max(Math.Min((unitPlane.Location.z / minorRadius), 1), -1)); // -pi/2 ... +pi/2
                         double v2 = Math.PI - v1;
                         if (v1 < 0) v2 = -Math.PI - v1;
-                        if (Math.Abs(v1 - v2) < 1e-5)
+                        if (Math.Abs(v1 - v2) < 1e-4) // changed from 1e-5 to 1e-4, because asin is imprecise at pi/2
                         {   // single solution
                             double v = Math.PI / 2.0;
                             if (v1 < 0) v = -v;

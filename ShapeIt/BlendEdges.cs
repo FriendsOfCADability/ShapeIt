@@ -97,7 +97,9 @@ namespace ShapeIt
             // in most cases we have a vertex with three faces meeting, so one common face and one third edge
             // if there are more than three faces meeting at the vertex, we cannot handle this currently
             if (commonFace == null) return null; // there must be a common face
-            GeoVector normalCommon = commonFace.Surface.GetNormal(vtx.GetPositionOnFace(commonFace)).Normalized;
+            if (edge2.EndVertex(commonFace) == edge1.StartVertex(commonFace)) (edge1, edge2) = (edge2, edge1); // tm make sure, the edges are in the order of the outline
+            System.Diagnostics.Debug.Assert(edge1.EndVertex(commonFace) == edge2.StartVertex(commonFace));
+
             Shell? fillet1 = edgeToCutter?[edge1];
             Shell? fillet2 = edgeToCutter?[edge2];
             if (fillet1 == null || fillet2 == null) return null;
@@ -106,30 +108,8 @@ namespace ShapeIt
             if (endFace1 == null || endFace2 == null) return null;
             GeoVector n1 = (endFace1.Surface as PlaneSurface)!.Normal.Normalized; // endfaces are always PlaneSurfaces
             GeoVector n2 = (endFace2.Surface as PlaneSurface)!.Normal.Normalized;
-            double orientation = (n1 ^ normalCommon) * (n2 ^ normalCommon);
-            GeoVector dir1, dir2;
-            if (edge1.EndVertex(commonFace) == vtx)
-            {
-                if (edge1.Forward(commonFace)) dir1 = edge1.Curve3D.EndDirection;
-                else dir1 = -edge1.Curve3D.StartDirection;
-            }
-            else
-            {
-                if (edge1.Forward(commonFace)) dir1 = edge1.Curve3D.StartDirection;
-                else dir1 = -edge1.Curve3D.EndDirection;
-            }
-            if (edge2.EndVertex(commonFace) == vtx)
-            {
-                if (edge2.Forward(commonFace)) dir2 = edge2.Curve3D.EndDirection;
-                else dir2 = -edge2.Curve3D.StartDirection;
-            }
-            else
-            {
-                if (edge2.Forward(commonFace)) dir2 = edge2.Curve3D.StartDirection;
-                else dir2 = -edge2.Curve3D.EndDirection;
-            }
-            Plane normalInVertex = new Plane(vtx.Position, commonFace.Surface.GetNormal(vtx.GetPositionOnFace(commonFace)));
-            SweepAngle sw = new SweepAngle(normalInVertex.Project(dir1), normalInVertex.Project(dir2));
+
+            SweepAngle sw = new SweepAngle(edge1.Curve2D(commonFace).EndDirection, edge2.Curve2D(commonFace).StartDirection);
             if (Math.Abs(sw) < 1e-6)
             {   // tangential connection, we need the two fillets without any connection patch in between
                 return [fillet1, fillet2];

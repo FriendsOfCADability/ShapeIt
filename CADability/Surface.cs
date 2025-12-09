@@ -537,7 +537,7 @@ namespace CADability.GeoObject
         /// <param name="alignTo">The 3D point to which the UV coordinates should align if they are near a singularity.</param>
         public static void AlignIfPole(this ISurface surface, ref GeoPoint2D uv, GeoPoint alignTo)
         {
-            double[] us = surface.GetVSingularities();
+            double[] us = surface.GetUSingularities();
             for (int i = 0; i < us.Length; i++)
             {
                 if (Math.Abs(uv.x - us[i]) < 1e-6)

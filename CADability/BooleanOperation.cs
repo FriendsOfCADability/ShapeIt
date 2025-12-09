@@ -373,7 +373,7 @@ namespace CADability
                     fc1.Surface.AlignIfPole(ref paramsuvsurf1[j], points[points.Count - 1 - j]); // we assume two points here, which should always be the case
                     // if there are cases with more than two points, there are probaly several curves and we have to assiciate the correct points to the curves
                     paramsuvsurf2[j] = fc2.Surface.PositionOf(points[j]);
-                    fc2.Surface.AlignIfPole(ref paramsuvsurf1[j], points[points.Count - 1 - j]); // we assume two points here, which should always be the case
+                    fc2.Surface.AlignIfPole(ref paramsuvsurf2[j], points[points.Count - 1 - j]); // we assume two points here, which should always be the case
                 }
                 for (int i = 0; i < alreadyCalculated.Count; i++)
                 {
@@ -557,7 +557,7 @@ namespace CADability
                             // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
                             GeoPoint m = tr.PointAt(0.5);
                             GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m));
-                            if (normalsCrossedMiddle.Length < 10 * Precision.eps)
+                            if (normalsCrossedMiddle.Length < 100 * Precision.eps)
                             {
                                 // it is also tangential at the midpoint of the intersection curve
                                 // this is very likely an existing edge of either fc1 or fc2. Lets find it.
@@ -592,27 +592,12 @@ namespace CADability
                                         }
                                     }
                                 }
-                                //if (edgeFound != null)
-                                //{
-                                //    bool forward = edgeFound.Forward(faceWithEdge);
-                                //    ICurve2D projected = otherFace.Surface.GetProjectedCurve(edgeFound.Curve3D, 0.0);
-                                //    if (forward) projected.Reverse();
-                                //    Edge tedge = new Edge(otherFace, edgeFound.Curve3D.Clone(), otherFace, projected, !forward);
-                                //    tedge.UseVertices(usedVertices.ToArray());
-                                //    if (!faceToIntersectionEdges.TryGetValue(otherFace, out HashSet<Edge> addTo))
-                                //    {
-                                //        addTo = new HashSet<Edge>(); //  (new EdgeComparerByVertex());
-                                //        faceToIntersectionEdges[otherFace] = addTo;
-                                //    }
-                                //    addTo.Add(tedge);
-                                //    continue;
-                                //}
                                 //TODO: not implemented yet:
-                                // if we arrive here, there is a tangential intersection which is not an edge on one of the two faces. Now we have two cases: it is either
+                                // if we arrive here with edgeFound==false, there is a tangential intersection which is not an edge on one of the two faces. Now we have two cases: it is either
                                 // a face touching the other face (like a cylinder touches a plane, or it is a real intersection, where one face goes through the other face 
                                 // like an S-curve touches and crosses a line in the middle.
                                 //we try to find two points close to the middlepoint of the intersection curve where we get stable normals which are not parallel
-                                if (normalsCrossedMiddle.Length < 10 * Precision.eps)
+                                if (normalsCrossedMiddle.Length < 100 * Precision.eps)
                                 {
                                     GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
                                     SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvf1);
@@ -650,14 +635,14 @@ namespace CADability
                                                             Line ldbg1 = Line.TwoPoints(fc1.Surface.PointAt(uvOnFace1[k]), fc1.Surface.PointAt(uvOnFace1[k]) + 10 * nn1);
                                                             Line ldbg2 = Line.TwoPoints(fc2.Surface.PointAt(uvOnFace2[l]), fc2.Surface.PointAt(uvOnFace2[l]) + 10 * nn2);
                                                             normalsCrossedMiddle = nn1 ^ nn2;
-                                                            if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
+                                                            if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
                                                         }
                                                     }
                                                 }
                                             }
-                                            if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
+                                            if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
                                         }
-                                        if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
+                                        if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
                                         // when we arrive here we either didn't find a suitable pair of points, then the circle was too big
                                         // or the normals are too close, then the circle was too small
                                         if (pointsFound) stepSize *= 1.5; // make a bigger circle
@@ -665,108 +650,8 @@ namespace CADability
                                     }
 
                                 }
-                                if (normalsCrossedMiddle.Length < 10 * Precision.eps) continue; // we didn't find a good pair of normals, so we cannot determine the direction of the edge
-                                // following is a fallback to an older approach, which is not executed any more
-                                // in SplitBug1 we explicitely cannot use this intersection
-                                if (normalsCrossedMiddle.Length < 10 * Precision.eps)
-                                {
-                                    GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
-                                    SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvf1);
-                                    GeoPoint2D uvf2 = fc2.Surface.PositionOf(m);
-                                    SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvf2);
-                                    fc1.Surface.DerivationAt(uvf1, out GeoPoint pf1, out GeoVector duf1, out GeoVector dvf1);
-                                    fc2.Surface.DerivationAt(uvf2, out GeoPoint pf2, out GeoVector duf2, out GeoVector dvf2);
-                                    GeoVector across = ((duf1 ^ dvf1) + (duf2 ^ dvf2)) ^ tr.DirectionAt(0.5); // the direction perpendicular to the combined normals and the curve direction
-                                                                                                              // in this direction we try to find the orientation of the curve tr
-                                    GeoVector uvdirf1 = Geometry.ReBase(across, duf1, dvf1, duf1 ^ dvf1);
-                                    GeoVector uvdirf2 = Geometry.ReBase(across, duf2, dvf2, duf2 ^ dvf2);
-                                    // typically one of the faces ends at the curve tr
-                                    // if this isn't the case we should not create an intersection edge here: example a cylindrical surface touching a plane
-
-                                    GeoVector2D toCenter1 = fc1.Domain.GetCenter() - uvf1;
-                                    GeoVector2D toCenter2 = fc2.Domain.GetCenter() - uvf2;
-                                    // normalis the step vectors to the size of the extent
-                                    if (Math.Abs(toCenter1.x) > Math.Abs(toCenter1.y)) toCenter1.Length = fc1.Domain.Width * 1e-3; // 1/1000 of the extent
-                                    else if (Math.Abs(toCenter1.y) > 0) toCenter1.Length = fc1.Domain.Height * 1e-3; // 1/1000 of the extent
-                                    else toCenter1 = new GeoVector2D(fc1.Domain.Width * 1e-3, fc1.Domain.Height * 1e-3); // was exactely in the center
-                                    if (Math.Abs(toCenter2.x) > Math.Abs(toCenter2.y)) toCenter2.Length = fc2.Domain.Width * 1e-3; // 1/1000 of the extent
-                                    else if (Math.Abs(toCenter2.y) > 0) toCenter2.Length = fc2.Domain.Height * 1e-3; // 1/1000 of the extent
-                                    else toCenter2 = new GeoVector2D(fc2.Domain.Width * 1e-3, fc2.Domain.Height * 1e-3); // was exactely in the center
-                                                                                                                         // walk to the center until the normals are no longer parallel
-                                    while (fc1.Domain.ContainsEps(uvf1, -0.01) && fc2.Domain.ContainsEps(uvf2, -0.01))
-                                    {
-                                        uvf1 += toCenter1;
-                                        uvf2 += toCenter2;
-                                        GeoPoint m0 = new GeoPoint(fc1.Surface.PointAt(uvf1), fc2.Surface.PointAt(uvf2)); // middle point
-                                        uvf1 = fc1.PositionOf(m0); // uvf1 and uvf2 must be evaluated at a close position. There was a bug when uvf1 was "running" slower than uvf2
-                                        uvf2 = fc2.PositionOf(m0);
-                                        GeoVector nn1 = fc1.Surface.GetNormal(uvf1).Normalized;
-                                        GeoVector nn2 = fc2.Surface.GetNormal(uvf2).Normalized;
-                                        Line ldbg1 = Line.TwoPoints(fc1.Surface.PointAt(uvf1), fc1.Surface.PointAt(uvf1) + 10 * nn1);
-                                        Line ldbg2 = Line.TwoPoints(fc2.Surface.PointAt(uvf2), fc2.Surface.PointAt(uvf2) + 10 * nn2);
-                                        toCenter1 = 2 * toCenter1;
-                                        toCenter2 = 2 * toCenter2;
-                                        normalsCrossedMiddle = nn1 ^ nn2;
-                                        if (normalsCrossedMiddle.Length > 10 * Precision.eps) break;
-                                    }
-                                }
-                                double tangentialPrecision = (fc1.GetExtent(0.0).Size + fc2.GetExtent(0.0).Size) * Precision.eps;
-                                // Still ignoring the case where there could be a real intersection e.g. when a surface crosses a plane like the "S" crosses the tangent at the middle
-                                // When this intersection curve coincides with an existing edge on one of the faces, we use the combined normalvector of both involved faces
-                                HashSet<Edge> existingEdges = new HashSet<Edge>(Vertex.ConnectingEdges(usedVertices[j1], usedVertices[j2]));
-                                GeoVector n1 = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)).Normalized;
-                                GeoVector n2 = fc2.Surface.GetNormal(fc2.Surface.PositionOf(m)).Normalized;
-                                HashSet<Edge> onFace1 = existingEdges.Intersect(fc1.Edges).ToHashSet();
-                                HashSet<Edge> onFace2 = existingEdges.Intersect(fc2.Edges).ToHashSet();
-
-                                if (normalsCrossedMiddle.Length < Precision.eps) //edgFound)
-                                {
-                                    normalsCrossedMiddle = n1 ^ n2;
-                                    if (normalsCrossedMiddle.Length < Precision.eps)
-                                    {   // still not able to decide, the connecting face found is also tangential
-                                        // now we go a little bit inside on the face with the edge. This is very seldom the case, so no problem making the same iteration once more
-                                        foreach (Edge edg in onFace1)
-                                        {
-                                            if (edg.Curve3D != null && edg.Curve3D.DistanceTo(m) < tangentialPrecision)
-                                            {
-                                                ICurve2D c2df1 = edg.Curve2D(fc1);
-                                                // from the middle of this edge go a small step into the inside of the face and see what the normal is at that point
-                                                GeoPoint2D mp = c2df1.PointAt(0.5);
-                                                GeoVector2D mdir = c2df1.DirectionAt(0.5).ToLeft().Normalized;
-                                                double len = fc1.Area.GetExtent().Size;
-                                                Line2D l2d = new Line2D(mp, mp + len * mdir);
-                                                double[] parts = fc1.Area.Clip(l2d, true);
-                                                if (parts.Length > 1)
-                                                {   // there is a point on face1 close to the intersectioncurve, which we can use for the normal
-                                                    n1 += fc1.Surface.GetNormal(l2d.PointAt((parts[0] + parts[1]) / 2.0));
-                                                }
-                                                break;
-                                            }
-                                        }
-                                        foreach (Edge edg in onFace2)
-                                        {
-                                            if (edg.Curve3D != null && edg.Curve3D.DistanceTo(m) < tangentialPrecision)
-                                            {
-                                                ICurve2D c2df2 = edg.Curve2D(fc2);
-                                                // from the middle of this edge go a small step into the inside of the face and see what the normal is at that point
-                                                GeoPoint2D mp = c2df2.PointAt(0.5);
-                                                GeoVector2D mdir = c2df2.DirectionAt(0.5).ToLeft().Normalized;
-                                                double len = fc2.Area.GetExtent().Size;
-                                                Line2D l2d = new Line2D(mp, mp + len * mdir);
-                                                double[] parts = fc2.Area.Clip(l2d, true);
-                                                if (parts.Length > 1)
-                                                {   // there is a point on face2 close to the intersectioncurve, which we can use for the normal
-                                                    n2 += fc2.Surface.GetNormal(l2d.PointAt((parts[0] + parts[1]) / 2.0));
-                                                }
-                                                break;
-                                            }
-                                        }
-                                        normalsCrossedMiddle = n1 ^ n2;
-                                    }
-                                }
-                                // else: it is a inner intersection. With simple surfaces this cannot be a real intersection
-                                // but with nurbs surfaces, this could be the case. This still has to be implemented
-                                if (normalsCrossedMiddle.Length < Precision.eps) continue;
+                                if (normalsCrossedMiddle.Length < 100 * Precision.eps) continue; // we didn't find a good pair of normals, so we cannot determine the direction of the edge
+                                // continue should not happen. If so, improve the algorithm above
                             }
                             dirs1 = (normalsCrossedMiddle * tr.DirectionAt(0.5)) > 0;
                         }

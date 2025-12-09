@@ -312,6 +312,7 @@ namespace ShapeIt
                 Shell? filletShell = MakeConvexFilletShell(edgeToRound, radius);
                 if (filletShell != null)
                 {
+                    filletShell.CopyAttributes(edgeToRound.PrimaryFace);
                     edgeToFillet[edgeToRound] = filletShell;
                 }
             }
