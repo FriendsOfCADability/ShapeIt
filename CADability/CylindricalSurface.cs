@@ -1283,6 +1283,32 @@ namespace CADability.GeoObject
                             return new IDualSurfaceCurve[] { new DualSurfaceCurve(this.Make3dCurve(l1), this, l1, torus, l2) };
                         }
                     }
+                    else
+                    {
+                        double u = thisBounds.GetCenter().x;
+                        GeoPoint2D[] lips = torus.GetLineIntersection(PointAt(new GeoPoint2D(u, thisBounds.Bottom)), Axis);
+                        List<IDualSurfaceCurve> lres = new List<IDualSurfaceCurve>();
+                        for (int i = 0; i < lips.Length; i++)
+                        {
+                            GeoPoint ip = torus.PointAt(lips[i]);
+                            GeoPoint2D uvStartThis, uvEndThis;
+                            uvStartThis = uvEndThis = PositionOf(ip);
+                            uvStartThis.x = thisBounds.Left;
+                            uvEndThis.x = thisBounds.Right;
+                            GeoPoint2D tuv = lips[i];
+                            GeoPoint2D uvStartTorus = torus.PositionOf(PointAt(uvStartThis));
+                            GeoPoint2D uvEndTorus = torus.PositionOf(PointAt(uvEndThis));
+                            SurfaceHelper.AdjustPeriodic(torus, otherBounds, ref tuv);
+                            SurfaceHelper.AdjustPeriodic(torus, otherBounds, ref uvStartTorus);
+                            SurfaceHelper.AdjustPeriodic(torus, otherBounds, ref uvEndTorus);
+                            // uvStartTorus and uvEndTorus must have the same x value, which should be the x value of tuv. Here we force it
+                            uvStartTorus.x = uvEndTorus.x = tuv.x;
+                            Line2D l1 = new Line2D(uvStartThis, uvEndThis);
+                            Line2D l2 = new Curve2D.Line2D(uvStartTorus, uvEndTorus);
+                            lres.Add(new DualSurfaceCurve(this.Make3dCurve(l1), this, l1, torus, l2));
+                        }
+                        return lres.ToArray();
+                    }
                 }
 
                 return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);

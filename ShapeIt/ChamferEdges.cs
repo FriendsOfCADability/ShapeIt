@@ -116,6 +116,23 @@ namespace ShapeIt
             ISurface? sweptCircle = hullAroundEdge(leadingEdge, length1, n1 + n2); // a cylindrical hull around the edge
             ISurfaceOfExtrusion? sweptCircleExtrusion = sweptCircle as ISurfaceOfExtrusion;
             if (sweptCircle == null || sweptCircleExtrusion == null) return null; // to satisfy the compiler
+            foreach (GeoPoint p in new List<GeoPoint>([leadingEdge.PointAt(0.33), leadingEdge.PointAt(0.67), leadingEdge.StartPoint, leadingEdge.EndPoint]))
+            {
+                sweptCircle.ExtendBoundsTo(p);
+            }
+            BoundingRect swcbounds = sweptCircle.GetBounds();
+            if (sweptCircleExtrusion.ExtrusionDirectionIsV)
+            {
+                swcbounds.Left = 0.0;
+                swcbounds.Right = 2 * Math.PI;
+            }
+            else
+            {
+                swcbounds.Bottom = 0.0;
+                swcbounds.Top = 2 * Math.PI;
+            }
+            sweptCircle.SetBounds(swcbounds);
+            Face dbgf = (sweptCircle as ISurfaceImpl)!.DebugAsFace;
 
             Ellipse tstCircle = Ellipse.Construct();
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.StartPoint, leadingEdge.StartDirection), leadingEdge.StartPoint, length1);

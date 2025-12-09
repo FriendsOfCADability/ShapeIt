@@ -12,9 +12,6 @@ namespace CADability.GeoObject
     /// the "big" circles around the main axis, the v parameter describes the "small" circles.
     /// </summary>
     [Serializable()]
-#if DEBUG
-    [Log]
-#endif
     public class ToroidalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IImplicitPSurface, IExportStep, ISurfaceOfArcExtrusion, ISurfaceOfRevolution
     {
         private ModOp toTorus; // diese ModOp modifiziert den Einheitstorus in den konkreten Torus
