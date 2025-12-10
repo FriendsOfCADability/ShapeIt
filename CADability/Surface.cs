@@ -521,7 +521,19 @@ namespace CADability.GeoObject
             GeoPoint2D uv = surface.PositionOf(p);
             BoundingRect ext = surface.GetBounds();
             if (ext.IsInfinite) ext = BoundingRect.EmptyBoundingRect;
-            ext.MinMax(uv);
+
+            double[] us = surface.GetUSingularities();
+            double[] vs = surface.GetVSingularities();
+            bool uPole = false, vPole = false;
+            for (int i = 0; i < us.Length; i++) if (Math.Abs(uv.x - us[i]) < 1e-6) uPole = true;
+            for (int i = 0; i < vs.Length; i++) if (Math.Abs(uv.y - vs[i]) < 1e-6) vPole = true;
+
+            if (!ext.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, ext, ref uv);
+
+            if (uPole) ext.MinMaxHeight(uv.y); // only adjust the height of ext
+            else if (vPole) ext.MinMaxWidth(uv.x); // only adjust the width of ext
+            else ext.MinMax(uv);
+
             surface.SetBounds(ext);
         }
         /// <summary>
@@ -549,7 +561,7 @@ namespace CADability.GeoObject
             double[] vs = surface.GetVSingularities();
             for (int i = 0; i < vs.Length; i++)
             {
-                if (Math.Abs(uv.y - vs[i])<1e-6)
+                if (Math.Abs(uv.y - vs[i]) < 1e-6)
                 {
                     GeoPoint2D alignTo2D = surface.PositionOf(alignTo);
                     uv.x = alignTo2D.x;
@@ -3738,11 +3750,11 @@ namespace CADability.GeoObject
         }
         public virtual BoundingRect GetBounds()
         {
-            if (usedArea.IsEmpty())
-            {
-                GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax);
-                return new BoundingRect(umin, vmin, umax, vmax);
-            }
+            //if (usedArea.IsEmpty()) // no! we need the empty bound e.g. in ExtendBoundsTo
+            //{
+            //    GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax);
+            //    return new BoundingRect(umin, vmin, umax, vmax);
+            //}
             return usedArea;
         }
         /// <summary>
@@ -11867,7 +11879,8 @@ namespace CADability.GeoObject
                             lips.Add(ip);
                             luvOnFace.Add(uv);
                             luOnCurve.Add(u);
-                        } else if (cube.Size > octtree.Extend.Size / 100)
+                        }
+                        else if (cube.Size > octtree.Extend.Size / 100)
                         {
                             ParEpi[] splitted = SplitCube(cube);
                             for (int i = 0; i < splitted.Length; ++i)
@@ -11896,7 +11909,7 @@ namespace CADability.GeoObject
             uv = cube.uvPatch.GetCenter();
             u = 0.5; // in der Mitte, unwichtig
                      // BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u);
-            // BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u, out GeoPoint dbgip);
+                     // BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u, out GeoPoint dbgip);
             GeoVector udir = surface.UDirection(uv);
             GeoVector vdir = surface.VDirection(uv); // die müssen auch von der Länge her stimmen!
             GeoPoint loc = surface.PointAt(uv);

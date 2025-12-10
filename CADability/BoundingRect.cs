@@ -175,11 +175,21 @@ namespace CADability
         /// </summary>
         /// <param name="p">Point to be included</param>
         public void MinMax(GeoPoint2D p)
-        {   // arbeitet auch gut mit Empty, da jede Abfrage zutrifft
+        {   // also works fine with empty BoundingRect
             if (p.x < Left) Left = p.x;
             if (p.x > Right) Right = p.x;
             if (p.y < Bottom) Bottom = p.y;
             if (p.y > Top) Top = p.y;
+        }
+        public void MinMaxWidth(double x)
+        {   // also works fine with empty BoundingRect
+            if (x < Left) Left = x;
+            if (x > Right) Right = x;
+        }
+        public void MinMaxHeight(double y)
+        {   // also works fine with empty BoundingRect
+            if (y < Bottom) Bottom = y;
+            if (y > Top) Top = y;
         }
         /// <summary>
         /// Adapts the size of this bounding rectangle to include the provided points.
