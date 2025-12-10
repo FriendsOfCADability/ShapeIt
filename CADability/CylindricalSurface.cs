@@ -1200,6 +1200,21 @@ namespace CADability.GeoObject
                     return res;
                 }
             }
+            else if (other is ConicalSurface cone)
+            {
+                if (Precision.SameAxis(new CADability.Axis(Location,Axis), new CADability.Axis(cone.Location, cone.Axis)))
+                {
+                    ICurve line = cone.FixedU((otherBounds.Left + otherBounds.Right) / 2, otherBounds.Bottom, otherBounds.Top);
+                    double coneVMiddle = (otherBounds.Bottom + otherBounds.Top) / 2;
+                    GeoPoint2D[] uvInts = GetLineIntersection(line.StartPoint, line.StartDirection);
+                    if (uvInts.Length > 0)
+                    {
+                        GeoPoint2D uv = uvInts.MinBy(p => Math.Abs(cone.PositionOf(PointAt(p)).y - coneVMiddle));
+                        ICurve crv = FixedV(uv.y, thisBounds.Left, thisBounds.Right);
+                        return [new DualSurfaceCurve(crv, this, new Line2D(new GeoPoint2D(thisBounds.Left, uv.y), new GeoPoint2D(thisBounds.Right, uv.y)), other, other.GetProjectedCurve(crv, Precision.eps))];
+                    }
+                }
+            }
             else if (other is ToroidalSurface torus)
             {
                 if (Math.Abs(torus.MinorRadius - XAxis.Length) < Precision.eps)

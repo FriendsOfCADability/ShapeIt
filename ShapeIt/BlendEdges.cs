@@ -189,6 +189,12 @@ namespace ShapeIt
         {
             double pos1 = curve.PositionOf(startPoint);
             double pos2 = curve.PositionOf(endPoint);
+            if (pos1 > pos2)
+            {
+                curve.Reverse();
+                pos1 = 1 - pos1;
+                pos2 = 1 - pos2;
+            }
             if (Math.Abs(pos1) > 1e-6 || Math.Abs(1 - pos2) > 1e-6)
             {
                 curve.Trim(pos1, pos2);

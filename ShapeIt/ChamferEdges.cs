@@ -138,6 +138,8 @@ namespace ShapeIt
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.StartPoint, leadingEdge.StartDirection), leadingEdge.StartPoint, length1);
             topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve);
             if (ips.Length == 0) return null;
+            n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.StartPoint));
+            n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.StartPoint));
             GeoPoint sp = ips.MinBy(p => (p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length1);
             topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
@@ -145,10 +147,17 @@ namespace ShapeIt
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.EndPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.EndPoint));
             GeoPoint ep = ips.MinBy(p => (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside
+            // we need a middle point to discriminate between the two halves of a circle
+            tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.PointAt(0.5), leadingEdge.DirectionAt(0.5)), leadingEdge.PointAt(0.5), length1);
+            topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            if (ips.Length == 0) return null;
+            n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.PointAt(0.5)));
+            n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
+            GeoPoint mp = ips.MinBy(p => (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
             IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, sweptCircle, sweptCircle.GetBounds(), [sp, ep]);
             if (dscs == null) return null; // there should only be one
-            ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp));
+            ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
             if (topCurve == null) return null;
             TrimCurve(topCurve, sp, ep);
 
@@ -159,16 +168,23 @@ namespace ShapeIt
             bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             sp = ips.MinBy(p => (p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside
-            tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length1);
+            tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length2);
             bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.EndPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.EndPoint));
             ep = ips.MinBy(p => (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside
+            // we need a middle point to discriminate between the two halves of a circle
+            tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.PointAt(0.5), leadingEdge.DirectionAt(0.5)), leadingEdge.PointAt(0.5), length2);
+            bottomSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            if (ips.Length == 0) return null;
+            n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.PointAt(0.5)));
+            n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
+            mp = ips.MinBy(p => (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
             dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, sweptCircle, sweptCircle.GetBounds(), [sp, ep]);
             if (dscs == null) return null; // there should only be one
-            ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp));
+            ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
             if (bottomCurve == null) return null;
             TrimCurve(bottomCurve, sp, ep);
 
@@ -206,16 +222,17 @@ namespace ShapeIt
             Face rightFace = Face.MakeFace(rightSurface, new List<ICurve>([rightTopCurve, rightBottomCurve, rightChamferEdge]));
             Face topFace = Face.MakeFace(topSurface.Clone(), new List<ICurve>([leadingEdge, leftTopCurve, rightTopCurve, topCurve]));
             Face bottomFace = Face.MakeFace(bottomSurface.Clone(), new List<ICurve>([leadingEdge, leftBottomCurve, rightBottomCurve, bottomCurve]));
+            Shell[] res = Make3D.SewFaces([chamferFace, leftFace, rightFace, topFace, bottomFace]);
+            if (res==null||res.Length==0) return null;
 
-            Shell res = Shell.FromFaces(chamferFace, topFace, bottomFace, rightFace, leftFace);
             rightFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
             leftFace.UserData.Add("CADability.Cutter.EndFace", "endface");
             chamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");
 
 #if DEBUG
-            bool ok = res.CheckConsistency();
+            bool ok = res[0].CheckConsistency();
 #endif
-            return res;
+            return res[0];
         }
 
     }

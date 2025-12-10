@@ -368,13 +368,17 @@ namespace ShapeIt
             {
                 if (difference.Count > 0)
                 {
-                    Solid[] sres = NewBooleanOperation.Subtract(operand2, operand1);
+                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                     if (sres.Length > 0)
                     {
                         Project proj = Project.CreateSimpleProject();
                         proj.GetActiveModel().Add(sres);
                         proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
                     }
+                }
+                if (command.StartsWith("Difference",StringComparison.OrdinalIgnoreCase))
+                {
+                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                 }
             }
             if (operand1 != null && operand2 != null)

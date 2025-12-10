@@ -1419,7 +1419,7 @@ namespace CADability.GeoObject
                     ICurve2D c2dcone = dsc[0].Curve3D.GetProjectedCurve(pl);
                     ICurve2D c2d = curve.GetProjectedCurve(pl);
                     GeoPoint2DWithParameter[] ips2d = c2d.Intersect(c2dcone);
-                    if (ips2d != null && ips2d.Length > 0)
+                    if (ips2d != null)
                     {
                         ips = new GeoPoint[ips2d.Length];
                         uvOnFaces = new GeoPoint2D[ips2d.Length];
@@ -1432,7 +1432,7 @@ namespace CADability.GeoObject
                         }
                         return;
                     }
-                }
+                } 
             }
             {
                 base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
