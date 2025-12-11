@@ -1,7 +1,10 @@
 ﻿using CADability.Curve2D;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.Optimization;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CADability.GeoObject
 {
@@ -596,7 +599,7 @@ namespace CADability.GeoObject
             {
                 pnts[4 * i] = curves[i].StartPoint;
                 pnts[4 * i + 1] = curves[i].EndPoint;
-                pnts[4 * i + 2] = curves[i].PointAt(1.0/3.0);
+                pnts[4 * i + 2] = curves[i].PointAt(1.0 / 3.0);
                 pnts[4 * i + 3] = curves[i].PointAt(2.0 / 3.0);
             }
             CommonPlane = Plane.FromPoints(pnts, out double maxdist, out bool isLinear);
@@ -612,7 +615,7 @@ namespace CADability.GeoObject
             {
                 if (!curves[i].IsInPlane(CommonPlane)) return false;
             }
-            return true;            
+            return true;
         }
         /// <summary>
         /// Returns the parameters of the intersection points of curve1 with curve2.
@@ -983,5 +986,210 @@ namespace CADability.GeoObject
             return false;
         }
 
+
+        public struct MultiCurveIntersectionResult
+        {
+            /// <summary>Best common point (intersection / closest point).</summary>
+            public GeoPoint Point;
+            /// <summary>Parameter on each curve corresponding to the closest point.</summary>
+            public double[] Parameters;
+            /// <summary>Sum of squared distances from the point to all curves.</summary>
+            public double SumOfSquaredDistances;
+            /// <summary>Root mean square distance to the curves (sqrt(SSR / nCurves)).</summary>
+            public double RmsDistance;
+            /// <summary>Number of iterations performed by the LM minimizer.</summary>
+            public int Iterations;
+            /// <summary>Exit condition reported by MathNet's Levenberg-Marquardt minimizer.</summary>
+            public ExitCondition ReasonForExit;
+            /// <summary>
+            /// Convenience flag: true for "reasonably successful" exits (not InvalidValues / ExceedIterations).
+            /// </summary>
+            public bool Converged;
+        }
+
+        /// <summary>
+        /// Find a common intersection / closest point to several 3D curves using
+        /// MathNet's Levenberg-Marquardt minimizer (nonlinear least squares).
+        ///
+        /// Unknowns:
+        ///   x = (Px, Py, Pz, u0, u1, ..., u_{n-1})
+        ///
+        /// Model (for LM):
+        ///   For each curve i we define 3 model components:
+        ///   m_i = C_i(u_i) - P   (x,y,z components stacked)
+        ///
+        /// Observed data y are all zeros. The LM solver minimizes
+        ///   sum_j (y_j - m_j(x))^2 = sum_j m_j(x)^2
+        /// which is exactly the sum of squared distances from P to all curves.
+        /// </summary>
+        public static MultiCurveIntersectionResult FindCommonPoint(
+            IReadOnlyList<ICurve> curves,
+            GeoPoint initialPoint,
+            double[] initialParameters = null,
+            double gradientTolerance = 1e-10,
+            double stepTolerance = 1e-10,
+            double functionTolerance = 1e-12,
+            int maxIterations = 100,
+            double initialMu = 1e-3)
+        {
+            if (curves == null) throw new ArgumentNullException(nameof(curves));
+            if (curves.Count == 0) throw new ArgumentException("At least one curve is required.", nameof(curves));
+
+            int nCurves = curves.Count;
+            int nUnknowns = 3 + nCurves;        // P (3) + one ui per curve
+            int mResiduals = 3 * nCurves;       // 3 components per curve
+
+            var vBuilder = Vector<double>.Build;
+            var mBuilder = Matrix<double>.Build;
+
+            // --- build initial guess vector: [Px, Py, Pz, u0, ..., u_{n-1}] ---
+            var initialGuess = vBuilder.Dense(nUnknowns);
+            initialGuess[0] = initialPoint.x;
+            initialGuess[1] = initialPoint.y;
+            initialGuess[2] = initialPoint.z;
+
+            for (int i = 0; i < nCurves; i++)
+            {
+                double u0;
+                if (initialParameters != null && i < initialParameters.Length)
+                {
+                    u0 = initialParameters[i];
+                }
+                else
+                {
+                    // Use curve's own closest-parameter function as starting guess.
+                    u0 = curves[i].PositionOf(initialPoint);
+                }
+                initialGuess[3 + i] = u0;
+            }
+
+            // --- fake "x data" and "y data" for the model ---
+            // LM expects observedX, observedY, and weight; we don't actually use X here.
+            var observedX = vBuilder.Dense(mResiduals, i => (double)i); // arbitrary indices
+            var observedY = vBuilder.Dense(mResiduals, 0.0);            // all zeros
+            var weight = vBuilder.Dense(mResiduals, 1.0);            // uniform weights
+
+            // --- model function: maps parameters -> model values m(x) ---
+            // We IGNORE xData, we only care about parameters and curves.
+            Vector<double> ModelFunction(Vector<double> parameters, Vector<double> xData)
+            {
+                var P = new GeoPoint(parameters[0], parameters[1], parameters[2]);
+                var result = vBuilder.Dense(mResiduals);
+
+                for (int i = 0; i < nCurves; i++)
+                {
+                    int row = 3 * i;
+                    double ui = parameters[3 + i];
+
+                    ICurve curve = curves[i];
+                    GeoPoint Ci = curve.PointAt(ui);
+                    GeoVector ri = Ci - P; // vector from P to curve point
+
+                    result[row + 0] = ri.x;
+                    result[row + 1] = ri.y;
+                    result[row + 2] = ri.z;
+                }
+
+                return result;
+            }
+
+            // --- Jacobian of the model wrt parameters ---
+            // Each block (3 rows per curve) looks like:
+            //
+            //   m_i = C_i(u_i) - P
+            //
+            // ∂m_i/∂P  = -I_3
+            // ∂m_i/∂u_i = C'_i(u_i)
+            //
+            Matrix<double> JacobianFunction(Vector<double> parameters, Vector<double> xData)
+            {
+                var J = mBuilder.Dense(mResiduals, nUnknowns);
+
+                var P = new GeoPoint(parameters[0], parameters[1], parameters[2]);
+
+                for (int i = 0; i < nCurves; i++)
+                {
+                    int row = 3 * i;
+                    double ui = parameters[3 + i];
+
+                    ICurve curve = curves[i];
+                    GeoPoint Ci = curve.PointAt(ui);
+                    GeoVector dCi = curve.DirectionAt(ui); // derivative wrt ui
+
+                    // ∂m/∂P = -I (3x3)
+                    J[row + 0, 0] = -1.0;
+                    J[row + 1, 1] = -1.0;
+                    J[row + 2, 2] = -1.0;
+
+                    // ∂m/∂ui = C'(ui)
+                    int colUi = 3 + i;
+                    J[row + 0, colUi] = dCi.x;
+                    J[row + 1, colUi] = dCi.y;
+                    J[row + 2, colUi] = dCi.z;
+
+                    // All other entries stay zero.
+                }
+
+                return J;
+            }
+
+            // Build IObjectiveModel for LM: model(m) + explicit Jacobian
+            IObjectiveModel objectiveModel = ObjectiveFunction.NonlinearModel(
+                ModelFunction,
+                JacobianFunction,
+                observedX,
+                observedY,
+                weight);
+
+            // Bounds: here unbounded, but you could restrict ui or P if you want.
+            var lowerBound = vBuilder.Dense(nUnknowns, double.MinValue);
+            var upperBound = vBuilder.Dense(nUnknowns, double.MaxValue);
+            var scales = vBuilder.Dense(nUnknowns, 1.0); // parameter scaling
+            var isFixed = Enumerable.Repeat(false, nUnknowns).ToList();
+
+            // Create LM minimizer with given tolerances and iteration limit.
+            var lm = new LevenbergMarquardtMinimizer(
+                initialMu,
+                gradientTolerance,
+                stepTolerance,
+                functionTolerance,
+                maxIterations);
+
+            // Run the minimization
+            NonlinearMinimizationResult result =
+                lm.FindMinimum(objectiveModel, initialGuess); //, lowerBound, upperBound, scales, isFixed);
+
+            // Extract best parameters
+            Vector<double> pStar = result.MinimizingPoint;
+
+            GeoPoint bestPoint = new GeoPoint(pStar[0], pStar[1], pStar[2]);
+            double[] bestParameters = new double[nCurves];
+            for (int i = 0; i < nCurves; i++)
+            {
+                bestParameters[i] = pStar[3 + i];
+            }
+
+            // The fitted "y-values" are our model values m(x*), i.e. stacked residual components.
+            Vector<double> modelValues = result.MinimizedValues;
+            double sumOfSquared = modelValues.DotProduct(modelValues);
+            double rms = (nCurves > 0) ? Math.Sqrt(sumOfSquared / nCurves) : 0.0;
+
+            ExitCondition reason = result.ReasonForExit;
+
+            bool converged =
+                reason != ExitCondition.InvalidValues &&
+                reason != ExitCondition.ExceedIterations;
+
+            return new MultiCurveIntersectionResult
+            {
+                Point = bestPoint,
+                Parameters = bestParameters,
+                SumOfSquaredDistances = sumOfSquared,
+                RmsDistance = rms,
+                Iterations = result.Iterations,
+                ReasonForExit = reason,
+                Converged = converged
+            };
+        }
     }
 }

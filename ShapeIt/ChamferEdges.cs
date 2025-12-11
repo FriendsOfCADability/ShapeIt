@@ -132,7 +132,6 @@ namespace ShapeIt
                 swcbounds.Top = 2 * Math.PI;
             }
             sweptCircle.SetBounds(swcbounds);
-            Face dbgf = (sweptCircle as ISurfaceImpl)!.DebugAsFace;
 
             Ellipse tstCircle = Ellipse.Construct();
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.StartPoint, leadingEdge.StartDirection), leadingEdge.StartPoint, length1);

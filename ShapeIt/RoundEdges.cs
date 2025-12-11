@@ -13,7 +13,7 @@ using static ShapeIt.ShellExtensions;
 
 namespace ShapeIt
 {
-    internal class RoundEdges: BlendEdges
+    internal class RoundEdges : BlendEdges
     {
         double radius;
         /// <summary>
@@ -27,7 +27,7 @@ namespace ShapeIt
         /// <param name="shell"></param>
         /// <param name="edges"></param>
         /// <param name="radius"></param>
-        public RoundEdges(Shell shell, IEnumerable<Edge> edges, double radius): base(shell, edges)
+        public RoundEdges(Shell shell, IEnumerable<Edge> edges, double radius) : base(shell, edges)
         {
             this.shell = shell;
             this.radius = Math.Abs(radius); // radius may not be negative
@@ -56,7 +56,12 @@ namespace ShapeIt
                 }
                 else if (ve.Value.Count == 2)
                 {
-                    HashSet<Shell>? filletAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1], 2*radius);
+                    HashSet<Shell>? filletAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1], 2 * radius);
+                    if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
+                }
+                else if (ve.Value.Count == 3)
+                {
+                    HashSet<Shell>? filletAndExtension = createExtensionThreeEdges(ve.Key, ve.Value[0], ve.Value[1], ve.Value[2]);
                     if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
                 }
             }
@@ -77,6 +82,53 @@ namespace ShapeIt
             }
 
             return toOperateOn;
+        }
+
+        private HashSet<Shell>? createExtensionThreeEdges(Vertex vtx, Edge edge1, Edge edge2, Edge edge3)
+        {
+            // find the fillets for these edges
+            Shell? fillet1 = edgeToCutter?[edge1];
+            Shell? fillet2 = edgeToCutter?[edge2];
+            Shell? fillet3 = edgeToCutter?[edge3];
+            if (fillet1 == null || fillet2 == null || fillet3 == null) return null;
+
+            // find the end faces of the fillets at this vertex
+            Face? endFace1 = fillet1.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            Face? endFace2 = fillet2.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            Face? endFace3 = fillet3.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            if (endFace1 == null || endFace2 == null || endFace3 == null) return null;
+            // find the swept faces of the fillets
+            Face? sweptFace1 = fillet1.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
+            Face? sweptFace2 = fillet2.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
+            Face? sweptFace3 = fillet3.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
+            if (sweptFace1 == null || sweptFace2 == null || sweptFace3 == null) return null;
+            ISurfaceOfExtrusion? sweptSurface1 = sweptFace1.Surface as ISurfaceOfExtrusion;
+            ISurfaceOfExtrusion? sweptSurface2 = sweptFace2.Surface as ISurfaceOfExtrusion;
+            ISurfaceOfExtrusion? sweptSurface3 = sweptFace3.Surface as ISurfaceOfExtrusion;
+            if (sweptSurface1 == null || sweptSurface2 == null || sweptSurface3 == null) return null;
+            ICurve spine1 = sweptSurface1.Axis(sweptFace1.Domain);
+            ICurve spine2 = sweptSurface2.Axis(sweptFace2.Domain);
+            ICurve spine3 = sweptSurface3.Axis(sweptFace3.Domain);
+            var cp = Curves.FindCommonPoint([spine1, spine2, spine3], vtx.Position, null, 1E-6, 1E-6, 1E-8, 100);
+            if (cp.SumOfSquaredDistances<Precision.eps)
+            {
+                // this is the center of the sphere, no we need the three arcs at the end faces to define the sphere
+                ICurve arc1 = sweptSurface1.ExtrusionDirectionIsV? sweptFace1.Surface.FixedV(cp.Parameters[0], sweptFace1.Domain.Left, sweptFace1.Domain.Right) 
+                    : sweptFace1.Surface.FixedU(cp.Parameters[0], sweptFace1.Domain.Bottom, sweptFace1.Domain.Top);
+                ICurve arc2 = sweptSurface2.ExtrusionDirectionIsV ? sweptFace2.Surface.FixedV(cp.Parameters[1], sweptFace2.Domain.Left, sweptFace2.Domain.Right)
+                    : sweptFace2.Surface.FixedU(cp.Parameters[1], sweptFace2.Domain.Bottom, sweptFace2.Domain.Top);
+                ICurve arc3 = sweptSurface3.ExtrusionDirectionIsV ? sweptFace3.Surface.FixedV(cp.Parameters[2], sweptFace3.Domain.Left, sweptFace3.Domain.Right)
+                    : sweptFace3.Surface.FixedU(cp.Parameters[2], sweptFace3.Domain.Bottom, sweptFace3.Domain.Top);
+
+            }
+            double[] si1 = Curves.Intersect(spine1, spine2, true);
+            double[] si2 = Curves.Intersect(spine2, spine3, true);
+            double[] si3 = Curves.Intersect(spine3, spine1, true);
+            GeoPoint p1 = spine1.PointAt(si1[0]);
+            GeoPoint p2 = spine2.PointAt(si2[0]);
+            GeoPoint p3 = spine3.PointAt(si3[0]);
+
+            return null;
         }
 
         protected Shell? CreateConcavePatchX(Shell fillet1Shell, Shell fillet2Shell, Face commonFace, Vertex vtx, Edge edge1, Edge edge2)
@@ -465,7 +517,7 @@ namespace ShapeIt
             // and the other points are close to the bounds of the interval
             GeoPoint2D cntuv = sweptCircle.PositionOf(edgeToRound.Curve3D.PointAt(0.3));
             BoundingRect sweptBounds = new BoundingRect(cntuv);
-            foreach (GeoPoint p in new List<GeoPoint>([edgeToRound.Curve3D.PointAt(0.7),rt, rb, lt, lb]))
+            foreach (GeoPoint p in new List<GeoPoint>([edgeToRound.Curve3D.PointAt(0.7), rt, rb, lt, lb]))
             {
                 GeoPoint2D uv = sweptCircle.PositionOf(p);
                 SurfaceHelper.AdjustPeriodic(sweptCircle, sweptBounds, ref uv);
