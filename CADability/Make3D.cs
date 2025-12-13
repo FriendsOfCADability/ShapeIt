@@ -2843,6 +2843,10 @@ namespace CADability.GeoObject
                                 {
                                     pls = (arcs[i] as ICurve).GetPlane();
                                     surface = new PlaneSurface(pls);
+                                } else if (arcs[i+1]!=null) // we can savely use i+1, because there is one more arc than curves, so i+1 always exists
+                                {
+                                    pls = (arcs[i + 1]).GetPlane();
+                                    surface = new PlaneSurface(pls);
                                 }
                             }
                             else if (Geometry.CommonPlane(l.StartPoint, l.StartDirection, axis.Location, axis.Direction, out pln))
@@ -2892,12 +2896,31 @@ namespace CADability.GeoObject
                                     // we should check this in the beginning as a special case.
                                     // in normal cases, the spherical surface only provides less than half a sphere, so no pole inside the face when we use an approopriate
                                     // axis for the spherical surface:
-                                    GeoPoint p1, p2;
-                                    p1 = arcs[i].PointAt(0.5);
-                                    p2 = arcs[i + 1].PointAt(0.5);
-                                    GeoVector sphereAxis = (p2 - p1).Normalized;
-                                    sphereAxis.ArbitraryNormals(out GeoVector dirx, out GeoVector diry);
-                                    surface = new SphericalSurface(e.Center, e.Radius * dirx, e.Radius * diry, e.Radius * sphereAxis);
+                                    GeoVector sphereAxis = GeoVector.NullVector;
+                                    if (arcs[i] != null && arcs[i + 1] != null)
+                                    {
+                                        GeoPoint p1, p2;
+                                        p1 = arcs[i].PointAt(0.5);
+                                        p2 = arcs[i + 1].PointAt(0.5);
+                                        sphereAxis = (p2 - p1).Normalized;
+                                    } else if (arcs[i]!=null)
+                                    {
+                                        sphereAxis = (arcs[i].PointAt(0.5) - e.Center).Normalized; // pole would be at arcs[i].PointAt(0.5)
+                                        if (sphereAxis*axis.Direction>0) sphereAxis = sphereAxis+axis.Direction.Normalized; // bend it towards the rotation axis
+                                        else sphereAxis = sphereAxis - axis.Direction.Normalized;
+                                    }
+                                    else if (arcs[i+1]!=null)
+                                    {
+                                        sphereAxis = (arcs[i+1].PointAt(0.5) - e.Center).Normalized;
+                                        if (sphereAxis * axis.Direction > 0) sphereAxis = sphereAxis + axis.Direction.Normalized;
+                                        else sphereAxis = sphereAxis - axis.Direction.Normalized;
+                                    }
+                                    if (!sphereAxis.IsNullVector())
+                                    {
+                                        sphereAxis.Norm();
+                                        sphereAxis.ArbitraryNormals(out GeoVector dirx, out GeoVector diry);
+                                        surface = new SphericalSurface(e.Center, e.Radius * dirx, e.Radius * diry, e.Radius * sphereAxis);
+                                    }
                                 }
                                 else
                                 // circle in the same plane as axis: toriodal surface

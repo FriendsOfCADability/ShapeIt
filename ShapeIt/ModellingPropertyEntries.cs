@@ -1237,165 +1237,168 @@ namespace ShapeIt
             // two closed curves not in the same plane
             // we may not use the curves direct, because adding them to a path would remove them from the model
             for (int i = 0; i < curves.Count; i++) curves[i] = curves[i].Clone();
-            List<Path> paths = Path.FromSegments(curves);
-            // if we have two paths which are flat but not in the same plane, we could make a ruled solid directly
-            // if we need more user control, e.g. specifying synchronous points on each path, we woould need a more
-            // sophisticated action
-            if (paths.Count == 2 && paths[0].GetPlanarState() == PlanarState.Planar && paths[1].GetPlanarState() == PlanarState.Planar)
+            if (curves.Count < 100) // Path.FromSegments is quite slow for many curves
             {
-                if (!Precision.IsEqual(paths[0].GetPlane(), paths[1].GetPlane()) && paths[0].IsClosed && paths[1].IsClosed)
+                List<Path> paths = Path.FromSegments(curves);
+                // if we have two paths which are flat but not in the same plane, we could make a ruled solid directly
+                // if we need more user control, e.g. specifying synchronous points on each path, we woould need a more
+                // sophisticated action
+                if (paths.Count == 2 && paths[0].GetPlanarState() == PlanarState.Planar && paths[1].GetPlanarState() == PlanarState.Planar)
                 {
-                    try
+                    if (!Precision.IsEqual(paths[0].GetPlane(), paths[1].GetPlane()) && paths[0].IsClosed && paths[1].IsClosed)
                     {
-                        DirectMenuEntry makeRuledSolid = new DirectMenuEntry("MenuId.Constr.Solid.RuledSolid");
-                        makeRuledSolid.IsSelected = (selected, frame) =>
+                        try
                         {
-                            feedback.Clear();
-                            Solid sld = Make3D.MakeRuledSolid(paths[0], paths[1], cadFrame.Project);
-                            if (selected && sld != null) feedback.FrontFaces.Add(sld);
-                            feedback.Refresh();
-                            return true;
-                        };
-                        makeRuledSolid.ExecuteMenu = (frame) =>
-                        {
-                            Solid sld = Make3D.MakeRuledSolid(paths[0], paths[1], cadFrame.Project);
-                            if (sld != null)
+                            DirectMenuEntry makeRuledSolid = new DirectMenuEntry("MenuId.Constr.Solid.RuledSolid");
+                            makeRuledSolid.IsSelected = (selected, frame) =>
                             {
-                                frame.Project.GetActiveModel().Add(sld);
-                                Clear(); // clear the control center menu
-                                ComposeModellingEntries(new GeoObjectList(sld), frame.ActiveView, null, false, false); // show the resulting solid in the controlcenter
+                                feedback.Clear();
+                                Solid sld = Make3D.MakeRuledSolid(paths[0], paths[1], cadFrame.Project);
+                                if (selected && sld != null) feedback.FrontFaces.Add(sld);
+                                feedback.Refresh();
+                                return true;
+                            };
+                            makeRuledSolid.ExecuteMenu = (frame) =>
+                            {
+                                Solid sld = Make3D.MakeRuledSolid(paths[0], paths[1], cadFrame.Project);
+                                if (sld != null)
+                                {
+                                    frame.Project.GetActiveModel().Add(sld);
+                                    Clear(); // clear the control center menu
+                                    ComposeModellingEntries(new GeoObjectList(sld), frame.ActiveView, null, false, false); // show the resulting solid in the controlcenter
 
-                            }
-                            return true;
-                        };
-                        res.Add(makeRuledSolid);
-                    }
-                    catch (NotImplementedException) { }
-                }
-            }
-            if (paths.Count == 1 && paths[0].IsClosed && paths[0].GetPlanarState() == PlanarState.Planar)
-            {
-                res.AddRange(GetPlanarPathProperties(paths[0], vw, true));
-            }
-            if (paths.Count > 1 && Curves.GetCommonPlane(paths.Cast<ICurve>().ToList(), out Plane plane))
-            {
-                List<Border> bdrs = paths.Where(p => p.IsClosed).Select(p => new Border(p.GetProjectedCurve(plane))).OrderBy(b => -b.Area).ToList();
-                for (int i = 0; i < bdrs.Count; ++i)
-                {
-                    int capturedI = i;
-                    {
-                        DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
-                        extrude.IsSelected = (selected, frame) =>
-                        {
-                            feedback.Clear();
-                            if (selected)
-                            {
-                                Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
-                                if (fc == null) return false;
-                                feedback.ShadowFaces.Add(fc);
-                            }
-                            feedback.Refresh();
-
-                            return true;
-                        };
-                        extrude.ExecuteMenu = (frame) =>
-                        {
-                            cadFrame.ControlCenter.ShowPropertyPage("Action");
-                            Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
-                            if (fc == null) return false;
-                            frame.SetAction(new Constr3DFaceExtrude(fc));
-                            return true;
-                        };
-                        res.Add(extrude);
-                        DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
-                        rotate.IsSelected = (selected, frame) =>
-                        {
-                            feedback.Clear();
-                            if (selected)
-                            {
-                                Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
-                                if (fc == null) return false;
-                                feedback.ShadowFaces.Add(fc);
-                            }
-                            feedback.Refresh();
-
-                            return true;
-                        };
-                        rotate.ExecuteMenu = (frame) =>
-                        {
-                            cadFrame.ControlCenter.ShowPropertyPage("Action");
-                            Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
-                            if (fc == null) return false;
-                            frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
-                            return true;
-                        };
-                        res.Add(rotate);
-                    }
-                    if (bdrs.Count > 0)
-                    {
-                        CompoundShape original = new CompoundShape(new SimpleShape(bdrs[i])); // the original, to check for differences
-                        CompoundShape currentDiff = original.Clone();
-                        CompoundShape currentInts = original.Clone();
-                        for (int j = 0; j < bdrs.Count; j++)
-                        {
-                            if (i != j)
-                            {
-                                currentDiff = CompoundShape.Difference(currentDiff, new CompoundShape(new SimpleShape(bdrs[j])));
-                                CompoundShape cs = CompoundShape.Intersection(currentInts, new CompoundShape(new SimpleShape(bdrs[j])));
-                                if (!cs.Empty) currentInts = cs;
-                            }
+                                }
+                                return true;
+                            };
+                            res.Add(makeRuledSolid);
                         }
-                        if (original.Area > currentDiff.Area + Precision.eps)
+                        catch (NotImplementedException) { }
+                    }
+                }
+                if (paths.Count == 1 && paths[0].IsClosed && paths[0].GetPlanarState() == PlanarState.Planar)
+                {
+                    res.AddRange(GetPlanarPathProperties(paths[0], vw, true));
+                }
+                if (paths.Count > 1 && Curves.GetCommonPlane(paths.Cast<ICurve>().ToList(), out Plane plane))
+                {
+                    List<Border> bdrs = paths.Where(p => p.IsClosed).Select(p => new Border(p.GetProjectedCurve(plane))).OrderBy(b => -b.Area).ToList();
+                    for (int i = 0; i < bdrs.Count; ++i)
+                    {
+                        int capturedI = i;
                         {
-                            foreach (SimpleShape simpleShape in currentDiff.SimpleShapes)
+                            DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
+                            extrude.IsSelected = (selected, frame) =>
                             {
-                                SimpleShape forFace = simpleShape.Clone();
-                                DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
-                                extrude.IsSelected = (selected, frame) =>
+                                feedback.Clear();
+                                if (selected)
                                 {
-                                    feedback.Clear();
-                                    if (selected)
+                                    Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                    if (fc == null) return false;
+                                    feedback.ShadowFaces.Add(fc);
+                                }
+                                feedback.Refresh();
+
+                                return true;
+                            };
+                            extrude.ExecuteMenu = (frame) =>
+                            {
+                                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                if (fc == null) return false;
+                                frame.SetAction(new Constr3DFaceExtrude(fc));
+                                return true;
+                            };
+                            res.Add(extrude);
+                            DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
+                            rotate.IsSelected = (selected, frame) =>
+                            {
+                                feedback.Clear();
+                                if (selected)
+                                {
+                                    Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                    if (fc == null) return false;
+                                    feedback.ShadowFaces.Add(fc);
+                                }
+                                feedback.Refresh();
+
+                                return true;
+                            };
+                            rotate.ExecuteMenu = (frame) =>
+                            {
+                                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                if (fc == null) return false;
+                                frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                                return true;
+                            };
+                            res.Add(rotate);
+                        }
+                        if (bdrs.Count > 0)
+                        {
+                            CompoundShape original = new CompoundShape(new SimpleShape(bdrs[i])); // the original, to check for differences
+                            CompoundShape currentDiff = original.Clone();
+                            CompoundShape currentInts = original.Clone();
+                            for (int j = 0; j < bdrs.Count; j++)
+                            {
+                                if (i != j)
+                                {
+                                    currentDiff = CompoundShape.Difference(currentDiff, new CompoundShape(new SimpleShape(bdrs[j])));
+                                    CompoundShape cs = CompoundShape.Intersection(currentInts, new CompoundShape(new SimpleShape(bdrs[j])));
+                                    if (!cs.Empty) currentInts = cs;
+                                }
+                            }
+                            if (original.Area > currentDiff.Area + Precision.eps)
+                            {
+                                foreach (SimpleShape simpleShape in currentDiff.SimpleShapes)
+                                {
+                                    SimpleShape forFace = simpleShape.Clone();
+                                    DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
+                                    extrude.IsSelected = (selected, frame) =>
                                     {
+                                        feedback.Clear();
+                                        if (selected)
+                                        {
+                                            Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
+                                            if (fc == null) return false;
+                                            feedback.ShadowFaces.Add(fc);
+                                        }
+                                        feedback.Refresh();
+
+                                        return true;
+                                    };
+                                    extrude.ExecuteMenu = (frame) =>
+                                    {
+                                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                                         Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
                                         if (fc == null) return false;
-                                        feedback.ShadowFaces.Add(fc);
-                                    }
-                                    feedback.Refresh();
-
-                                    return true;
-                                };
-                                extrude.ExecuteMenu = (frame) =>
-                                {
-                                    cadFrame.ControlCenter.ShowPropertyPage("Action");
-                                    Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
-                                    if (fc == null) return false;
-                                    frame.SetAction(new Constr3DFaceExtrude(fc));
-                                    return true;
-                                };
-                                res.Add(extrude);
-                                DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
-                                rotate.IsSelected = (selected, frame) =>
-                                {
-                                    feedback.Clear();
-                                    if (selected)
+                                        frame.SetAction(new Constr3DFaceExtrude(fc));
+                                        return true;
+                                    };
+                                    res.Add(extrude);
+                                    DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
+                                    rotate.IsSelected = (selected, frame) =>
                                     {
+                                        feedback.Clear();
+                                        if (selected)
+                                        {
+                                            Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
+                                            if (fc == null) return false;
+                                            feedback.ShadowFaces.Add(fc);
+                                        }
+                                        feedback.Refresh();
+
+                                        return true;
+                                    };
+                                    rotate.ExecuteMenu = (frame) =>
+                                    {
+                                        cadFrame.ControlCenter.ShowPropertyPage("Action");
                                         Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
                                         if (fc == null) return false;
-                                        feedback.ShadowFaces.Add(fc);
-                                    }
-                                    feedback.Refresh();
-
-                                    return true;
-                                };
-                                rotate.ExecuteMenu = (frame) =>
-                                {
-                                    cadFrame.ControlCenter.ShowPropertyPage("Action");
-                                    Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
-                                    if (fc == null) return false;
-                                    frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
-                                    return true;
-                                };
-                                res.Add(rotate);
+                                        frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                                        return true;
+                                    };
+                                    res.Add(rotate);
+                                }
                             }
                         }
                     }

@@ -4747,6 +4747,29 @@ namespace CADability.GeoObject
                 return res;
             }
         }
+
+        public GeoObjectList DebugTriangulation
+        {
+            get
+            {
+                GeoObjectList res = new GeoObjectList();
+                foreach (Face fc in Faces)
+                {
+                    fc.GetTriangulation(0.1, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingCube triangleExtent);
+                    for (int i = 0; i < triangleIndex.Length; i = i + 3)
+                    {
+                        Line l1 = Line.TwoPoints(trianglePoint[triangleIndex[i]], trianglePoint[triangleIndex[i + 1]]);
+                        Line l2 = Line.TwoPoints(trianglePoint[triangleIndex[i + 1]], trianglePoint[triangleIndex[i + 2]]);
+                        Line l3 = Line.TwoPoints(trianglePoint[triangleIndex[i + 2]], trianglePoint[triangleIndex[i]]);
+                        res.Add(l1);
+                        res.Add(l2);
+                        res.Add(l3);
+                    }
+
+                }
+                return res;
+            }
+        }
         public bool isOK()
         {
             AssertOutwardOrientation();

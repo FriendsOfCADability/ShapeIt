@@ -173,45 +173,49 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
-            if (!(p - Location).IsNullVector())
+            if (!Precision.IsNullVector(p - Location))
             {
-                Plane pln = new Plane(Location, Axis, p - Location);
-                if (pln.IsValid())
+                try
                 {
-                    // in this plane the x-axis is the conical axis, the origin is the apex of the cone
-                    Angle dira = OpeningAngle / 2.0;
-                    // this line through origin with angle dira and -dira are the envelope lines of the cone
-                    GeoPoint2D p2d = pln.Project(p);
-                    GeoPoint2D fp1 = Geometry.DropPL(p2d, GeoPoint2D.Origin, new GeoVector2D(dira));
-                    GeoPoint2D fp2 = Geometry.DropPL(p2d, GeoPoint2D.Origin, new GeoVector2D(-dira));
-                    double mindist = double.MaxValue;
-                    GeoPoint2D res = GeoPoint2D.Origin;
-                    foreach (GeoPoint2D fp in new GeoPoint2D[] { fp1, fp2 })
+                    Plane pln = new Plane(Location, Axis, p - Location);
+                    if (pln.IsValid())
                     {
-                        GeoPoint2D r;
-                        GeoPoint pu = toUnit * pln.ToGlobal(fp);
-                        if (pu.z < 0.0)
+                        // in this plane the x-axis is the conical axis, the origin is the apex of the cone
+                        Angle dira = OpeningAngle / 2.0;
+                        // this line through origin with angle dira and -dira are the envelope lines of the cone
+                        GeoPoint2D p2d = pln.Project(p);
+                        GeoPoint2D fp1 = Geometry.DropPL(p2d, GeoPoint2D.Origin, new GeoVector2D(dira));
+                        GeoPoint2D fp2 = Geometry.DropPL(p2d, GeoPoint2D.Origin, new GeoVector2D(-dira));
+                        double mindist = double.MaxValue;
+                        GeoPoint2D res = GeoPoint2D.Origin;
+                        foreach (GeoPoint2D fp in new GeoPoint2D[] { fp1, fp2 })
                         {
-                            double u = Math.Atan2(-pu.y, -pu.x);
-                            if (u < 0) u += Math.PI * 2;
-                            r = new GeoPoint2D(u, pu.z - voffset);
+                            GeoPoint2D r;
+                            GeoPoint pu = toUnit * pln.ToGlobal(fp);
+                            if (pu.z < 0.0)
+                            {
+                                double u = Math.Atan2(-pu.y, -pu.x);
+                                if (u < 0) u += Math.PI * 2;
+                                r = new GeoPoint2D(u, pu.z - voffset);
+                            }
+                            else
+                            {
+                                double u = Math.Atan2(pu.y, pu.x);
+                                if (u < 0) u += Math.PI * 2;
+                                r = new GeoPoint2D(u, pu.z - voffset);
+                            }
+                            double d = PointAt(r) | p;
+                            if (d < mindist)
+                            {
+                                mindist = d;
+                                res = r;
+                            }
                         }
-                        else
-                        {
-                            double u = Math.Atan2(pu.y, pu.x);
-                            if (u < 0) u += Math.PI * 2;
-                            r = new GeoPoint2D(u, pu.z - voffset);
-                        }
-                        double d = PointAt(r) | p;
-                        if (d < mindist)
-                        {
-                            mindist = d;
-                            res = r;
-                        }
+                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+                        return res;
                     }
-                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
-                    return res;
                 }
+                catch (PlaneException) { }
             }
             GeoPoint2D uv = new GeoPoint2D(0.0, (toUnit * p).z);
             if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref uv); // must be adjusted to usedArea

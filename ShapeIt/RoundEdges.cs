@@ -121,12 +121,12 @@ namespace ShapeIt
                     : sweptFace3.Surface.FixedU(cp.Parameters[2], sweptFace3.Domain.Bottom, sweptFace3.Domain.Top);
 
             }
-            double[] si1 = Curves.Intersect(spine1, spine2, true);
-            double[] si2 = Curves.Intersect(spine2, spine3, true);
-            double[] si3 = Curves.Intersect(spine3, spine1, true);
-            GeoPoint p1 = spine1.PointAt(si1[0]);
-            GeoPoint p2 = spine2.PointAt(si2[0]);
-            GeoPoint p3 = spine3.PointAt(si3[0]);
+            int si1 = Curves.Intersect(spine1, spine2, out double[] par1, out double[] par2, out GeoPoint[] intersection);
+            //double[] si2 = Curves.Intersect(spine2, spine3, true);
+            //double[] si3 = Curves.Intersect(spine3, spine1, true);
+            //GeoPoint p1 = spine1.PointAt(si1[0]);
+            //GeoPoint p2 = spine2.PointAt(si2[0]);
+            //GeoPoint p3 = spine3.PointAt(si3[0]);
 
             return null;
         }
