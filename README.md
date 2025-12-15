@@ -1,34 +1,63 @@
 # CADability
 
-CADability is a .NET class library and a .NET application that implements a 3d CAD system. You can use this library with or without user interface.
+**CADability** is a pure **.NET class library and application** for modeling, analyzing, and interacting with 3D CAD data.  
+It can be used as a backend library in your own applications or as a standalone modeling system.
 
-Some of the features you might be interested in are:
-- Analyze all data (geometrical entities, attributes) of the CAD model. 
-- Data exchange with many CAD databases or file formats (STEP, DWG, DXF, STL)
-- Extensible data model and user interface.
-- Simple Windows.Forms.Control to display the CAD model and integrate it in your application.
-- User interface to interact with the geometric data, select objects, show and modify their properties, do 3d modeling.
-- Parametrics to modify features of solids
+---
 
-The CADability solution is composed of two class libraries and an application:
-- CADability, a dll, which contains all the classes of the geometrical objects, the action classes, the geometrical calculations and algorithms (e.g. 3d modeling), 
-the structure (but not the graphical implementation) of the user interface and some organizational classes.
-- CADability.Forms, a dll, which contains the graphical implementation of the user interface based on Windows.Forms and the connection to the windows platform.
-- CADability.App, an exe, which is a very thin container of CADability.Forms
+## What is CADability?
 
-For your first experience you can simply build and start the solution and try to draw or construct 3d objects. Typically you will replace the CADability.App 
-by your own application or use only the CADability.dll to analyze or compose 3d models.
+CADability provides:
 
-Here is a quick overview of the [organizational classes](https://sofagh.github.io/CADability/CADabilityDoc/articles/orgclass.html).
+- A robust geometric and modeling kernel in **C# / .NET**
+- Optional **Windows.Forms UI** for interactive use
+- Support for common CAD file formats including **STEP**, **STL** and **DXF**
+- Extensible data structures and modeling tools
+- Parametric modeling capabilities  
+- A flexible API for building custom CAD tools
 
-This is an overview of the CAD [database](https://sofagh.github.io/CADability/CADabilityDoc/articles/database.html), the geometrical entities that make up a model.
+This library is *standalone* and does **not** depend on external 3D modeling engines. :contentReference[oaicite:1]{index=1}
 
-And this is the [complete table of contents](https://sofagh.github.io/CADability/CADabilityDoc/api/toc.html).
+---
 
-License: CADability uses some open source code copied into it source code:
-- a quite old version of Wintellect.PowerCollections: Copyright (c) 2004-2005, Wintellect
-- netDxf library: Copyright (C) 2009-2016 Daniel Carvajal (haplokuon@gmail.com)
+## Features
 
-CADability uses  MathNet: http://github.com/mathnet/mathnet-numerics
+- Full 3D geometry and topology modeling
+- Interactive model creation and editing
+- Geometric analysis and queries
+- Extensible UI via Windows.Forms
+- Multiple CAD file export/import formats
+- Modular design suitable for embedding
 
-CADability itself is provided under the MIT license
+---
+
+## Repository structure
+
+The repository includes:
+
+- **CADability** – core modeling and analysis library  
+- **CADability.Forms** – optional Windows.Forms UI implementation  
+- **CADability.App** – minimal executable host of the CADability.Forms UI
+
+If you want to use CADability in your own app, typically you reference the **CADability.dll** and build your own UI around it.
+
+---
+
+## Documentation
+
+- A quick overview of the [organizational classes](https://sofagh.github.io/CADability/CADabilityDoc/articles/orgclass.html).
+- Overview of the CAD [database](https://sofagh.github.io/CADability/CADabilityDoc/articles/database.html), the geometrical entities that make up a model.
+- [Table of contents](https://sofagh.github.io/CADability/CADabilityDoc/api/toc.html).
+
+## Building
+
+### Prerequisites
+
+- Visual Studio 2022 or newer
+- .NET 8 (or later) SDK
+
+### Quick start
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/FriendsOfCADability/CADability.git
