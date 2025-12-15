@@ -30,7 +30,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\CADability.Forms\CADability.Forms.csproj" />
     <ProjectReference Include="..\..\CADability\CADability.csproj" />
   </ItemGroup>
 
