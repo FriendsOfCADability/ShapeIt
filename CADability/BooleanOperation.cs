@@ -1,6 +1,5 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
-using CADability.DebuggerVisualizers;
 using CADability.GeoObject;
 using CADability.Shapes;
 using MathNet.Numerics;
