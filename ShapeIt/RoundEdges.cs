@@ -522,7 +522,12 @@ namespace ShapeIt
                 sweptBounds.MinMax(uv);
             }
 
-            //BoundingRect sweptBounds = new BoundingRect(sweptCircle.PositionOf(rt), sweptCircle.PositionOf(rb), sweptCircle.PositionOf(lt), sweptCircle.PositionOf(lb));
+            // hre we know that an intersection exists, but it is tangential and not very stable for SweptCircle surfaces
+            if (sweptCircle is SweptCircle sc)
+            {
+                ICurve2D tcOnTopSurface = topSurface.GetProjectedCurve(sc.Spine, Precision.eps);
+                ICurve topCurve = topSurface.Make3dCurve(tcOnTopSurface); // NO! this returns the spine!!!
+            }
             IDualSurfaceCurve[] tcCandidates = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([lt, rt]));
             if (tcCandidates == null || tcCandidates.Length == 0) return null;
             IDualSurfaceCurve[] bcCandidates = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([rb, lb]));

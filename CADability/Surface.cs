@@ -588,7 +588,7 @@ namespace CADability.GeoObject
             if (surface.IsUPeriodic) du = surface.UPeriod / 100.0;
             double dv = domain.Height / 100.0;
             if (surface.IsVPeriodic) dv = surface.VPeriod / 100.0;
-            domain.Inflate(du, dv); 
+            domain.Inflate(du, dv);
             int ui = 0;
             ICurve tst = surface.FixedV(domain.Bottom, domain.Left, domain.Right);
             ui = Math.Max(ui, (int)(tst.Length / precision));
@@ -5241,8 +5241,9 @@ namespace CADability.GeoObject
             return pos2 - pos1;
         }
 
-        private IDualSurfaceCurve[] NewGetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds)
+        private IDualSurfaceCurve[] NewGetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, out int numTangentialSeeds)
         {
+            numTangentialSeeds = 0;
             if (seeds.Count < 2) return null;
             HashSet<BoxedSurfaceEx.ParEpi> pes;
             if (other is ISurfaceImpl si) pes = BoxedSurfaceEx.GetCommonParEpis((other as ISurfaceImpl).BoxedSurfaceEx);
@@ -5275,7 +5276,11 @@ namespace CADability.GeoObject
                 SurfaceHelper.AdjustPeriodic(this, thisBounds, ref seeduvthis);
                 SurfaceHelper.AdjustPeriodic(other, otherBounds, ref seeduvother);
                 GeoVector dir = (GetNormal(seeduvthis) ^ other.GetNormal(seeduvother));
-                if (Precision.IsNullVector(dir)) continue; // tangential surfaces, cannot proceed
+                if (Precision.IsNullVector(dir))
+                {
+                    ++numTangentialSeeds;
+                    continue; // tangential surfaces, cannot proceed
+                }
                 dir.Norm();
                 //DerivationAt(uvthis, out GeoPoint p3d, out GeoVector duthis, out GeoVector dvthis);
                 //other.DerivationAt(uvother, out GeoPoint op3d, out GeoVector duother, out GeoVector dvother);
@@ -5471,8 +5476,12 @@ namespace CADability.GeoObject
                 // we are testing here with a new and hopefully more robust and faster approach
                 try
                 {
-                    IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds);
-                    if (testWithNewAlgorithm != null) return testWithNewAlgorithm;
+                    IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, out int numTangentialSeeds);
+                    if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
+                    if (seeds.Count==numTangentialSeeds && seeds.Count==2)
+                    {   // two seeds, both tangential, try to make an InterpolatedDualSurfaceCurve
+                        InterpolatedDualSurfaceCurve dsc = new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, seeds[0], seeds[1], true);
+                    }
                 }
                 catch (Exception ex)
                 {
