@@ -74,7 +74,13 @@ namespace CADability
         {
             try
             {
-                using (XmlReader reader = XmlReader.Create(fileName))
+                XmlReaderSettings rs = new XmlReaderSettings
+                {
+                    DtdProcessing = DtdProcessing.Parse,
+                    IgnoreComments = true,
+                    IgnoreWhitespace = true
+                };
+                using (XmlReader reader = XmlReader.Create(fileName, rs))
                 {
                     while (reader.Read())
                     {

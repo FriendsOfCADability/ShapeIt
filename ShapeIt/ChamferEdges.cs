@@ -166,6 +166,8 @@ namespace ShapeIt
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.StartPoint, leadingEdge.StartDirection), leadingEdge.StartPoint, length2);
             bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
+            n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.StartPoint));
+            n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.StartPoint));
             sp = ips.MinBy(p => (p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length2);
             bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);

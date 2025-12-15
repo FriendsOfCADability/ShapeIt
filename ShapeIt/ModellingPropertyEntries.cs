@@ -2232,27 +2232,70 @@ namespace ShapeIt
             };
             solidMenus.Add(mhhide);
 
-            //MenuWithHandler mhsel = new MenuWithHandler();
-            //mhsel.ID = "MenuId.Selection.Set";
-            //mhsel.Text = StringTable.GetString("MenuId.Selection.Set", StringTable.Category.label);
-            //mhsel.Target = new SetSelection(this, frame.ActiveAction as SelectObjectsAction);
-            //solidMenus.Add(mhsel);
-            //MenuWithHandler mhadd = new MenuWithHandler();
-            //mhadd.ID = "MenuId.Selection.Add";
-            //mhadd.Text = StringTable.GetString("MenuId.Selection.Add", StringTable.Category.label);
-            //mhadd.Target = new SetSelection(this, frame.ActiveAction as SelectObjectsAction);
-            //solidMenus.Add(mhadd);
-            //MenuWithHandler mhremove = new MenuWithHandler();
-            //mhremove.ID = "MenuId.Remove";
-            //mhremove.Text = StringTable.GetString("MenuId.Remove", StringTable.Category.label);
-            //mhremove.Target = SimpleMenuCommand.HandleCommand((menuId) =>
-            //{
-            //    Model model = Owner as Model;
-            //    if (model != null) model.Remove(this);
-            //    return true;
-            //});
-            //solidMenus.Add(mhremove);
+            DirectMenuEntry mhdbg = new DirectMenuEntry("MenuId.Solid.Debug"); // hide this solid
+            mhdbg.ExecuteMenu = (frame) =>
+            {
+                List<Face> faces = new List<Face>();
+                Shell shl = sld.Shells[0];
+                BoundingCube bc = shl.GetExtent(0.0);
+                foreach (Face fc in shl.Faces)
+                {
+                    Face nurbsFace = Face.Construct();
+                    NurbsSurface ns = fc.Surface.ToNurbs(2.0);
+                    List<Edge[]> allEdges = [];
+                    List<Edge> outlineEdges = [];
+                    foreach (Edge edg in fc.OutlineEdges)
+                    {
+                        ICurve c3d = edg.Curve3D.Clone();
+                        if (!edg.Forward(fc)) c3d.Reverse();
+                        Edge edge = new Edge(nurbsFace, c3d, nurbsFace, ns.GetProjectedCurve(c3d, Precision.eps), true);
+                        outlineEdges.Add(edge);
+                    }
+                    allEdges.Add(outlineEdges.ToArray());
+                    for (int i = 0; i < fc.HoleCount; i++)
+                    {
+                        List<Edge> holeEdges = [];
+                        for (int j=0; j< fc.HoleEdges(i).Length; ++j)
+                        {
+                            Edge edg = fc.HoleEdges(i)[j];
+                            ICurve c3d = edg.Curve3D.Clone();
+                            if (!edg.Forward(fc)) c3d.Reverse();
+                            Edge edge = new Edge(nurbsFace, c3d, nurbsFace, ns.GetProjectedCurve(c3d, Precision.eps), true);
+                            holeEdges.Add(edge);
+                        }
+                        allEdges.Add(holeEdges.ToArray());
+                    }
+                    nurbsFace.Set(ns, allEdges.ToArray());
+                    faces.Add(nurbsFace);
+                }
+                foreach (Face fc in faces)
+                {
+                    Twist(fc,new GeoPoint(bc.Xmin, bc.Ymin+bc.YDiff/2, bc.Zmin+bc.ZDiff/2), new GeoPoint(bc.Xmax, bc.Ymin + bc.YDiff / 2, bc.Zmin + bc.ZDiff / 2), Math.PI / 2);
+                }
+                Shell[] shls = Make3D.SewFaces(faces.ToArray());
+                return true;
+            };
+            solidMenus.Add(mhdbg);
             return solidMenus;
+        }
+        private void Twist(Face fc,GeoPoint startPoint, GeoPoint endPoint, double angle)
+        {
+            if (fc == null) return;
+            if (fc.Surface is NurbsSurface ns)
+            {
+                ns = ns.Clone() as NurbsSurface;
+                Plane pln = new Plane(startPoint, endPoint - startPoint);
+                for (int i = 0; i < ns.Poles.GetLength(0); i++)
+                {
+                    for (int j = 0; j < ns.Poles.GetLength(1); j++)
+                    {
+                        double d = pln.Distance(ns.Poles[i, j]);
+                        double r = d / (endPoint - startPoint).Length;
+                        ModOp rot = ModOp.Rotate(startPoint, endPoint - startPoint, angle * r);
+                        ns.Poles[i, j] = rot * ns.Poles[i, j];
+                    }
+                }
+            }
         }
         private IPropertyEntry GetEdgeProperties(IView vw, Edge edg, Axis clickBeam)
         {

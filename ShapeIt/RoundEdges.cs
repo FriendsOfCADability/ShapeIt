@@ -110,10 +110,10 @@ namespace ShapeIt
             ICurve spine2 = sweptSurface2.Axis(sweptFace2.Domain);
             ICurve spine3 = sweptSurface3.Axis(sweptFace3.Domain);
             var cp = Curves.FindCommonPoint([spine1, spine2, spine3], vtx.Position, null, 1E-6, 1E-6, 1E-8, 100);
-            if (cp.SumOfSquaredDistances<Precision.eps)
+            if (cp.SumOfSquaredDistances < Precision.eps)
             {
                 // this is the center of the sphere, no we need the three arcs at the end faces to define the sphere
-                ICurve arc1 = sweptSurface1.ExtrusionDirectionIsV? sweptFace1.Surface.FixedV(cp.Parameters[0], sweptFace1.Domain.Left, sweptFace1.Domain.Right) 
+                ICurve arc1 = sweptSurface1.ExtrusionDirectionIsV ? sweptFace1.Surface.FixedV(cp.Parameters[0], sweptFace1.Domain.Left, sweptFace1.Domain.Right)
                     : sweptFace1.Surface.FixedU(cp.Parameters[0], sweptFace1.Domain.Bottom, sweptFace1.Domain.Top);
                 ICurve arc2 = sweptSurface2.ExtrusionDirectionIsV ? sweptFace2.Surface.FixedV(cp.Parameters[1], sweptFace2.Domain.Left, sweptFace2.Domain.Right)
                     : sweptFace2.Surface.FixedU(cp.Parameters[1], sweptFace2.Domain.Bottom, sweptFace2.Domain.Top);
@@ -461,7 +461,8 @@ namespace ShapeIt
             // how to test for correct orientation of the sweptCircle?
             // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface 
             GeoPoint facnt = filletAxisCurve.Curve3D.PointAt(0.5);
-            GeoPoint2D facnt2d = sweptCircle.PositionOf(facnt);
+            GeoPoint lecnt = leadingEdge.PointAt(0.5);
+            GeoPoint2D facnt2d = sweptCircle.PositionOf(new GeoPoint(facnt,lecnt));
             GeoVector testNormal = sweptCircle.GetNormal(facnt2d);
             GeoPoint testPoint = sweptCircle.PointAt(facnt2d);
             if (testNormal * (filletAxisCurve.Curve3D.PointAt(0.5) - testPoint) < 0) sweptCircle.ReverseOrientation();
@@ -488,8 +489,6 @@ namespace ShapeIt
             lid2crv3.StartPoint = rb;
             lid2crv3.EndPoint = rt;
             lid2crv3.Reverse();
-            Edge e2 = new Edge(null, lid2crv3, null, sweptCircle.GetProjectedCurve(lid2crv3, 0.0), true);
-
 
             GeoPoint lb, lt;
             if (BoxedSurfaceExtension.FindTangentialIntersectionPoint(leftPlane.Location, leftPlane.Normal, sweptCircle, bottomSurface, out uvswc, out uvs))
@@ -511,7 +510,6 @@ namespace ShapeIt
             lid1crv3.StartPoint = lt; // for better precision, should be almost equal
             lid1crv3.EndPoint = lb;
             lid1crv3.Reverse();
-            Edge e4 = new Edge(null, lid1crv3, null, sweptCircle.GetProjectedCurve(lid1crv3, 0.0), true);
             // if sweptCircle has a periodic spine, which is more than half the period, it is not egnough to use the middle point and the two endpoints
             // for calculationg the domain. instead we use points at 0.3 and 0.7, which is with a distanc of 0.4 less than half the period
             // and the other points are close to the bounds of the interval
@@ -547,64 +545,42 @@ namespace ShapeIt
             {
                 tcCandidates[0].Reverse();
             }
-            Edge e1 = new Edge(null, tcCandidates[0].Curve3D, null, tcCandidates[0].Curve2D2, true); // this is primary face of the edge with swept circle face
-            Edge e3 = new Edge(null, bcCandidates[0].Curve3D, null, bcCandidates[0].Curve2D2, true); // this is secondary face of the edge with swept circle face
+
+            sweptFace = Face.MakeFace(sweptCircle, [tcCandidates[0].Curve3D, bcCandidates[0].Curve3D, lid2crv3, lid1crv3]);
 
 
-            sweptFace = Face.MakeFace(sweptCircle, [e1, e2, e3, e4]);
+            //sweptFace = Face.MakeFace(sweptCircle, [e1, e2, e3, e4]);
 
             // when the leading edge goes from left to right, we look from top onto the primary face. the leading edge is the lower outline of the primary face. The e2 is on the right side.
             // Now we want to construct the right end face of the rounding wedge. All edges are forward on the swept circle, i.e. Vertex1 and Vertex2 are start and endpoints.
             // The swept circle points to the outward.
             ICurve? topRight = null, topLeft = null, bottomRight = null, bottomLeft = null;
-            IDualSurfaceCurve[] dsctr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [leadingEdge.EndPoint, e2.Vertex1.Position], null);
-            topRight = dsctr.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.EndPoint) + dsc.Curve3D.DistanceTo(e2.Vertex1.Position))?.Curve3D; // when there are more, , take the one closest to the endpoints
-            topRight?.Trim(topRight.PositionOf(leadingEdge.EndPoint), topRight.PositionOf(e2.Vertex1.Position));
-            IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [e4.Vertex2.Position, leadingEdge.StartPoint], null);
-            topLeft = dsctl.MinBy(dsc => dsc.Curve3D.DistanceTo(e4.Vertex2.Position) + dsc.Curve3D.DistanceTo(leadingEdge.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
-            topLeft?.Trim(topLeft.PositionOf(e4.Vertex2.Position), topLeft.PositionOf(leadingEdge.StartPoint));
-            Face topFace = Face.Construct();
-            topSurface = edgeToRound.PrimaryFace.Surface.Clone();
-            topSurface.SetBounds(topDomain);
-            Edge etr = new Edge(topFace, topRight, topFace, topSurface.GetProjectedCurve(topRight, 0.0), true);
-            e1.SetFace(topFace, topSurface.GetProjectedCurve(e1.Curve3D, 0.0), false); // the tangential edge on the primary face, but reverse (SetFace with forward==false reverses the 2d curve)
-            Edge etl = new Edge(topFace, topLeft, topFace, topSurface.GetProjectedCurve(topLeft, 0.0), true);
-            Edge lde = new Edge(topFace, leadingEdge, topFace, topSurface.GetProjectedCurve(leadingEdge, 0.0), true); // leading edge, which is identical to the edgeToRound
-            topFace.Set(topSurface, [[etr, e1, etl, lde]]);
+            IDualSurfaceCurve[] dsctr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [leadingEdge.EndPoint, lid2crv3.StartPoint], null);
+            topRight = dsctr.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.EndPoint) + dsc.Curve3D.DistanceTo(lid2crv3.StartPoint))?.Curve3D; // when there are more, , take the one closest to the endpoints
+            topRight?.Trim(topRight.PositionOf(leadingEdge.EndPoint), topRight.PositionOf(lid2crv3.StartPoint));
+            IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [lid1crv3.EndPoint, leadingEdge.StartPoint], null);
+            topLeft = dsctl.MinBy(dsc => dsc.Curve3D.DistanceTo(lid1crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
+            topLeft?.Trim(topLeft.PositionOf(lid1crv3.EndPoint), topLeft.PositionOf(leadingEdge.StartPoint));
+            Face topFace = Face.MakeFace(topSurface, [topRight, tcCandidates[0].Curve3D, topLeft, leadingEdge]);
 
-            IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [e2.Vertex2.Position, leadingEdge.EndPoint], null);
-            bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(e2.Vertex2.Position) + dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
-            bottomRight?.Trim(bottomRight.PositionOf(e2.Vertex2.Position), bottomRight.PositionOf(leadingEdge.EndPoint));
-            IDualSurfaceCurve[] dscbl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [leadingEdge.StartPoint, e4.Vertex1.Position], null);
-            bottomLeft = dscbl.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.StartPoint) + dsc.Curve3D.DistanceTo(e4.Vertex1.Position))?.Curve3D; // when there are more, take the shortest
-            bottomLeft?.Trim(bottomLeft.PositionOf(leadingEdge.StartPoint), bottomLeft.PositionOf(e4.Vertex1.Position));
+            IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [lid2crv3.EndPoint, leadingEdge.EndPoint], null);
+            bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(lid2crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
+            bottomRight?.Trim(bottomRight.PositionOf(lid2crv3.EndPoint), bottomRight.PositionOf(leadingEdge.EndPoint));
+            IDualSurfaceCurve[] dscbl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [leadingEdge.StartPoint, lid1crv3.StartPoint], null);
+            bottomLeft = dscbl.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.StartPoint) + dsc.Curve3D.DistanceTo(lid1crv3.StartPoint))?.Curve3D; // when there are more, take the shortest
+            bottomLeft?.Trim(bottomLeft.PositionOf(leadingEdge.StartPoint), bottomLeft.PositionOf(lid1crv3.StartPoint));
 
-            Face bottomFace = Face.Construct();
-            bottomSurface = edgeToRound.SecondaryFace.Surface.Clone();
-            bottomSurface.SetBounds(bottomDomain);
-            Edge ebr = new Edge(bottomFace, bottomRight, bottomFace, bottomSurface.GetProjectedCurve(bottomRight, 0.0), true);
-            e3.SetFace(bottomFace, bottomSurface.GetProjectedCurve(e3.Curve3D, 0.0), false); // the tangential edge on the secondary face, but reverse (SetFace with forward==false reverses the 2d curve)
-            Edge ebl = new Edge(bottomFace, bottomLeft, bottomFace, bottomSurface.GetProjectedCurve(bottomLeft, 0.0), true);
-            lde.SetFace(bottomFace, bottomSurface.GetProjectedCurve(leadingEdge, 0.0), false); // leading edge, which is identical to the edgeToRound, now in reverse direction
-            bottomFace.Set(bottomSurface, [[lde, ebl, e3, ebr]]);
+            Face bottomFace = Face.MakeFace(bottomSurface, [bottomRight, bcCandidates[0].Curve3D, bottomLeft, leadingEdge]);
 
-            Face rightEndFace = Face.Construct();
-            e2.SetFace(rightEndFace, rightPlane.GetProjectedCurve(e2.Curve3D, 0.0), false); // the arc of the right hand side
-            etr.SetFace(rightEndFace, rightPlane.GetProjectedCurve(etr.Curve3D, 0.0), false); // the top bound
-            ebr.SetFace(rightEndFace, rightPlane.GetProjectedCurve(ebr.Curve3D, 0.0), false);
-            rightEndFace.Set(rightPlane, [[e2, etr, ebr]]);
-            Face leftEndFace = Face.Construct();
-            e4.SetFace(leftEndFace, leftPlane.GetProjectedCurve(e4.Curve3D, 0.0), false);
-            ebl.SetFace(leftEndFace, leftPlane.GetProjectedCurve(ebl.Curve3D, 0.0), false);
-            etl.SetFace(leftEndFace, leftPlane.GetProjectedCurve(etl.Curve3D, 0.0), false);
-            leftEndFace.Set(leftPlane, [[e4, ebl, etl]]);
-            Shell res = Shell.FromFaces(sweptFace, topFace, bottomFace, rightEndFace, leftEndFace);
-            res.RecalcVertices();
+            Face rightEndFace = Face.MakeFace(rightPlane, [lid2crv3, topRight, bottomRight]);
+            Face leftEndFace = Face.MakeFace(leftPlane, [lid1crv3, topLeft, bottomLeft]);
+            Shell[] sf = Make3D.SewFaces([sweptFace, topFace, bottomFace, rightEndFace, leftEndFace]);
+            Shell? res = (sf != null && sf.Length > 0) ? sf[0] : null;
             rightEndFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
             leftEndFace.UserData.Add("CADability.Cutter.EndFace", "endface");
             sweptFace.UserData.Add("CADability.Cutter.SweptFace", "sweptface");
 #if DEBUG
-            bool ok = res.CheckConsistency();
+            bool? ok = res?.CheckConsistency();
 #endif
             return res;
         }

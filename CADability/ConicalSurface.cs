@@ -1413,6 +1413,7 @@ namespace CADability.GeoObject
                     uvOnFaces[i] = ip2d[i];
                     uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
                 }
+                return;
             }
             else if (curve.GetPlanarState() == PlanarState.Planar)
             {   // planar intersections of the cone are simple. If the other curve is also planar, we can do it in 2D
@@ -1436,11 +1437,9 @@ namespace CADability.GeoObject
                         }
                         return;
                     }
-                } 
+                }
             }
-            {
-                base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
-            }
+            base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
 
         /// <summary>

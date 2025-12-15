@@ -568,6 +568,59 @@ namespace CADability.GeoObject
                 }
             }
         }
+
+        public static NurbsSurface ToNurbs(this ISurface surface, double precision)
+        {
+            if (surface is NurbsSurface ns) return ns;
+
+            double[] us = surface.GetUSingularities();
+            double[] vs = surface.GetVSingularities();
+            BoundingRect domain = surface.GetBounds();
+            for (int i = 0; i < us.Length; i++)
+            {
+                if (us[i] >= domain.Left && us[i] <= domain.Right) return null; // poles are not allowed
+            }
+            for (int i = 0; i < vs.Length; i++)
+            {
+                if (vs[i] >= domain.Bottom && vs[i] <= domain.Top) return null; // poles are not allowed
+            }
+            double du = domain.Width / 100.0;
+            if (surface.IsUPeriodic) du = surface.UPeriod / 100.0;
+            double dv = domain.Height / 100.0;
+            if (surface.IsVPeriodic) dv = surface.VPeriod / 100.0;
+            domain.Inflate(du, dv); 
+            int ui = 0;
+            ICurve tst = surface.FixedV(domain.Bottom, domain.Left, domain.Right);
+            ui = Math.Max(ui, (int)(tst.Length / precision));
+            tst = surface.FixedV(domain.Top, domain.Left, domain.Right);
+            ui = Math.Max(ui, (int)(tst.Length / precision));
+            tst = surface.FixedV((domain.Bottom + domain.Top) / 2, domain.Left, domain.Right);
+            ui = Math.Max(ui, (int)(tst.Length / precision));
+            ui = Math.Max(ui, 2); // at least 2 in u direction
+            int vi = 0;
+            tst = surface.FixedU(domain.Left, domain.Bottom, domain.Top);
+            vi = Math.Max(vi, (int)(tst.Length / precision));
+            tst = surface.FixedU(domain.Right, domain.Bottom, domain.Top);
+            vi = Math.Max(vi, (int)(tst.Length / precision));
+            tst = surface.FixedU((domain.Left + domain.Right) / 2, domain.Bottom, domain.Top);
+            vi = Math.Max(vi, (int)(tst.Length / precision));
+            vi = Math.Max(vi, 2); // at least 2 in v direction
+
+            GeoPoint[,] pts = new GeoPoint[ui + 1, vi + 1];
+            for (int i = 0; i <= ui; i++)
+            {
+                double u = domain.Left + (domain.Right - domain.Left) * i / ui;
+                for (int j = 0; j <= vi; j++)
+                {
+                    double v = domain.Bottom + (domain.Top - domain.Bottom) * j / vi;
+                    pts[i, j] = surface.PointAt(new GeoPoint2D(u, v));
+                }
+            }
+
+
+            NurbsSurface res = new NurbsSurface(pts, 3, 3, false, false);
+            return res;
+        }
     }
 
     /// <summary>
@@ -11874,9 +11927,9 @@ namespace CADability.GeoObject
                         // abprüfen und dann abbrechen. Das ist aber nicht sehr effektiv
                         uv = cube.uvPatch.GetCenter();
                         u = 0.5; // in der Mitte, unwichtig
-                        if (BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u, out GeoPoint dbgip))
+                        if (BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u, out GeoPoint tmpip))
                         {
-                            lips.Add(ip);
+                            lips.Add(tmpip);
                             luvOnFace.Add(uv);
                             luOnCurve.Add(u);
                         }

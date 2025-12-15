@@ -437,6 +437,18 @@ namespace ShapeIt
                         }
                     }
                 }
+                if (command.StartsWith("ChamferEdges", StringComparison.OrdinalIgnoreCase))
+                {
+                    string[] parts = command.Split(':');
+                    if (parts.Length == 2)
+                    {
+                        double d = double.Parse(parts[1]);
+                        if (d > 0)
+                        {
+                            Shell? rounded = shellToRound?.ChamferEdges(edgesToRound, d, d);
+                        }
+                    }
+                }
             }
         }
 #endif
