@@ -1,65 +1,128 @@
-﻿# CADability
+﻿# ShapeIt
 
-**CADability** is a pure **.NET class library and application** for modeling, analyzing, and interacting with 3D CAD data.  
-It can be used as a backend library in your own applications or as a standalone modeling system.
+**ShapeIt** is an open-source **3D modeler** based on the CADability geometry kernel.
 
----
+The project is still under active development, but many features already work well —  
+especially for **3D printing workflows**.
 
-## What is CADability?
-
-CADability provides:
-
-- A robust geometric and modeling kernel in **C# / .NET**
-- Optional **Windows.Forms UI** for interactive use
-- Support for common CAD file formats including **STEP**, **STL** and **DXF**
-- Extensible data structures and modeling tools
-- Parametric modeling capabilities  
-- A flexible API for building custom CAD tools
-
-This library is *standalone* and does **not** depend on external 3D modeling engines. :contentReference[oaicite:1]{index=1}
-
----
-
-## Features
-
-- Full 3D geometry and topology modeling
-- Interactive model creation and editing
-- Geometric analysis and queries
-- Extensible UI via Windows.Forms
-- Multiple CAD file export/import formats
-- Modular design suitable for embedding
+The main goal of ShapeIt is **simplicity of use**:  
+creating and modifying solid models with as little friction as possible.
 
 ---
 
 ## Repository structure
 
-The repository includes:
+This repository contains several closely related projects:
 
-- **CADability** – core modeling and analysis library  
-- **CADability.Forms** – optional Windows.Forms UI implementation  
-- **CADability.App** – minimal executable host of the CADability.Forms UI
+- **`ShapeIt`**  
+  The ShapeIt 3D modeling application
 
-If you want to use CADability in your own app, typically you reference the **CADability.dll** and build your own UI around it.
+- **`CADability`**  
+  The geometric kernel and modeling infrastructure used by ShapeIt
+
+- **`CADability.Forms.NET8`**  
+  UI / Forms layer for .NET 8
+
+A separate repository named **`CADability`** exists for users who rely on a *stable* version of the kernel.  
+This repository (`ShapeIt`) is the **main development workspace**, where ShapeIt and ongoing CADability work live together.
 
 ---
-## Documentation
 
-An older but still useful documentation is included in the repository:
+## Branches
 
-➡️ [docs/CADabilityDoc](docs/CADabilityDoc/index.html)
-➡️ [Organizational classes](docs/CADabilityDoc/articles/orgclass.html)
-➡️ [BRep and geometric classes](docs/CADabilityDoc/articles/database.html)
-➡️ [Table of Contents](docs/CADabilityDoc/api/toc.html)
+- **`main`** – stable snapshots  
+  Suitable if you just want to build and try ShapeIt.
 
-## Building
+- **`develop`** – daily development  
+  Active work happens here; things may break temporarily.
+
+**Recommendation:**  
+- Contributors → use `develop`  
+- Users → use `main`
+
+---
+
+## Build and run
 
 ### Prerequisites
 
-- Visual Studio 2022 or newer
-- .NET 8 (or later) SDK
+- Visual Studio 2022 (or newer)
+- .NET 8 SDK
+- Windows (currently required due to tooling and UI)
 
-### Quick start
+---
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/FriendsOfCADability/CADability.git
+### Step 1 (optional but highly recommended): CADability debugger visualizer
+
+Before working on ShapeIt, it is recommended to build **`CADability.sln`** once.
+
+This will build and install a **Visual Studio Debugger Visualizer** that allows
+direct visual inspection of CADability objects during debugging, e.g.:
+
+- `Edge`
+- `Face`
+- `Shell`
+- `Solid`
+- BRep structures
+
+Instead of interpreting raw data structures, you can *see* the geometry you are working on.
+This is extremely helpful when developing or debugging the kernel.
+
+Steps:
+
+1. Open `CADability.sln`
+2. Build the solution (Debug configuration)
+3. Restart Visual Studio (required for the visualizer to become available)
+
+---
+
+### Step 2: Work with ShapeIt
+
+After that, you normally work only with **`ShapeIt.sln`**.
+
+1. Open `ShapeIt.sln`
+2. Set `ShapeIt` as startup project
+3. Build & run (F5)
+
+---
+
+## Contributing
+
+Contributions are welcome — bug reports, fixes, refactorings, documentation, and ideas.
+
+### Guidelines
+
+- Check the **Issues** tab for open tasks  
+  (`good first issue` and `help wanted` will be used where possible)
+- For larger changes, please open an issue first to discuss the approach
+- Keep pull requests focused and readable
+
+### CADability vs ShapeIt changes
+
+Some changes made here affect the CADability kernel.
+
+- **General bug fixes** may later be cherry-picked into the standalone CADability repository
+- **Experimental or ShapeIt-specific changes** remain here
+
+This separation helps keep CADability stable for existing users.
+
+---
+
+## Project status
+
+- ShapeIt is **usable**, but still evolving
+- APIs and workflows may change
+- Feedback from real usage (especially 3D printing) is very welcome
+
+---
+
+## License
+
+MIT
+
+---
+
+## Contact / discussion
+
+- GitHub Issues for bugs and feature requests
+- Maintainer: @SOFAgh
