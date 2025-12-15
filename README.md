@@ -1,4 +1,4 @@
-# CADability
+﻿# CADability
 
 **CADability** is a pure **.NET class library and application** for modeling, analyzing, and interacting with 3D CAD data.  
 It can be used as a backend library in your own applications or as a standalone modeling system.
@@ -35,19 +35,21 @@ This library is *standalone* and does **not** depend on external 3D modeling eng
 
 The repository includes:
 
-- **CADability** � core modeling and analysis library  
-- **CADability.Forms** � optional Windows.Forms UI implementation  
-- **CADability.App** � minimal executable host of the CADability.Forms UI
+- **CADability** – core modeling and analysis library  
+- **CADability.Forms** – optional Windows.Forms UI implementation  
+- **CADability.App** – minimal executable host of the CADability.Forms UI
 
 If you want to use CADability in your own app, typically you reference the **CADability.dll** and build your own UI around it.
 
 ---
-
 ## Documentation
 
-- A quick overview of the [organizational classes](https://sofagh.github.io/CADability/CADabilityDoc/articles/orgclass.html).
-- Overview of the CAD [database](https://sofagh.github.io/CADability/CADabilityDoc/articles/database.html), the geometrical entities that make up a model.
-- [Table of contents](https://sofagh.github.io/CADability/CADabilityDoc/api/toc.html).
+An older but still useful documentation is included in the repository:
+
+➡️ [docs/CADabilityDoc](docs/CADabilityDoc/index.html)
+➡️ [Organizational classes](docs/CADabilityDoc/articles/orgclass.html)
+➡️ [BRep and geometric classes](docs/CADabilityDoc/articles/database.html)
+➡️ [Table of Contents](docs/CADabilityDoc/api/toc.html)
 
 ## Building
 
