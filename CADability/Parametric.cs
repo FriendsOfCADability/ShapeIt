@@ -839,6 +839,7 @@ namespace CADability
         {
             try
             {
+                
                 ModifyConstrainedFaces();
                 HashSet<Face> involvedFaces = new HashSet<Face>();
                 HashSet<Vertex> irrelevantVertices = new HashSet<Vertex>();
@@ -925,15 +926,7 @@ namespace CADability
                                         {
                                             if (ips.Length > 1)
                                             {
-                                                // find best point: closer to startpoint or endpoint of crv, depending on vertex, set it on ips[0]
-                                                // the following was sometimes incorrect, we use the old vertex position to find the closest candidate
-                                                //GeoPoint testPoint = GeoPoint.Invalid;
-                                                //if (edge.Vertex1 == vertex) testPoint = crv.StartPoint;
-                                                //else if (edge.Vertex2 == vertex) testPoint = crv.EndPoint;
-                                                //if (testPoint.IsValid)
-                                                //{
-                                                //    ips[0] = Hlp.GetClosest(ips, p => p | testPoint);
-                                                //}
+                                                // find best point: closest to the old vertex position, set it on ips[0]
                                                 ips[0] = Hlp.GetClosest(ips, p => p | vertex.Position);
                                             }
                                             if (!Precision.IsEqual(ips[0], vertex.Position)) affectedObjects.Add(vertex);

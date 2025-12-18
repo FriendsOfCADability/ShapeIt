@@ -3432,19 +3432,20 @@ namespace CADability
                 }
                 else if (operation == Operation.difference)
                 {   // no intersection: shell1 - shell2, shell2 is reversed, i.e. IsInside means outside of the original
-                    if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell1); // shell1 remains unchanged, because shell2 is outside
-                    else if (shell1.Contains(shell2.Vertices[0].Position))
-                    {   // this is a solid with an inner hole. This is currently not implemented by Solid as it is very rarely used
-                        // the correct result would be shell1 and shell2 in its reversed form
-                        res.Add(shell1);
-                        res.Add(shell2);
-                    }
+                    // the shells might have been damaged, so we cannot use them
+                    //if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell1); // shell1 remains unchanged, because shell2 is outside
+                    //else if (shell1.Contains(shell2.Vertices[0].Position))
+                    //{   // this is a solid with an inner hole. This is currently not implemented by Solid as it is very rarely used
+                    //    // the correct result would be shell1 and shell2 in its reversed form
+                    //    res.Add(shell1);
+                    //    res.Add(shell2);
+                    //}
                     // else: the result is empty, because shell2 contains shell1 completely (nothing to do here, return empty result)
                 }
                 else if (operation == Operation.intersection)
                 {
-                    if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell1); // shell2 contains shell1, the result ist shell1
-                    else if (shell1.Contains(shell2.Vertices[0].Position)) res.Add(shell2); // shell1 contains shell2, the result ist shell2
+                    //if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell1); // shell2 contains shell1, the result ist shell1
+                    //else if (shell1.Contains(shell2.Vertices[0].Position)) res.Add(shell2); // shell1 contains shell2, the result ist shell2
                                                                                             // else: shells are disjunct, the result is empty
 
                 }

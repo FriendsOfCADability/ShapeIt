@@ -115,7 +115,7 @@ namespace CADability.Forms.NET8
         {   // maybe we need to save the project
             ToolBars.SaveToolbarPositions(topToolStripContainer);
             Settings.SaveGlobalSettings();
-            // ToolStripManager.SaveSettings(this); // save the positions of the toolbars (doesn't work correctly)
+            ToolStripManager.SaveSettings(this); // save the positions of the toolbars (doesn't work correctly)
             base.OnClosing(e);
         }
         protected override void OnFormClosed(FormClosedEventArgs e)

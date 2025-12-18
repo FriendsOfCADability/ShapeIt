@@ -462,7 +462,7 @@ namespace ShapeIt
             // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface 
             GeoPoint facnt = filletAxisCurve.Curve3D.PointAt(0.5);
             GeoPoint lecnt = leadingEdge.PointAt(0.5);
-            GeoPoint2D facnt2d = sweptCircle.PositionOf(new GeoPoint(facnt,lecnt));
+            GeoPoint2D facnt2d = sweptCircle.PositionOf(new GeoPoint(facnt, lecnt));
             GeoVector testNormal = sweptCircle.GetNormal(facnt2d);
             GeoPoint testPoint = sweptCircle.PointAt(facnt2d);
             if (testNormal * (filletAxisCurve.Curve3D.PointAt(0.5) - testPoint) < 0) sweptCircle.ReverseOrientation();
@@ -522,36 +522,41 @@ namespace ShapeIt
                 sweptBounds.MinMax(uv);
             }
 
-            // hre we know that an intersection exists, but it is tangential and not very stable for SweptCircle surfaces
+            ICurve? topCurve = null;
             if (sweptCircle is SweptCircle sc)
-            {
-                ICurve2D tcOnTopSurface = topSurface.GetProjectedCurve(sc.Spine, Precision.eps);
-                ICurve topCurve = topSurface.Make3dCurve(tcOnTopSurface); // NO! this returns the spine!!!
+            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircle surfaces
+                List<double> spos = [.. sc.Spine.GetSavePositions()];
+                GapInserter.FillLargestGaps(spos, 9);
+                GeoPoint[] pnts = new GeoPoint[spos.Count];
+                for (int i = 0; i < pnts.Length; i++) pnts[i] = topSurface.PerpendicularFoot(sc.Spine.PointAt(spos[i])).Select(p => topSurface.PointAt(p)).MinBy(p => p | sc.Spine.PointAt(spos[i]));
+                topCurve = new InterpolatedDualSurfaceCurve(topSurface, edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, pnts, null, null, true);
             }
-            IDualSurfaceCurve[] tcCandidates = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([lt, rt]));
-            if (tcCandidates == null || tcCandidates.Length == 0) return null;
-            IDualSurfaceCurve[] bcCandidates = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([rb, lb]));
-            if (bcCandidates == null || bcCandidates.Length == 0) return null;
-            if (tcCandidates.Length > 1)
+            else
             {
-                // select best solution here
+                IDualSurfaceCurve[] tcCandidates = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([lt, rt]));
+                topCurve = tcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lt) + c.DistanceTo(rt));
             }
-            if (bcCandidates.Length > 1)
-            {
-                // select best solution here
-            }
-            tcCandidates[0].Trim(lt, rt);
-            bcCandidates[0].Trim(rb, lb);
-            if ((bcCandidates[0].Curve3D.StartPoint | rb) + (bcCandidates[0].Curve3D.EndPoint | lb) > (bcCandidates[0].Curve3D.StartPoint | lb) + (bcCandidates[0].Curve3D.EndPoint | rb))
-            {
-                bcCandidates[0].Reverse();
-            }
-            if ((tcCandidates[0].Curve3D.StartPoint | lt) + (tcCandidates[0].Curve3D.EndPoint | rt) > (tcCandidates[0].Curve3D.StartPoint | rt) + (tcCandidates[0].Curve3D.EndPoint | lt))
-            {
-                tcCandidates[0].Reverse();
-            }
+            if (topCurve == null) return null;
+            topCurve.Trim(topCurve.PositionOf(lt), topCurve.PositionOf(rt));
 
-            sweptFace = Face.MakeFace(sweptCircle, [tcCandidates[0].Curve3D, bcCandidates[0].Curve3D, lid2crv3, lid1crv3]);
+            ICurve? bottomCurve = null;
+            if (sweptCircle is SweptCircle scb)
+            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircle surfaces
+                List<double> spos = [.. scb.Spine.GetSavePositions()];
+                GapInserter.FillLargestGaps(spos, 9);
+                GeoPoint[] pnts = new GeoPoint[spos.Count];
+                for (int i = 0; i < pnts.Length; i++) pnts[i] = bottomSurface.PerpendicularFoot(scb.Spine.PointAt(spos[i])).Select(p => bottomSurface.PointAt(p)).MinBy(p => p | scb.Spine.PointAt(spos[i]));
+                bottomCurve = new InterpolatedDualSurfaceCurve(bottomSurface, edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, pnts, null, null, true);
+            }
+            else
+            {
+                IDualSurfaceCurve[] bcCandidates = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([rb, lb]));
+                bottomCurve = bcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lb) + c.DistanceTo(rb));
+            }
+            if (bottomCurve == null) return null;
+            bottomCurve.Trim(bottomCurve.PositionOf(rb), bottomCurve.PositionOf(lb));
+
+            sweptFace = Face.MakeFace(sweptCircle, [topCurve, bottomCurve, lid2crv3, lid1crv3]);
 
 
             //sweptFace = Face.MakeFace(sweptCircle, [e1, e2, e3, e4]);
@@ -566,7 +571,7 @@ namespace ShapeIt
             IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [lid1crv3.EndPoint, leadingEdge.StartPoint], null);
             topLeft = dsctl.MinBy(dsc => dsc.Curve3D.DistanceTo(lid1crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
             topLeft?.Trim(topLeft.PositionOf(lid1crv3.EndPoint), topLeft.PositionOf(leadingEdge.StartPoint));
-            Face topFace = Face.MakeFace(topSurface, [topRight, tcCandidates[0].Curve3D, topLeft, leadingEdge]);
+            Face topFace = Face.MakeFace(topSurface, [topRight, topCurve, topLeft, leadingEdge]);
 
             IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [lid2crv3.EndPoint, leadingEdge.EndPoint], null);
             bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(lid2crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
@@ -575,7 +580,7 @@ namespace ShapeIt
             bottomLeft = dscbl.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.StartPoint) + dsc.Curve3D.DistanceTo(lid1crv3.StartPoint))?.Curve3D; // when there are more, take the shortest
             bottomLeft?.Trim(bottomLeft.PositionOf(leadingEdge.StartPoint), bottomLeft.PositionOf(lid1crv3.StartPoint));
 
-            Face bottomFace = Face.MakeFace(bottomSurface, [bottomRight, bcCandidates[0].Curve3D, bottomLeft, leadingEdge]);
+            Face bottomFace = Face.MakeFace(bottomSurface, [bottomRight, bottomCurve, bottomLeft, leadingEdge]);
 
             Face rightEndFace = Face.MakeFace(rightPlane, [lid2crv3, topRight, bottomRight]);
             Face leftEndFace = Face.MakeFace(leftPlane, [lid1crv3, topLeft, bottomLeft]);

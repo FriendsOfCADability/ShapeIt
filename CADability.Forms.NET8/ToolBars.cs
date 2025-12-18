@@ -307,7 +307,7 @@ namespace CADability.Forms.NET8
                     }
                 }
             }
-            if (toolBarPosition.Count == 5)
+            if (false) //(toolBarPosition.Count >= 5)
             {   // it is a valid dictionary
                 // we have to sort the entries by location from top left to bottom right
                 string[] keys = new string[toolBarPosition.Count];
@@ -328,6 +328,7 @@ namespace CADability.Forms.NET8
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Object", commandHandler), 0);
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Zoom", commandHandler), 0);
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("File", commandHandler), 0);
+                topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Edit", commandHandler), 0);
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Snap", commandHandler), 1);
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Construct", commandHandler), 1);
             }

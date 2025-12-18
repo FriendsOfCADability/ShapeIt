@@ -11,6 +11,8 @@ using Wintellect.PowerCollections;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System.Linq;
 using MathNet.Numerics;
+using System.Security.Cryptography;
+
 
 #if WEBASSEMBLY
 using CADability.WebDrawing;
@@ -5478,7 +5480,7 @@ namespace CADability.GeoObject
                 {
                     IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, out int numTangentialSeeds);
                     if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
-                    if (seeds.Count==numTangentialSeeds && seeds.Count==2)
+                    if (seeds.Count == numTangentialSeeds && seeds.Count == 2)
                     {   // two seeds, both tangential, try to make an InterpolatedDualSurfaceCurve
                         InterpolatedDualSurfaceCurve dsc = new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, seeds[0], seeds[1], true);
                     }
@@ -5590,7 +5592,7 @@ namespace CADability.GeoObject
             ModOp2D mop;
             if (SameGeometry(thisBounds, other, otherBounds, Precision.eps, out mop)) return new IDualSurfaceCurve[0]; // surfaces are identical, no intersection
             ICurve[] cvs = BoxedSurfaceEx.Intersect(thisBounds, other, otherBounds, seeds, extremePositions);
-            if ((cvs.Length == 0 && seeds.Count == 2))
+            if ((cvs.Length == 0 && seeds != null && seeds.Count == 2))
             {
                 InterpolatedDualSurfaceCurve idscv = new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, seeds[0], seeds[1]);
                 return new IDualSurfaceCurve[] { idscv };
@@ -5813,6 +5815,33 @@ namespace CADability.GeoObject
             {
                 ICurve res = Intersect(surface2 as PlaneSurface, bounds2, surface1 as ToroidalSurface, bounds1, points);
                 if (res != null) return res;
+            }
+            if (surface1 is ISurfaceOfRevolution sr1)
+            {
+                if ((surface2 is ISurfaceOfRevolution sr2 && Precision.SameAxis(sr1.Axis, sr2.Axis)) || (surface2 is ISphere sph && Precision.IsPointOnAxis(sph.Center, sr1.Axis)))
+                {
+                    {   // two surfaces of revolution with the same axis: the result is a circle
+                        Plane axisPlane = Plane.XYPlane; // to avoid unassigned
+                        surface2.Intersect(sr1.Curve, bounds2, out GeoPoint[] ips, out GeoPoint2D[] uv, out double[] u);
+                        List<IDualSurfaceCurve> ldsc = new List<IDualSurfaceCurve>();
+                        for (int i = 0; i < ips.Length; i++)
+                        {
+                            if (!Precision.IsPointOnAxis(ips[i], sr1.Axis))
+                            {
+                                Plane perpToAxis = new Plane(ips[i], sr1.Axis.Direction);
+                                ldsc.AddRange(surface1.GetPlaneIntersection(new PlaneSurface(perpToAxis), bounds1.Left, bounds1.Right, bounds1.Bottom, bounds1.Top, Precision.eps));
+                                // these are intersections with surface2 perpendicular to the axis where the curve of surface1 intersects
+                                // i.e. circles of intersection
+                            }
+                        }
+                        IDualSurfaceCurve c = ldsc.MinByWithDefault(null, c => points.Sum(p => c.Curve3D.DistanceTo(p))); // closest curve to the provided points
+                        if (c != null) return c.Curve3D;
+                    }
+                }
+            }
+            if (surface1 is ISphere && surface2 is ISurfaceOfRevolution)
+            {
+                return Intersect(surface2, bounds2, surface1, bounds1, points);
             }
             {
                 ICurve[] crvs = surface1.Intersect(bounds1, surface2, bounds2);

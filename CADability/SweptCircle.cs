@@ -822,6 +822,22 @@ namespace CADability.GeoObject
                 this.normal = cc.normal;
             }
         }
+        public override bool SameGeometry(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, double precision, out ModOp2D firstToSecond)
+        {
+            if (other is SweptCircle sc)
+            {
+                if (sc.spine.SameGeometry(spine,Precision.eps))
+                {
+                    if (Math.Abs(sc.radius-radius)<Precision.eps)
+                    {
+                        firstToSecond = ModOp2D.Null; // we have to implement this fully
+                        return true;
+                    }
+                }
+            }
+            firstToSecond = ModOp2D.Null;
+            return false;
+        }
         public override void GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax)
         {
             umin = 0.0; umax = 1.0;

@@ -1028,6 +1028,7 @@ namespace CADability.GeoObject
                         List<IDualSurfaceCurve> res = new List<IDualSurfaceCurve>();
                         for (int i = 0; i < seeds.Count; i++)
                         {   // look for an appropriate middle point between this seed and touching point
+                            if (Precision.IsEqual(seeds[i], touchingpoint)) continue; // the touchingpoint was already in the seeds
                             Plane pln = new Plane(new GeoPoint(seeds[i], touchingpoint), seeds[i] - touchingpoint);
                             PlaneSurface pls = new PlaneSurface(pln);
                             IDualSurfaceCurve[] tisc = this.GetPlaneIntersection(pls, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, 0.0);

@@ -9974,6 +9974,7 @@ namespace CADability.GeoObject
             Face otherface = edg1.OtherFace(this);
             if (edg2.OtherFace(this) != otherface) return false; // the other face of both edges must be the same
             if (edg1.EndVertex(this) != edg2.StartVertex(this)) return false; // edg2 must be the follower of edg1
+            if (this.surface is SphericalSurface && otherface.surface is SphericalSurface) return false; // problem result could go around a pole
             if (!edg1.Forward(this)) edg1.ReverseCurve3D();
             if (!edg2.Forward(this)) edg2.ReverseCurve3D();
             // do single closed edges make problems? For parametric operations we would prefer them

@@ -1966,7 +1966,8 @@ namespace CADability.GeoObject
                 uelli.Modify(toUnit);
                 Plane pln = uelli.GetPlane();
                 if (Precision.IsPointOnPlane(GeoPoint.Origin, pln) && Precision.IsPerpendicular(pln.Normal, GeoVector.ZAxis, false))
-                {
+                {   // the plane of the ellipse or circle to intersect with goes through the z-axis of the torus
+                    // intersect the two torus circles in this plane woth the curve
                     GeoPoint cnt = uelli.Center;
                     Plane work;
                     if (Math.Abs(cnt.x) < Precision.eps && Math.Abs(cnt.y) < Precision.eps) work = new Plane(GeoPoint.Origin, pln.Normal ^ GeoVector.ZAxis, GeoVector.ZAxis);
@@ -1975,33 +1976,49 @@ namespace CADability.GeoObject
                     if (prelli is Circle2D) // umfasst auch Arc2D
                     {
                         Circle2D c2d = (prelli as Circle2D);
-                        GeoPoint2D[] ips2d = Geometry.IntersectCC(new GeoPoint2D(1, 0), minorRadius, c2d.Center, c2d.Radius);
-                        uvOnFaces = new GeoPoint2D[ips2d.Length];
-                        uOnCurve3Ds = new double[ips2d.Length];
-                        ips = new GeoPoint[ips2d.Length];
-                        for (int i = 0; i < ips2d.Length; i++)
+                        List<GeoPoint> lips = new List<GeoPoint>();
+                        List<GeoPoint2D> luvOnFaces = new List<GeoPoint2D>();
+                        List<double> luOnCurve3Ds = new List<double>();
+                        foreach (GeoPoint2D p in new GeoPoint2D[] { new GeoPoint2D(1, 0), new GeoPoint2D(-1, 0) })
                         {
-                            ips[i] = toTorus * work.ToGlobal(ips2d[i]);
-                            uvOnFaces[i] = PositionOf(ips[i]);
-                            SurfaceHelper.AdjustPeriodic(this, uvExtent, ref uvOnFaces[i]);
-                            uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
+                            GeoPoint2D[] ips2d = Geometry.IntersectCC(p, minorRadius, c2d.Center, c2d.Radius);
+                            for (int i = 0; i < ips2d.Length; i++)
+                            {
+                                GeoPoint ip = toTorus * work.ToGlobal(ips2d[i]);
+                                lips.Add(ip);
+                                GeoPoint2D uv = PositionOf(ip);
+                                SurfaceHelper.AdjustPeriodic(this, uvExtent, ref uv);
+                                luvOnFaces.Add(uv);
+                                luOnCurve3Ds.Add(curve.PositionOf(ip));
+                            }
                         }
+                        uvOnFaces = luvOnFaces.ToArray();
+                        uOnCurve3Ds = luOnCurve3Ds.ToArray();
+                        ips = lips.ToArray();
                         return;
                     }
                     if (prelli is Ellipse2D) // umfasst auch Arc2D
                     {
                         Ellipse2D c2d = (prelli as Ellipse2D);
-                        GeoPoint2DWithParameter[] ips2d = c2d.Intersect(new Circle2D(new GeoPoint2D(1, 0), minorRadius));
-                        uvOnFaces = new GeoPoint2D[ips2d.Length];
-                        uOnCurve3Ds = new double[ips2d.Length];
-                        ips = new GeoPoint[ips2d.Length];
-                        for (int i = 0; i < ips2d.Length; i++)
+                        List<GeoPoint> lips = new List<GeoPoint>();
+                        List<GeoPoint2D> luvOnFaces = new List<GeoPoint2D>();
+                        List<double> luOnCurve3Ds = new List<double>();
+                        foreach (GeoPoint2D p in new GeoPoint2D[] { new GeoPoint2D(1, 0), new GeoPoint2D(-1, 0) })
                         {
-                            ips[i] = toTorus * work.ToGlobal(ips2d[i].p);
-                            uvOnFaces[i] = PositionOf(ips[i]);
-                            SurfaceHelper.AdjustPeriodic(this, uvExtent, ref uvOnFaces[i]);
-                            uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
+                            GeoPoint2DWithParameter[] ipsp2d = c2d.Intersect(new Circle2D(new GeoPoint2D(1, 0), minorRadius));
+                            for (int i = 0; i < ipsp2d.Length; i++)
+                            {
+                                GeoPoint ip = toTorus * work.ToGlobal(ipsp2d[i].p);
+                                lips.Add(ip);
+                                GeoPoint2D uv = PositionOf(ip);
+                                SurfaceHelper.AdjustPeriodic(this, uvExtent, ref uv);
+                                luvOnFaces.Add(uv);
+                                luOnCurve3Ds.Add(curve.PositionOf(ip));
+                            }
                         }
+                        uvOnFaces = luvOnFaces.ToArray();
+                        uOnCurve3Ds = luOnCurve3Ds.ToArray();
+                        ips = lips.ToArray();
                         return;
                     }
                 }

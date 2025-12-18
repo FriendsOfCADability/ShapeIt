@@ -6684,14 +6684,14 @@ namespace CADability.GeoObject
                     if (!faces.Contains(edg.OtherFace(face))) openEdges.Add(edg);
                 }
             }
-            //if (openEdges.Count > 0) return FeatureFromLoops(openEdges, out featureFaces, out connection, out isGap);
-            //else
-            //{
-            featureFaces = null;
-            connection = null;
-            isGap = false;
-            return false;
-            //}
+            if (openEdges.Count > 0) return FeatureFromLoops(openEdges, out featureFaces, out connection, out isGap);
+            else
+            {
+                featureFaces = null;
+                connection = null;
+                isGap = false;
+                return false;
+            }
         }
 
         /// <summary>

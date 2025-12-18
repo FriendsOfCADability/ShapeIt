@@ -1282,7 +1282,9 @@ namespace CADability.GeoObject
 				{
 					(subCurves[i] as IGeoObject).Modify(m);
 				}
-			}
+				inPlane = null;
+				planarState = PlanarState.Unknown; // force recalculation
+            }
 		}
 		/// <summary>
 		/// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.FindSnapPoint (SnapPointFinder)"/>
