@@ -2801,7 +2801,7 @@ namespace ShapeIt
                     GeoVector crossDir = lplane.Normal ^ fc.Surface.GetNormal(fc.PositionOf(pointOnFace));
                     Face arrow1 = FeedbackArrow.MakeSimpleTriangle(pointOnFace, lplane.Normal, crossDir, vw.Projection);
                     Face arrow2 = FeedbackArrow.MakeSimpleTriangle(pointOnFace, -lplane.Normal, -crossDir, vw.Projection);
-                    ParametricsExtrudeAction pea = new ParametricsExtrudeAction(minObject, maxObject, lfaces, ledges, lplane, extrFace,
+                    ParametricsExtrudeActionOld pea = new ParametricsExtrudeActionOld(minObject, maxObject, lfaces, ledges, lplane, extrFace,
                         pointOnFace, new Face[] { arrow1, arrow2 }, cadFrame);
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
                     cadFrame.SetAction(pea);

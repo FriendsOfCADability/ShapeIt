@@ -1,17 +1,17 @@
 ﻿using CADability;
 using CADability.Actions;
+using CADability.Attribute;
 using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using static CADability.Actions.ConstructAction;
 
 namespace ShapeIt
 {
-    public class ParametricsExtrudeAction : ConstructAction
+    public class ParametricsExtrudeActionOld : ConstructAction
     {
         public Shell shell; // the shell beeing manipulated by this action
         public HashSet<Face> Faces { get; } // the faces beeing stretched
@@ -58,54 +58,6 @@ namespace ShapeIt
                 return this; // don't clone the face, this would result in an infinite loop
             }
         }
-
-        /// <summary>
-        /// Create an Action to extrude the given shell along the normal of the crossSection face.
-        /// </summary>
-        /// <param name="shell"></param>
-        /// <param name="crossSection"></param>
-        /// <param name="pickPoint"></param>
-        /// <param name="arrows"></param>
-        /// <param name="frame"></param>
-        /// <returns></returns>
-        public static ParametricsExtrudeAction? Create(Shell shell, Face crossSection, GeoPoint pickPoint, IEnumerable<Face> arrows, IFrame frame)
-        {
-            Shell cs = Shell.FromFaces(crossSection);
-            BooleanOperation bo = new BooleanOperation();
-            // try to split the shell by the provided face. This may be possible or not. 
-            // if the shell has a inner hole, like a picture frame, we need to split it with a plane (when cross section is a planar face)
-            bo.SetShells(shell, cs, BooleanOperation.Operation.intersection);
-            bo.SetClosedShells(true, false);
-            Shell[] part1 = bo.Execute();
-            if (part1.Length == 1)
-            {
-                Face crossSectionReversed = crossSection.Clone() as Face;
-                cs = Shell.FromFaces(crossSectionReversed);
-                bo.SetShells(shell, cs, BooleanOperation.Operation.intersection);
-                bo.SetClosedShells(true, false);
-                Shell[] part2 = bo.Execute();
-                if (part2.Length == 1)
-                {
-                    return new ParametricsExtrudeAction(shell, part1, part2, [crossSection], pickPoint, arrows, frame);
-                }
-            }
-            // splitting by the face did not work. Probably because the shell remains connected . Try splitting the whole shell by the plane of the face
-            if (crossSection.Surface is PlaneSurface ps)
-            {
-                Plane plane = ps.Plane;
-                (Shell[] upper, Shell[] lower) = BooleanOperation.SplitByPlane(shell, plane);
-                if (upper.Length > 0 && lower.Length > 0)
-                {   // we also need the planar intersection faces
-
-                }
-
-                return null;
-            }
-            return null; // no way found to split the shell to make an extrusion
-        }
-        public ParametricsExtrudeAction(Shell shell, Shell[] part1, Shell[] part2, Face[] crossSections, GeoPoint pickPoint, IEnumerable<Face> arrows, IFrame frame)
-        {
-        }
         /// <summary>
         /// Initialize an extrusion action: The shell, which contains the <paramref name="faces"/>, is going to be streched along the normal of the <paramref name="plane"/>.
         /// The distance is meassured from <paramref name="meassureFrom"/> to <paramref name="meassureTo"/>, which may be vertices, edges or faces.
@@ -116,7 +68,7 @@ namespace ShapeIt
         /// <param name="edges"></param>
         /// <param name="plane"></param>
         /// <param name="frame"></param>
-        internal ParametricsExtrudeAction(object meassureFrom, object meassureTo, IEnumerable<Face> faces, IEnumerable<Edge> edges, Plane plane,
+        internal ParametricsExtrudeActionOld(object meassureFrom, object meassureTo, IEnumerable<Face> faces, IEnumerable<Edge> edges, Plane plane,
             Face crossSection, GeoPoint pickPoint, IEnumerable<Face> arrows, IFrame frame)
         {
             Faces = new HashSet<Face>(faces); // the faces to be streched
@@ -126,8 +78,6 @@ namespace ShapeIt
             this.pickPoint = pickPoint;
             this.arrows = arrows;
             shell = faces.First().Owner as Shell;
-
-
             foreach (Face fc in shell.Faces)
             {
                 fc.UserData.Add("ShapeIt.HashCode", new FaceDontClone(fc)); // set the HashCode as UserData to find corresponding faces in the result
@@ -654,5 +604,3 @@ namespace ShapeIt
         }
     }
 }
-
-
