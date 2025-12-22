@@ -877,9 +877,16 @@ namespace CADability.GeoObject
         public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {   // hier sollten die Schnitte mit Ebene, Cylinder, Kegel und Kugel gelöst werden
             // mit höheren Flächen sollte bei diesen (also z.B. Torus) implementiert werden
-            if (other is PlaneSurface)
+            if (other is PlaneSurface pls)
             {   // das Ergebnis sollte aus einer möglichst nicht geschlossenen Kurve bestehen
                 // selbst, wenn in den Bounds zwei Stücke entstehen.
+                if (Precision.IsPointOnPlane(Location, pls.Plane) && Precision.IsPerpendicular(pls.Normal, this.ZAxis, false))
+                {   // special case: plane through center and perpendicular to ZAxis a circle through the poles, resulting in two 2d lines or two half circles in 3d
+                    GeoPoint p1 = Location + RadiusX * (ZAxis ^ pls.Normal).Normalized;
+                    GeoPoint p2 = Location - RadiusX * (ZAxis ^ pls.Normal).Normalized;
+                    GeoPoint2D uv = PositionOf(p1);
+                    Line2D l2d1 = new Line2D(uv, uv + new GeoVector2D(0, 1));
+                }
                 GeoPoint2D center2d;
                 double radius;
                 Plane unitPlane = toUnit * (other as PlaneSurface).Plane;

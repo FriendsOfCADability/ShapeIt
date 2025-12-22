@@ -2004,5 +2004,10 @@ namespace ShapeIt
         {
             edgeToFillet[key] = (fillet1Clipped, edgeToFillet[key].frontEnd, edgeToFillet[key].tangent);
         }
+
+        public static IEnumerable<Face> AllFacesWithUserData(this Shell shell, string userDataKey)
+        {
+            return shell.Faces.Where(f => f.UserData.ContainsData(userDataKey));
+        }
     }
 }

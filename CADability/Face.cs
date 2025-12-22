@@ -3656,6 +3656,7 @@ namespace CADability.GeoObject
             double[] vs = surface.GetVSingularities();
             for (int i = 0; i < us.Length; i++)
             {
+                SurfaceHelper.AdjustUPeriodic(surface, surface.GetBounds().Left, surface.GetBounds().Right, ref us[i]);
                 for (int j = 0; j < bounds2d.Count; j++)
                 {
                     int k = (j + 1) % bounds2d.Count;
@@ -3670,6 +3671,7 @@ namespace CADability.GeoObject
             }
             for (int i = 0; i < vs.Length; i++)
             {
+                SurfaceHelper.AdjustVPeriodic(surface, surface.GetBounds().Bottom, surface.GetBounds().Top, ref vs[i]);
                 for (int j = 0; j < bounds2d.Count; j++)
                 {
                     int k = (j + 1) % bounds2d.Count;

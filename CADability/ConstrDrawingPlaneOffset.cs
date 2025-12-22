@@ -3,11 +3,14 @@
     /// <summary>
     /// 
     /// </summary>
-    internal class ConstrDrawingPlaneOffset : ConstructAction
+    internal class ConstrDrawingPlaneOffset : ConstructAction, IConstructPlane
     {
         private Plane basePlane;
         private Projection projection;
         private GeoPoint throughPoint;
+
+        public Plane ConstructedPlane => basePlane; // which has been modified in OnDone
+
         public ConstrDrawingPlaneOffset(Plane basePlane, Projection projection)
         {
             this.basePlane = basePlane;

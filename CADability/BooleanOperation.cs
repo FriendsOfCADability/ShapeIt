@@ -307,7 +307,28 @@ namespace CADability
                 dc0.Add(pnt, vtx.GetHashCode());
             }
 #endif
+            var list = intersectionVertices.ToList();
 
+            IEnumerable<(Vertex, Vertex)> pairs =
+                from i in Enumerable.Range(0, list.Count)
+                from j in Enumerable.Range(i + 1, list.Count - i - 1)
+                select (list[i], list[j]);
+
+            foreach (var (a, b) in pairs)
+            {   // find already existing edges, which can serve as intersection edges
+                // could there be both already existing edges and new intersection edges between different two vertices?
+                foreach (Edge e1 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e)))
+                    foreach (Edge e2 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e))) // there were edges, which have primaryFace==fc1 but don't belong to fc1.Edges
+                    {
+                        if (e1.Curve3D.SameGeometry(e2.Curve3D, this.precision))
+                        {
+                            // already an intersection edge
+                            if (alreadyCalculated == null) alreadyCalculated = [];
+                            if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
+                        }
+                    }
+
+            }
             if (intersectionVertices.Count < 2) return;
 
             List<Vertex> usedVertices = new List<Vertex>(intersectionVertices.Count);
@@ -433,6 +454,8 @@ namespace CADability
                     for (int j = 0; j < points.Count; j++)
                     {
                         if (params3d[i, j] == double.MinValue) continue; // dieser Schnittpunkt liegt auf einer anderen Kurve
+                        if (params2dFace1[i, j] == double.MinValue) continue; // dieser Schnittpunkt liegt auf einer anderen Kurve
+                        if (params2dFace2[i, j] == double.MinValue) continue; // dieser Schnittpunkt liegt auf einer anderen Kurve
                         sortedIv[params3d[i, j]] = j;
                     }
                     // with closed curves, there will be a problem: which parts to use. This must be considered but is not yet.
@@ -1780,14 +1803,17 @@ namespace CADability
         }
         public static (Shell[] upperPart, Shell[] lowerPart) SplitByFace(Shell toSplit, Face splitBy)
         {
-            //BooleanOperation brep = new BooleanOperation(toSplit, splitBy);
-            //Shell[] upper = brep.Result();
-            //Face reversed = splitBy.Clone() as Face;
-            //reversed.ReverseOrientation();
-            //brep = new BooleanOperation(toSplit, reversed);
-            //Shell[] lower = brep.Result();
-            //return (upper, lower);
-            throw new NotImplementedException();
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(toSplit, Shell.FromFaces(splitBy), Operation.difference);
+            bo.SetClosedShells(true, false);
+            Shell[] upper = bo.Execute();
+            Face reversed = splitBy.Clone() as Face;
+            reversed.ReverseOrientation();
+            bo = new BooleanOperation();
+            bo.SetShells(toSplit, Shell.FromFaces(reversed), Operation.difference);
+            bo.SetClosedShells(true, false);
+            Shell[] lower = bo.Execute();
+            return (upper, lower);
 
         }
         /// <summary>
@@ -3446,7 +3472,7 @@ namespace CADability
                 {
                     //if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell1); // shell2 contains shell1, the result ist shell1
                     //else if (shell1.Contains(shell2.Vertices[0].Position)) res.Add(shell2); // shell1 contains shell2, the result ist shell2
-                                                                                            // else: shells are disjunct, the result is empty
+                    // else: shells are disjunct, the result is empty
 
                 }
             }

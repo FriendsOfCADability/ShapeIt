@@ -15379,7 +15379,14 @@ namespace CADability.GeoObject
                 while (Math.Abs(u - um) > Math.Abs(u + surface.UPeriod - um)) u += surface.UPeriod;
             }
         }
-
+        internal static void AdjustVPeriodic(ISurface surface, double vmin, double vmax, ref double v)
+        {
+            if (surface.IsVPeriodic)
+            {
+                double k = Math.Round(((vmin + vmax) / 2 - v) / surface.VPeriod);
+                v += k * surface.VPeriod;
+            }
+        }
         public static void MinMaxCurvature(ISurface surface, GeoPoint2D uv, out ICurve minCurvature, out ICurve maxCurvature)
         {   // to be tested
             surface.Derivation2At(uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);

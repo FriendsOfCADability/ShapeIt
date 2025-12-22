@@ -27,7 +27,7 @@ namespace CADability.Forms.NET8
         public string TitleId { get; }
         public int IconId { get; }
         IPropertyEntry[] entries; // all currently shown entries 
-        bool[] labelNeedsExtension; // true for all indices, where entries[index].Label doesnt fit into the available box
+        bool[] labelNeedsExtension; // true for all indices, where entries[index].Label doesn't fit into the available box
         private int lineHeight, fontHeight, square, buttonWidth, middle;
         private StringFormat stringFormat;
         private int selected; // the index of the currently selected item
@@ -284,7 +284,9 @@ namespace CADability.Forms.NET8
             string shortCutKey = String.Empty;
             if (entries[index].Flags.HasFlag(PropertyEntryType.Shortcut))
                 (labelText, firstModifier, secondModifier, shortCutKey) = SplitLabelText(labelText);
-            if (graphics.MeasureString(labelText, Font).Width > labelRect.Width) labelNeedsExtension[index] = true;
+            // if the label doesn't fit into its area and there is a value to show then this label should be extendend when the cursor is over the label
+            // if there is no value part, extending makes no sense, since all space is already covered. Hovering also shows tooltip.
+            if (graphics.MeasureString(labelText, Font).Width > labelRect.Width && showValue) labelNeedsExtension[index] = true;
             if (index == selected)
             {
                 graphics.FillRectangle(SystemBrushes.Highlight, labelRect);

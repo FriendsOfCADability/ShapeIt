@@ -4,6 +4,7 @@ using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -68,9 +69,11 @@ namespace ShapeIt
         /// <param name="arrows"></param>
         /// <param name="frame"></param>
         /// <returns></returns>
-        public static ParametricsExtrudeAction? Create(Shell shell, Face crossSection, GeoPoint pickPoint, IEnumerable<Face> arrows, IFrame frame)
+        public static ParametricsExtrudeAction? Create(Shell shell, Face crossSection, GeoPoint pickPoint, IEnumerable<Face> arrows, object meassuerFromHere, object meassureToHere, IFrame frame)
         {
-            Shell cs = Shell.FromFaces(crossSection);
+            Face csc = crossSection.Clone() as Face;
+            csc.UserData.Add("CADability.CrossSection", true);
+            Shell cs = Shell.FromFaces(csc);
             BooleanOperation bo = new BooleanOperation();
             // try to split the shell by the provided face. This may be possible or not. 
             // if the shell has a inner hole, like a picture frame, we need to split it with a plane (when cross section is a planar face)
@@ -80,156 +83,64 @@ namespace ShapeIt
             if (part1.Length == 1)
             {
                 Face crossSectionReversed = crossSection.Clone() as Face;
+                crossSectionReversed.ReverseOrientation();
+                crossSectionReversed.UserData.Add("CADability.CrossSection", true);
                 cs = Shell.FromFaces(crossSectionReversed);
                 bo.SetShells(shell, cs, BooleanOperation.Operation.intersection);
                 bo.SetClosedShells(true, false);
                 Shell[] part2 = bo.Execute();
                 if (part2.Length == 1)
                 {
-                    return new ParametricsExtrudeAction(shell, part1, part2, [crossSection], pickPoint, arrows, frame);
+                    return new ParametricsExtrudeAction(shell, part1, part2, pickPoint, arrows, meassuerFromHere, meassureToHere);
                 }
             }
             // splitting by the face did not work. Probably because the shell remains connected . Try splitting the whole shell by the plane of the face
             if (crossSection.Surface is PlaneSurface ps)
             {
                 Plane plane = ps.Plane;
-                (Shell[] upper, Shell[] lower) = BooleanOperation.SplitByPlane(shell, plane);
-                if (upper.Length > 0 && lower.Length > 0)
-                {   // we also need the planar intersection faces
+                BoundingCube ext = shell.GetExtent(0.0);
+                GeoPoint2D cnt2d = plane.Project(ext.GetCenter());
+                BoundingRect br = new BoundingRect(cnt2d, 2 * ext.DiagonalLength, 2 * ext.DiagonalLength);
+                Face fcpl = Face.MakeFace(new PlaneSurface(plane), br);
+                fcpl.UserData.Add("CADability.CrossSection", true);
 
+                bo = new BooleanOperation();
+                // try to split the shell by the provided face. This may be possible or not. 
+                // if the shell has a inner hole, like a picture frame, we need to split it with a plane (when cross section is a planar face)
+                bo.SetShells(shell, Shell.FromFaces(fcpl), BooleanOperation.Operation.intersection);
+                bo.SetClosedShells(true, false);
+                part1 = bo.Execute();
+                if (part1.Length > 0)
+                {
+                    fcpl.ReverseOrientation();
+                    bo = new BooleanOperation();
+                    // try to split the shell by the provided face. This may be possible or not. 
+                    // if the shell has a inner hole, like a picture frame, we need to split it with a plane (when cross section is a planar face)
+                    bo.SetShells(shell, Shell.FromFaces(fcpl), BooleanOperation.Operation.intersection);
+                    bo.SetClosedShells(true, false);
+                    Shell[] part2 = bo.Execute();
+                    if (part2.Length > 0)
+                    {
+                        return new ParametricsExtrudeAction(shell, part1, part2, pickPoint, arrows, meassuerFromHere, meassureToHere);
+                    }
                 }
-
-                return null;
             }
             return null; // no way found to split the shell to make an extrusion
         }
-        public ParametricsExtrudeAction(Shell shell, Shell[] part1, Shell[] part2, Face[] crossSections, GeoPoint pickPoint, IEnumerable<Face> arrows, IFrame frame)
+        public ParametricsExtrudeAction(Shell shell, Shell[] part1, Shell[] part2, GeoPoint pickPoint, IEnumerable<Face> arrows, object meassuerFromHere, object meassureToHere)
         {
-        }
-        /// <summary>
-        /// Initialize an extrusion action: The shell, which contains the <paramref name="faces"/>, is going to be streched along the normal of the <paramref name="plane"/>.
-        /// The distance is meassured from <paramref name="meassureFrom"/> to <paramref name="meassureTo"/>, which may be vertices, edges or faces.
-        /// </summary>
-        /// <param name="meassureFrom"></param>
-        /// <param name="meassureTo"></param>
-        /// <param name="faces"></param>
-        /// <param name="edges"></param>
-        /// <param name="plane"></param>
-        /// <param name="frame"></param>
-        internal ParametricsExtrudeAction(object meassureFrom, object meassureTo, IEnumerable<Face> faces, IEnumerable<Edge> edges, Plane plane,
-            Face crossSection, GeoPoint pickPoint, IEnumerable<Face> arrows, IFrame frame)
-        {
-            Faces = new HashSet<Face>(faces); // the faces to be streched
-            Edges = new HashSet<Edge>(edges); // the edges to be streched
-            Plane = plane;
-            this.crossSection = crossSection;
-            this.pickPoint = pickPoint;
-            this.arrows = arrows;
-            shell = faces.First().Owner as Shell;
-
-
-            foreach (Face fc in shell.Faces)
-            {
-                fc.UserData.Add("ShapeIt.HashCode", new FaceDontClone(fc)); // set the HashCode as UserData to find corresponding faces in the result
-            }
-            (Shell[] lower, Shell[] upper) = BRepOperation.SplitByFace(shell, crossSection);
-            foreach (Face fc in shell.Faces)
-            {
-                fc.UserData.Remove("ShapeIt.HashCode"); // no more usage
-            }
-            forwardMovingFaces = new HashSet<Face>(); // faces to be moved forward
-            backwardMovingFaces = new HashSet<Face>();
-            if (upper.Length == 1 && lower.Length == 1)
-            {
-                HashSet<int> upperHC = new HashSet<int>();
-                HashSet<int> lowerHC = new HashSet<int>();
-                foreach (Face fc in upper[0].Faces)
-                {
-                    FaceDontClone f = fc.UserData.GetData("ShapeIt.HashCode") as FaceDontClone;
-                    if (f != null && !Faces.Contains(f.Face))
-                    {
-                        forwardMovingFaces.Add(f.Face);
-                    }
-                }
-                foreach (Face fc in lower[0].Faces)
-                {
-                    FaceDontClone f = fc.UserData.GetData("ShapeIt.HashCode") as FaceDontClone;
-                    if (f != null && !Faces.Contains(f.Face))
-                    {
-                        backwardMovingFaces.Add(f.Face);
-                    }
-                }
-            }
-            HashSet<Edge> forwardBarrier = new HashSet<Edge>(); // edges which are moved forward and connect a face to be streched with a face to mof
-            HashSet<Edge> backwardBarrier = new HashSet<Edge>();
-            //foreach (Edge e in Edges)
-            //{
-            //    Vertex fvtx, bvtx;
-            //    if (plane.Distance(e.Vertex1.Position) > 0)
-            //    {
-            //        fvtx = e.Vertex1;
-            //        bvtx = e.Vertex2;
-            //    }
-            //    else
-            //    {
-            //        bvtx = e.Vertex1;
-            //        fvtx = e.Vertex2;
-            //    }
-            //    foreach (Edge e1 in fvtx.Edges)
-            //    {
-            //        if (!Edges.Contains(e1)) forwardBarrier.Add(e1);
-            //    }
-            //    foreach (Edge e1 in bvtx.Edges)
-            //    {
-            //        if (!Edges.Contains(e1)) backwardBarrier.Add(e1);
-            //    }
-            //}
-            //foreach(Edge e in forwardBarrier)
-            //{
-            //    if (!Faces.Contains(e.PrimaryFace)) forwardMovingFaces.Add(e.PrimaryFace);
-            //    if (!Faces.Contains(e.SecondaryFace)) forwardMovingFaces.Add(e.SecondaryFace);
-            //}
-            //foreach (Edge e in backwardBarrier)
-            //{
-            //    if (!Faces.Contains(e.PrimaryFace)) backwardMovingFaces.Add(e.PrimaryFace);
-            //    if (!Faces.Contains(e.SecondaryFace)) backwardMovingFaces.Add(e.SecondaryFace);
-            //}
-            //foreach (Face face in Faces)
-            //{
-            //    foreach (Edge edge in face.Edges)
-            //    {
-            //        if (!Edges.Contains(edge))
-            //        {
-            //            if (plane.Distance(edge.Vertex1.Position) > 0)
-            //            {
-            //                forwardBarrier.Add(edge);
-            //                if (Faces.Contains(edge.PrimaryFace)) forwardMovingFaces.Add(edge.SecondaryFace);
-            //                else forwardMovingFaces.Add(edge.PrimaryFace);
-            //            }
-            //            else
-            //            {
-            //                backwardBarrier.Add(edge);
-            //                if (Faces.Contains(edge.PrimaryFace)) backwardMovingFaces.Add(edge.SecondaryFace);
-            //                else backwardMovingFaces.Add(edge.PrimaryFace);
-            //            }
-            //        }
-            //    }
-            //}
-            measureToHere = meassureTo;
-            measureFromHere = meassureFrom;
-            // now forwardMovingFaces contain all the faces connectd to the faces to be streched in the forward direction
-            //HashSet<Edge> barrier = new HashSet<Edge>(forwardBarrier.Union(backwardBarrier));
-            //Shell.CombineFaces(forwardMovingFaces, barrier);
-            //Shell.CombineFaces(backwardMovingFaces, barrier);
-            //forwardMovingFaces.ExceptWith(Faces);
-            //backwardMovingFaces.ExceptWith(Faces);
-            // the faces are the original faces of the shell
-            // forwardMovingFaces and backwardMovingFaces must be disjunct!
-            bool isDisjunct = !forwardMovingFaces.Intersect(backwardMovingFaces).Any();
+            List<Face> forwardCrossSections = [];
+            foreach (Shell s in part1) forwardCrossSections.AddRange(s.AllFacesWithUserData("CADability.CrossSection"));
+            List<Face> backwardCrossSections = [];
+            foreach (Shell s in part2) backwardCrossSections.AddRange(s.AllFacesWithUserData("CADability.CrossSection"));
+            this.shell = shell;
+            this.measureFromHere = measureFromHere;
+            this.measureToHere = measureToHere;
             feedbackDimension = new GeoObjectList();
             feedback = new Feedback();
-        }
 
+        }
+        
         public override string GetID()
         {
             return "Constr.Parametrics.Extrude";

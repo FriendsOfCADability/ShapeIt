@@ -370,6 +370,7 @@
     <MenuItem MenuId="MenuId.DrawingPlane.Tangential" />
     <MenuItem MenuId="MenuId.DrawingPlane.Three.Points" />
     <MenuItem MenuId="MenuId.DrawingPlane.OfCurve" />
+    <MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
     <MenuItem MenuId="MenuId.DrawingPlane.Show" />
     <!-- <MenuItem MenuId="MenuId.DrawingPlane.Point.Direction" /> -->
   </Popup>

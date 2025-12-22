@@ -1,6 +1,7 @@
 ﻿using CADability.Curve2D;
 using CADability.Shapes;
 using CADability.UserInterface;
+using MathNet.Numerics.Optimization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -1203,7 +1204,7 @@ namespace CADability.GeoObject
             }
             else if (other is ConicalSurface cone)
             {
-                if (Precision.SameAxis(new CADability.Axis(Location,Axis), new CADability.Axis(cone.Location, cone.Axis)))
+                if (Precision.SameAxis(new CADability.Axis(Location, Axis), new CADability.Axis(cone.Location, cone.Axis)))
                 {
                     ICurve line = cone.FixedU((otherBounds.Left + otherBounds.Right) / 2, otherBounds.Bottom, otherBounds.Top);
                     double coneVMiddle = (otherBounds.Bottom + otherBounds.Top) / 2;
@@ -2027,6 +2028,9 @@ namespace CADability.GeoObject
                             if (i > 0) SurfaceHelper.AdjustPeriodic(this, ext, ref testPoints[i]);
                             ext.MinMax(testPoints[i]);
                         }
+                        SineCurve2D scFit = SineCurve2D.Create(testPoints[0], testPoints[2], testPoints[2], testPoints[3]);
+                        if (scFit!=null) return scFit;
+                        // we should not arrive here, if we do we have to check LevenbergMarquardt with different start conditions
                         GeoVector normal = e.Plane.Normal;
                         double fy = Math.Sqrt(normal.x * normal.x + normal.y * normal.y) / Math.Abs(normal.z); // the amplitude of the sine curve
                         double tx1 = Math.Atan2(normal.y, normal.x) + Math.PI / 2; // the offset in x of the sine curve, maybe +Mth.PI
@@ -2035,7 +2039,7 @@ namespace CADability.GeoObject
                         SineCurve2D sc2 = new SineCurve2D(testPoints[0].x, testPoints[3].x - testPoints[0].x, new ModOp2D(1, 0, tx2, 0, fy, e.Center.z));
                         SineCurve2D sc3 = new SineCurve2D(testPoints[0].x + Math.PI, testPoints[3].x - testPoints[0].x, new ModOp2D(1, 0, tx1, 0, fy, e.Center.z));
                         SineCurve2D sc4 = new SineCurve2D(testPoints[0].x + Math.PI, testPoints[3].x - testPoints[0].x, new ModOp2D(1, 0, tx2, 0, fy, e.Center.z));
-                        SineCurve2D sc = null;
+                        SineCurve2D sc = null; // sometimes yields too short curves
                         if (curve.DistanceTo(PointAt(sc1.PointAt(1.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5 && curve.DistanceTo(PointAt(sc1.PointAt(2.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5) sc = sc1;
                         else if (curve.DistanceTo(PointAt(sc2.PointAt(1.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5 && curve.DistanceTo(PointAt(sc2.PointAt(2.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5) sc = sc2;
                         else if (curve.DistanceTo(PointAt(sc3.PointAt(1.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5 && curve.DistanceTo(PointAt(sc3.PointAt(2.0 / 3.0))) < (RadiusX + RadiusY) * 1e-5) sc = sc3;

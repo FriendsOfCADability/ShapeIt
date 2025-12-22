@@ -68,7 +68,8 @@
 				<MenuItem MenuId="MenuId.DrawingPlane.Tangential" Shortcut="CtrlM"/>
 				<MenuItem MenuId="MenuId.DrawingPlane.Three.Points" />
 				<MenuItem MenuId="MenuId.DrawingPlane.OfCurve" />
-				<MenuItem MenuId="MenuId.DrawingPlane.Show" />
+        <MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
+        <MenuItem MenuId="MenuId.DrawingPlane.Show" />
 				<!-- <MenuItem MenuId="MenuId.DrawingPlane.Point.Direction" /> -->
 			</Popup>
 			<MenuItem MenuId="MenuId.Zoom.Total" IconNr="31" />
@@ -321,7 +322,8 @@
 		<MenuItem MenuId="MenuId.DrawingPlane.Tangential" />
 		<MenuItem MenuId="MenuId.DrawingPlane.Three.Points" />
 		<MenuItem MenuId="MenuId.DrawingPlane.OfCurve" />
-		<MenuItem MenuId="MenuId.DrawingPlane.Show" />
+    <MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
+    <MenuItem MenuId="MenuId.DrawingPlane.Show" />
 		<!-- <MenuItem MenuId="MenuId.DrawingPlane.Point.Direction" /> -->
 	</Popup>
 	<Popup MenuId="MenuId.IntersectionPlane" Shortcuts="true" Usage="3D">
@@ -332,7 +334,8 @@
 		<MenuItem MenuId="MenuId.Plane.2PointsDrawingPlane" />
 		<MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
 		<MenuItem MenuId="MenuId.DrawingPlane.Tangential" />
-		<MenuItem MenuId="MenuId.Plane.OfCurve" />
+    <MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
+    <MenuItem MenuId="MenuId.Plane.OfCurve" />
 		<!-- <MenuItem MenuId="MenuId.DrawingPlane.Point.Direction" /> -->
 	</Popup>
 

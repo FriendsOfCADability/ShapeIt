@@ -1,6 +1,7 @@
 ﻿using CADability;
 using CADability.Actions;
 using CADability.Attribute;
+using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
@@ -78,6 +79,21 @@ namespace ShapeIt
             this.pickPoint = pickPoint;
             this.arrows = arrows;
             shell = faces.First().Owner as Shell;
+#if DEBUG
+            // quick test of Shell.GlueShells
+            crossSection.UserData.Add("ShapeIt.CrossSection", new FaceDontClone(crossSection));
+            (Shell[] part1, Shell[] part2) = BooleanOperation.SplitByFace(shell, crossSection);
+            if (part1.Length == 1 && part2.Length == 1)
+            {
+                Face? cs1 = null, cs2 = null;
+                foreach (Face fc in part1[0].Faces) if (fc.UserData.Contains("ShapeIt.CrossSection")) cs1 = fc;
+                foreach (Face fc in part2[0].Faces) if (fc.UserData.Contains("ShapeIt.CrossSection")) cs2 = fc;
+                if (cs1 != null && cs2 != null)
+                {
+                    Shell glued = Shell.GlueShells(part1[0], part2[0], [(cs1, cs2)]);
+                }
+            }
+#endif
             foreach (Face fc in shell.Faces)
             {
                 fc.UserData.Add("ShapeIt.HashCode", new FaceDontClone(fc)); // set the HashCode as UserData to find corresponding faces in the result

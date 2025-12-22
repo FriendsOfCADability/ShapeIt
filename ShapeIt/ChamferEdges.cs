@@ -24,32 +24,41 @@ namespace ShapeIt
             // 1. make a raw chamfer for each edge. The chamfer is a swept circle around a spine curve. The spine curve is the intersection
             // of two offset surfaces of the adjacent faces. The chamfer starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the chamfer faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
-            edgeToCutter = createChamfers(convexEdges);
+            edgeToCutter = createChamfers();
             // there are one or more edges meeting at a vertex.
-            Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges);
+            Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges.Concat(concaveEdges));
 
-            List<HashSet<Shell>> roundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
+            List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
+            List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
             foreach (var ve in vertexToEdges)
             {
+                HashSet<Shell>? chamferAndExtension = null;
                 if (ve.Value.Count == 1)
                 { // the chamfer ends here, there are different cases:
                     // There is one or more "impact" faces
-                    HashSet<Shell>? chamferAndExtension = createDeadEndExtension(ve.Key, ve.Value[0], Math.Max(length1, length2));
-                    if (chamferAndExtension != null) roundingShells.Add(chamferAndExtension);
+                    chamferAndExtension = createDeadEndExtension(ve.Key, ve.Value[0], Math.Max(length1, length2));
+                    if (chamferAndExtension != null) convexRoundingShells.Add(chamferAndExtension);
                 }
                 else if (ve.Value.Count == 2)
                 {
-                    HashSet<Shell>? chamferAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1], Math.Max(length1, length2));
-                    if (chamferAndExtension != null) roundingShells.Add(chamferAndExtension);
+                    chamferAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1], Math.Max(length1, length2));
+                    if (chamferAndExtension != null) convexRoundingShells.Add(chamferAndExtension);
+                }
+                if (chamferAndExtension != null)
+                {
+                    if (convexEdges.Contains(ve.Value[0])) convexRoundingShells.Add(chamferAndExtension);
+                    else concaveRoundingShells.Add(chamferAndExtension);
                 }
             }
-            Combine(roundingShells);
+            Combine(convexRoundingShells);
+            Combine(concaveRoundingShells);
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
+            // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
             Shell? toOperateOn = shell.Clone() as Shell;
-            for (int i = 0; i < roundingShells.Count; i++)
+            for (int i = 0; i < convexRoundingShells.Count; i++)
             {
-                foreach (var item in roundingShells[i])
+                foreach (var item in convexRoundingShells[i])
                 {
                     BooleanOperation bo = new BooleanOperation();
                     bo.SetShells(toOperateOn, item, BooleanOperation.Operation.difference);
@@ -58,15 +67,28 @@ namespace ShapeIt
                     if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
                 }
             }
+            for (int i = 0; i < concaveRoundingShells.Count; i++)
+            {
+                foreach (var item in concaveRoundingShells[i])
+                {
+                    BooleanOperation bo = new BooleanOperation();
+                    bo.SetShells(toOperateOn, item, BooleanOperation.Operation.union);
+
+                    Shell[] roundedShells = bo.Execute();
+                    if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
+                }
+            }
 
             return toOperateOn;
         }
-        private Dictionary<Edge, Shell> createChamfers(IEnumerable<Edge> edges)
+        private Dictionary<Edge, Shell> createChamfers()
         {
             Dictionary<Edge, Shell> edgeToCutter = new();
-            foreach (Edge edgeToRound in edges)
+            var edgesToRound = convexEdges.Select(e => (edge: e, isConvex: true)).Concat(concaveEdges.Select(e => (edge: e, isConvex: false)));
+
+            foreach (var (edgeToRound, isConvex) in edgesToRound)
             {
-                Shell? chamferShell = MakeConvexChamferShell(edgeToRound, length1, length2);
+                Shell? chamferShell = MakeChamferShell(edgeToRound, length1, length2, isConvex);
                 if (chamferShell != null)
                 {
                     chamferShell.CopyAttributes(edgeToRound.PrimaryFace);
@@ -104,10 +126,10 @@ namespace ShapeIt
             sweptCircle.SetBounds(sweptCircleDomain);
             return sweptCircle;
         }
-        public Shell? MakeConvexChamferShell(Edge edgeToCutter, double length1, double length2)
+        public Shell? MakeChamferShell(Edge edgeToCutter, double length1, double length2, bool convex)
         {
-            ISurface topSurface = edgeToCutter.PrimaryFace.Surface; // for previty
-            ISurface bottomSurface = edgeToCutter.SecondaryFace.Surface;
+            ISurface topSurface = edgeToCutter.PrimaryFace.Surface.Clone(); // for previty
+            ISurface bottomSurface = edgeToCutter.SecondaryFace.Surface.Clone();
             ICurve leadingEdge = edgeToCutter.Curve3D.Clone();
             if (!edgeToCutter.Forward(edgeToCutter.PrimaryFace)) leadingEdge.Reverse(); // always forward on topSurface
             GeoPoint tstPoint = leadingEdge.PointAt(0.5);
@@ -133,26 +155,27 @@ namespace ShapeIt
             }
             sweptCircle.SetBounds(swcbounds);
 
+            int convexFactor = convex ? 1 : -1;
             Ellipse tstCircle = Ellipse.Construct();
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.StartPoint, leadingEdge.StartDirection), leadingEdge.StartPoint, length1);
             topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.StartPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.StartPoint));
-            GeoPoint sp = ips.MinBy(p => (p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside
+            GeoPoint sp = ips.MinBy(p => convexFactor*(p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside (concave: outlide)
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length1);
             topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.EndPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.EndPoint));
-            GeoPoint ep = ips.MinBy(p => (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside
+            GeoPoint ep = ips.MinBy(p => convexFactor * (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside (concave: outlide)
             // we need a middle point to discriminate between the two halves of a circle
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.PointAt(0.5), leadingEdge.DirectionAt(0.5)), leadingEdge.PointAt(0.5), length1);
             topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.PointAt(0.5)));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
-            GeoPoint mp = ips.MinBy(p => (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
+            GeoPoint mp = ips.MinBy(p => convexFactor*(p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
             IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, sweptCircle, sweptCircle.GetBounds(), [sp, ep]);
             if (dscs == null) return null; // there should only be one
@@ -168,20 +191,20 @@ namespace ShapeIt
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.StartPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.StartPoint));
-            sp = ips.MinBy(p => (p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside
+            sp = ips.MinBy(p => convexFactor * (p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length2);
             bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.EndPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.EndPoint));
-            ep = ips.MinBy(p => (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside
+            ep = ips.MinBy(p => convexFactor * (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside
             // we need a middle point to discriminate between the two halves of a circle
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.PointAt(0.5), leadingEdge.DirectionAt(0.5)), leadingEdge.PointAt(0.5), length2);
             bottomSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.PointAt(0.5)));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
-            mp = ips.MinBy(p => (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
+            mp = ips.MinBy(p => convexFactor * (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
             dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, sweptCircle, sweptCircle.GetBounds(), [sp, ep]);
             if (dscs == null) return null; // there should only be one
@@ -224,7 +247,7 @@ namespace ShapeIt
             Face topFace = Face.MakeFace(topSurface.Clone(), new List<ICurve>([leadingEdge, leftTopCurve, rightTopCurve, topCurve]));
             Face bottomFace = Face.MakeFace(bottomSurface.Clone(), new List<ICurve>([leadingEdge, leftBottomCurve, rightBottomCurve, bottomCurve]));
             Shell[] res = Make3D.SewFaces([chamferFace, leftFace, rightFace, topFace, bottomFace]);
-            if (res==null||res.Length==0) return null;
+            if (res == null || res.Length == 0) return null;
 
             rightFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
             leftFace.UserData.Add("CADability.Cutter.EndFace", "endface");

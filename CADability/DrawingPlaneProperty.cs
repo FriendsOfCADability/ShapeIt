@@ -192,6 +192,12 @@ namespace CADability.UserInterface
                     frame.SetAction(ct);
                     frame.ShowPropertyDisplay("Action");
                     return true;
+                case "MenuId.Plane.OriginNormalPoint":
+                    ConstructPlaneOriginNormalPoint cp3 = new ConstructPlaneOriginNormalPoint();
+                    cp3.ActionDoneEvent += new ConstructAction.ActionDoneDelegate(OnDrawingPlaneDone);
+                    frame.SetAction(cp3);
+                    return true;
+
                 case "MenuId.DrawingPlane.Show":
                     projection.ShowDrawingPlane = !projection.ShowDrawingPlane;
                     frame.ActiveView.InvalidateAll();
@@ -220,6 +226,8 @@ namespace CADability.UserInterface
                 case "MenuId.DrawingPlane.Three.Points":
                     return true;
                 case "MenuId.DrawingPlane.OfCurve":
+                    return true;
+                case "MenuId.Plane.OriginNormalPoint":
                     return true;
                 case "MenuId.DrawingPlane.Show":
                     CommandState.Checked = projection.ShowDrawingPlane;

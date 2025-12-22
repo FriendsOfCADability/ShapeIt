@@ -1,9 +1,10 @@
-﻿using System;
+﻿using MathNet.Numerics;
+using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.Optimization;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
-using MathNet.Numerics;
-using MathNet.Numerics.LinearAlgebra;
 
 namespace CADability.Curve2D
 {
@@ -20,6 +21,15 @@ namespace CADability.Curve2D
             this.fromUnit = fromUnit;
         }
 
+        public static SineCurve2D Create(GeoPoint2D p1, GeoPoint2D p2, GeoPoint2D p3, GeoPoint2D p4)
+        {
+            (double a, double b, double c, double x0, double y0, NonlinearMinimizationResult result) =
+            Fit4Points(p1, p2, p3, p4);
+            if (result.ReasonForExit!= ExitCondition.Converged|| result.ReasonForExit != ExitCondition.RelativePoints|| result.ReasonForExit != ExitCondition.RelativeGradient)
+            return new SineCurve2D(c, b, new ModOp2D(1, 0, x0, 0, a, y0));
+            return null;
+
+        }
         /// <summary>
         /// Fits a sine curve y = A * sin(B*(x - C)) + D to the given points.
         /// Uses Levenberg–Marquardt (via MathNet.Numerics.Fit.Curve).
@@ -160,7 +170,8 @@ namespace CADability.Curve2D
 
         public override GeoPoint2D PointAt(double pos)
         {
-            double u = PosToPar(pos);
+        /// Fit f(u)=(b*u+c+x0, a*sin(b*u+c)+y0) with u in [0,1], u=0 hits p1, u=1 hits p4.
+            double u = PosToPar(pos); // ustart + pos * udiff
             GeoPoint2D p = new GeoPoint2D(u, Math.Sin(u));
             return fromUnit * p;
         }
@@ -294,5 +305,91 @@ namespace CADability.Curve2D
             info.AddValue("FromUnit", fromUnit, typeof(ModOp2D));
         }
         #endregion
+
+        /// <summary>
+        /// Fit f(u)=(b*u+c+x0, a*sin(b*u+c)+y0) with u in [0,1], u=0 hits p1, u=1 hits p4.
+        /// Assumes the 4 points lie on such a curve.
+        /// </summary>
+        public static (double a, double b, double c, double x0, double y0, NonlinearMinimizationResult result)
+            Fit4Points(GeoPoint2D p1, GeoPoint2D p2, GeoPoint2D p3, GeoPoint2D p4)
+        {
+            var xs = Vector<double>.Build.Dense(new[] { p1.x, p2.x, p3.x, p4.x });
+            var ys = Vector<double>.Build.Dense(new[] { p1.y, p2.y, p3.y, p4.y });
+
+            // Endpoint constraint u=0 -> p1, u=1 -> p4 implies:
+            double b = p4.x - p1.x;
+            if (Math.Abs(b) < 1e-14)
+                throw new ArgumentException("X4==X1 => b=0, x(u) would be constant; not solvable in this form.");
+
+            // Parameter vector p = [a, x0, y0]
+            Func<Vector<double>, Vector<double>, Vector<double>> values =
+                (p, x) =>
+                {
+                    double a = p[0], x0 = p[1], y0 = p[2];
+                    var yhat = Vector<double>.Build.Dense(x.Count);
+                    for (int i = 0; i < x.Count; i++)
+                        yhat[i] = a * Math.Sin(x[i] - x0) + y0;
+                    return yhat;
+                };
+
+            // Jacobian: rows = data points (4), cols = parameters (3)
+            // dy/da  = sin(x-x0)
+            // dy/dx0 = -a*cos(x-x0)
+            // dy/dy0 = 1
+            Func<Vector<double>, Vector<double>, Matrix<double>> jacobian =
+                (p, x) =>
+                {
+                    double a = p[0], x0 = p[1];
+                    var J = Matrix<double>.Build.Dense(x.Count, 3);
+                    for (int i = 0; i < x.Count; i++)
+                    {
+                        double t = x[i] - x0;
+                        J[i, 0] = Math.Sin(t);
+                        J[i, 1] = -a * Math.Cos(t);
+                        J[i, 2] = 1.0;
+                    }
+                    return J;
+                };
+
+            // Build objective model (unweighted)
+            var objective = ObjectiveFunction.NonlinearModel(values, jacobian, xs, ys);
+
+            // ---- Initial guess (cheap) ----
+            double y0Guess = (p1.y + p2.y + p3.y + p4.y) / 4.0;
+            double ymin = Math.Min(Math.Min(p1.y, p2.y), Math.Min(p3.y, p4.y));
+            double ymax = Math.Max(Math.Max(p1.y, p2.y), Math.Max(p3.y, p4.y));
+            double aGuess = 0.5 * (ymax - ymin);
+            if (Math.Abs(aGuess) < 1e-12) aGuess = 1.0;
+            double x0Guess = p1.x; // often fine; LM will refine
+
+            var initialGuess = Vector<double>.Build.Dense(new[] { aGuess, x0Guess, y0Guess });
+
+            // Optional bounds/scales (here: unbounded, unit scales, nothing fixed)
+            var lower = Vector<double>.Build.Dense(new[] { double.NegativeInfinity, double.NegativeInfinity, double.NegativeInfinity });
+            var upper = Vector<double>.Build.Dense(new[] { double.PositiveInfinity, double.PositiveInfinity, double.PositiveInfinity });
+            var scales = Vector<double>.Build.Dense(new[] { 1.0, 1.0, 1.0 });
+            var isFixed = new List<bool> { false, false, false };
+
+            // Minimizer settings: defaults are usually ok; you can tighten tolerances if you want
+            var lm = new LevenbergMarquardtMinimizer(
+                initialMu: 1e-3,
+                gradientTolerance: 1e-15,
+                stepTolerance: 1e-15,
+                functionTolerance: 1e-15,
+                maximumIterations: 50);
+
+            var res = lm.FindMinimum(objective, initialGuess);
+
+            double a = res.MinimizingPoint[0];
+            double x0 = res.MinimizingPoint[1];
+            double y0 = res.MinimizingPoint[2];
+
+            // Back to your original parameters:
+            double c = p1.x - x0; // because x(0)=c+x0 = X1
+
+            return (a, b, c, x0, y0, res);
+        }
     }
+
+
 }

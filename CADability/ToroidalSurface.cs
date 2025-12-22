@@ -2271,13 +2271,19 @@ namespace CADability.GeoObject
                     if (Precision.IsPointOnPlane(this.Location, e.Plane) && Precision.IsPerpendicular(this.ZAxis, e.Plane.Normal, false))
                     {
                         GeoPoint2D uv = PositionOf(e.StartPoint);
+                        // unfortunately, th uv Point is calculated with usedArea taken into account, so if we are at a pole, it could be that uv.y is in the wrong period
+                        // not sure, whether this behaviour is wanted, but for now we have to live with it
+                        GeoPoint2D uvp = uv;
+                        SurfaceHelper.AdjustPeriodic(this, new BoundingRect(0, 0, 2 * Math.PI, 2 * Math.PI), ref uvp);
                         double[] vs = GetVSingularities();
                         if (vs.Length > 0)
                         {
                             for (int i = 0; i < vs.Length; i++)
                             {
-                                if (Math.Abs(uv.y - vs[i]) < 1e-4) uv.x = PositionOf(e.PointAt(0.5372516273)).x; // we did hit a pole with the startpoint, lets take some other point (but not the endpoint, if e is full circle)
-                                // 1e-4 is not critical, because "PositionOf(e.PointAt(..." should always return the same result, the odd value is to assure we don't hit the other pole
+                                if (Math.Abs(uvp.y - vs[i]) < 1e-4) uv.x = PositionOf(e.PointAt(0.5372516273)).x; // we did hit a pole with the startpoint, lets take some other point (but not the endpoint, if e is full circle)
+                                  // 1e-4 is not critical, because "PositionOf(e.PointAt(..." should always return the same result, the odd value is to assure we don't hit the other pole
+                                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref uv); // must be adjusted back again
+
                             }
                         }
 

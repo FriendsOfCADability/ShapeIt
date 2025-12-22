@@ -242,8 +242,11 @@ namespace CADability.Forms.NET8
 
         #region labelextension
         Label labelExtension; // there is only one LabelExtension for editing labels or values. It is normally hidden and moved, filled and activated when needed
+        private IPropertyEntry? stoppedLabelExtension = null; // to disable the extension by clicking on it
         public void ShowLabelExtension(Rectangle screenLocation, string initialText, IPropertyEntry sender)
         {
+            if (stoppedLabelExtension == sender) return;
+            stoppedLabelExtension = null;// enableall extensions again
             EntryWithLabelExtension = sender;
             labelExtension.Font = textBox.Font;
             labelExtension.BackColor = textBox.BackColor;
@@ -253,6 +256,11 @@ namespace CADability.Forms.NET8
             labelExtension.BringToFront();
             labelExtension.Show();
             labelExtension.Focus();
+            labelExtension.MouseDown += (s, e) =>
+            {
+                stoppedLabelExtension = sender; // this extension will be disabled so you can use the label and menu button
+                HideLabelExtension();
+            };
         }
         public void HideLabelExtension()
         {

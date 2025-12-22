@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Globalization;
+using System.Text.RegularExpressions;
 
 namespace CADability.UserInterface
 {
@@ -130,29 +131,38 @@ namespace CADability.UserInterface
             string trimmed = text;
             bool success = false;
             double l = 0.0;
-            try
-            {
-                l = double.Parse(trimmed, numberFormatInfo);
-                success = true;
-            }
-            catch (FormatException)
-            {
-                if (trimmed == "-") success = true; // allow to start with "-"
-            }
-            catch (OverflowException) { } // no valid input
-            if (!success)
+
+            Match m = Match.Empty;
+            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d+)?\s*$");
+            // text = text.Replace(",", ".");
+
+            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d+)?\s*$");
+            // text = text.Replace(".", ",");
+            if (m.Success)
             {
                 try
                 {
-                    //Scripting s = new Scripting();
-                    //if (Frame != null)
-                    //{
-                    //    l = s.GetDouble(Frame.Project.NamedValues, trimmed);
-                    //    success = true;
-                    //}
+                    l = double.Parse(trimmed, numberFormatInfo);
+                    success = true;
                 }
-                catch //(ScriptingException)
+                catch (FormatException)
                 {
+                    if (trimmed == "-") success = true; // allow to start with "-"
+                }
+                catch (OverflowException) { } // no valid input
+            }
+            else
+            {
+                object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                if (o is double dd)
+                {
+                    l = dd;
+                    success = true;
+                }
+                else
+                {
+                    l = 0.0;
+                    success = false;
                 }
             }
             if (success)
@@ -171,7 +181,7 @@ namespace CADability.UserInterface
             if (PreferNegativeValues && lval > 180) lval = lval - 360;
             return lval.ToString("f", numberFormatInfo);
         }
-#region ICommandHandler Members
+        #region ICommandHandler Members
         bool ICommandHandler.OnCommand(string MenuId)
         {
             switch (MenuId)
@@ -313,8 +323,8 @@ namespace CADability.UserInterface
         public void CheckMouseButton(bool Check) { }
 
         [Obsolete("use delegate AngleProperty.LabelTextChanged instead")]
-		public new delegate void LabelChangedDelegate(LengthProperty sender, string newLabel);
-		
+        public new delegate void LabelChangedDelegate(LengthProperty sender, string newLabel);
+
         [Obsolete("use delegate AngleProperty.LabelTextChanged instead")]
 #pragma warning disable CS0067 // Event is never used
         public event LabelChangedDelegate LabelChangedEvent;

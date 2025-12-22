@@ -5108,6 +5108,31 @@ namespace CADability.GeoObject
 #endif
 
         }
+        public static Shell GlueShells(Shell shell1, Shell shell2, IEnumerable<(Face, Face)> facePairs)
+        {
+            bool mayBeOpen = shell1.OpenEdgesExceptPoles.Length > 0 || shell2.OpenEdgesExceptPoles.Length > 0;
+            Dictionary<Edge, Edge> clonedEdges = [];
+            Dictionary<Vertex, Vertex> clonedVertices = [];
+            Dictionary<Face, Face> clonedFaces = [];
+            Shell shell1Clone = shell1.Clone(clonedEdges, clonedVertices, clonedFaces);
+            Shell shell2Clone = shell2.Clone(clonedEdges, clonedVertices, clonedFaces); // no common faces, so no problem
+            HashSet<Face> removeFrom1 = [.. facePairs.Select(fp => clonedFaces[fp.Item1])];
+            HashSet<Face> removeFrom2 = [.. facePairs.Select(fp => clonedFaces[fp.Item2])];
+            Shell res = Shell.FromFaces([.. shell1Clone.Faces.Where(f => !removeFrom1.Contains(f)), .. shell2Clone.Faces.Where(f => !removeFrom2.Contains(f))]);
+            // res contains all faces except the paired ones
+            foreach (Face fc in res.Faces) fc.Owner = res; // shell1Clone and shell2Clone won't be used anymore
+            foreach (Face fc in removeFrom1) res.RemoveFace(fc);
+            foreach (Face fc in removeFrom2) res.RemoveFace(fc);
+            res.RecalcVertices(); // so connecting open edges finds the pairs
+            res.TryConnectOpenEdges();
+#if DEBUG
+            Edge[] oe = res.OpenEdges;
+#endif
+            if (!mayBeOpen && res.OpenEdgesExceptPoles.Length > 0) return null; // not all edges could be connected, shells don't fit together
+            res.CombineConnectedFaces();
+            res.CopyAttributes(shell1); // not sure whether this is intended
+            return res;
+        }
         internal void TryConnectOpenEdges()
         {
             Set<Edge> openEdges = new Set<Edge>(OpenEdges);
@@ -5406,10 +5431,11 @@ namespace CADability.GeoObject
             // heraustrennen des Faces: die betreffenden Kanten dieser Shell werden zu offenen Kanten
             using (new Changing(this, "AddFace", face))
             {
-                Set<Face> remainingFaces = new Set<Face>(faces);
+                HashSet<Face> remainingFaces = [.. faces];
                 remainingFaces.Remove(face);
                 faces = remainingFaces.ToArray();
-                Edge[] dumy = OpenEdges; // this disconnects the common edges
+                Edge[] edgesToRemove = face.AllEdges;
+                foreach (Edge edg in edgesToRemove) edg.RemoveFace(face); 
                 edges = null; // to force recalculation
             }
         }

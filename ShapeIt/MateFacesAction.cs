@@ -169,11 +169,13 @@ namespace ShapeIt
                             {
                                 Solid cln = sld.Clone() as Solid;
                                 cln.Modify(modify);
+                                if (modify.Determinant < 0) cln.Shells[0].ReverseOrientation();
                                 owner.Add(cln);
                             }
                             else
                             {
                                 sld.Modify(modify);
+                                if (modify.Determinant < 0) sld.Shells[0].ReverseOrientation();
                             }
                         }
                     }
@@ -186,11 +188,13 @@ namespace ShapeIt
                             {
                                 Shell cln = toModify.Clone() as Shell;
                                 cln.Modify(modify);
+                                if (modify.Determinant < 0) cln.ReverseOrientation();
                                 owner.Add(cln);
                             }
                             else
                             {
                                 toModify.Modify(modify);
+                                if (modify.Determinant < 0) toModify.ReverseOrientation();
                             }
                         }
                     }

@@ -1176,6 +1176,7 @@ namespace CADability
                 case "MenuId.DrawingPlane.Three.Points":
                 case "MenuId.DrawingPlane.OfCurve":
                 case "MenuId.DrawingPlane.Show":
+                case "MenuId.Plane.OriginNormalPoint":
                 case "MenuId.DrawingPlane.Point.Direction":
                     {
                         DrawingPlaneProperty dp = new DrawingPlaneProperty(ActiveView.Projection, this);

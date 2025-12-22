@@ -31,7 +31,7 @@ namespace ShapeIt
         {
             this.shell = shell;
             this.radius = Math.Abs(radius); // radius may not be negative
-            // convex and concave: an edge is convex when the angle between the two faces is less than 108°, concave when greater than 180°
+            // convex and concave: an edge is convex when the angle between the two faces is less than 180°, concave when greater than 180°
             convexEdges = edges.Where(e => e.Adjacency() == ShellExtensions.AdjacencyType.Convex);
             concaveEdges = edges.Where(e => e.Adjacency() == ShellExtensions.AdjacencyType.Concave);
         }
@@ -41,40 +41,57 @@ namespace ShapeIt
             // 1. make a raw fillet for each edge. The fillet is a swept circle around a spine curve. The spine curve is the intersection
             // of two offset surfaces of the adjacent faces. The fillet starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the fillet faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
-            edgeToCutter = createFillets(convexEdges);
+            edgeToCutter = createFillets();
             // there are one or more edges meeting at a vertex.
-            Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges);
+            Dictionary<Vertex, List<Edge>> vertexToConvexEdges = createVertexToEdges(convexEdges);
+            Dictionary<Vertex, List<Edge>> vertexToConcaveEdges = createVertexToEdges(concaveEdges);
 
-            List<HashSet<Shell>> roundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
-            foreach (var ve in vertexToEdges)
+            List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
+            List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
+            foreach (var ve in vertexToConvexEdges.Concat(vertexToConcaveEdges))
             {
+                HashSet<Shell>? filletAndExtension= null;
                 if (ve.Value.Count == 1)
                 { // the fillet ends here, there are different cases:
                     // There is one or more "impact" faces
-                    HashSet<Shell>? filletAndExtension = createDeadEndExtension(ve.Key, ve.Value[0], radius);
-                    if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
+                    filletAndExtension = createDeadEndExtension(ve.Key, ve.Value[0], radius);
                 }
                 else if (ve.Value.Count == 2)
                 {
-                    HashSet<Shell>? filletAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1], 2 * radius);
-                    if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
+                    filletAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1], 2 * radius);
                 }
                 else if (ve.Value.Count == 3)
                 {
-                    HashSet<Shell>? filletAndExtension = createExtensionThreeEdges(ve.Key, ve.Value[0], ve.Value[1], ve.Value[2]);
-                    if (filletAndExtension != null) roundingShells.Add(filletAndExtension);
+                    filletAndExtension = createExtensionThreeEdges(ve.Key, ve.Value[0], ve.Value[1], ve.Value[2]);
+                }
+                if (filletAndExtension != null)
+                {
+                    if (convexEdges.Contains(ve.Value[0])) convexRoundingShells.Add(filletAndExtension);
+                    else concaveRoundingShells.Add(filletAndExtension);
                 }
             }
-            Combine(roundingShells);
+            Combine(convexRoundingShells);
+            Combine(concaveRoundingShells);
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
             Shell? toOperateOn = shell.Clone() as Shell;
-            for (int i = 0; i < roundingShells.Count; i++)
+            for (int i = 0; i < convexRoundingShells.Count; i++)
             {
-                foreach (var item in roundingShells[i])
+                foreach (var item in convexRoundingShells[i])
                 {
                     BooleanOperation bo = new BooleanOperation();
                     bo.SetShells(toOperateOn, item, BooleanOperation.Operation.difference);
+
+                    Shell[] roundedShells = bo.Execute();
+                    if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
+                }
+            }
+            for (int i = 0; i < concaveRoundingShells.Count; i++)
+            {
+                foreach (var item in concaveRoundingShells[i])
+                {
+                    BooleanOperation bo = new BooleanOperation();
+                    bo.SetShells(toOperateOn, item, BooleanOperation.Operation.union);
 
                     Shell[] roundedShells = bo.Execute();
                     if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
@@ -356,12 +373,14 @@ namespace ShapeIt
         /// - tangent: the edges tangential to the primary face [0] and secondary face [1]
         /// for each edge
         /// </returns>
-        private Dictionary<Edge, Shell> createFillets(IEnumerable<Edge> edges)
+        private Dictionary<Edge, Shell> createFillets()
         {
             Dictionary<Edge, Shell> edgeToFillet = new();
-            foreach (Edge edgeToRound in edges)
+            var edgesToRound = convexEdges.Select(e => (edge: e, isConvex: true)).Concat(concaveEdges.Select(e => (edge: e, isConvex: false)));
+
+            foreach (var (edgeToRound, isConvex) in edgesToRound)
             {
-                Shell? filletShell = MakeConvexFilletShell(edgeToRound, radius);
+                Shell? filletShell = MakeFilletShell(edgeToRound, radius, isConvex);
                 if (filletShell != null)
                 {
                     filletShell.CopyAttributes(edgeToRound.PrimaryFace);
@@ -388,14 +407,23 @@ namespace ShapeIt
         /// Combine overlapping sets into single sets
         /// </summary>
         /// <param name="sets"></param>
-        private Shell? MakeConvexFilletShell(Edge edgeToRound, double radius)
+        private Shell? MakeFilletShell(Edge edgeToRound, double radius, bool convex)
         {
-            ISurface topSurface = edgeToRound.PrimaryFace.Surface; // for previty
-            ISurface bottomSurface = edgeToRound.SecondaryFace.Surface;
+            ISurface topSurface = edgeToRound.PrimaryFace.Surface.Clone(); // for previty
+            ISurface bottomSurface = edgeToRound.SecondaryFace.Surface.Clone();
             ICurve leadingEdge = edgeToRound.Curve3D.Clone();
             if (!edgeToRound.Forward(edgeToRound.PrimaryFace)) leadingEdge.Reverse(); // always forward on topSurface
-            ISurface topOffset = topSurface.GetOffsetSurface(-radius);
-            ISurface bottomOffset = bottomSurface.GetOffsetSurface(-radius);
+            ISurface topOffset, bottomOffset;
+            if (convex)
+            {
+                topOffset = topSurface.GetOffsetSurface(-radius);
+                bottomOffset = bottomSurface.GetOffsetSurface(-radius);
+            }
+            else
+            {
+                topOffset = topSurface.GetOffsetSurface(radius);
+                bottomOffset = bottomSurface.GetOffsetSurface(radius);
+            }
             if (topOffset == null || bottomOffset == null) return null; // e.g. a sphere shrinking to a point
             topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
             bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
@@ -485,6 +513,7 @@ namespace ShapeIt
             }
             else return null;
             Arc2D arc2DOnRightPlane = new Arc2D(rightPlane.PositionOf(filletAxisRight), radius, rightPlane.PositionOf(rb), rightPlane.PositionOf(rt), false);
+            if (!convex) arc2DOnRightPlane.Complement();
             ICurve lid2crv3 = rightPlane.Make3dCurve(arc2DOnRightPlane);
             lid2crv3.StartPoint = rb;
             lid2crv3.EndPoint = rt;
@@ -506,6 +535,7 @@ namespace ShapeIt
             }
             else return null;
             Arc2D arc2DOnLeftPlane = new Arc2D(leftPlane.PositionOf(filletAxisLeft), radius, leftPlane.PositionOf(lt), leftPlane.PositionOf(lb), false);
+            if (!convex) arc2DOnLeftPlane.Complement();
             ICurve lid1crv3 = leftPlane.Make3dCurve(arc2DOnLeftPlane);
             lid1crv3.StartPoint = lt; // for better precision, should be almost equal
             lid1crv3.EndPoint = lb;
@@ -537,7 +567,7 @@ namespace ShapeIt
                 topCurve = tcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lt) + c.DistanceTo(rt));
             }
             if (topCurve == null) return null;
-            topCurve.Trim(topCurve.PositionOf(lt), topCurve.PositionOf(rt));
+            TrimCurve(topCurve, lt, rt); // with exactely half arcs thies reverses the arc whereas "Trimm" yields the other half
 
             ICurve? bottomCurve = null;
             if (sweptCircle is SweptCircle scb)
@@ -554,7 +584,7 @@ namespace ShapeIt
                 bottomCurve = bcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lb) + c.DistanceTo(rb));
             }
             if (bottomCurve == null) return null;
-            bottomCurve.Trim(bottomCurve.PositionOf(rb), bottomCurve.PositionOf(lb));
+            TrimCurve(bottomCurve,rb, lb);
 
             sweptFace = Face.MakeFace(sweptCircle, [topCurve, bottomCurve, lid2crv3, lid1crv3]);
 

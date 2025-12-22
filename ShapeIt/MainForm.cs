@@ -382,6 +382,8 @@ namespace ShapeIt
                 }
                 if (command.Equals("Union", StringComparison.OrdinalIgnoreCase))
                 {
+                    operand1.Shells[0].AssertOutwardOrientation();
+                    operand2.Shells[0].AssertOutwardOrientation();
                     Solid sres = NewBooleanOperation.Unite(operand1, operand2);
                 }
             }
