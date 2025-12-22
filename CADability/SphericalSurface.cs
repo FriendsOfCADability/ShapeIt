@@ -883,9 +883,12 @@ namespace CADability.GeoObject
                 if (Precision.IsPointOnPlane(Location, pls.Plane) && Precision.IsPerpendicular(pls.Normal, this.ZAxis, false))
                 {   // special case: plane through center and perpendicular to ZAxis a circle through the poles, resulting in two 2d lines or two half circles in 3d
                     GeoPoint p1 = Location + RadiusX * (ZAxis ^ pls.Normal).Normalized;
-                    GeoPoint p2 = Location - RadiusX * (ZAxis ^ pls.Normal).Normalized;
-                    GeoPoint2D uv = PositionOf(p1);
-                    Line2D l2d1 = new Line2D(uv, uv + new GeoVector2D(0, 1));
+                    double u = PositionOf(p1).x;
+                    Line2D l2d1 = new Line2D(new GeoPoint2D(u, -Math.PI / 2), new GeoPoint2D(u, +Math.PI / 2));
+                    Line2D l2d2 = new Line2D(new GeoPoint2D(u + Math.PI, -Math.PI / 2), new GeoPoint2D(u + Math.PI, +Math.PI / 2));
+                    Ellipse elli1 = Make3dCurve(l2d1) as Ellipse;
+                    Ellipse elli2 = Make3dCurve(l2d2) as Ellipse;
+                    return [new DualSurfaceCurve(elli1, this, l2d1, other, other.GetProjectedCurve(elli1, 0.0)), new DualSurfaceCurve(elli2, this, l2d2, other, other.GetProjectedCurve(elli2, 0.0))];
                 }
                 GeoPoint2D center2d;
                 double radius;
