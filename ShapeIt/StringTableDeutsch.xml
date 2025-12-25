@@ -412,4 +412,12 @@
 		<label>2. Abstand</label>
 		<info>Abstand der Fase zur Kante</info>
 	</data>
+  <data name="Construct.RoundEdges">
+    <label>Kanten runden</label>
+    <info>Die ausgewählten Kanten abrunden</info>
+  </data>
+  <data name="RoundEdges.Radius">
+    <label>Rundungsradius</label>
+    <info>Rundungsradius für die ausgewähltn Kanten</info>
+  </data>
 </root>

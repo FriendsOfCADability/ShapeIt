@@ -34,9 +34,9 @@ namespace ShapeIt
         }
         public override void OnSetAction()
         {
-            TitleId = "Construct.OffsetSolid";
+            TitleId = "Construct.RoundEdges";
 
-            radiusInput = new LengthInput("OffsetSolid.Distance");
+            radiusInput = new LengthInput("RoundEdges.Radius");
             radiusInput.SetLengthEvent += RadiusChanged;
 
             SetInput(radiusInput);
