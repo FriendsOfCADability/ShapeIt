@@ -209,6 +209,12 @@ namespace CADability.GeoObject
                 return tetraederHull;
             }
         }
+#if DEBUG
+        public ICurve DebugTetraeder()
+        {
+            return TetraederHull.Approximate(true, 0.001);
+        }
+#endif
         // die Orientierung ist dabei berücksichtigt
         protected abstract double[] GetBasePoints();
         //{

@@ -2008,6 +2008,7 @@ namespace CADability.Curve2D
 
             // only one inflection point per segment possible, the 2d curves must fulfil this rule
             GetTriangulationBasis(out GeoPoint2D[] pts, out GeoVector2D[] dirs, out double[] pars);
+            if (Precision.IsColinear(pts)) return list.ToArray(); // no inflection points on a line
             double uPrev = pars[0];
             double nPrev = N(uPrev, h);
             for (int i = 1; i < pars.Length; i++)
@@ -2028,7 +2029,7 @@ namespace CADability.Curve2D
 
                     try
                     {
-                        if (g(a) * g(b) < 0.0)
+                        if (g(a) * g(b) < -1e-8) // was <0, but often we have almost lines here and then we need many iterations for almost nothing
                         {
                             double root = Brent.FindRoot(g, a, b, 1e-8, 100);
                             // Validierung: echtes Vorzeichenwechsel?

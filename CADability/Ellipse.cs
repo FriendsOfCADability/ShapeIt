@@ -3015,27 +3015,64 @@ namespace CADability.GeoObject
             return true;
         }
 
+        //public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
+        //{
+        //    List<GeoVector> res = new List<GeoVector>();
+        //    Angle a = startParameter + position * sweepParameter;
+        //    res.Add((plane.Location + Math.Cos(a) * majorRadius * plane.DirectionX + Math.Sin(a) * minorRadius * plane.DirectionY).ToVector());
+        //    double[] sc = new double[4];
+        //    double ca = Math.Cos(a);
+        //    double sa = Math.Sin(a);
+        //    sc[0] = sa;
+        //    sc[1] = -ca;
+        //    sc[2] = -sa;
+        //    sc[3] = ca;
+        //    double f = 1.0;
+        //    for (int i = 0; i < grad; i++)
+        //    {
+        //        f *= sweepParameter;
+        //        GeoVector2D dir = new GeoVector2D(f * majorRadius * sc[(i + 2) % 4], sweepParameter * minorRadius * sc[(i + 3) % 4]);
+        //        res.Add(plane.ToGlobal(dir));
+        //    }
+        //    return res;
+        //}
         public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
         {
-            List<GeoVector> res = new List<GeoVector>();
+            var res = new List<GeoVector>(grad + 1);
+
             Angle a = startParameter + position * sweepParameter;
-            res.Add((plane.Location + Math.Cos(a) * majorRadius * plane.DirectionX + Math.Sin(a) * minorRadius * plane.DirectionY).ToVector());
-            double[] sc = new double[4];
+
             double ca = Math.Cos(a);
             double sa = Math.Sin(a);
-            sc[0] = sa;
-            sc[1] = -ca;
-            sc[2] = -sa;
-            sc[3] = ca;
+
+            // Point
+            GeoPoint p =
+                plane.Location
+                + ca * majorRadius * plane.DirectionX
+                + sa * minorRadius * plane.DirectionY;
+
+            res.Add(p.ToVector());
+
+            // d^k/dθ^k cos and sin (k mod 4)
+            double[] dCos = { ca, -sa, -ca, sa };
+            double[] dSin = { sa, ca, -sa, -ca };
+
             double f = 1.0;
-            for (int i = 0; i < grad; i++)
+            for (int k = 1; k <= grad; k++)
             {
-                f *= sweepParameter;
-                GeoVector2D dir = new GeoVector2D(f * majorRadius * sc[(i + 2) % 4], sweepParameter * minorRadius * sc[(i + 3) % 4]);
+                f *= sweepParameter;              // (da/dpos)^k
+
+                double cx = f * majorRadius * dCos[k % 4];
+                double sy = f * minorRadius * dSin[k % 4];
+
+                // Local 2D vector in plane coords (X along major axis, Y along minor axis)
+                GeoVector2D dir = new GeoVector2D(cx, sy);
+
                 res.Add(plane.ToGlobal(dir));
             }
             return res;
         }
+
 
         #endregion
 

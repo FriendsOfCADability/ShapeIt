@@ -452,6 +452,7 @@ namespace ShapeIt
                         if (d > 0)
                         {
                             Shell? rounded = shellToRound?.ChamferEdges(edgesToRound, d, d);
+                            // CadFrame.Project.GetActiveModel().Add(rounded);
                         }
                     }
                 }

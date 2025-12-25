@@ -288,6 +288,7 @@ namespace CADability
                     if (onSurface1) bp = curve3d.basePoints.Select(bp => bp.psurface1).ToArray();
                     else bp = curve3d.basePoints.Select(bp => bp.psurface2).ToArray();
                     approxBSpline = new BSpline2D(bp, 3, false);
+                    if (Precision.IsColinear(bp)) return approxBSpline; // cannot do better, saves alot of time
                     SortedList<double, GeoPoint2D> throughPoints = new SortedList<double, GeoPoint2D>();
                     for (int i = 0; i < bp.Length; i++) throughPoints[curve3d.PositionOf(curve3d.basePoints[i].p3d)] = bp[i];
                     double prec = new BoundingRect(bp).Size * 1e-3;
@@ -1169,6 +1170,7 @@ namespace CADability
 #if DEBUG
         internal void CheckSurfaceParameters()
         {   // check auf parameterfehler im 2d
+            return; // deactivate for performance reasons
             for (int i = 0; i < basePoints.Length - 1; i++)
             {
                 if ((surface1.IsUPeriodic && Math.Abs(basePoints[i + 1].psurface1.x - basePoints[i].psurface1.x) > 1) ||

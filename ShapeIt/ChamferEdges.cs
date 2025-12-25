@@ -242,13 +242,13 @@ namespace ShapeIt
             TrimCurve(rightBottomCurve, leadingEdge.EndPoint, bottomCurve.EndPoint);
 
             Face chamferFace = Face.MakeFace(chamferSurface, new List<ICurve>([topCurve, bottomCurve, leftChamferEdge, rightChamferEdge]));
+
             Face leftFace = Face.MakeFace(leftSurface, new List<ICurve>([leftTopCurve, leftBottomCurve, leftChamferEdge]));
             Face rightFace = Face.MakeFace(rightSurface, new List<ICurve>([rightTopCurve, rightBottomCurve, rightChamferEdge]));
             Face topFace = Face.MakeFace(topSurface.Clone(), new List<ICurve>([leadingEdge, leftTopCurve, rightTopCurve, topCurve]));
             Face bottomFace = Face.MakeFace(bottomSurface.Clone(), new List<ICurve>([leadingEdge, leftBottomCurve, rightBottomCurve, bottomCurve]));
             Shell[] res = Make3D.SewFaces([chamferFace, leftFace, rightFace, topFace, bottomFace]);
             if (res == null || res.Length == 0) return null;
-
             rightFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
             leftFace.UserData.Add("CADability.Cutter.EndFace", "endface");
             chamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");

@@ -1961,9 +1961,10 @@ namespace CADability.GeoObject
         }
         public override ICurve2D GetProjectedCurve(ICurve curve, double precision)
         {
-            ICurve crvunit = curve.CloneModified(toUnit);
-            if (crvunit is Line)
+            // ICurve crvunit = curve.CloneModified(toUnit); // some curves cannot be modified
+            if (curve is Line)
             {
+                ICurve crvunit = curve.CloneModified(toUnit);
                 Line l = crvunit as Line;
                 if (Precision.SameDirection(GeoVector.ZAxis, l.StartDirection, false))
                 {
@@ -1974,8 +1975,9 @@ namespace CADability.GeoObject
                     return res;
                 }
             }
-            else if (crvunit is Ellipse)
+            else if (curve is Ellipse)
             {
+                ICurve crvunit = curve.CloneModified(toUnit);
                 Ellipse e = (crvunit as Ellipse);
                 if (Precision.SameDirection(GeoVector.ZAxis, e.Plane.Normal, true))
                 {   // es wird immer davon ausgegangen, dass curve sehr nahe am Zylinder liegt, also aus einem Schnitt

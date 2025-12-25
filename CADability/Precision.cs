@@ -266,7 +266,7 @@ namespace CADability
         }
         public static bool SameAxis(Axis a1, Axis a2)
         {
-            return Geometry.DistPL(a1.Location,a2)<eps && Geometry.DistPL(a2.Location, a1) < eps && SameDirection(a1.Direction, a2.Direction, false);
+            return Geometry.DistPL(a1.Location, a2) < eps && Geometry.DistPL(a2.Location, a1) < eps && SameDirection(a1.Direction, a2.Direction, false);
             // IsPointOnLine only checks in between start- and endpoint
             //return IsPointOnLine(a1.Location, a2.Location, a2.Location + a2.Direction) && SameDirection(a1.Direction, a2.Direction, false);
         }
@@ -305,6 +305,22 @@ namespace CADability
             for (int i = 0; i < p.Length; i++)
             {
                 if (!IsEqual(c, p[i])) return false;
+            }
+            return true;
+        }
+        /// <summary>
+        /// Determines whether all points in the specified array lie on a straight line.
+        /// </summary>
+        /// <remarks>The method checks whether each point in the array lies on the line defined by the first and last
+        /// points.</remarks>
+        /// <param name="pnts">An array of <see cref="GeoPoint2D"/> instances to evaluate for collinearity. Must contain at least two points 
+        /// and sorted from start to end.</param>
+        /// <returns><see langword="true"/> if all points in <paramref name="pnts"/> are collinear; otherwise, <see langword="false"/>.</returns>
+        public static bool IsColinear(GeoPoint2D[] pnts)
+        {
+            for (int i = 1; i < pnts.Length - 1; i++)
+            {
+                if (!IsPointOnLine(pnts[i], pnts[0], pnts[pnts.Length - 1])) return false;
             }
             return true;
         }

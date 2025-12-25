@@ -531,7 +531,95 @@ namespace CADability.GeoObject
                 return res;
             }
         }
+
         public override GeoVector UDirection(GeoPoint2D uv)
+        {
+            double u = uv.x;
+            double v = uv.y;
+
+            if (normal != GeoVector.NullVector)
+            {
+                // curve derivatives
+                var deriv = spine.PointAndDerivativesAt(u, 2);
+                GeoVector vel = deriv[1]; // C'(u)
+                GeoVector acc = deriv[2]; // C''(u)
+
+                double speed = vel.Length;
+                if (speed == 0.0) return GeoVector.NullVector;
+
+                GeoVector T = vel / speed;
+
+                // T' = acc/|vel| - vel*(vel·acc)/|vel|^3
+                double velDotAcc = vel * acc; 
+                GeoVector Tp = (acc / speed) - (velDotAcc / (speed * speed * speed)) * vel;
+
+                // w = normal x T
+                GeoVector w = normal ^ T;
+                double wlen = w.Length;
+                if (wlen == 0.0)
+                {
+                    return vel; // best-effort fallback
+                }
+
+                GeoVector y = w / wlen;
+
+                // w' = normal x T'
+                GeoVector wp = normal ^ Tp;
+
+                // y' = wp/|w| - w*(w·wp)/|w|^3
+                double wDotWp = w * wp;
+                GeoVector yp = (wp / wlen) - (wDotWp / (wlen * wlen * wlen))*w;
+
+                // x = sign(radius) * (T x y)
+                double sr = Math.Sign(radius);
+                GeoVector x = sr * (T ^ y);
+
+                // x' = sr * (T' x y + T x y')
+                GeoVector xp = sr * ((Tp ^ y) + (T ^ yp));
+
+                double sinV = Math.Sin(v);
+                double cosV = Math.Cos(v);
+
+                // Pu = vel + r*(cos v * x' + sin v * y')
+                return vel + radius * (cosV * xp + sinV * yp);
+            }
+            else
+            {
+                var deriv = spine.PointAndDerivativesAt(u, 3).ToArray();
+
+                GeoVector vel = deriv[1];                    // c′
+                GeoVector acc = deriv[2];                    // c″
+                GeoVector jerk = deriv[3];         // 3rd derivative   c'''(u)
+
+                double speed = vel.Length;             // |c′|
+                GeoVector T = vel / speed;            // Frenet-Tangent
+
+                //  curvature & torsion (+ derivatives)
+                GeoVector crossVA = vel ^ acc;              // c′ × c″
+                double curvature = crossVA.Length / Pow(speed, 3);     // κ
+
+                GeoVector crossVB = vel ^ jerk;             // c′ × c‴
+                double torsion = (vel * crossVB) / Pow(crossVA.Length, 2); // τ
+
+                // Frenet-Frame 
+                GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
+                GeoVector B = T ^ N;                              // Binormale
+
+                // Derivatives of the frame
+                // scaling with s = |c′|
+                double s = speed;
+                GeoVector N_u = (-curvature * s) * T + torsion * s * B;
+                GeoVector B_u = (-torsion * s) * N;
+
+
+                // final results
+                double sinV = Sin(v);
+                double cosV = Cos(v);
+                return vel + radius * (cosV * N_u + sinV * B_u);
+            }
+        }
+
+        public  GeoVector UDirectionOld(GeoPoint2D uv)
         {
             double u = uv.x;
             double v = uv.y;
@@ -540,7 +628,7 @@ namespace CADability.GeoObject
             {
                 // Derivatives of the spine curve
                 var deriv = spine.PointAndDerivativesAt(u, 2);
-
+                var derivdbg = SurfaceIntersectionSolvers.NumericalPointAndDerivativesAt(spine, u, 2);
                 GeoVector vel = deriv[1];         // 1st  derivative  c'(u)
                 GeoVector acc = deriv[2];         // 2nd derivative   c''(u)
 
@@ -778,8 +866,8 @@ namespace CADability.GeoObject
                         {
                             GeoPoint2D sp2d = PositionOf(res.StartPoint);
                             GeoPoint2D ep2d = PositionOf(res.EndPoint);
-                            SurfaceHelper.AdjustPeriodic(this,thisBounds, ref sp2d);
-                            SurfaceHelper.AdjustPeriodic(this,thisBounds, ref ep2d);
+                            SurfaceHelper.AdjustPeriodic(this, thisBounds, ref sp2d);
+                            SurfaceHelper.AdjustPeriodic(this, thisBounds, ref ep2d);
                             Line2D l2d = new Line2D(sp2d, ep2d);
                             return [new DualSurfaceCurve(res, this, l2d, otherSurface, spineOnOffset)]; // it is not required to clip the curve
                         }
@@ -826,9 +914,9 @@ namespace CADability.GeoObject
         {
             if (other is SweptCircle sc)
             {
-                if (sc.spine.SameGeometry(spine,Precision.eps))
+                if (sc.spine.SameGeometry(spine, Precision.eps))
                 {
-                    if (Math.Abs(sc.radius-radius)<Precision.eps)
+                    if (Math.Abs(sc.radius - radius) < Precision.eps)
                     {
                         firstToSecond = ModOp2D.Null; // we have to implement this fully
                         return true;

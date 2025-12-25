@@ -2758,20 +2758,20 @@ namespace CADability.GeoObject
         public virtual GeoVector GetNormal(GeoPoint2D uv)
         {
 #if DEBUG
-            GeoVector du = new GeoVector(
-                Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).x, uv.x),
-                Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).y, uv.x),
-                Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).z, uv.x));
-            GeoVector dv = new GeoVector(
-                Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).x, uv.y),
-                Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).y, uv.y),
-                Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).z, uv.y));
-            SweepAngle au = new SweepAngle(du, UDirection(uv));
-            SweepAngle av = new SweepAngle(dv, VDirection(uv));
-            if (Math.Abs(au) > 0.1 || Math.Abs(av) > 0.1)
-            {
+            //GeoVector du = new GeoVector(
+            //    Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).x, uv.x),
+            //    Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).y, uv.x),
+            //    Differentiate.FirstDerivative(x => PointAt(new GeoPoint2D(x, uv.y)).z, uv.x));
+            //GeoVector dv = new GeoVector(
+            //    Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).x, uv.y),
+            //    Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).y, uv.y),
+            //    Differentiate.FirstDerivative(y => PointAt(new GeoPoint2D(uv.x, y)).z, uv.y));
+            //SweepAngle au = new SweepAngle(du, UDirection(uv));
+            //SweepAngle av = new SweepAngle(dv, VDirection(uv));
+            //if (Math.Abs(au) > 0.1 || Math.Abs(av) > 0.1)
+            //{
 
-            }
+            //}
 #endif
             return (this as ISurface).UDirection(uv) ^ (this as ISurface).VDirection(uv);
             // return new GeoVector(Helper.GetNormal(uv.ToCndHlp()));
@@ -5245,6 +5245,36 @@ namespace CADability.GeoObject
 
         private IDualSurfaceCurve[] NewGetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, out int numTangentialSeeds)
         {
+            // the bounds must include the seeds, otherwise the steps for seeking the next point immediately stop, because we are outside the bounds
+            for (int i = 0; i < seeds.Count; i++)
+            {
+                GeoPoint2D uv = PositionOf(seeds[i]);
+                SurfaceHelper.AdjustPeriodic(this, thisBounds, ref uv);
+                thisBounds.MinMax(uv);
+                uv = other.PositionOf(seeds[i]);
+                SurfaceHelper.AdjustPeriodic(other, otherBounds, ref uv);
+                otherBounds.MinMax(uv);
+
+            }
+#if DEBUG
+            // for debugging there are 3 views:
+            // dc: the two surfaces with their domains as faces end the accumulated 3d points
+            // dc21: the uv area of this surface/ donmain and accumulated 2d points
+            // dc22: same for the other surface
+            DebuggerContainer dc = new DebuggerContainer();
+            dc.Add(Face.MakeFace(this, thisBounds), Color.Red);
+            dc.Add(Face.MakeFace(other, otherBounds), Color.Green);
+            DebuggerContainer dc21 = new DebuggerContainer();
+            dc21.Add(thisBounds.ToBorder(), Color.Red, 0);
+            DebuggerContainer dc22 = new DebuggerContainer();
+            dc22.Add(otherBounds.ToBorder(), Color.Green, 0);
+            for (int i = 0; i < seeds.Count; i++)
+            {
+                dc.Add(seeds[i], Color.Blue, i);
+                dc21.Add(this.PositionOf(seeds[i]), Color.Blue, i);
+                dc22.Add(other.PositionOf(seeds[i]), Color.Blue, i);
+            }
+#endif
             numTangentialSeeds = 0;
             if (seeds.Count < 2) return null;
             HashSet<BoxedSurfaceEx.ParEpi> pes;
@@ -5345,8 +5375,19 @@ namespace CADability.GeoObject
                             uvthis = this.PositionOf(ip);
                             uvother = other.PositionOf(ip);
                             reversed = false;
-                            if (!BoxedSurfaceExtension.SurfacesIntersectionLM(ps, this, other, ref uvPlane, ref uvthis, ref uvother, ref ip))
+#if DEBUG
+                            dc.Add(ip, Color.DeepPink, 9999);
+                            dc21.Add(uvthis, Color.DeepPink, 9999);
+                            dc22.Add(uvother, Color.DeepPink, 9999);
+#endif
+                            if (!SurfaceIntersectionSolvers.SurfacesIntersectionLM_Analytic9(ps, this, other, ref uvPlane, ref uvthis, ref uvother, ref ip))
                             {
+                                //bool ok2 = SurfaceIntersectionSolvers.SurfacesIntersectionLM_Analytic6(ps, this, other, ref uvPlane, ref uvthis, ref uvother, ref ip);
+                                //this.DerivationAt(uvthis, out GeoPoint loc1, out GeoVector du1, out GeoVector dv1);
+                                //SurfaceIntersectionSolvers.NumericalDerivationAt(this, uvthis, out GeoPoint loc2, out GeoVector du2, out GeoVector dv2);
+
+                                //bool ok1 = SurfaceIntersectionSolvers.SurfacesIntersectionLM_CentralFD9(ps, this, other, ref uvPlane, ref uvthis, ref uvother, ref ip);
+
                                 sl = sl / 2;
                                 GeoVector nt = GetNormal(uvthis).Normalized;
                                 GeoVector no = other.GetNormal(uvother).Normalized;
@@ -5364,7 +5405,12 @@ namespace CADability.GeoObject
                                 SurfaceHelper.AdjustPeriodic(other, otherBounds, ref uvother);
                                 GeoVector nextdir = (GetNormal(uvthis) ^ other.GetNormal(uvother)).Normalized;
                                 if (Precision.IsNullVector(nextdir))
-                                {   // exctely on a touching point
+                                {   // exactely on a touching point
+#if DEBUG
+                                    dc.Add(ip, Color.Magenta, 9999);
+                                    dc21.Add(uvthis, Color.Magenta, 9999);
+                                    dc22.Add(uvother, Color.Magenta, 9999);
+#endif
                                     sl /= 2;
                                 }
                                 else
@@ -5384,10 +5430,26 @@ namespace CADability.GeoObject
                                     }
                                     else if (Math.Abs(sa) > maxBend) // bending too sharp
                                     {
+#if DEBUG
+                                        dc.Add(ip, Color.DarkCyan, 9999);
+                                        dc21.Add(uvthis, Color.DarkCyan, 9999);
+                                        dc22.Add(uvother, Color.DarkCyan, 9999);
+#endif
                                         sl /= 2;
                                     }
                                     else
                                     {
+#if DEBUG
+                                        dc.Add(ip, Color.DarkSalmon, 9999);
+                                        dc21.Add(uvthis, Color.DarkSalmon, 9999);
+                                        dc22.Add(uvother, Color.DarkSalmon, 9999);
+                                        if (surfacePoints.Count > 0)
+                                        {
+                                            dc.Add(Line.TwoPoints(ips[ips.Count - 1], ip), Color.Orange, 9999);
+                                            dc21.Add(new Line2D(surfacePoints[surfacePoints.Count - 1].psurface1, uvthis), Color.Orange, 9999);
+                                            dc22.Add(new Line2D(surfacePoints[surfacePoints.Count - 1].psurface2, uvother), Color.Orange, 9999);
+                                        }
+#endif
                                         ok = true;
                                         ips.Add(ip);
                                         surfacePoints.Add(new InterpolatedDualSurfaceCurve.SurfacePoint(ip, uvthis, uvother));
@@ -9624,21 +9686,6 @@ namespace CADability.GeoObject
             cube.nlr.NormIfNotNull();
             cube.nul.NormIfNotNull();
             cube.nur.NormIfNotNull();
-#if DEBUG
-            if (Math.Abs(cube.Volume) < Precision.eps)
-            {
-                Face dbgfc = Face.MakeFace(surface, uvPatch);
-            }
-            DebuggerContainer dc1 = new DebuggerContainer();
-            dc1.Add(Line.MakeLine(cube.pll, cube.plr));
-            dc1.Add(Line.MakeLine(cube.plr, cube.pur));
-            dc1.Add(Line.MakeLine(cube.pur, cube.pul));
-            dc1.Add(Line.MakeLine(cube.pul, cube.pll));
-            dc1.Add(Line.MakeLine(cube.pll, cube.pll + cube.nll));
-            dc1.Add(Line.MakeLine(cube.plr, cube.plr + cube.nlr));
-            dc1.Add(Line.MakeLine(cube.pul, cube.pul + cube.nul));
-            dc1.Add(Line.MakeLine(cube.pur, cube.pur + cube.nur));
-#endif
             bool toosmall = uvPatch.Size < (uvbounds.Size * 1e-5) || uvPatch.Width < (uvbounds.Width * 1e-3) || uvPatch.Height < (uvbounds.Height * 1e-3);
             // Notbremse: an singulären Stellen wird der Patch zu klein
             GeoVector udirl = surface.UDirection(uvPatch.GetMiddleLeft());
