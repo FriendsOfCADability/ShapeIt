@@ -5,7 +5,9 @@ using CADability.Shapes;
 using CADability.Substitutes;
 using Point = CADability.GeoObject.Point;
 using MathNet.Numerics;
+#if !AVALONIA
 using Microsoft.VisualStudio.DebuggerVisualizers;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -20,8 +22,8 @@ namespace CADability
     /* This is the attempt to simplify the implementation of BRepIntersection/BRepOperation
      * There were too many exceptions and special cases in BRepOperation, especially concerning the overlapping faces, both
      * same oriantation and opposite orientation. I think, we don't need to consider overlapping faces if we consequently intersect faces
-     * which have edges on faces of the other shell. 
-     * 
+     * which have edges on faces of the other shell.
+     *
      * - put all faces (of both shells) in a single octtree
      * - use the octtree nodes to find pairs of faces (of different shells) which intersect each other and compute the intersection edges
      *      - check whether edges of one face intersect with the other face
@@ -49,13 +51,13 @@ namespace CADability
     */
 
     /// <summary>
-    /// 
+    ///
     /// </summary>
     public class BooleanOperation : OctTree<BRepItem>
     {
         private Shell shell1; // the two shells, which are intersected
         private Shell shell2; // either shell1 and shell2 are set or multipleFaces is set
-        private List<Face> multipleFaces; // the faces, which are intersected. 
+        private List<Face> multipleFaces; // the faces, which are intersected.
         private Dictionary<Edge, Edge> originalToClonedEdges; // points from the original edges to the clones we are working on
         private Dictionary<Vertex, Vertex> originalToClonedVertices; // points from the original vertices to the clones we are working on
         private Dictionary<Face, Face> originalToClonedFaces; // points from the original faces to the clones we are working on
@@ -80,7 +82,7 @@ namespace CADability
         Dictionary<(Edge edge, Face face), (List<Vertex> vertices, bool curveIsInSurface)> FaceEdgeIntersections; // to avoid duplicate calls to GetFaceEdgeIntersection
 
         HashSet<Face> commonOverlappingFaces; // Faces, which have been newly created as common parts of overlapping faces
-        HashSet<Face> cancelledfaces; // Faces, which cancel each other, they have the same area but are opposite oriented 
+        HashSet<Face> cancelledfaces; // Faces, which cancel each other, they have the same area but are opposite oriented
         Dictionary<Face, HashSet<Edge>> faceToIntersectionEdges; // faces of both shells with their intersection edges
         Dictionary<Face, HashSet<Face>> faceToCommonFaces; // faces which have overlapping common parts on them
         Dictionary<Edge, List<Vertex>> edgesToSplit;
@@ -572,7 +574,7 @@ namespace CADability
                         // Problme wäre die Genauigkeit, wenn beim BooleanOperation.generateCycles die Richtung genommen wird...
                         if (con1 is InterpolatedDualSurfaceCurve.ProjectedCurve pon1 && con2 is InterpolatedDualSurfaceCurve.ProjectedCurve pon2 &&
                             tr is InterpolatedDualSurfaceCurve idsc)
-                        {   // con1 und con2 müssen auf tr verweisen, sonst kann man das Face später nicht mit "ReverseOrientation" umdrehen. Dort wird nämlich die 
+                        {   // con1 und con2 müssen auf tr verweisen, sonst kann man das Face später nicht mit "ReverseOrientation" umdrehen. Dort wird nämlich die
                             // surface verändert, und die muss bei allen Kurven die selbe sein
                             pon1.SetCurve3d(idsc);
                             pon2.SetCurve3d(idsc);
@@ -629,7 +631,7 @@ namespace CADability
                                 }
                                 //TODO: not implemented yet:
                                 // if we arrive here with edgeFound==false, there is a tangential intersection which is not an edge on one of the two faces. Now we have two cases: it is either
-                                // a face touching the other face (like a cylinder touches a plane, or it is a real intersection, where one face goes through the other face 
+                                // a face touching the other face (like a cylinder touches a plane, or it is a real intersection, where one face goes through the other face
                                 // like an S-curve touches and crosses a line in the middle.
                                 //we try to find two points close to the middlepoint of the intersection curve where we get stable normals which are not parallel
                                 if (normalsCrossedMiddle.Length < 100 * Precision.eps)
@@ -1133,7 +1135,7 @@ namespace CADability
         //    createEdgeFaceIntersections(); // find intersection of edges with faces from different shells
         //    splitEdges(); // split the edges at the found intersection positions
         //    combineVerticesMultipleFaces(); // combine geometric close vertices
-        //    removeIdenticalOppositeFaces(); // 
+        //    removeIdenticalOppositeFaces(); //
         //    createNewEdges(); // populate faceToIntersectionEdges : for each face a list of intersection curves
         //    createInnerFaceIntersections(); // find additional intersection curves where faces intersect, but edges don't intersect (rare)
         //    TrimmIntersectionEdges();
@@ -1832,7 +1834,7 @@ namespace CADability
         }
         /// <summary>
         /// Chamfer or bevel the provided edges. the edges must be connected and only two edges may have a common vertex. The edges must build a path.
-        /// We have two distances from the edge to make chamfers with different angles. All edges must belong to the <paramref name="primaryFace"/>. 
+        /// We have two distances from the edge to make chamfers with different angles. All edges must belong to the <paramref name="primaryFace"/>.
         /// The first distance is on the primary face, the second on the other face (in most cases the distances are equal).
         /// </summary>
         /// <param name="primaryFace"></param>
@@ -1882,7 +1884,7 @@ namespace CADability
         //            List<Face> fillets = new List<Face>(); // faces, that make the fillet
         //            Dictionary<Edge, Tuple<Face, Face>> tangentialIntersectionEdges = new Dictionary<Edge, Tuple<Face, Face>>();
         //            Dictionary<Edge, Tuple<ICurve, Face>> rawFillets = new Dictionary<Edge, Tuple<ICurve, Face>>(); // the axis curve and simple fillets for each edge without joints
-        //            Dictionary<Vertex, List<Edge>> joiningVertices = new Dictionary<Vertex, List<Edge>>(); // for each vertex there may be up to three involved edges 
+        //            Dictionary<Vertex, List<Edge>> joiningVertices = new Dictionary<Vertex, List<Edge>>(); // for each vertex there may be up to three involved edges
         //                                                                                                   // 1.: create the simple fillets
         //            foreach (Edge edg in edges)
         //            {
@@ -2101,7 +2103,7 @@ namespace CADability
         //                        Shell[] bores = bo.Result();
         //                        if (bores != null && bores.Length == 1)
         //                        {
-        //                            if (bores[0].Faces.Length == 2) // this should be the case: 
+        //                            if (bores[0].Faces.Length == 2) // this should be the case:
         //                            {
         //                                GeoObjectList fcs = bores[0].Decompose();
         //                                if (fcs.Count == 2)
@@ -2758,7 +2760,7 @@ namespace CADability
                 }
                 listAB.Add(edge);
 
-                // fB → fA 
+                // fB → fA
                 if (!adj.TryGetValue(fB, out var nbrB))
                 {
                     nbrB = new Dictionary<Face, List<Edge>>();
@@ -2800,11 +2802,11 @@ namespace CADability
         public Shell[] Result()
         {
             // this method relies on
-            // - faceToIntersectionEdges: contains all faces, which intersect with other faces as keys and all the intersection edges, 
+            // - faceToIntersectionEdges: contains all faces, which intersect with other faces as keys and all the intersection edges,
             //   which are produced by other faces on this face as values.
             // - overlappingFaces and oppositeFaces: they contain pairs of faces, which overlap, with either same or oppostie orientation.
-            // 
-            // The main algorithm does the following: split (or trimm or cut) a face according to the intersection edges on this face. 
+            //
+            // The main algorithm does the following: split (or trimm or cut) a face according to the intersection edges on this face.
             // All edges are oriented, so it is possible to find outer edges and holes. A face might produce zero, one or multiple trimmed faces.
             // When all faces are trimmed, connect the trimmed faces with the untouched faces. this is the result.
             //
@@ -3167,7 +3169,7 @@ namespace CADability
                     ++dbgc;
                 }
 #endif
-                // each outline (only one in most cases) creates a new Face. 
+                // each outline (only one in most cases) creates a new Face.
                 for (int i = 0; i < numOutlines; i++)
                 {
                     Face fc = Face.Construct();
@@ -3199,7 +3201,7 @@ namespace CADability
             if (operation == Operation.clip) return ClippedParts(trimmedFaces);
             if (dontReturnShell2) discardedFaces.UnionWith(shell2.Faces);
 
-            // Now trimmedFaces contains all faces which are cut by faces of the relative other shell, even those, where the other shell cuts 
+            // Now trimmedFaces contains all faces which are cut by faces of the relative other shell, even those, where the other shell cuts
             // exactly along existing edges and nothing has been created.
             // The faces, which have been cut, i.e. faceToIntersectionEdges.Keys, are invalid now, we disconnect all edges from these faces
 #if DEBUG   // show all trimmed faces
@@ -3295,7 +3297,7 @@ namespace CADability
                         }
                     }
                     else if (edg.SecondaryFace == null || !trimmedFaces.Contains(edg.SecondaryFace) || !trimmedFaces.Contains(edg.PrimaryFace))
-                    {   // only those edges, which 
+                    {   // only those edges, which
                         if (trimmedEdges.TryGetValue(dvk, out Edge other))
                         {
                             if (other == edg) continue;
@@ -3451,7 +3453,7 @@ namespace CADability
             }
             ConnectOpenEdges(openEdges);
             // What about "nonManifoldEdges"?
-            // 
+            //
             List<Shell> res = new List<Shell>(); // the result of this method.
                                                  // allFaces now contains all the trimmed faces plus the faces, which are (directly or indirectly) connected (via edges) to the trimmed faces
             List<Face> nonManifoldParts = new List<Face>();
@@ -4014,7 +4016,7 @@ namespace CADability
                 if (connected.Count == 0 || intersectionEdgeEndHere)
                 {
                     // (connected.Count == 0): dead end, no connection at endVertex
-                    // intersectionEdgeEndHere: cannot go on, because we are following original edges and crossing at a vertex, 
+                    // intersectionEdgeEndHere: cannot go on, because we are following original edges and crossing at a vertex,
                     // where an intersection edge ends. This is not allowed (e.g.: breps4)
                     intersectionEdges.ExceptWith(res);
                     originalEdges.ExceptWith(res);
@@ -4339,7 +4341,7 @@ namespace CADability
         }
 
         /// <summary>
-        /// Takes a set of edges and tries to connect them to closed loops. 
+        /// Takes a set of edges and tries to connect them to closed loops.
         /// </summary>
         /// <param name="workingSet">work on this set, which will be emptied</param>
         /// <param name="face">orientation in respect to this face</param>
@@ -4448,8 +4450,8 @@ namespace CADability
         }
 
         internal static bool SameEdge(Edge e1, Edge e2, double precision)
-        {   // it is assumed that the two edges connect the same vertices 
-            // it is tested whether they have the same geometry (but maybe different directions) 
+        {   // it is assumed that the two edges connect the same vertices
+            // it is tested whether they have the same geometry (but maybe different directions)
             // (two half circles may connect the same vertices but are not geometrically identical when they describe differnt parts of the same circle)
             if (e1.Curve3D != null && e2.Curve3D != null) return e1.Curve3D.DistanceTo(e2.Curve3D.PointAt(0.5)) < 10 * precision; // nur precision war zu knapp
             return false;
@@ -4573,7 +4575,7 @@ namespace CADability
             faceToIntersectionEdges = new Dictionary<Face, HashSet<Edge>>();
             edgesNotToUse = new HashSet<Edge>();
             // wir haben eine Menge Schnittpunkte, die Face-Paaren zugeordnet sind. Für jedes Face-Paar, welches Schnittpunkte enthält sollen hier die neuen Kanten bestimmt werden
-            // Probleme dabei sind: 
+            // Probleme dabei sind:
             // - es ist bei mehr als 2 Schnittpunkten nicht klar, welche Abschnitte dazugehören
             // - zwei Surfaces können mehr als eine Schnittkurve haben
             HashSet<Edge> created = new HashSet<CADability.Edge>(new EdgeComparerByVertexAndFace());
@@ -4745,8 +4747,8 @@ namespace CADability
                         // aus den mehreren Punkten (meist 2) unter Berücksichtigung der Richtungen Kanten erzeugen
                         // bei nicht geschlossenen Kurven sollten immer zwei aufeinanderfolgende Punkte einen gültigen Kurvenabschnitt bilden.
                         // Obwohl auch hierbei ein doppelt auftretenden Punkt ein Problem machen könnte (Fälle sind schwer vorstellbar).
-                        // Im schlimmsten Fall müssten man für alle Abschnitte (nicht nur die geraden) 
-                        // Bei geschlossenen Kurven ist nicht klar, welche Punktepaare gültige Kurvenabschnitte erzeugen. 
+                        // Im schlimmsten Fall müssten man für alle Abschnitte (nicht nur die geraden)
+                        // Bei geschlossenen Kurven ist nicht klar, welche Punktepaare gültige Kurvenabschnitte erzeugen.
                         if (c3ds[i].IsClosed)
                         {
                             if (item.Key.face1.Area.Contains(crvsOnSurface1[i].StartPoint, false) && item.Key.face2.Area.Contains(crvsOnSurface2[i].StartPoint, false))
@@ -4828,7 +4830,7 @@ namespace CADability
                             // Problme wäre die Genauigkeit, wenn beim BooleanOperation.generateCycles die Richtung genommen wird...
                             if (con1 is InterpolatedDualSurfaceCurve.ProjectedCurve && con2 is InterpolatedDualSurfaceCurve.ProjectedCurve &&
                                 tr is InterpolatedDualSurfaceCurve)
-                            {   // con1 und con2 müssen auf tr verweisen, sonst kann man das Face später nicht mit "ReverseOrientation" umdrehen. Dort wird nämlich die 
+                            {   // con1 und con2 müssen auf tr verweisen, sonst kann man das Face später nicht mit "ReverseOrientation" umdrehen. Dort wird nämlich die
                                 // surface verändert, und die muss bei allen Kurven die selbe sein
                                 (con1 as InterpolatedDualSurfaceCurve.ProjectedCurve).SetCurve3d(tr as InterpolatedDualSurfaceCurve);
                                 (con2 as InterpolatedDualSurfaceCurve.ProjectedCurve).SetCurve3d(tr as InterpolatedDualSurfaceCurve);
@@ -4886,7 +4888,7 @@ namespace CADability
                                     HashSet<Edge> onFace1 = existingEdges.Intersect(item.Key.face1.Edges).ToHashSet();
                                     HashSet<Edge> onFace2 = existingEdges.Intersect(item.Key.face2.Edges).ToHashSet();
                                     //bool edgFound = false;
-                                    //// it was Precision.eps before, but a tangential intersection at "Difference2.cdb.json" failed, which should have been there 
+                                    //// it was Precision.eps before, but a tangential intersection at "Difference2.cdb.json" failed, which should have been there
                                     //// in many cases we are close to an edge on one of the faces or both.
                                     //// find this edge and step a little inside into this face
                                     //foreach (Edge edg in onFace1)

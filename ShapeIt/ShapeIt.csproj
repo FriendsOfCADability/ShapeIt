@@ -1,12 +1,34 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-	<PropertyGroup>
+	<PropertyGroup Condition="'$(UiFramework)' != 'Avalonia'">
 		<OutputType>WinExe</OutputType>
 		<TargetFramework>net8.0-windows</TargetFramework>
 		<Nullable>enable</Nullable>
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>disable</ImplicitUsings>
 	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(UiFramework)' == 'Avalonia'">
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<UseWindowsForms>false</UseWindowsForms>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+		<DefineConstants>AVALONIA</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup Condition="'$(UiFramework)' == 'Avalonia'">
+		<PackageReference Include="Avalonia" Version="11.3.10" />
+		<PackageReference Include="Avalonia.Desktop" Version="11.3.10" />
+		<PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.10" />
+		<PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.10" />
+		<!--Condition below is needed to remove Avalonia.Diagnostics package from build output in Release configuration.-->
+		<PackageReference Include="Avalonia.Diagnostics" Version="11.3.10">
+			<IncludeAssets Condition="'$(Configuration)' != 'Debug'">None</IncludeAssets>
+			<PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
+		</PackageReference>
+	</ItemGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<IsPublishable>True</IsPublishable>
@@ -37,8 +59,13 @@
 		<EmbeddedResource Include="StringTableEnglish.xml" />
 	</ItemGroup>
 
-	<ItemGroup>
+	<ItemGroup Condition="'$(UiFramework)' != 'Avalonia'">
 		<ProjectReference Include="..\CADability.Forms.NET8\CADability.Forms.NET8.csproj" />
+		<ProjectReference Include="..\CADability\CADability.csproj" />
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(UiFramework)' == 'Avalonia'">
+		<ProjectReference Include="..\CADability.Avalonia\CADability.Avalonia.csproj" />
 		<ProjectReference Include="..\CADability\CADability.csproj" />
 	</ItemGroup>
 

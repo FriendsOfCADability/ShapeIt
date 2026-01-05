@@ -7,7 +7,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+#if !AVALONIA
 using System.Windows.Forms.VisualStyles;
+#endif
 using static ShapeIt.ShellExtensions;
 
 namespace ShapeIt
@@ -486,7 +488,7 @@ namespace ShapeIt
 #endif
             Face sweptFace;
             // how to test for correct orientation of the sweptCircle?
-            // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface 
+            // The normal of the swept circle must point towards the filletAxisCurve, it must be a concave surface
             GeoPoint facnt = filletAxisCurve.Curve3D.PointAt(0.5);
             GeoPoint lecnt = leadingEdge.PointAt(0.5);
             GeoPoint2D facnt2d = sweptCircle.PositionOf(new GeoPoint(facnt, lecnt));

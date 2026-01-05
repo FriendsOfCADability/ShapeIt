@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="CADability.Avalonia.CadForm">
+        <StackPanel>
+                <TextBlock
+                Margin="10"
+                FontSize="16"
+                HorizontalAlignment="Center"
+                Text="ShapeIt">
+                </TextBlock>
+        </StackPanel>
+</UserControl>
