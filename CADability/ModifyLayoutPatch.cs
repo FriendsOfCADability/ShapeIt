@@ -1,11 +1,10 @@
-﻿#if !WEBASSEMBLY
-using System;
-using System.Drawing;
+﻿using System;
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
 using DragEventArgs = CADability.Substitutes.DragEventArgs;
 using MouseButtons = CADability.Substitutes.MouseButtons;
 using DragDropEffects = CADability.Substitutes.DragDropEffects;
 using Keys = CADability.Substitutes.Keys;
+using Color = CADability.Substitutes.Color;
 
 namespace CADability.Actions
 {
@@ -191,4 +190,3 @@ namespace CADability.Actions
         }
     }
 }
-#endif

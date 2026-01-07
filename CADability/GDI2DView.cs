@@ -3,10 +3,9 @@ using CADability.Actions;
 using CADability.Attribute;
 using CADability.GeoObject;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Printing;
 using System.Runtime.Serialization;
 using Wintellect.PowerCollections;
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
@@ -15,6 +14,7 @@ using MouseButtons = CADability.Substitutes.MouseButtons;
 using DragDropEffects = CADability.Substitutes.DragDropEffects;
 using Keys = CADability.Substitutes.Keys;
 using PaintEventArgs = CADability.Substitutes.PaintEventArgs;
+using Point = CADability.Substitutes.Point;
 
 namespace CADability
 {
@@ -68,7 +68,7 @@ namespace CADability
         /// </summary>
         public event MouseFilterDelegate MouseDoubleClick;
         // Zoom und Scroll
-        private System.Drawing.Point lastPanPosition;
+        private Point lastPanPosition;
         private GeoPoint fixPoint;
         private bool fixPointValid;
         private static double mouseWheelZoomFactor;
@@ -106,7 +106,7 @@ namespace CADability
             visibleLayers.CheckStateChangedEvent += new CheckedLayerList.CheckStateChangedDelegate(OnVisibleLayersChanged);
             if (Frame != null)
             {
-                selectColor = Frame.GetColorSetting("Select.SelectColor", Color.Yellow); // die Farbe für die selektierten Objekte
+                selectColor = Frame.GetColorSetting("Select.SelectColor", Color.FromArgb(unchecked((int)0xFFF0F8FF))); // die Farbe für die selektierten Objekte
                 selectWidth = Frame.GetIntSetting("Select.SelectWidth", 2);
                 dragWidth = Frame.GetIntSetting("Select.DragWidth", 5);
             }
@@ -168,10 +168,10 @@ namespace CADability
             {
                 if (!backgroundColor.HasValue)
                 {
-                    backgroundColor = Color.AliceBlue;
+                    backgroundColor = Color.FromArgb(unchecked((int)0xFFF0F8FF));
                     if (Frame != null)
                     {
-                        backgroundColor = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
+                        backgroundColor = Frame.GetColorSetting("Colors.Background", backgroundColor.Value);
                     }
                     else
                     {
@@ -281,19 +281,19 @@ namespace CADability
                 thinLinesOnly = value;
             }
         }
-        public void PrintSinglePage(PrintDocument pd)
-        {
-            PrintToGDI pdg = new PrintToGDI(this);
-            pd.PrintPage += new PrintPageEventHandler(pdg.OnPrintPage);
-            try
-            {
-                pd.Print();
-            }
-            catch (Exception)
-            {
-            }
-            pd.PrintPage -= new PrintPageEventHandler(pdg.OnPrintPage);
-        }
+        //public void PrintSinglePage(PrintDocument pd)
+        //{
+        //    PrintToGDI pdg = new PrintToGDI(this);
+        //    pd.PrintPage += new PrintPageEventHandler(pdg.OnPrintPage);
+        //    try
+        //    {
+        //        pd.Print();
+        //    }
+        //    catch (Exception)
+        //    {
+        //    }
+        //    pd.PrintPage -= new PrintPageEventHandler(pdg.OnPrintPage);
+        //}
         public Model Model
         {
             get
@@ -448,7 +448,7 @@ namespace CADability
         public override void Added(IPropertyPage propertyTreeView)
         {
             base.Added(propertyTreeView);
-            selectColor = Frame.GetColorSetting("Select.SelectColor", Color.Yellow); // die Farbe für die selektierten Objekte
+            selectColor = Frame.GetColorSetting("Select.SelectColor", Color.FromArgb(unchecked((int)0xFFFFFF00))); // die Farbe für die selektierten Objekte
             selectWidth = Frame.GetIntSetting("Select.SelectWidth", 2);
             dragWidth = Frame.GetIntSetting("Select.DragWidth", 5);
             project.ModelsChangedEvent += new CADability.Project.ModelsChangedDelegate(OnModelsChanged);
@@ -493,9 +493,10 @@ namespace CADability
                     }
                     return true;
                 case "MenuId.GDI2DView.Print":
-                    if (project.printDocument == null) project.printDocument = new PrintDocument();
-                    PrintSinglePage(project.printDocument);
-                    return true;
+                    //if (project.printDocument == null) project.printDocument = new PrintDocument();
+                    //PrintSinglePage(project.printDocument);
+                    //return true;
+                    return false;
                 case "MenuId.Zoom.Total":
                     ZoomToModelExtent(1.1);
                     return true;
@@ -566,7 +567,7 @@ namespace CADability
                 if (showPaper)
                 {
                     //g.Clear(Color.Black); // eine Farbe für außerhalb des papiers in GlobalSettings gibt es noch nicht
-                    paintToGDI.Clear(Color.Black);
+                    paintToGDI.Clear(Color.FromArgb(unchecked((int)0xFF000000)));
                     paintToGDI.SetColor(BackgroundColor);
                     PointF p1 = this.projection.ProjectF(GeoPoint.Origin);
                     PointF p2 = this.projection.ProjectF(new GeoPoint(paperWidth, paperHeight, 0.0));
@@ -607,7 +608,7 @@ namespace CADability
             if (PaintBackgroundEvent != null)
             {
                 PaintBackgroundEvent(e.ClipRectangle, this, paintToGDI);
-                //System.Drawing.Bitmap bmpBackground = new System.Drawing.Bitmap(canvas.ClientRectangle.Width, canvas.ClientRectangle.Height);
+                //Bitmap bmpBackground = new Bitmap(canvas.ClientRectangle.Width, canvas.ClientRectangle.Height);
                 //Graphics g = Graphics.FromImage(bmpBackground);
                 //g.Clear(Color.FromArgb(0, 0, 0, 0));
                 //PaintToGDI paintToSelect = new PaintToGDI(projection, g);
@@ -620,7 +621,7 @@ namespace CADability
             if (PaintSelectEvent != null)
             {
                 PaintSelectEvent(e.ClipRectangle, this, paintToGDI);
-                //System.Drawing.Bitmap bmpSelect = new System.Drawing.Bitmap(canvas.ClientRectangle.Width, canvas.ClientRectangle.Height);
+                //Bitmap bmpSelect = new Bitmap(canvas.ClientRectangle.Width, canvas.ClientRectangle.Height);
                 //Graphics g = Graphics.FromImage(bmpSelect);
                 //g.Clear(Color.FromArgb(0, 0, 0, 0));
                 //PaintToGDI paintToSelect = new PaintToGDI(projection, g);
@@ -633,7 +634,7 @@ namespace CADability
             if (PaintActiveEvent != null)
             {
                 PaintActiveEvent(e.ClipRectangle, this, paintToGDI);
-                //System.Drawing.Bitmap bmpActive = new System.Drawing.Bitmap(canvas.ClientRectangle.Width, canvas.ClientRectangle.Height);
+                //Bitmap bmpActive = new Bitmap(canvas.ClientRectangle.Width, canvas.ClientRectangle.Height);
                 //Graphics g = Graphics.FromImage(bmpActive);
                 //g.Clear(Color.FromArgb(0, 0, 0, 0));
                 //PaintToGDI paintToSelect = new PaintToGDI(projection, g);
@@ -693,8 +694,8 @@ namespace CADability
         {
             double Factor = f;
             BoundingRect rct = GetVisibleBoundingRect();
-            System.Drawing.Rectangle clr = canvas.ClientRectangle;
-            System.Drawing.Point p = new System.Drawing.Point((clr.Left + clr.Right) / 2, (clr.Bottom + clr.Top) / 2);
+            Rectangle clr = canvas.ClientRectangle;
+            Point p = new Point((clr.Left + clr.Right) / 2, (clr.Bottom + clr.Top) / 2);
             GeoPoint2D p2 = this.projection.PointWorld2D(p);
             rct.Right = p2.x + (rct.Right - p2.x) * Factor;
             rct.Left = p2.x + (rct.Left - p2.x) * Factor;
@@ -715,7 +716,7 @@ namespace CADability
             if (e.Button == MouseButtons.Left && (Frame.UIService.ModifierKeys & Keys.Control) != 0) doScroll = true;
             if (doScroll)
             {
-                lastPanPosition = new System.Drawing.Point(e.X, e.Y);
+                lastPanPosition = new Point(e.X, e.Y);
             }
             Frame.ActiveView = this;
             Frame.ActionStack.OnMouseDown(e, this);
@@ -752,7 +753,7 @@ namespace CADability
                 projection.MovePlacement(HScrollOffset, VScrollOffset);
                 modelNeedsRepaint = true;
                 canvas?.Invalidate();
-                lastPanPosition = new System.Drawing.Point(e.X, e.Y);
+                lastPanPosition = new Point(e.X, e.Y);
                 RecalcScrollPosition();
             }
             if (doDirection)
@@ -765,7 +766,7 @@ namespace CADability
                     //if (Math.Abs(VOffset) > Math.Abs(HOffset)) HOffset = 0;
                     //else VOffset = 0;
                     // bringt keine Vorteile
-                    lastPanPosition = new System.Drawing.Point(e.X, e.Y);
+                    lastPanPosition = new Point(e.X, e.Y);
                     GeoVector haxis = projection.InverseProjection * GeoVector.XAxis;
                     GeoVector vaxis = projection.InverseProjection * GeoVector.YAxis;
                     ModOp mh = ModOp.Rotate(vaxis, SweepAngle.Deg(HOffset / 5.0));
@@ -811,7 +812,7 @@ namespace CADability
                         }
                     }
                     // Fixpunkt bestimmen
-                    System.Drawing.Point clcenter = canvas.ClientRectangle.Location;
+                    Point clcenter = canvas.ClientRectangle.Location;
                     clcenter.X += canvas.ClientRectangle.Width / 2;
                     clcenter.Y += canvas.ClientRectangle.Height / 2;
                     // ium Folgenden ist Temporary auf true zu setzen und ein Mechanismus zu finden
@@ -884,7 +885,7 @@ namespace CADability
             else if (e.Delta < 0) Factor = mouseWheelZoomFactor;
             else return;
             BoundingRect rct = GetVisibleBoundingRect();
-            System.Drawing.Point p = new System.Drawing.Point(e.X, e.Y);
+            Point p = new Point(e.X, e.Y);
             p = canvas.PointToClient(Frame.UIService.CurrentMousePosition);
             GeoPoint2D p2 = projection.PointWorld2D(p);
             rct.Right = p2.x + (rct.Right - p2.x) * Factor;
@@ -908,7 +909,7 @@ namespace CADability
             if (drgevent.Effect == DragDropEffects.None) return;
             if (dragBlock != null)
             {
-                System.Drawing.Point p = canvas.PointToClient(new System.Drawing.Point(drgevent.X, drgevent.Y));
+                Point p = canvas.PointToClient(new Point(drgevent.X, drgevent.Y));
                 GeoPoint newRefGP = projection.DrawingPlanePoint(p);
                 Block toDrop = dragBlock.ReferencedBlock;
                 ModOp mop = ModOp.Translate(newRefGP - toDrop.RefPoint);
@@ -979,7 +980,7 @@ namespace CADability
                 }
                 dragBlock = BlockRef.Construct(bl);
                 // neue Position ausrechnen
-                System.Drawing.Point p = canvas.PointToClient(new System.Drawing.Point(drgevent.X, drgevent.Y));
+                Point p = canvas.PointToClient(new Point(drgevent.X, drgevent.Y));
                 GeoPoint newRefGP = projection.DrawingPlanePoint(p);
 
                 ModOp mop = ModOp.Translate(newRefGP - dragBlock.RefPoint);
@@ -1002,7 +1003,7 @@ namespace CADability
             //if (FrameInternal.FilterDragOver(drgevent)) return;
             if (dragBlock != null)
             {
-                System.Drawing.Point p = canvas.PointToClient(new System.Drawing.Point(drgevent.X, drgevent.Y));
+                Point p = canvas.PointToClient(new Point(drgevent.X, drgevent.Y));
                 GeoPoint newRefGP = projection.DrawingPlanePoint(p);
                 ModOp mop = ModOp.Translate(newRefGP - dragBlock.RefPoint);
                 dragBlock.Modify(mop);
@@ -1012,8 +1013,8 @@ namespace CADability
         private void ShowGrid(IPaintTo3D PaintToBackground, bool displayGrid, bool displayDrawingPlane)
         {
             if (Frame == null) return;
-            Color bckgnd = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
-            Color clrgrd = Frame.GetColorSetting("Colors.Grid", Color.LightGoldenrodYellow);
+            Color bckgnd = Frame.GetColorSetting("Colors.Background", Color.FromArgb(unchecked((int)0xFFF0F8FF)));
+            Color clrgrd = Frame.GetColorSetting("Colors.Grid", Color.FromArgb(unchecked((int)0xFFFAFAD2)));
             clrgrd = Color.FromArgb(128, clrgrd.R, clrgrd.G, clrgrd.B);
             // Raster darstellen
             Projection pr = this.projection;
@@ -1142,7 +1143,7 @@ namespace CADability
             }
             if (pr.ShowDrawingPlane && displayDrawingPlane)
             {
-                Color clrdrwpln = Frame.GetColorSetting("Colors.Drawingplane", Color.LightSkyBlue);
+                Color clrdrwpln = Frame.GetColorSetting("Colors.Drawingplane", Color.FromArgb(unchecked((int)0xFF87CEFA)));
                 PaintToBackground.PushState();
                 PaintToBackground.Blending(true);
                 PaintToBackground.SetColor(clrdrwpln);
@@ -1227,19 +1228,19 @@ namespace CADability
             bool displayDrawingPlane = (bth & CADability.ModelView.BackgroungTaskHandled.DrawingPlane) == 0;
             bool displayCoordCross = (bth & CADability.ModelView.BackgroungTaskHandled.CoordCross) == 0 && showCoordCross;
             ShowGrid(PaintToBackground, displayGrid, displayDrawingPlane);
-            Color bckgnd = Color.AliceBlue;
+            Color bckgnd = Color.FromArgb(unchecked((int)0xFFF0F8FF));
             if (Frame != null)
-                bckgnd = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
+                bckgnd = Frame.GetColorSetting("Colors.Background", bckgnd);
             Color infocolor;
-            if (bckgnd.GetBrightness() > 0.5) infocolor = System.Drawing.Color.Black;
-            else infocolor = System.Drawing.Color.White;
+            if (bckgnd.GetBrightness() > 0.5) infocolor = Color.FromArgb(unchecked((int)0xFF000000));
+            else infocolor = Color.FromArgb(unchecked((int)0xFFFFFFFF));
             if (displayCoordCross)
             {
                 PaintCoordCross(PaintToBackground, pr, infocolor, Plane.XYPlane, false);
                 if (!Precision.IsEqual(pr.DrawingPlane.Location, GeoPoint.Origin))
                 {
-                    if (bckgnd.GetBrightness() > 0.5) infocolor = System.Drawing.Color.DarkGray;
-                    else infocolor = System.Drawing.Color.LightGray;
+                    if (bckgnd.GetBrightness() > 0.5) infocolor = Color.FromArgb(unchecked((int)0xFFA3A3A3));
+                    else infocolor = Color.FromArgb(unchecked((int)0xFFD3D3D3));
                     PaintCoordCross(PaintToBackground, pr, infocolor, pr.DrawingPlane, true);
                 }
             }
@@ -1379,7 +1380,7 @@ namespace CADability
         {
             (this as IView).Canvas.Cursor = cursor;
         }
-        void IView.Invalidate(PaintBuffer.DrawingAspect aspect, System.Drawing.Rectangle ToInvalidate)
+        void IView.Invalidate(PaintBuffer.DrawingAspect aspect, Rectangle ToInvalidate)
         {
             canvas?.Invalidate();
         }
@@ -1408,7 +1409,7 @@ namespace CADability
                 case PaintBuffer.DrawingAspect.Active: PaintActiveEvent -= paintHandler; break;
             }
         }
-        System.Drawing.Rectangle IView.DisplayRectangle
+        Rectangle IView.DisplayRectangle
         {
             get
             {
@@ -1424,7 +1425,7 @@ namespace CADability
             (this as IView).Invalidate(PaintBuffer.DrawingAspect.All, (this as IView).DisplayRectangle);
             RecalcScrollPosition(); // war auskommentiert, am 23.6.14 wieder aktiviert wg. ERSACAD
         }
-        SnapPointFinder.DidSnapModes IView.AdjustPoint(System.Drawing.Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
+        SnapPointFinder.DidSnapModes IView.AdjustPoint(Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
         {
             SnapPointFinder spf = new SnapPointFinder();
             spf.FilterList = this.Frame.Project.FilterList;
@@ -1441,7 +1442,7 @@ namespace CADability
             lastSnapMode = spf.DidSnap;
             return spf.DidSnap;
         }
-        SnapPointFinder.DidSnapModes IView.AdjustPoint(GeoPoint BasePoint, System.Drawing.Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
+        SnapPointFinder.DidSnapModes IView.AdjustPoint(GeoPoint BasePoint, Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
         {
             SnapPointFinder spf = new SnapPointFinder();
             spf.FilterList = this.Frame.Project.FilterList;
@@ -1458,7 +1459,7 @@ namespace CADability
             lastSnapMode = spf.DidSnap;
             return spf.DidSnap;
         }
-        CADability.GeoObject.GeoObjectList IView.PickObjects(System.Drawing.Point MousePoint, PickMode pickMode)
+        CADability.GeoObject.GeoObjectList IView.PickObjects(Point MousePoint, PickMode pickMode)
         {
             GeoPoint2D p0 = projection.PointWorld2D(MousePoint);
             double d = 5.0 * projection.DeviceToWorldFactor;
@@ -1648,7 +1649,7 @@ namespace CADability
             visibleLayers.CheckStateChangedEvent += new CheckedLayerList.CheckStateChangedDelegate(OnVisibleLayersChanged);
             if (Frame != null)
             {
-                selectColor = Frame.GetColorSetting("Select.SelectColor", Color.Yellow); // die Farbe für die selektierten Objekte
+                selectColor = Frame.GetColorSetting("Select.SelectColor", Color.FromArgb(unchecked((int)0xFFFFFF00))); // die Farbe für die selektierten Objekte
                 selectWidth = Frame.GetIntSetting("Select.SelectWidth", 2);
                 dragWidth = Frame.GetIntSetting("Select.DragWidth", 5);
             }

@@ -2,6 +2,7 @@
 using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -33,14 +34,14 @@ namespace CADability.Shapes
             {
                 GeoObjectList res = new GeoObjectList();
                 IGeoObject go = curve.MakeGeoObject(Plane.XYPlane);
-                (go as IColorDef).ColorDef = new ColorDef("Main", System.Drawing.Color.Black);
+                (go as IColorDef).ColorDef = new ColorDef("Main", Color.Black);
                 res.Add(go);
                 if (StartCluster != null)
                 {
                     for (int i = 0; i < StartCluster.Joints.Count; ++i)
                     {
                         go = StartCluster.Joints[i].curve.MakeGeoObject(Plane.XYPlane);
-                        (go as IColorDef).ColorDef = new ColorDef("Start", System.Drawing.Color.Green);
+                        (go as IColorDef).ColorDef = new ColorDef("Start", Color.Green);
                         res.Add(go);
                     }
                 }
@@ -49,7 +50,7 @@ namespace CADability.Shapes
                     for (int i = 0; i < EndCluster.Joints.Count; ++i)
                     {
                         go = EndCluster.Joints[i].curve.MakeGeoObject(Plane.XYPlane);
-                        (go as IColorDef).ColorDef = new ColorDef("Start", System.Drawing.Color.Red);
+                        (go as IColorDef).ColorDef = new ColorDef("Start", Color.Red);
                         res.Add(go);
                     }
                 }
@@ -89,7 +90,7 @@ internal class Cluster : IQuadTreeInsertable
                 for (int i = 0; i < Joints.Count; ++i)
                 {
                     IGeoObject go = Joints[i].curve.MakeGeoObject(Plane.XYPlane);
-                    (go as IColorDef).ColorDef = new ColorDef("Start", System.Drawing.Color.Green);
+                    (go as IColorDef).ColorDef = new ColorDef("Start", Color.Green);
                     res.Add(go);
                 }
                 return res;
@@ -884,7 +885,7 @@ internal class Cluster : IQuadTreeInsertable
                 foreach (Cluster cl in clusterSet)
                 {
                     GeoPoint p = new GeoPoint(cl.center);
-                    Point pnt = Point.Construct();
+                    GeoObject.Point pnt = GeoObject.Point.Construct();
                     pnt.Location = p;
                     pnt.Symbol = PointSymbol.Circle;
                     if (cl.Joints.Count > 1) pnt.Symbol = PointSymbol.Square;
@@ -912,19 +913,19 @@ internal class Cluster : IQuadTreeInsertable
                     IGeoObject go = DebugJoints[i].curve.MakeGeoObject(Plane.XYPlane);
                     if (DebugJoints[i].forwardUsed && DebugJoints[i].reverseUsed)
                     {
-                        (go as IColorDef).ColorDef = new ColorDef("bothUsed", System.Drawing.Color.Black);
+                        (go as IColorDef).ColorDef = new ColorDef("bothUsed", Color.Black);
                     }
                     else if (DebugJoints[i].forwardUsed)
                     {
-                        (go as IColorDef).ColorDef = new ColorDef("forwardUsed", System.Drawing.Color.Red);
+                        (go as IColorDef).ColorDef = new ColorDef("forwardUsed", Color.Red);
                     }
                     else if (DebugJoints[i].reverseUsed)
                     {
-                        (go as IColorDef).ColorDef = new ColorDef("reverseUsed", System.Drawing.Color.Green);
+                        (go as IColorDef).ColorDef = new ColorDef("reverseUsed", Color.Green);
                     }
                     else
                     {
-                        (go as IColorDef).ColorDef = new ColorDef("unUsed", System.Drawing.Color.Blue);
+                        (go as IColorDef).ColorDef = new ColorDef("unUsed", Color.Blue);
                     }
                     res.Add(go);
                 }

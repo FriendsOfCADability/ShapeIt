@@ -197,7 +197,7 @@ namespace CADability.GeoObject
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
             GeoVector rb = Geometry.ReBase(p - location, xAxis, yAxis, zAxis);
-            return new GeoPoint2D(rb.x, rb.y);
+            return new GeoPoint2D(rb.x, rb.y); // not sure about length
         }
         public override GeoVector UDirection(GeoPoint2D uv)
         {

@@ -2,6 +2,7 @@
 using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using MathNet.Numerics.LinearAlgebra.Double;
 using System;
 using System.Collections.Generic;
@@ -841,9 +842,9 @@ namespace CADability
                 res.Add(along as IGeoObject);
                 BoundingCube ext = along.GetExtent();
                 double length = ext.Size / 200;
-                ColorDef cdx = new ColorDef("dirx", System.Drawing.Color.Red);
-                ColorDef cdy = new ColorDef("diry", System.Drawing.Color.LawnGreen);
-                ColorDef cdz = new ColorDef("dirz", System.Drawing.Color.BlueViolet);
+                ColorDef cdx = new ColorDef("dirx", Color.Red);
+                ColorDef cdy = new ColorDef("diry", Color.LawnGreen);
+                ColorDef cdz = new ColorDef("dirz", Color.BlueViolet);
                 for (int i = 0; i < 100; i++)
                 {
                     double v = i / 99.0;

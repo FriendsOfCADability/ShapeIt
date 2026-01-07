@@ -3,13 +3,7 @@ using CADability.Curve2D;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 using System.Runtime.Serialization;
 using System.Threading;
 using MathNet.Numerics.LinearAlgebra.Double;
@@ -2563,6 +2557,12 @@ namespace CADability.GeoObject
         public void Trim(double StartPos, double EndPos)
         {
             if (StartPos == 0 && EndPos == 1) return; // kommt oft vor
+            bool reversed = false;
+            if (StartPos > EndPos)
+            {   // without this we could end up with the complimentary arc
+                (StartPos, EndPos) = (EndPos, StartPos);
+                reversed = true;
+            }
             Angle newStartAngle = startParameter + StartPos * sweepParameter;
             Angle newEndAngle = startParameter + EndPos * sweepParameter;
             SweepAngle newSweepAngle = new SweepAngle(newStartAngle, newEndAngle, sweepParameter > 0.0);
@@ -2571,6 +2571,7 @@ namespace CADability.GeoObject
                 startParameter = newStartAngle.Radian;
                 sweepParameter = newSweepAngle.Radian;
             }
+            if (reversed) (this as ICurve).Reverse();
         }
 
         ICurve ICurve.Clone()

@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Reflection;
 
 namespace CADability.UserInterface

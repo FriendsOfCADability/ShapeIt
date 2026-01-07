@@ -6,15 +6,7 @@ using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
 // some work to do to implement text for webassembly
-//#if WEBASSEMBLY
-//using CADability.WebDrawing;
-//using Point = CADability.WebDrawing.Point;
-//#else
-//using System.Drawing;
-//using Point = System.Drawing.Point;
-//#endif
-using System.Drawing;
-using System.Drawing.Drawing2D;
+using CADability.Substitutes;
 using System.Runtime.Serialization;
 using System.Threading;
 
@@ -35,14 +27,15 @@ namespace CADability.GeoObject
 
         private MultipleChoiceProperty InitFontList()
         {
-            FontFamily[] families = FontFamily.Families;
+            string[] families = (FrameImpl.MainFrame as IUIService).GetFontFamilies();
             string[] choices = new string[families.Length];
             for (int i = 0; i < families.Length; i++)
             {
-                choices[i] = families[i].Name;
-                int emS = families[i].GetEmHeight(FontStyle.Regular);
-                int asc = families[i].GetCellAscent(FontStyle.Regular);
-                int desc = families[i].GetCellDescent(FontStyle.Regular);
+                FontFamily ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(families[i]);
+                choices[i] = ff.Name;
+                int emS = ff.GetEmHeight(FontStyle.Regular);
+                int asc = ff.GetCellAscent(FontStyle.Regular);
+                int desc = ff.GetCellDescent(FontStyle.Regular);
             }
             MultipleChoiceProperty res = new MultipleChoiceProperty("Text.Font", choices, text.Font);
             res.ValueChangedEvent += FontChanged;
@@ -514,224 +507,9 @@ namespace CADability.GeoObject
         {
             Gdi.DeleteDC(hDC);
         }
-        private void AddToPath2D(List<ICurve2D> addto, List<GeoPoint2D> points, bool spline, bool close)
-        {
-            if (spline)
-            {
-                for (int i = 0; i < points.Count - 3; i += 3)
-                {
-
-                    double[] knots = new double[2];
-                    int[] multiplicities = new int[2];
-                    knots[0] = 0;
-                    knots[1] = 1;
-                    multiplicities[0] = 4;
-                    multiplicities[1] = 4;
-                    GeoPoint2D[] pp = new GeoPoint2D[4];
-                    points.CopyTo(i, pp, 0, 4);
-                    BSpline2D bsp = new BSpline2D(pp, null, knots, multiplicities, 3, false, 0.0, 1.0);
-                    // addto.Add(bsp);
-                    switch (FontPrecision)
-                    {
-                        case 0: // grob
-                            addto.Add(bsp.Approximate(true, 0.2));
-                            break;
-                        case 1: // mittel
-                            addto.Add(bsp.Approximate(true, 0.05));
-                            break;
-                        case 2:
-                            // addto.Add(bsp.Approximate(true, 0.005));
-                            addto.Add(bsp); // wenn man den BSpline selbst zufügt, dann könnte man auch mit dynamischer Auflösung arbeiten
-                            break;
-                    }
-                }
-            }
-            else
-            {
-                try
-                {
-                    if (points.Count > 1)
-                    {
-                        if (points.Count > 2 || points[0] != points[1])
-                        {   // zwei identische Punkte gibt exception und ist langsam. Deshalb hier ausschließen
-                            Polyline2D pl = new Polyline2D(points.ToArray());
-                            addto.Add(pl);
-                        }
-                    }
-                }
-                catch (Polyline2DException) { } // nur zwei identische Punkte
-            }
-            points.RemoveRange(0, points.Count - 1); // den letzten als ersten drinlassen
-        }
         public Path2D[] GetOutline2D(string fontName, int fontStyle, char c, out double width)
         {
-            GraphicsPath path = new GraphicsPath();
-            FontFamily ff;
-            if (Text.FontFamilyNames.Contains(fontName.ToUpper()))
-            {
-                ff = new FontFamily(fontName);
-            }
-            else
-            {
-                ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
-            }
-            StringFormat sf = StringFormat.GenericTypographic.Clone() as StringFormat;
-            sf.LineAlignment = StringAlignment.Near;
-            sf.Alignment = StringAlignment.Near;
-            if (!ff.IsStyleAvailable((FontStyle)fontStyle))
-            {
-                if (ff.IsStyleAvailable(FontStyle.Regular)) fontStyle = (int)FontStyle.Regular;
-                if (ff.IsStyleAvailable(FontStyle.Bold)) fontStyle = (int)FontStyle.Bold;
-                if (ff.IsStyleAvailable(FontStyle.Italic)) fontStyle = (int)FontStyle.Italic;
-                if (ff.IsStyleAvailable(FontStyle.Strikeout)) fontStyle = (int)FontStyle.Strikeout;
-                if (ff.IsStyleAvailable(FontStyle.Underline)) fontStyle = (int)FontStyle.Underline;
-            }
-            int fs = fontStyle;
-            int em = ff.GetEmHeight((FontStyle)fs);
-            if (em == 0) em = 1000;
-            Font font = new Font(ff, em, (FontStyle)fs, GraphicsUnit.Pixel);
-            IntPtr hfont = font.ToHfont();
-            IntPtr oldfont = Gdi.SelectObject(hDC, hfont);
-            Gdi.ABC[] abc = new Gdi.ABC[1];
-            Gdi.GetCharABCWidths(hDC, (uint)c, (uint)c, abc);
-            //int[] widths = new int[1]; // liefert das selbe wie GetCharABCWidths, nur die Summe halt.
-            //Gdi.GetCharWidth32(hDC, (uint)c, (uint)c, widths);
-            if (!kerning.ContainsKey(new KerningKey(fontName, fontStyle)))
-            {
-                KerningKey kk = new KerningKey(fontName, fontStyle);
-                Dictionary<Pair<char, char>, double> pairs = new Dictionary<Pair<char, char>, double>();
-                kerning[kk] = pairs;
-                int num = Gdi.GetKerningPairs(hDC, 0, null);
-                if (num > 0)
-                {
-                    Gdi.KERNINGPAIR[] kp = new Gdi.KERNINGPAIR[num];
-                    int ok = Gdi.GetKerningPairs(hDC, num, kp);
-                    for (int i = 0; i < kp.Length; ++i)
-                    {
-                        pairs[new Pair<char, char>((char)kp[i].wFirst, (char)kp[i].wSecond)] = kp[i].iKernAmount / (double)em;
-                    }
-                }
-            }
-            Gdi.SelectObject(hDC, oldfont);
-            Gdi.DeleteObject(hfont);
-
-            width = (abc[0].abcA + abc[0].abcB + abc[0].abcC) / (double)em;
-
-            path.AddString(c.ToString(), ff, fs, 1.0f, new PointF(0.0f, 0.0f), sf);
-            List<Path2D> res = new List<Path2D>();
-            if (path.PointCount > 0)
-            {
-                List<PointF> pp = new List<PointF>(path.PathPoints);
-                List<byte> pt = new List<byte>(path.PathTypes);
-                int last0 = -1;
-                for (int i = 0; i < pt.Count; ++i)
-                {
-                    pp[i] = new PointF(pp[i].X, (float)(1.0f - pp[i].Y));
-                    if ((pt[i] & 0x01) == 0) last0 = i;
-                    if ((pt[i] & 0x80) != 0 && last0 >= 0)
-                    {
-                        pt[i] = (byte)(pt[i] & 0x7F);
-                        pt.Insert(i + 1, (byte)(pt[last0] | 0x81));
-                        pp.Insert(i + 1, pp[last0]);
-                        ++i;
-                        last0 = -1;
-                    }
-
-                }
-                if (pp == null || pp.Count == 0)
-                {
-                    return res.ToArray();
-                }
-                List<GeoPoint2D> current = new List<GeoPoint2D>();
-                int mode = 0; // 0 noch nicht bekannt, 1: Linie, 3 Spline
-                GeoPoint2D startPoint = GeoPoint2D.Origin;
-                List<ICurve2D> segment = new List<ICurve2D>();
-                bool close = false;
-                for (int i = 0; i < pp.Count; ++i)
-                {
-                    switch (pt[i] & 0x03)
-                    {
-                        case 0: // neuer Anfang
-                            if (current.Count > 1)
-                            {
-                                AddToPath2D(segment, current, mode == 3, close);
-                                res.Add(new Path2D(segment.ToArray()));
-                            }
-                            segment.Clear();
-                            current.Clear();
-                            current.Add(new GeoPoint2D(pp[i]));
-                            mode = 0;
-                            break;
-                        case 1:
-                            if (mode == 3)
-                            {   // Spline beenden, polylinie anfangen
-                                AddToPath2D(segment, current, true, false);
-                            }
-                            current.Add(new GeoPoint2D(pp[i]));
-                            mode = 1;
-                            break;
-                        case 2:
-                        case 3:
-                            if (mode == 1)
-                            {
-                                AddToPath2D(segment, current, false, false);
-                            }
-                            current.Add(new GeoPoint2D(pp[i]));
-                            mode = 3;
-                            break;
-                    }
-                    close = (pt[i] & 0x80) != 0;
-                }
-
-                if (current.Count > 1)
-                {
-                    AddToPath2D(segment, current, mode == 3, close);
-                    res.Add(new Path2D(segment.ToArray()));
-                }
-            }
-            //BoundingRect ext = BoundingRect.EmptyBoundingRect;
-            //ext.MinMax(GeoPoint2D.Origin); // Ursprung mit einbezogen, ist das OK?
-            //for (int i = 0; i < res.Count; ++i)
-            //{
-            //    ext.MinMax(res[i].GetExtent());
-            //}
-            //ll = ext.GetLowerLeft();
-            //lr = ext.GetLowerRight();
-            //ul = ext.GetUpperLeft();
-            //ModOp2D m = ModOp2D.Scale(1.0 / em);
-            //if (this.lineAlignment != LineAlignMode.Left || this.alignment != AlignMode.Bottom)
-            //{
-            //    int ls = ff.GetLineSpacing((FontStyle)fs);
-            //    int dc = ff.GetCellDescent((FontStyle)fs);
-            //    double dx = 0.0;
-            //    double dy = 0.0;
-            //    switch (lineAlignment)
-            //    {
-            //        case LineAlignMode.Center: dx = -ext.Width / 2.0; break;
-            //        case LineAlignMode.Right: dx = -ext.Width; break;
-            //    }
-            //    switch (alignment)
-            //    {
-            //        case AlignMode.Baseline: dy = -dc; break;
-            //        case AlignMode.Center: dy = -em / 2.0; break;
-            //        case AlignMode.Top: dy = -ls; break;
-            //    }
-            //    for (int i = 0; i < res.Count; ++i)
-            //    {
-            //        res[i].Move(dx, dy);
-            //    }
-            //    ll += new GeoVector2D(dx, dy);
-            //    lr += new GeoVector2D(dx, dy);
-            //    ul += new GeoVector2D(dx, dy);
-            //}
-            //for (int i = 0; i < res.Count; ++i)
-            //{
-            //    res[i] = (res[i] as ICurve2D).GetModified(m) as Path2D;
-            //}
-            //ll = m * ll;
-            //lr = m * lr;
-            //ul = m * ul;
-            return res.ToArray();
+            return (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName).GetOutline2D(fontStyle, c, FontPrecision, out width);
         }
         public CompoundShape Get(string font, int fontStyle, char c, out double width)
         {   // soll verschwinden!!
@@ -1126,11 +904,11 @@ namespace CADability.GeoObject
             {
                 if (fontFamilyNames == null)
                 {
-                    FontFamily[] ff = FontFamily.Families;
+                    string[] ff = (FrameImpl.MainFrame as IUIService).GetFontFamilies();
                     fontFamilyNames = new Set<string>();
                     for (int i = 0; i < ff.Length; i++)
                     {
-                        fontFamilyNames.Add(ff[i].Name.ToUpper());
+                        fontFamilyNames.Add(ff[i].ToUpper());
                     }
                 }
                 return fontFamilyNames;
@@ -1163,11 +941,11 @@ namespace CADability.GeoObject
                     FontFamily ff;
                     if (FontFamilyNames.Contains(fontName.ToUpper()))
                     {
-                        ff = new FontFamily(fontName);
+                        ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName);
                     }
                     else
                     {
-                        ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+                        ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(null);
                     }
                     FontStyle fs = fontStyle;
                     if (!ff.IsStyleAvailable(fs))
@@ -1189,13 +967,7 @@ namespace CADability.GeoObject
                     emAscDescFactor = (double)(desc) / (double)asc;
                     emDescDiff = (double)(em - asc) / (double)em;
                     this.desc = (double)(desc) / (double)em;
-                    using (Graphics graphics = Graphics.FromImage(new Bitmap(1000, 100)))
-                    {
-                        using (Font font = new Font(fontName, (float)(glyphDirection.Length), GraphicsUnit.Pixel))
-                        {
-                            sizeExtent = graphics.MeasureString(textString, font);
-                        }
-                    }
+                    sizeExtent = ff.GetExtent(textString, glyphDirection.Length);
                     isValidExtent = true;
                 }
                 catch (Exception e)
@@ -1349,11 +1121,11 @@ namespace CADability.GeoObject
             FontFamily ff;
             if (FontFamilyNames.Contains(fontName.ToUpper()))
             {
-                ff = new FontFamily(fontName);
+                ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName);
             }
             else
             {
-                ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+                ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(null);
             }
             if (!ff.IsStyleAvailable((FontStyle)fs))
             {
@@ -1501,11 +1273,11 @@ namespace CADability.GeoObject
             FontFamily ff;
             if (FontFamilyNames.Contains(fontName.ToUpper()))
             {
-                ff = new FontFamily(fontName);
+                ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName);
             }
             else
             {
-                ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+                ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(null);
             }
             if (!ff.IsStyleAvailable((FontStyle)fs))
             {
@@ -1631,11 +1403,11 @@ namespace CADability.GeoObject
             FontFamily ff;
             if (FontFamilyNames.Contains(fontName.ToUpper()))
             {
-                ff = new FontFamily(fontName);
+                ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName);
             }
             else
             {
-                ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+                ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(null);
             }
             if (!ff.IsStyleAvailable((FontStyle)fs))
             {
@@ -1763,7 +1535,7 @@ namespace CADability.GeoObject
         //    }
         //    catch (System.ArgumentException ae)
         //    {
-        //        ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+        //        ff = new FontFamily(Text.GenericFontFamilies.SansSerif);
         //    }
         //    StringFormat sf = StringFormat.GenericTypographic.Clone() as StringFormat;
         //    sf.LineAlignment = StringAlignment.Far;
@@ -1914,7 +1686,7 @@ namespace CADability.GeoObject
         //            }
         //            catch (System.ArgumentException)
         //            {
-        //                ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+        //                ff = new FontFamily(Text.GenericFontFamilies.SansSerif);
         //            }
         //            int em = ff.GetEmHeight((FontStyle)fs);
         //            int ls = ff.GetLineSpacing((FontStyle)fs);
@@ -2030,11 +1802,11 @@ namespace CADability.GeoObject
                 FontFamily ff;
                 if (FontFamilyNames.Contains(fontName.ToUpper()))
                 {
-                    ff = new FontFamily(fontName);
+                    ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName);
                 }
                 else
                 {
-                    ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+                    ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(null);
                 }
                 if (!ff.IsStyleAvailable((FontStyle)fs))
                 {
@@ -2627,11 +2399,11 @@ namespace CADability.GeoObject
                     FontFamily ff;
                     if (FontFamilyNames.Contains(fontName.ToUpper()))
                     {
-                        ff = new FontFamily(fontName);
+                        ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName);
                     }
                     else
                     {
-                        ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+                        ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(null);
                     }
                     if (!ff.IsStyleAvailable((FontStyle)fs))
                     {
@@ -2653,11 +2425,7 @@ namespace CADability.GeoObject
                 }
                 else
                 {
-#if WEBASSEMBLY
-                    paintTo3D.PrepareText(fontName, textString, CADability.WebDrawing.FontStyle.Regular);
-#else
                     paintTo3D.PrepareText(fontName, textString, fontStyle);
-#endif
                 }
             }
         }
@@ -2702,11 +2470,11 @@ namespace CADability.GeoObject
                 FontFamily ff;
                 if (FontFamilyNames.Contains(fontName.ToUpper()))
                 {
-                    ff = new FontFamily(fontName);
+                    ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(fontName);
                 }
                 else
                 {
-                    ff = new FontFamily(System.Drawing.Text.GenericFontFamilies.SansSerif);
+                    ff = (FrameImpl.MainFrame as IUIService).GetFontFamily(null);
                 }
                 if (!ff.IsStyleAvailable((FontStyle)fs))
                 {
@@ -2835,11 +2603,7 @@ namespace CADability.GeoObject
             }
             else
             {
-#if WEBASSEMBLY
-                paintTo3D.Text(lineDirection, glyphDirection, location, fontName, textString, CADability.WebDrawing.FontStyle.Regular, alignment, lineAlignment);
-#else
                 paintTo3D.Text(lineDirection, glyphDirection, location, fontName, textString, fontStyle, alignment, lineAlignment);
-#endif
             }
         }
         /// <summary>

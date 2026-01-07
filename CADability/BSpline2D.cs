@@ -1,8 +1,10 @@
 ﻿using CADability.GeoObject;
+using MathNet.Numerics;
 using MathNet.Numerics.RootFinding;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
 
@@ -800,6 +802,51 @@ namespace CADability.Curve2D
             }
             else return null; // this are no hyperbola points
         }
+        public static BSpline2D Approximate(Func<double, GeoPoint2D> curve, double precision, double minPar = 0, double maxPar = 1, int maxCount = 1000)
+        {
+            SortedList<double, GeoPoint2D> positions = [];
+            for (double par = minPar; par < maxPar + (maxPar - minPar) / 20; par += (maxPar - minPar) / 10)
+            {
+                positions[par] = curve(par);
+            }
+            BSpline2D bsp = new BSpline2D(new Nurbs<GeoPoint2D, GeoPoint2DPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3));
+            double lastPos = 0.0;
+            GeoPoint2D lastPoint = GeoPoint2D.Invalid;
+            while (positions.Count < maxCount)
+            {
+                List<(double, GeoPoint2D)> toAdd = [];
+                foreach (KeyValuePair<double, GeoPoint2D> item in positions)
+                {
+                    if (item.Key > minPar && (item.Key - lastPos) > 1e-6)
+                    {
+                        double mpos = (item.Key + lastPos) / 2;
+                        GeoPoint2D p = curve(mpos);
+                        if ((bsp.PointAt(mpos) | p) > precision)
+                        {
+                            toAdd.Add((mpos, p));
+                        }
+                    }
+                    lastPos = item.Key;
+                    lastPoint = item.Value;
+                }
+                if (toAdd.Any())
+                {
+                    foreach ((double par, GeoPoint2D point) in toAdd) positions[par] = point;
+                    bsp = new BSpline2D(new Nurbs<GeoPoint2D, GeoPoint2DPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3));
+
+#if DEBUG
+                    double dbgd = 0.0;
+                    foreach (KeyValuePair<double, GeoPoint2D> item in positions)
+                    {
+                        dbgd += bsp.PointAt(item.Key) | item.Value;
+                    }
+#endif
+                }
+                else break;
+            }
+            return bsp;
+        }
+
         private bool ClampPeriodic(double startPar, double endPar)
         {
             if (nubs != null)
@@ -1273,24 +1320,20 @@ namespace CADability.Curve2D
                 return sweep;
             }
         }
-        /// <summary>
-        /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-        public override void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {
-            // Notfalls Darstellung als Polyline
-            int l = poles.Length * 4 + 2;
-            PointF[] ppf = new PointF[l];
-            double du = (endParam - startParam) / (l - 1);
-            for (int i = 0; i < l; ++i)
-            {
-                ppf[i] = PointAt(startParam + i * du).PointF;
-            }
-            if (!forward) Array.Reverse(ppf);
-            path.AddLines(ppf);
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public override void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{
+        //    // Notfalls Darstellung als Polyline
+        //    int l = poles.Length * 4 + 2;
+        //    PointF[] ppf = new PointF[l];
+        //    double du = (endParam - startParam) / (l - 1);
+        //    for (int i = 0; i < l; ++i)
+        //    {
+        //        ppf[i] = PointAt(startParam + i * du).PointF;
+        //    }
+        //    if (!forward) Array.Reverse(ppf);
+        //    path.AddLines(ppf);
+        //}
         /// <summary>
         /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.Project (Plane, Plane)"/>
         /// </summary>
@@ -2949,6 +2992,42 @@ namespace CADability.Curve2D
             startParam = (double)info.GetValue("StartParam", typeof(double));
             endParam = (double)info.GetValue("EndParam", typeof(double));
         }
+
+        internal BSpline2D(Nurbs<GeoPoint2D, GeoPoint2DPole> nubs)
+        {
+            this.nubs = nubs;
+            List<double> newknots = new List<double>();
+            List<int> newmults = new List<int>();
+            newknots.Add(nubs.UKnots[0]);
+            newmults.Add(1);
+            for (int i = 1; i < nubs.UKnots.Length; ++i)
+            {
+                if (nubs.UKnots[i] == newknots[newknots.Count - 1])
+                {
+                    ++(newmults[newmults.Count - 1]);
+                }
+                else
+                {
+                    newknots.Add(nubs.UKnots[i]);
+                    newmults.Add(1);
+                }
+            }
+            double[] newweights = new double[nubs.Poles.Length];
+            for (int i = 0; i < newweights.Length; ++i)
+            {
+                newweights[i] = 1.0;
+            }
+            this.poles = (GeoPoint2D[])nubs.Poles.Clone();
+            this.knots = newknots.ToArray();
+            this.multiplicities = newmults.ToArray();
+            this.weights = newweights;
+            this.startParam = knots[0];
+            this.endParam = knots.Last();
+            this.periodic = false;
+            this.degree = nubs.UDegree;
+            Init();
+        }
+
         /// <summary>
         /// Implements <see cref="ISerializable.GetObjectData"/>
         /// </summary>

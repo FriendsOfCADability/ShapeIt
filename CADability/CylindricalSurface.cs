@@ -1,5 +1,6 @@
 ﻿using CADability.Curve2D;
 using CADability.Shapes;
+using CADability.Substitutes;
 using CADability.UserInterface;
 using MathNet.Numerics.Optimization;
 using System;
@@ -1155,7 +1156,7 @@ namespace CADability.GeoObject
                     dccyl.Add(dbgc1);
                     dccyl.Add(dbgc2);
 
-                    for (int i = 0; i < seeds.Count; i++) dccyl.Add(seeds[i], System.Drawing.Color.Red, i);
+                    for (int i = 0; i < seeds.Count; i++) dccyl.Add(seeds[i], Color.Red, i);
 #endif
                     for (int i = 0; i < seeds.Count; i++)
                     {
@@ -1438,10 +1439,10 @@ namespace CADability.GeoObject
                                             GeoPoint2D uvcyl0 = PositionOf(tcips[k]);
                                             GeoPoint2D uvtor0 = torus.PositionOf(tcips[k]);
                                             GeoVector2D dir0 = 10 * plnConnNorm.Project(GetNormal(uvcyl0) ^ torus.GetNormal(uvtor0)).Normalized;
-                                            dcn.Add(new Line2D(plnConnNorm.Project(tcips[k]), plnConnNorm.Project(tcips[k]) + dir0), System.Drawing.Color.Red, 0);
+                                            dcn.Add(new Line2D(plnConnNorm.Project(tcips[k]), plnConnNorm.Project(tcips[k]) + dir0), Color.Red, 0);
                                             dbgpln[k] = plnConnNorm.Project(tcips[k]);
                                         }
-                                        dcn.Add(new Polyline2D(dbgpln), System.Drawing.Color.Red, 0);
+                                        dcn.Add(new Polyline2D(dbgpln), Color.Red, 0);
 #endif
                                         InterpolatedDualSurfaceCurve dsc = new InterpolatedDualSurfaceCurve(this, thisBounds, torus, otherBounds, tcips);
                                         GeoPoint dbgdsc = dsc.PointAt(0.02);
@@ -1877,7 +1878,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface Clone()
         {
-            return new CylindricalSurface(toCylinder);
+            return new CylindricalSurface(toCylinder, usedArea);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Modify (ModOp)"/>

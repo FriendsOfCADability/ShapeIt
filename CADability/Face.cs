@@ -12,14 +12,8 @@ using System.Text;
 using System.Threading;
 using Wintellect.PowerCollections;
 using System.Linq;
-
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using MathNet.Numerics.LinearAlgebra;
+using CADability.Substitutes;
 
 namespace CADability.GeoObject
 {
@@ -301,15 +295,15 @@ namespace CADability.GeoObject
                     {
                         if (loops[i][j].createdEdges != null && loops[i][j].createdEdges.Count > 0)
                         {
-                            if (loops[i][j].curve != null) dcLoops.Add(loops[i][j].curve.Clone() as IGeoObject, System.Drawing.Color.Green, i * 1000 + j);
+                            if (loops[i][j].curve != null) dcLoops.Add(loops[i][j].curve.Clone() as IGeoObject, Color.Green, i * 1000 + j);
                             for (int k = 0; k < loops[i][j].createdEdges.Count; k++)
                             {
-                                if (loops[i][j].createdEdges[k] != null) dcLoops.Add(loops[i][j].createdEdges[k].Curve3D.Clone() as IGeoObject, System.Drawing.Color.Blue, i * 1000 + j * 10 + k);
+                                if (loops[i][j].createdEdges[k] != null) dcLoops.Add(loops[i][j].createdEdges[k].Curve3D.Clone() as IGeoObject, Color.Blue, i * 1000 + j * 10 + k);
                             }
                         }
                         else
                         {
-                            if (loops[i][j].curve != null) dcLoops.Add(loops[i][j].curve.Clone() as IGeoObject, System.Drawing.Color.Red, i * 1000 + j);
+                            if (loops[i][j].curve != null) dcLoops.Add(loops[i][j].curve.Clone() as IGeoObject, Color.Red, i * 1000 + j);
                         }
                     }
                 }
@@ -1072,28 +1066,28 @@ namespace CADability.GeoObject
                             GeoPoint ccnt;
                             if (loops[i][j].forward)
                             {
-                                dc.Add(loops[i][j].curve as IGeoObject, System.Drawing.Color.Blue, i * 100 + j);
+                                dc.Add(loops[i][j].curve as IGeoObject, Color.Blue, i * 100 + j);
                                 ccnt = loops[i][j].curve.PointAt(0.5);
                                 GeoVector cdir = loops[i][j].curve.DirectionAt(0.5);
                                 cdir.NormIfNotNull();
                                 Line dl = Line.TwoPoints(ccnt, ccnt + loops[i][j].curve.Length * 0.05 * cdir);
-                                dc.Add(dl, System.Drawing.Color.Red, i * 100 + j);
+                                dc.Add(dl, Color.Red, i * 100 + j);
                             }
                             else
                             {
                                 ICurve crv = loops[i][j].curve.Clone();
                                 crv.Reverse();
-                                dc.Add(crv as IGeoObject, System.Drawing.Color.Blue, i * 100 + j);
+                                dc.Add(crv as IGeoObject, Color.Blue, i * 100 + j);
                                 ccnt = crv.PointAt(0.5);
                                 GeoVector cdir = crv.DirectionAt(0.5).Normalized;
                                 Line dl = Line.TwoPoints(ccnt, ccnt + crv.Length * 0.05 * cdir);
-                                dc.Add(dl, System.Drawing.Color.Red, i * 100 + j);
+                                dc.Add(dl, Color.Red, i * 100 + j);
                             }
                             try
                             {
                                 GeoVector ndir = surface.GetNormal(surface.PositionOf(ccnt)).Normalized;
                                 Line dn = Line.TwoPoints(ccnt, ccnt + loops[i][j].curve.Length * 0.05 * ndir);
-                                dc.Add(dn, System.Drawing.Color.Green, i * 100 + j);
+                                dc.Add(dn, Color.Green, i * 100 + j);
                             }
                             catch { }
                             Point pnt = Point.Construct();
@@ -1137,11 +1131,11 @@ namespace CADability.GeoObject
                         {
                             ICurve2D c2d = surface.GetProjectedCurve(loops[i][j].curve, 0.0);
                             if (!loops[i][j].forward) c2d.Reverse();
-                            dc2dx.Add(c2d, System.Drawing.Color.Red, i * 100 + j);
+                            dc2dx.Add(c2d, Color.Red, i * 100 + j);
                             GeoPoint2D po;
                             if (loops[i][j].forward) po = surface.PositionOf(loops[i][j].curve.StartPoint);
                             else po = surface.PositionOf(loops[i][j].curve.EndPoint);
-                            dc2dx.Add(po, System.Drawing.Color.Red, i * 100 + j);
+                            dc2dx.Add(po, Color.Red, i * 100 + j);
                         }
                     }
                 }
@@ -1369,7 +1363,7 @@ namespace CADability.GeoObject
                             }
                             if (crv2d != null) lastEndPoint = crv2d.EndPoint;
 #if DEBUG
-                            dccrv2d.Add(crv2d, System.Drawing.Color.Red, i * 100 + j);
+                            dccrv2d.Add(crv2d, Color.Red, i * 100 + j);
 #endif
                             crv2d.UserData["EdgeDescriptor"] = loops[i][j]; // if we need to split, we need this information
                             loops[i][j].curve2d = crv2d;
@@ -1425,7 +1419,7 @@ namespace CADability.GeoObject
                                     if ((loops[i][j].curve2d.EndPoint | lastEndPoint) + (loops[i][j].curve2d.StartPoint | nextStartPoint) <
                                         (loops[i][j].curve2d.StartPoint | lastEndPoint) + (loops[i][j].curve2d.EndPoint | nextStartPoint)) loops[i][j].curve2d.Reverse();
 #if DEBUG
-                                    dccrv2d.Add(loops[i][j].curve2d, System.Drawing.Color.Green, i * 100 + j);
+                                    dccrv2d.Add(loops[i][j].curve2d, Color.Green, i * 100 + j);
 #endif
                                     ext.MinMax(loops[i][j].curve2d.GetExtent());
                                 }
@@ -1563,7 +1557,7 @@ namespace CADability.GeoObject
                         SurfaceHelper.AdjustPeriodic(surface, ext, se.curve2d);
                         if (se.curve2d.GetAreaFromPoint(loops[0][0].curve2d.StartPoint) < 0.0) se.curve2d.Reverse();
 #if DEBUG
-                        dccrv2d.Add(se.curve2d, System.Drawing.Color.Green, 1);
+                        dccrv2d.Add(se.curve2d, Color.Green, 1);
 #endif
                         ext.MinMax(se.curve2d.GetExtent());
                         openLoops.Add(1);
@@ -1919,7 +1913,7 @@ namespace CADability.GeoObject
                         List<ICurve2D> outline = new List<ICurve2D>();
                         for (int j = 0; j < edges[i].Length; j++)
                         {
-                            dc2d.Add(edges[i][j].Curve2D(fc), System.Drawing.Color.Blue, i * 100 + j);
+                            dc2d.Add(edges[i][j].Curve2D(fc), Color.Blue, i * 100 + j);
                             outline.Add(edges[i][j].Curve2D(fc));
                             try
                             {
@@ -1929,7 +1923,7 @@ namespace CADability.GeoObject
                                 arrowpnts[0] = arrowpnts[1] - arrowsize * dir + arrowsize * dir.ToLeft();
                                 arrowpnts[2] = arrowpnts[1] - arrowsize * dir + arrowsize * dir.ToRight();
                                 Polyline2D pl2d = new Polyline2D(arrowpnts);
-                                dc2d.Add(pl2d, System.Drawing.Color.Red, 0);
+                                dc2d.Add(pl2d, Color.Red, 0);
                             }
                             catch (Polyline2DException) { }
                             catch (GeoVectorException) { }
@@ -2395,7 +2389,7 @@ namespace CADability.GeoObject
                     double arrowsize = ext.Size / 100.0;
                     for (int i = 0; i < crvs2d.Count; i++)
                     {
-                        dc2d.Add(crvs2d[i], System.Drawing.Color.Blue, i);
+                        dc2d.Add(crvs2d[i], Color.Blue, i);
                         GeoPoint2D[] arrowpnts = new GeoPoint2D[3];
                         GeoVector2D dir = crvs2d[i].DirectionAt(0.5);
                         if (!dir.IsNullVector())
@@ -2405,7 +2399,7 @@ namespace CADability.GeoObject
                             arrowpnts[0] = arrowpnts[1] - arrowsize * dir + arrowsize * dir.ToLeft();
                             arrowpnts[2] = arrowpnts[1] - arrowsize * dir + arrowsize * dir.ToRight();
                             Polyline2D pl2d = new Polyline2D(arrowpnts);
-                            dc2d.Add(pl2d, System.Drawing.Color.Red, 0);
+                            dc2d.Add(pl2d, Color.Red, 0);
                         }
                     }
                     for (int i = 0; i < loops.Count; i++)
@@ -2475,7 +2469,7 @@ namespace CADability.GeoObject
                     boundpnts[2] = new GeoPoint2D(umax, vmax);
                     boundpnts[3] = new GeoPoint2D(umin, vmax);
                     Polyline2D bnd2d = new Polyline2D(boundpnts);
-                    dc2d.Add(bnd2d, System.Drawing.Color.Green, 0);
+                    dc2d.Add(bnd2d, Color.Green, 0);
                     // *** check 2d split curves and directions
 #endif
                     // now we make two or four sets of curves (corresponding to the non periodic sub-patches of the surface) and make faces from each set
@@ -2620,14 +2614,14 @@ namespace CADability.GeoObject
                             {
                                 for (int j = 0; j < looplist[i].Count; j++)
                                 {
-                                    dcloops.Add(looplist[i][j], System.Drawing.Color.Blue, i * 100 + j);
+                                    dcloops.Add(looplist[i][j], Color.Blue, i * 100 + j);
                                     GeoPoint2D[] arrowpnts = new GeoPoint2D[3];
                                     GeoVector2D dir = looplist[i][j].DirectionAt(0.5).Normalized;
                                     arrowpnts[1] = looplist[i][j].PointAt(0.5);
                                     arrowpnts[0] = arrowpnts[1] - arrowsize * dir + arrowsize * dir.ToLeft();
                                     arrowpnts[2] = arrowpnts[1] - arrowsize * dir + arrowsize * dir.ToRight();
                                     Polyline2D pl2d = new Polyline2D(arrowpnts);
-                                    dcloops.Add(pl2d, System.Drawing.Color.Red, i * 100 + j);
+                                    dcloops.Add(pl2d, Color.Red, i * 100 + j);
                                 }
                             }
                             // *** check 2d curves in this patch (ui,vi)
@@ -3606,7 +3600,17 @@ namespace CADability.GeoObject
         public static Face MakeFace(ISurface surface, IEnumerable<ICurve> outline)
         {
             // simple linear search for best curve
-            HashSet<ICurve> allCurves = [.. outline.Where(c => c != null).Select(c => c.Clone())]; // poles will be generated below, use Clone() because the curves might be reversed
+            HashSet<ICurve> allCurves = [.. outline.Where(c => c != null).Select(c => c.Clone())]; // poles will be generated below,
+                                                                                                   // use Clone() because the curves might be reversed
+#if DEBUG
+            List<GeoPoint> startPoints = new List<GeoPoint>();
+            List<GeoPoint> endPoints = new List<GeoPoint>();
+            foreach (ICurve curve in allCurves)
+            {
+                startPoints.Add(curve.StartPoint);
+                endPoints.Add(curve.EndPoint);
+            }
+#endif
             List<ICurve> sortedCurves = new List<ICurve>();
             ICurve current = allCurves.First();
             allCurves.Remove(current);
@@ -3633,19 +3637,47 @@ namespace CADability.GeoObject
                         next = crv;
                     }
                 }
-                current = next;
                 allCurves.Remove(next);
-                if (!forward) next.Reverse();
+                if (!forward)
+                {
+                    next.Reverse();
+                }
                 sortedCurves.Add(next);
+                double dbgd = next.StartPoint | current.EndPoint;
+                current = next;
             }
+
+#if DEBUG
+            foreach (ICurve curve in sortedCurves)
+            {
+                startPoints.Add(curve.StartPoint);
+                endPoints.Add(curve.EndPoint);
+            }
+#endif
+
             List<ICurve2D> bounds2d = [];
-            BoundingRect domain = BoundingRect.EmptyBoundingRect;
-            surface.SetBounds(BoundingRect.EmptyBoundingRect);
+            BoundingRect domain = surface.GetBounds(); // use the bounds of the surface (if any) because some InterpolatedDualSurfaceCurves might rely on it
+            if (domain.IsInfinite || domain.IsInvalid()) surface.SetBounds(BoundingRect.EmptyBoundingRect);
             // find a domain for the surface
             for (int i = 0; i < sortedCurves.Count; i++)
             {
                 surface.ExtendBoundsTo(sortedCurves[i].StartPoint);
                 surface.ExtendBoundsTo(sortedCurves[i].PointAt(0.5));
+            }
+            for (int i = 0; i < sortedCurves.Count; i++)
+            {
+                if (sortedCurves[i] is InterpolatedDualSurfaceCurve idsc)
+                {   // the curve has been cloned above, so the surface is independant from its original source
+                    // we adjust the bounds of the surface, because projecting that curve to 2d would not adjust periodic later
+                    if (surface.SameGeometry(surface.GetBounds(), idsc.Surface1, surface.GetBounds(), Precision.eps, out _))
+                    {
+                        idsc.Surface1.SetBounds(surface.GetBounds()); // reflect the ModOp?
+                    }
+                    if (surface.SameGeometry(surface.GetBounds(), idsc.Surface2, surface.GetBounds(), Precision.eps, out _))
+                    {
+                        idsc.Surface2.SetBounds(surface.GetBounds()); // reflect the ModOp?
+                    }
+                }
             }
             for (int i = 0; i < sortedCurves.Count; ++i)
             {
@@ -3704,6 +3736,18 @@ namespace CADability.GeoObject
             for (int i = 0; i < sortedCurves.Count; i++)
             {
                 edges[i] = new Edge(res, sortedCurves[i], res, bounds2d[i], true);
+            }
+            for (int i = 0; i < edges.Length; i++)
+            {
+                Edge next = edges[(i + 1) % edges.Length];
+                if ((edges[i].Vertex2.Position | next.Vertex1.Position) < 10 * Precision.eps)
+                {
+                    edges[i].Vertex2.MergeWith(next.Vertex1);
+                }
+                else // should not happen, all edges must be connected
+                {
+
+                }
             }
             res.Set(surface, [edges], false); // outline needs not to be checked
             return res;
@@ -3874,7 +3918,7 @@ namespace CADability.GeoObject
             DebuggerContainer dc = new DebuggerContainer();
             for (int i = 0; i < segments.Length; i++)
             {
-                dc.Add(segments[i], System.Drawing.Color.Blue, i);
+                dc.Add(segments[i], Color.Blue, i);
             }
 #endif
             // kommen null-Linien in den Segments überhaupt vor?
@@ -4934,7 +4978,7 @@ namespace CADability.GeoObject
                         o2d.Add(c2d);
                     }
 #if DEBUG
-                    if (c2d != null) dc.Add(c2d, System.Drawing.Color.Red, i);
+                    if (c2d != null) dc.Add(c2d, Color.Red, i);
 #endif
                 }
             }
@@ -5198,13 +5242,13 @@ namespace CADability.GeoObject
                 for (int i = 0; i < outline.Length; ++i)
                 {
                     segments[i] = outline[i].Curve2D(this, segments);
-                    res.Add(segments[i], System.Drawing.Color.Red, outline[i].GetHashCode());
+                    res.Add(segments[i], Color.Red, outline[i].GetHashCode());
                 }
                 for (int j = 0; j < holes.Length; ++j)
                 {
                     for (int i = 0; i < holes[j].Length; ++i)
                     {
-                        res.Add(holes[j][i].Curve2D(this), System.Drawing.Color.Blue, holes[j][i].GetHashCode());
+                        res.Add(holes[j][i].Curve2D(this), Color.Blue, holes[j][i].GetHashCode());
                     }
                 }
                 return res;
@@ -5214,15 +5258,16 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (triangleIndex == null) AssureTriangles(0.1);
                 DebuggerContainer res = new DebuggerContainer();
                 for (int i = 0; i < triangleIndex.Length; i = i + 3)
                 {
                     Line2D l1 = new Line2D(triangleUVPoint[triangleIndex[i]], triangleUVPoint[triangleIndex[i + 1]]);
                     Line2D l2 = new Line2D(triangleUVPoint[triangleIndex[i + 1]], triangleUVPoint[triangleIndex[i + 2]]);
                     Line2D l3 = new Line2D(triangleUVPoint[triangleIndex[i + 2]], triangleUVPoint[triangleIndex[i]]);
-                    res.Add(l1, System.Drawing.Color.Red, i);
-                    res.Add(l2, System.Drawing.Color.Red, i);
-                    res.Add(l3, System.Drawing.Color.Red, i);
+                    res.Add(l1, Color.Red, i);
+                    res.Add(l2, Color.Red, i);
+                    res.Add(l3, Color.Red, i);
                 }
                 return res;
             }
@@ -5231,6 +5276,7 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (triangleIndex == null) AssureTriangles(0.1);
                 DebuggerContainer res = new DebuggerContainer();
                 for (int i = 0; i < triangleIndex.Length; i = i + 3)
                 {
@@ -5251,7 +5297,7 @@ namespace CADability.GeoObject
             {
                 DebuggerContainer res = new DebuggerContainer();
                 double ll = this.GetExtent(0.0).Size * 0.01;
-                ColorDef cd = new ColorDef("debug", System.Drawing.Color.Red);
+                ColorDef cd = new ColorDef("debug", Color.Red);
                 SimpleShape ss = Area;
                 GeoPoint2D c = ss.GetExtent().GetCenter();
                 GeoPoint pc = Surface.PointAt(c);
@@ -6303,7 +6349,7 @@ namespace CADability.GeoObject
                     GeoPoint2D sp = new GeoPoint2D(tmp[i].x / ext.Width, tmp[i].y / ext.Height);
                     GeoPoint2D ep = new GeoPoint2D(tmp[next].x / ext.Width, tmp[next].y / ext.Height);
                     Line2D l2d = new Line2D(sp, ep);
-                    dc.Add(l2d, System.Drawing.Color.Red, i);
+                    dc.Add(l2d, Color.Red, i);
                 }
 #endif
                 lock (lockTriangulationData)
@@ -6430,27 +6476,27 @@ namespace CADability.GeoObject
                         GeoPoint2D tr1 = new GeoPoint2D(triangleUVPoint[triangleIndex[i]].x / ext.Width, triangleUVPoint[triangleIndex[i]].y / ext.Height);
                         GeoPoint2D tr2 = new GeoPoint2D(triangleUVPoint[triangleIndex[i + 1]].x / ext.Width, triangleUVPoint[triangleIndex[i + 1]].y / ext.Height);
                         GeoPoint2D tr3 = new GeoPoint2D(triangleUVPoint[triangleIndex[i + 2]].x / ext.Width, triangleUVPoint[triangleIndex[i + 2]].y / ext.Height);
-                        dc2d.Add(new Line2D(tr1, tr2), System.Drawing.Color.Blue, i);
-                        dc2d.Add(new Line2D(tr2, tr3), System.Drawing.Color.Blue, i);
-                        dc2d.Add(new Line2D(tr3, tr1), System.Drawing.Color.Blue, i);
+                        dc2d.Add(new Line2D(tr1, tr2), Color.Blue, i);
+                        dc2d.Add(new Line2D(tr2, tr3), Color.Blue, i);
+                        dc2d.Add(new Line2D(tr3, tr1), Color.Blue, i);
                         GeoPoint2D cnt = new GeoPoint2D(tr1, tr2, tr3);
-                        if ((new GeoVector(tr2 - tr1) ^ new GeoVector(tr3 - tr1)).z > 0) dc2d.Add(cnt, System.Drawing.Color.Red, i);
-                        else dc2d.Add(cnt, System.Drawing.Color.Green, i);
+                        if ((new GeoVector(tr2 - tr1) ^ new GeoVector(tr3 - tr1)).z > 0) dc2d.Add(cnt, Color.Red, i);
+                        else dc2d.Add(cnt, Color.Green, i);
                         Line ln = Line.Construct();
                         ln.SetTwoPoints(trianglePoint[triangleIndex[i]], trianglePoint[triangleIndex[i + 1]]);
-                        dc3d.Add(ln, System.Drawing.Color.Blue, triangleIndex[i]);
+                        dc3d.Add(ln, Color.Blue, triangleIndex[i]);
                         ln = Line.Construct();
                         ln.SetTwoPoints(trianglePoint[triangleIndex[i + 1]], trianglePoint[triangleIndex[i + 2]]);
-                        dc3d.Add(ln, System.Drawing.Color.Blue, triangleIndex[i + 1]);
+                        dc3d.Add(ln, Color.Blue, triangleIndex[i + 1]);
                         ln = Line.Construct();
                         ln.SetTwoPoints(trianglePoint[triangleIndex[i + 2]], trianglePoint[triangleIndex[i]]);
-                        dc3d.Add(ln, System.Drawing.Color.Blue, triangleIndex[i + 2]);
+                        dc3d.Add(ln, Color.Blue, triangleIndex[i + 2]);
                         GeoPoint cnt3d = new GeoPoint(trianglePoint[triangleIndex[i]], trianglePoint[triangleIndex[i + 1]], trianglePoint[triangleIndex[i + 2]]);
                         GeoVector n = (trianglePoint[triangleIndex[i + 1]] - trianglePoint[triangleIndex[i]]) ^ (trianglePoint[triangleIndex[i + 2]] - trianglePoint[triangleIndex[i]]);
                         n.Length = bc.Size * 0.1;
                         ln = Line.Construct();
                         ln.SetTwoPoints(cnt3d, cnt3d + n);
-                        dc3d.Add(ln, System.Drawing.Color.Red, triangleIndex[i]);
+                        dc3d.Add(ln, Color.Red, triangleIndex[i]);
                     }
 #endif
                 }
@@ -6650,7 +6696,7 @@ namespace CADability.GeoObject
 #if DEBUG
             Polyline2D pl2d = new Polyline2D(polyoutline.ToArray());
             DebuggerContainer dc1 = new DebuggerContainer();
-            dc1.Add(pl2d, System.Drawing.Color.Red, 0);
+            dc1.Add(pl2d, Color.Red, 0);
 #endif
             for (int i = polyoutline.Count - 2; i >= 0; --i)
             {
@@ -6718,7 +6764,7 @@ namespace CADability.GeoObject
 #if DEBUG
             pl2d = new Polyline2D(polyoutline.ToArray());
             DebuggerContainer dc2 = new DebuggerContainer();
-            dc2.Add(pl2d, System.Drawing.Color.Red, 0);
+            dc2.Add(pl2d, Color.Red, 0);
 #endif
             if (GeoPoint2D.Area(tmp) < eps)
             {   // kommt manchmal vor: zwei entgegenlaufende Linien, hier also leeres Polygon oder falschrum
@@ -7673,7 +7719,7 @@ namespace CADability.GeoObject
             Line dbgl = Line.Construct();
             dbgl.SetTwoPoints(foot, foot + n);
             dc.Add(dbgl);
-            dc.Add(fromHere, System.Drawing.Color.Black, 0);
+            dc.Add(fromHere, Color.Black, 0);
 #endif
             Angle a = new Angle(n, fromHere - foot);
             if (a > Math.PI / 2.0) res = -res;
@@ -7911,7 +7957,7 @@ namespace CADability.GeoObject
                 DebuggerContainer dc = new DebuggerContainer();
                 for (int i = 0; i < segments.Length; ++i)
                 {
-                    if (segments[i] != null) dc.Add(segments[i], System.Drawing.Color.Red, i);
+                    if (segments[i] != null) dc.Add(segments[i], Color.Red, i);
                 }
 #endif
                 int counter = 0;
@@ -8145,7 +8191,7 @@ namespace CADability.GeoObject
                         DebuggerContainer dc1 = new DebuggerContainer();
                         for (int i = 0; i < segments.Length; ++i)
                         {
-                            if (segments[i] != null) dc1.Add(segments[i], System.Drawing.Color.Red, i);
+                            if (segments[i] != null) dc1.Add(segments[i], Color.Red, i);
                         }
 #endif
                         // return false; // eingeführt wg. "elettrodo-cilindrico.sat"
@@ -8156,7 +8202,7 @@ namespace CADability.GeoObject
                     DebuggerContainer dc2 = new DebuggerContainer();
                     for (int i = 0; i < segments.Length; ++i)
                     {
-                        if (segments[i] != null) dc2.Add(segments[i], System.Drawing.Color.Red, i);
+                        if (segments[i] != null) dc2.Add(segments[i], Color.Red, i);
                     }
 #endif
                     if ((segments[0].StartPoint | segments[segments.Length - 1].EndPoint) < precision)
@@ -8884,7 +8930,7 @@ namespace CADability.GeoObject
                     return modify;
                 }
 #if DEBUG
-                //this.colorDef = new ColorDef("DEBUG", System.Drawing.Color.Red);
+                //this.colorDef = new ColorDef("DEBUG", Color.Red);
                 //trianglePoint = null;
 #endif
             }
@@ -9108,7 +9154,7 @@ namespace CADability.GeoObject
                 DebuggerContainer dc = new DebuggerContainer();
                 for (int i = 0; i < outline.Length; ++i)
                 {
-                    dc.Add(outline[i].Curve2D(this), System.Drawing.Color.Blue, i);
+                    dc.Add(outline[i].Curve2D(this), Color.Blue, i);
                 }
 #endif
                 for (int i = 0; i < outline.Length; ++i)
@@ -9119,7 +9165,7 @@ namespace CADability.GeoObject
 #if DEBUG
                 for (int i = 0; i < outline.Length; ++i)
                 {
-                    dc.Add(segments[i], System.Drawing.Color.Red, i);
+                    dc.Add(segments[i], Color.Red, i);
                 }
 
 #endif
@@ -9237,13 +9283,13 @@ namespace CADability.GeoObject
             for (int i = 0; i < outline.Length; ++i)
             {
                 sss[i] = outline[i].Curve2D(this, sss);
-                dc.Add(sss[i], System.Drawing.Color.Red, outline[i].GetHashCode());
+                dc.Add(sss[i], Color.Red, outline[i].GetHashCode());
             }
             for (int j = 0; j < holes.Length; ++j)
             {
                 for (int i = 0; i < holes[j].Length; ++i)
                 {
-                    dc.Add(holes[j][i].Curve2D(this), System.Drawing.Color.Blue, holes[j][i].GetHashCode());
+                    dc.Add(holes[j][i].Curve2D(this), Color.Blue, holes[j][i].GetHashCode());
                 }
             }
             GeoPoint2D dbgv1 = surface.PositionOf(Vertices[0].Position);
@@ -9321,7 +9367,7 @@ namespace CADability.GeoObject
                             otherSurface = idsc.Surface2;
                             otherDomain = idsc.Domain2;
                         }
-                        edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, otherSurface, otherDomain, (edg.Curve3D as InterpolatedDualSurfaceCurve).BasePoints);
+                        edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, otherSurface, otherDomain, idsc.BasePoints,null,null,idsc.IsTangential);
                         edg.PrimaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         if (!edg.Forward(edg.PrimaryFace)) edg.PrimaryCurve2D.Reverse();
                         edg.SecondaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
@@ -9329,8 +9375,8 @@ namespace CADability.GeoObject
                     }
                     else
                     {
-                        if (edg.PrimaryFace == this) edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, edg.SecondaryFace.surface, edg.SecondaryFace.Area.GetExtent(), (edg.Curve3D as InterpolatedDualSurfaceCurve).BasePoints);
-                        else edg.Curve3D = new InterpolatedDualSurfaceCurve(edg.PrimaryFace.surface, edg.PrimaryFace.Area.GetExtent(), this.surface, modifiedBounds, (edg.Curve3D as InterpolatedDualSurfaceCurve).BasePoints);
+                        if (edg.PrimaryFace == this) edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, edg.SecondaryFace.surface, edg.SecondaryFace.Area.GetExtent(), idsc.BasePoints, null, null, idsc.IsTangential);
+                        else edg.Curve3D = new InterpolatedDualSurfaceCurve(edg.PrimaryFace.surface, edg.PrimaryFace.Area.GetExtent(), this.surface, modifiedBounds, idsc.BasePoints, null, null, idsc.IsTangential);
                         edg.PrimaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         if (!edg.Forward(edg.PrimaryFace)) edg.PrimaryCurve2D.Reverse();
                         edg.SecondaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
@@ -9347,13 +9393,13 @@ namespace CADability.GeoObject
             for (int i = 0; i < outline.Length; ++i)
             {
                 sss[i] = outline[i].Curve2D(this, sss);
-                dc.Add(sss[i], System.Drawing.Color.Green, outline[i].GetHashCode());
+                dc.Add(sss[i], Color.Green, outline[i].GetHashCode());
             }
             for (int j = 0; j < holes.Length; ++j)
             {
                 for (int i = 0; i < holes[j].Length; ++i)
                 {
-                    dc.Add(holes[j][i].Curve2D(this), System.Drawing.Color.Violet, holes[j][i].GetHashCode());
+                    dc.Add(holes[j][i].Curve2D(this), Color.Violet, holes[j][i].GetHashCode());
                 }
             }
             for (int i = 0; i < sss.Length; i++)
@@ -9744,7 +9790,7 @@ namespace CADability.GeoObject
 #if DEBUG
                     for (int j = 0; j < splitted.Length; ++j)
                     {
-                        dc.Add(splitted[j].Curve2D(this), System.Drawing.Color.Blue, j);
+                        dc.Add(splitted[j].Curve2D(this), Color.Blue, j);
                     }
 #endif
                     // diese kante aus den vertices entfernen
@@ -9754,7 +9800,7 @@ namespace CADability.GeoObject
 #if DEBUG
                 else
                 {
-                    dc.Add(c2d, System.Drawing.Color.Yellow, i);
+                    dc.Add(c2d, Color.Yellow, i);
                 }
 #endif
             }
@@ -9773,7 +9819,7 @@ namespace CADability.GeoObject
                 spl.MakeVertices(splitPoints.Values[i], splitPoints.Values[i + 1]);
                 intersectionEdges.Add(spl);
 #if DEBUG
-                dc.Add(l2d, System.Drawing.Color.Turquoise, i);
+                dc.Add(l2d, Color.Turquoise, i);
 #endif
             }
             foreach (Edge e in intersectionEdges)

@@ -3,6 +3,7 @@ using CADability.Curve2D;
 using CADability.GeoObject;
 using MathNet.Numerics.LinearAlgebra.Double;
 using CADability.Shapes;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,11 +11,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Wintellect.PowerCollections;
 using static CADability.BRepOperation;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using Color = System.Drawing.Color;
-#endif
+using Point = CADability.GeoObject.Point;
 
 /* SO GEHTS WEITER:
  * Die Triangulierung der beteiligten Faces muss vermieden werden, dauert zu lange.

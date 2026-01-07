@@ -15,18 +15,12 @@ using Keys = CADability.Substitutes.Keys;
 using PaintEventArgs = CADability.Substitutes.PaintEventArgs;
 using CheckState = CADability.Substitutes.CheckState;
 using static CADability.Projection;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using Point = CADability.Substitutes.Point;
 
 namespace CADability
 {
     public delegate void ScrollPositionChanged(double hRatio, double hPosition, double vRatio, double vPosition);
-    public delegate void PaintView(Rectangle Extent, IView View, IPaintTo3D PaintTo3D);
+    public delegate void PaintView(Substitutes.Rectangle Extent, IView View, IPaintTo3D PaintTo3D);
     /// <summary>
     /// Filter mouse messages to the ModelView. return true, if you want to prevent further processing of the mouse message.
     /// </summary>
@@ -586,8 +580,8 @@ namespace CADability
                         }
                     }
                     // Fixpunkt bestimmen
-                    Rectangle clientRect = canvas.ClientRectangle;
-                    Point clcenter = clientRect.Location;
+                    Substitutes.Rectangle clientRect = canvas.ClientRectangle;
+                    Substitutes.Point clcenter = clientRect.Location;
                     clcenter.X += clientRect.Width / 2;
                     clcenter.Y += clientRect.Height / 2;
                     SetViewDirection(pr, Projection.UnProject(clcenter), false);
@@ -600,10 +594,10 @@ namespace CADability
             {
                 if (!backgroundColor.HasValue)
                 {
-                    backgroundColor = Color.AliceBlue;
+                    backgroundColor = Color.FromArgb(unchecked((int)0xFFF0F8FF));
                     if (Frame != null)
                     {
-                        backgroundColor = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
+                        backgroundColor = Frame.GetColorSetting("Colors.Background", backgroundColor.Value);
                     }
                     else
                     {
@@ -843,26 +837,26 @@ namespace CADability
             bool displayDrawingPlane = (bth & BackgroungTaskHandled.DrawingPlane) == 0;
             bool displayCoordCross = (bth & BackgroungTaskHandled.CoordCross) == 0;
             ShowGrid(PaintToBackground, displayGrid, displayDrawingPlane);
-            Color bckgnd = Color.AliceBlue;
+            Color bckgnd = Color.FromArgb(unchecked((int)0xFFF0F8FF));
             if (Frame != null)
-                bckgnd = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
+                bckgnd = Frame.GetColorSetting("Colors.Background", bckgnd);
             Color infocolor;
-            if (bckgnd.GetBrightness() > 0.5) infocolor = Color.Black;
-            else infocolor = Color.White;
+            if (bckgnd.GetBrightness() > 0.5) infocolor = Color.FromArgb(unchecked((int)0xFF000000));
+            else infocolor = Color.FromArgb(unchecked((int)0xFFFFFFFF));
             if (displayCoordCross)
             {
                 PaintCoordCross(PaintToBackground, pr, infocolor, Plane.XYPlane, false);
                 if (!Precision.IsEqual(pr.DrawingPlane.Location, GeoPoint.Origin))
                 {
-                    if (bckgnd.GetBrightness() > 0.5) infocolor = Color.DarkGray;
-                    else infocolor = Color.LightGray;
+                    if (bckgnd.GetBrightness() > 0.5) infocolor = Color.FromArgb(unchecked((int)0xFFA9A9A9));
+                    else infocolor = Color.FromArgb(unchecked((int)0xFFD3D3D3));
                     PaintCoordCross(PaintToBackground, pr, infocolor, pr.DrawingPlane, true);
                 }
             }
         }
         void IView.OnSizeChanged(Rectangle oldRectangle)
         {
-            Size newSize = Size.Empty;
+            Size newSize = new Size { Width = 0, Height = 0 };
             newSize = canvas.ClientRectangle.Size;
             if (newSize.Width > 0 && newSize.Height > 0)
             {
@@ -2029,8 +2023,8 @@ namespace CADability
         private void ShowGrid(IPaintTo3D PaintToBackground, bool displayGrid, bool displayDrawingPlane)
         {
             if (Frame == null) return;
-            Color bckgnd = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
-            Color clrgrd = Frame.GetColorSetting("Colors.Grid", Color.LightGoldenrodYellow);
+            Color bckgnd = Frame.GetColorSetting("Colors.Background", Color.FromArgb(unchecked((int)0xFFF0F8FF)));
+            Color clrgrd = Frame.GetColorSetting("Colors.Grid", Color.FromArgb(unchecked((int)0xFFFAFAD2)));
             clrgrd = Color.FromArgb(128, clrgrd.R, clrgrd.G, clrgrd.B);
             // Raster darstellen
             Projection pr = this.Projection;
@@ -2159,7 +2153,7 @@ namespace CADability
             }
             if (pr.ShowDrawingPlane && displayDrawingPlane)
             {
-                Color clrdrwpln = Frame.GetColorSetting("Colors.Drawingplane", Color.LightSkyBlue);
+                Color clrdrwpln = Frame.GetColorSetting("Colors.Drawingplane", Color.FromArgb(unchecked((int)0xFF87CEFA)));
                 PaintToBackground.PushState();
                 PaintToBackground.Blending(true);
                 PaintToBackground.SetColor(clrdrwpln);
@@ -2616,12 +2610,6 @@ namespace CADability
             else
             {
                 if (DisplayChangedEvent != null) DisplayChangedEvent(this, new DisplayChangeArg(DisplayChangeArg.Reasons.ScrollDown));
-            }
-        }
-        public Bitmap GetContentsAsBitmap()
-        {
-            {
-                return null;
             }
         }
 

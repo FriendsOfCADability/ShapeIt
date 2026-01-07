@@ -1,4 +1,5 @@
 ﻿using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -140,7 +141,7 @@ namespace CADability
             private bool EqualsAt(string value, StringComparison cmp = StringComparison.Ordinal)
             {
                 if ((uint)actind > (uint)currentline.Length) return false;
-                if (currentline.Length - actind< value.Length) return false;
+                if (currentline.Length - actind < value.Length) return false;
                 return currentline.AsSpan(actind, value.Length).Equals(value.AsSpan(), cmp);
             }
             public etoken NextToken(out string line, out int start, out int length)
@@ -420,7 +421,8 @@ namespace CADability
                     for (int i = 0; i < kve.Count; i++)
                     {
 
-                        try { ar.Add(kve[i]); } catch { }; // could fail when kve[i] is a JsonUnknownType
+                        try { ar.Add(kve[i]); } catch { }
+                        ; // could fail when kve[i] is a JsonUnknownType
                     }
                     return ar;
                 }
@@ -738,7 +740,7 @@ namespace CADability
         }
         public bool IsWriting
         {
-            get { return outStream!=null; }   
+            get { return outStream != null; }
         }
         public Version FileVersion { get { return new Version(fileVersion); } }
         private SerializationInfo SerializationInfoFromJsonData(JsonDict data, Type tp, List<object> entities, HashSet<ulong> underConstruction)
@@ -1086,6 +1088,7 @@ namespace CADability
             if (!(entities[(int)index] is JsonDict)) return entities[(int)index];
             JsonDict jd = entities[(int)index] as JsonDict;
             int ti = Convert.ToInt32(jd["$TypeIndex"]);
+            System.Diagnostics.Trace.WriteLine("CreateEntity: " + index.ToString() + " TypeIndex: " + ti.ToString());
             if (underConstruction.Contains(index)) throw new ApplicationException("Json stream contains cyclical reference");
             if (createEntity[ti] != null)
             {
@@ -1215,7 +1218,11 @@ namespace CADability
             {   // a hashtable or some other kind of dictionary is serialized as 
                 val = new JSonDictionary(ht, val.GetType());
             }
-            if (val is System.Drawing.Color)
+            if (val is System.Drawing.Color c)
+            {
+                val = new JSonSubstitute(val);
+            }
+            if (val is Color)
             {
                 val = new JSonSubstitute(val);
             }
@@ -1486,6 +1493,10 @@ namespace CADability
             {
                 value = new JSonSubstitute(value);
             }
+            if (value is Color)
+            {
+                value = new JSonSubstitute(value);
+            }
 
             //if (value is IList lst && !(value is IJsonSerialize) && !value.GetType().IsArray)
             //{
@@ -1553,7 +1564,7 @@ namespace CADability
             }
             else
             {
-                WriteNull(); // no exception here, because this can happen with some properties, e.g. from System.Drawing.Common
+                WriteNull(); // no exception here, because this can happen with some properties, e.g. from Common
                 // throw new ApplicationException("Cannot serialize value" + value.ToString());
             }
         }
@@ -1781,7 +1792,7 @@ namespace CADability
         {
             base.GetObjectData(info, context);
         }
-        protected JsonProxyType(SerializationInfo info, StreamingContext context): base(info, context)
+        protected JsonProxyType(SerializationInfo info, StreamingContext context) : base(info, context)
         {
         }
 
@@ -1823,7 +1834,7 @@ namespace CADability
             {
                 case "System.Drawing.Color":
                     {
-                        toSerialize = System.Drawing.Color.FromArgb(data.GetProperty<int>("Argb"));
+                        toSerialize = Color.FromArgb(data.GetProperty<int>("Argb"));
                     }
                     break;
             }

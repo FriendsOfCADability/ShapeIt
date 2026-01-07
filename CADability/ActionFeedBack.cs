@@ -1,13 +1,7 @@
 ﻿using CADability.Attribute;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
 
 namespace CADability.Actions
 {
@@ -56,8 +50,8 @@ namespace CADability.Actions
         {
             if (Settings.GlobalSettings.GetBoolValue("ActionFeedBack.UseZBuffer", true)) paintTo3D.UseZBuffer(true);
 
-            Color selectColor = frame.GetColorSetting("Select.SelectColor", Color.Yellow); // die Farbe für die selektierten Objekte
-            Color focusColor = frame.GetColorSetting("Select.FocusColor", Color.LightBlue); // die Farbe für das Objekt mit dem Focus
+            Color selectColor = frame.GetColorSetting("Select.SelectColor", Color.FromArgb(unchecked((int)0xFFFFFF00))); // die Farbe für die selektierten Objekte
+            Color focusColor = frame.GetColorSetting("Select.FocusColor", Color.FromArgb(unchecked((int)0xFFADD8E6))); // die Farbe für das Objekt mit dem Focus
             foreach (IView vw in frame.AllViews)
             {
                 for (int i = 0; i < repaintObjects.Count; ++i)
@@ -353,7 +347,7 @@ namespace CADability.Actions
         {
             CADability.GeoObject.Point gPoint = CADability.GeoObject.Point.Construct();
             gPoint.Symbol = pointSymbol;
-            Color backColor = frame.GetColorSetting("Colors.Feedback", Color.DarkGray);
+            Color backColor = frame.GetColorSetting("Colors.Feedback", Color.FromArgb(unchecked((int)0xFFA3A3A3)));
             gPoint.ColorDef = new ColorDef("", backColor);
             return gPoint;
         }

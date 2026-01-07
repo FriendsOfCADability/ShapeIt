@@ -2,6 +2,8 @@
 using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
+using CADability.Substitutes;
+using Point = CADability.GeoObject.Point;
 using MathNet.Numerics;
 using Microsoft.VisualStudio.DebuggerVisualizers;
 using System;
@@ -12,12 +14,6 @@ using System.Text;
 using System.Threading;
 using Wintellect.PowerCollections;
 
-
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using Color = System.Drawing.Color;
-#endif
 
 namespace CADability
 {
@@ -317,17 +313,32 @@ namespace CADability
             foreach (var (a, b) in pairs)
             {   // find already existing edges, which can serve as intersection edges
                 // could there be both already existing edges and new intersection edges between different two vertices?
+                // the following seems strange: it is asymmetric in fc1 and fc2
                 foreach (Edge e1 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e)))
                     foreach (Edge e2 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e))) // there were edges, which have primaryFace==fc1 but don't belong to fc1.Edges
                     {
-                        if (e1.Curve3D.SameGeometry(e2.Curve3D, this.precision))
+                        if (e1 != e2 && e1.Curve3D.SameGeometry(e2.Curve3D, this.precision))
                         {
                             // already an intersection edge
                             if (alreadyCalculated == null) alreadyCalculated = [];
                             if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
                         }
                     }
+            }
+            foreach (var (a, b) in pairs)
+            {   // find already existing edges, which can serve as intersection edges
+                // here it is an edge of fc1 which lies on surface of fc2 or vice versa
+                foreach (Edge e1 in Vertex.ConnectingEdges(a, b))
+                {
 
+                    if ((fc1.Edges.Contains(e1) && fc2.Surface.IsCurveOnSurface(e1.Curve3D))
+                        || (fc2.Edges.Contains(e1) && fc1.Surface.IsCurveOnSurface(e1.Curve3D)))
+                    {
+                        // already an intersection edge
+                        if (alreadyCalculated == null) alreadyCalculated = [];
+                        if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
+                    }
+                }
             }
             if (intersectionVertices.Count < 2) return;
 
@@ -402,6 +413,8 @@ namespace CADability
                     crvsOnSurface2[i] = fc2.Surface.GetProjectedCurve(c3ds[i], 0.0);
                     SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, crvsOnSurface1[i]);
                     SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, crvsOnSurface2[i]);
+                    // TODO: InterpolatedDualSurfaceCurves don't easily adjust to the required domain
+                    // we must somehow force them to do so
                     for (int j = 0; j < points.Count; j++) // fill the parameter arrays
                     {
                         double d = c3ds[i].DistanceTo(points[j]);
@@ -870,6 +883,7 @@ namespace CADability
             if (face.Surface.IsCurveOnSurface(edge.Curve3D))
             {
                 ICurve2D c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);
+                SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, c2d);
                 double[] parts = face.Area.Clip(c2d, true);
                 for (int i = 0; i < parts.Length; i++)
                 {
@@ -1533,7 +1547,7 @@ namespace CADability
             {
                 dcfcs.Add(fce.Clone(), fce.GetHashCode()); // die Faces werden kaputt gemacht, deshalb hier clones merken
                 double ll = fce.GetExtent(0.0).Size * 0.01;
-                ColorDef cd = new ColorDef("debug", Color.Blue);
+                ColorDef cd = new ColorDef("debug", Color.FromString("blue"));
                 SimpleShape ss = fce.Area;
                 GeoPoint2D c = ss.GetExtent().GetCenter();
                 GeoPoint pc = fce.Surface.PointAt(c);

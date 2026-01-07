@@ -1,15 +1,8 @@
 ﻿using CADability.Actions;
 using CADability.GeoObject;
 using CADability;
-using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using static CADability.Actions.ConstructAction;
-using CADability.Curve2D;
-using System.Drawing.Drawing2D;
+using CADability.Substitutes;
 
 namespace ShapeIt
 {

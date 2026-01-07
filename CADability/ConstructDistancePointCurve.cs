@@ -3,13 +3,7 @@ using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 
 namespace CADability.Actions
 {

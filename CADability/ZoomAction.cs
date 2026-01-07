@@ -1,9 +1,5 @@
 ﻿using CADability.UserInterface;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
+using CADability.Substitutes;
 
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
 using DragEventArgs = CADability.Substitutes.DragEventArgs;

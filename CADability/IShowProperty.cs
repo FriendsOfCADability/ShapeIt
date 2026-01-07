@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 
 namespace CADability.UserInterface
 {
@@ -651,34 +651,6 @@ namespace CADability.UserInterface
             //				Update(sp.SubEntries[i]);
             //			}
         }
-        public static Color SelectedBckgColor
-        {
-            get
-            {
-                return SystemColors.Highlight;
-            }
-        }
-        public static Color SelectedTextColor
-        {
-            get
-            {
-                return SystemColors.HighlightText;
-            }
-        }
-        public static Color UnselectedBckgColor
-        {
-            get
-            {
-                return SystemColors.Window;
-            }
-        }
-        public static Color UnselectedTextColor
-        {
-            get
-            {
-                return SystemColors.WindowText;
-            }
-        }
         internal bool IsOpen
         {
             get
@@ -1019,8 +991,6 @@ namespace CADability.UserInterface
         string[] AllIds { get; }
         Rectangle GetBoundsForControl(Rectangle position);
         Point GetPointForControl(Point loc);
-        void SetFont(Font font);
-
         void Dispose();
     }
 

@@ -1,9 +1,9 @@
 ﻿using CADability.GeoObject;
 using CADability.Shapes;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Runtime.Serialization;
 
 namespace CADability.Curve2D
@@ -984,28 +984,24 @@ namespace CADability.Curve2D
             }
             return new Path2D((ICurve2D[])(curves.ToArray(typeof(ICurve2D))));
         }
-        /// <summary>
-        /// Implements <see cref="CADability.Curve2D.ICurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-        public override void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {
-            if (forward)
-            {
-                for (int i = 0; i < subCurves.Length; ++i)
-                {
-                    subCurves[i].AddToGraphicsPath(path, forward);
-                }
-            }
-            else
-            {
-                for (int i = subCurves.Length - 1; i >= 0; --i)
-                {
-                    subCurves[i].AddToGraphicsPath(path, forward);
-                }
-            }
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public override void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{
+        //    if (forward)
+        //    {
+        //        for (int i = 0; i < subCurves.Length; ++i)
+        //        {
+        //            subCurves[i].AddToGraphicsPath(path, forward);
+        //        }
+        //    }
+        //    else
+        //    {
+        //        for (int i = subCurves.Length - 1; i >= 0; --i)
+        //        {
+        //            subCurves[i].AddToGraphicsPath(path, forward);
+        //        }
+        //    }
+        //}
         /// <summary>
         /// Implements <see cref="CADability.Curve2D.ICurve2D.IsParameterOnCurve (double)"/>
         /// </summary>

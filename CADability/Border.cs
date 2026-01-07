@@ -1,7 +1,6 @@
-﻿// #undef DEBUG // zum Performancetest
-
-using CADability.Curve2D;
+﻿using CADability.Curve2D;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -281,7 +280,7 @@ namespace CADability.Shapes
             DebuggerContainer dc = new DebuggerContainer();
             for (int i = 0; i < segments.Length; i++)
             {
-                dc.Add(segments[i], System.Drawing.Color.Red, i);
+                dc.Add(segments[i], Color.Red, i);
             }
 #endif
             // hier war uperiod/2.0 u.s.w. wg. NEED_REGULARIZATION.stp auf uperiod geändert
@@ -606,7 +605,7 @@ namespace CADability.Shapes
             DebuggerContainer dc = new DebuggerContainer();
             for (int i = 0; i < segments.Length; ++i)
             {
-                dc.Add(segments[i], System.Drawing.Color.Red, i);
+                dc.Add(segments[i], Color.Red, i);
             }
 #endif
             if (segments.Length >= 2)
@@ -682,7 +681,7 @@ namespace CADability.Shapes
             //DebuggerContainer dc = new DebuggerContainer();
             //for (int i = 0; i < segments.Length; ++i)
             //{
-            //    dc.Add(segments[i], System.Drawing.Color.Red, i);
+            //    dc.Add(segments[i], Color.Red, i);
             //}
 #endif
             for (int i = 0; i < segments.Length - 1; ++i)
@@ -715,7 +714,7 @@ namespace CADability.Shapes
             DebuggerContainer dc = new DebuggerContainer();
             for (int i = 0; i < segments.Length; ++i)
             {
-                dc.Add(segments[i], System.Drawing.Color.Red, i);
+                dc.Add(segments[i], Color.Red, i);
             }
 #endif
             for (int i = 1; i < segments.Length; ++i)
@@ -737,7 +736,7 @@ namespace CADability.Shapes
             DebuggerContainer dc1 = new DebuggerContainer();
             for (int i = 0; i < segments.Length; ++i)
             {
-                dc1.Add(segments[i], System.Drawing.Color.Red, i);
+                dc1.Add(segments[i], Color.Red, i);
             }
 #endif
             if (!Precision.IsEqual(segments[0].StartPoint, segments[segments.Length - 1].EndPoint)) return null;
@@ -2386,9 +2385,9 @@ namespace CADability.Shapes
                 if (a.Length > Precision.eps) curves.Add(a); // den Bogen dazu
 #if DEBUG
                 DebuggerContainer dc1 = new DebuggerContainer();
-                dc1.Add(first, System.Drawing.Color.Red, 0);
-                dc1.Add(second, System.Drawing.Color.Green, 1);
-                dc1.Add(a, System.Drawing.Color.Blue, 2);
+                dc1.Add(first, Color.Red, 0);
+                dc1.Add(second, Color.Green, 1);
+                dc1.Add(a, Color.Blue, 2);
 #endif
                 return true;
             }
@@ -2563,24 +2562,24 @@ namespace CADability.Shapes
             DebuggerContainer dc1 = new DebuggerContainer();
             //for (int i = 0; i < contcurves.Count; ++i)
             //{
-            //    dc1.Add(contcurves[i], System.Drawing.Color.Red, i);
+            //    dc1.Add(contcurves[i], Color.Red, i);
             //}
             for (int i = 0; i < segmentparts.Count; ++i)
             {
-                System.Drawing.Color clr;
+                Color clr;
                 if ((i & 1) == 0)
                 {
-                    clr = System.Drawing.Color.Blue;
+                    clr = Color.Blue;
                 }
                 else
                 {
-                    clr = System.Drawing.Color.Red;
+                    clr = Color.Red;
                 }
                 dc1.Add(segmentparts[i], clr, i);
             }
             for (int i = 0; i < segment.Length; ++i)
             {
-                dc1.Add(segment[i], System.Drawing.Color.Green, i);
+                dc1.Add(segment[i], Color.Green, i);
             }
 #endif
 
@@ -2733,14 +2732,14 @@ namespace CADability.Shapes
             DebuggerContainer dc2 = new DebuggerContainer();
             for (int i = 0; i < BrokenSegments.Count; ++i)
             {
-                if (BrokenSegments[i].orientation == Orientation.positive) dc2.Add(BrokenSegments[i], System.Drawing.Color.Red, i);
-                else if (BrokenSegments[i].orientation == Orientation.negative) dc2.Add(BrokenSegments[i], System.Drawing.Color.Green, i);
-                else dc2.Add(BrokenSegments[i], System.Drawing.Color.Black, i);
+                if (BrokenSegments[i].orientation == Orientation.positive) dc2.Add(BrokenSegments[i], Color.Red, i);
+                else if (BrokenSegments[i].orientation == Orientation.negative) dc2.Add(BrokenSegments[i], Color.Green, i);
+                else dc2.Add(BrokenSegments[i], Color.Black, i);
 
             }
             for (int i = 0; i < segment.Length; ++i)
             {
-                dc2.Add(segment[i], System.Drawing.Color.BlueViolet, i);
+                dc2.Add(segment[i], Color.BlueViolet, i);
             }
 #endif
             if (BrokenSegments.Count > 1)
@@ -2777,7 +2776,7 @@ namespace CADability.Shapes
             DebuggerContainer dc2a = new DebuggerContainer();
             for (int i = 0; i < BrokenSegments.Count; ++i)
             {
-                dc2a.Add(BrokenSegments[i], System.Drawing.Color.Red, i);
+                dc2a.Add(BrokenSegments[i], Color.Red, i);
             }
 #endif
             // Zusatz: wenn geschlossen, dann müssen alle BrokenSegments einen Anschluss an beiden Enden haben
@@ -2820,11 +2819,11 @@ namespace CADability.Shapes
             DebuggerContainer dc3 = new DebuggerContainer();
             for (int i = 0; i < BrokenSegments.Count; ++i)
             {
-                dc3.Add(BrokenSegments[i], System.Drawing.Color.Red, i);
+                dc3.Add(BrokenSegments[i], Color.Red, i);
             }
             for (int i = 0; i < segment.Length; ++i)
             {
-                dc3.Add(segment[i], System.Drawing.Color.Green, i);
+                dc3.Add(segment[i], Color.Green, i);
             }
 #endif
             // Die übrig gebliebenen Teilstücke werden zu zusammenhängenden Border Objekten
@@ -2879,9 +2878,9 @@ namespace CADability.Shapes
                 foreach (BorderInQuadTree biq in toRemove)
                 {
                     if ((oddc & 0x1) == 0)
-                        dc3a.Add(biq.border, System.Drawing.Color.Red, 0);
+                        dc3a.Add(biq.border, Color.Red, 0);
                     else
-                        dc3a.Add(biq.border, System.Drawing.Color.Blue, 0);
+                        dc3a.Add(biq.border, Color.Blue, 0);
                     ++oddc;
                 }
 #endif
@@ -2893,15 +2892,15 @@ namespace CADability.Shapes
             foreach (BorderInQuadTree biq in bdrquad.AllObjects())
             {
                 if (biq.border.orientation == Orientation.unknown)
-                    dc4.Add(biq.border, System.Drawing.Color.Black, 0);
+                    dc4.Add(biq.border, Color.Black, 0);
                 else if (biq.border.orientation == Orientation.positive)
-                    dc4.Add(biq.border, System.Drawing.Color.Red, 0);
+                    dc4.Add(biq.border, Color.Red, 0);
                 else
-                    dc4.Add(biq.border, System.Drawing.Color.Green, 0);
+                    dc4.Add(biq.border, Color.Green, 0);
             }
             for (int i = 0; i < segment.Length; ++i)
             {
-                dc4.Add(segment[i], System.Drawing.Color.Blue, i);
+                dc4.Add(segment[i], Color.Blue, i);
             }
 #endif
             // Versuche die segmente an ihren Endpunkten zu verbinden. zuerst nur die "guten" also richtig orientierten,
@@ -3089,14 +3088,14 @@ namespace CADability.Shapes
             foreach (BorderInQuadTree biq in bdrquad.AllObjects())
             {
                 if (dbgclr)
-                    dc5.Add(biq.border, System.Drawing.Color.Red, dbgint++);
+                    dc5.Add(biq.border, Color.Red, dbgint++);
                 else
-                    dc5.Add(biq.border, System.Drawing.Color.Blue, dbgint++);
+                    dc5.Add(biq.border, Color.Blue, dbgint++);
                 dbgclr = !dbgclr;
             }
             for (int i = 0; i < segment.Length; ++i)
             {
-                dc5.Add(segment[i], System.Drawing.Color.Green, i);
+                dc5.Add(segment[i], Color.Green, i);
             }
 #endif
             // Alte Methode: immer nur die kleinste Lücke schließen
@@ -3557,23 +3556,23 @@ namespace CADability.Shapes
             bool dumy;
             Recalc(out dumy);
         }
-        public void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool counterClockWise)
-        {
-            if (counterClockWise)
-            {
-                for (int i = 0; i < segment.Length; ++i)
-                {
-                    segment[i].AddToGraphicsPath(path, true);
-                }
-            }
-            else
-            {
-                for (int i = segment.Length - 1; i >= 0; --i)
-                {
-                    segment[i].AddToGraphicsPath(path, false);
-                }
-            }
-        }
+        //public void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool counterClockWise)
+        //{
+        //    if (counterClockWise)
+        //    {
+        //        for (int i = 0; i < segment.Length; ++i)
+        //        {
+        //            segment[i].AddToGraphicsPath(path, true);
+        //        }
+        //    }
+        //    else
+        //    {
+        //        for (int i = segment.Length - 1; i >= 0; --i)
+        //        {
+        //            segment[i].AddToGraphicsPath(path, false);
+        //        }
+        //    }
+        //}
         public double[] Clip(ICurve2D toClip, bool returnInsideParts)
         {
             List<double> res = new List<double>();
@@ -3585,8 +3584,8 @@ namespace CADability.Shapes
                 {
 #if DEBUG
                     DebuggerContainer dc = new DebuggerContainer();
-                    dc.Add(curve, System.Drawing.Color.Red, 0);
-                    dc.Add(toClip, System.Drawing.Color.Blue, 1);
+                    dc.Add(curve, Color.Red, 0);
+                    dc.Add(toClip, Color.Blue, 1);
 #endif
                     GeoPoint2DWithParameter[] pwp = toClip.Intersect(curve);
                     for (int i = 0; i < pwp.Length; ++i)

@@ -628,24 +628,20 @@ namespace CADability.Curve2D
         {
             return base.MinDistance(Other); // dort wird gleichermaßen für Bogen und Kreis gerechnet
         }
-        /// <summary>
-        /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-        public override void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {
-            if (forward)
-            {
-                path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
-                    (float)(2 * Radius), (float)(start.Degree), (float)(sweep.Degree));
-            }
-            else
-            {
-                path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
-                    (float)(2 * Radius), (float)((start + sweep).Degree), (float)(-sweep.Degree));
-            }
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public override void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{
+        //    if (forward)
+        //    {
+        //        path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
+        //            (float)(2 * Radius), (float)(start.Degree), (float)(sweep.Degree));
+        //    }
+        //    else
+        //    {
+        //        path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
+        //            (float)(2 * Radius), (float)((start + sweep).Degree), (float)(-sweep.Degree));
+        //    }
+        //}
         /// <summary>
         /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.GetExtendedHitTest ()"/>
         /// </summary>

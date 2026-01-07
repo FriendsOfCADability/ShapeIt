@@ -1,13 +1,9 @@
 ﻿// #define DEBUG_OPENGL
 using CADability.Attribute;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
 using System.Runtime.InteropServices;
 using System.Threading;
 
@@ -440,11 +436,11 @@ namespace CADability
 
         public static void PointSymbol(IPaintTo3D paintTo3D, GeoPoint location, double size, GeoObject.PointSymbol symbol)
         {
-            Bitmap bmp = null;
+            Bitmap bmp = Bitmap.Empty;
             if ((symbol & CADability.GeoObject.PointSymbol.Select) != 0)
             {
                 bmp = BitmapList[12];
-                if (bmp != null)
+                if (!bmp.IsEmpty)
                 {
                     paintTo3D.DisplayIcon(location, bmp);
                 }
@@ -457,7 +453,7 @@ namespace CADability
             switch ((GeoObject.PointSymbol)((int)symbol & 0x07))
             {
                 case CADability.GeoObject.PointSymbol.Empty:
-                    bmp = null;
+                    bmp = Bitmap.Empty;
                     break;
                 case CADability.GeoObject.PointSymbol.Dot:
                     {
@@ -480,11 +476,11 @@ namespace CADability
                     }
                     break;
             }
-            if (bmp != null)
+            if (!bmp.IsEmpty)
             {
                 paintTo3D.DisplayIcon(location, bmp);
             }
-            bmp = null;
+            bmp = Bitmap.Empty;
             if ((symbol & CADability.GeoObject.PointSymbol.Circle) != 0)
             {
                 bmp = BitmapList[5 + offset];
@@ -493,7 +489,7 @@ namespace CADability
             {
                 bmp = BitmapList[4 + offset];
             }
-            if (bmp != null)
+            if (!bmp.IsEmpty)
             {
                 paintTo3D.DisplayIcon(location, bmp);
             }
@@ -528,11 +524,11 @@ namespace CADability
             int offset = 0;
             if (paintTo3D.UseLineWidth) offset = 6; // so wird gesteuert dass bei nur dünn die dünnen Punkte und bei
             // mit Linienstärke ggf. die dicken Punkte angezeigt werden (Forderung PFOCAD)
-            Bitmap bmp = null;
+            Bitmap bmp = Bitmap.Empty;
             switch ((GeoObject.PointSymbol)((int)symbol & 0x07))
             {
                 case CADability.GeoObject.PointSymbol.Empty:
-                    bmp = null;
+                    bmp = Bitmap.Empty;
                     break;
                 case CADability.GeoObject.PointSymbol.Dot:
                     {
@@ -555,11 +551,11 @@ namespace CADability
                     }
                     break;
             }
-            if (bmp != null)
+            if (!bmp.IsEmpty)
             {
                 paintTo3D.PrepareIcon(bmp);
             }
-            bmp = null;
+            bmp = Bitmap.Empty;
             if ((symbol & CADability.GeoObject.PointSymbol.Circle) != 0)
             {
                 bmp = BitmapList[5 + offset];
@@ -572,7 +568,7 @@ namespace CADability
             {
                 bmp = BitmapList[12];
             }
-            if (bmp != null)
+            if (!bmp.IsEmpty)
             {
                 paintTo3D.PrepareIcon(bmp);
             }

@@ -2,9 +2,9 @@ using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
 using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Collections.Generic;
 using Wintellect.PowerCollections;
 
 namespace CADability.Forms.NET8
@@ -129,8 +129,26 @@ namespace CADability.Forms.NET8
         /// <param name="distort">Distort the projection if different aspect ratio</param>
         public void Fit(BoundingRect fitTo, bool distort)
         {
-            projection.SetPlacement(graphics.ClipBounds, fitTo);
+            projection.SetPlacement(Subst(graphics.ClipBounds), fitTo);
         }
+
+        private Substitutes.Rectangle Subst(RectangleF clipBounds)
+        {
+            return new Substitutes.Rectangle((int)clipBounds.X, (int)clipBounds.Y, (int)clipBounds.Width, (int)clipBounds.Height);
+        }
+        private Substitutes.PointF Subst(PointF p)
+        {
+            return new Substitutes.PointF(p.X, p.Y);
+        }
+        private PointF Subst(Substitutes.PointF p)
+        {
+            return new PointF(p.X, p.Y);
+        }
+        private Color Subst(Substitutes.Color clr)
+        {
+            return Color.FromArgb(clr.A, clr.R, clr.G, clr.B);
+        }
+
         public bool ThinLinesOnly
         {
             get
@@ -284,8 +302,8 @@ namespace CADability.Forms.NET8
             }
         }
 
-        Color selectColor;
-        Color IPaintTo3D.SelectColor
+        Substitutes.Color selectColor;
+        Substitutes.Color IPaintTo3D.SelectColor
         {
             get
             {
@@ -367,17 +385,17 @@ namespace CADability.Forms.NET8
 
         }
 
-        Color color;
-        void IPaintTo3D.SetColor(System.Drawing.Color color, int lockColor)
+        Substitutes.Color color;
+        void IPaintTo3D.SetColor(Substitutes.Color color, int lockColor)
         {
             if (color.ToArgb() == avoidColor.ToArgb())
-                color = Color.FromArgb(255 - avoidColor.R, 255 - avoidColor.G, 255 - avoidColor.B);
+                color = Substitutes.Color.FromArgb(255 - avoidColor.R, 255 - avoidColor.G, 255 - avoidColor.B);
             else
                 this.color = color;
         }
 
-        Color avoidColor;
-        void IPaintTo3D.AvoidColor(Color color)
+        Substitutes.Color avoidColor;
+        void IPaintTo3D.AvoidColor(Substitutes.Color color)
         {
             avoidColor = color;
         }
@@ -402,7 +420,7 @@ namespace CADability.Forms.NET8
                 for (int i = 0; i < points.Length; i++)
                 {   // hier ist halt die Frage: enthält die Projektion schon die ganze Zoom/Scroll Info
                     // oder wird das nach graphics gesteckt. Aber das ist ja auch egal hier.
-                    pointsf[i] = projection.ProjectF(points[i]);
+                    pointsf[i] = Subst(projection.ProjectF(points[i]));
                 }
                 if (graphicsPath != null)
                 {
@@ -423,7 +441,7 @@ namespace CADability.Forms.NET8
 
         private Pen Make1PixelPen()
         {
-            Color clr;
+            Substitutes.Color clr;
             if (this.selectMode)
             {
                 clr = selectColor;
@@ -433,12 +451,12 @@ namespace CADability.Forms.NET8
                 clr = color;
             }
 
-            Pen res = new Pen(clr, 1.0f);
+            Pen res = new Pen(Subst(clr), 1.0f);
             return res;
         }
         private Pen MakePen()
         {
-            Color clr;
+            Substitutes.Color clr;
             if (this.selectMode)
             {
                 clr = selectColor;
@@ -449,11 +467,11 @@ namespace CADability.Forms.NET8
             }
             Pen res;
             if (lineWidth != null && lineWidth.Scale == LineWidth.Scaling.Device)
-                res = new Pen(clr, (float)(lineWidth.Width));
+                res = new Pen(Subst(clr), (float)(lineWidth.Width));
             else if (lineWidth != null)
-                res = new Pen(clr, (float)(lineWidth.Width * projection.WorldToDeviceFactor));
+                res = new Pen(Subst(clr), (float)(lineWidth.Width * projection.WorldToDeviceFactor));
             else
-                res = new Pen(clr, 1.0f);
+                res = new Pen(Subst(clr), 1.0f);
             // hier könnte man einen zoom-unabhängigen Faktor implementieren
             if (thinLinesOnly) res.Width = 1.0f;
             if (pattern != null && pattern.Pattern.Length > 0)
@@ -497,12 +515,12 @@ namespace CADability.Forms.NET8
 
         void IPaintTo3D.Triangle(GeoPoint[] vertex, GeoVector[] normals, int[] indextriples)
         {
-            using (Brush brush = new SolidBrush(color))
+            using (Brush brush = new SolidBrush(Subst(color)))
             {
                 PointF[] vertexf = new PointF[vertex.Length];
                 for (int i = 0; i < vertex.Length; i++)
                 {
-                    vertexf[i] = projection.ProjectF(vertex[i]);
+                    vertexf[i] = Subst(projection.ProjectF(vertex[i]));
                 }
                 for (int i = 0; i < indextriples.Length; i = i + 3)
                 {
@@ -532,9 +550,9 @@ namespace CADability.Forms.NET8
             // das wäre für Kastenholz, beim selektieren von kleinen Schriften keine Ränder
             bool makeLine = false;
             PointF[] pnt = new PointF[3];
-            pnt[0] = projection.ProjectF(location + glyphDirection);
-            pnt[1] = projection.ProjectF(location + lineDirection + glyphDirection);
-            pnt[2] = projection.ProjectF(location);
+            pnt[0] = Subst(projection.ProjectF(location + glyphDirection));
+            pnt[1] = Subst(projection.ProjectF(location + lineDirection + glyphDirection));
+            pnt[2] = Subst(projection.ProjectF(location));
             RectangleF unitRect = new RectangleF(new PointF(0.0f, 0.0f), new SizeF(1.0f, 1.0f));
             Matrix transform = new Matrix(unitRect, pnt);
             if (transform.IsInvertible)
@@ -548,11 +566,11 @@ namespace CADability.Forms.NET8
                         Brush brush;
                         if (selectMode)
                         {
-                            brush = new SolidBrush(selectColor);
+                            brush = new SolidBrush(Subst(selectColor));
                         }
                         else
                         {
-                            brush = new SolidBrush(color);
+                            brush = new SolidBrush(Subst(color));
                         }
                         FontFamily ff;
                         if (FontFamilyNames.Contains(fontName.ToUpper()))
@@ -627,8 +645,8 @@ namespace CADability.Forms.NET8
             }
             if (makeLine)
             {
-                PointF le = projection.ProjectF(location + lineDirection);
-                PointF ls = projection.ProjectF(location);
+                PointF le = Subst(projection.ProjectF(location + lineDirection));
+                PointF ls = Subst(projection.ProjectF(location));
                 if (Math.Abs(ls.X - le.X) + Math.Abs(ls.Y - le.Y) < 2.0)
                 {
                     le.X = ls.X + 2;
@@ -681,14 +699,14 @@ namespace CADability.Forms.NET8
             }
         }
 
-        void IPaintTo3D.Line2D(PointF p1, PointF p2)
+        void IPaintTo3D.Line2D(Substitutes.PointF p1, Substitutes.PointF p2)
         {
             using (new Transform(graphics, new Matrix())) // Identität 
             {
                 try
                 {
                     Pen pen = MakePen(); // ein besonderes MakePen mit 1 pixel
-                    graphics.DrawLine(pen, p1, p2);
+                    graphics.DrawLine(pen, Subst(p1), Subst(p2));
                     pen.Dispose();
                 }
                 catch (System.OverflowException)
@@ -698,7 +716,7 @@ namespace CADability.Forms.NET8
             }
         }
 
-        void IPaintTo3D.FillRect2D(PointF p1, PointF p2)
+        void IPaintTo3D.FillRect2D(Substitutes.PointF p1, Substitutes.PointF p2)
         {
             using (new Transform(graphics, new Matrix())) // Identität 
             {
@@ -725,7 +743,7 @@ namespace CADability.Forms.NET8
         void IPaintTo3D.DisplayIcon(GeoPoint p, object oicon)
         {
             System.Drawing.Bitmap icon = oicon as System.Drawing.Bitmap;
-            PointF pf = projection.ProjectF(p);
+            PointF pf = Subst(projection.ProjectF(p));
             System.Drawing.Point point = new System.Drawing.Point((int)(pf.X - icon.Width / 2.0 + 0.5), (int)(pf.Y - icon.Height / 2.0 + 0.5));
             try
             {
@@ -746,9 +764,9 @@ namespace CADability.Forms.NET8
         {
             System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
             PointF[] destPoints = new PointF[3];
-            destPoints[0] = projection.ProjectF(location + directionHeight);
-            destPoints[1] = projection.ProjectF(location + directionHeight + directionWidth);
-            destPoints[2] = projection.ProjectF(location);
+            destPoints[0] = Subst(projection.ProjectF(location + directionHeight));
+            destPoints[1] = Subst(projection.ProjectF(location + directionHeight + directionWidth));
+            destPoints[2] = Subst(projection.ProjectF(location));
             graphics.DrawImage(bitmap, destPoints);
         }
 
@@ -757,9 +775,9 @@ namespace CADability.Forms.NET8
             this.projection = projection;
         }
 
-        void IPaintTo3D.Clear(Color background)
+        void IPaintTo3D.Clear(Substitutes.Color background)
         {
-            graphics.Clear(background);
+            graphics.Clear(Subst(background));
         }
 
         void IPaintTo3D.Resize(int width, int height)
@@ -793,7 +811,7 @@ namespace CADability.Forms.NET8
         {
             graphicsPath.CloseFigure();
         }
-        void IPaintTo3D.ClosePath(System.Drawing.Color color)
+        void IPaintTo3D.ClosePath(Substitutes.Color color)
         {
             Brush br = null;
             Pen pn = null;
@@ -803,7 +821,7 @@ namespace CADability.Forms.NET8
             }
             else
             {
-                br = MakeSolidBrush(color);
+                br = MakeSolidBrush(Subst(color));
             }
             if (selectMode && selectOnlyOutline)
             {
@@ -821,7 +839,7 @@ namespace CADability.Forms.NET8
 
         private Brush MakeSolidBrush()
         {
-            return new SolidBrush(color);
+            return new SolidBrush(Subst(color));
         }
         private Brush MakeSolidBrush(Color color)
         {
@@ -880,7 +898,7 @@ namespace CADability.Forms.NET8
                     }
                     try
                     {
-                        Matrix r = fromHorizontal.Matrix2D;
+                        Matrix r = new Matrix((float)fromHorizontal[0, 0], (float)fromHorizontal[1, 0], (float)fromHorizontal[0, 1], (float)fromHorizontal[1, 1], (float)fromHorizontal[0, 2], (float)fromHorizontal[1, 2]);
                         double maxRad = prmaj2D.Length;
                         double minRad = prmin2D.Length;
                         if ((maxRad + minRad) * Projection.WorldToDeviceFactor < 1)
@@ -1156,7 +1174,7 @@ namespace CADability.Forms.NET8
             projection = projectionStack.Pop();
         }
 
-        void IPaintTo3D.SetClip(Rectangle clipRectangle)
+        void IPaintTo3D.SetClip(Substitutes.Rectangle clipRectangle)
         {
             throw new Exception("The method or operation is not implemented.");
         }
@@ -1170,7 +1188,7 @@ namespace CADability.Forms.NET8
 
         void IPaintTo3D.PreparePointSymbol(PointSymbol pointSymbol)
         {
-            
+
         }
         #endregion
     }

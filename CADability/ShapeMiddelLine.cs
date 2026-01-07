@@ -4,7 +4,7 @@ using CADability.GeoObject;
 using CADability.Shapes;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Linq;
 using Wintellect.PowerCollections;
 

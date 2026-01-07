@@ -1,5 +1,6 @@
 ﻿using CADability.Curve2D;
 using CADability.Shapes;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using Wintellect.PowerCollections;
@@ -141,7 +142,7 @@ namespace CADability.GeoObject
                     Vertex startVertex;
                     ICurve2D c2d = edges[i].Curve2D(face);
 #if DEBUG
-                    dc.Add(c2d, System.Drawing.Color.Red, i);
+                    dc.Add(c2d, Color.Red, i);
 #endif
                     if ((face.Surface.PointAt(c2d.StartPoint) | edges[i].Vertex1.Position) <
                         (face.Surface.PointAt(c2d.StartPoint) | edges[i].Vertex2.Position))
@@ -169,7 +170,7 @@ namespace CADability.GeoObject
                         ICurve2D trimmed = c2d.Trim(pos1, pos2);
                         curves2d.Add(trimmed);
 #if DEBUG
-                        dc.Add(trimmed, System.Drawing.Color.Blue, i);
+                        dc.Add(trimmed, Color.Blue, i);
 #endif
                     }
                 }
@@ -178,7 +179,7 @@ namespace CADability.GeoObject
                     if (!outsideVertices.Contains(edges[i].Vertex1))
                     {
 #if DEBUG
-                        dc.Add(edges[i].Curve2D(face), System.Drawing.Color.Green, i);
+                        dc.Add(edges[i].Curve2D(face), Color.Green, i);
 #endif
                         curves2d.Add(edges[i].Curve2D(face));
                     }
@@ -190,7 +191,7 @@ namespace CADability.GeoObject
                 for (int i = 0; i < lc2d.Count; i++)
                 {
 #if DEBUG
-                    dc.Add(lc2d[i], System.Drawing.Color.HotPink, i);
+                    dc.Add(lc2d[i], Color.HotPink, i);
 #endif
                     // die folgende Kurve mit Start- und Endpunkt anpassen, denn sie ist evtl ungenau...
                     curves2d.Add(lc2d[i]);

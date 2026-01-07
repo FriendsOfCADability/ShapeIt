@@ -274,7 +274,7 @@
             <param name="DidSnap">the snap situation</param>
             <param name="CursorName">the name of the cursor</param>
         </member>
-        <member name="M:CADability.Actions.Action.WorldPoint(System.Drawing.Point)">
+        <member name="M:CADability.Actions.Action.WorldPoint(Point)">
             <summary>
             Returns a <see cref="T:CADability.GeoPoint"/> in the model coordinate system that corresponds
             to the Client point. No snapping is performed. The drawing plane of the projection is used
@@ -347,7 +347,7 @@
             Returns the active drawing plane, that is the drawing plane of the active view.
             </summary>
         </member>
-        <member name="M:CADability.Actions.Action.CurveHitTest(CADability.GeoObject.ICurve,System.Drawing.Point)">
+        <member name="M:CADability.Actions.Action.CurveHitTest(CADability.GeoObject.ICurve,Point)">
             <summary>
             Detects whether a given curve (<see cref="T:CADability.GeoObject.ICurve"/>) is touched by the
             cursor position given in mousePoint in respect to the active view. The setting
@@ -357,7 +357,7 @@
             <param name="mousePoint">the mouse position</param>
             <returns>true if the mouse position is close to the curve</returns>
         </member>
-        <member name="M:CADability.Actions.Action.GetObjectsUnderCursor(System.Drawing.Point)">
+        <member name="M:CADability.Actions.Action.GetObjectsUnderCursor(Point)">
             <summary>
             Returns a list of <see cref="T:CADability.GeoObject.IGeoObject"/>s that are close to the mouse point
             with respect to the current view.
@@ -6011,7 +6011,7 @@
             oder verschiedene ToolTips, je nach Position
             </summary>
         </member>
-        <member name="M:CADability.UserInterface.IInfoProvider.GetPositionIndex(System.Drawing.Point)">
+        <member name="M:CADability.UserInterface.IInfoProvider.GetPositionIndex(Point)">
             <summary>
             Liefert die Positionsnummer für mehrere verschiedene Texte
             </summary>
@@ -7300,9 +7300,9 @@
             <param name="Other"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.Arc2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.Arc2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -7478,9 +7478,9 @@
             <param name="reverse"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.BSpline2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.BSpline2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -7837,9 +7837,9 @@
             <param name="toPlane"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.Circle2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.Circle2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -8251,9 +8251,9 @@
             <param name="dx"></param>
             <param name="dy"></param>
         </member>
-        <member name="M:CADability.Curve2D.Ellipse2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.Ellipse2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -8398,9 +8398,9 @@
             <param name="p"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.EllipseArc2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.EllipseArc2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -8872,9 +8872,9 @@
             <param name="toPlane"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Implements <see cref="M:CADability.Curve2D.ICurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Implements <see cref="M:CADability.Curve2D.ICurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -9146,9 +9146,9 @@
             <param name="toPlane"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.TriangulatedCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.TriangulatedCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Implements <see cref="M:CADability.Curve2D.ICurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Implements <see cref="M:CADability.Curve2D.ICurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -9435,9 +9435,9 @@
             <param name="toPlane"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.Line2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.Line2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -9689,9 +9689,9 @@
             <param name="toPlane"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Curve2D.Path2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.Path2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Implements <see cref="M:CADability.Curve2D.ICurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Implements <see cref="M:CADability.Curve2D.ICurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -9793,9 +9793,9 @@
             </summary>
             <param name="toCopyFrom"></param>
         </member>
-        <member name="M:CADability.Curve2D.Polyline2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)">
+        <member name="M:CADability.Curve2D.Polyline2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)">
             <summary>
-            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath,System.Boolean)"/>
+            Overrides <see cref="M:CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath(Drawing2D.GraphicsPath,System.Boolean)"/>
             </summary>
             <param name="path"></param>
             <param name="forward"></param>
@@ -10338,7 +10338,7 @@
             Erzeugt eine leere ColorList.
             </summary>
         </member>
-        <member name="M:CADability.Attribute.ColorList.AddColor(System.String,System.Drawing.Color)">
+        <member name="M:CADability.Attribute.ColorList.AddColor(System.String,Color)">
             <summary>
             Liefert den Index zu dem gegebenen Namen.
             </summary>
@@ -10393,7 +10393,7 @@
             <param name="Index">Index des zu verändernden Wertes.</param>
             <param name="Name">Neuer Name.</param>
         </member>
-        <member name="M:CADability.Attribute.ColorList.SetColor(System.Int32,System.Drawing.Color)">
+        <member name="M:CADability.Attribute.ColorList.SetColor(System.Int32,Color)">
             <summary>
             Verändert die Farbe bei gegebenem Index. 
             </summary>
@@ -12592,7 +12592,7 @@
             Event beeing raised when a Picture object has been created.
             </summary>
         </member>
-        <member name="M:CADability.GeoObject.Picture.Set(System.Drawing.Bitmap,CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector)">
+        <member name="M:CADability.GeoObject.Picture.Set(Bitmap,CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector)">
             <summary>
             Sets the Data of the Bitmap.
             </summary>
@@ -21850,7 +21850,7 @@
             Event beeing raised when a Icon object has been created.
             </summary>
         </member>
-        <member name="M:CADability.GeoObject.Icon.Set(System.Drawing.Bitmap,CADability.GeoPoint,System.Int32,System.Int32)">
+        <member name="M:CADability.GeoObject.Icon.Set(Bitmap,CADability.GeoPoint,System.Int32,System.Int32)">
             <summary>
             Sets the Data of the UnscaledIcon.
             </summary>
@@ -22929,9 +22929,9 @@
             </summary>
             <param name="p">List of points to define the rectangle</param>
         </member>
-        <member name="M:CADability.BoundingRect.#ctor(System.Drawing.Rectangle)">
+        <member name="M:CADability.BoundingRect.#ctor(Rectangle)">
             <summary>
-            Creates a new BoundingRect from the provided System.Drawing.rectangle
+            Creates a new BoundingRect from the provided rectangle
             </summary>
             <param name="r">das gegebene Rechteck</param>
         </member>
@@ -23201,9 +23201,9 @@
             <param name="offset">The offset for the inflation (may be negaitve)</param>
             <returns>The inflated rectangle</returns>
         </member>
-        <member name="M:CADability.BoundingRect.op_Explicit(CADability.BoundingRect)~System.Drawing.Rectangle">
+        <member name="M:CADability.BoundingRect.op_Explicit(CADability.BoundingRect)~Rectangle">
             <summary>
-            Typecast to a System.Drawing.Rectangle
+            Typecast to a Rectangle
             </summary>
             <param name="r">The initial rectangle</param>
             <returns>The casted rectangle</returns>
@@ -24407,7 +24407,7 @@
             <param name="Default"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.IFrame.GetColorSetting(System.String,System.Drawing.Color)">
+        <member name="M:CADability.IFrame.GetColorSetting(System.String,Color)">
             <summary>
             Gets the color setting for the <paramref name="Name"/>. If not found <paramref name="Default"/> will be returned.
             <seealso cref="M:CADability.IFrame.GetSetting(System.String)"/>
@@ -25335,7 +25335,7 @@
         </member>
         <member name="M:CADability.GeoPoint.ToPointF(CADability.ModOp)">
             <summary>
-            Returns this point modified by <see cref="T:CADability.ModOp"/> m as a System.Drawing.PointF
+            Returns this point modified by <see cref="T:CADability.ModOp"/> m as a PointF
             </summary>
             <param name="m">modify by</param>
             <returns>modified point</returns>
@@ -26772,14 +26772,14 @@
             </summary>
             <returns></returns>
         </member>
-        <member name="M:CADability.ICanvas.PointToClient(System.Drawing.Point)">
+        <member name="M:CADability.ICanvas.PointToClient(Point)">
             <summary>
             
             </summary>
             <param name="mousePosition"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.ICanvas.ShowContextMenu(CADability.UserInterface.MenuWithHandler[],System.Drawing.Point,System.Action{System.Int32})">
+        <member name="M:CADability.ICanvas.ShowContextMenu(CADability.UserInterface.MenuWithHandler[],Point,System.Action{System.Int32})">
             <summary>
             Shows the provided <paramref name="contextMenu"/> at the provided <paramref name="viewPosition"/> on this canvas
             </summary>
@@ -26933,14 +26933,14 @@
             </summary>
             <param name="visibleRect"></param>
         </member>
-        <member name="M:CADability.ModelView.ZoomToModelExtent(System.Drawing.Rectangle,System.Double)">
+        <member name="M:CADability.ModelView.ZoomToModelExtent(Rectangle,System.Double)">
             <summary>
             DEPRECATED, use <see cref="M:CADability.ModelView.ZoomTotal(System.Double)"/> instead.
             </summary>
             <param name="ClientRect"></param>
             <param name="Factor"></param>
         </member>
-        <member name="M:CADability.ModelView.ZoomTotal(System.Drawing.Rectangle,System.Double)">
+        <member name="M:CADability.ModelView.ZoomTotal(Rectangle,System.Double)">
             <summary>
             DEPRECATED, use <see cref="M:CADability.ModelView.ZoomTotal(System.Double)"/> instead.
             </summary>
@@ -27227,7 +27227,7 @@
         </member>
         <member name="P:CADability.ModOp2D.Matrix2D">
             <value>
-            Returns the <see cref="T:System.Drawing.Drawing2D.Matrix"/> object equivalent to this
+            Returns the <see cref="T:Drawing2D.Matrix"/> object equivalent to this
             modification.
             </value>
         </member>
@@ -30275,7 +30275,7 @@
             können. 
             </summary>
         </member>
-        <member name="M:CADability.PaintBuffer.Union(System.Drawing.Rectangle,System.Drawing.Rectangle)">
+        <member name="M:CADability.PaintBuffer.Union(Rectangle,Rectangle)">
             <summary>
             liefert einRechteck, welches die beiden im Parameter gegeben Rechtecke umfasst
             </summary>
@@ -30305,7 +30305,7 @@
         </member>
         <member name="F:CADability.PaintCapabilities.CanFillPaths">
             <summary>
-            Can fill a path (use the methods <see cref="M:CADability.IPaintTo3D.OpenPath"/>, <see cref="M:CADability.IPaintTo3D.CloseFigure"/> and <see cref="M:CADability.IPaintTo3D.ClosePath(System.Drawing.Color)"/>.
+            Can fill a path (use the methods <see cref="M:CADability.IPaintTo3D.OpenPath"/>, <see cref="M:CADability.IPaintTo3D.CloseFigure"/> and <see cref="M:CADability.IPaintTo3D.ClosePath(Color)"/>.
             </summary>
         </member>
         <member name="F:CADability.PaintCapabilities.ZoomIndependentDisplayList">
@@ -30389,13 +30389,13 @@
             Will be called before any other paint methods are called. May be called multiple times after <see cref="!:Init"/> has been called
             </summary>
         </member>
-        <member name="M:CADability.IPaintTo3D.SetColor(System.Drawing.Color)">
+        <member name="M:CADability.IPaintTo3D.SetColor(Color)">
             <summary>
             Sets the color for the next paint methods
             </summary>
             <param name="color">The color to use for drawing</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.AvoidColor(System.Drawing.Color)">
+        <member name="M:CADability.IPaintTo3D.AvoidColor(Color)">
             <summary>
             Never use this color for drawing (because it is the background color)
             </summary>
@@ -30442,10 +30442,10 @@
             <param name="normals">The coordinates of the normal vectors in the vertices</param>
             <param name="indextriples">Triples of indices which define traingles. Length must be a multiple of 3</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.PrepareText(System.String,System.String,System.Drawing.FontStyle)">
+        <member name="M:CADability.IPaintTo3D.PrepareText(System.String,System.String,FontStyle)">
             <summary>
             Assure that the charactres in <paramref name="textString"/> will be available when
-            <see cref="M:CADability.IPaintTo3D.Text(CADability.GeoVector,CADability.GeoVector,CADability.GeoPoint,System.String,System.String,System.Drawing.FontStyle,CADability.GeoObject.Text.AlignMode,CADability.GeoObject.Text.LineAlignMode)"/> is called.
+            <see cref="M:CADability.IPaintTo3D.Text(CADability.GeoVector,CADability.GeoVector,CADability.GeoPoint,System.String,System.String,FontStyle,CADability.GeoObject.Text.AlignMode,CADability.GeoObject.Text.LineAlignMode)"/> is called.
             </summary>
             <param name="fontName">Name of the font</param>
             <param name="textString">String to be painted</param>
@@ -30457,33 +30457,33 @@
             </summary>
             <param name="pointSymbol"></param>
         </member>
-        <member name="M:CADability.IPaintTo3D.PrepareIcon(System.Drawing.Bitmap)">
+        <member name="M:CADability.IPaintTo3D.PrepareIcon(Bitmap)">
             <summary>
-            Assure that the <paramref name="icon"/> will be available when <see cref="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,System.Drawing.Bitmap)"/> will subsequently be called.
+            Assure that the <paramref name="icon"/> will be available when <see cref="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,Bitmap)"/> will subsequently be called.
             (Some implementations cache the icon or transform it into an convenient format)
             </summary>
             <param name="icon">The icon</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap,System.Int32,System.Int32)">
+        <member name="M:CADability.IPaintTo3D.PrepareBitmap(Bitmap,System.Int32,System.Int32)">
             <summary>
-            Assure that the <paramref name="bitmap"/> will be available when <see cref="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,System.Drawing.Bitmap)"/> will subsequently be called.
+            Assure that the <paramref name="bitmap"/> will be available when <see cref="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,Bitmap)"/> will subsequently be called.
             (Some implementations cache the bitmap or transform it into an convenient format)
             </summary>
             <param name="bitmap">The bitmap</param>
             <param name="xoffset">x-component of the origin that defines the insertion point (e.g. to center the bitmap)</param>
             <param name="yoffset">y-component of the origin</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap)">
+        <member name="M:CADability.IPaintTo3D.PrepareBitmap(Bitmap)">
             <summary>
-            Similar to <see cref="M:CADability.IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap,System.Int32,System.Int32)"/> with origin set to (0,0)
+            Similar to <see cref="M:CADability.IPaintTo3D.PrepareBitmap(Bitmap,System.Int32,System.Int32)"/> with origin set to (0,0)
             </summary>
             <param name="bitmap">The bitmap.</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.RectangularBitmap(System.Drawing.Bitmap,CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector)">
+        <member name="M:CADability.IPaintTo3D.RectangularBitmap(Bitmap,CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector)">
             <summary>
             Draws a rectangular bitmap at the provided <paramref name="location"/> with <paramref name="directionWidth"/>
             specifying the direction of the lower edge of the bitmap and <paramref name="directionHeight"/>
-            specifying the direction of the left edge of the bitmap. <see cref="M:CADability.IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap,System.Int32,System.Int32)"/> must be called 
+            specifying the direction of the left edge of the bitmap. <see cref="M:CADability.IPaintTo3D.PrepareBitmap(Bitmap,System.Int32,System.Int32)"/> must be called 
             before this method is called.
             </summary>
             <param name="bitmap">The bitmap to draw</param>
@@ -30491,7 +30491,7 @@
             <param name="directionWidth">Direction of the lower edge of the bitmap</param>
             <param name="directionHeight">Direction of the left edge of the bitmap</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.Text(CADability.GeoVector,CADability.GeoVector,CADability.GeoPoint,System.String,System.String,System.Drawing.FontStyle,CADability.GeoObject.Text.AlignMode,CADability.GeoObject.Text.LineAlignMode)">
+        <member name="M:CADability.IPaintTo3D.Text(CADability.GeoVector,CADability.GeoVector,CADability.GeoPoint,System.String,System.String,FontStyle,CADability.GeoObject.Text.AlignMode,CADability.GeoObject.Text.LineAlignMode)">
             <summary>
             Draw a text with the provided parameters and the current color.
             </summary>
@@ -30535,7 +30535,7 @@
             <param name="ex">End x-coordinate</param>
             <param name="ey">End y-coordinate</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.Line2D(System.Drawing.PointF,System.Drawing.PointF)">
+        <member name="M:CADability.IPaintTo3D.Line2D(PointF,PointF)">
             <summary>
             Paint a 2D line in the pixel coordinates system of the display. Usually used for background painting.
             Currently not used.
@@ -30543,7 +30543,7 @@
             <param name="p1">Start point</param>
             <param name="p2">End point</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.FillRect2D(System.Drawing.PointF,System.Drawing.PointF)">
+        <member name="M:CADability.IPaintTo3D.FillRect2D(PointF,PointF)">
             <summary>
             Fill the axis oriented rectangle with the current color. Usually used for background painting.
             </summary>
@@ -30557,18 +30557,18 @@
             <param name="x"></param>
             <param name="y"></param>
         </member>
-        <member name="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,System.Drawing.Bitmap)">
+        <member name="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,Bitmap)">
             <summary>
-            Displays the provided icon at the provided position. <see cref="M:CADability.IPaintTo3D.PrepareIcon(System.Drawing.Bitmap)"/> has been called or must be called
+            Displays the provided icon at the provided position. <see cref="M:CADability.IPaintTo3D.PrepareIcon(Bitmap)"/> has been called or must be called
             before this method is called. The icon aleasy faces the viewer, no perspective of the projection is applied.
             </summary>
             <param name="p">Where to draw the icon (world coordinates)</param>
             <param name="icon">The icon to draw</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.DisplayBitmap(CADability.GeoPoint,System.Drawing.Bitmap)">
+        <member name="M:CADability.IPaintTo3D.DisplayBitmap(CADability.GeoPoint,Bitmap)">
             <summary>
             Displays the provided bitmap at the provided location. The bitmap always faces the viewer.
-            <see cref="M:CADability.IPaintTo3D.PrepareBitmap(System.Drawing.Bitmap,System.Int32,System.Int32)"/> has been called or must be called prior to this method.
+            <see cref="M:CADability.IPaintTo3D.PrepareBitmap(Bitmap,System.Int32,System.Int32)"/> has been called or must be called prior to this method.
             </summary>
             <param name="p">Where to Paint</param>
             <param name="bitmap">Th ebitmap to paint</param>
@@ -30580,7 +30580,7 @@
             <param name="projection">The projection</param>
             <param name="boundingCube">The bounding cube, may be used for clipping</param>
         </member>
-        <member name="M:CADability.IPaintTo3D.Clear(System.Drawing.Color)">
+        <member name="M:CADability.IPaintTo3D.Clear(Color)">
             <summary>
             Clear the whole area with this color. Used before painting objects.
             </summary>
@@ -30598,8 +30598,8 @@
             Opens a new display list. All subsequent calls to paint methods will be stred in the list. When
             <see cref="M:CADability.IPaintTo3D.CloseList"/> will be called the object resembling the list will be returned. Only the following 
             method calls are allowed while a displaylist is open: <see cref="M:CADability.IPaintTo3D.Polyline(CADability.GeoPoint[])"/>, <see cref="M:CADability.IPaintTo3D.FilledPolyline(CADability.GeoPoint[])"/>,
-            <see cref="M:CADability.IPaintTo3D.Points(CADability.GeoPoint[],System.Single,CADability.GeoObject.PointSymbol)"/>, <see cref="M:CADability.IPaintTo3D.Triangle(CADability.GeoPoint[],CADability.GeoVector[],System.Int32[])"/>, <see cref="M:CADability.IPaintTo3D.RectangularBitmap(System.Drawing.Bitmap,CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector)"/>, <see cref="M:CADability.IPaintTo3D.Text(CADability.GeoVector,CADability.GeoVector,CADability.GeoPoint,System.String,System.String,System.Drawing.FontStyle,CADability.GeoObject.Text.AlignMode,CADability.GeoObject.Text.LineAlignMode)"/>,
-            <see cref="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,System.Drawing.Bitmap)"/>, <see cref="M:CADability.IPaintTo3D.DisplayBitmap(CADability.GeoPoint,System.Drawing.Bitmap)"/>, <see cref="M:CADability.IPaintTo3D.List(CADability.IPaintTo3DList)"/>
+            <see cref="M:CADability.IPaintTo3D.Points(CADability.GeoPoint[],System.Single,CADability.GeoObject.PointSymbol)"/>, <see cref="M:CADability.IPaintTo3D.Triangle(CADability.GeoPoint[],CADability.GeoVector[],System.Int32[])"/>, <see cref="M:CADability.IPaintTo3D.RectangularBitmap(Bitmap,CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector)"/>, <see cref="M:CADability.IPaintTo3D.Text(CADability.GeoVector,CADability.GeoVector,CADability.GeoPoint,System.String,System.String,FontStyle,CADability.GeoObject.Text.AlignMode,CADability.GeoObject.Text.LineAlignMode)"/>,
+            <see cref="M:CADability.IPaintTo3D.DisplayIcon(CADability.GeoPoint,Bitmap)"/>, <see cref="M:CADability.IPaintTo3D.DisplayBitmap(CADability.GeoPoint,Bitmap)"/>, <see cref="M:CADability.IPaintTo3D.List(CADability.IPaintTo3DList)"/>
             </summary>
         </member>
         <member name="M:CADability.IPaintTo3D.CloseList">
@@ -30618,10 +30618,10 @@
         <member name="M:CADability.IPaintTo3D.OpenPath">
             <summary>
             When the implementation supports Paths (see <see cref="F:CADability.PaintCapabilities.CanFillPaths"/>), this call
-            will start recording calls to <see cref="M:CADability.IPaintTo3D.Polyline(CADability.GeoPoint[])"/> and <see cref="M:CADability.IPaintTo3D.Arc(CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector,System.Double,System.Double)"/> until <see cref="M:CADability.IPaintTo3D.ClosePath(System.Drawing.Color)"/> is called.
+            will start recording calls to <see cref="M:CADability.IPaintTo3D.Polyline(CADability.GeoPoint[])"/> and <see cref="M:CADability.IPaintTo3D.Arc(CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector,System.Double,System.Double)"/> until <see cref="M:CADability.IPaintTo3D.ClosePath(Color)"/> is called.
             </summary>
         </member>
-        <member name="M:CADability.IPaintTo3D.ClosePath(System.Drawing.Color)">
+        <member name="M:CADability.IPaintTo3D.ClosePath(Color)">
             <summary>
             Closes the path which was started with <see cref="M:CADability.IPaintTo3D.OpenPath"/> and fills the interior with the provided color.
             </summary>
@@ -30630,7 +30630,7 @@
         <member name="M:CADability.IPaintTo3D.CloseFigure">
             <summary>
             Closes a subfigure while defining a path. Subfigures are the enclosing path and the holes to be spared.
-            Only valid after <see cref="M:CADability.IPaintTo3D.OpenPath"/> and before <see cref="M:CADability.IPaintTo3D.ClosePath(System.Drawing.Color)"/> have been called.
+            Only valid after <see cref="M:CADability.IPaintTo3D.OpenPath"/> and before <see cref="M:CADability.IPaintTo3D.ClosePath(Color)"/> have been called.
             </summary>
         </member>
         <member name="M:CADability.IPaintTo3D.Arc(CADability.GeoPoint,CADability.GeoVector,CADability.GeoVector,System.Double,System.Double)">
@@ -30704,7 +30704,7 @@
             Undoes the previously called <see cref="M:CADability.IPaintTo3D.PushMultModOp(CADability.ModOp)"/>
             </summary>
         </member>
-        <member name="M:CADability.IPaintTo3D.SetClip(System.Drawing.Rectangle)">
+        <member name="M:CADability.IPaintTo3D.SetClip(Rectangle)">
             <summary>
             Sets a clip rectangle for subsequent paint commands. If <paramref name="clipRectangle"/> is empty,
             no clipping will occur.
@@ -31753,7 +31753,7 @@
             
             </summary>
         </member>
-        <member name="M:CADability.ProjectedModel.ZoomToModelExtent(System.Drawing.Rectangle,System.Double)">
+        <member name="M:CADability.ProjectedModel.ZoomToModelExtent(Rectangle,System.Double)">
             <summary>
             Sets the projection to display the <see cref="P:CADability.Model.Extent"/> inside
             the given rectangle
@@ -31822,8 +31822,8 @@
             Class defining the span or scope in the world coordinate space defined by a axis aligned rectangle 
             in a view or on the screen. The area defined by this object is either a rectangular prism of infinite 
             length in the direction of the view (in case of the parallel view) or a frustum (in case of a
-            perspective view). The pickarea is created by the <see cref="M:CADability.Projection.GetPickSpace(System.Drawing.Rectangle)"/>, 
-            <see cref="M:CADability.Projection.GetPickSpace(System.Drawing.RectangleF)"/> or <see cref="M:CADability.Projection.GetPickSpace(CADability.BoundingRect)"/>.
+            perspective view). The pickarea is created by the <see cref="M:CADability.Projection.GetPickSpace(Rectangle)"/>, 
+            <see cref="M:CADability.Projection.GetPickSpace(RectangleF)"/> or <see cref="M:CADability.Projection.GetPickSpace(CADability.BoundingRect)"/>.
             </summary>
         </member>
         <member name="P:CADability.Projection.PickArea.Limited">
@@ -31892,14 +31892,14 @@
             </summary>
             <returns>The clone</returns>
         </member>
-        <member name="M:CADability.Projection.GetPickSpace(System.Drawing.Rectangle)">
+        <member name="M:CADability.Projection.GetPickSpace(Rectangle)">
             <summary>
             Returns a PickArea, <paramref name="viewRect"/> is in window coordinates
             </summary>
             <param name="viewRect">The defining rectangle</param>
             <returns>The area inside the rectangle</returns>
         </member>
-        <member name="M:CADability.Projection.GetPickSpace(System.Drawing.RectangleF)">
+        <member name="M:CADability.Projection.GetPickSpace(RectangleF)">
             <summary>
             Returns a PickArea, <paramref name="viewRect"/> is in window coordinates
             </summary>
@@ -31985,7 +31985,7 @@
             Display hint, whether to show the drawing plane
             </summary>
         </member>
-        <member name="M:CADability.Projection.SetPlacement(System.Drawing.Rectangle,CADability.BoundingRect)">
+        <member name="M:CADability.Projection.SetPlacement(Rectangle,CADability.BoundingRect)">
             <summary>
             Stellt die Platzierung im Zweidimensionalen ein: Das Quellrechteck 
             soll in das Zielrechteck passen.
@@ -32035,7 +32035,7 @@
             <param name="p">der zu projizierende Punkt</param>
             <returns>der in 2-dim projizierte Punkt</returns>
         </member>
-        <member name="M:CADability.Projection.UnProject(System.Drawing.Point)">
+        <member name="M:CADability.Projection.UnProject(Point)">
             <summary>
             Liefert einen 3D Punkt in der Ebene, die durch den Urprung geht. Ist eigentlich so nicht zu gebrauchen
             denn es fehlt die Information wie weit vorne oder hinten der Punkt sein soll
@@ -32043,7 +32043,7 @@
             <param name="p"></param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Projection.PlanePoint(CADability.Plane,System.Drawing.Point)">
+        <member name="M:CADability.Projection.PlanePoint(CADability.Plane,Point)">
             <summary>
             Gets the position of a given point (usually a mouse position in view coordinates) in 
             a given plane. 
@@ -32059,7 +32059,7 @@
             <param name="p">der Welt2D Punkt</param>
             <returns>Welt3D Punkt</returns>
         </member>
-        <member name="M:CADability.Projection.PointBeam(System.Drawing.Point)">
+        <member name="M:CADability.Projection.PointBeam(Point)">
             <summary>
             Returns a beam corresponding to the 2-dimensional mouse position. The mouse position corresponds to a beam
             in the model which is seen as a point from the viewpoint. The result is in world coordinates
@@ -32068,7 +32068,7 @@
             <param name="p">Point to which the corresponding beam is required</param>
             <returns>The corresponding beam</returns>
         </member>
-        <member name="M:CADability.Projection.DrawingPlanePoint(System.Drawing.Point)">
+        <member name="M:CADability.Projection.DrawingPlanePoint(Point)">
             <summary>
             Returns the point in the worldcoordinate system corresponding to the (mouse-) position p and the drawingplane
             </summary>
@@ -32082,7 +32082,7 @@
             <param name="p">Point in world coordinate system</param>
             <returns></returns>
         </member>
-        <member name="M:CADability.Projection.WindowToWorld(System.Drawing.PointF)">
+        <member name="M:CADability.Projection.WindowToWorld(PointF)">
             <summary>
             Returns the provided point in the world coordinate system
             </summary>
@@ -39700,11 +39700,11 @@
             <param name="b">Blue component.</param>
             <remarks>By default the UseTrueColor will be set to true.</remarks>
         </member>
-        <member name="M:netDxf.AciColor.#ctor(System.Drawing.Color)">
+        <member name="M:netDxf.AciColor.#ctor(Color)">
             <summary>
             Initializes a new instance of the <c>AciColor</c> class.
             </summary>
-            <param name="color">A <see cref="T:System.Drawing.Color">color</see>.</param>
+            <param name="color">A <see cref="T:Color">color</see>.</param>
             <remarks>By default the UseTrueColor will be set to true.</remarks>
         </member>
         <member name="M:netDxf.AciColor.#ctor(System.Int16)">
@@ -39766,7 +39766,7 @@
             Converts HSL (hue, saturation, lightness) value to an <see cref="T:netDxf.AciColor">AciColor</see>.
             </summary>
             <param name="hsl">A Vector3 containing the hue, saturation, and lightness components.</param>
-            <returns>An <see cref="T:System.Drawing.Color">AciColor</see> that represents the actual HSL value.</returns>
+            <returns>An <see cref="T:Color">AciColor</see> that represents the actual HSL value.</returns>
         </member>
         <member name="M:netDxf.AciColor.FromHsl(System.Double,System.Double,System.Double)">
             <summary>
@@ -39775,7 +39775,7 @@
             <param name="hue">Hue (input values range from 0 to 1).</param>
             <param name="saturation">Saturation percentage (input values range from 0 to 1).</param>
             <param name="lightness">Lightness percentage (input values range from 0 to 1).</param>
-            <returns>An <see cref="T:System.Drawing.Color">AciColor</see> that represents the actual HSL value.</returns>
+            <returns>An <see cref="T:Color">AciColor</see> that represents the actual HSL value.</returns>
         </member>
         <member name="M:netDxf.AciColor.ToHsl(netDxf.AciColor,System.Double@,System.Double@,System.Double@)">
             <summary>
@@ -39795,16 +39795,16 @@
         </member>
         <member name="M:netDxf.AciColor.ToColor">
             <summary>
-            Converts the AciColor to a <see cref="T:System.Drawing.Color">color</see>.
+            Converts the AciColor to a <see cref="T:Color">color</see>.
             </summary>
-            <returns>A <see cref="T:System.Drawing.Color">System.Drawing.Color</see> that represents the actual AciColor.</returns>
+            <returns>A <see cref="T:Color">Color</see> that represents the actual AciColor.</returns>
             <remarks>A default color white will be used for ByLayer and ByBlock colors.</remarks>
         </member>
-        <member name="M:netDxf.AciColor.FromColor(System.Drawing.Color)">
+        <member name="M:netDxf.AciColor.FromColor(Color)">
             <summary>
-            Converts a <see cref="T:System.Drawing.Color">color</see> to an <see cref="T:System.Drawing.Color">AciColor</see>.
+            Converts a <see cref="T:Color">color</see> to an <see cref="T:Color">AciColor</see>.
             </summary>
-            <param name="color">A <see cref="T:System.Drawing.Color">color</see>.</param>
+            <param name="color">A <see cref="T:Color">color</see>.</param>
         </member>
         <member name="M:netDxf.AciColor.ToTrueColor(netDxf.AciColor)">
             <summary>

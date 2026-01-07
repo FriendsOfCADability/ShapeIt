@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Text;
 using CADability;
+using CADability.Substitutes;
 using System.Xml.Linq;
 using CADability.GeoObject;
 using CADability.UserInterface;
@@ -451,7 +452,7 @@ namespace CADability
                     foreach (var obj in affectedObjects)
                     {
                         if (obj is Edge edge) dc.Add(edge.Curve3D as IGeoObject, edge.GetHashCode());
-                        if (obj is Vertex vtx) dc.Add(vtx.Position, System.Drawing.Color.Red, vtx.GetHashCode());
+                        if (obj is Vertex vtx) dc.Add(vtx.Position, Color.Red, vtx.GetHashCode());
                         if (obj is Face face) dc.Add(face, face.GetHashCode());
                     }
                 }
@@ -573,7 +574,7 @@ namespace CADability
                     foreach (var obj in affectedObjects)
                     {
                         if (obj is Edge edge) dc.Add(edge.Curve3D as IGeoObject, edge.GetHashCode());
-                        if (obj is Vertex vtx) dc.Add(vtx.Position, System.Drawing.Color.Red, vtx.GetHashCode());
+                        if (obj is Vertex vtx) dc.Add(vtx.Position, Color.Red, vtx.GetHashCode());
                         if (obj is Face face) dc.Add(face, face.GetHashCode());
                     }
                 }
@@ -763,7 +764,7 @@ namespace CADability
                     foreach (var obj in affectedObjects)
                     {
                         if (obj is Edge edge) dc.Add(edge.Curve3D as IGeoObject, edge.GetHashCode());
-                        if (obj is Vertex vtx) dc.Add(vtx.Position, System.Drawing.Color.Red, vtx.GetHashCode());
+                        if (obj is Vertex vtx) dc.Add(vtx.Position, Color.Red, vtx.GetHashCode());
                         if (obj is Face face) dc.Add(face, face.GetHashCode());
                     }
                 }
@@ -891,7 +892,7 @@ namespace CADability
                     foreach (var obj in affectedObjects)
                     {
                         if (obj is Edge edge) dc.Add(edge.Curve3D as IGeoObject, edge.GetHashCode());
-                        if (obj is Vertex vtx) dc.Add(vtx.Position, System.Drawing.Color.Red, vtx.GetHashCode());
+                        if (obj is Vertex vtx) dc.Add(vtx.Position, Color.Red, vtx.GetHashCode());
                         if (obj is Face face) dc.Add(face, face.GetHashCode());
                     }
                 }

@@ -420,4 +420,9 @@
     <label>Rundungsradius</label>
     <info>Rundungsradius für die ausgewähltn Kanten</info>
   </data>
+  <data name="MenuId.Solid.Position">
+    <label>Zentrieren</label>
+    <info>Diesen Körper zwischen zwei anderen Objekte (Flächen, Kanten) zentrieren</info>
+  </data>
+  
 </root>

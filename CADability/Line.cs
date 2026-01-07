@@ -1,12 +1,6 @@
 ﻿using CADability.Curve2D;
 using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 using System.Runtime.Serialization;
 using MathNet.Numerics.LinearAlgebra.Double;
 

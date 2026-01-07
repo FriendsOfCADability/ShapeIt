@@ -1,18 +1,14 @@
 ﻿using CADability.Actions;
 using CADability.Attribute;
 using CADability.Shapes;
+using CADability.Substitutes;
 using CADability.UserInterface;
+using StbImageSharp;
 using System;
+using System.Buffers.Text;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
-using System.Drawing.Drawing2D;
 using System.IO;
+using System.Net;
 using System.Runtime.Serialization;
 using System.Threading;
 
@@ -24,9 +20,9 @@ namespace CADability.GeoObject
     /// bits and the location in space.
     /// </summary>
     [Serializable()]
-    public class Picture : IGeoObjectImpl, ISerializable
+    public class Picture : IGeoObjectImpl, ISerializable, IJsonSerialize
     {
-        private Bitmap bitmap;
+        private Substitutes.Bitmap bitmap;
         private GeoPoint location;
         private GeoVector directionWidth, directionHeight;
         #region polymorph construction
@@ -60,7 +56,7 @@ namespace CADability.GeoObject
         /// </summary>
         public static event ConstructedDelegate Constructed;
         #endregion
-        protected Picture()
+        protected Picture() // for JSON
         {
             Constructed?.Invoke(this);
         }
@@ -75,7 +71,7 @@ namespace CADability.GeoObject
         /// <param name="location">Position where the lower left point of the bitmap will be displayed</param>
         /// <param name="directionWidth">Vector specifying the baseline of the bitmap</param>
         /// <param name="directionHeight">Vector specifying the left side of the bitmap</param>
-        public void Set(Bitmap bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
+        public void Set(Substitutes.Bitmap bitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
         {
             using (new Changing(this))
             {
@@ -88,7 +84,7 @@ namespace CADability.GeoObject
         /// <summary>
         /// The bitmap, the contents of the Picture
         /// </summary>
-        public Bitmap Bitmap
+        public Substitutes.Bitmap Bitmap
         {
             get
             {
@@ -195,29 +191,29 @@ namespace CADability.GeoObject
         /// <param name="plane">The plane as a reference system for the shape</param>
         /// <param name="shape">The shape for the clip operation</param>
         public void Clip(Plane plane, CompoundShape shape)
-        {
+        {   // not implemented with new bitmap structure
 #if !WEBASSEMBLY
-            Plane pln = new Plane(location, directionWidth, directionHeight);
-            CompoundShape prsh = shape.Project(plane, pln);
-            ModOp2D m = ModOp2D.Scale(bitmap.Width / directionWidth.Length, -bitmap.Height / directionHeight.Length);
-            prsh = prsh.GetModified(m);
-            m = ModOp2D.Translate(0, bitmap.Height);
-            prsh = prsh.GetModified(m);
-            GraphicsPath gp = prsh.CreateGraphicsPath();
-            using (new Changing(this))
-            {
-                Region rg = new Region(gp);
-                Bitmap clone = bitmap.Clone() as Bitmap;
-                Graphics graphics = Graphics.FromImage(bitmap);
-                graphics.Clear(Color.FromArgb(0, 0, 0, 0));
-                graphics.SetClip(rg, CombineMode.Replace);
-                graphics.DrawImage(clone, new System.Drawing.Point(0, 0));
-                graphics.Dispose();
-            }
+            //Plane pln = new Plane(location, directionWidth, directionHeight);
+            //CompoundShape prsh = shape.Project(plane, pln);
+            //ModOp2D m = ModOp2D.Scale(bitmap.Width / directionWidth.Length, -bitmap.Height / directionHeight.Length);
+            //prsh = prsh.GetModified(m);
+            //m = ModOp2D.Translate(0, bitmap.Height);
+            //prsh = prsh.GetModified(m);
+            //GraphicsPath gp = prsh.CreateGraphicsPath();
+            //using (new Changing(this))
+            //{
+            //    Region rg = new Region(gp);
+            //    Bitmap clone = bitmap.Clone() as Bitmap;
+            //    Graphics graphics = Graphics.FromImage(bitmap);
+            //    graphics.Clear(Color.FromArgb(0, 0, 0, 0));
+            //    graphics.SetClip(rg, CombineMode.Replace);
+            //    graphics.DrawImage(clone, new Point(0, 0));
+            //    graphics.Dispose();
+            //}
 #endif
         }
 
-        public void SetBitmapNoUndo(Bitmap bmp)
+        public void SetBitmapNoUndo(Substitutes.Bitmap bmp)
         {
             bitmap = bmp;
         }
@@ -243,8 +239,10 @@ namespace CADability.GeoObject
         {
             Picture res = Picture.Construct();
             res.location = location;
-            if (bitmap != null) res.bitmap = bitmap.Clone() as Bitmap;
-            else res.bitmap = null;
+            if (bitmap.IsEmpty)
+                res.bitmap = Substitutes.Bitmap.Empty;
+            else
+                res.bitmap = new Substitutes.Bitmap { Width = bitmap.Width, Height = bitmap.Height, Data = (byte[])bitmap.Data.Clone() };
             res.directionWidth = directionWidth;
             res.directionHeight = directionHeight;
             return res;
@@ -257,7 +255,7 @@ namespace CADability.GeoObject
         {
             using (new Changing(this))
             {
-                if (!(toCopyFrom is Picture from)) 
+                if (!(toCopyFrom is Picture from))
                     return;
                 this.location = from.location;
                 this.bitmap = from.bitmap;
@@ -446,36 +444,69 @@ namespace CADability.GeoObject
         protected Picture(SerializationInfo info, StreamingContext context)
             : base(info, context)
         {
-            bitmap = info.GetValue("Bitmap", typeof(Bitmap)) as Bitmap;
+            // nomore serializing with this interface
+            // bitmap = info.GetValue("Bitmap", typeof(Substitutes.Bitmap)) as Substitutes.Bitmap;
             location = (GeoPoint)info.GetValue("Location", typeof(GeoPoint));
             directionWidth = (GeoVector)info.GetValue("DirectionWidth", typeof(GeoVector));
             directionHeight = (GeoVector)info.GetValue("DirectionHeight", typeof(GeoVector));
             Path = info.GetString("Path");
+            bitmap = CopyFrom(Path); // no more reading from ISerializable context, because this would be a System.Drawing.Bitmap.
+            // Try to find the bitmap at its last location
         }
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("Bitmap", bitmap);
+            // info.AddValue("Bitmap", bitmap);
             info.AddValue("Location", location);
             info.AddValue("DirectionWidth", directionWidth);
             info.AddValue("DirectionHeight", directionHeight);
             info.AddValue("Path", Path);
         }
         #endregion
-        internal static Bitmap CopyFrom(string filePath)
+        #region IJSonSerialize
+        public override void GetObjectData(IJsonWriteData data)
         {
-            //open file from the disk (file path is the path to the file to be opened)
-            using (FileStream fileStream = File.OpenRead(filePath))
-            {
-                //create new MemoryStream object
-                MemoryStream memStream = new MemoryStream();
-                memStream.SetLength(fileStream.Length);
-                //read file to MemoryStream
-                fileStream.Read(memStream.GetBuffer(), 0, (int)fileStream.Length);
-                return new Bitmap(memStream);
-            }
+            base.GetObjectData(data);
+            data.AddProperty("Location", location);
+            data.AddProperty("DirectionWidth", directionWidth);
+            data.AddProperty("DirectionHeight", directionHeight);
+            data.AddProperty("Path", Path);
+            data.AddProperty("Width", bitmap.Width);
+            data.AddProperty("Height", bitmap.Height);
+            data.AddProperty("Data", Convert.ToBase64String(bitmap.Data));
         }
 
+        public override void SetObjectData(IJsonReadData data)
+        {
+            base.SetObjectData(data);
+            location = data.GetProperty<GeoPoint>("Location");
+            directionWidth = data.GetProperty<GeoVector>("DirectionWidth");
+            directionHeight = data.GetProperty<GeoVector>("DirectionHeight");
+            Path = data.GetStringProperty("Path");
+            bitmap = new Bitmap() { 
+                Data = Convert.FromBase64String(data.GetStringProperty("Data")), 
+                Width = data.GetIntProperty("Width"), 
+                Height = data.GetIntProperty("Height") };
+        }
+        #endregion
+        internal static Substitutes.Bitmap CopyFrom(string filePath)
+        {
+            try
+            {
+                ImageResult result = ImageResult.FromStream(File.OpenRead(filePath), ColorComponents.RedGreenBlueAlpha);
+
+                return new Substitutes.Bitmap
+                {
+                    Width = result.Width,
+                    Height = result.Height,
+                    Data = result.Data
+                };
+            }
+            catch
+            {
+                return Substitutes.Bitmap.Empty;
+            }
+        }
     }
 
 
@@ -616,7 +647,7 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="isOpen"></param>
         public override void Opened(bool isOpen)
-        {	
+        {
             // Used to show or hide the hotspots when the sub-properties
             // are expanded or collapsed. This happens, for example, when multiple objects are selected
             // and this line is expanded.
@@ -759,12 +790,12 @@ namespace CADability.GeoObject
                 case "MenuId.Picture.Path.Reload":
                     try
                     {
-                        Bitmap pix = new Bitmap(picture.Path);
+                        Substitutes.Bitmap pix = Picture.CopyFrom(picture.Path);
                         picture.Bitmap = pix;
                     }
                     catch (Exception e)
                     {
-                        if (e is ThreadAbortException) 
+                        if (e is ThreadAbortException)
                             throw;
                     }
                     return true;
@@ -776,13 +807,13 @@ namespace CADability.GeoObject
                         {
                             try
                             {
-                                Bitmap pix = new Bitmap(fileName);
+                                Substitutes.Bitmap pix = Picture.CopyFrom(fileName);
                                 picture.Bitmap = pix;
                                 picture.Path = fileName;
                             }
                             catch (Exception e)
                             {
-                                if (e is ThreadAbortException) 
+                                if (e is ThreadAbortException)
                                     throw;
                             }
                         }
@@ -807,7 +838,7 @@ namespace CADability.GeoObject
         void ICommandHandler.OnSelected(MenuWithHandler selectedMenuItem, bool selected) { }
         #endregion
         #region IGeoObjectShowProperty Members
-        
+
         event CreateContextMenueDelegate IGeoObjectShowProperty.CreateContextMenueEvent
         {
             add { }

@@ -1,12 +1,6 @@
 ﻿using CADability.Attribute;
 using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 
 namespace CADability.GeoObject
 {
@@ -151,11 +145,7 @@ namespace CADability.GeoObject
         {
             // alles leer initialisiert, kein new nötig
         }
-#if WEBASSEMBLY
-       public void Init(CADability.WebDrawing.Point SourcePoint, Projection projection, SnapModes SnapMode, int MaxDist)
-#else
-        public void Init(System.Drawing.Point SourcePoint, Projection projection, SnapModes SnapMode, int MaxDist)
-#endif
+        public void Init(Substitutes.Point SourcePoint, Projection projection, SnapModes SnapMode, int MaxDist)
         {
             this.BestDist = double.MaxValue;
             this.BestObject = null;
@@ -165,29 +155,18 @@ namespace CADability.GeoObject
             this.Projection = projection;
             this.SnapPoint = projection.DrawingPlanePoint(SourcePoint);
             // MaxDist die die maximale Entfernung des Fangpunktes vom aktuellen Punkt bezogen auf die ProjectionPlane
-#if WEBASSEMBLY
-            GeoPoint2D p1 = projection.ProjectionPlane.Intersect(projection.PointBeam(new CADability.WebDrawing.Point(SourcePoint.X, SourcePoint.Y + MaxDist)));
-            GeoPoint2D p2 = projection.ProjectionPlane.Intersect(projection.PointBeam(new CADability.WebDrawing.Point(SourcePoint.X + MaxDist, SourcePoint.Y)));
-            GeoPoint2D p3 = projection.ProjectionPlane.Intersect(projection.PointBeam(new CADability.WebDrawing.Point(SourcePoint.X, SourcePoint.Y - MaxDist)));
-            GeoPoint2D p4 = projection.ProjectionPlane.Intersect(projection.PointBeam(new CADability.WebDrawing.Point(SourcePoint.X - MaxDist, SourcePoint.Y)));
-#else
-            GeoPoint2D p1 = projection.ProjectionPlane.Intersect(projection.PointBeam(new System.Drawing.Point(SourcePoint.X, SourcePoint.Y + MaxDist)));
-            GeoPoint2D p2 = projection.ProjectionPlane.Intersect(projection.PointBeam(new System.Drawing.Point(SourcePoint.X + MaxDist, SourcePoint.Y)));
-            GeoPoint2D p3 = projection.ProjectionPlane.Intersect(projection.PointBeam(new System.Drawing.Point(SourcePoint.X, SourcePoint.Y - MaxDist)));
-            GeoPoint2D p4 = projection.ProjectionPlane.Intersect(projection.PointBeam(new System.Drawing.Point(SourcePoint.X - MaxDist, SourcePoint.Y)));
-#endif
+            GeoPoint2D p1 = projection.ProjectionPlane.Intersect(projection.PointBeam(new Substitutes.Point(SourcePoint.X, SourcePoint.Y + MaxDist)));
+            GeoPoint2D p2 = projection.ProjectionPlane.Intersect(projection.PointBeam(new Substitutes.Point(SourcePoint.X + MaxDist, SourcePoint.Y)));
+            GeoPoint2D p3 = projection.ProjectionPlane.Intersect(projection.PointBeam(new Substitutes.Point(SourcePoint.X, SourcePoint.Y - MaxDist)));
+            GeoPoint2D p4 = projection.ProjectionPlane.Intersect(projection.PointBeam(new Substitutes.Point(SourcePoint.X - MaxDist, SourcePoint.Y)));
             this.MaxDist = Math.Max(Math.Max(p1 | this.SourcePoint, p2 | this.SourcePoint), Math.Max(p3 | this.SourcePoint, p4 | this.SourcePoint));
-            pickArea = projection.GetPickSpace(new Rectangle(SourcePoint.X - MaxDist, SourcePoint.Y - MaxDist, 2 * MaxDist, 2 * MaxDist));
+            pickArea = projection.GetPickSpace(new Substitutes.Rectangle(SourcePoint.X - MaxDist, SourcePoint.Y - MaxDist, 2 * MaxDist, 2 * MaxDist));
             this.BasePointValid = false;
             this.SnapMode = SnapMode;
             this.DidSnap = DidSnapModes.DidNotSnap;
             faceDist = double.MaxValue;
         }
-#if WEBASSEMBLY
-        public void Init(CADability.WebDrawing.Point SourcePoint, Projection projection, SnapModes SnapMode, int MaxDist, GeoPoint BasePoint)
-#else
-        public void Init(System.Drawing.Point SourcePoint, Projection projection, SnapModes SnapMode, int MaxDist, GeoPoint BasePoint)
-#endif
+        public void Init(Substitutes.Point SourcePoint, Projection projection, SnapModes SnapMode, int MaxDist, GeoPoint BasePoint)
         {
             Init(SourcePoint, projection, SnapMode, MaxDist);
             this.BasePoint = BasePoint;

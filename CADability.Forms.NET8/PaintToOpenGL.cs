@@ -58,12 +58,12 @@ namespace CADability.Forms.NET8
         Stack<state> stateStack;
         GeoVector projectionDirection;
         bool isPerspective;
-        Color backgroundColor; // Die Hintergrundfarbe um sicherzustellen, dass nicht mit dieser farbe
-                               // gezeichnet wird
-        Color selectColor;
-        Color lastColor; // if twice the same color was selected with alpha==0, then this is color override state
+        Substitutes.Color backgroundColor; // Die Hintergrundfarbe um sicherzustellen, dass nicht mit dieser farbe
+                                           // gezeichnet wird
+        Substitutes.Color selectColor;
+        Substitutes.Color lastColor; // if twice the same color was selected with alpha==0, then this is color override state
         bool colorOverride = false;
-        Color overrideColor;
+        Substitutes.Color overrideColor;
 
         // Glu.GLUnurbs nurbsRenderer;
         OpenGlList currentList;
@@ -214,7 +214,7 @@ namespace CADability.Forms.NET8
             paintEdges = true;
             paintSurfaceEdges = true;
             currentList = null;
-            selectColor = Color.Yellow;
+            selectColor = Substitutes.Color.Yellow;
             stateStack = new Stack<state>();
             selectBuf = new int[selectBufSize]; // statisch für selektion
             lineWidthFactor = 10.0;
@@ -533,7 +533,7 @@ namespace CADability.Forms.NET8
             get { return selectMode; }
             set { selectMode = value; }
         }
-        Color IPaintTo3D.SelectColor
+        Substitutes.Color IPaintTo3D.SelectColor
         {
             get { return selectColor; }
             set { selectColor = value; }
@@ -573,7 +573,7 @@ namespace CADability.Forms.NET8
         }
         Dictionary<System.Drawing.Bitmap, IPaintTo3DList> icons;
         static Dictionary<System.Drawing.Bitmap, IPaintTo3DList> bitmaps = new Dictionary<System.Drawing.Bitmap, IPaintTo3DList>();
-        static Dictionary<System.Drawing.Bitmap, uint> textures = new Dictionary<System.Drawing.Bitmap, uint>();
+        static Dictionary<CADability.Substitutes.Bitmap, uint> textures = new Dictionary<Substitutes.Bitmap, uint>();
         internal void Init(Control ctrl)
         {
 
@@ -759,7 +759,7 @@ namespace CADability.Forms.NET8
             clientheight = height;
             CheckError();
         }
-        void IPaintTo3D.Clear(Color background)
+        void IPaintTo3D.Clear(Substitutes.Color background)
         {
             if (Wgl.wglGetCurrentContext() != renderContext) (this as IPaintTo3D).MakeCurrent();
             backgroundColor = background;
@@ -768,7 +768,7 @@ namespace CADability.Forms.NET8
             Gl.glClear(Gl.GL_COLOR_BUFFER_BIT | Gl.GL_DEPTH_BUFFER_BIT);
             CheckError();
         }
-        void IPaintTo3D.AvoidColor(System.Drawing.Color color)
+        void IPaintTo3D.AvoidColor(Substitutes.Color color)
         {
             backgroundColor = color;
         }
@@ -868,7 +868,7 @@ namespace CADability.Forms.NET8
             //    list.Add(p3d.CloseList());
             //}
         }
-        void IPaintTo3D.SetColor(Color color, int lockColor)
+        void IPaintTo3D.SetColor(Substitutes.Color color, int lockColor)
         {
             if (!colorOverride)
             {
@@ -1188,6 +1188,7 @@ namespace CADability.Forms.NET8
         }
         void IPaintTo3D.PrepareBitmap(object obitmap, int xoffset, int yoffset)
         {
+            // we have to change this to Bitmap defined as byte[]
             System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
             if (currentList != null) throw new ApplicationException("PrepareBitmap called with display list open");
             if (!bitmaps.ContainsKey(bitmap))
@@ -1300,7 +1301,8 @@ namespace CADability.Forms.NET8
         void IPaintTo3D.PrepareBitmap(object obitmap)
         {   // Mechanismus zum Entfernen aus dem Dictionary und vor allem aus OpenGL fehlt noch.
             // man bräuchte eine Art OnDispose vom Bitmap, aber das gibt es nicht...
-            System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
+            if (!(obitmap is Substitutes.Bitmap)) throw new ArgumentException("PrepareBitmap needs a CADability Bitmap");
+            Substitutes.Bitmap bitmap = (Substitutes.Bitmap)obitmap;
             if (!textures.ContainsKey(bitmap))
             {
                 Gl.glPixelStorei(Gl.GL_UNPACK_ALIGNMENT, 1);
@@ -1325,8 +1327,8 @@ namespace CADability.Forms.NET8
                     {
                         for (int j = 0; j < bitmap.Width; ++j)
                         {
-                            Color clr = bitmap.GetPixel(j, bitmap.Height - i - 1); // auf den Kopf stellen, Bitmap y geht nach unten
-                                                                                   // pixels[i * bitmap.Width + j] = (clr.R << 24) + (clr.G << 16) + (clr.B << 8) + clr.A;
+                            Substitutes.Color clr = bitmap.GetPixel(j, bitmap.Height - i - 1); // auf den Kopf stellen, Bitmap y geht nach unten
+                                                                                                          // pixels[i * bitmap.Width + j] = (clr.R << 24) + (clr.G << 16) + (clr.B << 8) + clr.A;
                             pixels[(i * bitmap.Width + j) * 4 + 0] = clr.R;
                             pixels[(i * bitmap.Width + j) * 4 + 1] = clr.G;
                             pixels[(i * bitmap.Width + j) * 4 + 2] = clr.B;
@@ -1346,7 +1348,7 @@ namespace CADability.Forms.NET8
                     {
                         for (int j = 0; j < bitmap.Width; ++j)
                         {
-                            Color clr = bitmap.GetPixel(j, bitmap.Height - i - 1); // auf den Kopf stellen, Bitmap y geht nach unten
+                            Substitutes.Color clr = bitmap.GetPixel(j, bitmap.Height - i - 1); // auf den Kopf stellen, Bitmap y geht nach unten
                             pixels[(i * bitmap.Width + j) * 3 + 0] = clr.R;
                             pixels[(i * bitmap.Width + j) * 3 + 1] = clr.G;
                             pixels[(i * bitmap.Width + j) * 3 + 2] = clr.B;
@@ -1360,7 +1362,8 @@ namespace CADability.Forms.NET8
         }
         void IPaintTo3D.RectangularBitmap(object obitmap, GeoPoint location, GeoVector directionWidth, GeoVector directionHeight)
         {
-            System.Drawing.Bitmap bitmap = obitmap as System.Drawing.Bitmap;
+            if (!(obitmap is Substitutes.Bitmap)) throw new ArgumentException("PrepareBitmap needs a CADability Bitmap");
+            Substitutes.Bitmap bitmap = (Substitutes.Bitmap)obitmap;
             uint texName;
             if (textures.TryGetValue(bitmap, out texName))
             {
@@ -1520,7 +1523,7 @@ namespace CADability.Forms.NET8
             if (useLineWidth) Gl.glEnable(Gl.GL_LINE_SMOOTH);
             CheckError();
         }
-        void IPaintTo3D.FillRect2D(PointF p1, PointF p2)
+        void IPaintTo3D.FillRect2D(Substitutes.PointF p1, Substitutes.PointF p2)
         {
             Gl.glMatrixMode(Gl.GL_PROJECTION); // ModelView Matrix ist und bleibt immer Identität
             Gl.glPushMatrix();
@@ -1553,7 +1556,7 @@ namespace CADability.Forms.NET8
             if (useLineWidth) Gl.glEnable(Gl.GL_LINE_SMOOTH);
             CheckError();
         }
-        void IPaintTo3D.Line2D(PointF p1, PointF p2)
+        void IPaintTo3D.Line2D(Substitutes.PointF p1, Substitutes.PointF p2)
         {
             Gl.glMatrixMode(Gl.GL_PROJECTION); // ModelView Matrix ist und bleibt immer Identität
             Gl.glPushMatrix();
@@ -1883,7 +1886,7 @@ namespace CADability.Forms.NET8
         {
             throw new NotSupportedException("OpenGL does not support paths");
         }
-        void IPaintTo3D.ClosePath(System.Drawing.Color color)
+        void IPaintTo3D.ClosePath(Substitutes.Color color)
         {
             throw new NotSupportedException("OpenGL does not support paths");
         }
@@ -2076,7 +2079,7 @@ namespace CADability.Forms.NET8
             Gl.glMatrixMode(Gl.GL_MODELVIEW);
             Gl.glPopMatrix();
         }
-        void IPaintTo3D.SetClip(Rectangle clipRectangle)
+        void IPaintTo3D.SetClip(Substitutes.Rectangle clipRectangle)
         {
             if (clipRectangle.IsEmpty)
             {
@@ -2097,7 +2100,7 @@ namespace CADability.Forms.NET8
                 Gl.glStencilOp(Gl.GL_REPLACE, Gl.GL_REPLACE, Gl.GL_REPLACE);
                 Gl.glColorMask(false, false, false, false);
 
-                (this as IPaintTo3D).FillRect2D(new PointF((float)clipRectangle.Left, (float)clipRectangle.Bottom), new PointF((float)clipRectangle.Right, (float)clipRectangle.Top));
+                (this as IPaintTo3D).FillRect2D(new Substitutes.PointF((float)clipRectangle.Left, (float)clipRectangle.Bottom), new Substitutes.PointF((float)clipRectangle.Right, (float)clipRectangle.Top));
 
                 Gl.glStencilFunc(Gl.GL_EQUAL, 0x1, 0x1);
                 Gl.glStencilOp(Gl.GL_KEEP, Gl.GL_KEEP, Gl.GL_KEEP);
@@ -2118,8 +2121,8 @@ namespace CADability.Forms.NET8
             paintTo3D.Init(dc, width, height, true);
             IPaintTo3D ipaintTo3D = paintTo3D;
             ipaintTo3D.MakeCurrent();
-            ipaintTo3D.Clear(Color.White);
-            ipaintTo3D.AvoidColor(Color.White);
+            ipaintTo3D.Clear(Substitutes.Color.White);
+            ipaintTo3D.AvoidColor(Substitutes.Color.White);
 
             Projection projection = new Projection(Projection.StandardProjection.FromTop);
             if (Precision.SameDirection(viewDirection, GeoVector.ZAxis, false)) projection.SetDirection(viewDirection, GeoVector.YAxis, bc);
@@ -2128,7 +2131,7 @@ namespace CADability.Forms.NET8
 
             BoundingRect ext = bc.GetExtent(projection); //  list.GetExtent(projection, true, false);
             ext = ext * 1.1; // inflate by 10 percent 
-            projection.SetPlacement(new Rectangle(0, 0, bmp.Width, bmp.Height), ext);
+            projection.SetPlacement(new Substitutes.Rectangle(0, 0, bmp.Width, bmp.Height), ext);
 
             ipaintTo3D.SetProjection(projection, bc);
             foreach (IGeoObject go in list)

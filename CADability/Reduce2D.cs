@@ -1,4 +1,5 @@
 ﻿using CADability.GeoObject;
+using CADability.Substitutes;
 using System.Collections.Generic;
 using Wintellect.PowerCollections;
 
@@ -138,7 +139,7 @@ namespace CADability.Curve2D
                 {
                     ext.MinMax(c2d.GetExtent());
 #if DEBUG
-                    dc.Add(c2d, System.Drawing.Color.Red, 0);
+                    dc.Add(c2d, Color.Red, 0);
 #endif
                 }
                 ext.Move(new GeoVector2D(ext.Width * 1.23456e-6, ext.Width * 1.65432e-6)); // um einen krummen minimalen Wert
@@ -357,7 +358,7 @@ namespace CADability.Curve2D
                 DebuggerContainer dc = new DebuggerContainer();
                 foreach (ICurve2D c2d in curves)
                 {
-                    dc.Add(c2d, System.Drawing.Color.Red, 0);
+                    dc.Add(c2d, Color.Red, 0);
                 }
                 return dc;
             }

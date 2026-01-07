@@ -233,15 +233,14 @@ namespace CADability.Actions
         {
 #if !WEBASSEMBLY
             fileName = val; // save the name
-            System.Drawing.Bitmap bmp = new System.Drawing.Bitmap(fileName); // load the bitmap
-            picture.Bitmap = bmp; // set the bitmap to the picture object
+            picture.Bitmap = Picture.CopyFrom(fileName); // set the bitmap to the picture object
             picture.Path = fileName; // set the name to the picture object
             base.ActiveObject = picture; // set the active object:
             // now that we have a bitmap we set this object as the active object, which means
             // that is will be displayed while the location is positioned and at the end of the
             // action it will automatically be inserted into the model
-            widthValue = picture.Bitmap.PhysicalDimension.Width;
-            heightValue = picture.Bitmap.PhysicalDimension.Height;
+            widthValue = picture.Bitmap.Width;
+            heightValue = picture.Bitmap.Height;
 #endif
         }
         

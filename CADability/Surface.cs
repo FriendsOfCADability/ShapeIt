@@ -11,14 +11,7 @@ using Wintellect.PowerCollections;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System.Linq;
 using MathNet.Numerics;
-using System.Security.Cryptography;
-
-
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
+using CADability.Substitutes;
 
 namespace CADability.GeoObject
 {
@@ -534,7 +527,7 @@ namespace CADability.GeoObject
 
             if (uPole) ext.MinMaxHeight(uv.y); // only adjust the height of ext
             else if (vPole) ext.MinMaxWidth(uv.x); // only adjust the width of ext
-            else ext.MinMax(uv);
+            else ext.MinMax(uv); // adjust both width and height
 
             surface.SetBounds(ext);
         }
@@ -3202,12 +3195,12 @@ namespace CADability.GeoObject
                 if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface1, ((curve as InterpolatedDualSurfaceCurve).Surface1 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
                 {
                     if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1;
-                    else return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1.GetModified(firstToSecond); // ist die ModOp so richtigrum?
+                    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1.GetModified(firstToSecond); // ist die ModOp so richtigrum?
                 }
                 else if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface2, ((curve as InterpolatedDualSurfaceCurve).Surface2 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
                 {
                     if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2;
-                    else return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2.GetModified(firstToSecond); // ist die ModOp so richtigrum?
+                    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2.GetModified(firstToSecond); // ist die ModOp so richtigrum?
                 }
             }
             if (!IsUPeriodic && !IsVPeriodic)
@@ -3239,33 +3232,61 @@ namespace CADability.GeoObject
         /// <param name="uvOnFaces"></param>
         /// <param name="uOnCurve3Ds"></param>
         public virtual void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
-        {   // nach und nach selbst implementieren, bei den einzelnen Flächen und hier generell
-            //try
-            //{
-            //    CndHlp3D.Surface sf = Helper;
-            //    CndHlp3D.GeoPoint3D[] ip3d = sf.GetCurveIntersection((curve as ICndHlp3DEdge).Edge);
-            //    ips = GeoPoint.FromCndHlp(ip3d);
-            //}
-            //catch (OpenCascade.Exception)
-            //{
-            //    ips = new GeoPoint[0];
-            //}
-            //uvOnFaces = new GeoPoint2D[ips.Length];
-            //uOnCurve3Ds = new double[ips.Length];
-            //for (int i = 0; i < ips.Length; ++i)
-            //{
-            //    uvOnFaces[i] = this.PositionOf(ips[i]);
-            //    uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
-            //}
-            Polynom implpol = GetImplicitPolynomial();
-            if (implpol != null)
-                if (curve is IDualSurfaceCurve)
+        {   // implement special cases with their surfaces
+            if (curve is IDualSurfaceCurve dsc)
+            {   // when it is a dualSurfaceCurve on an offset surface, there will be no intersection
+                if (IsOffset(dsc.Surface1, out double offset) || IsOffset(dsc.Surface2, out offset))
                 {
-                    IDualSurfaceCurve dsc = (curve as IDualSurfaceCurve);
-                    // Surfaces.Intersect(this,uvExtent,dsc.Surface1,dsc.Curve2D1.GetExtent(),dsc.Surface2,dsc.Curve2D2.GetExtent(),)
+                    ips = []; uvOnFaces = []; uOnCurve3Ds = [];
+                    return;
                 }
+            }
+            if (curve is InterpolatedDualSurfaceCurve || curve is BSpline)
+            {
+                //for some curves it is alot faster to use the TetraederHull for intersection.
+                // it is typically much slimmer than the BoxedSurfaceEx
+                (curve as GeneralCurve).TetraederHull.Intersect(this, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+                return;
+            }
             BoxedSurfaceEx.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
+
+        private bool IsOffset(ISurface other, out double offset)
+        {
+            offset = 0.0;
+            if (this.GetType() != other.GetType()) return false;
+            if (this is CylindricalSurface cs1 && other is CylindricalSurface cs2)
+            {
+                if (Precision.SameAxis(new Axis(cs1.Location, cs1.Axis), new Axis(cs2.Location, cs2.Axis)))
+                {
+                    return true; // offset should be implemented but is currently not used
+                }
+            }
+            if (this is ConicalSurface cns1 && other is ConicalSurface cns2)
+            {
+                if (Precision.SameAxis(new Axis(cns1.Location, cns1.Axis), new Axis(cns2.Location, cns2.Axis)))
+                {
+                    return true; // offset should be implemented but is currently not used
+                }
+            }
+            if (this is SphericalSurface ss1 && other is SphericalSurface ss2)
+            {
+                if (Precision.IsEqual(ss1.Location, ss2.Location))
+                {
+                    return true; // offset should be implemented but is currently not used
+                }
+            }
+            if (this is ToroidalSurface ts1 && other is ToroidalSurface ts2)
+            {
+                if (Precision.SameAxis(new Axis(ts1.Location, ts1.Axis), new Axis(ts2.Location, ts2.Axis)) &&
+                    Precision.IsEqual(ts1.MajorRadius, ts2.MajorRadius))
+                {
+                    return true; // offset should be implemented but is currently not used
+                }
+            }
+            return false;
+        }
+
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.Intersect (BoundingRect, ISurface, BoundingRect)"/>
         /// </summary>
@@ -4747,7 +4768,8 @@ namespace CADability.GeoObject
             {   // this is a rough test only. Overwrite when necessary
                 GeoPoint2D uv = PositionOf(curve.PointAt(i / 4.0));
                 GeoVector cross = GetNormal(uv).Normalized ^ curve.DirectionAt(i / 4.0).Normalized;
-                if (Math.Abs((GetNormal(uv).Normalized * curve.DirectionAt(i / 4.0).Normalized)) > Precision.eps) return false;
+                // the following condition was too strict for InterpolatedDualSurfaceCurves, extend by factor 10
+                if (Math.Abs((GetNormal(uv).Normalized * curve.DirectionAt(i / 4.0).Normalized)) > 10 * Precision.eps) return false;
             }
             return true;
         }
@@ -5307,7 +5329,7 @@ namespace CADability.GeoObject
                 GeoPoint2D seeduvother = other.PositionOf(seed);
                 SurfaceHelper.AdjustPeriodic(this, thisBounds, ref seeduvthis);
                 SurfaceHelper.AdjustPeriodic(other, otherBounds, ref seeduvother);
-                GeoVector dir = (GetNormal(seeduvthis) ^ other.GetNormal(seeduvother));
+                GeoVector dir = (GetNormal(seeduvthis).Normalized ^ other.GetNormal(seeduvother).Normalized);
                 if (Precision.IsNullVector(dir))
                 {
                     ++numTangentialSeeds;

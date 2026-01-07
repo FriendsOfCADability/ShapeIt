@@ -3,9 +3,9 @@ using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Runtime.Serialization;
@@ -20,7 +20,7 @@ namespace CADability
     [Serializable()]
     public class DebuggerContainer : IDebuggerVisualizer
     {
-        public static System.Drawing.Color FromInt(int c)
+        public static Color FromInt(int c)
         {
             int[] rgb = new int[3];
             for (int i = 0; i < 16; i++)
@@ -30,14 +30,14 @@ namespace CADability
                     rgb[i % 3] += 128 >> (i / 3);
                 }
             }
-            return System.Drawing.Color.FromArgb(rgb[0], rgb[1], rgb[2]);
+            return Color.FromArgb(rgb[0], rgb[1], rgb[2]);
         }
         public GeoObjectList toShow;
         public DebuggerContainer()
         {
             toShow = new GeoObjectList();
         }
-        public void Add(IGeoObject toAdd, System.Drawing.Color color, int debugHint = 0)
+        public void Add(IGeoObject toAdd,   Color color, int debugHint = 0)
         {
             if (toAdd != null)
             {
@@ -73,7 +73,7 @@ namespace CADability
                 toShow.Add(clone);
             }
         }
-        public void Add(GeoPoint from, GeoVector dir, double size, System.Drawing.Color color)
+        public void Add(GeoPoint from, GeoVector dir, double size, Color color)
         {
             Line l = Line.Construct();
             l.StartPoint = from;
@@ -105,7 +105,7 @@ namespace CADability
             AssertColor(go);
             toShow.Add(go);
         }
-        public void Add(ICurve2D c2d, System.Drawing.Color color, int debugHint)
+        public void Add(ICurve2D c2d, Color color, int debugHint)
         {
             if (c2d == null) return;
             IGeoObject go = c2d.MakeGeoObject(Plane.XYPlane);
@@ -122,7 +122,7 @@ namespace CADability
             //}
             toShow.Add(go);
         }
-        public void Add(ICurve2D c2d, System.Drawing.Color color, string debugHint)
+        public void Add(ICurve2D c2d, Color color, string debugHint)
         {
             if (c2d == null) return;
             IGeoObject go = c2d.MakeGeoObject(Plane.XYPlane);
@@ -132,7 +132,7 @@ namespace CADability
             go.UserData.Add("Debug", sp);
             toShow.Add(go);
         }
-        public void Add(Border bdr, System.Drawing.Color color, int debugHint)
+        public void Add(Border bdr, Color color, int debugHint)
         {
             IGeoObject go = bdr.AsPath().MakeGeoObject(Plane.XYPlane);
             ColorDef cd = new ColorDef(color.Name, color);
@@ -153,10 +153,10 @@ namespace CADability
         {
             for (int i = 0; i < cvs.Length; ++i)
             {
-                Add(cvs[i], System.Drawing.Color.Red, i);
+                Add(cvs[i], Color.Red, i);
             }
         }
-        public void Add(GeoPoint2D pnt, System.Drawing.Color color, int debugHint)
+        public void Add(GeoPoint2D pnt, Color color, int debugHint)
         {
             GeoObject.Point point = GeoObject.Point.Construct();
             point.Location = new GeoPoint(pnt);
@@ -167,7 +167,7 @@ namespace CADability
             point.UserData.Add("Debug", ip);
             toShow.Add(point);
         }
-        public void Add(GeoPoint2D pnt, System.Drawing.Color color, string debugHint)
+        public void Add(GeoPoint2D pnt, Color color, string debugHint)
         {
             GeoObject.Point point = GeoObject.Point.Construct();
             point.Location = new GeoPoint(pnt);
@@ -178,7 +178,7 @@ namespace CADability
             point.UserData.Add("Debug", sp);
             toShow.Add(point);
         }
-        public void Add(GeoPoint pnt, System.Drawing.Color color, int debugHint)
+        public void Add(GeoPoint pnt, Color color, int debugHint)
         {
             GeoObject.Point point = GeoObject.Point.Construct();
             point.Location = pnt;
@@ -280,7 +280,7 @@ namespace CADability
         public static DebuggerContainer Show(IEnumerable<object> obj)
         {
             DebuggerContainer res = new DebuggerContainer();
-            ColorDef cd = new ColorDef("debug", System.Drawing.Color.Red);
+            ColorDef cd = new ColorDef("debug", Color.Red);
             int i = 0;
             foreach (object obji in obj)
             {
@@ -301,7 +301,7 @@ namespace CADability
                 }
                 else if (obji is IGeoObject) res.Add(obji as IGeoObject);
                 else if (obji is Edge && (obji as Edge).Curve3D != null) res.Add((obji as Edge).Curve3D as IGeoObject, (obji as Edge).GetHashCode());
-                else if (obji is ICurve2D) res.Add(obji as ICurve2D, System.Drawing.Color.Red, i);
+                else if (obji is ICurve2D) res.Add(obji as ICurve2D, Color.Red, i);
                 else if (obji is Vertex) res.Add((obji as Vertex).DebugPoint, (obji as Vertex).GetHashCode());
                 else if (obji is IDebuggerVisualizer) res.Add((obji as IDebuggerVisualizer).GetList());
                 ++i;
@@ -360,7 +360,7 @@ namespace CADability
             }
         }
 
-        internal void Add(IEnumerable<Edge> edges, Face onThisFace, double arrowsize, System.Drawing.Color clr, int debugHint)
+        internal void Add(IEnumerable<Edge> edges, Face onThisFace, double arrowsize, Color clr, int debugHint)
         {
             Random rnd = new Random();
             foreach (Edge edg in edges)
@@ -384,7 +384,7 @@ namespace CADability
                 }
             }
         }
-        internal void Add(IEnumerable<ICurve2D> crvs, double arrowsize, System.Drawing.Color clr, int debugHint)
+        internal void Add(IEnumerable<ICurve2D> crvs, double arrowsize, Color clr, int debugHint)
         {
             int i = 0;
             foreach (ICurve2D crv in crvs)

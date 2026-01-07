@@ -4,11 +4,7 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Runtime.Serialization;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
+using CADability.Substitutes;
 
 
 namespace CADability
@@ -233,6 +229,11 @@ namespace CADability
                 // FinishDeserialization kommt wohl nicht mehr dran...
                 GlobalSettings.resourceIdInternal = "GlobalSettings";
                 GlobalSettings.modified = false;
+            }
+            catch (Exception ex)
+            {
+                if (ex is ThreadAbortException)
+                    throw;
             }
             finally
             {

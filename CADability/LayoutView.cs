@@ -5,15 +5,13 @@ using CADability.UserInterface;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Printing;
 // PrintDialog etc.
 using CADability.Substitutes;
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
 using DragEventArgs = CADability.Substitutes.DragEventArgs;
 using DragDropEffects = CADability.Substitutes.DragDropEffects;
 using PaintEventArgs = CADability.Substitutes.PaintEventArgs;
+using Point = CADability.Substitutes.Point;
 
 namespace CADability
 {
@@ -54,7 +52,7 @@ namespace CADability
         //private IPaintTo3D paintTo3D; // die OpenGL Zeichenmaschine
         internal ModOp2D layoutToScreen; // Abbildung layout auf Bildschirm, also Zoom und Scroll
         internal ModOp2D screenToLayout; // inverse Abbildung
-        private PrintDocument printDocument; // lokale Printeinstellungen
+        //private PrintDocument printDocument; // lokale Printeinstellungen
         private Project project; //Rückverweis wg. Druckereinstellung und Dokument Name
         private DoubleProperty paperWidth;
         private DoubleProperty paperHeight;
@@ -117,37 +115,37 @@ namespace CADability
             tot *= factor;
             (this as IView).ZoomToRect(tot);
         }
-        public void Print(PrintDocument pd)
-        {
-            bool printToGDI = Settings.GlobalSettings.GetIntValue("Printing.PrintingMode", 0) == 1;
-            if (printToGDI)
-            {
-                PrintToGDI pdg = new PrintToGDI(this);
-                pd.PrintPage += pdg.OnPrintPage;
-                try
-                {
-                    pd.Print();
-                }
-                catch (Exception)
-                {
-                }
-                pd.PrintPage -= pdg.OnPrintPage;
-            }
-            else
-            {
-                pd.PrintPage += OnPrintPage;
-                try
-                {
-                    pd.Print();
-                }
-                catch (Exception)
-                {
-                }
-                pd.PrintPage -= OnPrintPage;
-            }
-        }
+        //public void Print(PrintDocument pd)
+        //{
+        //    bool printToGDI = Settings.GlobalSettings.GetIntValue("Printing.PrintingMode", 0) == 1;
+        //    if (printToGDI)
+        //    {
+        //        PrintToGDI pdg = new PrintToGDI(this);
+        //        pd.PrintPage += pdg.OnPrintPage;
+        //        try
+        //        {
+        //            pd.Print();
+        //        }
+        //        catch (Exception)
+        //        {
+        //        }
+        //        pd.PrintPage -= pdg.OnPrintPage;
+        //    }
+        //    else
+        //    {
+        //        pd.PrintPage += OnPrintPage;
+        //        try
+        //        {
+        //            pd.Print();
+        //        }
+        //        catch (Exception)
+        //        {
+        //        }
+        //        pd.PrintPage -= OnPrintPage;
+        //    }
+        //}
 
-#region IShowProperty
+        #region IShowProperty
         /// <summary>
         /// Overrides <see cref="IShowPropertyImpl.Added"/>
         /// </summary>
@@ -257,10 +255,10 @@ namespace CADability
                     subEntries = new IShowProperty[2 + layout.PatchCount];
                     paperWidth = new DoubleProperty(base.Frame, "Layout.PaperWidth");
                     paperWidth.OnGetValue = () => layout.PaperWidth;
-					paperWidth.OnSetValue = val => layout.PaperWidth = val;
+                    paperWidth.OnSetValue = val => layout.PaperWidth = val;
                     paperHeight = new DoubleProperty(base.Frame, "Layout.PaperHeight");
-					paperHeight.OnGetValue = () => layout.PaperHeight;
-					paperHeight.OnSetValue = val => layout.PaperHeight = val;
+                    paperHeight.OnGetValue = () => layout.PaperHeight;
+                    paperHeight.OnSetValue = val => layout.PaperHeight = val;
                     paperWidth.Refresh();
                     paperHeight.Refresh();
                     subEntries[0] = paperWidth;
@@ -274,8 +272,8 @@ namespace CADability
                 return subEntries;
             }
         }
-#endregion
-#region ICondorViewInternal Members
+        #endregion
+        #region ICondorViewInternal Members
         private ICanvas canvas;
         void IView.Connect(ICanvas canvas)
         {
@@ -334,9 +332,9 @@ namespace CADability
 
                 //GeoPoint2D clipll = layoutToScreen * ext.GetLowerLeft();
                 //GeoPoint2D clipur = layoutToScreen * ext.GetUpperRight();
-                
+
                 //Rectangle clipRectangle = Rectangle.FromLTRB((int)clipll.x, (int)clipur.y, (int)clipur.x, (int)clipll.y);
-                
+
                 Projection pr = lp.Projection.Clone();
                 pr.GetPlacement(out double factor, out double dx, out double dy);
                 pr.SetPlacement(layoutToScreen.Factor * factor, ll.x + layoutToScreen.Factor * dx, ll.y - layoutToScreen.Factor * dy);
@@ -372,7 +370,7 @@ namespace CADability
             }
             //ipaintTo3D.FinishPaint();
         }
-        public void OnSizeChanged(System.Drawing.Rectangle oldRectangle)
+        public void OnSizeChanged(Rectangle oldRectangle)
         {
             canvas?.Invalidate();
         }
@@ -418,7 +416,7 @@ namespace CADability
             Rectangle clr = canvas.ClientRectangle;
             BoundingRect rct = new BoundingRect(clr.Left, clr.Bottom, clr.Right, clr.Top);
             rct.Modify(screenToLayout);
-            System.Drawing.Point p = new System.Drawing.Point(e.X, e.Y);
+            Point p = new Point(e.X, e.Y);
             p = canvas.PointToClient(Frame.UIService.CurrentMousePosition);
             GeoPoint2D p2 = screenToLayout * new GeoPoint2D(p.X, p.Y);
             rct.Right = p2.x + (rct.Right - p2.x) * Factor;
@@ -434,8 +432,8 @@ namespace CADability
         public void ZoomDelta(double f)
         {
             double Factor = f;
-            System.Drawing.Rectangle clr = canvas.ClientRectangle;
-            System.Drawing.Point p = new System.Drawing.Point((clr.Left + clr.Right) / 2, (clr.Bottom + clr.Top) / 2);
+            Rectangle clr = canvas.ClientRectangle;
+            Point p = new Point((clr.Left + clr.Right) / 2, (clr.Bottom + clr.Top) / 2);
             BoundingRect rct = new BoundingRect(clr.Left, clr.Bottom, clr.Right, clr.Top);
             rct.Modify(screenToLayout);
             GeoPoint2D p2 = screenToLayout * new GeoPoint2D(p.X, p.Y);
@@ -483,7 +481,7 @@ namespace CADability
         {
             // TODO:  Add LayoutView.OnDragOver implementation
         }
-        public int GetInfoProviderIndex(System.Drawing.Point ScreenCursorPosition)
+        public int GetInfoProviderIndex(Point ScreenCursorPosition)
         {
             // TODO:  Add LayoutView.GetInfoProviderIndex implementation
             return 0;
@@ -498,8 +496,8 @@ namespace CADability
             // TODO:  Add LayoutView.GetInfoProviderVerticalPosition implementation
             return 0;
         }
-#endregion
-#region IView Members
+        #endregion
+        #region IView Members
         ProjectedModel IView.ProjectedModel
         {
             get
@@ -555,24 +553,24 @@ namespace CADability
             IPaintTo3D ipaintTo3D = paintTo3D;
             // ipaintTo3D.Init(condorCtrl); // das erzeugt jedesmal einen neuen renderContext, das kann doch nicht richtig sein
             ipaintTo3D.MakeCurrent();
-            ipaintTo3D.Clear(Color.Black); // damit ist black die Backgroundcolor
+            ipaintTo3D.Clear(Color.FromArgb(unchecked((int)0xFF000000))); // damit ist black die Backgroundcolor
 
             //e.Graphics.FillRectangle(Brushes.Black, e.Graphics.ClipBounds);
             GeoPoint2D ll = layoutToScreen * new GeoPoint2D(0.0, 0.0);
             GeoPoint2D ur = layoutToScreen * new GeoPoint2D(layout.PaperWidth, layout.PaperHeight);
-            RectangleF paperrect = RectangleF.FromLTRB((float)ll.x, (float)ur.y, (float)ur.x, (float)ll.y);
+            RectangleF paperrect = new RectangleF((float)ll.x, (float)ur.y, (float)(ur.x - ll.x), (float)(ll.y - ur.y));
             //e.Graphics.FillRectangle(Brushes.White, paperrect);
 
             //BoundingCube bc = new BoundingCube(ll.x, ur.x, ll.y, ur.y, -1.0, 1.0);
             //ipaintTo3D.SetProjection(new Projection(Projection.StandardProjection.FromTop), bc);
             ipaintTo3D.UseZBuffer(false);
-            ipaintTo3D.SetColor(Color.White);
+            ipaintTo3D.SetColor(Color.FromArgb(unchecked((int)0xFFFFFFFF)));
             ipaintTo3D.FillRect2D(ll.PointF, ur.PointF);
 
             //ipaintTo3D.FinishPaint();// DEBUG
             //return; // DEBUG
 
-            ipaintTo3D.AvoidColor(Color.White);
+            ipaintTo3D.AvoidColor(Color.FromArgb(unchecked((int)0xFFFFFFFF)));
 
             if (RepaintActionEvent != null) RepaintActionEvent(this, ipaintTo3D);
 
@@ -593,7 +591,7 @@ namespace CADability
 
                 GeoPoint2D clipll = layoutToScreen * ext.GetLowerLeft();
                 GeoPoint2D clipur = layoutToScreen * ext.GetUpperRight();
-                Rectangle clipRectangle = Rectangle.FromLTRB((int)clipll.x, (int)clipur.y, (int)clipur.x, (int)clipll.y);
+                Rectangle clipRectangle = new Rectangle((int)clipll.x, (int)clipur.y, (int)(clipur.x-clipll.x), (int)(clipll.y-clipur.y));
                 Projection pr = lp.Projection.Clone();
                 double factor, dx, dy;
                 pr.GetPlacement(out factor, out dx, out dy);
@@ -626,11 +624,11 @@ namespace CADability
                         ipaintTo3D.List(kv.Value);
                     }
                 }
-                ipaintTo3D.SetClip(Rectangle.Empty);
+                ipaintTo3D.SetClip(new Rectangle());
             }
             ipaintTo3D.FinishPaint();
         }
-        void IView.Invalidate(CADability.PaintBuffer.DrawingAspect aspect, System.Drawing.Rectangle ToInvalidate)
+        void IView.Invalidate(CADability.PaintBuffer.DrawingAspect aspect, Rectangle ToInvalidate)
         {
             canvas?.Invalidate();
         }
@@ -645,11 +643,11 @@ namespace CADability
         void IView.RemovePaintHandler(PaintBuffer.DrawingAspect aspect, PaintView PaintHandler)
         {
         }
-        System.Drawing.Rectangle IView.DisplayRectangle
+        Rectangle IView.DisplayRectangle
         {
             get
             {
-                if (canvas == null) return Rectangle.Empty;
+                if (canvas == null) return new Rectangle();
                 return canvas.ClientRectangle;
             }
         }
@@ -670,19 +668,19 @@ namespace CADability
             layoutToScreen = new ModOp2D(factor, 0.0, dx, 0.0, -factor, dy);
             screenToLayout = layoutToScreen.GetInverse(); // ginge auch einfacher
         }
-        SnapPointFinder.DidSnapModes IView.AdjustPoint(System.Drawing.Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
+        SnapPointFinder.DidSnapModes IView.AdjustPoint(Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
         {
             // TODO:  Add LayoutView.AdjustPoint implementation
             WorldPoint = new GeoPoint();
             return SnapPointFinder.DidSnapModes.DidNotSnap;
         }
-        SnapPointFinder.DidSnapModes IView.AdjustPoint(GeoPoint BasePoint, System.Drawing.Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
+        SnapPointFinder.DidSnapModes IView.AdjustPoint(GeoPoint BasePoint, Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
         {
             // TODO:  Add LayoutView.Condor.ICondorView.AdjustPoint implementation
             WorldPoint = new GeoPoint();
             return SnapPointFinder.DidSnapModes.DidNotSnap;
         }
-        GeoObjectList IView.PickObjects(System.Drawing.Point MousePoint, PickMode pickMode)
+        GeoObjectList IView.PickObjects(Point MousePoint, PickMode pickMode)
         {
             // TODO:  Add LayoutView.PickObjects implementation
             return null;
@@ -718,8 +716,8 @@ namespace CADability
         bool IView.AllowDrag => throw new NotImplementedException();
 
         bool IView.AllowContextMenu => throw new NotImplementedException();
-#endregion
-#region ICommandHandler Members
+        #endregion
+        #region ICommandHandler Members
         bool ICommandHandler.OnCommand(string MenuId)
         {
             switch (MenuId)
@@ -736,15 +734,15 @@ namespace CADability
                         canvas.Invalidate();
                         return true;
                     }
-                case "MenuId.LayoutView.Print":
-                    OnPrint();
-                    return true;
-                case "MenuId.LayoutView.Print.Setup":
-                    OnPrintSetup();
-                    return true;
-                case "MenuId.LayoutView.Print.SelectPrinter":
-                    OnSelectPrinter();
-                    return true;
+                //case "MenuId.LayoutView.Print":
+                //    OnPrint();
+                //    return true;
+                //case "MenuId.LayoutView.Print.Setup":
+                //    OnPrintSetup();
+                //    return true;
+                //case "MenuId.LayoutView.Print.SelectPrinter":
+                //    OnSelectPrinter();
+                //    return true;
                 case "MenuId.LayoutView.Show":
                     base.Frame.ActiveView = this;
                     return true;
@@ -779,141 +777,141 @@ namespace CADability
             return false;
         }
         void ICommandHandler.OnSelected(MenuWithHandler selectedMenuItem, bool selected) { }
-#endregion
+        #endregion
         // Get real page bounds based on printable area of the page (http://www.ddj.com/dept/windows/184416821)
-        static Rectangle GetRealPageBounds(PrintPageEventArgs e, bool preview)
-        {
-            // Return in units of 1/100th of an inch
-            if (preview) return e.PageBounds;
+        //static Rectangle GetRealPageBounds(PrintPageEventArgs e, bool preview)
+        //{
+        //    // Return in units of 1/100th of an inch
+        //    if (preview) return e.PageBounds;
 
-            // Translate to units of 1/100th of an inch
-            RectangleF vpb = e.Graphics.VisibleClipBounds;
-            PointF[] bottomRight = { new PointF(vpb.Size.Width, vpb.Size.Height) };
-            e.Graphics.TransformPoints(CoordinateSpace.Device, CoordinateSpace.Page, bottomRight);
-            float dpiX = e.Graphics.DpiX;
-            float dpiY = e.Graphics.DpiY;
-            return new Rectangle(
-              0,
-              0,
-              (int)(bottomRight[0].X * 100 / dpiX),
-              (int)(bottomRight[0].Y * 100 / dpiY));
-        }
+        //    // Translate to units of 1/100th of an inch
+        //    RectangleF vpb = e.Graphics.VisibleClipBounds;
+        //    PointF[] bottomRight = { new PointF(vpb.Size.Width, vpb.Size.Height) };
+        //    e.Graphics.TransformPoints(CoordinateSpace.Device, CoordinateSpace.Page, bottomRight);
+        //    float dpiX = e.Graphics.DpiX;
+        //    float dpiY = e.Graphics.DpiY;
+        //    return new Rectangle(
+        //      0,
+        //      0,
+        //      (int)(bottomRight[0].X * 100 / dpiX),
+        //      (int)(bottomRight[0].Y * 100 / dpiY));
+        //}
 
-        private void OnPrintPage(object sender, PrintPageEventArgs e)
-        {
-            Rectangle r = e.PageBounds; // ist IMMER in 100 dpi
-            // die Pixelauflösung des Druckers ist in e.Graphics.DpiX bzw. DpiY
-            double fctpap = 100 / 25.4;
-            //double fct = 100 / 25.4;
-            double fct = e.Graphics.DpiX / 25.4; // das ist die echte Auflösung
+        //private void OnPrintPage(object sender, PrintPageEventArgs e)
+        //{
+        //    Rectangle r = e.PageBounds; // ist IMMER in 100 dpi
+        //    // die Pixelauflösung des Druckers ist in e.Graphics.DpiX bzw. DpiY
+        //    double fctpap = 100 / 25.4;
+        //    //double fct = 100 / 25.4;
+        //    double fct = e.Graphics.DpiX / 25.4; // das ist die echte Auflösung
 
-            // fct /= 2; war nur ein Test
+        //    // fct /= 2; war nur ein Test
 
-            e.Graphics.PageScale = (float)(1.0);
+        //    e.Graphics.PageScale = (float)(1.0);
 
-            for (int i = 0; i < layout.PatchCount; ++i)
-            {
-                LayoutPatch lp = layout.Patches[i];
-                e.Graphics.Transform = new System.Drawing.Drawing2D.Matrix((float)fctpap, 0.0f, 0.0f, (float)-fctpap, 0.0f, (float)(layout.PaperHeight * fctpap));
+        //    for (int i = 0; i < layout.PatchCount; ++i)
+        //    {
+        //        LayoutPatch lp = layout.Patches[i];
+        //        e.Graphics.Transform = new Drawing2D.Matrix((float)fctpap, 0.0f, 0.0f, (float)-fctpap, 0.0f, (float)(layout.PaperHeight * fctpap));
 
-                BoundingRect ext;
-                if (lp.Area != null)
-                {
-                    ext = lp.Area.Extent;
-                }
-                else
-                {
-                    ext = new BoundingRect(0.0, 0.0, layout.PaperWidth, layout.PaperHeight);
-                }
+        //        BoundingRect ext;
+        //        if (lp.Area != null)
+        //        {
+        //            ext = lp.Area.Extent;
+        //        }
+        //        else
+        //        {
+        //            ext = new BoundingRect(0.0, 0.0, layout.PaperWidth, layout.PaperHeight);
+        //        }
 
-                // der Faktor fct ist willkürlich, macht man ihn zu groß, gibt es ein OutOfMemory in OpenGl
-                // zu klein, wird die Auflösung beim Drucken zu grob. Abhilfe würde es schaffen, wenn man nicht ein
-                // Bitmap erzeugt, sondern dieses kachelt. Ob man es aber nahtlos zusammensetzen kann?
-                // eigentlich gefragt wäre hier die Pixelauflösung des Graphics, aber vielleicht gibt es die garnicht
-                // und es ist ein Metafile, der zum Drucker weitergereicht wird.
-                GeoPoint2D ll = ext.GetLowerLeft();
-                GeoPoint2D ur = ext.GetUpperRight();
-                Rectangle clipRectangle = Rectangle.FromLTRB((int)ll.x, (int)ll.y, (int)ur.x, (int)ur.y);
-                System.Drawing.Bitmap PaintToBitmap;
-                int bitmapwidth = (int)(clipRectangle.Width * fct);
-                int bitmapheight = (int)(clipRectangle.Height * fct);
-                PaintToBitmap = new System.Drawing.Bitmap(bitmapwidth, bitmapheight);
+        //        // der Faktor fct ist willkürlich, macht man ihn zu groß, gibt es ein OutOfMemory in OpenGl
+        //        // zu klein, wird die Auflösung beim Drucken zu grob. Abhilfe würde es schaffen, wenn man nicht ein
+        //        // Bitmap erzeugt, sondern dieses kachelt. Ob man es aber nahtlos zusammensetzen kann?
+        //        // eigentlich gefragt wäre hier die Pixelauflösung des Graphics, aber vielleicht gibt es die garnicht
+        //        // und es ist ein Metafile, der zum Drucker weitergereicht wird.
+        //        GeoPoint2D ll = ext.GetLowerLeft();
+        //        GeoPoint2D ur = ext.GetUpperRight();
+        //        Rectangle clipRectangle = Rectangle.FromLTRB((int)ll.x, (int)ll.y, (int)ur.x, (int)ur.y);
+        //        Bitmap PaintToBitmap;
+        //        int bitmapwidth = (int)(clipRectangle.Width * fct);
+        //        int bitmapheight = (int)(clipRectangle.Height * fct);
+        //        PaintToBitmap = new Bitmap(bitmapwidth, bitmapheight);
 
-                IPaintTo3D ipaintTo3D = Frame.UIService.CreatePaintInterface(PaintToBitmap, lp.Model.Extent.Size / 1000);
-                ipaintTo3D.MakeCurrent();
-                ipaintTo3D.Clear(Color.White);
-                ipaintTo3D.AvoidColor(Color.White);
+        //        IPaintTo3D ipaintTo3D = Frame.UIService.CreatePaintInterface(PaintToBitmap, lp.Model.Extent.Size / 1000);
+        //        ipaintTo3D.MakeCurrent();
+        //        ipaintTo3D.Clear(Color.White);
+        //        ipaintTo3D.AvoidColor(Color.White);
 
-                Projection pr = lp.Projection.Clone();
-                pr.SetUnscaledProjection(new ModOp(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0) * pr.UnscaledProjection);
-                double factor, dx, dy;
-                pr.GetPlacement(out factor, out dx, out dy);
-                //new System.Drawing.Drawing2D.Matrix((float)factor, 0.0f, 0.0f, (float)-factor, 0.0f, (float)(layout.PaperHeight * factor)); 
-                pr.SetPlacement(fct * factor, fct * (dx - ext.Left), fct * (dy - ext.Bottom));
-                ipaintTo3D.SetProjection(pr, lp.Model.Extent);
-                ipaintTo3D.UseZBuffer(true);
-                ipaintTo3D.PaintFaces(PaintTo3D.PaintMode.All);
-                ipaintTo3D.UseLineWidth = true;
-                // hier darf nicht mit Listen gearbeitet werden, sonst macht OpanGL die Krätsche
-                foreach (IGeoObject go in lp.Model)
-                {
-                    PaintFlatVisibleLayer(ipaintTo3D, go, lp.visibleLayers);
-                }
+        //        Projection pr = lp.Projection.Clone();
+        //        pr.SetUnscaledProjection(new ModOp(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0) * pr.UnscaledProjection);
+        //        double factor, dx, dy;
+        //        pr.GetPlacement(out factor, out dx, out dy);
+        //        //new Drawing2D.Matrix((float)factor, 0.0f, 0.0f, (float)-factor, 0.0f, (float)(layout.PaperHeight * factor)); 
+        //        pr.SetPlacement(fct * factor, fct * (dx - ext.Left), fct * (dy - ext.Bottom));
+        //        ipaintTo3D.SetProjection(pr, lp.Model.Extent);
+        //        ipaintTo3D.UseZBuffer(true);
+        //        ipaintTo3D.PaintFaces(PaintTo3D.PaintMode.All);
+        //        ipaintTo3D.UseLineWidth = true;
+        //        // hier darf nicht mit Listen gearbeitet werden, sonst macht OpanGL die Krätsche
+        //        foreach (IGeoObject go in lp.Model)
+        //        {
+        //            PaintFlatVisibleLayer(ipaintTo3D, go, lp.visibleLayers);
+        //        }
 
-                //CategorizedDislayLists displayLists = new CategorizedDislayLists();
-                //// beim Zeichnen auf Bitmaps müssen die Displaylisten lokal zu diesem rendercontext gehören
-                //// obwohl sharelists angegeben wurde und das keinen Fehler bringt
-                //// leider wird alles hierbei flach. Man könnte das höchstens damit übertricksen,
-                //// dass man bei tringle die Farbe an jedem Eckpunkt mit dem Normalenvektor verrechnet
-                //// aber ob das hilft?
-                //foreach (IGeoObject go in lp.Model)
-                //{
-                //    go.PaintTo3DList(ipaintTo3D, displayLists);
-                //}
-                //displayLists.Finish(ipaintTo3D);
-                //ipaintTo3D.PaintFaces(PaintTo3D.PaintMode.FacesOnly);
-                //foreach (KeyValuePair<Layer, IPaintTo3DList> kv in displayLists.layerFaceDisplayList)
-                //{
-                //    if (lp.IsLayerVisible(kv.Key) || displayLists.NullLayer == kv.Key)
-                //    {
-                //        ipaintTo3D.List(kv.Value);
-                //    }
-                //}
-                //ipaintTo3D.PaintFaces(PaintTo3D.PaintMode.CurvesOnly);
-                //foreach (KeyValuePair<Layer, IPaintTo3DList> kv in displayLists.layerCurveDisplayList)
-                //{
-                //    if (lp.IsLayerVisible(kv.Key) || displayLists.NullLayer == kv.Key)
-                //    {
-                //        ipaintTo3D.List(kv.Value);
-                //    }
-                //}
-                //// wozu war das folgende noch?
-                ////foreach (IGeoObject go in lp.Model)
-                ////{
-                ////    go.PaintTo3D(ipaintTo3D);
-                ////}
-                //// ipaintTo3D.Dispose(); gibt OpenGL Fehler
-                //ipaintTo3D.FinishPaint();
+        //        //CategorizedDislayLists displayLists = new CategorizedDislayLists();
+        //        //// beim Zeichnen auf Bitmaps müssen die Displaylisten lokal zu diesem rendercontext gehören
+        //        //// obwohl sharelists angegeben wurde und das keinen Fehler bringt
+        //        //// leider wird alles hierbei flach. Man könnte das höchstens damit übertricksen,
+        //        //// dass man bei tringle die Farbe an jedem Eckpunkt mit dem Normalenvektor verrechnet
+        //        //// aber ob das hilft?
+        //        //foreach (IGeoObject go in lp.Model)
+        //        //{
+        //        //    go.PaintTo3DList(ipaintTo3D, displayLists);
+        //        //}
+        //        //displayLists.Finish(ipaintTo3D);
+        //        //ipaintTo3D.PaintFaces(PaintTo3D.PaintMode.FacesOnly);
+        //        //foreach (KeyValuePair<Layer, IPaintTo3DList> kv in displayLists.layerFaceDisplayList)
+        //        //{
+        //        //    if (lp.IsLayerVisible(kv.Key) || displayLists.NullLayer == kv.Key)
+        //        //    {
+        //        //        ipaintTo3D.List(kv.Value);
+        //        //    }
+        //        //}
+        //        //ipaintTo3D.PaintFaces(PaintTo3D.PaintMode.CurvesOnly);
+        //        //foreach (KeyValuePair<Layer, IPaintTo3DList> kv in displayLists.layerCurveDisplayList)
+        //        //{
+        //        //    if (lp.IsLayerVisible(kv.Key) || displayLists.NullLayer == kv.Key)
+        //        //    {
+        //        //        ipaintTo3D.List(kv.Value);
+        //        //    }
+        //        //}
+        //        //// wozu war das folgende noch?
+        //        ////foreach (IGeoObject go in lp.Model)
+        //        ////{
+        //        ////    go.PaintTo3D(ipaintTo3D);
+        //        ////}
+        //        //// ipaintTo3D.Dispose(); gibt OpenGL Fehler
+        //        //ipaintTo3D.FinishPaint();
 
-                //gr.ReleaseHdc(dc);
-                //displayLists = null;
-                //System.GC.Collect();
-                //System.GC.WaitForPendingFinalizers();
-                ipaintTo3D.Dispose(); 
+        //        //gr.ReleaseHdc(dc);
+        //        //displayLists = null;
+        //        //System.GC.Collect();
+        //        //System.GC.WaitForPendingFinalizers();
+        //        ipaintTo3D.Dispose(); 
 
-                PaintToBitmap.MakeTransparent(Color.White);
-                //e.Graphics.DrawImageUnscaled(PaintToBitmap, clipRectangle);
-                PointF[] dest = new PointF[3];
-                dest[0].X = (float)ll.x;
-                dest[0].Y = (float)ur.y;
-                dest[1].X = (float)ur.x;
-                dest[1].Y = (float)ur.y;
-                dest[2].X = (float)ll.x;
-                dest[2].Y = (float)ll.y;
-                RectangleF src = new RectangleF(new PointF(0.0f, 0.0f), PaintToBitmap.Size);
-                e.Graphics.DrawImage(PaintToBitmap, dest, src, GraphicsUnit.Pixel);
-            }
-        }
+        //        PaintToBitmap.MakeTransparent(Color.White);
+        //        //e.Graphics.DrawImageUnscaled(PaintToBitmap, clipRectangle);
+        //        PointF[] dest = new PointF[3];
+        //        dest[0].X = (float)ll.x;
+        //        dest[0].Y = (float)ur.y;
+        //        dest[1].X = (float)ur.x;
+        //        dest[1].Y = (float)ur.y;
+        //        dest[2].X = (float)ll.x;
+        //        dest[2].Y = (float)ll.y;
+        //        RectangleF src = new RectangleF(new PointF(0.0f, 0.0f), PaintToBitmap.Size);
+        //        e.Graphics.DrawImage(PaintToBitmap, dest, src, GraphicsUnit.Pixel);
+        //    }
+        //}
 
         private void PaintFlatVisibleLayer(IPaintTo3D iPaintTo3D, IGeoObject go, Hashtable visibleLayers)
         {
@@ -942,66 +940,66 @@ namespace CADability
             }
         }
 
-        private void OnPrint()
-        {
-            if (printDocument == null) printDocument = project.printDocument;
-            if (printDocument == null)
-                printDocument = new PrintDocument();
-            Print(printDocument);
-        }
-        private void OnPrintSetup()
-        {
-            //psd.AllowPrinter = true;
-            //psd.EnableMetric = true;
-            if (printDocument == null)
-            {
-                if (project.printDocument == null) project.printDocument = new PrintDocument();
-                printDocument = project.printDocument;
-            }
-            if (layout.pageSettings != null)
-            {
-                printDocument.DefaultPageSettings = layout.pageSettings;
-            }
-            
-            if (Frame.UIService.ShowPageSetupDlg(printDocument, layout.pageSettings, out int width, out int height, out bool landscape) == DialogResult.OK)
-            {
-                //psd.Document.OriginAtMargins = false;
+        //private void OnPrint()
+        //{
+        //    if (printDocument == null) printDocument = project.printDocument;
+        //    if (printDocument == null)
+        //        printDocument = new PrintDocument();
+        //    Print(printDocument);
+        //}
+        //private void OnPrintSetup()
+        //{
+        //    //psd.AllowPrinter = true;
+        //    //psd.EnableMetric = true;
+        //    if (printDocument == null)
+        //    {
+        //        if (project.printDocument == null) project.printDocument = new PrintDocument();
+        //        printDocument = project.printDocument;
+        //    }
+        //    if (layout.pageSettings != null)
+        //    {
+        //        printDocument.DefaultPageSettings = layout.pageSettings;
+        //    }
 
-                if (landscape)
-                {   // zumindest der pdf drucker liefert das nicht richtig
-                    layout.PaperHeight = width * 0.254; // in hundertstel inch
-                    layout.PaperWidth = height * 0.254; // in hundertstel inch
-                }
-                else
-                {
-                    layout.PaperWidth = width * 0.254; // in hundertstel inch
-                    layout.PaperHeight = height * 0.254; // in hundertstel inch
-                }
-                // layout.pageSettings = psd.PageSettings;
-                paperWidth.DoubleChanged();
-                paperHeight.DoubleChanged();
-                canvas?.Invalidate();
-            }
-        }
-        private void OnSelectPrinter()
-        {
-            if (printDocument == null)
-            {
-                if (project.printDocument == null) project.printDocument = new PrintDocument();
-                printDocument = project.printDocument;
-            }
-            //PrintDialog printDialog = new PrintDialog();
-            //printDialog.Document = printDocument;
-            //printDialog.AllowSomePages = false;
-            //printDialog.AllowCurrentPage = false;
-            //printDialog.AllowSelection = false;
-            //printDialog.AllowPrintToFile = false;
-            if (Frame.UIService.ShowPrintDlg(printDocument) == DialogResult.OK)
-            {
-                // printDocument = printDialog.Document; update in ShowPrintDlg
-            }
-        }
-        
+        //    if (Frame.UIService.ShowPageSetupDlg(printDocument, layout.pageSettings, out int width, out int height, out bool landscape) == DialogResult.OK)
+        //    {
+        //        //psd.Document.OriginAtMargins = false;
+
+        //        if (landscape)
+        //        {   // zumindest der pdf drucker liefert das nicht richtig
+        //            layout.PaperHeight = width * 0.254; // in hundertstel inch
+        //            layout.PaperWidth = height * 0.254; // in hundertstel inch
+        //        }
+        //        else
+        //        {
+        //            layout.PaperWidth = width * 0.254; // in hundertstel inch
+        //            layout.PaperHeight = height * 0.254; // in hundertstel inch
+        //        }
+        //        // layout.pageSettings = psd.PageSettings;
+        //        paperWidth.DoubleChanged();
+        //        paperHeight.DoubleChanged();
+        //        canvas?.Invalidate();
+        //    }
+        //}
+        //private void OnSelectPrinter()
+        //{
+        //    if (printDocument == null)
+        //    {
+        //        if (project.printDocument == null) project.printDocument = new PrintDocument();
+        //        printDocument = project.printDocument;
+        //    }
+        //    //PrintDialog printDialog = new PrintDialog();
+        //    //printDialog.Document = printDocument;
+        //    //printDialog.AllowSomePages = false;
+        //    //printDialog.AllowCurrentPage = false;
+        //    //printDialog.AllowSelection = false;
+        //    //printDialog.AllowPrintToFile = false;
+        //    if (Frame.UIService.ShowPrintDlg(printDocument) == DialogResult.OK)
+        //    {
+        //        // printDocument = printDialog.Document; update in ShowPrintDlg
+        //    }
+        //}
+
         internal void Repaint()
         {
             if (!IsInitialized) ZoomTotal(1.1);

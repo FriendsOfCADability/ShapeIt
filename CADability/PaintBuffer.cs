@@ -1,11 +1,5 @@
 ﻿using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 
 namespace CADability
 {
@@ -106,8 +100,8 @@ namespace CADability
         }
         //private void Scroll(Bitmap ToScroll, ref Rectangle InvalidRect, int OffsetX, int OffsetY)
         //{
-        //    System.Drawing.Graphics gr = System.Drawing.Graphics.FromImage(ToScroll);
-        //    System.Drawing.Bitmap ToScrollClone = (System.Drawing.Bitmap)ToScroll.Clone();
+        //    Graphics gr = Graphics.FromImage(ToScroll);
+        //    Bitmap ToScrollClone = (Bitmap)ToScroll.Clone();
         //    gr.Clear(Color.FromArgb(0, 0, 0, 0));
         //    gr.DrawImageUnscaled(ToScrollClone, OffsetX, OffsetY);
         //    Rectangle clr = Ctrl.ClientRectangle;

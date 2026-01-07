@@ -25,7 +25,7 @@
 
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Globalization;
 using System.Threading;
 
@@ -823,7 +823,7 @@ namespace netDxf
         /// <summary>
         /// Converts the AciColor to a <see cref="Color">color</see>.
         /// </summary>
-        /// <returns>A <see cref="Color">System.Drawing.Color</see> that represents the actual AciColor.</returns>
+        /// <returns>A <see cref="Color">Color</see> that represents the actual AciColor.</returns>
         /// <remarks>
         /// A default color white will be used for ByLayer and ByBlock colors.
         /// </remarks>

@@ -1,5 +1,6 @@
 ﻿using CADability.Curve2D;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using CADability.UserInterface;
 using System;
 using System.Collections;
@@ -404,7 +405,7 @@ namespace CADability
                 for (int j = 0; j < points[i].Length - 1; ++j)
                 {
                     Line2D l2d = new Line2D(points[i][j], points[i][j + 1]);
-                    dc.Add(l2d, System.Drawing.Color.Red, j);
+                    dc.Add(l2d, Color.Red, j);
                 }
             }
 #endif
@@ -481,9 +482,9 @@ namespace CADability
                             for (int j = 0; j < edges.Count; ++j)
                             {
                                 Line2D l2d = new Line2D(vertex[edges[j].v1].p2d, vertex[edges[j].v2].p2d);
-                                if (edges[j] == eqc.edge) dce.Add(l2d, System.Drawing.Color.Red, j);
-                                else if (i == j) dce.Add(l2d, System.Drawing.Color.Green, j);
-                                else dce.Add(l2d, System.Drawing.Color.Blue, j);
+                                if (edges[j] == eqc.edge) dce.Add(l2d, Color.Red, j);
+                                else if (i == j) dce.Add(l2d, Color.Green, j);
+                                else dce.Add(l2d, Color.Blue, j);
                             }
 #endif
                             innerIntersection = true;
@@ -2274,15 +2275,15 @@ namespace CADability
                 for (int i = 0; i < edges.Count; ++i)
                 {
                     Line2D l2d = new Line2D(vertex[edges[i].v1].p2d, vertex[edges[i].v2].p2d);
-                    res.Add(l2d.GetModified(makeSquare), System.Drawing.Color.Red, edges[i].v1.ToString() + "->" + edges[i].v2.ToString() + " p: " + edges[i].polygon.ToString());
+                    res.Add(l2d.GetModified(makeSquare), Color.Red, edges[i].v1.ToString() + "->" + edges[i].v2.ToString() + " p: " + edges[i].polygon.ToString());
                 }
-                CADability.Attribute.ColorDef cd = new CADability.Attribute.ColorDef("DEBUG", System.Drawing.Color.Green);
+                CADability.Attribute.ColorDef cd = new CADability.Attribute.ColorDef("DEBUG", Color.Green);
                 for (int i = 0; i < triangle.Count; ++i)
                 {
                     try
                     {
                         Polyline2D p2d = new Polyline2D(new GeoPoint2D[] { vertex[triangle[i].v1].p2d, vertex[triangle[i].v2].p2d, vertex[triangle[i].v3].p2d, vertex[triangle[i].v1].p2d });
-                        // res.Add(p2d.GetModified(makeSquare), System.Drawing.Color.Green, triangle[i].v1.ToString() + "->" + triangle[i].v2.ToString() + "->" + triangle[i].v3.ToString());
+                        // res.Add(p2d.GetModified(makeSquare), Color.Green, triangle[i].v1.ToString() + "->" + triangle[i].v2.ToString() + "->" + triangle[i].v3.ToString());
                         GeoPoint p1 = new GeoPoint(makeSquare * vertex[triangle[i].v1].p2d);
                         GeoPoint p2 = new GeoPoint(makeSquare * vertex[triangle[i].v2].p2d);
                         GeoPoint p3 = new GeoPoint(makeSquare * vertex[triangle[i].v3].p2d);
@@ -2293,11 +2294,11 @@ namespace CADability
                     catch (ApplicationException)
                     {
                         Line2D l2d = new Line2D(vertex[triangle[i].v1].p2d, vertex[triangle[i].v2].p2d);
-                        res.Add(l2d.GetModified(makeSquare), System.Drawing.Color.Blue, i.ToString());
+                        res.Add(l2d.GetModified(makeSquare), Color.Blue, i.ToString());
                         l2d = new Line2D(vertex[triangle[i].v2].p2d, vertex[triangle[i].v3].p2d);
-                        res.Add(l2d.GetModified(makeSquare), System.Drawing.Color.Blue, i.ToString());
+                        res.Add(l2d.GetModified(makeSquare), Color.Blue, i.ToString());
                         l2d = new Line2D(vertex[triangle[i].v3].p2d, vertex[triangle[i].v1].p2d);
-                        res.Add(l2d.GetModified(makeSquare), System.Drawing.Color.Blue, i.ToString());
+                        res.Add(l2d.GetModified(makeSquare), Color.Blue, i.ToString());
                     }
                 }
                 return res;

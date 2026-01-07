@@ -5,7 +5,7 @@ using MathNet.Numerics.Optimization;
 using MathNet.Numerics.Optimization.TrustRegion;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Runtime.Serialization;
 using System.Threading;
 
@@ -831,27 +831,23 @@ namespace CADability.Curve2D
             center.y += dy;
             Recalc();
         }
-        /// <summary>
-        /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-        public override void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {
-            // aus dem Bogen übernommen, evtl besser in Kreisbögen zerlegen...
-            int n = 36;
-            PointF[] pnts = new PointF[n + 1]; // der erste und letzte Punkt ist identisch
-            double step = 1.0 / n;
-            for (int i = 0; i < n; ++i)
-            {
-                GeoPoint2D p = this.PointAt(i * step);
-                pnts[i] = new PointF((float)p.x, (float)p.y);
-            }
-            GeoPoint2D endPoint = this.PointAt(1.0);
-            pnts[n] = new PointF((float)endPoint.x, (float)endPoint.y);
-            if (!forward) Array.Reverse(pnts);
-            path.AddCurve(pnts);
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public override void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{
+        //    // aus dem Bogen übernommen, evtl besser in Kreisbögen zerlegen...
+        //    int n = 36;
+        //    PointF[] pnts = new PointF[n + 1]; // der erste und letzte Punkt ist identisch
+        //    double step = 1.0 / n;
+        //    for (int i = 0; i < n; ++i)
+        //    {
+        //        GeoPoint2D p = this.PointAt(i * step);
+        //        pnts[i] = new PointF((float)p.x, (float)p.y);
+        //    }
+        //    GeoPoint2D endPoint = this.PointAt(1.0);
+        //    pnts[n] = new PointF((float)endPoint.x, (float)endPoint.y);
+        //    if (!forward) Array.Reverse(pnts);
+        //    path.AddCurve(pnts);
+        //}
         /// <summary>
         /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.Clone ()"/>
         /// </summary>

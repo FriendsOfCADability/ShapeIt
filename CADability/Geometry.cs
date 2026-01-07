@@ -5,7 +5,7 @@ using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using Wintellect.PowerCollections;
 
 namespace CADability
@@ -2159,9 +2159,9 @@ namespace CADability
 #if DEBUG
                     DebuggerContainer dc = new DebuggerContainer();
                     Circle2D c2d = new Circle2D(new GeoPoint2D(x0, y0), Radius);
-                    dc.Add(c2d, System.Drawing.Color.Red, 0);
+                    dc.Add(c2d, Color.Red, 0);
                     Ellipse2D e2d = new Ellipse2D(GeoPoint2D.Origin, a * GeoVector2D.XAxis, b * GeoVector2D.YAxis);
-                    dc.Add(e2d, System.Drawing.Color.Blue, 1);
+                    dc.Add(e2d, Color.Blue, 1);
 #endif
                     List<GeoPoint2D> res = new List<GeoPoint2D>();
                     for (int i = 0; i < roots.Count; ++i)
@@ -3535,13 +3535,6 @@ namespace CADability
         public static GeoVector ReBase(GeoVector toRebase, GeoVector sysDirx, GeoVector sysDiry, GeoVector sysDirz)
         {
             return new GeoVector(toRebase * sysDirx / sysDirx.LengthSqared, toRebase * sysDiry / sysDiry.LengthSqared, toRebase * sysDirz / sysDirz.LengthSqared);
-            //Matrix m = new Matrix(sysDirx, sysDiry, sysDirz);
-            //Matrix s = m.SaveSolveTranspose(new Matrix(toRebase));
-            //if (s != null)
-            //{
-            //    return new GeoVector(s[0, 0], s[1, 0], s[2, 0]);
-            //}
-            //else throw new GeometryException("no solution: linear dependent coordinate system");
         }
         public static GeoVector ReBaseX(GeoVector toRebase, GeoVector sysDirx, GeoVector sysDiry, GeoVector sysDirz)
         {

@@ -1,5 +1,6 @@
 ﻿using CADability.Curve2D;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using Wintellect.PowerCollections;
@@ -492,8 +493,8 @@ namespace CADability
             {   // eine bessere Lösung gefunden
 #if DEBUG
                 DebuggerContainer dc = new DebuggerContainer();
-                CADability.Attribute.ColorDef cnew = new CADability.Attribute.ColorDef("neu", System.Drawing.Color.Green);
-                CADability.Attribute.ColorDef cold = new CADability.Attribute.ColorDef("alt", System.Drawing.Color.Gray);
+                CADability.Attribute.ColorDef cnew = new CADability.Attribute.ColorDef("neu", Color.Green);
+                CADability.Attribute.ColorDef cold = new CADability.Attribute.ColorDef("alt", Color.Gray);
                 for (int l = 0; l < 3; l++)
                 {
                     vertex v1 = vertices[segments[permutations[bestPermutation, l]].Second];
@@ -728,7 +729,7 @@ namespace CADability
                 DebuggerContainer dc2 = new DebuggerContainer();
                 foreach (improvement improvement in changes)
                 {
-                    dc2.Add(new Line2D(improvement.remove.position, improvement.insertAfter.position), System.Drawing.Color.Blue, (int)improvement.saved);
+                    dc2.Add(new Line2D(improvement.remove.position, improvement.insertAfter.position), Color.Blue, (int)improvement.saved);
                 }
 #endif
                 foreach (improvement improvement in changes)
@@ -923,9 +924,9 @@ namespace CADability
                     // 1. startSegment bis ednSegment aushängen
 #if DEBUG
                     DebuggerContainer dc3 = new DebuggerContainer();
-                    dc3.Add(imp.startSegment.previous.toNext.Debug, System.Drawing.Color.Red, 1);
-                    dc3.Add(imp.endSegment.toNext.Debug, System.Drawing.Color.Red, 2);
-                    dc3.Add(imp.toOpen.Debug, System.Drawing.Color.Red, 3);
+                    dc3.Add(imp.startSegment.previous.toNext.Debug, Color.Red, 1);
+                    dc3.Add(imp.endSegment.toNext.Debug, Color.Red, 2);
+                    dc3.Add(imp.toOpen.Debug, Color.Red, 3);
 #endif
                     connectionTree.RemoveObject(imp.startSegment.previous.toNext);
                     connectionTree.RemoveObject(imp.endSegment.toNext);
@@ -935,7 +936,7 @@ namespace CADability
                     imp.startSegment.previous.toNext = new connection(imp.startSegment.previous, imp.startSegment.previous.next);
                     connectionTree.AddObject(imp.startSegment.previous.toNext);
 #if DEBUG
-                    dc3.Add(imp.startSegment.previous.toNext.Debug, System.Drawing.Color.Green, 1);
+                    dc3.Add(imp.startSegment.previous.toNext.Debug, Color.Green, 1);
 #endif
                     if (imp.forward)
                     {
@@ -949,8 +950,8 @@ namespace CADability
                         imp.endSegment.toNext = new connection(imp.endSegment, imp.endSegment.next);
                         connectionTree.AddObject(imp.endSegment.toNext);
 #if DEBUG
-                        dc3.Add(imp.toOpen.from.toNext.Debug, System.Drawing.Color.Green, 2);
-                        dc3.Add(imp.endSegment.toNext.Debug, System.Drawing.Color.Green, 3);
+                        dc3.Add(imp.toOpen.from.toNext.Debug, Color.Green, 2);
+                        dc3.Add(imp.endSegment.toNext.Debug, Color.Green, 3);
 #endif
                     }
                     else
@@ -969,8 +970,8 @@ namespace CADability
                         imp.startSegment.toNext = new connection(imp.startSegment, imp.startSegment.next);
                         connectionTree.AddObject(imp.startSegment.toNext);
 #if DEBUG
-                        dc3.Add(imp.toOpen.from.toNext.Debug, System.Drawing.Color.Green, 2);
-                        dc3.Add(imp.startSegment.toNext.Debug, System.Drawing.Color.Green, 3);
+                        dc3.Add(imp.toOpen.from.toNext.Debug, Color.Green, 2);
+                        dc3.Add(imp.startSegment.toNext.Debug, Color.Green, 3);
 #endif
                     }
                     didImprove = true;
@@ -1023,7 +1024,7 @@ namespace CADability
                     {
                         double d = (inSquare[i].from.position | v.position) + (inSquare[i].to.position | v.position) - (inSquare[i].Length);
 #if DEBUG
-                        dc3.Add(inSquare[i].Debug, System.Drawing.Color.Chartreuse, inSquare[i].id);
+                        dc3.Add(inSquare[i].Debug, Color.Chartreuse, inSquare[i].id);
 #endif
                         if (d < minDist)
                         {
@@ -1269,8 +1270,8 @@ namespace CADability
             get
             {   // die Verbindungen anzeigen
                 DebuggerContainer res = new DebuggerContainer();
-                CADability.Attribute.ColorDef free = new CADability.Attribute.ColorDef("frei", System.Drawing.Color.Blue);
-                CADability.Attribute.ColorDef fix = new CADability.Attribute.ColorDef("fixed", System.Drawing.Color.Red);
+                CADability.Attribute.ColorDef free = new CADability.Attribute.ColorDef("frei", Color.Blue);
+                CADability.Attribute.ColorDef fix = new CADability.Attribute.ColorDef("fixed", Color.Red);
                 for (int i = 0; i < vertices.Length; i++)
                 {
                     if (vertices[i].next != null)
@@ -1281,7 +1282,7 @@ namespace CADability
                         else line.ColorDef = free;
                         res.Add(line, i);
                     }
-                    Point point = Point.Construct();
+                    GeoObject.Point point = GeoObject.Point.Construct();
                     point.Location = new GeoPoint(vertices[i].position);
                     point.Symbol = PointSymbol.Cross;
                     res.Add(point, i);

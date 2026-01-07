@@ -9,13 +9,7 @@ using System.Diagnostics;
 using System.Runtime.Serialization;
 using System.Threading;
 using Wintellect.PowerCollections;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 
 namespace CADability
 {
@@ -1931,7 +1925,7 @@ namespace CADability
                     }
                     else
                     {
-                        dsc = new InterpolatedDualSurfaceCurve(primaryFace.Surface, bounds1, secondaryFace.Surface, bounds2, new List<GeoPoint>(dsc.BasePoints));
+                        dsc = new InterpolatedDualSurfaceCurve(primaryFace.Surface, bounds1, secondaryFace.Surface, bounds2, new List<GeoPoint>(dsc.BasePoints),null,null,dsc.IsTangential);
                         curveOnPrimaryFace = dsc.CurveOnSurface1;
                         if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
                         curveOnSecondaryFace = dsc.CurveOnSurface2;

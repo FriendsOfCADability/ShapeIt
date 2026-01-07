@@ -1,5 +1,6 @@
 ﻿using CADability.Curve2D;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -209,7 +210,7 @@ namespace CADability.Shapes
                 DebuggerContainer dc = new DebuggerContainer();
                 for (int i = 0; i < pointsa.Length; ++i)
                 {
-                    dc.Add(pointsa[i].point, System.Drawing.Color.DarkBlue, pointsa[i].direction.ToString());
+                    dc.Add(pointsa[i].point, Color.DarkBlue, pointsa[i].direction.ToString());
                 }
 #endif
                 // in the following loop, two identical ones, separated only by ignore, are reduced to one
@@ -255,7 +256,7 @@ namespace CADability.Shapes
                 DebuggerContainer dc1 = new DebuggerContainer();
                 for (int i = 0; i < pointsa.Length; ++i)
                 {
-                    dc1.Add(pointsa[i].point, System.Drawing.Color.DarkBlue, pointsa[i].direction.ToString());
+                    dc1.Add(pointsa[i].point, Color.DarkBlue, pointsa[i].direction.ToString());
                 }
 #endif
                 points.Clear();
@@ -279,7 +280,7 @@ namespace CADability.Shapes
                 DebuggerContainer dc2 = new DebuggerContainer();
                 for (int i = 0; i < points.Count; ++i)
                 {
-                    dc2.Add(points[i].point, System.Drawing.Color.DarkBlue, points[i].direction.ToString());
+                    dc2.Add(points[i].point, Color.DarkBlue, points[i].direction.ToString());
                 }
 #endif
             }
@@ -1020,14 +1021,14 @@ namespace CADability.Shapes
             get
             {
                 DebuggerContainer res = new DebuggerContainer();
-                res.Add(border1, System.Drawing.Color.Red, 1);
-                res.Add(border2, System.Drawing.Color.Blue, 2);
+                res.Add(border1, Color.Red, 1);
+                res.Add(border2, Color.Blue, 2);
                 if (debugb1p != null)
                 {
                     for (int i = 0; i < debugb1p.Count; ++i)
                     {
                         string dbg = i.ToString() + ": " + debugb1p[i].direction.ToString() + ", " + debugb1p[i].index.ToString() + " id: " + debugb1p[i].id.ToString();
-                        res.Add(debugb1p[i].point, System.Drawing.Color.DarkRed, dbg);
+                        res.Add(debugb1p[i].point, Color.DarkRed, dbg);
                     }
                 }
                 if (debugb2p != null)
@@ -1035,7 +1036,7 @@ namespace CADability.Shapes
                     for (int i = 0; i < debugb2p.Count; ++i)
                     {
                         string dbg = i.ToString() + ": " + debugb2p[i].direction.ToString() + ", " + debugb2p[i].index.ToString() + " id: " + debugb2p[i].id.ToString();
-                        res.Add(debugb2p[i].point, System.Drawing.Color.DarkBlue, dbg);
+                        res.Add(debugb2p[i].point, Color.DarkBlue, dbg);
                     }
                 }
                 return res;

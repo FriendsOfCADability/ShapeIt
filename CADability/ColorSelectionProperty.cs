@@ -2,7 +2,7 @@
 using CADability.GeoObject;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Reflection;
 
 namespace CADability.UserInterface

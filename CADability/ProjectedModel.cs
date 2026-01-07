@@ -1,14 +1,10 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
 using System.Runtime.Serialization;
 using Wintellect.PowerCollections;
 
@@ -408,7 +404,7 @@ namespace CADability
         {
             projection.MovePlacement(dx, dy);
         }
-        //private void RepaintDrawing(System.Drawing.Rectangle Extent, PaintToGDI PaintToDrawing)
+        //private void RepaintDrawing(Rectangle Extent, PaintToGDI PaintToDrawing)
         //{
         //    System.Diagnostics.Trace.WriteLine("RepaintDrawing: " + Extent.ToString()+", "+System.Environment.TickCount.ToString());
         //    if (recalcVisibility)

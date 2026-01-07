@@ -569,22 +569,18 @@ namespace CADability.Curve2D
             if (l.Length > Precision.eps) return l;
             else return null;
         }
-        /// <summary>
-        /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-		public override void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {
-            if (forward)
-            {
-                path.AddLine((float)startPoint.x, (float)startPoint.y, (float)endPoint.x, (float)endPoint.y);
-            }
-            else
-            {
-                path.AddLine((float)endPoint.x, (float)endPoint.y, (float)startPoint.x, (float)startPoint.y);
-            }
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public override void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{
+        //    if (forward)
+        //    {
+        //        path.AddLine((float)startPoint.x, (float)startPoint.y, (float)endPoint.x, (float)endPoint.y);
+        //    }
+        //    else
+        //    {
+        //        path.AddLine((float)endPoint.x, (float)endPoint.y, (float)startPoint.x, (float)startPoint.y);
+        //    }
+        //}
         /// <summary>
         /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.GetExtendedHitTest ()"/>
         /// </summary>

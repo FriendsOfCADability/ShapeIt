@@ -785,7 +785,7 @@ namespace CADability.GeoObject
                 for (int j = 0; j <= 5; ++j)
                 {
                     cpoints[i, j] = pFromComplex(fromStdPoint(p[j], i));
-                    // dc.Add(cpoints[i, j], System.Drawing.Color.Blue, i * 10 + j);
+                    // dc.Add(cpoints[i, j], Color.Blue, i * 10 + j);
                 }
             }
         }

@@ -5,9 +5,7 @@ using CADability.GeoObject;
 using CADability.Shapes;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Printing;
+using CADability.Substitutes;
 
 using Wintellect.PowerCollections;
 
@@ -2291,7 +2289,7 @@ namespace CADability
             }
         }
 
-        System.Drawing.Color IPaintTo3D.SelectColor
+        Color IPaintTo3D.SelectColor
         {
             get
             {
@@ -2363,7 +2361,7 @@ namespace CADability
             throw new NotImplementedException("The method or operation is not implemented.");
         }
 
-        void IPaintTo3D.SetColor(System.Drawing.Color color, int lockColor)
+        void IPaintTo3D.SetColor(Color color, int lockColor)
         {
             currentColor = color;
         }

@@ -1,14 +1,8 @@
 ﻿using CADability.GeoObject;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
 using System.Runtime.Serialization;
 
 namespace CADability.Attribute
@@ -262,7 +256,7 @@ namespace CADability.Attribute
         public Color GetColor(int Index)
         {
             if (Index < 0 || Index >= namedColors.Count)
-                return Color.Blue;
+                return Color.FromArgb(unchecked((int)0xFF0000FF));
             return ((ColorDef)namedColors[Index]).Color;
         }
         /// <summary>
@@ -470,7 +464,7 @@ namespace CADability.Attribute
         private void OnNewColor()
         {
             string NewColorName = GetNewName();
-            AddColor(NewColorName, Color.Black);
+            AddColor(NewColorName, Color.FromArgb(unchecked((int)0xFF000000)));
             subItems = null;
             propertyPage.Refresh(this);
             propertyPage.OpenSubEntries(this, true);

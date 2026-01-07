@@ -3,7 +3,6 @@ using CADability.Actions;
 using CADability.GeoObject;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 

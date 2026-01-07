@@ -1,6 +1,7 @@
 ﻿using CADability.Curve2D;
 using CADability.Shapes;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
@@ -484,8 +485,8 @@ namespace CADability.GeoObject
                 double[] hc = Clip(diag);
                 ICurve2D c2d = diag.Trim(hc[0], hc[1]);
                 length = this.Make3dCurve(c2d).Length / 30;
-                Attribute.ColorDef cdu = new Attribute.ColorDef("diru", System.Drawing.Color.Red);
-                Attribute.ColorDef cdv = new Attribute.ColorDef("dirv", System.Drawing.Color.Green);
+                Attribute.ColorDef cdu = new Attribute.ColorDef("diru", Color.Red);
+                Attribute.ColorDef cdv = new Attribute.ColorDef("dirv", Color.Green);
                 for (int i = 0; i <= n; i++)
                 {
                     for (int j = 0; j <= n; j++)

@@ -1,4 +1,5 @@
 ﻿using CADability.Curve2D;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using Wintellect.PowerCollections;
@@ -598,20 +599,20 @@ namespace CADability.Shapes
                 else
                 {
                     BoundingRect ext = borderQuadTree.ext(quad);
-                    dc.Add(ext.ToBorder(), System.Drawing.Color.Blue, 0);
+                    dc.Add(ext.ToBorder(), Color.Blue, 0);
                     if (enter1 >= 0 && leave1 >= 0)
                     {
                         GeoPoint2D sp = pointAt(enter1);
                         GeoPoint2D ep = pointAt(leave1);
                         Line2D l2d = new Line2D(sp, ep);
-                        dc.Add(l2d, System.Drawing.Color.DarkMagenta, 1);
+                        dc.Add(l2d, Color.DarkMagenta, 1);
                     }
                     else
                     {
                         if (fullInsideBdr1)
                         {
                             Arc2D a2d = new Arc2D(ext.GetCenter(), ext.Width / 6.0, Angle.A0, SweepAngle.Deg(180));
-                            dc.Add(a2d, System.Drawing.Color.Red, 1); // Anzeige, dass ganz innerhalb von bdr1
+                            dc.Add(a2d, Color.Red, 1); // Anzeige, dass ganz innerhalb von bdr1
                         }
                     }
                     if (enter2 >= 0 && leave2 >= 0)
@@ -619,14 +620,14 @@ namespace CADability.Shapes
                         GeoPoint2D sp = pointAt(enter2);
                         GeoPoint2D ep = pointAt(leave2);
                         Line2D l2d = new Line2D(sp, ep);
-                        dc.Add(l2d, System.Drawing.Color.DarkOrange, 2);
+                        dc.Add(l2d, Color.DarkOrange, 2);
                     }
                     else
                     {
                         if (fullInsideBdr1)
                         {
                             Arc2D a2d = new Arc2D(ext.GetCenter(), ext.Width / 6.0, Angle.A180, SweepAngle.Deg(-180));
-                            dc.Add(a2d, System.Drawing.Color.Green, 1); // Anzeige, dass ganz innerhalb von bdr2
+                            dc.Add(a2d, Color.Green, 1); // Anzeige, dass ganz innerhalb von bdr2
                         }
                     }
                     if (intersectionPointIndex >= 0)
@@ -634,7 +635,7 @@ namespace CADability.Shapes
                         CADability.GeoObject.Point p = CADability.GeoObject.Point.Construct();
                         p.Location = new GeoPoint(borderQuadTree.borderIntersection[intersectionPointIndex].p);
                         p.Symbol = GeoObject.PointSymbol.Cross;
-                        p.ColorDef = new Attribute.ColorDef("Schnittpunkt", System.Drawing.Color.Red);
+                        p.ColorDef = new Attribute.ColorDef("Schnittpunkt", Color.Red);
                         dc.Add(p);
                     }
                 }
@@ -819,7 +820,7 @@ namespace CADability.Shapes
                 ICurve2D[] parts = bdr1.GetPart(bdr1parts.ranges[i], bdr1parts.ranges[i + 1], true);
                 for (int j = 0; j < parts.Length; j++)
                 {
-                    dc.Add(parts[j], System.Drawing.Color.Red, i);
+                    dc.Add(parts[j], Color.Red, i);
                 }
             }
             for (int i = 0; i < bdr2parts.ranges.Count; i += 2)
@@ -827,7 +828,7 @@ namespace CADability.Shapes
                 ICurve2D[] parts = bdr2.GetPart(bdr2parts.ranges[i], bdr2parts.ranges[i + 1], true);
                 for (int j = 0; j < parts.Length; j++)
                 {
-                    dc.Add(parts[j], System.Drawing.Color.Green, i);
+                    dc.Add(parts[j], Color.Green, i);
                 }
             }
 #endif
@@ -1114,8 +1115,8 @@ namespace CADability.Shapes
             {
                 DebuggerContainer res = new DebuggerContainer();
                 root.debug(res);
-                res.Add(bdr1, System.Drawing.Color.Red, 1);
-                res.Add(bdr2, System.Drawing.Color.Green, 2);
+                res.Add(bdr1, Color.Red, 1);
+                res.Add(bdr2, Color.Green, 2);
                 return res;
             }
         }

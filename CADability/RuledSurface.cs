@@ -518,6 +518,43 @@ namespace CADability
             }
             return base.Make3dCurve(curve2d);
         }
+        public override ICurve2D GetProjectedCurve(ICurve curve, double precision)
+        {
+            // we should test for lines and for the two curves
+            // but here is a simple NURBS curve returned
+            double[] pos = curve.GetSavePositions();
+            if (pos.Length < 10)
+            {
+                List<double> pars = new List<double>(pos);
+                while (pars.Count < 10)
+                {
+                    double maxGap = 0;
+                    int insertAt = -1;
+                    for (int i = 0; i < pars.Count - 1; i++)
+                    {
+                        if (pars[i + 1] - pars[i] > maxGap)
+                        {
+                            insertAt = i;
+                            maxGap = pars[i + 1] - pars[i];
+                        }
+                    }
+                    if (insertAt >= 0)
+                    {
+                        double v = (pars[insertAt] + pars[insertAt + 1]) / 2;
+                        pars.Insert(insertAt+1, v);
+                    }
+                }
+                pos = pars.ToArray();
+            }
+            GeoPoint2D[] pnts = new GeoPoint2D[pos.Length];
+            for (int i = 0; i < pos.Length; i++)
+            {
+                pnts[i] = PositionOf(curve.PointAt(pos[i]));
+            }
+            BSpline2D bsp = new BSpline2D(pnts, 3, false);
+            return bsp;
+            return base.GetProjectedCurve(curve, precision);
+        }
         public override bool IsUPeriodic
         {
             get
@@ -916,14 +953,14 @@ namespace CADability
         public override IPropertyEntry GetPropertyEntry(IFrame frame)
         {
             List<IPropertyEntry> se = new List<IPropertyEntry>();
-                if (firstCurve is IGeoObject first)
-                {
-                    se.Add(first.GetShowProperties(frame) as IPropertyEntry);
-                }
-                if (secondCurve is IGeoObject second)
-                {
-                    se.Add(second.GetShowProperties(frame) as IPropertyEntry);
-                }
+            if (firstCurve is IGeoObject first)
+            {
+                se.Add(first.GetShowProperties(frame) as IPropertyEntry);
+            }
+            if (secondCurve is IGeoObject second)
+            {
+                se.Add(second.GetShowProperties(frame) as IPropertyEntry);
+            }
             return new GroupProperty("RuledSurface", se.ToArray());
         }
         #endregion

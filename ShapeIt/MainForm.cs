@@ -321,7 +321,7 @@ namespace ShapeIt
         private void AutoDebug()
         {
             return;
-            string? filename = null; // @"F:\Zeichnungen\RoundTest5.cdb.json";
+            string? filename = @"C:\Users\gerha\Documents\Zeichnungen\RoundEdgesTest2.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -354,7 +354,7 @@ namespace ShapeIt
                 }
                 if (go is ICurve curve)
                 {
-                    if (go.Style.Name == "EdgeMarker")
+                    if (go.Style!=null && go.Style.Name == "EdgeMarker")
                     {
                         edgeMarkers.Add(curve);
                     }
@@ -380,18 +380,9 @@ namespace ShapeIt
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                 }
-                if (command.Equals("Union", StringComparison.OrdinalIgnoreCase))
+                if (command.Equals("Union", StringComparison.OrdinalIgnoreCase) || command.Equals("Unite", StringComparison.OrdinalIgnoreCase))
                 {
-                    operand1.Shells[0].AssertOutwardOrientation();
-                    operand2.Shells[0].AssertOutwardOrientation();
                     Solid sres = NewBooleanOperation.Unite(operand1, operand2);
-                }
-            }
-            if (operand1 != null && operand2 != null)
-            {
-                if (command.Equals("Difference", StringComparison.OrdinalIgnoreCase))
-                {
-                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                 }
             }
             if (slds.Count == 2)

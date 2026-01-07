@@ -999,14 +999,15 @@ namespace CADability.Shapes
             }
             return new SimpleShape(o, h);
         }
-        internal void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path)
-        {
-            outline.AddToGraphicsPath(path, true);
-            for (int i = 0; i < holes.Length; ++i)
-            {
-                holes[i].AddToGraphicsPath(path, false);
-            }
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //internal void AddToGraphicsPath(Drawing2D.GraphicsPath path)
+        //{
+        //    outline.AddToGraphicsPath(path, true);
+        //    for (int i = 0; i < holes.Length; ++i)
+        //    {
+        //        holes[i].AddToGraphicsPath(path, false);
+        //    }
+        //}
         internal void Flatten()
         {
             outline.flatten();
@@ -2869,15 +2870,15 @@ namespace CADability.Shapes
             }
             return false;
         }
-        public System.Drawing.Drawing2D.GraphicsPath CreateGraphicsPath()
-        {
-            System.Drawing.Drawing2D.GraphicsPath res = new System.Drawing.Drawing2D.GraphicsPath();
-            for (int i = 0; i < simpleShapes.Length; ++i)
-            {
-                simpleShapes[i].AddToGraphicsPath(res);
-            }
-            return res;
-        }
+        //public Drawing2D.GraphicsPath CreateGraphicsPath()
+        //{
+        //    Drawing2D.GraphicsPath res = new Drawing2D.GraphicsPath();
+        //    for (int i = 0; i < simpleShapes.Length; ++i)
+        //    {
+        //        simpleShapes[i].AddToGraphicsPath(res);
+        //    }
+        //    return res;
+        //}
         public double[] Clip(ICurve2D toClip, bool returnInsideParts)
         {
             List<double> res = new List<double>();

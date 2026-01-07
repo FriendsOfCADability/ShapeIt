@@ -2,7 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Runtime.Serialization;
 
 namespace CADability.Curve2D
@@ -138,28 +138,24 @@ namespace CADability.Curve2D
             this.vertex = (GeoPoint2D[])c.vertex.Clone();
             UserData.CloneFrom(c.UserData);
         }
-        /// <summary>
-        /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-        public override void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {
-            if (forward)
-            {
-                for (int i = 1; i < vertex.Length; ++i)
-                {
-                    path.AddLine((float)vertex[i - 1].x, (float)vertex[i - 1].y, (float)vertex[i].x, (float)vertex[i].y);
-                }
-            }
-            else
-            {
-                for (int i = vertex.Length - 1; i > 0; --i)
-                {
-                    path.AddLine((float)vertex[i].x, (float)vertex[i].y, (float)vertex[i - 1].x, (float)vertex[i - 1].y);
-                }
-            }
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public override void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{
+        //    if (forward)
+        //    {
+        //        for (int i = 1; i < vertex.Length; ++i)
+        //        {
+        //            path.AddLine((float)vertex[i - 1].x, (float)vertex[i - 1].y, (float)vertex[i].x, (float)vertex[i].y);
+        //        }
+        //    }
+        //    else
+        //    {
+        //        for (int i = vertex.Length - 1; i > 0; --i)
+        //        {
+        //            path.AddLine((float)vertex[i].x, (float)vertex[i].y, (float)vertex[i - 1].x, (float)vertex[i - 1].y);
+        //        }
+        //    }
+        //}
         /// <summary>
         /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.DirectionAt (double)"/>
         /// </summary>

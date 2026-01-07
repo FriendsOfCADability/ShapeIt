@@ -1,5 +1,5 @@
 ﻿using CADability.GeoObject;
-using System.Drawing;
+using CADability.Substitutes;
 
 namespace CADability.UserInterface
 {

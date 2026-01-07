@@ -1,11 +1,9 @@
 ﻿using CADability.GeoObject;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Reflection;
-using System.Windows.Forms;
-using Graphics = System.Drawing.Graphics;
 
 namespace CADability.Forms.NET8
 {
@@ -20,7 +18,7 @@ namespace CADability.Forms.NET8
             // here it is the case, that the property Effect has a feedback to the system, which is implemented via an event.
             void EffectChanged(Substitutes.DragEventArgs e)
             {
-                v.Effect = (DragDropEffects)e.Effect;
+                v.Effect = (System.Windows.Forms.DragDropEffects)e.Effect;
             }
             Substitutes.DragEventArgs res = new Substitutes.DragEventArgs()
             {
@@ -43,20 +41,24 @@ namespace CADability.Forms.NET8
                 X = v.X,
                 Y = v.Y,
                 Delta = v.Delta,
-                Location = v.Location
+                Location = new Substitutes.Point(v.Location.X, v.Location.Y)
             };
         }
         private static CADability.Substitutes.PaintEventArgs Subst(System.Windows.Forms.PaintEventArgs v)
         {
             return new Substitutes.PaintEventArgs()
             {
-                ClipRectangle = v.ClipRectangle,
+                ClipRectangle = new Substitutes.Rectangle(v.ClipRectangle.X, v.ClipRectangle.Y, v.ClipRectangle.Width, v.ClipRectangle.Height),
                 Graphics = v.Graphics
             };
         }
+        private static CADability.Substitutes.Rectangle Subst(System.Drawing.Rectangle v)
+        {
+            return new Substitutes.Rectangle(v.X, v.Y, v.Width, v.Height);
+        }
         private IView view;
         private IPaintTo3D paintTo3D;
-        private Rectangle lastClientRect;
+        private Substitutes.Rectangle lastClientRect;
         private ToolTip toolTip;
         private string currenToolTip;
         private string currentCursor;
@@ -70,7 +72,7 @@ namespace CADability.Forms.NET8
         #region ICanvas implementation
         static Dictionary<string, Cursor> cursorTable = new Dictionary<string, Cursor>();
 
-        Rectangle ICanvas.ClientRectangle => base.ClientRectangle;
+        Substitutes.Rectangle ICanvas.ClientRectangle => new Substitutes.Rectangle(base.ClientRectangle.X, base.ClientRectangle.Y, base.ClientRectangle.Width, base.ClientRectangle.Height);
         public IFrame Frame { get; set; }
         string ICanvas.Cursor
         {
@@ -160,7 +162,7 @@ namespace CADability.Forms.NET8
                         //    cursor = propertyInfo?.GetMethod?.Invoke(null, new object[] { }) as Cursor;
                         //}
                     }
-                    if (cursor!=null) cursorTable[value] = cursor;
+                    if (cursor != null) cursorTable[value] = cursor;
                 }
                 currentCursor = value;
                 if (cursor != null) base.Cursor = cursor; // sets the cursor for the Control
@@ -213,18 +215,19 @@ namespace CADability.Forms.NET8
             view.Connect(this);
             Invalidate();
         }
-        System.Drawing.Point ICanvas.PointToClient(System.Drawing.Point mousePosition)
+        Substitutes.Point ICanvas.PointToClient(Substitutes.Point mousePosition)
         {
-            return this.PointToClient(mousePosition);
+            System.Drawing.Point p = PointToClient(new System.Drawing.Point(mousePosition.X, mousePosition.Y));
+            return new Substitutes.Point(p.X, p.Y);
         }
-        void ICanvas.ShowContextMenu(MenuWithHandler[] contextMenu, System.Drawing.Point viewPosition, Action<int> collapsed)
+        void ICanvas.ShowContextMenu(MenuWithHandler[] contextMenu, Substitutes.Point viewPosition, Action<int> collapsed)
         {
             ContextMenuWithHandler cm = MenuManager.MakeContextMenu(contextMenu);
             ContextMenuStrip = cm; // need to set this in order to get the Collapse event
             callbackCollapsed = collapsed;
             cm.VisibleChanged += Cm_VisibleChanged;
             cm.UpdateCommand();
-            cm.Show(this, viewPosition);
+            cm.Show(this, new System.Drawing.Point(viewPosition.X, viewPosition.Y));
         }
 
         private void Cm_VisibleChanged(object? sender, EventArgs e)
@@ -246,7 +249,7 @@ namespace CADability.Forms.NET8
 
         Substitutes.DragDropEffects ICanvas.DoDragDrop(GeoObjectList dragList, Substitutes.DragDropEffects all)
         {
-            return (CADability.Substitutes.DragDropEffects)DoDragDrop(dragList, (DragDropEffects)all);
+            return (CADability.Substitutes.DragDropEffects)DoDragDrop(dragList, (System.Windows.Forms.DragDropEffects)all);
         }
         void ICanvas.ShowToolTip(string toDisplay)
         {
@@ -276,7 +279,7 @@ namespace CADability.Forms.NET8
                 base.AllowDrop = value;
             }
         }
-        protected override void OnPaint(PaintEventArgs e)
+        protected override void OnPaint(System.Windows.Forms.PaintEventArgs e)
         {
             if (view != null && paintTo3D != null)
             {
@@ -294,7 +297,7 @@ namespace CADability.Forms.NET8
                 //    view.OnPaint(Subst(e));
                 //}
             }
-            else e.Graphics.FillRectangle(new SolidBrush(Color.BlanchedAlmond), e.ClipRectangle);
+            else e.Graphics.FillRectangle(new SolidBrush(System.Drawing.Color.BlanchedAlmond), e.ClipRectangle);
             OnPaintDone?.Invoke(this);
         }
         protected override void Dispose(bool disposing)
@@ -303,32 +306,32 @@ namespace CADability.Forms.NET8
             view?.Disconnect(this);
             base.Dispose(disposing);
         }
-        protected override void OnMouseClick(MouseEventArgs e)
+        protected override void OnMouseClick(System.Windows.Forms.MouseEventArgs e)
         {   // click seems not to be processed
             base.OnMouseClick(e);
             this.Focus();
         }
-        protected override void OnMouseDown(MouseEventArgs e)
+        protected override void OnMouseDown(System.Windows.Forms.MouseEventArgs e)
         {
             view?.OnMouseDown(Subst(e));
             base.OnMouseDown(e);
         }
-        protected override void OnMouseMove(MouseEventArgs e)
+        protected override void OnMouseMove(System.Windows.Forms.MouseEventArgs e)
         {
             view?.OnMouseMove(Subst(e));
             base.OnMouseMove(e);
         }
-        protected override void OnMouseUp(MouseEventArgs e)
+        protected override void OnMouseUp(System.Windows.Forms.MouseEventArgs e)
         {
             view?.OnMouseUp(Subst(e));
             base.OnMouseUp(e);
         }
-        protected override void OnMouseWheel(MouseEventArgs e)
+        protected override void OnMouseWheel(System.Windows.Forms.MouseEventArgs e)
         {
             view?.OnMouseWheel(Subst(e));
             base.OnMouseWheel(e);
         }
-        protected override void OnMouseDoubleClick(MouseEventArgs e)
+        protected override void OnMouseDoubleClick(System.Windows.Forms.MouseEventArgs e)
         {
             view?.OnMouseDoubleClick(Subst(e));
             base.OnMouseDoubleClick(e);
@@ -354,15 +357,15 @@ namespace CADability.Forms.NET8
             base.OnSizeChanged(e);
             if (ClientRectangle.Width > 0 && this.ClientRectangle.Height > 0)
             {
-                lastClientRect = this.ClientRectangle;
+                lastClientRect = Subst(ClientRectangle);
             }
         }
-        protected override void OnDragDrop(DragEventArgs drgevent)
+        protected override void OnDragDrop(System.Windows.Forms.DragEventArgs drgevent)
         {
             view?.OnDragDrop(Subst(drgevent));
             base.OnDragDrop(drgevent);
         }
-        protected override void OnDragEnter(DragEventArgs drgevent)
+        protected override void OnDragEnter(System.Windows.Forms.DragEventArgs drgevent)
         {
             view?.OnDragEnter(Subst(drgevent));
             base.OnDragEnter(drgevent);
@@ -372,7 +375,7 @@ namespace CADability.Forms.NET8
             view?.OnDragLeave(e);
             base.OnDragLeave(e);
         }
-        protected override void OnDragOver(DragEventArgs drgevent)
+        protected override void OnDragOver(System.Windows.Forms.DragEventArgs drgevent)
         {
             System.Drawing.Point p = new System.Drawing.Point(drgevent.X, drgevent.Y);
 
@@ -380,24 +383,6 @@ namespace CADability.Forms.NET8
             base.OnDragOver(drgevent);
         }
         #endregion
-        /* named main colors:
-        White
-        Silver
-        Gray	
-        Black
-        Red	#F
-        Maroon
-        Yellow
-        Olive
-        Lime	
-        Green
-        Aqua	
-        Teal	
-        Blue	
-        Navy	
-        Fuchsia
-        Purple
-        */
     }
 
 }

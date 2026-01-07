@@ -689,7 +689,7 @@ namespace CADability.GeoObject
                     GeoPoint p0 = face.Surface.PointAt(uv);
                     GeoVector d0 = face.Surface.GetNormal(uv);
                     if (!face.OrientedOutward) d0 = -d0;
-                    dbg.Add(p0, d0, 10, System.Drawing.Color.Red);
+                    dbg.Add(p0, d0, 10, Color.Red);
                 }
             }
             // DebuggerVisualizer.TestShowVisualizer(dbg);

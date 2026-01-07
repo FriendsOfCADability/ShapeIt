@@ -1,11 +1,7 @@
 ﻿using CADability.GeoObject;
+using CADability.Substitutes;
 using CADability.UserInterface;
 using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
 using System.Globalization;
 using System.Runtime.Serialization;
 
@@ -204,7 +200,7 @@ namespace CADability.Attribute
             }
             catch (Exception)
             {
-                color = Color.Black;
+                color = Color.FromArgb(unchecked((int)0xFF000000));
             }
 
         }

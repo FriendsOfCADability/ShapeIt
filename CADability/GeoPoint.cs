@@ -2,10 +2,10 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Drawing;
 using System.Globalization;
 using System.Runtime.Serialization;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using MathNet.Numerics.LinearAlgebra.Double;
 
 namespace CADability
@@ -340,7 +340,7 @@ namespace CADability
             }
         }
         /// <summary>
-        /// Returns this point modified by <see cref="ModOp"/> m as a System.Drawing.PointF
+        /// Returns this point modified by <see cref="ModOp"/> m as a PointF
         /// </summary>
         /// <param name="m">modify by</param>
         /// <returns>modified point</returns>
@@ -1246,9 +1246,9 @@ namespace CADability
 
             return (dy * x - dx * y + from.y * to.x - from.x * to.y) < 0.0;
         }
-        public System.Drawing.PointF PointF
+        public PointF PointF
         {
-            get { return new System.Drawing.PointF((float)x, (float)y); }
+            get { return new PointF((float)x, (float)y); }
         }
         /// <summary>
         /// Returns the 2D point which is the offset of <paramref name="v"/> from <paramref name="p"/>.

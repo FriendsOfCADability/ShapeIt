@@ -7,14 +7,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
-using System.Drawing.Printing;
+using Point = CADability.Substitutes.Point;
 using System.Globalization;
 using System.IO;
 using System.Reflection;
@@ -295,7 +288,7 @@ namespace CADability
         private Layout[] ser_layouts;
         private GDI2DView[] ser_gdiViews;
 #endif
-        internal PrintDocument printDocument; // das PrintDocument zum Drucken, enthält die Druckereinstellungen
+        // internal PrintDocument printDocument; // das PrintDocument zum Drucken, enthält die Druckereinstellungen
         /// <summary>
         /// Creates an empty Project. The empty project contains clones of the globally defined
         /// attributes and attribute lists (like colors, layers etc.)
@@ -1838,7 +1831,7 @@ namespace CADability
                     Project project = Project.CreateSimpleProject();
                     foreach (IGeoObject go in list)
                     {
-                        if (go is IColorDef icd && icd.ColorDef == null) icd.SetTopLevel(project.ColorList.CreateOrFind("Standard", Color.Red), true);
+                        if (go is IColorDef icd && icd.ColorDef == null) icd.SetTopLevel(project.ColorList.CreateOrFind("Standard", Color.FromArgb(unchecked((int)0xFFFF0000))), true);
                         if (go.Layer == null) go.Layer = project.LayerList.CreateOrFind("Standard");
                         AttributeListContainer.UpdateObjectAttrinutes(project, go);
                         go.UpdateAttributes(project);
@@ -2339,18 +2332,18 @@ namespace CADability
             catch (SerializationException)
             {
             }
-            if (info.MemberCount > 12) // to avoid exceptions
-            {
-                try
-                {
-                    PageSettings ps = (PageSettings)info.GetValue("DefaultPageSettings", typeof(PageSettings));
-                    if (printDocument == null) printDocument = new PrintDocument();
-                    printDocument.DefaultPageSettings = ps;
-                }
-                catch (SerializationException)
-                {
-                }
-            }
+            //if (info.MemberCount > 12) // to avoid exceptions
+            //{
+            //    try
+            //    {
+            //        PageSettings ps = (PageSettings)info.GetValue("DefaultPageSettings", typeof(PageSettings));
+            //        if (printDocument == null) printDocument = new PrintDocument();
+            //        printDocument.DefaultPageSettings = ps;
+            //    }
+            //    catch (SerializationException)
+            //    {
+            //    }
+            //}
             base.resourceIdInternal = "ProjectSettings";
         }
         void OnUserDataRemoved(string name, object value)
@@ -2409,10 +2402,10 @@ namespace CADability
             info.AddValue("FilterList", filterList);
             info.AddValue("AnimatedViews", animatedViews.ToArray());
             info.AddValue("ActiveViewName", activeViewName);
-            if (!Settings.GlobalSettings.GetBoolValue("DontSave.System.Drawing", false))
-            {
-                if (printDocument != null) info.AddValue("DefaultPageSettings", printDocument.DefaultPageSettings);
-            }
+            //if (!Settings.GlobalSettings.GetBoolValue("DontSave.System.Drawing", false))
+            //{
+            //    if (printDocument != null) info.AddValue("DefaultPageSettings", printDocument.DefaultPageSettings);
+            //}
         }
         public void GetObjectData(IJsonWriteData data)
         {
@@ -2433,10 +2426,10 @@ namespace CADability
             data.AddProperty("FilterList", filterList);
             data.AddProperty("AnimatedViews", animatedViews);
             data.AddProperty("ActiveViewName", activeViewName);
-            if (!Settings.GlobalSettings.GetBoolValue("DontSave.System.Drawing", false))
-            {
-                if (printDocument != null) data.AddProperty("DefaultPageSettings", printDocument.DefaultPageSettings);
-            }
+            //if (!Settings.GlobalSettings.GetBoolValue("DontSave.System.Drawing", false))
+            //{
+            //    if (printDocument != null) data.AddProperty("DefaultPageSettings", printDocument.DefaultPageSettings);
+            //}
         }
 
         public void SetObjectData(IJsonReadData data)
@@ -2463,15 +2456,15 @@ namespace CADability
             filterList = data.GetPropertyOrDefault<FilterList>("FilterList");
             animatedViews = data.GetPropertyOrDefault<List<AnimatedView>>("AnimatedViews");
             activeViewName = data.GetPropertyOrDefault<string>("ActiveViewName");
-            try
-            {
-                if (!Settings.GlobalSettings.GetBoolValue("DontSave.System.Drawing", false))
-                {
-                    printDocument = new PrintDocument();
-                    printDocument.DefaultPageSettings = data.GetPropertyOrDefault<PageSettings>("DefaultPageSettings");
-                }
-            }
-            catch (PlatformNotSupportedException) { }
+            //try
+            //{
+            //    if (!Settings.GlobalSettings.GetBoolValue("DontSave.System.Drawing", false))
+            //    {
+            //        printDocument = new PrintDocument();
+            //        printDocument.DefaultPageSettings = data.GetPropertyOrDefault<PageSettings>("DefaultPageSettings");
+            //    }
+            //}
+            //catch (PlatformNotSupportedException) { }
             data.RegisterForSerializationDoneCallback(this);
         }
         void IJsonSerializeDone.SerializationDone(JsonSerialize jsonSerialize)

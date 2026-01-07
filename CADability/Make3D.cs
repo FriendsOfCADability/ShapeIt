@@ -1,6 +1,7 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.Shapes;
+using CADability.Substitutes;
 using MathNet.Numerics.Distributions;
 using System;
 using System.Collections;
@@ -2811,12 +2812,12 @@ namespace CADability.GeoObject
                     DebuggerContainer dc = new DebuggerContainer();
                     for (int i = 0; i < s1c.Length; i++)
                     {
-                        if (s1c[i] != null) dc.Add(s1c[i] as IGeoObject, System.Drawing.Color.Red, i); // to here
-                        if (s2c[i] != null) dc.Add(s2c[i] as IGeoObject, System.Drawing.Color.Blue, i); // from here
+                        if (s1c[i] != null) dc.Add(s1c[i] as IGeoObject, Color.Red, i); // to here
+                        if (s2c[i] != null) dc.Add(s2c[i] as IGeoObject, Color.Blue, i); // from here
                     }
                     for (int i = 0; i < arcs.Length; i++)
                     {
-                        if (arcs[i] != null) dc.Add(arcs[i] as IGeoObject, System.Drawing.Color.Green, i); // connecting arcs
+                        if (arcs[i] != null) dc.Add(arcs[i] as IGeoObject, Color.Green, i); // connecting arcs
                     }
 #endif
                     for (int i = 0; i < path.CurveCount; i++)

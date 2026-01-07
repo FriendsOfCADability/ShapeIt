@@ -2,6 +2,7 @@
 using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
@@ -98,7 +99,7 @@ namespace CADability.Attribute
                     getAll(list);
                     for (int i = 0; i < list.Count; ++i)
                     {
-                        res.Add(list[i], System.Drawing.Color.Red, i);
+                        res.Add(list[i], Color.Red, i);
                     }
                     return res;
                 }
@@ -296,7 +297,7 @@ namespace CADability.Attribute
             DebuggerContainer dc = new DebuggerContainer();
             for (int i = 0; i < borders.Count; ++i)
             {
-                dc.Add(borders[i], System.Drawing.Color.Blue, i);
+                dc.Add(borders[i], Color.Blue, i);
             }
 #endif
             bool reverse = counterClock != inbound;
@@ -332,7 +333,7 @@ namespace CADability.Attribute
                     next = borders[k].CloneAsPath(0, reverse); // gefunden
                     curves.InsertRange(0, last.SubCurves); // innere Kurve schon mal zufügen (vor alles andere)
 #if DEBUG
-                    dcfunk.Add(last, System.Drawing.Color.Red, i);
+                    dcfunk.Add(last, Color.Red, i);
 #endif
                     ICurve2D connection = last.SubCurves[0].Clone();
                     GeoPoint2DWithParameter[] ips = next.Intersect(connection);
@@ -399,7 +400,7 @@ namespace CADability.Attribute
                     }
                     curves.Insert(0, connection);
 #if DEBUG
-                    dcfunk.Add(connection, System.Drawing.Color.Blue, i);
+                    dcfunk.Add(connection, Color.Blue, i);
 #endif
                     if (k > 0)
                     {   // die letzte Verbindung nicht zum Fehler zählen, da die letzen entfernten Segemente auch nicht
@@ -464,7 +465,7 @@ namespace CADability.Attribute
                         {
                             error -= splpath.SubCurves[0].Length; // die erparten Kurven werden vom Fehler abgezogen
 #if DEBUG
-                            dcfunk.Add(splpath.SubCurves[0], System.Drawing.Color.Green, i);
+                            dcfunk.Add(splpath.SubCurves[0], Color.Green, i);
 #endif
                             splpath.RemoveFirstSegment();
                             cc = lh.Clip(splpath.SubCurves[0], false);
@@ -479,7 +480,7 @@ namespace CADability.Attribute
                 {   // nur die beste verwenden (verschiedene Anfangskurven, also wo setzt die Spirale an)
                     curves.InsertRange(0, last.SubCurves);
 #if DEBUG
-                    dcfunk.Add(last, System.Drawing.Color.Red, i);
+                    dcfunk.Add(last, Color.Red, i);
 #endif
                     finalpath = new Path2D(curves.ToArray(), true);
                     minerror = error;
@@ -806,7 +807,7 @@ namespace CADability.Attribute
                 dc.Add(b2d);
                 for (int k = 0; k < clppnts.Length; ++k)
                 {
-                    Point pnt = Point.Construct();
+                    GeoObject.Point pnt = GeoObject.Point.Construct();
                     pnt.Location = new GeoPoint(b2d.PointAt(clppnts[k]));
                     pnt.Symbol = PointSymbol.Cross;
                     dc.Add(pnt);

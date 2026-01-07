@@ -166,7 +166,7 @@ namespace CADability.DebuggerVisualizers
             {
                 if (pointColor == null)
                 {
-                    pointColor = new ColorDef("auto point", Color.Brown);
+                    pointColor = new ColorDef("auto point", Substitutes.Color.Brown);
                 }
                 return pointColor;
             }
@@ -178,7 +178,7 @@ namespace CADability.DebuggerVisualizers
             {
                 if (curveColor == null)
                 {
-                    curveColor = new ColorDef("auto point", Color.DarkCyan);
+                    curveColor = new ColorDef("auto point", Substitutes.Color.DarkCyan);
                 }
                 return curveColor;
             }
@@ -190,7 +190,7 @@ namespace CADability.DebuggerVisualizers
             {
                 if (faceColor == null)
                 {
-                    faceColor = new ColorDef("auto point", Color.GreenYellow);
+                    faceColor = new ColorDef("auto point", Substitutes.Color.GreenYellow);
                 }
                 return faceColor;
             }

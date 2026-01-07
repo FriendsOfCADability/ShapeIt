@@ -210,22 +210,23 @@ namespace netDxf.Objects
 
             this.file = file;
 
-            try
-            {
-                using (System.Drawing.Image bitmap = System.Drawing.Image.FromFile(file))
-                {
-                    this.width = bitmap.Width;
-                    this.height = bitmap.Height;
-                    this.horizontalResolution = bitmap.HorizontalResolution;
-                    this.verticalResolution = bitmap.VerticalResolution;
-                    // the System.Drawing.Image stores the image resolution in inches
-                    this.resolutionUnits = ImageResolutionUnits.Inches;
-                }
-            }
-            catch (Exception)
-            {
-                throw new ArgumentException("Image file not supported.", file);
-            }
+            // Bitmap class is not available in .net core and .net 5/6/7
+            //try
+            //{
+            //    using (Image bitmap = Image.FromFile(file))
+            //    {
+            //        this.width = bitmap.Width;
+            //        this.height = bitmap.Height;
+            //        this.horizontalResolution = bitmap.HorizontalResolution;
+            //        this.verticalResolution = bitmap.VerticalResolution;
+            //        // the Image stores the image resolution in inches
+            //        this.resolutionUnits = ImageResolutionUnits.Inches;
+            //    }
+            //}
+            //catch (Exception)
+            //{
+            //    throw new ArgumentException("Image file not supported.", file);
+            //}
 
         }
 

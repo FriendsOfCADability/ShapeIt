@@ -1,5 +1,6 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
+using CADability.Substitutes;
 using CADability.UserInterface;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
@@ -126,7 +127,7 @@ namespace CADability.GeoObject
                     {
                         Polyline plu = Polyline.Construct();
                         plu.SetPoints(pu, false);
-                        plu.ColorDef = new ColorDef("plu", System.Drawing.Color.Blue);
+                        plu.ColorDef = new ColorDef("plu", Color.Blue);
                         res.Add(plu);
                     }
                     catch (PolylineException)
@@ -140,7 +141,7 @@ namespace CADability.GeoObject
                     {
                         Polyline plv = Polyline.Construct();
                         plv.SetPoints(pv, false);
-                        plv.ColorDef = new ColorDef("plv", System.Drawing.Color.Blue);
+                        plv.ColorDef = new ColorDef("plv", Color.Blue);
                         res.Add(plv);
                     }
                     catch (PolylineException)
@@ -158,8 +159,8 @@ namespace CADability.GeoObject
 
                         Line ldu = Line.TwoPoints(p00, p00 + du);
                         Line ldv = Line.TwoPoints(p00, p00 + dv);
-                        ldu.ColorDef = new ColorDef("du", System.Drawing.Color.Red);
-                        ldv.ColorDef = new ColorDef("dv", System.Drawing.Color.Green);
+                        ldu.ColorDef = new ColorDef("du", Color.Red);
+                        ldv.ColorDef = new ColorDef("dv", Color.Green);
                         res.Add(ldu);
                         res.Add(ldv);
                     }
@@ -657,8 +658,11 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface Clone()
         {
-            if (curveToRotate != null) return new SurfaceOfRevolution(curveToRotate, Location, Axis);
-            return new SurfaceOfRevolution(basisCurve2D.Clone(), toSurface, curveStartParameter, curveEndParameter, curveParameterOffset);
+            SurfaceOfRevolution res;
+            if (curveToRotate != null) res = new SurfaceOfRevolution(curveToRotate, Location, Axis);
+            else res = new SurfaceOfRevolution(basisCurve2D.Clone(), toSurface, curveStartParameter, curveEndParameter, curveParameterOffset);
+            res.usedArea = usedArea;
+            return res;
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Modify (ModOp)"/>

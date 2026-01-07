@@ -6,7 +6,6 @@ using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Linq;
 using System.Text;
 

@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using Wintellect.PowerCollections;
 using MathNet.Numerics.LinearAlgebra.Factorization;
+using CADability.Substitutes;
 
 namespace CADability.GeoObject
 {
@@ -2424,9 +2425,9 @@ namespace CADability.GeoObject
                     dc.Add(e1);
                     dc.Add(e2);
                     Plane pld = e0.Plane;
-                    dc.Add(e0.GetProjectedCurve(pld), System.Drawing.Color.Green, 0);
-                    dc.Add(e1.GetProjectedCurve(pld), System.Drawing.Color.Green, 0);
-                    dc.Add(e2.GetProjectedCurve(pld), System.Drawing.Color.Green, 0);
+                    dc.Add(e0.GetProjectedCurve(pld), Color.Green, 0);
+                    dc.Add(e1.GetProjectedCurve(pld), Color.Green, 0);
+                    dc.Add(e2.GetProjectedCurve(pld), Color.Green, 0);
 #endif
                     Plane pln = new Plane(e0.Center, e0.MajorAxis, e0.Normal); // Ebene durch die Kegel-Achse
 
@@ -3149,7 +3150,7 @@ namespace CADability.GeoObject
                         pnts[j] = poles[i, j];
                     }
                     pl.SetPoints(pnts, false);
-                    pl.ColorDef = new CADability.Attribute.ColorDef("j", System.Drawing.Color.Green);
+                    pl.ColorDef = new CADability.Attribute.ColorDef("j", Color.Green);
                     res.Add(pl);
                 }
                 for (int i = 0; i < poles.GetLength(1); i++)
@@ -3161,7 +3162,7 @@ namespace CADability.GeoObject
                         pnts[j] = poles[j, i];
                     }
                     pl.SetPoints(pnts, false);
-                    pl.ColorDef = new CADability.Attribute.ColorDef("j", System.Drawing.Color.Blue);
+                    pl.ColorDef = new CADability.Attribute.ColorDef("j", Color.Blue);
                     res.Add(pl);
                 }
                 BoundingRect ext = GetMaximumExtent();
@@ -3171,11 +3172,11 @@ namespace CADability.GeoObject
                 GeoVector v = VDirection(cnt);
                 Line l = Line.Construct();
                 l.SetTwoPoints(p0, p0 + u);
-                l.ColorDef = new CADability.Attribute.ColorDef("u", System.Drawing.Color.Green);
+                l.ColorDef = new CADability.Attribute.ColorDef("u", Color.Green);
                 res.Add(l);
                 l = Line.Construct();
                 l.SetTwoPoints(p0, p0 + v);
-                l.ColorDef = new CADability.Attribute.ColorDef("v", System.Drawing.Color.Blue);
+                l.ColorDef = new CADability.Attribute.ColorDef("v", Color.Blue);
                 res.Add(l);
                 return res;
             }

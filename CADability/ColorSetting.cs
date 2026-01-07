@@ -1,11 +1,7 @@
 ﻿using CADability.UserInterface;
 using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
 using System.Runtime.Serialization;
+using CADability.Substitutes;
 
 namespace CADability
 {
@@ -75,7 +71,7 @@ namespace CADability
             }
             catch (Exception)
             {
-                color = Color.Black;
+                color = Color.FromArgb(0);
             }
             resourceIdInternal = (string)info.GetValue("ResourceIdLabel", typeof(string));
             settingName = (string)info.GetValue("SettingName", typeof(string));

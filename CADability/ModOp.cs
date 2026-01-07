@@ -591,17 +591,6 @@ namespace CADability
             double[,] mat = m.Matrix;
             return new ModOp2D(mat[0, 0], mat[0, 1], mat[0, 3], mat[1, 0], mat[1, 1], mat[1, 3]);
         }
-        /// <value>
-        /// Returns the <see cref="System.Drawing.Drawing2D.Matrix"/> object equivalent to this
-        /// modification.
-        /// </value>
-        public System.Drawing.Drawing2D.Matrix Matrix2D
-        {
-            get
-            {
-                return new System.Drawing.Drawing2D.Matrix((float)Matrix00, (float)Matrix10, (float)Matrix01, (float)Matrix11, (float)Matrix02, (float)Matrix12);
-            }
-        }
         public ModOp To3D()
         {
             return new ModOp(Matrix00, Matrix01, 0.0, Matrix02, Matrix10, Matrix11, 0.0, Matrix12, 0.0, 0.0, 1.0, 0.0);
@@ -1817,13 +1806,13 @@ namespace CADability
                 throw new ModOpException(ModOpException.tExceptionType.InversionFailed);
             }
         }
-        internal System.Drawing.Drawing2D.Matrix Matrix2D
-        {
-            get
-            {
-                return new System.Drawing.Drawing2D.Matrix((float)Matrix00, (float)Matrix01, (float)Matrix10, (float)Matrix11, (float)Matrix12, (float)Matrix02);
-            }
-        }
+        //internal Drawing2D.Matrix Matrix2D
+        //{
+        //    get
+        //    {
+        //        return new Drawing2D.Matrix((float)Matrix00, (float)Matrix01, (float)Matrix10, (float)Matrix11, (float)Matrix12, (float)Matrix02);
+        //    }
+        //}
         /// <summary>
         /// Returns the determinant of the matrix of this modification.
         /// </summary>

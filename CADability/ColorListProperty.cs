@@ -1,12 +1,7 @@
 ﻿using CADability.Attribute;
+using CADability.Substitutes;
 using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using Point = CADability.Substitutes.Point;
 
 namespace CADability.UserInterface
 {

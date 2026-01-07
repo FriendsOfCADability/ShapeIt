@@ -3,13 +3,6 @@ using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
 using System.Runtime.Serialization;
 using Wintellect.PowerCollections;
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
@@ -19,6 +12,7 @@ using DragDropEffects = CADability.Substitutes.DragDropEffects;
 using Keys = CADability.Substitutes.Keys;
 using PaintEventArgs = CADability.Substitutes.PaintEventArgs;
 using CADability.Substitutes;
+using Point = CADability.Substitutes.Point;
 
 namespace CADability
 {
@@ -148,7 +142,7 @@ namespace CADability
             highlightedObjects = new GeoObjectList();
             selectedObjects = new GeoObjectList();
 
-            selectColor = Frame.GetColorSetting("Select.SelectColor", Color.Yellow); // die Farbe für die selektierten Objekte
+            selectColor = Frame.GetColorSetting("Select.SelectColor", Color.FromArgb(unchecked((int)0xFFFFFF00))); // die Farbe für die selektierten Objekte
             selectWidth = Frame.GetIntSetting("Select.SelectWidth", 2);
             dragWidth = Frame.GetIntSetting("Select.DragWidth", 5);
             projection = new Projection(Projection.StandardProjection.Isometric);
@@ -194,10 +188,10 @@ namespace CADability
             {
                 if (!backgroundColor.HasValue)
                 {
-                    backgroundColor = Color.AliceBlue;
+                    backgroundColor = Color.FromArgb(unchecked((int)0xFFF0F8FF));
                     if (Frame != null)
                     {
-                        backgroundColor = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
+                        backgroundColor = Frame.GetColorSetting("Colors.Background", backgroundColor.Value);
                     }
                     else
                     {
@@ -915,8 +909,8 @@ namespace CADability
         void IView.ZoomDelta(double f)
         {
             //double Factor = f;
-            //System.Drawing.Rectangle clr = condorCtrl.ClientRectangle;
-            //System.Drawing.Point p = new System.Drawing.Point((clr.Left + clr.Right) / 2, (clr.Bottom + clr.Top) / 2);
+            //Rectangle clr = condorCtrl.ClientRectangle;
+            //Point p = new Point((clr.Left + clr.Right) / 2, (clr.Bottom + clr.Top) / 2);
             //BoundingRect rct = new BoundingRect(clr.Left, clr.Bottom, clr.Right, clr.Top);
             //rct.Modify(screenToLayout);
             //GeoPoint2D p2 = screenToLayout * new GeoPoint2D(p.X, p.Y);
@@ -1297,7 +1291,7 @@ namespace CADability
         public override void Added(IPropertyPage propertyTreeView)
         {
             base.Added(propertyTreeView);
-            selectColor = Frame.GetColorSetting("Select.SelectColor", Color.Yellow); // die Farbe für die selektierten Objekte
+            selectColor = Frame.GetColorSetting("Select.SelectColor", Color.FromArgb(unchecked((int)0xFFFFFF00))); // die Farbe für die selektierten Objekte
             selectWidth = Frame.GetIntSetting("Select.SelectWidth", 2);
             dragWidth = Frame.GetIntSetting("Select.DragWidth", 5);
         }

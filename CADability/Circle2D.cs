@@ -488,25 +488,21 @@ namespace CADability.Curve2D
             e.SetCirclePlaneCenterRadius(fromPlane, fromPlane.ToGlobal(Center), Radius);
             return e.GetProjectedCurve(toPlane);
         }
-        /// <summary>
-        /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-        public override void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {	// forward oder nicht ist doch egal, oder?
-            // im Modus "System.Drawing.Drawing2D.FillMode.Alternate" scheint es egal zu sein,
-            // im Modus "System.Drawing.Drawing2D.FillMode.Winding" dagegen nicht.
-            // zu letzterem müsste man dem Ding eine Richtung geben können
-            // deshalb jetzt implementiert mit AddArc statt AddEllipse. Der Modus "Winding"
-            // gefällt mir besser und wir haben die Information ja!
-            if (forward)
-                path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
-                    (float)(2 * Radius), 0.0f, 360.0f);
-            else
-                path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
-                    (float)(2 * Radius), 0.0f, -360.0f);
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public override void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{	// forward oder nicht ist doch egal, oder?
+        //    // im Modus "Drawing2D.FillMode.Alternate" scheint es egal zu sein,
+        //    // im Modus "Drawing2D.FillMode.Winding" dagegen nicht.
+        //    // zu letzterem müsste man dem Ding eine Richtung geben können
+        //    // deshalb jetzt implementiert mit AddArc statt AddEllipse. Der Modus "Winding"
+        //    // gefällt mir besser und wir haben die Information ja!
+        //    if (forward)
+        //        path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
+        //            (float)(2 * Radius), 0.0f, 360.0f);
+        //    else
+        //        path.AddArc((float)(Center.x - Radius), (float)(Center.y - Radius), (float)(2 * Radius),
+        //            (float)(2 * Radius), 0.0f, -360.0f);
+        //}
         /// <summary>
         /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.Approximate (bool, double)"/>
         /// </summary>

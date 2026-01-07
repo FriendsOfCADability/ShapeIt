@@ -148,7 +148,7 @@ namespace CADability.GeoObject
             }
         }
 
-        public SweptCircle(ICurve spine, double radius)
+        public SweptCircle(ICurve spine, double radius, BoundingRect? usedArea = null): base(usedArea)
         {
             this.spine = spine;
             this.radius = radius;
@@ -725,7 +725,16 @@ namespace CADability.GeoObject
         }
         public override ICurve2D GetProjectedCurve(ICurve curve, double precision)
         {
-            // TODO: implement for circular arcs which are fixed-u curves
+            if (curve is Ellipse e && e.IsCircle && Precision.IsEqual(e.Radius, Math.Abs(Radius)))
+            {   // the circle might be the fixedU curve of this surface
+                double cu = spine.PositionOf(e.Center);
+                if (Precision.IsEqual(spine.PointAt(cu), e.Center))
+                {
+                    GeoPoint2D sp = PositionOf(e.StartPoint);
+                    GeoPoint2D ep = PositionOf(e.EndPoint);
+                    return new Line2D(sp, ep);
+                }
+            }
             return base.GetProjectedCurve(curve, precision);
         }
         public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)

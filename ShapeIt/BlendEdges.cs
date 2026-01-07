@@ -1,5 +1,6 @@
 ﻿using CADability;
 using CADability.GeoObject;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -73,10 +74,10 @@ namespace ShapeIt
             DebuggerContainer dcPos = new DebuggerContainer();
             dcPos.Add(shell);
             dcPos.Add(cutter);
-            dcPos.Add(Line.MakeLine(vtx.Position, vtx.Position + 3 * length * beamDirection), System.Drawing.Color.Red);
-            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.01), endArc.Curve3D.PointAt(0.01) + 3 * length * beamDirection), System.Drawing.Color.Green);
-            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.99), endArc.Curve3D.PointAt(0.99) + 3 * length * beamDirection), System.Drawing.Color.Green);
-            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.5), endArc.Curve3D.PointAt(0.5) + 3 * length * beamDirection), System.Drawing.Color.Green);
+            dcPos.Add(Line.MakeLine(vtx.Position, vtx.Position + 3 * length * beamDirection), Color.Red);
+            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.01), endArc.Curve3D.PointAt(0.01) + 3 * length * beamDirection), Color.Green);
+            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.99), endArc.Curve3D.PointAt(0.99) + 3 * length * beamDirection), Color.Green);
+            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.5), endArc.Curve3D.PointAt(0.5) + 3 * length * beamDirection), Color.Green);
 #endif
             if (vtxbeam == 0.0 && startbeam < 3 * length && endbeam < 3 * length && middlebeam < 3 * length)
             {   // the beamm from the vertex is outside the shell, the other two beams leave the shell in a short distance or ar outside: make a short extension

@@ -1,4 +1,5 @@
 ﻿using CADability.GeoObject;
+using CADability.Substitutes;
 using CADability.UserInterface;
 using System;
 using System.Runtime.Serialization;
@@ -1625,9 +1626,9 @@ namespace CADability.Attribute
                     options.AddSubEntry(new CheckProperty(this, "DimRadiusBend", "DimensionStyle.DimRadiusBend"));
 
                     ShowPropertyGroup font = new ShowPropertyGroup("DimensionStyle.Font");
-                    System.Drawing.FontFamily[] families = System.Drawing.FontFamily.Families;
+                    string[] families = (FrameImpl.MainFrame as IUIService).GetFontFamilies();
                     string[] choices = new string[families.Length];
-                    for (int i = 0; i < families.Length; i++) choices[i] = families[i].Name;
+                    for (int i = 0; i < families.Length; i++) choices[i] = families[i];
                     MultipleChoiceProperty multipropfont = new MultipleChoiceProperty("DimensionStyle.TextFont", choices, TextFont);
                     multipropfont.ValueChangedEvent += new ValueChangedDelegate(FontValueChanged);
                     font.AddSubEntry(multipropfont);

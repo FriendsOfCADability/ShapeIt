@@ -9,7 +9,6 @@ using CADability.UserInterface;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -21,6 +20,7 @@ using System.Xml.Linq;
 using Wintellect.PowerCollections;
 using static CADability.Projection;
 using Path = CADability.GeoObject.Path;
+using Point = CADability.Substitutes.Point;
 
 namespace ShapeIt
 {
@@ -36,9 +36,9 @@ namespace ShapeIt
         private bool selectionTabForced;
         private Feedback feedback;
         private PickArea lastPickArea; // for ComposeModellingEntries to avoid passing it to all methods
-        private System.Drawing.Point mouseDownPosition; // to check whether the user is dragging a selection rectangle
+        private Point mouseDownPosition; // to check whether the user is dragging a selection rectangle
         private int dragWidth = 5; // Delta to to check for start dragging the selection rectangle
-        private System.Drawing.Point mouseCurrentPosition; // when dragging a selection rectangle, the second point
+        private Point mouseCurrentPosition; // when dragging a selection rectangle, the second point
         private bool isDragging = false; // the user is dragging a selection rectangle
         private bool isMoving = false; // the user is moving the selected objects
         private bool isHotspotMoving = false; // the user is movind a hotspot
@@ -492,7 +492,7 @@ namespace ShapeIt
             base.Removed(pp);
         }
         #endregion
-        private GeoObjectList GetObjectsUnderCursor(System.Drawing.Point mousePoint, IView vw, PickArea pickArea, bool multiple, bool onlyInside)
+        private GeoObjectList GetObjectsUnderCursor(Point mousePoint, IView vw, PickArea pickArea, bool multiple, bool onlyInside)
         {
             GeoObjectList objectsUnderCursor = new GeoObjectList();
             IEnumerable<Layer> visiblaLayers = new List<Layer>();
@@ -538,7 +538,7 @@ namespace ShapeIt
             }
             return new GeoObjectList(objects);
         }
-        private string GetCursor(System.Drawing.Point location, IView vw)
+        private string GetCursor(Point location, IView vw)
         {
             int pickRadius = selectAction.Frame.GetIntSetting("Select.PickRadius", 5);
             PickArea pickArea = vw.Projection.GetPickSpace(new Rectangle(location.X - pickRadius, location.Y - pickRadius, pickRadius * 2, pickRadius * 2));
@@ -1959,6 +1959,22 @@ namespace ShapeIt
                     solidMenus.Add(GetExtensionProperties(fc, lastPickArea, vw).ToArray());
                 }
             }
+            DirectMenuEntry positionSolid = new DirectMenuEntry("MenuId.Solid.Position");
+            positionSolid.ExecuteMenu = (frame) =>
+            {
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                cadFrame.SetAction(new CenterAction(sld.Shells[0]));
+                this.Clear();
+                return true;
+            };
+            positionSolid.IsSelected = (selected, frame) =>
+            {
+                feedback.Clear();
+                if (selected) feedback.ShadowFaces.Add(sld);
+                feedback.Refresh();
+                return true;
+            };
+            solidMenus.Add(positionSolid);
             // Split by plane is always possible
             DirectMenuEntry splitByPlane = new DirectMenuEntry("MenuId.Solid.SplitByPlane");
             splitByPlane.ExecuteMenu = (frame) =>

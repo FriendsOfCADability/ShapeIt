@@ -7,10 +7,11 @@ using netDxf.Entities;
 using netDxf.Tables;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
+using FontStyle = CADability.Substitutes.FontStyle;
 
 namespace CADability.DXF
 {
@@ -332,11 +333,11 @@ namespace CADability.DXF
         private netDxf.Entities.Text ExportText(GeoObject.Text text)
         {
             var textStringValue = text.TextString.Replace("\r\n", " ");
-            System.Drawing.FontStyle fs = System.Drawing.FontStyle.Regular;
-            if (text.Bold) fs |= System.Drawing.FontStyle.Bold;
-            if (text.Italic) fs |= System.Drawing.FontStyle.Italic;
-            System.Drawing.Font font = new System.Drawing.Font(text.Font, 1000.0f, fs);
-            netDxf.Entities.Text res = new netDxf.Entities.Text(textStringValue, Vector2.Zero, text.TextSize * 1000 / font.Height, new TextStyle(text.Font, text.Font + ".ttf"));
+            FontStyle fs = FontStyle.Regular;
+            if (text.Bold) fs |= FontStyle.Bold;
+            if (text.Italic) fs |= FontStyle.Italic;
+            //Font font = new Font(text.Font, 1000.0f, fs);
+            netDxf.Entities.Text res = new netDxf.Entities.Text(textStringValue, Vector2.Zero, text.TextSize/* * 1000 / font.Height*/, new TextStyle(text.Font, text.Font + ".ttf"));
             ModOp toText = ModOp.Fit(GeoPoint.Origin, new GeoVector[] { GeoVector.XAxis, GeoVector.YAxis, GeoVector.ZAxis }, text.Location, new GeoVector[] { text.LineDirection.Normalized, text.GlyphDirection.Normalized, text.LineDirection.Normalized ^ text.GlyphDirection.Normalized });
             res.TransformBy(Matrix4(toText)); // easier than setting normal and rotation
             return res;

@@ -11,9 +11,9 @@ using netDxf;
 using System.Runtime.InteropServices.ComTypes;
 using CADability.Attribute;
 using MathNet.Numerics.LinearAlgebra.Factorization;
-using static CADability.PrintToGDI;
 using System.Numerics;
 using CADability.Shapes;
+using CADability.Substitutes;
 
 namespace CADability
 {
@@ -588,7 +588,7 @@ namespace CADability
             if (styles.TryGetValue("fill", out string color))
             {
                 fill = true;
-                System.Drawing.Color clr = ParseSvgColor(color);
+                Color clr = ParseSvgColor(color);
                 if (!clr.IsEmpty)
                 {
                     if (!FillStyles.TryGetValue("SVG+" + clr.Name, out cd))
@@ -629,7 +629,7 @@ namespace CADability
                     Path2D p2d = path.GetProjectedCurve(Plane.XYPlane) as Path2D;
                     if (p2d != null) oriented2DPaths.Add(p2d);
                     added = true;
-                    //System.Drawing.Color clr = ParseSvgColor(color);
+                    //Color clr = ParseSvgColor(color);
                     //if (!clr.IsEmpty)
                     //{
                     //    if (!FillStyles.TryGetValue("SVG+" + clr.Name, out ColorDef cd))
@@ -744,15 +744,15 @@ namespace CADability
         {
             return string.IsNullOrEmpty(s) ? 0f : float.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
         }
-        public static System.Drawing.Color ParseSvgColor(string value)
+        public static Color ParseSvgColor(string value)
         {
             if (string.IsNullOrEmpty(value) || value.Equals("none", StringComparison.OrdinalIgnoreCase))
-                return System.Drawing.Color.Empty;
+                return Color.Empty;
             value = value.Trim();
             // hex #RGB or #RRGGBB or #RRGGBBAA or named color
             if (value.StartsWith("#"))
             {
-                return System.Drawing.ColorTranslator.FromHtml(value);
+                return Color.FromString(value);
             }
             // rgb() or rgba()
             if (value.StartsWith("rgb(", StringComparison.OrdinalIgnoreCase) || value.StartsWith("rgba(", StringComparison.OrdinalIgnoreCase))
@@ -776,16 +776,16 @@ namespace CADability
                         a = (int)(fa <= 1 ? fa * 255 : fa);
                     }
                 }
-                return System.Drawing.Color.FromArgb(a, r, g, b);
+                return Color.FromArgb(a, r, g, b);
             }
             // named color
             try
             {
-                return System.Drawing.ColorTranslator.FromHtml(value);
+                return Color.FromString(value);
             }
             catch
             {
-                return System.Drawing.Color.Empty;
+                return Color.Empty;
             }
         }
 

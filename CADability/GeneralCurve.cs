@@ -1,9 +1,9 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
 using System.Runtime.Serialization;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
@@ -2804,5 +2804,41 @@ namespace CADability.GeoObject
             return (center, (deriv1 ^ deriv2).Normalized, radius);
         }
 
+        internal void Intersect(ISurfaceImpl surface, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        {
+            List<GeoPoint> lips = [];
+            List<GeoPoint2D> luvOnFaces = [];
+            List<double> luOnCurve3Ds = [];
+
+            double lastd = 0.0;
+            for (int i = 0; i < tetraederBase.Length - 1; ++i)
+            {
+                double d1;
+                if (i == 0) d1 = surface.GetDistance(tetraederBase[i]);
+                else d1 = lastd;
+                double d2 = surface.GetDistance(tetraederBase[i + 1]);
+                double d3 = surface.GetDistance(tetraederVertex[2 * i]);
+                double d4 = surface.GetDistance(tetraederVertex[2 * i + 1]);
+                lastd = d2;
+                if (Math.Sign(d1) != Math.Sign(d2) || Math.Sign(d2) != Math.Sign(d3) || Math.Sign(d3) != Math.Sign(d4))
+                {
+                    double t = (tetraederParams[i] + tetraederParams[i + 1]) / 2;
+                    GeoPoint2D uv = surface.PositionOf(theCurve.PointAt(t));
+                    // a better starting position would be the intersection for the line with different sign
+                    if (BoxedSurfaceExtension.CurveSurfaceIntersectionLM(surface, theCurve, ref uv, ref t, out GeoPoint ip))
+                    {
+                        if (t >= tetraederParams[i] && t <= tetraederParams[i + 1] && uvExtent.Contains(uv))
+                        {
+                            lips.Add(ip);
+                            luvOnFaces.Add(uv);
+                            luOnCurve3Ds.Add(t);
+                        }
+                    }
+                }
+            }
+            ips = lips.ToArray();
+            uvOnFaces = luvOnFaces.ToArray();
+            uOnCurve3Ds = luOnCurve3Ds.ToArray();
+        }
     }
 }

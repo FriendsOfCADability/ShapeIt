@@ -1,6 +1,7 @@
 ﻿// #define DEBUGCURVE
 
 using CADability.GeoObject;
+using CADability.Substitutes;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.Optimization;
@@ -238,7 +239,8 @@ namespace CADability.Curve2D
         /// <param name="toPlane">the projection plane</param>
         /// <returns>the projected curve</returns>
         ICurve2D Project(Plane fromPlane, Plane toPlane);
-        void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward);
+        // Removed AddToGraphicsPath because of System.Drawing dependency
+        // void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward);
         /// <summary>
         /// Determines, whether the given parameter denotes a point inside the bounds of the curve.
         /// i.e. the parameter must be greater or equal to 0.0 and less than or equal 1.0.
@@ -563,11 +565,11 @@ namespace CADability.Curve2D
             try
             {
                 Polyline2D pl2d = new Polyline2D(points);
-                dc1.Add(pl2d, System.Drawing.Color.Red, -1);
+                dc1.Add(pl2d, Color.Red, -1);
                 for (int i = 0; i < directions.Length; ++i)
                 {
                     Line2D l2d = new Line2D(points[i], points[i] + directions[i]);
-                    dc1.Add(l2d, System.Drawing.Color.Blue, i);
+                    dc1.Add(l2d, Color.Blue, i);
                 }
             }
             catch (Polyline2DException) { }
@@ -612,25 +614,25 @@ namespace CADability.Curve2D
             tringulation = ltringulation.ToArray();
 //#if DEBUG
 //            DebuggerContainer dc = new DebuggerContainer();
-//            Attribute.ColorDef red = new Attribute.ColorDef("red", System.Drawing.Color.Red);
-//            Attribute.ColorDef green = new Attribute.ColorDef("green", System.Drawing.Color.Green);
-//            Attribute.ColorDef blue = new Attribute.ColorDef("blue", System.Drawing.Color.Blue);
+//            Attribute.ColorDef red = new Attribute.ColorDef("red", Color.Red);
+//            Attribute.ColorDef green = new Attribute.ColorDef("green", Color.Green);
+//            Attribute.ColorDef blue = new Attribute.ColorDef("blue", Color.Blue);
 //            for (int i = 1; i < interpol.Length; ++i)
 //            {
 //                Line2D l1 = new Line2D(interpol[i - 1], interpol[i]);
-//                dc.Add(l1, System.Drawing.Color.Red, i);
+//                dc.Add(l1, Color.Red, i);
 //                Line2D l2 = new Line2D(interpol[i - 1], tringulation[i - 1]);
-//                dc.Add(l2, System.Drawing.Color.Green, i);
+//                dc.Add(l2, Color.Green, i);
 //                Line2D l3 = new Line2D(tringulation[i - 1], interpol[i]);
-//                dc.Add(l3, System.Drawing.Color.Blue, i);
+//                dc.Add(l3, Color.Blue, i);
 //            }
 //            for (int i = 0; i < 100; ++i)
 //            {
 //                Line2D l1 = new Line2D(PointAt(i / 100.0), PointAt((i + 1) / 100.0));
-//                dc.Add(l1, System.Drawing.Color.Black, i);
+//                dc.Add(l1, Color.Black, i);
 //            }
 //            if (baseApproximation == null) baseApproximation = Approximate(false, 0.0); // Annäherung mit Bögen unter Auswertung der Tangenten
-//            dc.Add(baseApproximation, System.Drawing.Color.Cyan, 0);
+//            dc.Add(baseApproximation, Color.Cyan, 0);
 //#endif
         }
         protected void ClearTriangulation()
@@ -710,11 +712,11 @@ namespace CADability.Curve2D
                 for (int i = 0; i < interpol.Length - 1; ++i)
                 {
                     Line2D b = new Line2D(interpol[i + 1], interpol[i]);
-                    res.Add(b, System.Drawing.Color.Blue, i);
+                    res.Add(b, Color.Blue, i);
                     Line2D s1 = new Line2D(interpol[i + 1], tringulation[i]);
-                    res.Add(s1, System.Drawing.Color.Green, i);
+                    res.Add(s1, Color.Green, i);
                     Line2D s2 = new Line2D(interpol[i], tringulation[i]);
-                    res.Add(s2, System.Drawing.Color.Green, i);
+                    res.Add(s2, Color.Green, i);
                 }
                 // res.Add(this);
                 return res;
@@ -742,12 +744,12 @@ namespace CADability.Curve2D
                 if (interpol == null) MakeTriangulation();
                 GeoPoint2D[] pnts = new GeoPoint2D[100];
                 for (int i = 0; i < 100; i++) pnts[i] = PointAt(i / 99.0);
-                res.Add(new Polyline2D(pnts), System.Drawing.Color.Red, 0);
+                res.Add(new Polyline2D(pnts), Color.Red, 0);
                 for (int i = 0; i < 10; i++)
                 {
                     GeoVector2D dir = DirectionAt(i / 9.0);
                     GeoPoint2D p = PointAt(i / 9.0);
-                    res.Add(new Line2D(p, p + 0.1 * dir), System.Drawing.Color.Blue, i);
+                    res.Add(new Line2D(p, p + 0.1 * dir), Color.Blue, i);
                 }
                 return res;
             }
@@ -1087,8 +1089,8 @@ namespace CADability.Curve2D
             baseLineIntersection = intersects = Geometry.SegmentIntersection(sp1, ep1, sp2, ep2); // Schnitt der Grundlinien
 #if DEBUGCURVE
             DebuggerContainer dc = new DebuggerContainer();
-            dc.Add(new Line2D(sp1, ep1), System.Drawing.Color.Red, 1);
-            dc.Add(new Line2D(sp2, ep2), System.Drawing.Color.Green, 2);
+            dc.Add(new Line2D(sp1, ep1), Color.Red, 1);
+            dc.Add(new Line2D(sp2, ep2), Color.Green, 2);
 #endif
             if (!intersects)
             {   // Dreieckspunkt berechnen
@@ -1108,8 +1110,8 @@ namespace CADability.Curve2D
                             // Jedenfalls kommen wir hier sonst aus dem Tritt
                             notlinear1 = false;
 #if DEBUGCURVE
-                            dc.Add(new Line2D(sp1, ip1), System.Drawing.Color.Blue, 3);
-                            dc.Add(new Line2D(ep1, ip1), System.Drawing.Color.Blue, 4);
+                            dc.Add(new Line2D(sp1, ip1), Color.Blue, 3);
+                            dc.Add(new Line2D(ep1, ip1), Color.Blue, 4);
 #endif
                         }
                         // if (((ip1 | sp1) > (ep1 | sp1) || (ip1 | ep1) > (ep1 | sp1)) && Math.Abs(GeoVector2D.Cos(sd1,ed1))>0.999) notlinear1 = false;
@@ -1132,8 +1134,8 @@ namespace CADability.Curve2D
                             // Jedenfalls kommen wir hier sonst aus dem Tritt
                             notlinear2 = false;
 #if DEBUGCURVE
-                            dc.Add(new Line2D(sp2, ip2), System.Drawing.Color.Violet, 5);
-                            dc.Add(new Line2D(ep2, ip2), System.Drawing.Color.Violet, 6);
+                            dc.Add(new Line2D(sp2, ip2), Color.Violet, 5);
+                            dc.Add(new Line2D(ep2, ip2), Color.Violet, 6);
 #endif
                         }
                     }
@@ -1303,20 +1305,20 @@ namespace CADability.Curve2D
             // Dann ist die Approximation sicher
 #if DEBUGCURVE
             DebuggerContainer dc = new DebuggerContainer();
-            dc.Add(curve1, System.Drawing.Color.Red, 1);
-            dc.Add(curve2, System.Drawing.Color.Green, 2);
-            dc.Add(curve1.PointAt(spar1), System.Drawing.Color.Blue, 3);
-            dc.Add(curve1.PointAt(epar1), System.Drawing.Color.Blue, 4);
-            dc.Add(curve2.PointAt(spar2), System.Drawing.Color.DarkGreen, 5);
-            dc.Add(curve2.PointAt(epar2), System.Drawing.Color.DarkGreen, 6);
-            dc.Add(curve1.PointAt(par1), System.Drawing.Color.Black, 7);
-            dc.Add(curve2.PointAt(par2), System.Drawing.Color.Black, 8);
-            dc.Add(new Line2D(curve1.PointAt(spar1), curve1.PointAt(spar1) + curve1.DirectionAt(spar1)), System.Drawing.Color.Chocolate, 9);
-            dc.Add(new Line2D(curve2.PointAt(spar2), curve2.PointAt(spar2) + curve2.DirectionAt(spar2)), System.Drawing.Color.Chocolate, 10);
-            dc.Add(new Line2D(curve1.PointAt(epar1), curve1.PointAt(epar1) + curve1.DirectionAt(epar1)), System.Drawing.Color.Chocolate, 11);
-            dc.Add(new Line2D(curve2.PointAt(epar2), curve2.PointAt(epar2) + curve2.DirectionAt(epar2)), System.Drawing.Color.Chocolate, 12);
-            dc.Add(new Line2D(curve1.PointAt(par1), curve1.PointAt(par1) + curve1.DirectionAt(par1)), System.Drawing.Color.Cyan, 13);
-            dc.Add(new Line2D(curve2.PointAt(par2), curve2.PointAt(par2) + curve2.DirectionAt(par2)), System.Drawing.Color.Cyan, 14);
+            dc.Add(curve1, Color.Red, 1);
+            dc.Add(curve2, Color.Green, 2);
+            dc.Add(curve1.PointAt(spar1), Color.Blue, 3);
+            dc.Add(curve1.PointAt(epar1), Color.Blue, 4);
+            dc.Add(curve2.PointAt(spar2), Color.DarkGreen, 5);
+            dc.Add(curve2.PointAt(epar2), Color.DarkGreen, 6);
+            dc.Add(curve1.PointAt(par1), Color.Black, 7);
+            dc.Add(curve2.PointAt(par2), Color.Black, 8);
+            dc.Add(new Line2D(curve1.PointAt(spar1), curve1.PointAt(spar1) + curve1.DirectionAt(spar1)), Color.Chocolate, 9);
+            dc.Add(new Line2D(curve2.PointAt(spar2), curve2.PointAt(spar2) + curve2.DirectionAt(spar2)), Color.Chocolate, 10);
+            dc.Add(new Line2D(curve1.PointAt(epar1), curve1.PointAt(epar1) + curve1.DirectionAt(epar1)), Color.Chocolate, 11);
+            dc.Add(new Line2D(curve2.PointAt(epar2), curve2.PointAt(epar2) + curve2.DirectionAt(epar2)), Color.Chocolate, 12);
+            dc.Add(new Line2D(curve1.PointAt(par1), curve1.PointAt(par1) + curve1.DirectionAt(par1)), Color.Cyan, 13);
+            dc.Add(new Line2D(curve2.PointAt(par2), curve2.PointAt(par2) + curve2.DirectionAt(par2)), Color.Cyan, 14);
 #endif
             GeoPoint2D p1 = curve1.PointAt(par1);
             GeoPoint2D p2 = curve2.PointAt(par2);
@@ -1388,8 +1390,8 @@ namespace CADability.Curve2D
         //            intersects = Geometry.SegmentIntersection(sp1, ep1, sp2, ep2); // Schnitt der Grundlinien
         //#if DEBUG
         //            DebuggerContainer dc = new DebuggerContainer();
-        //            dc.Add(new Line2D(sp1, ep1), System.Drawing.Color.Red, 1);
-        //            dc.Add(new Line2D(sp2, ep2), System.Drawing.Color.Green, 2);
+        //            dc.Add(new Line2D(sp1, ep1), Color.Red, 1);
+        //            dc.Add(new Line2D(sp2, ep2), Color.Green, 2);
         //#endif
         //            if (!intersects)
         //            {   // Dreieckspunkt berechnen
@@ -1403,8 +1405,8 @@ namespace CADability.Curve2D
         //                        // ungünstiger Fall: fast linear und der Schnittpunkt liegt weit weg
         //                        if ((ip1 | sp1) > (ep1 | sp1) || (ip1 | ep1) > (ep1 | sp1)) notlinear1 = false;
         //#if DEBUG
-        //                        dc.Add(new Line2D(sp1, ip1), System.Drawing.Color.Blue, 3);
-        //                        dc.Add(new Line2D(ep1, ip1), System.Drawing.Color.Blue, 4);
+        //                        dc.Add(new Line2D(sp1, ip1), Color.Blue, 3);
+        //                        dc.Add(new Line2D(ep1, ip1), Color.Blue, 4);
         //#endif
         //                    }
         //                    else notlinear1 = false;
@@ -1418,8 +1420,8 @@ namespace CADability.Curve2D
         //                    {
         //                        if ((ip2 | sp2) > (ep2 | sp2) || (ip2 | ep2) > (ep2 | sp2)) notlinear1 = false;
         //#if DEBUG
-        //                        dc.Add(new Line2D(sp2, ip2), System.Drawing.Color.Violet, 5);
-        //                        dc.Add(new Line2D(ep2, ip2), System.Drawing.Color.Violet, 6);
+        //                        dc.Add(new Line2D(sp2, ip2), Color.Violet, 5);
+        //                        dc.Add(new Line2D(ep2, ip2), Color.Violet, 6);
         //#endif
         //                    }
         //                    else notlinear2 = false;
@@ -1615,23 +1617,23 @@ namespace CADability.Curve2D
             for (int i = 0; i < 100; ++i)
             {
                 Line2D l2d = new Line2D(curve1.PointAt(i / 100.0), curve1.PointAt((i + 1) / 100.0));
-                dc.Add(l2d, System.Drawing.Color.Green, i);
+                dc.Add(l2d, Color.Green, i);
             }
             for (int i = 0; i < 100; ++i)
             {
                 Line2D l2d = new Line2D(curve2.PointAt(i / 100.0), curve2.PointAt((i + 1) / 100.0));
-                dc.Add(l2d, System.Drawing.Color.HotPink, i);
+                dc.Add(l2d, Color.HotPink, i);
             }
             // dc.Add(curve2);
             for (int i = 0; i < pts1.Length - 1; ++i)
             {
                 Line2D l2d = new Line2D(pts1[i], pts1[i + 1]);
-                dc.Add(l2d, System.Drawing.Color.Red, i);
+                dc.Add(l2d, Color.Red, i);
             }
             for (int i = 0; i < pts2.Length - 1; ++i)
             {
                 Line2D l2d = new Line2D(pts2[i], pts2[i + 1]);
-                dc.Add(l2d, System.Drawing.Color.Blue, i);
+                dc.Add(l2d, Color.Blue, i);
             }
 #endif
             for (int i = 0; i < pts1.Length - 1; ++i)
@@ -1785,7 +1787,7 @@ namespace CADability.Curve2D
                 dc.Add(this);
                 Line2D l2d = new Line2D(s, s + v);
                 dc.Add(l2d);
-                dc.Add(p, System.Drawing.Color.Red, 0);
+                dc.Add(p, Color.Red, 0);
 #endif
             } while (Math.Abs(dp) > 1e-6);
             return true;
@@ -1812,7 +1814,7 @@ namespace CADability.Curve2D
                 dc.Add(this);
                 Line2D l2d = new Line2D(s, s + v);
                 dc.Add(l2d);
-                dc.Add(p, System.Drawing.Color.Red, 0);
+                dc.Add(p, Color.Red, 0);
 #endif
             } while (Math.Abs(dp) > 1e-6);
             return true;
@@ -2149,16 +2151,11 @@ namespace CADability.Curve2D
         {
             throw new Exception("The method or operation is not implemented.");
         }
-
-        /// <summary>
-        /// Implements <see cref="CADability.Curve2D.ICurve2D.AddToGraphicsPath (System.Drawing.Drawing2D.GraphicsPath, bool)"/>
-        /// </summary>
-        /// <param name="path"></param>
-        /// <param name="forward"></param>
-        public virtual void AddToGraphicsPath(System.Drawing.Drawing2D.GraphicsPath path, bool forward)
-        {
-            throw new Exception("The method or operation is not implemented.");
-        }
+        // Remvoved: not used anywhere and would need System.Drawing reference
+        //public virtual void AddToGraphicsPath(Drawing2D.GraphicsPath path, bool forward)
+        //{
+        //    throw new Exception("The method or operation is not implemented.");
+        //}
 
         /// <summary>
         /// Implements <see cref="CADability.Curve2D.ICurve2D.IsParameterOnCurve (double)"/>

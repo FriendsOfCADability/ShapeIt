@@ -375,39 +375,39 @@ namespace netDxf.Tables
         /// <param name="ttfFont">TTF font file.</param>
         /// <returns>The font family name of the specified TTF font file.</returns>
         /// <remarks>This method will return an empty string if the specified font is not found in its path or the system font folder or if it is not a valid TTF font.</remarks>
-        public static string TrueTypeFontFamilyName(string ttfFont)
-        {
-            if (string.IsNullOrEmpty(ttfFont))
-            {
-                throw new ArgumentNullException(nameof(ttfFont));
-            }
+        //public static string TrueTypeFontFamilyName(string ttfFont)
+        //{
+        //    if (string.IsNullOrEmpty(ttfFont))
+        //    {
+        //        throw new ArgumentNullException(nameof(ttfFont));
+        //    }
 
-            // the following information is only applied to TTF not SHX fonts
-            if (!Path.GetExtension(ttfFont).Equals(".TTF", StringComparison.InvariantCultureIgnoreCase))
-            {
-                return string.Empty;
-            }
+        //    // the following information is only applied to TTF not SHX fonts
+        //    if (!Path.GetExtension(ttfFont).Equals(".TTF", StringComparison.InvariantCultureIgnoreCase))
+        //    {
+        //        return string.Empty;
+        //    }
 
-            // try to find the file in the specified directory, if not try it in the fonts system folder
-            string fontFile = File.Exists(ttfFont) ?
-                Path.GetFullPath(ttfFont) :
-                string.Format("{0}{1}{2}", Environment.GetFolderPath(Environment.SpecialFolder.Fonts), Path.DirectorySeparatorChar, Path.GetFileName(ttfFont));
+        //    // try to find the file in the specified directory, if not try it in the fonts system folder
+        //    string fontFile = File.Exists(ttfFont) ?
+        //        Path.GetFullPath(ttfFont) :
+        //        string.Format("{0}{1}{2}", Environment.GetFolderPath(Environment.SpecialFolder.Fonts), Path.DirectorySeparatorChar, Path.GetFileName(ttfFont));
 
-            System.Drawing.Text.PrivateFontCollection fontCollection = new System.Drawing.Text.PrivateFontCollection();
-            try
-            {
-                fontCollection.AddFontFile(fontFile);
-                return fontCollection.Families[0].Name;
-            }
-            catch (FileNotFoundException)
-            {
-                return string.Empty;
-            }
-            finally
-            {
-                fontCollection.Dispose();
-            }
-        }
+        //    Text.PrivateFontCollection fontCollection = new Text.PrivateFontCollection();
+        //    try
+        //    {
+        //        fontCollection.AddFontFile(fontFile);
+        //        return fontCollection.Families[0].Name;
+        //    }
+        //    catch (FileNotFoundException)
+        //    {
+        //        return string.Empty;
+        //    }
+        //    finally
+        //    {
+        //        fontCollection.Dispose();
+        //    }
+        //}
 
 #endif
 

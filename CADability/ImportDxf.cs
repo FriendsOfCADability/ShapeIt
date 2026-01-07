@@ -6,12 +6,7 @@ using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.Curve2D;
 using CADability.Attribute;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-#endif
+using CADability.Substitutes;
 using netDxf.Tables;
 using System.Text;
 using System.IO;
@@ -82,7 +77,7 @@ namespace CADability.DXF
             {
                 Attribute.Layer layer = project.LayerList.CreateOrFind(item.Name);
                 layerTable[item] = layer;
-                Color rgb = item.Color.ToColor();
+                Color rgb = Color.FromArgb(item.Color.R,item.Color.G,item.Color.B);
                 if (rgb.ToArgb() == Color.White.ToArgb()) rgb = Color.Black;
                 ColorDef cd = project.ColorList.CreateOrFind(item.Name + ":ByLayer", rgb);
                 layerColorTable[item] = cd;
@@ -209,7 +204,7 @@ namespace CADability.DXF
             nhsl.Name = name;
             nhsl.LineAngle = lineAngle;
             nhsl.LineDistance = lineDistance;
-            nhsl.ColorDef = project.ColorList.CreateOrFind(entity.Layer.Color.ToColor().ToString(), entity.Layer.Color.ToColor());
+            nhsl.ColorDef = project.ColorList.CreateOrFind(entity.Layer.Color.ToColor().ToString(), Color.FromArgb(entity.Layer.Color.ToColor().ToArgb()));
             Lineweight lw = entity.Lineweight;
             if (lw == Lineweight.ByLayer) lw = entity.Layer.Lineweight;
             if (lw == Lineweight.ByBlock && entity.Owner != null) lw = entity.Owner.Layer.Lineweight; // not sure, but Block doesn't seem to have a lineweight
@@ -226,7 +221,7 @@ namespace CADability.DXF
                 ColorDef res = layerColorTable[layer] as ColorDef;
                 if (res != null) return res;
             }
-            Color rgb = color.ToColor();
+            Color rgb = Color.FromArgb(color.ToColor().ToArgb());
             if (color.ToColor().ToArgb() == Color.White.ToArgb())
             {
                 rgb = Color.Black;
@@ -741,7 +736,7 @@ namespace CADability.DXF
                 res.Plane = pln;
                 if (hatch.Pattern.Fill == HatchFillType.SolidFill)
                 {
-                    HatchStyleSolid hst = FindOrCreateSolidHatchStyle(hatch.Layer.Color.ToColor());
+                    HatchStyleSolid hst = FindOrCreateSolidHatchStyle(Color.FromArgb(hatch.Layer.Color.ToColor().ToArgb()));
                     res.HatchStyle = hst;
                     return res;
                 }
@@ -780,7 +775,7 @@ namespace CADability.DXF
             Plane ocs = Plane(new Vector3(solid.Elevation * solid.Normal.X, solid.Elevation * solid.Normal.Y, solid.Elevation * solid.Normal.Z), solid.Normal);
             // not sure, whether the ocs is correct, maybe the position is (0,0,solid.Elevation)
 
-            HatchStyleSolid hst = FindOrCreateSolidHatchStyle(solid.Color.ToColor());
+            HatchStyleSolid hst = FindOrCreateSolidHatchStyle(Color.FromArgb(solid.Color.ToColor().ToArgb()));
             List<GeoPoint> points = new List<GeoPoint>();
             points.Add(ocs.ToGlobal(new GeoPoint2D(solid.FirstVertex.X, solid.FirstVertex.Y)));
             points.Add(ocs.ToGlobal(new GeoPoint2D(solid.SecondVertex.X, solid.SecondVertex.Y)));

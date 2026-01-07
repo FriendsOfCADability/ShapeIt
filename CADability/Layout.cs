@@ -3,7 +3,6 @@ using CADability.Attribute;
 using CADability.Shapes;
 using System;
 using System.Collections;
-using System.Drawing.Printing;
 using System.Runtime.Serialization;
 
 namespace CADability
@@ -24,7 +23,7 @@ namespace CADability
         /// <summary>
         /// The printer settings.
         /// </summary>
-        public PageSettings pageSettings; // kommt vom PrintDocument, kann auch null sein, ist Serializable
+        //public PageSettings pageSettings; // kommt vom PrintDocument, kann auch null sein, ist Serializable
         internal Project project;
         /// <summary>
         /// Creates an empty Layout
@@ -304,9 +303,9 @@ namespace CADability
                     case "paperHeight":
                         paperHeight = (double)e.Value;
                         break;
-                    case "PageSettings":
-                        pageSettings = e.Value as PageSettings;
-                        break;
+                    //case "PageSettings":
+                    //    pageSettings = e.Value as PageSettings;
+                    //    break;
                 }
             }
 

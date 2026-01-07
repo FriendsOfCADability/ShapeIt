@@ -2,13 +2,7 @@
 using CADability.Shapes;
 using System;
 using System.Collections;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 using System.Runtime.Serialization;
 
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
@@ -593,8 +587,8 @@ namespace CADability.Actions
 						PointF pf = View.Projection.ProjectF(p);
 						//Color bckgnd = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
 						//Color infocolor;
-						//if (bckgnd.GetBrightness() > 0.5) infocolor = System.Drawing.Color.Black;
-						//else infocolor = System.Drawing.Color.White;
+						//if (bckgnd.GetBrightness() > 0.5) infocolor = Color.Black;
+						//else infocolor = Color.White;
 						PaintTo3D.PaintHandle(PaintToSelect, pf, handleSize, handleColor);
 						// TODO: man bräuchte einen Algorithmus, der alle hotspots bei Überlappung
 						// neu platziert, so eine Art Gedränge von innen nach außen
@@ -605,8 +599,8 @@ namespace CADability.Actions
 						PointF pf = View.Projection.ProjectF(p);
 						//Color bckgnd = Frame.GetColorSetting("Colors.Background", Color.AliceBlue);
 						//Color infocolor;
-						//if (bckgnd.GetBrightness() > 0.5) infocolor = System.Drawing.Color.Black;
-						//else infocolor = System.Drawing.Color.White;
+						//if (bckgnd.GetBrightness() > 0.5) infocolor = Color.Black;
+						//else infocolor = Color.White;
 						if (handleSize > 1) PaintTo3D.PaintHandle(PaintToSelect, pf, handleSize - 1, handleColor);
 						if (handleSize > 2) PaintTo3D.PaintHandle(PaintToSelect, pf, handleSize - 2, handleColor);
 					}

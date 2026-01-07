@@ -1,13 +1,7 @@
 ﻿using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 
 namespace CADability.Actions
 {
@@ -130,7 +124,7 @@ namespace CADability.Actions
         void OnSetFileName(string val)
         {
             fileName = val; // save the name
-            Bitmap bmp = Picture.CopyFrom(fileName); // load the bitmap
+            Substitutes.Bitmap bmp = Picture.CopyFrom(fileName); // load the bitmap
             picture.Bitmap = bmp; // set the bitmap to the picture object
             picture.Path = fileName; // set the name to the picture object
             base.ActiveObject = picture; // set the active object:
@@ -138,8 +132,8 @@ namespace CADability.Actions
                                          // that is will be displayed while the location is positioned and at the end of the
                                          // action it will automatically be inserted into the model
 #if !WEBASSEMBLY
-            widthValue = picture.Bitmap.PhysicalDimension.Width;
-            heightValue = picture.Bitmap.PhysicalDimension.Height;
+            widthValue = picture.Bitmap.Width;
+            heightValue = picture.Bitmap.Height;
 #endif
             picture.DirectionWidth = ActiveDrawingPlane.DirectionX;
             picture.DirectionHeight = ActiveDrawingPlane.DirectionY;

@@ -84,6 +84,7 @@
     <Compile Remove="ParametricsExtrudeAction.cs" />
     <Compile Remove="ParametricsOffsetAction.cs" />
     <Compile Remove="ParametricsRadiusAction.cs" />
+    <Compile Remove="PrintToGDI.cs" />
     <Compile Remove="SelectActionContextMenu.cs" />
     <Content Remove="@(RemoveFiles)" />
     <None Remove="@(RemoveFiles)" />
@@ -99,9 +100,9 @@
     <PackageReference Include="MathNet.Numerics.Signed" Version="5.0.0" />
     <PackageReference Include="MethodDecorator.Fody" Version="1.1.1" />
     <PackageReference Include="Microsoft.Win32.Registry" Version="5.0.0" />
+    <PackageReference Include="StbImageSharp" Version="2.30.15" />
     <PackageReference Include="System.Collections.Immutable" Version="9.0.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
-    <PackageReference Include="System.Drawing.Common" Version="6.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="CADability.DebuggerVisualizers">

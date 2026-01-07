@@ -1,11 +1,9 @@
-﻿using System;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+﻿using CADability.Curve2D;
+using StbImageSharp;
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using Wintellect.PowerCollections;
 
 
 // MouseEventArgs, MouseButtons, Keys, 
@@ -16,6 +14,640 @@ using Point = System.Drawing.Point;
 /// </summary>
 namespace CADability.Substitutes
 {
+    public abstract class FontFamily
+    {
+        public virtual string Name { get; }
+        public abstract int GetEmHeight(FontStyle style);
+
+        /// <summary>
+        /// Returns the ascender metric for Windows.
+        /// </summary>
+        public abstract int GetCellAscent(FontStyle style);
+
+        /// <summary>
+        /// Returns the descender metric for Windows.
+        /// </summary>
+        public abstract int GetCellDescent(FontStyle style);
+        /// <summary>
+        /// Returns the distance between two consecutive lines of text for this <see cref='FontFamily'/> with the
+        /// specified <see cref='FontStyle'/>.
+        /// </summary>
+        public abstract int GetLineSpacing(FontStyle style);
+
+        public abstract Path2D[] GetOutline2D(int fontStyle, char c, int FontPrecision, out double width);
+
+        public abstract bool IsStyleAvailable(FontStyle fs);
+
+        public abstract SizeF GetExtent(string textString, double length);
+    }
+    public struct Bitmap
+    {
+        public static Bitmap Empty => new Bitmap { Data = null, Width = 0, Height = 0 };
+        public bool IsEmpty => Data == null || Data.Length == 0;
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public byte[] Data { get; set; }
+        public Color GetPixel(int x, int y)
+        {
+            if (x >= Width || y >= Height) throw new ArgumentOutOfRangeException();
+
+            int i = (y * Width + x) * 4;
+            byte r = Data[i + 0];
+            byte g = Data[i + 1];
+            byte b = Data[i + 2];
+            byte a = Data[i + 3];
+
+            return Color.FromArgb(a, r, g, b);
+        }
+    }
+    public struct Rectangle : IEquatable<Rectangle>
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+
+        // ----------- Abgeleitete Properties -----------
+
+        public int Left => X;
+        public int Top => Y;
+        public int Right => X + Width;
+        public int Bottom => Y + Height;
+
+        public static Rectangle Empty => new Rectangle(0, 0, 0, 0);
+        public bool IsEmpty => Width <= 0 || Height <= 0;
+
+        public Point Location
+        {
+            get => new Point { X = X, Y = Y };
+            set { X = value.X; Y = value.Y; }
+        }
+
+        public Size Size
+        {
+            get => new Size { Width = Width, Height = Height };
+            set { Width = value.Width; Height = value.Height; }
+        }
+
+        // ----------- Konstruktor -----------
+
+        public Rectangle(int x, int y, int width, int height)
+        {
+            X = x;
+            Y = y;
+            Width = width;
+            Height = height;
+        }
+
+        // ----------- Methoden -----------
+
+        public bool Contains(int x, int y)
+            => x >= Left && x < Right && y >= Top && y < Bottom;
+
+        public bool Contains(Point p)
+            => Contains(p.X, p.Y);
+
+        public bool IntersectsWith(Rectangle r)
+            => r.Left < Right && Left < r.Right &&
+               r.Top < Bottom && Top < r.Bottom;
+
+        public static Rectangle Intersect(Rectangle a, Rectangle b)
+        {
+            int left = Math.Max(a.Left, b.Left);
+            int top = Math.Max(a.Top, b.Top);
+            int right = Math.Min(a.Right, b.Right);
+            int bottom = Math.Min(a.Bottom, b.Bottom);
+
+            if (right <= left || bottom <= top)
+                return new Rectangle();
+
+            return new Rectangle(left, top, right - left, bottom - top);
+        }
+
+        // ----------- Equality -----------
+
+        public override bool Equals(object obj)
+            => obj is Rectangle r && Equals(r);
+
+        public bool Equals(Rectangle other)
+            => X == other.X && Y == other.Y &&
+               Width == other.Width && Height == other.Height;
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + X;
+                hash = hash * 31 + Y;
+                hash = hash * 31 + Width;
+                hash = hash * 31 + Height;
+                return hash;
+            }
+        }
+
+        public static bool operator ==(Rectangle a, Rectangle b) => a.Equals(b);
+        public static bool operator !=(Rectangle a, Rectangle b) => !a.Equals(b);
+
+        public override string ToString()
+            => $"Rectangle [X={X}, Y={Y}, Width={Width}, Height={Height}]";
+
+        public void Inflate(int v1, int v2)
+        {
+            X -= v1;
+            Y -= v2;
+            Width += 2 * v1;
+            Height += 2 * v2;
+        }
+
+        public static Rectangle FromLTRB(int left, int top, int right, int bottom)
+        {
+            return new Rectangle(left, top, right - left, bottom - top);
+        }
+
+    }
+    public struct RectangleF : IEquatable<RectangleF>
+    {
+        public float X { get; set; }
+        public float Y { get; set; }
+        public float Width { get; set; }
+        public float Height { get; set; }
+
+        // -------- Derived Properties --------
+
+        public float Left => X;
+        public float Top => Y;
+        public float Right => X + Width;
+        public float Bottom => Y + Height;
+
+        public bool IsEmpty => Width <= 0f || Height <= 0f;
+
+        public PointF Location
+        {
+            get => new PointF(X, Y);
+            set { X = value.X; Y = value.Y; }
+        }
+
+        public SizeF SizeF
+        {
+            get => new SizeF(Width, Height);
+        }
+
+        public PointF Center => new PointF(X + Width / 2f, Y + Height / 2f);
+
+        // -------- Constructors --------
+
+        public RectangleF(float x, float y, float width, float height)
+        {
+            X = x;
+            Y = y;
+            Width = width;
+            Height = height;
+        }
+
+        public static readonly RectangleF Empty = new RectangleF();
+
+        // -------- Methods --------
+
+        public bool Contains(float x, float y)
+            => x >= Left && x < Right && y >= Top && y < Bottom;
+
+        public bool Contains(PointF p)
+            => Contains(p.X, p.Y);
+
+        public bool IntersectsWith(RectangleF r)
+            => r.Left < Right && Left < r.Right &&
+               r.Top < Bottom && Top < r.Bottom;
+
+        public static RectangleF Intersect(RectangleF a, RectangleF b)
+        {
+            float left = Math.Max(a.Left, b.Left);
+            float top = Math.Max(a.Top, b.Top);
+            float right = Math.Min(a.Right, b.Right);
+            float bottom = Math.Min(a.Bottom, b.Bottom);
+
+            if (right <= left || bottom <= top)
+                return Empty;
+
+            return new RectangleF(left, top, right - left, bottom - top);
+        }
+
+        // -------- Equality --------
+
+        public override bool Equals(object obj)
+            => obj is RectangleF r && Equals(r);
+
+        public bool Equals(RectangleF other)
+            => X == other.X && Y == other.Y &&
+               Width == other.Width && Height == other.Height;
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + X.GetHashCode();
+                hash = hash * 31 + Y.GetHashCode();
+                hash = hash * 31 + Width.GetHashCode();
+                hash = hash * 31 + Height.GetHashCode();
+                return hash;
+            }
+        }
+
+        public static bool operator ==(RectangleF a, RectangleF b) => a.Equals(b);
+        public static bool operator !=(RectangleF a, RectangleF b) => !a.Equals(b);
+        public static implicit operator RectangleF(Rectangle r)
+            => new RectangleF(r.X, r.Y, r.Width, r.Height);
+
+        public override string ToString()
+            => $"RectangleF [X={X}, Y={Y}, Width={Width}, Height={Height}]";
+    }
+    public struct Size
+    {
+        public static readonly Size Empty = new Size { Width = 0, Height = 0 };
+
+        public Size(int width, int height) : this()
+        {
+            Width = width;
+            Height = height;
+        }
+
+        public int Width { get; set; }
+        public int Height { get; set; }
+    }
+    public struct SizeF
+    {
+        public static readonly Size Empty = new Size { Width = 0, Height = 0 };
+
+        public SizeF(float width, float height) : this()
+        {
+            Width = width;
+            Height = height;
+        }
+
+        public float Width { get; set; }
+        public float Height { get; set; }
+    }
+    public struct Point
+    {
+        public Point(int x, int y)
+        {
+            X = x;
+            Y = y;
+        }
+        public int X { get; set; }
+        public int Y { get; set; }
+    }
+    public struct PointF : IEquatable<PointF>
+    {
+        public float X { get; set; }
+        public float Y { get; set; }
+
+        public PointF(float x, float y)
+        {
+            X = x;
+            Y = y;
+        }
+
+        public static readonly PointF Empty = new PointF(0, 0);
+
+        public bool IsEmpty => X == 0f && Y == 0f;
+
+        public override bool Equals(object obj)
+            => obj is PointF p && Equals(p);
+
+        public bool Equals(PointF other)
+            => X == other.X && Y == other.Y;
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = 17;
+                hash = hash * 31 + X.GetHashCode();
+                hash = hash * 31 + Y.GetHashCode();
+                return hash;
+            }
+        }
+
+        public static bool operator ==(PointF a, PointF b) => a.Equals(b);
+        public static bool operator !=(PointF a, PointF b) => !a.Equals(b);
+
+        public override string ToString() => $"PointF [X={X}, Y={Y}]";
+    }
+
+    [JsonVersion(serializeAsStruct = true, version = 1)]
+    public struct Color : IEquatable<Color>, IJsonSerialize
+    {
+        private readonly int _argb;
+        private readonly string _name;
+        private readonly bool _isNamed;
+
+        public static readonly Color Empty = new Color(0, null, false);
+
+
+        private Color(int argb, string name, bool isNamed)
+        {
+            _argb = argb;
+            _name = name;
+            _isNamed = isNamed;
+        }
+
+        // ---------------- Properties ----------------
+
+        public byte A => (byte)(_argb >> 24);
+        public byte R => (byte)(_argb >> 16);
+        public byte G => (byte)(_argb >> 8);
+        public byte B => (byte)(_argb);
+
+        public string Name => _name ?? string.Empty;
+        public bool IsNamedColor => _isNamed;
+        public bool IsEmpty => _argb == 0 && !_isNamed;
+
+        public static Color Brown => FromArgb(165, 42, 42);
+        public static Color Blue => FromArgb(0, 0, 255);
+        public static Color Red => FromArgb(255, 0, 0);
+        public static Color DarkCyan => FromArgb(0, 139, 139);
+        public static Color GreenYellow => FromArgb(173, 255, 47);
+
+        public static Color Green => FromArgb(0, 128, 0);
+
+        public static Color Black => FromArgb(0, 0, 0);
+        public static Color BlueViolet => FromArgb(138, 43, 226);
+
+        public static Color DarkBlue => FromArgb(0, 0, 139);
+
+        public static Color DarkRed => FromArgb(139, 0, 0);
+
+        public static Color DarkMagenta => FromArgb(139, 0, 139);
+
+        public static Color DarkOrange => FromArgb(255, 140, 0);
+        public static Color Violet => FromArgb(238, 130, 238);
+
+        public static Color White => FromArgb(255, 255, 255);
+
+        public static Color DarkGray => FromArgb(169, 169, 169);
+
+        public static Color AliceBlue => FromArgb(240, 248, 255);
+
+        public static Color LightYellow => FromArgb(255, 255, 224);
+
+        public static Color Yellow => FromArgb(255, 255, 0);
+        public static Color Turquoise => FromArgb(64, 224, 208);
+
+        public static Color HotPink => FromArgb(255, 105, 180);
+
+        public static Color LawnGreen => FromArgb(124, 252, 0);
+
+        public static Color Lime => FromArgb(0, 255, 0);
+        public static Color Magenta => FromArgb(255, 0, 255);
+        public static Color Cyan => FromArgb(0, 255, 255);
+
+        public static Color LightGray => FromArgb(211, 211, 211);
+
+        public static Color Chartreuse => FromArgb(127, 255, 0);
+
+        public static Color LightBlue => FromArgb(128, 128, 255);
+        public static Color Gray => FromArgb(128, 128, 128);
+
+        public static Color LightGoldenrodYellow => FromArgb(unchecked((int)0xFFFAFAD2));
+
+        public static Color LightSkyBlue => FromArgb(unchecked((int)0xFF87CEFA));
+
+        public static Color DeepPink => FromArgb(unchecked((int)0xFFFF1493));
+
+        public static Color DarkSalmon => FromArgb(unchecked((int)0xFFE9967A));
+        public static Color Orange => FromArgb(unchecked((int)0xFFFF8000));
+
+        public static Color MediumVioletRed => FromArgb(unchecked((int)0xFFC71585));
+        public static Color SeaShell => FromArgb(unchecked((int)0xFFFFF5EE));
+
+        public static Color LightGreen => FromArgb(unchecked((int)0xFF90EE90));
+        public static Color PaleVioletRed => FromArgb(unchecked((int)0xFFDB7093));
+        public static Color LightPink => FromArgb(unchecked((int)0xFFFFB6C1));
+
+        // ---------------- Factory ----------------
+
+        public static Color FromArgb(int argb)
+            => new Color(argb, null, false);
+
+        public static Color FromArgb(int alpha, Color baseColor)
+            => FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B);
+
+        public static Color FromArgb(int red, int green, int blue)
+            => FromArgb(255, red, green, blue);
+
+        public static Color FromArgb(int alpha, int red, int green, int blue)
+        {
+            Validate(alpha);
+            Validate(red);
+            Validate(green);
+            Validate(blue);
+
+            int argb = (alpha << 24) | (red << 16) | (green << 8) | blue;
+            return new Color(argb, null, false);
+        }
+
+        public static Color FromName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                return Empty;
+
+            // Minimal: du kannst hier später KnownColors ergänzen
+            return new Color(unchecked((int)0xFF000000), name, true);
+        }
+
+        // ---------------- Conversion ----------------
+
+        public int ToArgb() => _argb;
+        public static Color FromString(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return Empty;
+
+            text = text.Trim();
+
+            if (text[0] == '#')
+                return FromHex(text);
+
+            // Named colors (HTML standard)
+            return FromHtmlName(text);
+        }
+        private static Color FromHex(string hex)
+        {
+            hex = hex.TrimStart('#');
+
+            if (hex.Length == 3) // #RGB
+            {
+                int r = Convert.ToInt32($"{hex[0]}{hex[0]}", 16);
+                int g = Convert.ToInt32($"{hex[1]}{hex[1]}", 16);
+                int b = Convert.ToInt32($"{hex[2]}{hex[2]}", 16);
+                return FromArgb(255, r, g, b);
+            }
+
+            if (hex.Length == 6) // #RRGGBB
+            {
+                int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+                int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+                int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+                return FromArgb(255, r, g, b);
+            }
+
+            if (hex.Length == 8) // #RRGGBBAA
+            {
+                int r = Convert.ToInt32(hex.Substring(0, 2), 16);
+                int g = Convert.ToInt32(hex.Substring(2, 2), 16);
+                int b = Convert.ToInt32(hex.Substring(4, 2), 16);
+                int a = Convert.ToInt32(hex.Substring(6, 2), 16);
+                return FromArgb(a, r, g, b);
+            }
+
+            throw new FormatException("Invalid hex color format.");
+        }
+        private static Color FromHtmlName(string name)
+        {
+            switch (name.ToLowerInvariant())
+            {
+                case "black": return FromArgb(0, 0, 0);
+                case "white": return FromArgb(255, 255, 255);
+                case "red": return FromArgb(255, 0, 0);
+                case "green": return FromArgb(0, 128, 0);
+                case "blue": return FromArgb(0, 0, 255);
+                case "yellow": return FromArgb(255, 255, 0);
+                case "cyan": return FromArgb(0, 255, 255);
+                case "magenta": return FromArgb(255, 0, 255);
+                case "gray":
+                case "grey": return FromArgb(128, 128, 128);
+                case "lightgray":
+                case "lightgrey": return FromArgb(211, 211, 211);
+                case "darkgray":
+                case "darkgrey": return FromArgb(169, 169, 169);
+                case "orange": return FromArgb(255, 165, 0);
+                case "pink": return FromArgb(255, 192, 203);
+                case "brown": return FromArgb(165, 42, 42);
+                case "purple": return FromArgb(128, 0, 128);
+                case "transparent": return FromArgb(0, 0, 0, 0);
+                default:
+                    return FromArgb(0, 0, 255); // better return the correct color
+            }
+        }
+
+
+        public override string ToString()
+        {
+            if (IsNamedColor) return Name;
+            return $"Color [A={A}, R={R}, G={G}, B={B}]";
+        }
+
+        // ---------------- Equality ----------------
+
+        public override bool Equals(object obj)
+            => obj is Color c && Equals(c);
+
+        public bool Equals(Color other)
+            => _argb == other._argb && _isNamed == other._isNamed && _name == other._name;
+
+        public override int GetHashCode() => _argb;
+        public static bool operator ==(Color left, Color right) => left.Equals(right);
+        public static bool operator !=(Color left, Color right) => !left.Equals(right);
+
+        // ---------------- HSB ----------------
+
+        public float GetBrightness()
+        {
+            float r = R / 255f;
+            float g = G / 255f;
+            float b = B / 255f;
+            return Math.Max(r, Math.Max(g, b));
+        }
+
+        public float GetSaturation()
+        {
+            float r = R / 255f;
+            float g = G / 255f;
+            float b = B / 255f;
+
+            float max = Math.Max(r, Math.Max(g, b));
+            float min = Math.Min(r, Math.Min(g, b));
+
+            if (max == 0) return 0;
+            return (max - min) / max;
+        }
+
+        public float GetHue()
+        {
+            float r = R / 255f;
+            float g = G / 255f;
+            float b = B / 255f;
+
+            float max = Math.Max(r, Math.Max(g, b));
+            float min = Math.Min(r, Math.Min(g, b));
+
+            if (max == min) return 0;
+
+            float hue;
+            if (max == r)
+                hue = (g - b) / (max - min);
+            else if (max == g)
+                hue = 2 + (b - r) / (max - min);
+            else
+                hue = 4 + (r - g) / (max - min);
+
+            hue *= 60;
+            if (hue < 0) hue += 360;
+            return hue;
+        }
+
+        // ---------------- Helper ----------------
+
+        private static void Validate(int v)
+        {
+            if ((uint)v > 255)
+                throw new ArgumentException("Color component out of range (0-255).");
+        }
+
+        public Color(IJsonReadStruct data)
+        {
+            _argb = data.GetValue<int>();
+        }
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddValues(_argb);
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    //
+    // Summary:
+    //     Specifies style information applied to text.
+    [Flags]
+    public enum FontStyle
+    {
+        //
+        // Summary:
+        //     Normal text.
+        Regular = 0,
+        //
+        // Summary:
+        //     Bold text.
+        Bold = 1,
+        //
+        // Summary:
+        //     Italic text.
+        Italic = 2,
+        //
+        // Summary:
+        //     Underlined text.
+        Underline = 4,
+        //
+        // Summary:
+        //     Text with a line through the middle.
+        Strikeout = 8
+    }
+
     [Flags]
     public enum MouseButtons
     {
@@ -54,10 +686,10 @@ namespace CADability.Substitutes
         public bool SuppressKeyPress { get; set; }
     }
 
-    public class PaintEventArgs 
+    public class PaintEventArgs
     {
         public Rectangle ClipRectangle { get; set; }
-        public object Graphics { get; set; } // we cannot access System.Drawing.Graphics here (in DebuggerVisualizer
+        public object Graphics { get; set; } // we cannot access Graphics here (in DebuggerVisualizer
     }
 
     public enum CheckState

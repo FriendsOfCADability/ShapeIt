@@ -2,14 +2,7 @@
 using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
-using System.Drawing.Printing;
+using CADability.Substitutes;
 
 /* Connection to the new user-interface provided by CADability.Forms
  * 
@@ -310,7 +303,7 @@ namespace CADability.UserInterface
     {
         GeoObjectList GetDataPresent(object data);
         Substitutes.Keys ModifierKeys { get; }
-        Point CurrentMousePosition { get; }
+        Substitutes.Point CurrentMousePosition { get; }
         /// <summary>
         /// Shows an open file dialog. The <paramref name="id"/> is used to cache the last directory, so with different ids you get different
         /// start directories. The <paramref name="filter"/> is a windows OpenFileDialog filter, <paramref name="filterIndex"/> specifies, 
@@ -325,7 +318,7 @@ namespace CADability.UserInterface
         Substitutes.DialogResult ShowOpenFileDlg(string id, string title, string filter, ref int filterIndex, out string fileName);
         Substitutes.DialogResult ShowSaveFileDlg(string id, string title, string filter, ref int filterIndex, ref string fileName);
         Substitutes.DialogResult ShowMessageBox(string text, string caption, Substitutes.MessageBoxButtons buttons);
-        Substitutes.DialogResult ShowColorDialog(ref Color color);
+        Substitutes.DialogResult ShowColorDialog(ref Substitutes.Color color);
         /// <summary>
         /// Returns a bitmap from a bitmap strip, name has the format filename:index(, where filename should be part of the resources?)
         /// </summary>
@@ -346,6 +339,8 @@ namespace CADability.UserInterface
         /// <param name="percent">progress percentage (0..100)</param>
         /// <param name="Title">title of the progress bar, null: don't change the current title</param>
         void ShowProgressBar(bool show, double percent = 0.0, string title = null);
+        FontFamily GetFontFamily(string fontFamilyName);
+        string[] GetFontFamilies();
     }
 
 }

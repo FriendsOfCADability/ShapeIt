@@ -1,8 +1,7 @@
 ﻿using CADability;
 using CADability.Curve2D;
 using CADability.GeoObject;
-using CADability.Shapes;
-using ExCSS;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -345,10 +344,10 @@ namespace ShapeIt
                         dbg3d.Add(tangentialEdge.Curve3D as IGeoObject, tangentialEdge.GetHashCode());
                         dbg3d.Add(thirdEdgeSegment.Curve3D as IGeoObject, thirdEdgeSegment.GetHashCode());
                         DebuggerContainer dbg2d = new DebuggerContainer();
-                        dbg2d.Add(arcEdgeOn1.Curve2D(torusFace), System.Drawing.Color.Red, arcEdgeOn1.GetHashCode());
-                        dbg2d.Add(arcEdgeOn2.Curve2D(torusFace), System.Drawing.Color.Red, arcEdgeOn2.GetHashCode());
-                        dbg2d.Add(tangentialEdge.Curve2D(torusFace), System.Drawing.Color.Red, tangentialEdge.GetHashCode());
-                        dbg2d.Add(thirdEdgeSegment.Curve2D(torusFace), System.Drawing.Color.Red, thirdEdgeSegment.GetHashCode());
+                        dbg2d.Add(arcEdgeOn1.Curve2D(torusFace), Color.Red, arcEdgeOn1.GetHashCode());
+                        dbg2d.Add(arcEdgeOn2.Curve2D(torusFace), Color.Red, arcEdgeOn2.GetHashCode());
+                        dbg2d.Add(tangentialEdge.Curve2D(torusFace), Color.Red, tangentialEdge.GetHashCode());
+                        dbg2d.Add(thirdEdgeSegment.Curve2D(torusFace), Color.Red, thirdEdgeSegment.GetHashCode());
 #endif
 
                         // construct the "torus" face

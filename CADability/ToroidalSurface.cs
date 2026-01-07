@@ -28,7 +28,7 @@ namespace CADability.GeoObject
             this.minorRadius = toUnit.Factor * minorRadius;
             // majorRadius is 1
         }
-        internal ToroidalSurface(ModOp toTorus, double minorRadius)
+        internal ToroidalSurface(ModOp toTorus, double minorRadius, BoundingRect? usedArea = null) : base(usedArea)
         {
             this.toTorus = toTorus;
             this.minorRadius = minorRadius;
@@ -175,7 +175,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface Clone()
         {
-            return new ToroidalSurface(toTorus, minorRadius);
+            return new ToroidalSurface(toTorus, minorRadius, usedArea);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Modify (ModOp)"/>
@@ -2281,7 +2281,7 @@ namespace CADability.GeoObject
                             for (int i = 0; i < vs.Length; i++)
                             {
                                 if (Math.Abs(uvp.y - vs[i]) < 1e-4) uv.x = PositionOf(e.PointAt(0.5372516273)).x; // we did hit a pole with the startpoint, lets take some other point (but not the endpoint, if e is full circle)
-                                  // 1e-4 is not critical, because "PositionOf(e.PointAt(..." should always return the same result, the odd value is to assure we don't hit the other pole
+                                                                                                                  // 1e-4 is not critical, because "PositionOf(e.PointAt(..." should always return the same result, the odd value is to assure we don't hit the other pole
                                 if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref uv); // must be adjusted back again
 
                             }

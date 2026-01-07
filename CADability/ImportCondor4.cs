@@ -6,7 +6,7 @@ using CADability.UserInterface;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Runtime.InteropServices;
 using System.Threading;
 

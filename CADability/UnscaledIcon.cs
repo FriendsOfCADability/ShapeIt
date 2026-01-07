@@ -2,13 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 
 namespace CADability.GeoObject
 {
@@ -254,7 +248,7 @@ namespace CADability.GeoObject
         #region ISerializable Members
         protected Icon(SerializationInfo info, StreamingContext context)
         {
-            bitmap = info.GetValue("Bitmap", typeof(Bitmap)) as Bitmap;
+            //bitmap = info.GetValue("Bitmap", typeof(Bitmap)) as Bitmap;
             location = (GeoPoint)info.GetValue("Location", typeof(GeoPoint));
             offsetx = info.GetInt32("Offsetx");
             offsety = info.GetInt32("Offsety");

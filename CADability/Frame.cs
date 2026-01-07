@@ -3,11 +3,7 @@ using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-#else
-using System.Drawing;
-#endif
+using CADability.Substitutes;
 using System.IO;
 using System.Reflection;
 
@@ -510,7 +506,7 @@ namespace CADability
                 //ImageList imageList = new ImageList();
                 //imageList.ImageSize = new Size(16, 16);
 
-                //System.Drawing.Bitmap bmp = BitmapTable.GetBitmap("Icons.bmp");
+                //Bitmap bmp = BitmapTable.GetBitmap("Icons.bmp");
                 //Color clr = bmp.GetPixel(0, 0);
                 //if (clr.A != 0) bmp.MakeTransparent(clr);
                 //imageList.Images.AddStrip(bmp);

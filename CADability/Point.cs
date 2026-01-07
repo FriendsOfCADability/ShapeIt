@@ -214,9 +214,9 @@ namespace CADability.GeoObject
         //		public override void Paint(PaintToGDI PaintTo)
         //		{
         //			if (!PaintTo.AcceptLayer(this.Layer)) return;
-        //			System.Drawing.Color color;
+        //			Color color;
         //			if (colorDef!=null) color = colorDef.Color;
-        //			else color = System.Drawing.Color.Black;
+        //			else color = Color.Black;
         //			PaintTo.DisplaySymbolW(location,size,symbol,color);
         //		}
         /// <summary>

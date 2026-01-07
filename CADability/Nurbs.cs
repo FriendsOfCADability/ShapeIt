@@ -1,4 +1,5 @@
-﻿using MathNet.Numerics.LinearAlgebra.Double;
+﻿using MathNet.Numerics.LinearAlgebra;
+using MathNet.Numerics.LinearAlgebra.Double;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
@@ -1114,6 +1115,7 @@ namespace CADability
                 k[i] = lastk + calc.Dist(throughpoints[i + 1], throughpoints[i]);
                 lastk = k[i];
             }
+            //for (int i = 0; i < k.Length; i++) k[i] /= lastk;
             // 2. daraus den Knotenvektor
             uknots = new double[2 * throughpoints.Length + degree + 1];
             for (int i = 0; i < degree + 1; ++i)
@@ -3474,7 +3476,117 @@ namespace CADability
             }
         }
 
+        /// <summary>
+        /// Interpoliert eine 2D B-Spline-Kurve (clamped/open uniform style, aber mit Knoten aus Parameter-Averaging)
+        /// so dass C(u[j]) = points[j] für alle j gilt.
+        /// </summary>
+        /// <param name="points">Datenpunkte Q_j, j=0..m</param>
+        /// <param name="parameters">Vorgegebene Parameter u_j (streng aufsteigend), gleiche Länge wie points</param>
+        /// <param name="degree">Grad p (>=1)</param>
+        /// <returns>(Pole/Kontrollpunkte P_i, Knotenvektor U)</returns>
+        public Nurbs(IReadOnlyList<T> points, IReadOnlyList<double> parameters, int degree)
+        {
+            if (points == null) throw new ArgumentNullException(nameof(points));
+            if (parameters == null) throw new ArgumentNullException(nameof(parameters));
+            if (points.Count != parameters.Count) throw new ArgumentException("points und u müssen gleich lang sein.");
+            if (points.Count < 2) throw new ArgumentException("Mindestens 2 Punkte nötig.");
+            if (degree < 1) throw new ArgumentOutOfRangeException(nameof(degree), "degree muss >= 1 sein.");
 
+            int m = points.Count - 1;      // #data - 1
+            int p = degree;
+            this.udegree = degree;
+
+            if (p > m)
+                throw new ArgumentException($"degree={p} ist zu groß für {m + 1} Punkte. Es muss gelten: degree <= points.Count-1.");
+
+            // ---- 1) Knotenvektor (clamped) per Averaging aus gegebenen Parametern u_j ----
+            // n = m (gleich viele Pole wie Datenpunkte)
+            int n = m;
+            double[] U = BuildKnotVectorByAveraging(parameters, p); // length n+p+2 = m+p+2
+            this.uknots = U;
+            // ---- 2) Interpolationsmatrix A aufbauen: A[j,i] = N_{i,p}(u_j) ----
+            var A = Matrix<double>.Build.Dense(m + 1, n + 1, 0.0);
+
+            for (int j = 0; j <= m; j++)
+            {
+                double uj = parameters[j];
+
+                // Robustheit: uj minimal in [U[0], U[last]] clampen (falls numerisch minimal drüber/drunter)
+                if (uj < U[0]) uj = U[0];
+                if (uj > U[U.Length - 1]) uj = U[U.Length - 1];
+
+                int span = FindSpanU(uknots.Length - degree - 1, degree, uj);              // span k
+                BasisFunsU(span, uj, p, out double[] N);        // N[0..p] entspricht i=span-p..span
+
+                int i0 = span - p;
+                for (int r = 0; r <= p; r++)
+                {
+                    int i = i0 + r;
+                    if (i >= 0 && i <= n)
+                        A[j, i] = N[r];
+                }
+            }
+
+            // ---- 3) Rechte Seite (x und y getrennt) ----
+            var qx = Vector<double>.Build.Dense(m + 1);
+            var qy = Vector<double>.Build.Dense(m + 1);
+            var qz = Vector<double>.Build.Dense(m + 1);
+            int dim = calc.GetComponents(points[0]).Length;
+
+            for (int j = 0; j <= m; j++)
+            {
+                double[] c = calc.GetComponents(points[j]);
+                qx[j] = c[0];
+                qy[j] = c[1];
+                if (dim > 2) qz[j] = c[2];
+            }
+
+            // ---- 4) Lösen: A * Px = Qx und A * Py = Qy ----
+            // LU ist ok; falls du es als Bandmatrix lösen willst, kann man das später optimieren.
+            var lu = A.LU();
+
+            var px = lu.Solve(qx);
+            var py = lu.Solve(qy);
+            Vector<double> pz = null;
+            if (dim > 2) pz = lu.Solve(qz);
+            poles = new T[n + 1];
+            for (int i = 0; i <= n; i++)
+            {
+                double[] lap = new double[dim];
+                lap[0] = px[i];
+                lap[1] = py[i];
+                if (dim > 2) lap[2] = pz[i];
+                calc.SetComponents(ref poles[i], lap);
+            }
+        }
+        private double[] BuildKnotVectorByAveraging(IReadOnlyList<double> u, int p)
+        {
+            int m = u.Count - 1;
+            int n = m;                 // Interpolation: n=m
+            int knotCount = n + p + 2; // m + p + 2
+            double[] U = new double[knotCount];
+
+            // clamp Anfang
+            for (int i = 0; i <= p; i++)
+                U[i] = u[0];
+
+            // innere Knoten: j=1..(m-p)
+            // U[j+p] = (1/p) * sum_{i=j..j+p-1} u[i]
+            for (int j = 1; j <= m - p; j++)
+            {
+                double s = 0.0;
+                for (int i = j; i <= j + p - 1; i++)
+                    s += u[i];
+
+                U[j + p] = s / p;
+            }
+
+            // clamp Ende
+            for (int i = m + 1; i <= m + p + 1; i++)
+                U[i] = u[m];
+
+            return U;
+        }
         // Methoden zur Berechnung von oberen Schranken für die zweiten Ableitungen von nicht-rationalen B-Spline-Kurven bzw. -Flächen:
         // Diese Methoden können verwendet werden, um den Approximationsfehler bei einer linearen Approximation der Kurve bzw. Fläche
         // abzuschätzen (vgl. Artikel "Surface algorithms using bounds on derivatives" von Filip, Magedson und Markot, Computer Aided Geometric Design 3 (1986) ).
@@ -3549,4 +3661,206 @@ namespace CADability
 
 
     }
+
+
+    public static class BSplineInterpolation2D
+    {
+
+        /// <summary>
+        /// Interpoliert eine 2D B-Spline-Kurve (clamped/open uniform style, aber mit Knoten aus Parameter-Averaging)
+        /// so dass C(u[j]) = points[j] für alle j gilt.
+        /// </summary>
+        /// <param name="points">Datenpunkte Q_j, j=0..m</param>
+        /// <param name="u">Vorgegebene Parameter u_j (streng aufsteigend), gleiche Länge wie points</param>
+        /// <param name="degree">Grad p (>=1)</param>
+        /// <returns>(Pole/Kontrollpunkte P_i, Knotenvektor U)</returns>
+        public static (List<GeoPoint2D> poles, double[] knots) Interpolate(
+            IReadOnlyList<GeoPoint2D> points,
+            IReadOnlyList<double> u,
+            int degree)
+        {
+            if (points == null) throw new ArgumentNullException(nameof(points));
+            if (u == null) throw new ArgumentNullException(nameof(u));
+            if (points.Count != u.Count) throw new ArgumentException("points und u müssen gleich lang sein.");
+            if (points.Count < 2) throw new ArgumentException("Mindestens 2 Punkte nötig.");
+            if (degree < 1) throw new ArgumentOutOfRangeException(nameof(degree), "degree muss >= 1 sein.");
+
+            int m = points.Count - 1;      // #data - 1
+            int p = degree;
+
+            if (p > m)
+                throw new ArgumentException($"degree={p} ist zu groß für {m + 1} Punkte. Es muss gelten: degree <= points.Count-1.");
+
+            // ---- 1) Knotenvektor (clamped) per Averaging aus gegebenen Parametern u_j ----
+            // n = m (gleich viele Pole wie Datenpunkte)
+            int n = m;
+            double[] U = BuildKnotVectorByAveraging(u, p); // length n+p+2 = m+p+2
+
+            // ---- 2) Interpolationsmatrix A aufbauen: A[j,i] = N_{i,p}(u_j) ----
+            var A = Matrix<double>.Build.Dense(m + 1, n + 1, 0.0);
+
+            for (int j = 0; j <= m; j++)
+            {
+                double uj = u[j];
+
+                // Robustheit: uj minimal in [U[0], U[last]] clampen (falls numerisch minimal drüber/drunter)
+                if (uj < U[0]) uj = U[0];
+                if (uj > U[U.Length - 1]) uj = U[U.Length - 1];
+
+                int span = FindSpan(n, p, uj, U);              // span k
+                double[] N = BasisFuns(span, uj, p, U);        // N[0..p] entspricht i=span-p..span
+
+                int i0 = span - p;
+                for (int r = 0; r <= p; r++)
+                {
+                    int i = i0 + r;
+                    if (i >= 0 && i <= n)
+                        A[j, i] = N[r];
+                }
+            }
+
+            // ---- 3) Rechte Seite (x und y getrennt) ----
+            var qx = Vector<double>.Build.Dense(m + 1);
+            var qy = Vector<double>.Build.Dense(m + 1);
+            for (int j = 0; j <= m; j++)
+            {
+                qx[j] = points[j].x;
+                qy[j] = points[j].y;
+            }
+
+            // ---- 4) Lösen: A * Px = Qx und A * Py = Qy ----
+            // LU ist ok; falls du es als Bandmatrix lösen willst, kann man das später optimieren.
+            var lu = A.LU();
+
+            var px = lu.Solve(qx);
+            var py = lu.Solve(qy);
+
+            var poles = new List<GeoPoint2D>(n + 1);
+            for (int i = 0; i <= n; i++)
+                poles.Add(new GeoPoint2D(px[i], py[i]));
+
+            return (poles, U);
+        }
+
+        /// <summary>
+        /// Offener (clamped) Knotenvektor aus gegebenen Parametern via Averaging.
+        /// Für m+1 Parameter u[0..m], Grad p, liefert Länge m+p+2.
+        /// </summary>
+        private static double[] BuildKnotVectorByAveraging(IReadOnlyList<double> u, int p)
+        {
+            int m = u.Count - 1;
+            int n = m;                 // Interpolation: n=m
+            int knotCount = n + p + 2; // m + p + 2
+            double[] U = new double[knotCount];
+
+            // clamp Anfang
+            for (int i = 0; i <= p; i++)
+                U[i] = u[0];
+
+            // innere Knoten: j=1..(m-p)
+            // U[j+p] = (1/p) * sum_{i=j..j+p-1} u[i]
+            for (int j = 1; j <= m - p; j++)
+            {
+                double s = 0.0;
+                for (int i = j; i <= j + p - 1; i++)
+                    s += u[i];
+
+                U[j + p] = s / p;
+            }
+
+            // clamp Ende
+            for (int i = m + 1; i <= m + p + 1; i++)
+                U[i] = u[m];
+
+            return U;
+        }
+
+        /// <summary>
+        /// FindSpan nach Piegl/Tiller: liefert k so dass U[k] <= u < U[k+1], Sonderfall u==U[n+1] => k=n.
+        /// </summary>
+        private static int FindSpan(int n, int p, double u, double[] U)
+        {
+            // Sonderfall: ganz am Ende
+            if (u >= U[n + 1]) return n;
+            if (u <= U[p]) return p;
+
+            int low = p;
+            int high = n + 1;
+            int mid = (low + high) / 2;
+
+            while (u < U[mid] || u >= U[mid + 1])
+            {
+                if (u < U[mid]) high = mid;
+                else low = mid;
+                mid = (low + high) / 2;
+            }
+            return mid;
+        }
+
+        /// <summary>
+        /// BasisFuns nach Piegl/Tiller: gibt N[0..p] für den gegebenen span zurück.
+        /// N[r] entspricht N_{span-p+r, p}(u)
+        /// </summary>
+        private static double[] BasisFuns(int span, double u, int p, double[] U)
+        {
+            double[] N = new double[p + 1];
+            double[] left = new double[p + 1];
+            double[] right = new double[p + 1];
+
+            N[0] = 1.0;
+
+            for (int j = 1; j <= p; j++)
+            {
+                left[j] = u - U[span + 1 - j];
+                right[j] = U[span + j] - u;
+
+                double saved = 0.0;
+                for (int r = 0; r < j; r++)
+                {
+                    double denom = right[r + 1] + left[j - r];
+                    // denom sollte >0 sein; bei exakt gleichen Knoten kann denom 0 werden
+                    double temp = (denom != 0.0) ? (N[r] / denom) : 0.0;
+
+                    N[r] = saved + right[r + 1] * temp;
+                    saved = left[j - r] * temp;
+                }
+                N[j] = saved;
+            }
+            return N;
+        }
+
+        public static void CompressKnotVector(IReadOnlyList<double> knots, out List<double> uniqueKnots, out List<int> multiplicities, double eps = 1e-10)
+        {
+            if (knots == null || knots.Count == 0)
+                throw new ArgumentException("Knotenvektor ist leer.");
+
+            uniqueKnots = new List<double>();
+            multiplicities = new List<int>();
+
+            double current = knots[0];
+            int count = 1;
+
+            for (int i = 1; i < knots.Count; i++)
+            {
+                if (Math.Abs(knots[i] - current) <= eps)
+                {
+                    count++;
+                }
+                else
+                {
+                    uniqueKnots.Add(current);
+                    multiplicities.Add(count);
+
+                    current = knots[i];
+                    count = 1;
+                }
+            }
+
+            // letztes Element
+            uniqueKnots.Add(current);
+            multiplicities.Add(count);
+        }
+
+    }
+
 }

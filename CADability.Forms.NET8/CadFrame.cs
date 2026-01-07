@@ -43,7 +43,7 @@ namespace CADability.Forms.NET8
                 return IsClipboardFormatAvailable(_fmtId);
             }
         }
-        
+
         #endregion PRIVATE FIELDS
 
         #region PUBLIC PROPERTIES
@@ -161,7 +161,13 @@ namespace CADability.Forms.NET8
             return null;
         }
         Substitutes.Keys IUIService.ModifierKeys => (Substitutes.Keys)Control.ModifierKeys;
-        System.Drawing.Point IUIService.CurrentMousePosition => System.Windows.Forms.Control.MousePosition;
+        Substitutes.Point IUIService.CurrentMousePosition => Subst(Control.MousePosition);
+
+        private Substitutes.Point Subst(System.Drawing.Point mousePosition)
+        {
+            return new Substitutes.Point(mousePosition.X, mousePosition.Y);
+        }
+
         private static Dictionary<string, string> directories = new Dictionary<string, string>();
         Substitutes.DialogResult IUIService.ShowOpenFileDlg(string id, string title, string filter, ref int filterIndex, out string fileName)
         {
@@ -230,14 +236,25 @@ namespace CADability.Forms.NET8
         {
             return (Substitutes.DialogResult)MessageBox.Show(Application.OpenForms[0], text, caption, (System.Windows.Forms.MessageBoxButtons)buttons);
         }
-        Substitutes.DialogResult IUIService.ShowColorDialog(ref System.Drawing.Color color)
+        Substitutes.DialogResult IUIService.ShowColorDialog(ref Substitutes.Color color)
         {
             ColorDialog colorDialog = new ColorDialog();
-            colorDialog.Color = color;
+            colorDialog.Color = Drawing(color);
             Substitutes.DialogResult dlgres = (Substitutes.DialogResult)colorDialog.ShowDialog(Application.OpenForms[0]);
-            color = colorDialog.Color;
+            color = Subst(colorDialog.Color);
             return dlgres;
         }
+
+        private Color Drawing(Substitutes.Color color)
+        {
+            return Color.FromArgb(color.ToArgb());
+        }
+
+        private Substitutes.Color Subst(Color color)
+        {
+            return Substitutes.Color.FromArgb(color.ToArgb());
+        }
+
         void IUIService.ShowProgressBar(bool show, double percent, string title)
         {
             this.ProgressAction?.Invoke(show, percent, title);
@@ -389,7 +406,21 @@ namespace CADability.Forms.NET8
                 return false;
             }
         }
-        
+
+        public Substitutes.FontFamily GetFontFamily(string fontFamilyName)
+        {
+            if (string.IsNullOrEmpty(fontFamilyName)) return new FontFamilyImpl();
+            else return new FontFamilyImpl(fontFamilyName);
+        }
+
+        public string[] GetFontFamilies()
+        {
+            FontFamily[] ffs = FontFamily.Families;
+            List<string> result = new List<string>();
+            for (int i = 0; i < ffs.Length; i++) result.Add(ffs[i].Name);
+            return result.ToArray();
+        }
+
         event EventHandler IUIService.ApplicationIdle
         {
             add

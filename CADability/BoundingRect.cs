@@ -2,7 +2,7 @@
 using CADability.Shapes;
 using System;
 using System.Collections.Generic;
-using System.Drawing;
+using CADability.Substitutes;
 using System.Runtime.Serialization;
 
 namespace CADability
@@ -80,7 +80,7 @@ namespace CADability
             }
         }
         /// <summary>
-        /// Creates a new BoundingRect from the provided System.Drawing.rectangle
+        /// Creates a new BoundingRect from the provided rectangle
         /// </summary>
         /// <param name="r">das gegebene Rechteck</param>
         public BoundingRect(Rectangle r)
@@ -548,7 +548,7 @@ namespace CADability
             return res;
         }
         /// <summary>
-		/// Typecast to a System.Drawing.Rectangle
+		/// Typecast to a Rectangle
 		/// </summary>
 		/// <param name="r">The initial rectangle</param>
 		/// <returns>The casted rectangle</returns>

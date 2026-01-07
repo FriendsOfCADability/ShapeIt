@@ -1,7 +1,6 @@
 ﻿using CADability.Actions;
 using CADability.Attribute;
 using CADability.Curve2D;
-using MathNet.Numerics.LinearAlgebra.Double;
 using CADability.Shapes;
 using CADability.UserInterface;
 using System;
@@ -10,18 +9,7 @@ using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
 using Wintellect.PowerCollections;
-using MathNet.Numerics.LinearAlgebra.Factorization;
-using System.Collections;
-using System.Security.Cryptography;
-using static CADability.UserInterface.StateChangedArgs;
-
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
+using CADability.Substitutes;
 
 namespace CADability.GeoObject
 {

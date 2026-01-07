@@ -1,19 +1,14 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.UserInterface;
+using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-#if WEBASSEMBLY
-using CADability.WebDrawing;
-using Point = CADability.WebDrawing.Point;
-#else
-using System.Drawing;
-using Point = System.Drawing.Point;
-#endif
 using System.Runtime.Serialization;
 using System.Threading;
 using Wintellect.PowerCollections;
 using MathNet.Numerics.LinearAlgebra.Double;
+using System.Linq;
 
 namespace CADability.GeoObject
 {
@@ -26,10 +21,6 @@ namespace CADability.GeoObject
         }
     }
 
-    /* NURBS aus OpenCascade übernehmen:
-     * BSplCLib::D0 in BSplCLib_CurveComputation.gxx ist die gesuchte Funktion. Verzeichnis C:\OpenCASCADE5.2\ros\inc
-     * in C:\OpenCASCADE5.2\ros\src\BSplCLib befinden sich offensichtlich die wichtigen Unterfunktionen
-     */
 
     /// <summary>
     /// A BSpline is a smooth curve defined by a set of control points. It is implemented as a NURBS - non uniform rational b-spline.
@@ -481,10 +472,6 @@ namespace CADability.GeoObject
                 }
             }
         }
-        // private CndOCas.Edge oCasBuddy; in GeneralCurve implementiert.
-        // Wenn alles von GeneralCurve implementiert ist, dann kann man diese Klasse
-        // auch überspringen und IGeoObjectImpl als Basis nehmen. Hier also erstmal
-        // die quick-and-dirty Implementierung.
         #region polymorph construction
         public delegate BSpline ConstructionDelegate();
         public static ConstructionDelegate Constructor;
@@ -501,6 +488,51 @@ namespace CADability.GeoObject
         {
             if (Constructed != null) Constructed(this);
             extent = BoundingCube.EmptyBoundingCube;
+        }
+        public static BSpline Approximate(Func<double, GeoPoint> curve, double precision, double minPar = 0, double maxPar = 1, int maxCount = 1000)
+        {
+            SortedList<double, GeoPoint> positions = [];
+            for (double par = minPar; par < maxPar + (maxPar - minPar) / 20; par += (maxPar - minPar) / 10)
+            {
+                positions[par] = curve(par);
+            }
+            BSpline bsp = BSpline.Construct();
+            bsp.FromNurbs(new Nurbs<GeoPoint, GeoPointPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3), minPar, maxPar);
+            double lastPos = 0.0;
+            GeoPoint lastPoint = GeoPoint.Invalid;
+            while (positions.Count < maxCount)
+            {
+                List<(double, GeoPoint)> toAdd = [];
+                foreach (KeyValuePair<double, GeoPoint> item in positions)
+                {
+                    if (item.Key > minPar)
+                    {
+                        double mpos = (item.Key + lastPos) / 2;
+                        GeoPoint p = curve(mpos);
+                        if (((bsp as ICurve).PointAt(mpos) | p) > precision)
+                        {
+                            toAdd.Add((mpos, p));
+                        }
+                    }
+                    lastPos = item.Key;
+                    lastPoint = item.Value;
+                }
+                if (toAdd.Any())
+                {
+                    foreach ((double par, GeoPoint point) in toAdd) positions[par] = point;
+                    bsp.FromNurbs(new Nurbs<GeoPoint, GeoPointPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3), minPar, maxPar);
+
+#if DEBUG
+                    double dbgd = 0.0;
+                    foreach (KeyValuePair<double, GeoPoint> item in positions)
+                    {
+                        dbgd += (bsp as ICurve).PointAt(item.Key) | item.Value;
+                    }
+#endif
+                }
+                else break;
+            }
+            return bsp;
         }
         private void InvalidateSecondaryData()
         {
@@ -4094,6 +4126,25 @@ namespace CADability.GeoObject
                     return res;
                 }
                 else return null;
+            }
+        }
+        internal DebuggerContainer Debug100DirPoints
+        {
+            get
+            {
+                DebuggerContainer dc = new DebuggerContainer();
+                GeoPoint lastGeoPoint = GeoPoint.Invalid;
+                double l = (this as ICurve).Length;
+                for (int i = 0; i < 100; i++)
+                {
+                    GeoPoint p = (this as ICurve).PointAt(i / 99.0);
+                    GeoVector dir = (this as ICurve).DirectionAt(i / 99.0);
+                    dir.Length = l / 100;
+                    dc.Add(Line.TwoPoints(p, p + dir), Color.Red, i);
+                    //if (i>0) dc.Add(Line.TwoPoints(lastGeoPoint, p), Color.Green, i);
+                    lastGeoPoint = p;
+                }
+                return dc;
             }
         }
 #endif

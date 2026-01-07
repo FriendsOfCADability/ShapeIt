@@ -7,12 +7,13 @@ using DragEventArgs = CADability.Substitutes.DragEventArgs;
 using MouseButtons = CADability.Substitutes.MouseButtons;
 using DragDropEffects = CADability.Substitutes.DragDropEffects;
 using Keys = CADability.Substitutes.Keys;
+using CADability.Substitutes;
 
 namespace CADability
 {
     class ZoomPlusMinusAction : Action, IIntermediateConstruction
     {
-        private System.Drawing.Point lastPanPosition;
+        private Point lastPanPosition;
         ModelView modelView; // dort wo das MouseDown stattgefunden hat
         public override string GetID()
         {
@@ -20,7 +21,7 @@ namespace CADability
         }
         public override void OnMouseDown(MouseEventArgs e, IView vw)
         {
-            lastPanPosition = new System.Drawing.Point(e.X, e.Y);
+            lastPanPosition = new Point(e.X, e.Y);
             modelView = vw as ModelView; // nur da soll gedreht werden
         }
         public override void OnMouseMove(MouseEventArgs e, IView vw)
@@ -33,7 +34,7 @@ namespace CADability
             if (HScrollOffset > 0) Factor = 1.0 + HScrollOffset / 100.0;
             else if (HScrollOffset < 0) Factor = 1.0 / (1.0 - HScrollOffset / 100.0);
             (modelView as IView).ZoomDelta(Factor);
-            lastPanPosition = new System.Drawing.Point(e.X, e.Y);
+            lastPanPosition = new Point(e.X, e.Y);
         }
         public override void OnMouseUp(MouseEventArgs e, IView vw)
         {

@@ -9,8 +9,7 @@ using static CADability.Projection;
 using System.Globalization;
 using CADability.Forms;
 using CADability.Attribute;
-using System.Drawing;
-using CADability.Shapes;
+using CADability.Substitutes;
 
 namespace ShapeIt
 {

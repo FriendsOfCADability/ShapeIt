@@ -1,10 +1,12 @@
 ﻿using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
+using CADability.Substitutes;
 using CADability.UserInterface;
 using MathNet.Numerics.Distributions;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Double;
+using netDxf;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -283,7 +285,26 @@ namespace CADability
                 get
                 {
                     if (approxBSpline != null) return approxBSpline;
-                    // do not use base.ToBSpline, it will throw a stack overflow
+                    // we need a BSpline here, which is precise and has the same parametrisation as the curve3d
+                    Func<double, GeoPoint2D> curve = (pos =>
+                    {
+                        GeoPoint p = curve3d.PointAt(pos);
+                        if (onSurface1)
+                        {
+                            GeoPoint2D uv = curve3d.surface1.PositionOf(p);
+                            SurfaceHelper.AdjustPeriodic(curve3d.surface1, curve3d.bounds1, ref uv);
+                            return uv;
+                        }
+                        else
+                        {
+                            GeoPoint2D uv = curve3d.surface2.PositionOf(p);
+                            SurfaceHelper.AdjustPeriodic(curve3d.surface2, curve3d.bounds2, ref uv);
+                            return uv;
+                        }
+                    });
+                    approxBSpline = BSpline2D.Approximate(curve, Precision.eps, 0, 1);
+                    return approxBSpline;
+                    // following is old code
                     GeoPoint2D[] bp;
                     if (onSurface1) bp = curve3d.basePoints.Select(bp => bp.psurface1).ToArray();
                     else bp = curve3d.basePoints.Select(bp => bp.psurface2).ToArray();
@@ -339,6 +360,10 @@ namespace CADability
             public override double Sweep => reversed ? -ApproxBSpline.Sweep : ApproxBSpline.Sweep;
             public override GeoVector2D DirectionAt(double par)
             {
+                // since the ApproxBSpline  has the same parametrisation as the curve3d, we can use it directly
+                if (reversed) return -ApproxBSpline.DirectionAt(1.0 - par);
+                else return ApproxBSpline.DirectionAt(par);
+                // previous code:
                 GeoPoint2D uv1, uv2;
                 GeoPoint p;
                 if (reversed) par = 1.0 - par;
@@ -405,6 +430,7 @@ namespace CADability
                 GeoPoint2D uv1, uv2;
                 GeoPoint p;
                 if (reversed) par = 1.0 - par;
+                return ApproxBSpline.PointAt(par);
                 curve3d.ApproximatePosition(par, out uv1, out uv2, out p);
                 if (onSurface1) return uv1;
                 else return uv2;
@@ -615,7 +641,7 @@ namespace CADability
 
             #endregion
 #if DEBUG
-            GeoObjectList Debug
+            public GeoObjectList Debug
             {
                 get
                 {
@@ -757,6 +783,28 @@ namespace CADability
 #if DEBUG
             CheckSurfaceParameters();
 #endif
+        }
+        private void Init()
+        {
+            // wierum orientiert?
+            // manchmal am Anfang oder Ende tangetial, deshalb besser in der mitte testen
+            int n = basePoints.Length / 2; // es müssen mindesten 3 sein
+            GeoVector v = surface1.GetNormal(basePoints[n].psurface1) ^ surface2.GetNormal(basePoints[n].psurface2);
+            GeoVector v0;
+            if (basePoints.Length == 2)
+                v0 = basePoints[1].p3d - basePoints[0].p3d;
+            else
+                v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
+            Angle a = new Angle(v, v0);
+            forwardOriented = (a.Radian < Math.PI / 2.0);
+            if (basePoints.Length == 2) RefineBasePoints();
+            CheckSurfaceExtents();
+            AdjustBasePointsPeriodic();
+            BSpline toUpdateBasepoints = ApproxBSpline;
+#if DEBUG
+            CheckSurfaceParameters();
+#endif
+
         }
         public InterpolatedDualSurfaceCurve(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, GeoPoint startPoint, GeoPoint endPoint, bool isTangential = false)
             : this()
@@ -1396,8 +1444,8 @@ namespace CADability
                 {
                     for (int i = 0; i < basePoints.Length; i++)
                     {
-                        basePoints[i].psurface1.x -= du;
-                        basePoints[i].psurface1.y -= dv;
+                        basePoints[i].psurface2.x -= du;
+                        basePoints[i].psurface2.y -= dv;
                     }
                 }
             }
@@ -1623,15 +1671,7 @@ namespace CADability
         }
         public BSpline ToBSpline(double precision)
         {
-            List<GeoPoint> throughPoints = new List<GeoPoint>();
-            for (int i = 0; i < basePoints.Length; i++)
-            {
-                throughPoints.Add(basePoints[i].p3d);
-            }
-            BSpline res = BSpline.Construct();
-            res.ThroughPoints(throughPoints.ToArray(), 3, false);
-            // hier noch Genauikeit überprüfen und throughpoints vermehren
-            return res;
+            return ApproxBSpline; // better than through basepoints
         }
         internal GeoPoint[] BasePoints
         {
@@ -1661,13 +1701,13 @@ namespace CADability
                     GeoVector v = surface1.VDirection(basePoints[i].psurface1);
                     PlaneSurface pls = new PlaneSurface(pnts[i], u, v, u ^ v);
                     Face fc = Face.MakeFace(pls, new SimpleShape(new BoundingRect(-1, -1, 1, 1)));
-                    fc.ColorDef = new CADability.Attribute.ColorDef("Surface1", System.Drawing.Color.Red);
+                    fc.ColorDef = new CADability.Attribute.ColorDef("Surface1", Color.Red);
                     res.Add(fc);
                     u = surface2.UDirection(basePoints[i].psurface2);
                     v = surface2.VDirection(basePoints[i].psurface2);
                     pls = new PlaneSurface(pnts[i], u, v, u ^ v);
                     fc = Face.MakeFace(pls, new SimpleShape(new BoundingRect(-1, -1, 1, 1)));
-                    fc.ColorDef = new CADability.Attribute.ColorDef("Surface1", System.Drawing.Color.Green);
+                    fc.ColorDef = new CADability.Attribute.ColorDef("Surface1", Color.Green);
                     res.Add(fc);
                 }
                 pl.SetPoints(pnts, false);
@@ -1719,7 +1759,7 @@ namespace CADability
                     pnts[i] = basePoints[i].p3d;
                 }
                 pl.SetPoints(pnts, false);
-                pl.ColorDef = new Attribute.ColorDef("org", System.Drawing.Color.Red);
+                pl.ColorDef = new Attribute.ColorDef("org", Color.Red);
                 res.Add(pl);
                 pl = Polyline.Construct();
                 pnts = new GeoPoint[basePoints.Length];
@@ -1728,7 +1768,7 @@ namespace CADability
                     pnts[i] = surface1.PointAt(basePoints[i].psurface1);
                 }
                 pl.SetPoints(pnts, false);
-                pl.ColorDef = new Attribute.ColorDef("surf1", System.Drawing.Color.Green);
+                pl.ColorDef = new Attribute.ColorDef("surf1", Color.Green);
                 res.Add(pl);
                 pl = Polyline.Construct();
                 pnts = new GeoPoint[basePoints.Length];
@@ -1737,7 +1777,7 @@ namespace CADability
                     pnts[i] = surface2.PointAt(basePoints[i].psurface2);
                 }
                 pl.SetPoints(pnts, false);
-                pl.ColorDef = new Attribute.ColorDef("surf1", System.Drawing.Color.Blue);
+                pl.ColorDef = new Attribute.ColorDef("surf1", Color.Blue);
                 res.Add(pl);
                 return res;
             }
@@ -1797,8 +1837,8 @@ namespace CADability
             get
             {
                 DebuggerContainer res = new DebuggerContainer();
-                res.Add(Face.MakeFace(surface1, bounds1), System.Drawing.Color.MediumVioletRed);
-                res.Add(Face.MakeFace(surface2, bounds2), System.Drawing.Color.SeaShell);
+                res.Add(Face.MakeFace(surface1, bounds1), Color.MediumVioletRed);
+                res.Add(Face.MakeFace(surface2, bounds2), Color.SeaShell);
                 return res;
             }
         }
@@ -2116,15 +2156,36 @@ namespace CADability
                 CheckSurfaceParameters();
 #endif
                 if (approxBSpline != null) return approxBSpline;
+                BSpline bsp = BSpline.Construct();
+                bsp.ThroughPoints(BasePoints, 3, false);
+                // BasePoints are unevenly distributed. The parameter of bsp is running much more evenly
+                // since the knots are calculated according to the chord length
+                // setting approxBSpline changes the "speed" of the parameter, makes it more even
+                approxBSpline = bsp;
+                hashedPositions.Clear(); // don't use hased positions, they are no more correct
+                Func<double, GeoPoint> curve = (pos) => // input parameter for BSpline.Approximate
+                {
+                    ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
+                    return p;
+                };
+                approxBSpline = BSpline.Approximate(curve, Precision.eps);
+                return approxBSpline;
+
                 approxBSpline = BSpline.Construct();
                 approxBSpline.ThroughPoints(basePoints.Select(bp => bp.p3d).ToArray(), 3, false);
                 // this BSpline has non uniform knot values. They are calculated by the distance of the base points
                 SortedDictionary<double, GeoPoint> bpl = new SortedDictionary<double, GeoPoint>();
-                for (int i = 0; i < 10; i++)
+                int n = 10;
+                for (int i = 0; i < n; i++)
                 {
-                    double pos = i / (double)9;
-                    ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
-                    bpl[pos] = p; // p is calculated with the above approxBSpline as a start value
+                    if (i == 0) bpl[0] = basePoints[0].p3d;
+                    else if (i == n - 1) bpl[1] = basePoints.Last().p3d;
+                    else
+                    {
+                        double pos = i / (double)9;
+                        ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
+                        bpl[pos] = p; // p is calculated with the above approxBSpline as a start value
+                    }
                 }
                 bpl = RefineByAngle(bpl, Math.PI / 2.0);
                 approxBSpline.ThroughPoints(bpl.Values.ToArray(), 3, false); // new BSpline with refined points
@@ -2237,7 +2298,7 @@ namespace CADability
                     {
                         sec1 = ISurfaceImpl.GetSectionInPlane(normalPlane, ps1);
                         sec2 = ISurfaceImpl.GetSectionInPlane(normalPlane, ps2);
-                        if (sec1.Degree == 2 && sec2.Degree == 2 && sec1.Dimension == 2 && sec2.Dimension == 2 && !IsLocallyAlmostLinear(sec1) && !IsLocallyAlmostLinear(sec2))
+                        if (sec1.Degree == 2 && sec2.Degree == 2 && sec1.Dimension == 2 && sec2.Dimension == 2 && !IsLocallyAlmostLinear(sec1, 0.1) && !IsLocallyAlmostLinear(sec2, 0.1))
                         {   // both are quadrics
                             List<double[]> uv = Polynom.SolveTwoSquared(sec1, sec2);
                             if (uv.Count > 0)
@@ -2262,7 +2323,7 @@ namespace CADability
                         }
                     }
                     PlaneSurface normalSurface = new PlaneSurface(normalPlane);
-                    if (ps1 != null && ps1.Degree<4 && ps2 != null && ps2.Degree<4 && !bounds1.IsEmpty() && !bounds2.IsEmpty())
+                    if (ps1 != null && ps1.Degree < 4 && ps2 != null && ps2.Degree < 4 && !bounds1.IsEmpty() && !bounds2.IsEmpty())
                     {   // for simple surfaces only. We need another criterion here. RuledSurface leeds to an infinite loop when making the boxed surface...
                         IDualSurfaceCurve[] isc1 = surface1.GetPlaneIntersection(normalSurface, bounds1.Left, bounds1.Right, bounds1.Bottom, bounds1.Top, precision);
                         IDualSurfaceCurve[] isc2 = surface2.GetPlaneIntersection(normalSurface, bounds2.Left, bounds2.Right, bounds2.Bottom, bounds2.Top, precision);
@@ -2524,13 +2585,13 @@ namespace CADability
                             GeoPoint2DWithParameter[] ips = c2d1[i].Intersect(c2d2[j]);
 #if DEBUG
                             DebuggerContainer dc = new DebuggerContainer();
-                            dc.Add(c2d1[i], System.Drawing.Color.Red, i);
-                            dc.Add(c2d2[j], System.Drawing.Color.Blue, j);
+                            dc.Add(c2d1[i], Color.Red, i);
+                            dc.Add(c2d2[j], Color.Blue, j);
 #endif
                             for (int k = 0; k < ips.Length; k++)
                             {
 #if DEBUG
-                                dc.Add(ips[k].p, System.Drawing.Color.Black, k);
+                                dc.Add(ips[k].p, Color.Black, k);
 #endif
                                 GeoPoint pp = pln.ToGlobal(ips[k].p);
                                 double dd = Geometry.DistPL(pp, basePoints[ind].p3d, basePoints[ind + 1].p3d);
@@ -2640,9 +2701,9 @@ namespace CADability
                         SimpleShape ss3 = new SimpleShape(new BoundingRect(-1, -1, 1, 1));
                         Face fc3 = Face.MakeFace(pls3, ss3);
                         DebuggerContainer dc = new DebuggerContainer();
-                        fc1.ColorDef = new CADability.Attribute.ColorDef("clr1", System.Drawing.Color.Red);
-                        fc2.ColorDef = new CADability.Attribute.ColorDef("clr2", System.Drawing.Color.Green);
-                        fc3.ColorDef = new CADability.Attribute.ColorDef("clr3", System.Drawing.Color.Violet);
+                        fc1.ColorDef = new CADability.Attribute.ColorDef("clr1", Color.Red);
+                        fc2.ColorDef = new CADability.Attribute.ColorDef("clr2", Color.Green);
+                        fc3.ColorDef = new CADability.Attribute.ColorDef("clr3", Color.Violet);
                         dc.Add(fc1);
                         dc.Add(fc2);
                         dc.Add(fc3);
@@ -2922,6 +2983,7 @@ namespace CADability
 
         public override GeoVector DirectionAt(double Position)
         {
+            return (ApproxBSpline as ICurve).DirectionAt(Position);
             GeoPoint2D uv1, uv2;
             GeoPoint p;
             ApproximatePosition(Position, out uv1, out uv2, out p);
@@ -2933,7 +2995,9 @@ namespace CADability
                 surface2.Derivation2At(uv2, out _, out GeoVector su2, out GeoVector sv2, out GeoVector suu2, out GeoVector suv2, out GeoVector svv2);
                 GeoVector dirt = TangentDirectionAtContact(su1, sv1, suu1, suv1, svv1, su2, sv2, suu2, suv2, svv2, (su1 ^ sv1 + su2 ^ sv2).Normalized, dir, dir);
                 dirt.Length = dir.Length;
-                dir = dirt;
+                // the directions should be very similar, since the ApproxBSpline is very close to the real curve
+                // but sometimes TangentDirectionAtContact fails (reason should be checked) and then we prefer the ApproxBSpline direction
+                if (dir.Normalized * dirt.Normalized > 0.999) dir = dirt;
             }
             else
             {
@@ -2945,6 +3009,7 @@ namespace CADability
         }
         public override GeoPoint PointAt(double Position)
         {
+            return (ApproxBSpline as ICurve).PointAt(Position);
             GeoPoint2D uv1, uv2;
             GeoPoint p;
 #if DEBUG
@@ -3408,6 +3473,9 @@ namespace CADability
                 return CurveOnSurface2;
             }
         }
+
+        public bool IsTangential => isTangential;
+
         ICurve2D IDualSurfaceCurve.GetCurveOnSurface(ISurface onThisSurface)
         {
             if (onThisSurface == surface1) return CurveOnSurface1;
@@ -3606,6 +3674,9 @@ namespace CADability
                     bounds2 = simpl2.usedArea;
                 }
             }
+            jsonSerialize.InvokeSerializationDoneCallback(surface1);
+            jsonSerialize.InvokeSerializationDoneCallback(surface2);
+            Init();
 #if DEBUG
             // cannot calculate ApproxBSpline here, because may other objects are not finally constructed
             CheckSurfaceParameters();
