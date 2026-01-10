@@ -22,21 +22,22 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
 
 	  <LangVersion>latest</LangVersion>
+    <DefineConstants Condition="'$(UiFramework)' == 'Avalonia'">AVALONIA</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>NET4X;TRACE;DEBUG;xTESTNEWCONTEXTMENU, xUSENONPRIODICSURFACES</DefineConstants>
+    <DefineConstants>$(DefineConstants);NET4X;TRACE;DEBUG;xTESTNEWCONTEXTMENU, xUSENONPRIODICSURFACES</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='WebDebug'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>TRACE;xPARALLEL, xTESTNEWCONTEXTMENU, xUSENONPRIODICSURFACES, WEBASSEMBLY</DefineConstants>
+    <DefineConstants>$(DefineConstants);TRACE;xPARALLEL, xTESTNEWCONTEXTMENU, xUSENONPRIODICSURFACES, WEBASSEMBLY</DefineConstants>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>NET4X;xTESTNEWCONTEXTMENU</DefineConstants>
+    <DefineConstants>$(DefineConstants);NET4X;xTESTNEWCONTEXTMENU</DefineConstants>
     <Optimize>True</Optimize>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
@@ -45,7 +46,7 @@
 
   <PropertyGroup Condition="'$(Configuration)'=='RelWithDoc'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <DefineConstants>xPARALLEL, xTESTNEWCONTEXTMENU</DefineConstants>
+    <DefineConstants>$(DefineConstants);xPARALLEL, xTESTNEWCONTEXTMENU</DefineConstants>
     <Optimize>false</Optimize>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
@@ -59,7 +60,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <DebugType>full</DebugType>
   </PropertyGroup>
-  
+
   <ItemGroup>
     <None Include="..\README.md" Pack="true" PackagePath="" />
   </ItemGroup>

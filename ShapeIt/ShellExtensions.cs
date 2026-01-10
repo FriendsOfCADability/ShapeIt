@@ -15,7 +15,9 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+#if !AVALONIA
 using System.Windows.Forms.VisualStyles;
+#endif
 using Wintellect.PowerCollections;
 
 namespace ShapeIt
@@ -703,14 +705,14 @@ namespace ShapeIt
                                                           // or the fillets with the spherical faces. Since each breop operation creates new faces and edges, we attach this information to the user data of the original parts
                                                           // and retrieve them after the brep operation is done.
             HashSet<(Edge, Face)> dontIntersect = new HashSet<(Edge, Face)>(); // NOT USED ANY MORE, these pairs will be connected and there is no need to calculate the intersection
-                                                                               // set UserData with the original face and edge references to 
+                                                                               // set UserData with the original face and edge references to
             foreach (Face face in shell.Faces)
             {   // makeparallel faces with the provided offset
                 ISurface offsetSurface = face.Surface.GetOffsetSurface(offset);
                 if (offsetSurface == null) continue; // a sphere, cylinder or torus shrinking to 0
                 GeoPoint2D cnt = face.Domain.GetCenter();
                 // if the orentation is reversed (e.g. a cylinder will have a negativ radius) or the surface disappears, don't use it
-                if (offsetSurface != null) // 
+                if (offsetSurface != null) //
                 {
                     List<ICurve2D> outline = new List<ICurve2D>();
                     foreach (Edge edge in face.OutlineEdges)

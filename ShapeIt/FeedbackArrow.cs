@@ -7,7 +7,9 @@ using System.Text;
 using System.Threading.Tasks;
 using static CADability.Projection;
 using System.Globalization;
+#if !AVALONIA
 using CADability.Forms;
+#endif
 using CADability.Attribute;
 using CADability.Substitutes;
 
@@ -268,7 +270,7 @@ namespace ShapeIt
             else startArrow.ColorDef = blackParts;
             if (flags.HasFlag(ArrowFlags.secondRed)) endArrow.ColorDef = redParts;
             else endArrow.ColorDef = blackParts;
-            res.Add(startArrow); 
+            res.Add(startArrow);
             res.Add(endArrow);
 
             Text txt = Text.Construct();

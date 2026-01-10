@@ -14,8 +14,10 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+#if !AVALONIA
 using System.Windows.Forms.Design;
 using System.Windows.Forms.VisualStyles;
+#endif
 using System.Xml.Linq;
 using Wintellect.PowerCollections;
 using static CADability.Projection;
@@ -42,7 +44,7 @@ namespace ShapeIt
         private bool isDragging = false; // the user is dragging a selection rectangle
         private bool isMoving = false; // the user is moving the selected objects
         private bool isHotspotMoving = false; // the user is movind a hotspot
-        private HashSet<IGeoObject> selectedObjects = new HashSet<IGeoObject>(); // the currently selected root objects 
+        private HashSet<IGeoObject> selectedObjects = new HashSet<IGeoObject>(); // the currently selected root objects
         private GeoObjectList movingObjects = new GeoObjectList(); // a copy of the selected objects, used for moving
         private GeoPoint moveObjectsDownPoint;
         private bool downOnSelectedObjects;
@@ -407,7 +409,7 @@ namespace ShapeIt
 
         #endregion
         #region PropertyEntry implementation
-        public override PropertyEntryType Flags => PropertyEntryType.Selectable | PropertyEntryType.GroupTitle | PropertyEntryType.Checkable | PropertyEntryType.HasSubEntries; // PropertyEntryType.ContextMenu | 
+        public override PropertyEntryType Flags => PropertyEntryType.Selectable | PropertyEntryType.GroupTitle | PropertyEntryType.Checkable | PropertyEntryType.HasSubEntries; // PropertyEntryType.ContextMenu |
         public override IPropertyEntry[] SubItems => subEntries.ToArray();
         public override string Value
         {
@@ -575,7 +577,7 @@ namespace ShapeIt
 
         private string resourceIdOfLastSelectedCategory = String.Empty; // what was selected last time? edge, face, solid etc.
         private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea? pickArea, bool alsoParent = true, bool addRemove = false)
-        {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by 
+        {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by
             // the object(s) under the mouse cursor
             // what to focus after the selection changed?
             IPropertyEntry pe = propertyPage.GetCurrentSelection();
@@ -689,7 +691,7 @@ namespace ShapeIt
                 }
             }
 
-            // show actions for all vertices, edges, faces and curves in 
+            // show actions for all vertices, edges, faces and curves in
             // distibute objects into their categories
             List<Face> faces = new List<Face>();
             List<Shell> shells = new List<Shell>(); // only Shells, which are not part of a Solid
@@ -860,7 +862,7 @@ namespace ShapeIt
             }
             else if (edges.Any()) subEntries.AddIfNotNull(GetEdgeProperties(vw, edges.First(), clickBeam));
 
-            // add the menus for Solids 
+            // add the menus for Solids
             if (solids.Count > 1)
             {
                 SelectEntry multipleSolids = new SelectEntry("MultipleSolids.Properties", true);
@@ -1164,7 +1166,7 @@ namespace ShapeIt
         {
             List<IPropertyEntry> res = new List<IPropertyEntry>();
             List<Edge> edges = new List<Edge>(curves.Select(c => (c as IGeoObject).Owner as Edge));
-            DirectMenuEntry makeCurves = new DirectMenuEntry("MenuId.EdgesToCurves"); // too bad, no icon yet, 
+            DirectMenuEntry makeCurves = new DirectMenuEntry("MenuId.EdgesToCurves"); // too bad, no icon yet,
             makeCurves.ExecuteMenu = (frame) =>
             {
                 GeoObjectList allEdgesAsCurves = new GeoObjectList(curves.Select(c => (c as IGeoObject).Clone())); // need to clone, since the curves ARE the actual edges!
@@ -1185,7 +1187,7 @@ namespace ShapeIt
                 return true;
             };
             res.Add(makeCurves);
-            DirectMenuEntry makeFillet = new DirectMenuEntry("MenuId.Fillet"); // too bad, no icon yet, 
+            DirectMenuEntry makeFillet = new DirectMenuEntry("MenuId.Fillet"); // too bad, no icon yet,
             makeFillet.ExecuteMenu = (frame) =>
             {
                 cadFrame.ControlCenter.ShowPropertyPage("Action");
@@ -1538,7 +1540,7 @@ namespace ShapeIt
                 if (selection != null)
                 {
                     selection.UnSelected(selection); // to regenerate the feedback display
-                                                     // and by passing selected as "previousSelected" parameter, they can only regenerate projection dependant feedback 
+                                                     // and by passing selected as "previousSelected" parameter, they can only regenerate projection dependant feedback
                 }
                 subEntries.Clear();
                 pp.Remove(this); // to reflect this newly composed entry
@@ -1672,7 +1674,7 @@ namespace ShapeIt
                     if ((sphere != null))
                     {
                         cadFrame.Project.StyleList.GetDefault(Style.EDefaultFor.Solids)?.Apply(sphere);
-                        vw.Model.Add(sphere); // add the sphere to the model 
+                        vw.Model.Add(sphere); // add the sphere to the model
                         ComposeModellingEntries(new GeoObjectList(sphere), frame.ActiveView, null); // and show it in the control center
                     }
                     return true;
@@ -2021,7 +2023,7 @@ namespace ShapeIt
                     if (fromBox[i] is Solid solid && sld != solid && solid.GetExtent(0.0).Interferes(sld.GetExtent(0.0))) otherSolids.Add(solid);
                 }
                 if (otherSolids.Count > 0)
-                {   // there are other solids close to this solid, it is not guaranteed that these other solids interfere with this solid 
+                {   // there are other solids close to this solid, it is not guaranteed that these other solids interfere with this solid
                     Func<bool, IFrame, bool> ShowThisAndAll = (selected, frame) =>
                     {   // this is the standard selection behaviour for BRep operations
                         feedback.Clear();
@@ -2376,7 +2378,7 @@ namespace ShapeIt
                 }
             }
             DirectMenuEntry mhdist = new DirectMenuEntry("MenuId.Parametrics.DistanceTo");
-            // mhdist.Target = new ParametricsDistanceActionOld(edg, selectAction.Frame); 
+            // mhdist.Target = new ParametricsDistanceActionOld(edg, selectAction.Frame);
             // TODO!
             edgeMenus.Add(mhdist);
 
@@ -3006,10 +3008,10 @@ namespace ShapeIt
         }
         /// <summary>
         /// There is a face <paramref name="fc"/> pointed at by <paramref name="pa"/>. We try to find a loop of curves on faces
-        /// passing through pa. This loop msut be perpendicular to all edges it crosses, so that it could have been used 
+        /// passing through pa. This loop msut be perpendicular to all edges it crosses, so that it could have been used
         /// in an extrusion operation to build all faces, which are touched by the loop curves. To each loop curve there is a face,
-        /// on which this curve resides. There may be several (or none) loops and sets of faces as a result. For each result there 
-        /// is also a plane, in which all loop curves reside and which is the plane at which the shell can be split to extent or shrink 
+        /// on which this curve resides. There may be several (or none) loops and sets of faces as a result. For each result there
+        /// is also a plane, in which all loop curves reside and which is the plane at which the shell can be split to extent or shrink
         /// the shape along the edges.
         /// </summary>
         /// <param name="fc"></param>
@@ -3146,7 +3148,7 @@ namespace ShapeIt
             if (selection != null)
             {
                 selection.Selected(selection); // to regenerate the feedback display
-                                               // and by passing selected as "previousSelected" parameter, they can only regenerate projection dependant feedback 
+                                               // and by passing selected as "previousSelected" parameter, they can only regenerate projection dependant feedback
             }
         }
 

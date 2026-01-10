@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ca="using:CADability.Avalonia"
+        Title="ShapeIt"
+        x:Class="ShapeIt.MainForm">
+  <DockPanel>
+    <Border DockPanel.Dock="Top"
+      BorderBrush="LightGray"
+      BorderThickness="1">
+      <Menu>
+        <MenuItem Header="_File">
+          <MenuItem Header="New"/>
+          <MenuItem Header="Open"/>
+          <MenuItem Header="Save"/>
+          <MenuItem Header="Save As..."/>
+          <Separator/>
+          <MenuItem Header="Print..."/>
+          <MenuItem Header="Print Setup"/>
+          <MenuItem Header="Select Printer"/>
+          <Separator/>
+          <Separator/>
+          <MenuItem Header="Exit"/>
+        </MenuItem>
+        <MenuItem Header="_Edit">
+        </MenuItem>
+        <MenuItem Header="_View">
+        </MenuItem>
+        <MenuItem Header="_Construct">
+        </MenuItem>
+        <MenuItem Header="_Customize">
+        </MenuItem>
+      </Menu>
+    </Border>
+    <TextBlock
+      DockPanel.Dock="Bottom"
+      Text="Placeholder">
+    </TextBlock>
+    <ca:CadForm/>
+  </DockPanel>
+</Window>

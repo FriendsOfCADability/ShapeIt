@@ -1,4 +1,5 @@
-﻿using CADability;
+﻿#if !AVALONIA
+using CADability;
 using CADability.Actions;
 using CADability.Attribute;
 using CADability.Forms.NET8;
@@ -99,7 +100,7 @@ namespace ShapeIt
         private void ShowLogo()
         {
             Control pex = FindControlByName(this, "propertiesExplorer");
-            // Create PictureBox 
+            // Create PictureBox
             logoBox = new PictureBox();
             Assembly ThisAssembly = Assembly.GetExecutingAssembly();
             using (System.IO.Stream str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.ShapeIt2.png"))
@@ -531,7 +532,7 @@ namespace ShapeIt
         {
             base.OnLoad(e);
 
-            // this is for recording the session with 1280x720 pixel. 
+            // this is for recording the session with 1280x720 pixel.
             this.Size = new Size(1294, 727);
 
         }
@@ -746,3 +747,4 @@ namespace ShapeIt
 #endif
     }
 }
+#endif
