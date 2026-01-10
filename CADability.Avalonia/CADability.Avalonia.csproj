@@ -17,4 +17,8 @@
       <PrivateAssets Condition="'$(Configuration)' != 'Debug'">All</PrivateAssets>
     </PackageReference>
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CADability\CADability.csproj" />
+  </ItemGroup>
 </Project>
