@@ -189,7 +189,7 @@ namespace ShapeIt
             foreach (IHotSpot hotspot in activeHotspots)
             {
                 GeoPoint hp = hotspot.GetHotspotPosition();
-                if (BoundingCube.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
+                if (BoundingBox.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
                 {
                     hotspotUnderCursor = hotspot;
                     return CursorPosition.OverHotSpot;
@@ -545,7 +545,7 @@ namespace ShapeIt
             foreach (IHotSpot hotspot in activeHotspots)
             {
                 GeoPoint hp = hotspot.GetHotspotPosition();
-                if (BoundingCube.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
+                if (BoundingBox.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
                 {
                     hotspotUnderCursor = hotspot;
                     return "Pen";
@@ -2253,7 +2253,7 @@ namespace ShapeIt
             {
                 List<Face> faces = new List<Face>();
                 Shell shl = sld.Shells[0];
-                BoundingCube bc = shl.GetExtent(0.0);
+                BoundingBox bc = shl.GetExtent(0.0);
                 foreach (Face fc in shl.Faces)
                 {
                     Face nurbsFace = Face.Construct();
@@ -2774,7 +2774,7 @@ namespace ShapeIt
                 // in order to show an arrow on menu selection, we use the maximum extent of the selected face in direction of the plane
                 Face toGetExtent = fc.Clone() as Face;
                 toGetExtent.Modify(loopPlanes[i].CoordSys.GlobalToLocal);
-                BoundingCube ext = toGetExtent.GetBoundingCube();
+                BoundingBox ext = toGetExtent.GetBoundingCube();
                 GeoPoint zmax = loopPlanes[i].CoordSys.LocalToGlobal * new GeoPoint(0, 0, ext.Zmax);
                 GeoPoint zmin = loopPlanes[i].CoordSys.LocalToGlobal * new GeoPoint(0, 0, ext.Zmin);
                 Plane arrowPlane = new Plane(loopPlanes[i].Location, fc.Surface.GetNormal(fc.PositionOf(loopPlanes[i].Location)));
@@ -2855,7 +2855,7 @@ namespace ShapeIt
                 fc.ReverseOrientation();
             }
             ff.AddRange(connection.Select(fc => fc.Clone() as Face));
-            BoundingCube ext = BoundingCube.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingCube;
             ext.MinMax(ff);
             Shell.ConnectFaces(ff.ToArray(), Math.Max(Precision.eps, ext.Size * 1e-6));
             Shell feature = Shell.FromFaces(ff.ToArray());
@@ -3049,7 +3049,7 @@ namespace ShapeIt
                     }
                 }
                 // we create an octtree of the edges of the shell to have fast acces to the edges from a point
-                BoundingCube ext = shell.GetExtent(0.0); // for symmetric objects this sometimes leads to problems, because we later try to find edges from a point
+                BoundingBox ext = shell.GetExtent(0.0); // for symmetric objects this sometimes leads to problems, because we later try to find edges from a point
                 OctTree<EdgeInOctTree> edgeOctTree = new OctTree<EdgeInOctTree>(ext, Precision.eps);
                 edgeOctTree.AddMany(shell.Edges.Select(e => new EdgeInOctTree(e)));
 
@@ -3078,7 +3078,7 @@ namespace ShapeIt
                             {
                                 crvs.Add(planeSurface.Make3dCurve(curve2D));
                                 GeoPoint pointOnEdge = planeSurface.PointAt(curve2D.EndPoint);
-                                EdgeInOctTree[] eo = edgeOctTree.GetObjectsFromBox(new BoundingCube(pointOnEdge, ext.Size / 1000)); // search from point failed sometimes
+                                EdgeInOctTree[] eo = edgeOctTree.GetObjectsFromBox(new BoundingBox(pointOnEdge, ext.Size / 1000)); // search from point failed sometimes
                                 Edge edgeFound = null;
                                 foreach (Edge edg in eo.Select(e => e.Edge))
                                 {
@@ -3220,7 +3220,7 @@ namespace ShapeIt
             {
                 List<Face> lconnected = new List<Face>(connected);
                 lconnected.Add(face);
-                BoundingCube ext = BoundingCube.EmptyBoundingCube;
+                BoundingBox ext = BoundingBox.EmptyBoundingCube;
                 foreach (Face fc in connected)
                 {
                     ext.MinMax(fc.GetExtent(0.0));

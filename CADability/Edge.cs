@@ -823,7 +823,7 @@ namespace CADability
         {
             hashCode = hashCodeCounter++; // 
 #if DEBUG
-            if (hashCode == 186 || hashCode == 187)
+            if (hashCode == 580)
             {
             }
 #endif
@@ -3315,7 +3315,7 @@ namespace CADability
 
         internal static List<Vertex> RecalcVertices(IEnumerable<Edge> edges)
         {
-            BoundingCube ext = BoundingCube.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingCube;
             List<Vertex> allVertices = new List<Vertex>();
             foreach (Edge edg in edges)
             {
@@ -3341,7 +3341,7 @@ namespace CADability
             for (int i = 0; i < allVertices.Count; i++)
             {
                 bool duplicateFound = false;
-                Vertex[] close = vertexOctTree.GetObjectsFromBox(new BoundingCube(allVertices[i].Position, prec));
+                Vertex[] close = vertexOctTree.GetObjectsFromBox(new BoundingBox(allVertices[i].Position, prec));
                 for (int j = 0; j < close.Length; j++)
                 {
                     if ((allVertices[i].Position | close[j].Position) < prec)

@@ -219,9 +219,9 @@ namespace CADability.GeoObject
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.GetBoundingCube ()"/>
         /// </summary>
         /// <returns></returns>
-        public override BoundingCube GetBoundingCube()
+        public override BoundingBox GetBoundingCube()
         {
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingCube;
             res.MinMax(startPoint);
             res.MinMax(endPoint);
             return res;
@@ -294,17 +294,17 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override BoundingCube GetExtent(double precision)
+        public override BoundingBox GetExtent(double precision)
         {
             return GetBoundingCube();
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingCube, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingBox, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override bool HitTest(ref BoundingCube cube, double precision)
+        public override bool HitTest(ref BoundingBox cube, double precision)
         {
             return cube.Interferes(ref startPoint, ref endPoint);
         }
@@ -339,12 +339,12 @@ namespace CADability.GeoObject
             GeoPoint ep = area.ToUnitBox * endPoint;
             if (onlyInside)
             {
-                return BoundingCube.UnitBoundingCube.Contains(sp) && BoundingCube.UnitBoundingCube.Contains(ep);
+                return BoundingBox.UnitBoundingCube.Contains(sp) && BoundingBox.UnitBoundingCube.Contains(ep);
             }
             else
             {
                 // im Falle !isPerspective ginge es natürlich einfacher, s.o.
-                return BoundingCube.UnitBoundingCube.Interferes(ref sp, ref ep);
+                return BoundingBox.UnitBoundingCube.Interferes(ref sp, ref ep);
             }
         }
         /// <summary>
@@ -697,7 +697,7 @@ namespace CADability.GeoObject
         {
             return position;
         }
-        BoundingCube ICurve.GetExtent()
+        BoundingBox ICurve.GetExtent()
         {
             return GetExtent(0.0);
         }
@@ -710,7 +710,7 @@ namespace CADability.GeoObject
             }
             return true;
         }
-        bool ICurve.HitTest(BoundingCube cube)
+        bool ICurve.HitTest(BoundingBox cube)
         {
             return HitTest(ref cube, 0.0);
         }
@@ -1002,12 +1002,12 @@ namespace CADability.GeoObject
 
         #region IOctTreeInsertable Members
 
-        BoundingCube IOctTreeInsertable.GetExtent(double precision)
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            return BoundingCube.InfiniteBoundingCube;
+            return BoundingBox.InfiniteBoundingCube;
         }
 
-        bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
         {
             return cube.Interferes(start, dir, precision, false);
         }
@@ -1060,9 +1060,9 @@ namespace CADability.GeoObject
 
         #region IOctTreeInsertable Members
 
-        BoundingCube IOctTreeInsertable.GetExtent(double precision)
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            BoundingCube bc = new BoundingCube(start);
+            BoundingBox bc = new BoundingBox(start);
             GeoPoint p = new GeoPoint();
             if (dir.x > 0) p.x = double.MaxValue;
             else p.x = double.MinValue;
@@ -1074,7 +1074,7 @@ namespace CADability.GeoObject
             return bc;
         }
 
-        bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
         {
             return cube.Interferes(start, dir, precision, true);
         }
@@ -1142,12 +1142,12 @@ namespace CADability.GeoObject
 
         #region IOctTreeInsertable Members
 
-        BoundingCube IOctTreeInsertable.GetExtent(double precision)
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            return new BoundingCube(startPoint, endPoint);
+            return new BoundingBox(startPoint, endPoint);
         }
 
-        bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
         {
             return cube.Interferes(ref startPoint, ref endPoint);
         }
@@ -1182,12 +1182,12 @@ namespace CADability.GeoObject
 
         #region IOctTreeInsertable Members
 
-        BoundingCube IOctTreeInsertable.GetExtent(double precision)
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            return new BoundingCube(p1, p2, p3);
+            return new BoundingBox(p1, p2, p3);
         }
 
-        bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
         {
             return cube.Interferes(ref p1, ref p2, ref p3);
         }
@@ -1223,12 +1223,12 @@ namespace CADability.GeoObject
 
         #region IOctTreeInsertable Members
 
-        BoundingCube IOctTreeInsertable.GetExtent(double precision)
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            return new BoundingCube(p1, p2, p3, p4);
+            return new BoundingBox(p1, p2, p3, p4);
         }
 
-        bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
         {
             return cube.Interferes(p1, p2, p3, p4);
         }

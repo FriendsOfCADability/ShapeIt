@@ -880,7 +880,7 @@ namespace CADability
                                         face.Surface.Intersect(crv, face.Domain, out GeoPoint[] ips, out GeoPoint2D[] uvOnSurface, out double[] uOnCurve); // the domain should only be used for periodic adjustment!
                                         if (ips.Length == 0)
                                         {
-                                            BoundingCube ext = face.GetBoundingCube();
+                                            BoundingBox ext = face.GetBoundingCube();
                                             if (crv.Extend(ext.DiagonalLength, ext.DiagonalLength))
                                             {   // a second try with the extended curve
                                                 face.Surface.Intersect(crv, face.Domain, out ips, out uvOnSurface, out uOnCurve);
@@ -916,7 +916,7 @@ namespace CADability
                                         face.Surface.Intersect(crv, face.Domain, out GeoPoint[] ips, out GeoPoint2D[] uvOnSurface, out double[] uOnCurve); // the domain should only be used for periodic adjustment!
                                         if (ips.Length == 0)
                                         {
-                                            BoundingCube ext = face.GetBoundingCube();
+                                            BoundingBox ext = face.GetBoundingCube();
                                             if (crv.Extend(ext.DiagonalLength, ext.DiagonalLength))
                                             {   // a second try with the extended curve
                                                 face.Surface.Intersect(crv, face.Domain, out ips, out uvOnSurface, out uOnCurve);

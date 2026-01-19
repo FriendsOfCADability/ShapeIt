@@ -70,8 +70,8 @@ namespace CADability
 	public class Model : IShowPropertyImpl, ISerializable, IGeoObjectOwner,
 			IEnumerable, ICommandHandler, ICategorizedDislayLists, IDeserializationCallback, IJsonSerialize, IJsonSerializeDone
 	{
-		private BoundingCube? extent; // Die Ausdehnung, noch nicht klar wie die benutzt werden soll
-		private BoundingCube minExtend; // die Mindestausdehnung, die z.B. für das Raster oder für die leere Darstellung verwendet wird
+		private BoundingBox? extent; // Die Ausdehnung, noch nicht klar wie die benutzt werden soll
+		private BoundingBox minExtend; // die Mindestausdehnung, die z.B. für das Raster oder für die leere Darstellung verwendet wird
 		private GeoObjectList geoObjects; // die Liste aller Objekte
 		private string name; // der Name des Modells
 		private bool noSingleAddEvents;
@@ -427,7 +427,7 @@ namespace CADability
 					int tcstart = Environment.TickCount;
 					if (!extent.HasValue || extent.Value.IsEmpty)
 					{
-						extent = new BoundingCube(GeoPoint.Origin, 100); // Notlösung, wie machen das die anderen?
+						extent = new BoundingBox(GeoPoint.Origin, 100); // Notlösung, wie machen das die anderen?
 					}
 
 					octTree = new OctTree<IGeoObject>(Extent, displayListPrecision);
@@ -566,7 +566,7 @@ namespace CADability
 			{
 				if (!extent.HasValue || extent.Value.IsEmpty)
 				{
-					extent = new BoundingCube(GeoPoint.Origin, 100); // Notlösung, wie machen das die anderen?
+					extent = new BoundingBox(GeoPoint.Origin, 100); // Notlösung, wie machen das die anderen?
 				}
 
 				octTree = new OctTree<IGeoObject>(Extent, displayListPrecision);
@@ -630,7 +630,7 @@ namespace CADability
 		/// Delegate definition for the <see cref="ExtentChangedEvent"/>.
 		/// </summary>
 		/// <param name="newExtent">The new extend of the model</param>
-		public delegate void ExtentChangedDelegate(BoundingCube newExtent);
+		public delegate void ExtentChangedDelegate(BoundingBox newExtent);
 		/// <summary>
 		/// Delegate definition for the <see cref="NameChangedEvent"/>.
 		/// </summary>
@@ -721,7 +721,7 @@ namespace CADability
 
 			nullLayer = new Layer("NullLayer");
 			displayListsDirty = true;
-			minExtend = BoundingCube.EmptyBoundingCube;
+			minExtend = BoundingBox.EmptyBoundingCube;
 			noSingleAddEvents = false;
 			showTransparentFaceEdges = Settings.GlobalSettings.GetBoolValue("Display.ShowTransparentFaceEdges", false);
 		}
@@ -924,7 +924,7 @@ namespace CADability
 			if (geoObjects.Count == 0) extent = null; // damit der Extent, der von -100 bis 100 geht neu berechnet wird
 			if (ExtentChangedEvent != null)
 			{
-				BoundingCube extn = ObjectToAdd.GetBoundingCube();
+				BoundingBox extn = ObjectToAdd.GetBoundingCube();
 				if (geoObjects.Count == 0)
 				{
 					extent = extn;
@@ -932,7 +932,7 @@ namespace CADability
 				}
 				else
 				{
-					BoundingCube ext = this.Extent;
+					BoundingBox ext = this.Extent;
 					if (!ext.Contains(extn))
 					{
 						ext.MinMax(extn);
@@ -963,7 +963,7 @@ namespace CADability
 			if (geoObjects.Count == 0) extent = null;
 			if (ExtentChangedEvent != null)
 			{
-				BoundingCube extn = ListToAdd.GetExtent();
+				BoundingBox extn = ListToAdd.GetExtent();
 				if (geoObjects.Count == 0)
 				{
 					extent = extn;
@@ -971,7 +971,7 @@ namespace CADability
 				}
 				else
 				{
-					BoundingCube ext = this.Extent;
+					BoundingBox ext = this.Extent;
 					if (!ext.Contains(extn))
 					{
 						ext.MinMax(extn);
@@ -1180,7 +1180,7 @@ namespace CADability
 		/// <summary>
 		/// Returns the extent of the model, i.e. a bounding cube enclosing all objects.
 		/// </summary>
-		public BoundingCube Extent
+		public BoundingBox Extent
 		{
 			get
 			{
@@ -1189,7 +1189,7 @@ namespace CADability
 					if (extent == null || !extent.HasValue || extent.Value.IsEmpty)
 					{
 						extent = CalculateExtent();
-						if (extent.Value.IsEmpty) extent = new BoundingCube(GeoPoint.Origin, 100); // damites auch bei leeren Modellen einen Wert gibt
+						if (extent.Value.IsEmpty) extent = new BoundingBox(GeoPoint.Origin, 100); // damites auch bei leeren Modellen einen Wert gibt
 					}
 				}
 				return extent.Value;
@@ -1206,7 +1206,7 @@ namespace CADability
 		/// A minimal extend of the Model. This will be the extend of the Model if the Model is empty.
 		/// This is also used in other circumstances (e.g. dieplay of the grid)
 		/// </summary>
-		public BoundingCube MinExtend
+		public BoundingBox MinExtend
 		{
 			get
 			{
@@ -1364,9 +1364,9 @@ namespace CADability
 				return allSchedules;
 			}
 		}
-		internal BoundingCube CalculateExtent()
+		internal BoundingBox CalculateExtent()
 		{   // muss noch mit cache versehen werden
-			BoundingCube res = BoundingCube.EmptyBoundingCube;
+			BoundingBox res = BoundingBox.EmptyBoundingCube;
 			foreach (IGeoObject go in geoObjects)
 			{
 				res.MinMax(go.GetBoundingCube());
@@ -1411,11 +1411,11 @@ namespace CADability
 			}
 			try
 			{
-				minExtend = (BoundingCube)info.GetValue("MinExtend", typeof(BoundingCube));
+				minExtend = (BoundingBox)info.GetValue("MinExtend", typeof(BoundingBox));
 			}
 			catch (SerializationException)
 			{   // später hinzugefügt, also initialisieren
-				minExtend = BoundingCube.EmptyBoundingCube;
+				minExtend = BoundingBox.EmptyBoundingCube;
 			}
 			try
 			{
@@ -1461,7 +1461,7 @@ namespace CADability
 			info.AddValue("Unit", unit, typeof(Units));
 			info.AddValue("DefaultScale", defaultScale, typeof(double));
 			info.AddValue("LineStyleScale", lineStyleScale, typeof(double));
-			info.AddValue("MinExtend", minExtend, typeof(BoundingCube));
+			info.AddValue("MinExtend", minExtend, typeof(BoundingBox));
 			info.AddValue("AllDrives", allDrives, typeof(DriveList));
 			info.AddValue("AllSchedules", allSchedules, typeof(ScheduleList));
 			info.AddValue("UserData", userData, typeof(UserData));
@@ -1487,7 +1487,7 @@ namespace CADability
 			unit = data.GetProperty<Units>("Unit");
 			defaultScale = data.GetProperty<double>("DefaultScale");
 			lineStyleScale = data.GetProperty<double>("LineStyleScale");
-			minExtend = data.GetProperty<BoundingCube>("MinExtend");
+			minExtend = data.GetProperty<BoundingBox>("MinExtend");
 			allDrives = data.GetProperty<DriveList>("AllDrives");
 			allSchedules = data.GetProperty<ScheduleList>("AllSchedules");
 			userData = data.GetProperty<UserData>("UserData");
@@ -2413,7 +2413,7 @@ namespace CADability
 		/// </summary>
 		/// <param name="box">Box from which to seek objects</param>
 		/// <returns>List of objects in or close to the box</returns>
-		public GeoObjectList GetObjectsFromBox(BoundingCube box)
+		public GeoObjectList GetObjectsFromBox(BoundingBox box)
 		{
 			if (octTree == null) InitOctTree();
 			Set<IGeoObject> res = new Set<IGeoObject>();

@@ -79,7 +79,7 @@ namespace ShapeIt
         private ICurve[] Intersect(PlaneSurface pls)
         {
             Plane plane = pls.Plane;
-            BoundingCube bc = solidToIntersect.GetBoundingCube();
+            BoundingBox bc = solidToIntersect.GetBoundingCube();
             if (bc.Interferes(plane))
             {
                 return solidToIntersect.GetPlaneIntersection(pls);
@@ -121,7 +121,7 @@ namespace ShapeIt
             }
         }
 
-        private void RemoveDuplicates(List<ICurve> lcrvs, BoundingCube extent)
+        private void RemoveDuplicates(List<ICurve> lcrvs, BoundingBox extent)
         {
             OctTree<IOctTreeInsertable> ot = new OctTree<IOctTreeInsertable>(extent, Precision.eps);
             // all ICurves are IOctTreeInsertable

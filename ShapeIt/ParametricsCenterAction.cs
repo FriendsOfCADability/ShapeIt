@@ -161,7 +161,7 @@ namespace ShapeIt
             // and more cases
             else
             {   // default: the extent of facesToBeCentered
-                BoundingCube ext = new BoundingCube(facesToBeCentered);
+                BoundingBox ext = new BoundingBox(facesToBeCentered);
                 pointToCenter = ext.GetCenter();
             }
             if (centerOntoObjects.Count() == 1)

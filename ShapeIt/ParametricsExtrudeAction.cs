@@ -97,7 +97,7 @@ namespace ShapeIt
             if (crossSection.Surface is PlaneSurface ps)
             {
                 Plane plane = ps.Plane;
-                BoundingCube ext = shell.GetExtent(0.0);
+                BoundingBox ext = shell.GetExtent(0.0);
                 GeoPoint2D cnt2d = plane.Project(ext.GetCenter());
                 BoundingRect br = new BoundingRect(cnt2d, 2 * ext.DiagonalLength, 2 * ext.DiagonalLength);
                 Face fcpl = Face.MakeFace(new PlaneSurface(plane), br);

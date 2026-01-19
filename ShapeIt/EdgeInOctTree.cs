@@ -12,13 +12,13 @@ namespace ShapeIt
         public Edge Edge { get; private set; }
         public EdgeInOctTree(Edge edge) { Edge = edge; }
 
-        public BoundingCube GetExtent(double precision)
+        public BoundingBox GetExtent(double precision)
         {
-            if (Edge.Curve3D == null) return new BoundingCube(Edge.Vertex1.Position);
+            if (Edge.Curve3D == null) return new BoundingBox(Edge.Vertex1.Position);
             return Edge.Curve3D.GetExtent();
         }
 
-        public bool HitTest(ref BoundingCube cube, double precision)
+        public bool HitTest(ref BoundingBox cube, double precision)
         {
             if (Edge.Curve3D == null) return cube.Contains(Edge.Vertex1.Position);
             return Edge.Curve3D.HitTest(cube);

@@ -752,7 +752,7 @@ namespace CADability.GeoObject
                     int strokeCount = 0;
                     fontCharacteristicsCache[new FontKey(font, fontStyle)] = fc; // schon mal setzen, damit folgendes nicht endlos wird:
                     GeoObjectList lo = GetCenterLines(font, fontStyle, 'o', out w);
-                    BoundingCube ext = lo.GetExtent();
+                    BoundingBox ext = lo.GetExtent();
                     double bmax = ext.Ymin;
                     double mmin = ext.Ymax;
                     Path2D[] po = GetOutline2D(font, fontStyle, 'o', out w);
@@ -2368,9 +2368,9 @@ namespace CADability.GeoObject
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.GetBoundingCube ()"/>
         /// </summary>
         /// <returns></returns>
-        public override BoundingCube GetBoundingCube()
+        public override BoundingBox GetBoundingCube()
         {
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingCube;
             CalcExtent();
             res.MinMax(location);
             res.MinMax(lowerLeft);
@@ -2640,17 +2640,17 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override BoundingCube GetExtent(double precision)
+        public override BoundingBox GetExtent(double precision)
         {
             return GetBoundingCube();
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingCube, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingBox, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override bool HitTest(ref BoundingCube cube, double precision)
+        public override bool HitTest(ref BoundingBox cube, double precision)
         {
             // nicht sicher, ob die folgenden noch skaliert werden müssen:
             GeoPoint p1 = lowerLeft;
@@ -2696,11 +2696,11 @@ namespace CADability.GeoObject
         {
             if (onlyInside)
             {
-                if (!BoundingCube.UnitBoundingCube.Contains(area.ToUnitBox * location)) return false;
-                if (!BoundingCube.UnitBoundingCube.Contains(area.ToUnitBox * lowerLeft)) return false;
-                if (!BoundingCube.UnitBoundingCube.Contains(area.ToUnitBox * lowerRight)) return false;
-                if (!BoundingCube.UnitBoundingCube.Contains(area.ToUnitBox * upperLeft)) return false;
-                if (!BoundingCube.UnitBoundingCube.Contains(area.ToUnitBox * (lowerRight + (upperLeft - lowerLeft)))) return false;
+                if (!BoundingBox.UnitBoundingCube.Contains(area.ToUnitBox * location)) return false;
+                if (!BoundingBox.UnitBoundingCube.Contains(area.ToUnitBox * lowerLeft)) return false;
+                if (!BoundingBox.UnitBoundingCube.Contains(area.ToUnitBox * lowerRight)) return false;
+                if (!BoundingBox.UnitBoundingCube.Contains(area.ToUnitBox * upperLeft)) return false;
+                if (!BoundingBox.UnitBoundingCube.Contains(area.ToUnitBox * (lowerRight + (upperLeft - lowerLeft)))) return false;
                 return true;
             }
             else
@@ -2709,8 +2709,8 @@ namespace CADability.GeoObject
                 GeoPoint p2 = area.ToUnitBox * lowerRight;
                 GeoPoint p3 = area.ToUnitBox * upperLeft;
                 GeoPoint p4 = area.ToUnitBox * (lowerRight + (upperLeft - lowerLeft));
-                if (BoundingCube.UnitBoundingCube.Interferes(ref p1, ref p2, ref p4)) return true;
-                if (BoundingCube.UnitBoundingCube.Interferes(ref p1, ref p4, ref p3)) return true;
+                if (BoundingBox.UnitBoundingCube.Interferes(ref p1, ref p2, ref p4)) return true;
+                if (BoundingBox.UnitBoundingCube.Interferes(ref p1, ref p4, ref p3)) return true;
                 return false;
             }
 

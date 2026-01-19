@@ -66,7 +66,7 @@ namespace CADability.GeoObject
         private GeoPoint[] interpol; // Interpolation mit einer gewissen Genauigkeit
         private GeoVector[] interdir; // Interpolation mit einer gewissen Genauigkeit
         private double[] interparam; // die Parameter zur Interpolation
-        private BoundingCube extent;
+        private BoundingBox extent;
         private TetraederHull tetraederHull;
         private GeoPoint[] approximation; // Interpolation mit der Genauigkeit der Auflösung
         private double approxPrecision; // Genauigkeit zu approximation
@@ -355,7 +355,7 @@ namespace CADability.GeoObject
         private void MakeInterpol()
         {   // die Interpolation geht mindestens durch die Knotenpunkte
             // die Abweichung von der Kurve wird erstmal auf ein Verhältnis zur Gesamtgröße festgelegt
-            BoundingCube ext = new BoundingCube(poles);
+            BoundingBox ext = new BoundingBox(poles);
             double maxError = Math.Max(ext.Size / 100.0, Precision.eps * 100); // testweise 1/100 der gesamten Ausdehnung
             // Ein Problem bleibt bestehen. Der Fehlertest in der Mitte des Segments ist unsicher, denn bei einer
             // Art Wendepunkt kann das Segment die Sehne schneiden und so fälschlicherweise einen zu kleinen
@@ -487,7 +487,7 @@ namespace CADability.GeoObject
             : base()
         {
             if (Constructed != null) Constructed(this);
-            extent = BoundingCube.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingCube;
         }
         public static BSpline Approximate(Func<double, GeoPoint> curve, double precision, double minPar = 0, double maxPar = 1, int maxCount = 1000)
         {
@@ -548,12 +548,12 @@ namespace CADability.GeoObject
                 interdir = null;
                 interparam = null;
                 approximation = null;
-                extent = BoundingCube.EmptyBoundingCube;
+                extent = BoundingBox.EmptyBoundingCube;
                 tetraederHull = null;
                 extrema = null;
             }
         }
-        private TetraederHull TetraederHull
+        internal TetraederHull TetraederHull
         {   // alle Kurven sollte zusätzlich ein Interface implementieren ITetraederHull, die genau diese Property überschreibt
             // dann kann man immer ungeachtet der Kurvenart auf die Hülle zugreifen
             get
@@ -1776,15 +1776,15 @@ namespace CADability.GeoObject
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.GetBoundingCube ()"/>
         /// </summary>
         /// <returns></returns>
-        public override BoundingCube GetBoundingCube()
+        public override BoundingBox GetBoundingCube()
         {
             if (extent.IsEmpty && poles != null)
             {
-                extent = BoundingCube.EmptyBoundingCube;
+                extent = BoundingBox.EmptyBoundingCube;
                 double[] extx = (this as ICurve).GetExtrema(GeoVector.XAxis);
                 double[] exty = (this as ICurve).GetExtrema(GeoVector.YAxis);
                 double[] extz = (this as ICurve).GetExtrema(GeoVector.ZAxis);
-                BoundingCube res = BoundingCube.EmptyBoundingCube;
+                BoundingBox res = BoundingBox.EmptyBoundingCube;
                 for (int i = 0; i < extx.Length; ++i)
                 {
                     extent.MinMax((this as ICurve).PointAt(extx[i]));
@@ -1868,17 +1868,17 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override BoundingCube GetExtent(double precision)
+        public override BoundingBox GetExtent(double precision)
         {
             return GetBoundingCube();
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingCube, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingBox, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override bool HitTest(ref BoundingCube cube, double precision)
+        public override bool HitTest(ref BoundingBox cube, double precision)
         {
             return this.TetraederHull.HitTest(cube);
         }
@@ -2013,7 +2013,7 @@ namespace CADability.GeoObject
                         break;
                 }
             }
-            extent = BoundingCube.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingCube;
             if (Constructed != null) Constructed(this);
         }
         /// <summary>
@@ -3434,11 +3434,11 @@ namespace CADability.GeoObject
         {
             return false;
         }
-        BoundingCube ICurve.GetExtent()
+        BoundingBox ICurve.GetExtent()
         {
             return GetExtent(0.0);
         }
-        bool ICurve.HitTest(BoundingCube cube)
+        bool ICurve.HitTest(BoundingBox cube)
         {
             return this.TetraederHull.HitTest(cube);
         }
@@ -3917,9 +3917,9 @@ namespace CADability.GeoObject
             }
             return 0;
         }
-        internal BoundingCube GetIntervalExtent(double pmin, double pmax)
+        internal BoundingBox GetIntervalExtent(double pmin, double pmax)
         {   // liefert die Ausdehnung eines Abschnitts der Kurve in 3D
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingCube;
             res.MinMax(PointAtParam(pmin));
             res.MinMax(PointAtParam(pmax));
             foreach (GeoVector dir in GeoVector.MainAxis)

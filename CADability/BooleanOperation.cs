@@ -433,8 +433,8 @@ namespace CADability
                             params2dFace2[i, j] = crvsOnSurface2[i].PositionOf(paramsuvsurf2[j]);
                             if (params2dFace1[i, j] < -Precision.eps || params2dFace1[i, j] > 1 + Precision.eps) params2dFace1[i, j] = double.MinValue; // point is not on the curve
                             if (params2dFace2[i, j] < -Precision.eps || params2dFace2[i, j] > 1 + Precision.eps) params2dFace2[i, j] = double.MinValue; // point is not on the curve
-                            if (!Precision.IsEqual(crvsOnSurface1[i].PointAt(params2dFace1[i, j]), paramsuvsurf1[j])) params2dFace1[i, j] = double.MinValue; // point is not on the curve
-                            if (!Precision.IsEqual(crvsOnSurface2[i].PointAt(params2dFace2[i, j]), paramsuvsurf2[j])) params2dFace2[i, j] = double.MinValue; // point is not on the curve
+                            if ((crvsOnSurface1[i].PointAt(params2dFace1[i, j]) | paramsuvsurf1[j]) > precision) params2dFace1[i, j] = double.MinValue; // point is not on the curve
+                            if ((crvsOnSurface2[i].PointAt(params2dFace2[i, j]) | paramsuvsurf2[j]) > precision) params2dFace2[i, j] = double.MinValue; // point is not on the curve
                         }
                     }
                 }
@@ -979,7 +979,7 @@ namespace CADability
         //{
         //    shell1 = toSplit.Clone() as Shell;   // clone the shell because its faces will be modified
         //    shell1.AssertOutwardOrientation();
-        //    BoundingCube ext = shell1.GetExtent(0.0);
+        //    BoundingBox ext = shell1.GetExtent(0.0);
         //    Face fcpl = Face.MakeFace(new PlaneSurface(splitBy), new BoundingRect(GeoPoint2D.Origin, 2 * ext.DiagonalLength, 2 * ext.DiagonalLength));
         //    splittingOnplane = fcpl.Surface as PlaneSurface; // remember the plane by which we split to return a proper SplitResult
         //    Face fcpl1 = fcpl.Clone() as Face;
@@ -999,7 +999,7 @@ namespace CADability
         //{
         //    shell1 = toSplit.Clone() as Shell;   // clone the shell because its faces will be modified
         //    shell1.AssertOutwardOrientation();
-        //    BoundingCube ext = shell1.GetExtent(0.0);
+        //    BoundingBox ext = shell1.GetExtent(0.0);
         //    shell2 = Shell.MakeShell(new Face[] { splitBy.Clone() as Face }, false); // open shell
         //    operation = Operation.difference;
         //    prepare();
@@ -1035,9 +1035,9 @@ namespace CADability
         //    {   // es ist ja shell1 - shell2, also Vereinigung mit dem inversen von shell2
         //        shell2.ReverseOrientation();
         //    }
-        //    BoundingCube ext1 = shell1.GetExtent(0.0);
-        //    BoundingCube ext2 = shell2.GetExtent(0.0);
-        //    BoundingCube ext = ext1;
+        //    BoundingBox ext1 = shell1.GetExtent(0.0);
+        //    BoundingBox ext2 = shell2.GetExtent(0.0);
+        //    BoundingBox ext = ext1;
         //    ext.MinMax(ext2);
         //    // in rare cases the extension isn't a good choice, faces shouldn't exactely reside on the sides of the small cubes of the octtree
         //    // so we modify the extension a little, to make this case extremely unlikely. The best solution would be to check, whether a vertex
@@ -1103,7 +1103,7 @@ namespace CADability
         //    foreach (Face face in multipleFaces) face.ReverseOrientation();
 
         //    // fill the OctTree
-        //    BoundingCube ext = BoundingCube.EmptyBoundingCube;
+        //    BoundingBox ext = BoundingBox.EmptyBoundingCube;
         //    foreach (Face face in multipleFaces) ext.MinMax(face.GetExtent(0.0));
         //    // in rare cases the extension isn't a good choice, faces shouldn't exactely reside on the sides of the small cubes of the octtree
         //    // so we modify the extension a little, to make this case extremely unlikely. The best solution would be to check, whether a vertex
@@ -1161,9 +1161,9 @@ namespace CADability
         //                shell1.ReverseOrientation();
         //                shell2.ReverseOrientation();
         //            }
-        //            BoundingCube ext1 = shell1.GetExtent(0.0);
-        //            BoundingCube ext2 = shell2.GetExtent(0.0);
-        //            BoundingCube ext = ext1;
+        //            BoundingBox ext1 = shell1.GetExtent(0.0);
+        //            BoundingBox ext2 = shell2.GetExtent(0.0);
+        //            BoundingBox ext = ext1;
         //            ext.MinMax(ext2);
         //            // in rare cases the extension isn't a good choice, faces shouldn't exactely reside on the sides of the small cubes of the octtree
         //            // so we modify the extension a little, to make this case extremely unlikely. The best solution would be to check, whether a vertex
@@ -1365,9 +1365,9 @@ namespace CADability
         //                edg.CheckConsistency();
         //            }
         //#endif
-        //            BoundingCube ext1 = shell1.GetExtent(0.0);
-        //            BoundingCube ext2 = shell2.GetExtent(0.0);
-        //            BoundingCube ext = ext1;
+        //            BoundingBox ext1 = shell1.GetExtent(0.0);
+        //            BoundingBox ext2 = shell2.GetExtent(0.0);
+        //            BoundingBox ext = ext1;
         //            ext.MinMax(ext2);
         //            // in rare cases the extension isn't a good choice, faces shouldn't exactely reside on the sides of the small cubes of the octtree
         //            // so we modify the extension a little, to make this case extremely unlikely. The best solution would be to check, whether a vertex
@@ -1493,7 +1493,7 @@ namespace CADability
         public static Solid[] SplitSolidByPlane(Solid solidToSplit, Plane splitBy)
         {
             Shell shellToSplit = solidToSplit.Shells[0];
-            BoundingCube ext = shellToSplit.GetExtent(0.0);
+            BoundingBox ext = shellToSplit.GetExtent(0.0);
             GeoPoint2D cnt2d = splitBy.Project(ext.GetCenter());
             BoundingRect br = new BoundingRect(cnt2d, 2 * ext.DiagonalLength, 2 * ext.DiagonalLength);
             Face fcpl = Face.MakeFace(new PlaneSurface(splitBy), br);
@@ -1595,9 +1595,9 @@ namespace CADability
                 edg.CheckConsistency();
             }
 #endif
-            BoundingCube ext1 = shell1.GetExtent(0.0);
-            BoundingCube ext2 = shell2.GetExtent(0.0);
-            BoundingCube ext = ext1;
+            BoundingBox ext1 = shell1.GetExtent(0.0);
+            BoundingBox ext2 = shell2.GetExtent(0.0);
+            BoundingBox ext = ext1;
             ext.MinMax(ext2);
             precision = ext.Size * 1e-6; // a meassure to decide when points are close egneough to consider them as identical
             // in rare cases the extension isn't a good choice, faces shouldn't exactely reside on the sides of the small cubes of the octtree
@@ -1694,8 +1694,17 @@ namespace CADability
                             else secondaryCurve2D = secondaryCurve2D.GetModified(firstToSecond.GetInverse());
                             // the secsecondaryCurve2D is always correct oriented, we don't need to apply "forward" here
                             SurfaceHelper.AdjustPeriodic(mainFace.Surface, mainFace.Domain, secondaryCurve2D);
-                            Edge overlappingEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), forward,
-                                mainFace, secondaryCurve2D, !forward);
+                            //Edge overlappingEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), forward,
+                            //    mainFace, secondaryCurve2D, !forward);
+                            ICurve c3d = edge.Curve3D.Clone();
+                            ICurve2D c2d1 = oppositeFace.Surface.GetProjectedCurve(c3d, 0.0);
+                            if (!forward) c2d1.Reverse();
+                            SurfaceHelper.AdjustPeriodic(oppositeFace.Surface, oppositeFace.Domain, c2d1);
+                            ICurve2D c2d2 = mainFace.Surface.GetProjectedCurve(c3d, 0.0);
+                            if (forward) c2d2.Reverse();
+                            SurfaceHelper.AdjustPeriodic(mainFace.Surface, mainFace.Domain, c2d2);
+                            Edge overlappingEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, c2d1, forward,
+                                mainFace, c2d2, !forward);
                             overlappingEdge.UseVertices(edge.Vertex1, edge.Vertex2);
                             if (!faceToIntersectionEdges.ContainsKey(oppositeFace)) faceToIntersectionEdges[oppositeFace] = new HashSet<Edge>();
                             faceToIntersectionEdges[oppositeFace].Add(overlappingEdge);
@@ -1799,7 +1808,7 @@ namespace CADability
         public static (Shell[] upperPart, Shell[] lowerPart) SplitByPlane(Shell shell, Plane pln)
         {
             Shell shellToSplit = shell;
-            BoundingCube ext = shellToSplit.GetExtent(0.0);
+            BoundingBox ext = shellToSplit.GetExtent(0.0);
             GeoPoint2D cnt2d = pln.Project(ext.GetCenter());
             BoundingRect br = new BoundingRect(cnt2d, 2 * ext.DiagonalLength, 2 * ext.DiagonalLength);
             Face fcpl = Face.MakeFace(new PlaneSurface(pln), br);
@@ -3764,7 +3773,7 @@ namespace CADability
         /// <returns></returns>
         private bool TryFixMissingFaces(Shell shell)
         {
-            BoundingCube ext = shell1.GetExtent(0.0);
+            BoundingBox ext = shell1.GetExtent(0.0);
             ext.MinMax(shell2.GetExtent(0.0));
             // add all faces from the original shells to an octtree
             OctTree<Face> originalFaces = new OctTree<Face>(ext, ext.Size * 1e-6);

@@ -1227,7 +1227,7 @@ namespace ShapeIt
                 GeoPoint dbgp = sweptCircle.PointAt(new GeoPoint2D(0.3, 1.5));
                 GeoPoint2D dbg2d = sweptCircle.PositionOf(dbgp);
                 Face dbgfc = Face.MakeFace(sweptCircle, SimpleShape.MakeCircle(new GeoPoint2D(0.5, Math.PI), 0.5));
-                dbgfc.GetTriangulation(0.01, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingCube triangleExtent);
+                dbgfc.GetTriangulation(0.01, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingBox triangleExtent);
                 GeoObjectList dbgtr = new GeoObjectList();
                 for (int i = 0; i < triangleIndex.Length; i += 3)
                 {

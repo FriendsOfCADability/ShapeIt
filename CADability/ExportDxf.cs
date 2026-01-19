@@ -258,7 +258,7 @@ namespace CADability.DXF
                     }
                 }
                 {
-                    face.GetTriangulation(triangulationPrecision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingCube triangleExtent);
+                    face.GetTriangulation(triangulationPrecision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingBox triangleExtent);
                     int[][] indices = new int[triangleIndex.Length / 3][];
                     for (int i = 0; i < triangleIndex.Length - 2; i += 3)
                     {   // it is strange, but the indices must be +1
@@ -292,7 +292,7 @@ namespace CADability.DXF
                     }
                 }
                 {
-                    face.GetTriangulation(triangulationPrecision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingCube triangleExtent);
+                    face.GetTriangulation(triangulationPrecision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingBox triangleExtent);
                     short[][] indices = new short[triangleIndex.Length / 3][];
                     for (int i = 0; i < triangleIndex.Length - 2; i += 3)
                     {   // it is strange, but the indices must be +1
@@ -316,7 +316,7 @@ namespace CADability.DXF
                 mesh[face.ColorDef.Color.ToArgb()] = mc = (new List<Vector3>(), new List<short[]>());
             }
             short offset = (short)(mc.vertices.Count + 1);
-            face.GetTriangulation(triangulationPrecision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingCube triangleExtent);
+            face.GetTriangulation(triangulationPrecision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingBox triangleExtent);
             short[][] indices = new short[triangleIndex.Length / 3][];
             for (int i = 0; i < triangleIndex.Length - 2; i += 3)
             {   // it is strange, but the indices must be +1

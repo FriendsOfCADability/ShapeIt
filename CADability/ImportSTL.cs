@@ -71,7 +71,7 @@ namespace CADability
             {
                 tr = GetNextTriangle();
                 if (tr == null) break;
-                if (verticesOctTree == null) verticesOctTree = new OctTree<Vertex>(new BoundingCube(tr.p1, tr.p2, tr.p3), 1e-6);
+                if (verticesOctTree == null) verticesOctTree = new OctTree<Vertex>(new BoundingBox(tr.p1, tr.p2, tr.p3), 1e-6);
                 try
                 {
                     PlaneSurface ps = new PlaneSurface(tr.p1, tr.p2, tr.p3);
@@ -164,7 +164,7 @@ namespace CADability
             {
                 tr = GetNextTriangle();
                 if (tr == null) break;
-                if (verticesOctTree == null) verticesOctTree = new OctTree<Vertex>(new BoundingCube(tr.p1, tr.p2, tr.p3), 1e-6);
+                if (verticesOctTree == null) verticesOctTree = new OctTree<Vertex>(new BoundingBox(tr.p1, tr.p2, tr.p3), 1e-6);
                 try
                 {
                     PlaneSurface ps = new PlaneSurface(tr.p1, tr.p2, tr.p3);
