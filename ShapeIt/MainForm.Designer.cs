@@ -1,4 +1,5 @@
-﻿namespace ShapeIt
+﻿#if !AVALONIA
+namespace ShapeIt
 {
     partial class MainForm
     {
@@ -37,4 +38,4 @@
         #endregion
     }
 }
-
+#endif
