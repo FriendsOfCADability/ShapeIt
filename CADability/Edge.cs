@@ -823,7 +823,7 @@ namespace CADability
         {
             hashCode = hashCodeCounter++; // 
 #if DEBUG
-            if (hashCode == 580)
+            if (hashCode == 623)
             {
             }
 #endif
@@ -1907,24 +1907,25 @@ namespace CADability
                     GeoPoint2D uv1e = Vertex2.GetPositionOnFace(PrimaryFace);
                     GeoPoint2D uv2s = Vertex1.GetPositionOnFace(SecondaryFace);
                     GeoPoint2D uv2e = Vertex2.GetPositionOnFace(SecondaryFace);
-                    GeoVector n1s = PrimaryFace.Surface.GetNormal(uv1s);
-                    GeoVector n1e = PrimaryFace.Surface.GetNormal(uv1e);
-                    GeoVector n2s = SecondaryFace.Surface.GetNormal(uv2s);
-                    GeoVector n2e = SecondaryFace.Surface.GetNormal(uv2e);
+                    //GeoVector n1s = PrimaryFace.Surface.GetNormal(uv1s);
+                    //GeoVector n1e = PrimaryFace.Surface.GetNormal(uv1e);
+                    //GeoVector n2s = SecondaryFace.Surface.GetNormal(uv2s);
+                    //GeoVector n2e = SecondaryFace.Surface.GetNormal(uv2e);
                     primaryFace.Surface.SetBounds(bounds1);
                     secondaryFace.Surface.SetBounds(bounds2); // these bounds were not set under certain circumstances
-                    if ((new Angle(n1s, n2s)).Radian < 0.01 && (new Angle(n1e, n2e)).Radian < 0.01) // the condition was "||", but we get along with curves that are tangential at one end
-                    {   // surfaces are tangential, this edge.curve3d cannot remain a InterpolatedDualSurfaceCurve
-                        curve3d = (curve3d as InterpolatedDualSurfaceCurve).ToBSpline(0.0);
-                        curveOnPrimaryFace = PrimaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
-                        SurfaceHelper.AdjustPeriodic(PrimaryFace.Surface, bounds1, curveOnPrimaryFace);
-                        if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
-                        curveOnSecondaryFace = SecondaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
-                        SurfaceHelper.AdjustPeriodic(SecondaryFace.Surface, bounds2, curveOnSecondaryFace);
-                        if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
-                    }
-                    else
-                    {
+                    // now we can deal with tangential DualSurfaceCurves
+                    //if ((new Angle(n1s, n2s)).Radian < 0.01 && (new Angle(n1e, n2e)).Radian < 0.01) // the condition was "||", but we get along with curves that are tangential at one end
+                    //{   // surfaces are tangential, this edge.curve3d cannot remain a InterpolatedDualSurfaceCurve
+                    //    curve3d = (curve3d as InterpolatedDualSurfaceCurve).ToBSpline(0.0);
+                    //    curveOnPrimaryFace = PrimaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
+                    //    SurfaceHelper.AdjustPeriodic(PrimaryFace.Surface, bounds1, curveOnPrimaryFace);
+                    //    if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
+                    //    curveOnSecondaryFace = SecondaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
+                    //    SurfaceHelper.AdjustPeriodic(SecondaryFace.Surface, bounds2, curveOnSecondaryFace);
+                    //    if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
+                    //}
+                    //else
+                    //{
                         dsc = new InterpolatedDualSurfaceCurve(primaryFace.Surface, bounds1, secondaryFace.Surface, bounds2, new List<GeoPoint>(dsc.BasePoints),null,null,dsc.IsTangential);
                         curveOnPrimaryFace = dsc.CurveOnSurface1;
                         if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
@@ -1936,7 +1937,7 @@ namespace CADability
 #endif
                         return;
 
-                    }
+                    //}
                 }
                 else
                 {
@@ -3315,7 +3316,7 @@ namespace CADability
 
         internal static List<Vertex> RecalcVertices(IEnumerable<Edge> edges)
         {
-            BoundingBox ext = BoundingBox.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
             List<Vertex> allVertices = new List<Vertex>();
             foreach (Edge edg in edges)
             {

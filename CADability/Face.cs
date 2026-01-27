@@ -235,7 +235,7 @@ namespace CADability.GeoObject
             lockTriangulationRecalc = new object();
             lockTriangulationData = new object();
             hashCode = hashCodeCounter++;
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
             if (Constructed != null) Constructed(this);
 #if DEBUG
             if (hashCode == 6)
@@ -315,7 +315,7 @@ namespace CADability.GeoObject
                     surface = surface.Clone();
                     surface.ReverseOrientation(); // 2d modification is not relevant here
                 }
-                BoundingBox loopExtend = BoundingBox.EmptyBoundingCube;
+                BoundingBox loopExtend = BoundingBox.EmptyBoundingBox;
                 for (int i = loops.Count - 1; i >= 0; --i)
                 {
                     if (loops[i].Count == 1 && loops[i][0].curve == null && loops[i][0].vertex1 == loops[i][0].vertex1)
@@ -536,7 +536,7 @@ namespace CADability.GeoObject
                 // self intersecting loop. Of course a loop cannot intersect itself, but in some files they do (83855_elp11b.stp)
                 // We try here to remove smaller parts
                 double vprec = Math.Min(precision, minCurveLength / 10.0);
-                BoundingBox vertexExtent = BoundingBox.EmptyBoundingCube;
+                BoundingBox vertexExtent = BoundingBox.EmptyBoundingBox;
                 Set<Vertex> allVertices = new Set<Vertex>();
                 for (int i = 0; i < loops.Count; i++)
                 {
@@ -2887,7 +2887,7 @@ namespace CADability.GeoObject
                                         Edge[] replacementEdgesA = replacementEdges.ToArray();
                                         if (!SortEdges(onOtherFace.PrimaryFace, onOtherFace.StartVertex(onOtherFace.PrimaryFace), onOtherFace.EndVertex(onOtherFace.PrimaryFace), replacementEdgesA))
                                         {   // maybe we have a imprecision with the vertices
-                                            BoundingBox vext = BoundingBox.EmptyBoundingCube;
+                                            BoundingBox vext = BoundingBox.EmptyBoundingBox;
                                             foreach (Vertex vertex in allVertices)
                                             {
                                                 vext.MinMax(vertex.Position);
@@ -3475,7 +3475,7 @@ namespace CADability.GeoObject
         protected virtual void SetSurface(ISurface surface)
         {   // nur intern zu verwenden
             this.surface = surface;
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
         }
         protected virtual void SetArea(SimpleShape outline)
         {
@@ -3576,7 +3576,7 @@ namespace CADability.GeoObject
             {
                 e.Owner = this;
             }
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
             orientedOutward = true;
             if (sortEdges)
             {
@@ -5330,7 +5330,7 @@ namespace CADability.GeoObject
             {
                 surface = value;
                 if (surface is ISurfaceImpl si && outline != null) si.usedArea = Domain;
-                extent = BoundingBox.EmptyBoundingCube;
+                extent = BoundingBox.EmptyBoundingBox;
             }
         }
         internal ISurface internalSurface
@@ -5399,7 +5399,7 @@ namespace CADability.GeoObject
             // bei einem Modify werden ja nicht die Kurven sondern nur die surface verändert
             // so muss auch nur das rückgängig gemacht werden
             this.surface.CopyData(copyface.surface);
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
             ClearTriangulation();
         }
         /// <summary>
@@ -5868,7 +5868,7 @@ namespace CADability.GeoObject
             BoundingRect ext = (surface as ISurfaceImpl).usedArea;
             surface = surface.GetModified(m);
             (surface as ISurfaceImpl).usedArea = ext; // needed for BoxedSurface
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
         }
         public void ModifySurface(ModOp m)
         {
@@ -5895,7 +5895,7 @@ namespace CADability.GeoObject
                         {
                             trianglePoint[i] = m * trianglePoint[i];
                         }
-                        triangleExtent = BoundingBox.EmptyBoundingCube;
+                        triangleExtent = BoundingBox.EmptyBoundingBox;
                     }
                 }
             }
@@ -5903,7 +5903,7 @@ namespace CADability.GeoObject
             int tc1 = System.Environment.TickCount;
             //System.Diagnostics.Trace.WriteLine("ModifySurface: " + this.hashCode.ToString() + ", " + (tc1 - tc0).ToString());
 #endif
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.Modify (ModOp)"/>
@@ -5929,7 +5929,7 @@ namespace CADability.GeoObject
                 //    vtx.Modify(m);
                 //}
                 vertices = null;
-                extent = BoundingBox.EmptyBoundingCube;
+                extent = BoundingBox.EmptyBoundingBox;
             }
         }
         /// <summary>
@@ -5995,7 +5995,7 @@ namespace CADability.GeoObject
             {
                 // we need to check both the outline and the holes: a (non periodic) cylinder may have two cricles as edges
                 // we must consider both edges (one of which is a hole)
-                extent = BoundingBox.EmptyBoundingCube;
+                extent = BoundingBox.EmptyBoundingBox;
                 foreach (Edge edge in Edges)
                 {
                     if (edge.Curve3D != null)
@@ -6035,7 +6035,7 @@ namespace CADability.GeoObject
 
             BoundingBox IOctTreeInsertable.GetExtent(double precision)
             {
-                BoundingBox res = BoundingBox.EmptyBoundingCube;
+                BoundingBox res = BoundingBox.EmptyBoundingBox;
                 lock (thisFace.lockTriangulationData)
                 {
                     res.MinMax(thisFace.trianglePoint[thisFace.triangleIndex[Index]]);
@@ -6464,7 +6464,7 @@ namespace CADability.GeoObject
 #if DEBUG
                     DebuggerContainer dc3d = new DebuggerContainer();
                     DebuggerContainer dc2d = new DebuggerContainer();
-                    BoundingBox bc = BoundingBox.EmptyBoundingCube;
+                    BoundingBox bc = BoundingBox.EmptyBoundingBox;
                     for (int i = 0; i < trianglePoint.Length; i++)
                     {
                         bc.MinMax(trianglePoint[i]);
@@ -6557,7 +6557,7 @@ namespace CADability.GeoObject
                                 }
                             }
 #if DEBUG
-                            BoundingBox bc = BoundingBox.EmptyBoundingCube;
+                            BoundingBox bc = BoundingBox.EmptyBoundingBox;
                             for (int k = 0; k < tmpTriPoint.Length; k++)
                             {
                                 bc.MinMax(tmpTriPoint[k]);
@@ -6597,7 +6597,7 @@ namespace CADability.GeoObject
             catch (ApplicationException)
             {   // something went wrong with the triangulation. This should not happen and needs to be debugged and fixed
             }
-            triangleExtent = BoundingBox.EmptyBoundingCube; // needs to be recalculated
+            triangleExtent = BoundingBox.EmptyBoundingBox; // needs to be recalculated
         }
         /// <summary>
         /// Returns true, when the <paramref name="otherFace"/> has a geometrically equal surface
@@ -6878,7 +6878,7 @@ namespace CADability.GeoObject
                 int tc1 = System.Environment.TickCount - tc0;
                 // System.Diagnostics.Trace.WriteLine("Triangulierung: " + this.hashCode.ToString() + ", " + tc1.ToString());
 #if DEBUG
-                BoundingBox bc = BoundingBox.EmptyBoundingCube;
+                BoundingBox bc = BoundingBox.EmptyBoundingBox;
                 for (int i = 0; i < trianglePoint.Length; i++)
                 {
                     bc.MinMax(trianglePoint[i]);
@@ -8423,7 +8423,7 @@ namespace CADability.GeoObject
                 orientedOutward = true;
             }
             hashCode = hashCodeCounter++;
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
             lockTriangulationRecalc = new object();
             lockTriangulationData = new object();
         }
@@ -10807,7 +10807,7 @@ namespace CADability.GeoObject
             holes = lholes.ToArray();
             InvalidateArea();
             this.vertices = null;
-            this.extent = BoundingBox.EmptyBoundingCube;
+            this.extent = BoundingBox.EmptyBoundingBox;
             // this.ForceTriangulation(trianglePrecision);
             trianglePoint = null;
             SimpleShape ss = Area;
@@ -11209,8 +11209,8 @@ namespace CADability.GeoObject
                 translation = ModOp.Identity;
                 return false;
             }
-            BoundingBox ext1 = BoundingBox.EmptyBoundingCube;
-            BoundingBox ext2 = BoundingBox.EmptyBoundingCube;
+            BoundingBox ext1 = BoundingBox.EmptyBoundingBox;
+            BoundingBox ext2 = BoundingBox.EmptyBoundingBox;
             for (int i = 0; i < faces1.Length; i++)
             {
                 ext1.MinMax(faces1[i].GetExtent(precision / 2.0));

@@ -85,6 +85,8 @@ namespace CADability
         Dictionary<Face, HashSet<Face>> faceToCommonFaces; // faces which have overlapping common parts on them
         Dictionary<Edge, List<Vertex>> edgesToSplit;
         HashSet<(Face face, Edge edge)> tangentialEdges = new HashSet<(Face, Edge)>(); // these edges are tangential to a face on the other shell
+        Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace;
+        public Dictionary<Edge, HashSet<Face>> edgeEndsInFace;
         HashSet<Edge> edgesNotToUse; // these edges are identical to intersection edges, but are original edges. They must not be used when collecting faces
         HashSet<IntersectionVertex> intersectionVertices; // die Mange aller gefundenen Schnittpunkte (mit Rückverweis zu Kante und face)
         Dictionary<DoubleFaceKey, List<IntersectionVertex>> facesToIntersectionVertices; // Faces mit den zugehörigen Schnittpunkt
@@ -110,7 +112,7 @@ namespace CADability
                 bool found = false;
                 foreach (Face face in leaf.list)
                 {
-                    if (face.GetHashCode() == 700 || face.GetHashCode() == 701 || face.GetHashCode() == 672) { found = true; }
+                    if (face.GetHashCode() == 1110 || face.GetHashCode() == 1900) { found = true; }
                 }
                 if (found)
                 {
@@ -215,32 +217,63 @@ namespace CADability
 
             bool tangentialIntersectionFound = false;
             HashSet<Vertex> intersectionVertices = new HashSet<Vertex>();
+            List<ICurve> knownIntersectionCurves = null;
+            List<bool> knownIntersectionCurveDirections = null;
             foreach (var (fca, fcb) in new[] { (fc1, fc2), (fc2, fc1) })
             {
                 foreach (Edge edge in fcb.Edges)
                 {
                     if (edge.Curve3D != null) // not a pole
                     {
-                        IEnumerable<Vertex> vtxs = GetFaceEdgeIntersection(fca, edge, out bool curveIsInSurface);
-                        if (curveIsInSurface)
-                        {
-                            List<ICurve> curveParts = new List<ICurve>();
-                            var list = vtxs as IList<Vertex> ?? vtxs.ToList();
-                            for (int i = 0; i < list.Count - 1; i += 2)
+                        if (edgeLiesInFace != null && edgeLiesInFace.TryGetValue(edge, out (Face fc, bool fw) f) && f.fc == fca)
+                        {   // this is a tangential intersection provided by the user of this BoolenOperation
+                            // the orientation of the curve is also provided (which is difficult to calculate
+                            // because it is tangential)
+                            // We don't have to clip the curve of this edge with the face, because the intersection vertices
+                            // are calculated by other edge/face intersections
+                            if (knownIntersectionCurves == null)
                             {
-                                var a = list[i];
-                                var b = list[i + 1];
-                                ICurve part = edge.Curve3D.Clone();
-                                part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(b.Position));
-                                curveParts.Add(part);
+                                knownIntersectionCurves = [];
+                                knownIntersectionCurveDirections = [];
                             }
-                            if (curveParts.Count > 0 && vtxs.Count() > 1)
+                            knownIntersectionCurves.Add(edge.Curve3D.Clone());
+                            knownIntersectionCurveDirections.Add((fca == fc1) ? f.fw : !f.fw);
+                        }
+                        else if (edgeEndsInFace!=null && edgeEndsInFace.TryGetValue(edge, out var faces) && faces.Contains(fca))
+                        {   // either the startvertex or the endvertex of edge lies on fca
+                            // but here we don't know the orientation of the curve
+                            if (fca.Surface.GetDistance(edge.Vertex1.Position) < Precision.eps)
                             {
-                                CreateIntersectionEdges(fca, fcb, vtxs.ToHashSet(), curveParts.ToList());
-                                tangentialIntersectionFound = true;
+                                intersectionVertices.Add(edge.Vertex1);
+                            }
+                            else if (fca.Surface.GetDistance(edge.Vertex2.Position) < Precision.eps)
+                            {
+                                intersectionVertices.Add(edge.Vertex2);
                             }
                         }
-                        else intersectionVertices.UnionWith(vtxs);
+                        else
+                        {
+                            IEnumerable<Vertex> vtxs = GetFaceEdgeIntersection(fca, edge, out bool curveIsInSurface);
+                            if (curveIsInSurface)
+                            {   // why not accumulate the vertices and create the intersection edges later?
+                                List<ICurve> curveParts = new List<ICurve>();
+                                var list = vtxs as IList<Vertex> ?? vtxs.ToList();
+                                for (int i = 0; i < list.Count - 1; i += 2)
+                                {
+                                    var a = list[i];
+                                    var b = list[i + 1];
+                                    ICurve part = edge.Curve3D.Clone();
+                                    part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(b.Position));
+                                    curveParts.Add(part);
+                                }
+                                if (curveParts.Count > 0 && vtxs.Count() > 1)
+                                {
+                                    CreateIntersectionEdges(fca, fcb, vtxs.ToHashSet(), curveParts.ToList());
+                                    tangentialIntersectionFound = true;
+                                }
+                            }
+                            else intersectionVertices.UnionWith(vtxs);
+                        }
                     }
                 }
             }
@@ -276,11 +309,11 @@ namespace CADability
             }
             if (intersectionVertices.Count > 1)
             {
-                CreateIntersectionEdges(fc1, fc2, intersectionVertices);
+                CreateIntersectionEdges(fc1, fc2, intersectionVertices, knownIntersectionCurves, knownIntersectionCurveDirections);
             }
         }
 
-        private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices, IList<ICurve> alreadyCalculated = null)
+        private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices, IList<ICurve> alreadyCalculated = null, IList<bool> orientation = null)
         {
 #if DEBUG
             // here you can see the two faces and the intersection vertices for this calculation
@@ -310,33 +343,36 @@ namespace CADability
                 from j in Enumerable.Range(i + 1, list.Count - i - 1)
                 select (list[i], list[j]);
 
-            foreach (var (a, b) in pairs)
-            {   // find already existing edges, which can serve as intersection edges
-                // could there be both already existing edges and new intersection edges between different two vertices?
-                // the following seems strange: it is asymmetric in fc1 and fc2
-                foreach (Edge e1 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e)))
-                    foreach (Edge e2 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e))) // there were edges, which have primaryFace==fc1 but don't belong to fc1.Edges
+            if (alreadyCalculated == null || alreadyCalculated.Count == 0)
+            {
+                foreach (var (a, b) in pairs)
+                {   // find already existing edges, which can serve as intersection edges
+                    // could there be both already existing edges and new intersection edges between different two vertices?
+                    // the following seems strange: it is asymmetric in fc1 and fc2
+                    foreach (Edge e1 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e)))
+                        foreach (Edge e2 in Vertex.ConnectingEdges(a, b).Where(e => fc1.Edges.Contains(e))) // there were edges, which have primaryFace==fc1 but don't belong to fc1.Edges
+                        {
+                            if (e1 != e2 && e1.Curve3D.SameGeometry(e2.Curve3D, this.precision))
+                            {
+                                // already an intersection edge
+                                if (alreadyCalculated == null) alreadyCalculated = [];
+                                if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
+                            }
+                        }
+                }
+                foreach (var (a, b) in pairs)
+                {   // find already existing edges, which can serve as intersection edges
+                    // here it is an edge of fc1 which lies on surface of fc2 or vice versa
+                    foreach (Edge e1 in Vertex.ConnectingEdges(a, b))
                     {
-                        if (e1 != e2 && e1.Curve3D.SameGeometry(e2.Curve3D, this.precision))
+
+                        if ((fc1.Edges.Contains(e1) && fc2.Surface.IsCurveOnSurface(e1.Curve3D))
+                            || (fc2.Edges.Contains(e1) && fc1.Surface.IsCurveOnSurface(e1.Curve3D)))
                         {
                             // already an intersection edge
                             if (alreadyCalculated == null) alreadyCalculated = [];
                             if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
                         }
-                    }
-            }
-            foreach (var (a, b) in pairs)
-            {   // find already existing edges, which can serve as intersection edges
-                // here it is an edge of fc1 which lies on surface of fc2 or vice versa
-                foreach (Edge e1 in Vertex.ConnectingEdges(a, b))
-                {
-
-                    if ((fc1.Edges.Contains(e1) && fc2.Surface.IsCurveOnSurface(e1.Curve3D))
-                        || (fc2.Edges.Contains(e1) && fc1.Surface.IsCurveOnSurface(e1.Curve3D)))
-                    {
-                        // already an intersection edge
-                        if (alreadyCalculated == null) alreadyCalculated = [];
-                        if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
                     }
                 }
             }
@@ -359,35 +395,6 @@ namespace CADability
             GeoPoint2D[] paramsuvsurf1 = null; // the uv parameters of the intersection points on surface1 [pointindex]
             GeoPoint2D[] paramsuvsurf2 = null; // the uv parameters of the intersection points on surface2 [pointindex]
 
-            //// maybe this intersection is a part of a tangential edge
-            //if ((tangentialEdges.TryGetValue(fc1, out Edge tangentialEdge) && points.All(p => tangentialEdge.Curve3D.DistanceTo(p) < Precision.eps)) ||
-            //    (tangentialEdges.TryGetValue(fc2, out tangentialEdge) && points.All(p => tangentialEdge.Curve3D.DistanceTo(p) < Precision.eps)))
-            //{   // there is a tangential edge, provided by the caller, and all intersection points are on this edge. So this is already the intersection curve.
-            //    // We will not need to compute the intersection with Surfaces.Intersect
-            //    // map the points onto the tangential edge
-            //    List<double> positions = points.ConvertAll(p => tangentialEdge.Curve3D.PositionOf(p));
-            //    c3ds = new ICurve[] { tangentialEdge.Curve3D.Clone() }; // a single "intersection" curve
-            //    crvsOnSurface1 = new ICurve2D[] { fc1.Surface.GetProjectedCurve(c3ds[0], 0.0) }; // the 2d curve on face1
-            //    crvsOnSurface2 = new ICurve2D[] { fc2.Surface.GetProjectedCurve(c3ds[0], 0.0) }; // the 2d curve on face2
-            //    params3d = new double[1, points.Count]; // the parameters on the tangential edge (often 0 and 1)
-            //    params2dFace1 = new double[1, points.Count]; // the parameters on the 2d curve on face1
-            //    params2dFace2 = new double[1, points.Count]; // the parameters on the 2d curve on face2
-            //    paramsuvsurf1 = new GeoPoint2D[points.Count]; // the uv parameters on surface1
-            //    paramsuvsurf2 = new GeoPoint2D[points.Count]; // the uv parameters on surface2
-            //    for (int i = 0; i < positions.Count; i++) // fill the parameter arrays
-            //    {
-            //        params3d[0, i] = positions[i];
-            //        paramsuvsurf1[i] = fc1.Surface.PositionOf(points[i]);
-            //        paramsuvsurf2[i] = fc2.Surface.PositionOf(points[i]);
-            //        double dbgdist = fc1.Surface.PointAt(paramsuvsurf1[i]) | fc2.Surface.PointAt(paramsuvsurf2[i]);
-            //        double dbgdist1 = fc1.Surface.PointAt(paramsuvsurf1[i]) | points[i];
-            //        double dbgdist2 = fc2.Surface.PointAt(paramsuvsurf2[i]) | points[i];
-            //        SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref paramsuvsurf1[i]);
-            //        SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref paramsuvsurf2[i]);
-            //        params2dFace1[0, i] = crvsOnSurface1[0].PositionOf(paramsuvsurf1[i]);
-            //        params2dFace2[0, i] = crvsOnSurface2[0].PositionOf(paramsuvsurf2[i]);
-            //    }
-            //}
             if (alreadyCalculated != null)
             {   // the intersection curves are already calculated. This is the case, when faces intersect with no egdes involved
                 c3ds = new ICurve[alreadyCalculated.Count];
@@ -581,123 +588,130 @@ namespace CADability
                         // But if the surfaces are tangential in a point the cross product of the normals will be 0. So we take the better one
                         // if both are bad (e.g. two same diameter cylinders), we take a point in the middle
                         bool dirs1;
-                        GeoVector normalsCrossedStart = fc1.Surface.GetNormal(paramsuvsurf1[j1]).Normalized ^ fc2.Surface.GetNormal(paramsuvsurf2[j1]).Normalized;
-                        GeoVector normalsCrossedEnd = fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized ^ fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized;
-#if DEBUG
-                        Line l1 = Line.MakeLine(fc1.Surface.PointAt(paramsuvsurf1[j2]), fc1.Surface.PointAt(paramsuvsurf1[j2]) + 10 * fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized);
-                        Line l2 = Line.MakeLine(fc2.Surface.PointAt(paramsuvsurf2[j2]), fc2.Surface.PointAt(paramsuvsurf2[j2]) + 10 * fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized);
-#endif
-                        if (normalsCrossedStart.Length < 100 * Precision.eps && normalsCrossedEnd.Length < 100 * Precision.eps)
+                        if (orientation != null)
                         {
-                            // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
-                            GeoPoint m = tr.PointAt(0.5);
-                            GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m));
-                            if (normalsCrossedMiddle.Length < 100 * Precision.eps)
-                            {
-                                // it is also tangential at the midpoint of the intersection curve
-                                // this is very likely an existing edge of either fc1 or fc2. Lets find it.
-                                Edge edgeFound = null;
-                                Face faceWithEdge = null;
-                                Face otherFace = null;
-                                foreach (Edge edg in fc1.AllEdges)
-                                {
-                                    if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, tr.EndPoint)) ||
-                                        (Precision.IsEqual(edg.Vertex2.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex1.Position, tr.EndPoint))))
-                                    {
-                                        if (edg.Curve3D != null && edg.Curve3D.DistanceTo(tr.PointAt(0.5)) < Precision.eps)
-                                        {
-                                            edgeFound = edg;
-                                            faceWithEdge = fc1;
-                                            otherFace = fc2;
-                                            break;
-                                        }
-                                    }
-                                }
-                                foreach (Edge edg in fc2.AllEdges)
-                                {
-                                    if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, tr.EndPoint)) ||
-                                        (Precision.IsEqual(edg.Vertex2.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex1.Position, tr.EndPoint))))
-                                    {
-                                        if (edg.Curve3D != null && edg.Curve3D.DistanceTo(tr.PointAt(0.5)) < Precision.eps)
-                                        {
-                                            edgeFound = edg;
-                                            faceWithEdge = fc2;
-                                            otherFace = fc1;
-                                            break;
-                                        }
-                                    }
-                                }
-                                //TODO: not implemented yet:
-                                // if we arrive here with edgeFound==false, there is a tangential intersection which is not an edge on one of the two faces. Now we have two cases: it is either
-                                // a face touching the other face (like a cylinder touches a plane, or it is a real intersection, where one face goes through the other face 
-                                // like an S-curve touches and crosses a line in the middle.
-                                //we try to find two points close to the middlepoint of the intersection curve where we get stable normals which are not parallel
-                                if (normalsCrossedMiddle.Length < 100 * Precision.eps)
-                                {
-                                    GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
-                                    SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvf1);
-                                    GeoPoint2D uvf2 = fc2.Surface.PositionOf(m);
-                                    SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvf2);
-                                    fc1.Surface.DerivationAt(uvf1, out GeoPoint pf1, out GeoVector duf1, out GeoVector dvf1);
-                                    fc2.Surface.DerivationAt(uvf2, out GeoPoint pf2, out GeoVector duf2, out GeoVector dvf2);
-                                    GeoVector across = ((duf1 ^ dvf1) + (duf2 ^ dvf2)) ^ tr.DirectionAt(0.5); // the direction perpendicular to the combined normals and the curve direction
-                                    double stepSize = Math.Min(fc1.GetExtent(0.0).Size, fc2.GetExtent(0.0).Size) * 1e-2;
-                                    Ellipse toTestWith = Ellipse.Construct();
-                                    Plane plane = new Plane(m, tr.DirectionAt(0.5));
-                                    for (int t = 0; t < 10; ++t) // try 10 times
-                                    {
-                                        toTestWith.SetCirclePlaneCenterRadius(plane, m, stepSize);
-                                        fc1.Surface.Intersect(toTestWith, fc1.Domain, out GeoPoint[] ipselli1, out GeoPoint2D[] uvOnFace1, out double[] _);
-                                        fc2.Surface.Intersect(toTestWith, fc2.Domain, out GeoPoint[] ipselli2, out GeoPoint2D[] uvOnFace2, out double[] _);
-                                        for (int k = 0; k < uvOnFace1.Length; ++k) SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvOnFace1[k]);
-                                        for (int k = 0; k < uvOnFace2.Length; ++k) SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvOnFace2[k]);
-                                        // we need a pair of points on the circle/faces intersection which is inside the domains of the faces
-                                        bool pointsFound = false;
-                                        for (int k = 0; k < ipselli1.Length; k++)
-                                        {
-                                            if (fc1.Domain.Contains(uvOnFace1[k]))
-                                            {
-                                                for (int l = 0; l < ipselli2.Length; ++l)
-                                                {
-                                                    if (fc2.Domain.Contains(uvOnFace2[l]))
-                                                    {
-                                                        if ((ipselli1[k] | ipselli2[l]) < 2 * stepSize)
-                                                        {
-                                                            pointsFound = true;
-                                                            // a pair of points, not on opposite sides, which is in the domians
-                                                            GeoVector nn1 = fc1.Surface.GetNormal(uvOnFace1[k]).Normalized;
-                                                            GeoVector nn2 = fc2.Surface.GetNormal(uvOnFace2[l]).Normalized;
-                                                            Line ldbg1 = Line.TwoPoints(fc1.Surface.PointAt(uvOnFace1[k]), fc1.Surface.PointAt(uvOnFace1[k]) + 10 * nn1);
-                                                            Line ldbg2 = Line.TwoPoints(fc2.Surface.PointAt(uvOnFace2[l]), fc2.Surface.PointAt(uvOnFace2[l]) + 10 * nn2);
-                                                            normalsCrossedMiddle = nn1 ^ nn2;
-                                                            if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
-                                        }
-                                        if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
-                                        // when we arrive here we either didn't find a suitable pair of points, then the circle was too big
-                                        // or the normals are too close, then the circle was too small
-                                        if (pointsFound) stepSize *= 1.5; // make a bigger circle
-                                        else stepSize /= 4.0; // make a smaller circle
-                                    }
-
-                                }
-                                if (normalsCrossedMiddle.Length < 100 * Precision.eps) continue; // we didn't find a good pair of normals, so we cannot determine the direction of the edge
-                                // continue should not happen. If so, improve the algorithm above
-                            }
-                            dirs1 = (normalsCrossedMiddle * tr.DirectionAt(0.5)) > 0;
-                        }
-                        else if (normalsCrossedStart.Length > normalsCrossedEnd.Length)
-                        {
-                            dirs1 = (normalsCrossedStart * tr.StartDirection) > 0;
+                            dirs1 = !orientation[i];
                         }
                         else
                         {
-                            dirs1 = (normalsCrossedEnd * tr.EndDirection) > 0;
+                            GeoVector normalsCrossedStart = fc1.Surface.GetNormal(paramsuvsurf1[j1]).Normalized ^ fc2.Surface.GetNormal(paramsuvsurf2[j1]).Normalized;
+                            GeoVector normalsCrossedEnd = fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized ^ fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized;
+#if DEBUG
+                            Line l1 = Line.MakeLine(fc1.Surface.PointAt(paramsuvsurf1[j2]), fc1.Surface.PointAt(paramsuvsurf1[j2]) + 10 * fc1.Surface.GetNormal(paramsuvsurf1[j2]).Normalized);
+                            Line l2 = Line.MakeLine(fc2.Surface.PointAt(paramsuvsurf2[j2]), fc2.Surface.PointAt(paramsuvsurf2[j2]) + 10 * fc2.Surface.GetNormal(paramsuvsurf2[j2]).Normalized);
+#endif
+                            if (normalsCrossedStart.Length < 100 * Precision.eps && normalsCrossedEnd.Length < 100 * Precision.eps)
+                            {
+                                // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
+                                GeoPoint m = tr.PointAt(0.5);
+                                GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m));
+                                if (normalsCrossedMiddle.Length < 100 * Precision.eps)
+                                {
+                                    // it is also tangential at the midpoint of the intersection curve
+                                    // this is very likely an existing edge of either fc1 or fc2. Lets find it.
+                                    Edge edgeFound = null;
+                                    Face faceWithEdge = null;
+                                    Face otherFace = null;
+                                    foreach (Edge edg in fc1.AllEdges)
+                                    {
+                                        if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, tr.EndPoint)) ||
+                                            (Precision.IsEqual(edg.Vertex2.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex1.Position, tr.EndPoint))))
+                                        {
+                                            if (edg.Curve3D != null && edg.Curve3D.DistanceTo(tr.PointAt(0.5)) < Precision.eps)
+                                            {
+                                                edgeFound = edg;
+                                                faceWithEdge = fc1;
+                                                otherFace = fc2;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    foreach (Edge edg in fc2.AllEdges)
+                                    {
+                                        if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, tr.EndPoint)) ||
+                                            (Precision.IsEqual(edg.Vertex2.Position, tr.StartPoint) && Precision.IsEqual(edg.Vertex1.Position, tr.EndPoint))))
+                                        {
+                                            if (edg.Curve3D != null && edg.Curve3D.DistanceTo(tr.PointAt(0.5)) < Precision.eps)
+                                            {
+                                                edgeFound = edg;
+                                                faceWithEdge = fc2;
+                                                otherFace = fc1;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    //TODO: not implemented yet:
+                                    // if we arrive here with edgeFound==false, there is a tangential intersection which is not an edge on one of the two faces. Now we have two cases: it is either
+                                    // a face touching the other face (like a cylinder touches a plane, or it is a real intersection, where one face goes through the other face 
+                                    // like an S-curve touches and crosses a line in the middle.
+                                    //we try to find two points close to the middlepoint of the intersection curve where we get stable normals which are not parallel
+                                    if (normalsCrossedMiddle.Length < 100 * Precision.eps)
+                                    {
+                                        GeoPoint2D uvf1 = fc1.Surface.PositionOf(m);
+                                        SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvf1);
+                                        GeoPoint2D uvf2 = fc2.Surface.PositionOf(m);
+                                        SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvf2);
+                                        fc1.Surface.DerivationAt(uvf1, out GeoPoint pf1, out GeoVector duf1, out GeoVector dvf1);
+                                        fc2.Surface.DerivationAt(uvf2, out GeoPoint pf2, out GeoVector duf2, out GeoVector dvf2);
+                                        GeoVector across = ((duf1 ^ dvf1) + (duf2 ^ dvf2)) ^ tr.DirectionAt(0.5); // the direction perpendicular to the combined normals and the curve direction
+                                        double stepSize = Math.Min(fc1.GetExtent(0.0).Size, fc2.GetExtent(0.0).Size) * 1e-2;
+                                        Ellipse toTestWith = Ellipse.Construct();
+                                        Plane plane = new Plane(m, tr.DirectionAt(0.5));
+                                        for (int t = 0; t < 10; ++t) // try 10 times
+                                        {
+                                            toTestWith.SetCirclePlaneCenterRadius(plane, m, stepSize);
+                                            fc1.Surface.Intersect(toTestWith, fc1.Domain, out GeoPoint[] ipselli1, out GeoPoint2D[] uvOnFace1, out double[] _);
+                                            fc2.Surface.Intersect(toTestWith, fc2.Domain, out GeoPoint[] ipselli2, out GeoPoint2D[] uvOnFace2, out double[] _);
+                                            for (int k = 0; k < uvOnFace1.Length; ++k) SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uvOnFace1[k]);
+                                            for (int k = 0; k < uvOnFace2.Length; ++k) SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uvOnFace2[k]);
+                                            // we need a pair of points on the circle/faces intersection which is inside the domains of the faces
+                                            bool pointsFound = false;
+                                            for (int k = 0; k < ipselli1.Length; k++)
+                                            {
+                                                if (fc1.Domain.Contains(uvOnFace1[k]))
+                                                {
+                                                    for (int l = 0; l < ipselli2.Length; ++l)
+                                                    {
+                                                        if (fc2.Domain.Contains(uvOnFace2[l]))
+                                                        {
+                                                            if ((ipselli1[k] | ipselli2[l]) < 2 * stepSize)
+                                                            {
+                                                                pointsFound = true;
+                                                                // a pair of points, not on opposite sides, which is in the domians
+                                                                GeoVector nn1 = fc1.Surface.GetNormal(uvOnFace1[k]).Normalized;
+                                                                GeoVector nn2 = fc2.Surface.GetNormal(uvOnFace2[l]).Normalized;
+                                                                Line ldbg1 = Line.TwoPoints(fc1.Surface.PointAt(uvOnFace1[k]), fc1.Surface.PointAt(uvOnFace1[k]) + 10 * nn1);
+                                                                Line ldbg2 = Line.TwoPoints(fc2.Surface.PointAt(uvOnFace2[l]), fc2.Surface.PointAt(uvOnFace2[l]) + 10 * nn2);
+                                                                normalsCrossedMiddle = nn1 ^ nn2;
+                                                                if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
+                                            }
+                                            if (normalsCrossedMiddle.Length > 100 * Precision.eps) break;
+                                            // when we arrive here we either didn't find a suitable pair of points, then the circle was too big
+                                            // or the normals are too close, then the circle was too small
+                                            if (pointsFound) stepSize *= 1.5; // make a bigger circle
+                                            else stepSize /= 4.0; // make a smaller circle
+                                        }
 
+                                    }
+                                    if (normalsCrossedMiddle.Length < 100 * Precision.eps) continue; // we didn't find a good pair of normals, so we cannot determine the direction of the edge
+                                                                                                     // continue should not happen. If so, improve the algorithm above
+                                }
+                                dirs1 = (normalsCrossedMiddle * tr.DirectionAt(0.5)) > 0;
+                            }
+                            else if (normalsCrossedStart.Length > normalsCrossedEnd.Length)
+                            {
+                                dirs1 = (normalsCrossedStart * tr.StartDirection) > 0;
+                            }
+                            else
+                            {
+                                dirs1 = (normalsCrossedEnd * tr.EndDirection) > 0;
+
+                            }
                         }
                         // bei diesem Skalarprodukt von 2 Vektoren, die entweder die selbe oder die entgegengesetzte Richtung haben ist ">0" unkritisch
                         if (dirs1) con2.Reverse();
@@ -2715,6 +2729,9 @@ namespace CADability
         }
         public bool Unchanged => shellsAreUnchanged;
         public List<Face> UnusedFaces => unusedFaces;
+        public Dictionary<Face, Face> OriginalToClonedFaces => originalToClonedFaces;
+        public Dictionary<Face, List<Face>> SplittedFaces => splittedFaces; // Cloned face to splitted face
+
         /// <summary>
         /// Get all face pairs, which intersect each other
         /// </summary>
@@ -4576,6 +4593,41 @@ namespace CADability
                 }
             }
         }
+        public Dictionary<Edge, (Face face, bool forward)> EdgeLiesInFace
+        {
+            set
+            {
+                edgeLiesInFace = [];
+                foreach (var item in value)
+                {
+                    if (originalToClonedEdges.TryGetValue(item.Key, out Edge edg) &&
+                        originalToClonedFaces.TryGetValue(item.Value.face, out Face fce))
+                    {
+                        edgeLiesInFace[edg] = (fce, item.Value.forward);
+                    }
+                }
+            }
+        }
+        public Dictionary<Edge, HashSet<Face>> EdgeEndsInFace
+        {
+            set
+            {
+                edgeEndsInFace = [];
+                foreach (var item in value)
+                {
+                    if (originalToClonedEdges.TryGetValue(item.Key, out Edge edg))
+                    {
+                        HashSet<Face> fces = new HashSet<Face>();
+                        foreach (Face f in item.Value)
+                        {
+                            if (originalToClonedFaces.TryGetValue(f, out Face fc)) fces.Add(fc);
+                        }
+                        edgeEndsInFace[edg] = fces;
+                    }
+                }
+            }
+        }
+
         private void createNewEdges()
         {
             overlappingEdges = new Dictionary<DoubleFaceKey, HashSet<Edge>>();

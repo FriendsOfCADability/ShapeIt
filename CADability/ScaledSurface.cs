@@ -359,6 +359,8 @@ namespace CADability
         {
             return original.GetDistance(p);
         }
+        public bool MayIntersectSegment(GeoPoint a, GeoPoint b) { return true; }
+
         public bool IsExtruded(GeoVector direction)
         {
             return original.IsExtruded(direction);

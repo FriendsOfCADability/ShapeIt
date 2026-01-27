@@ -437,6 +437,13 @@ namespace CADability.GeoObject
             if (Precision.IsEqual(q + d / Normal.Length * Normal, p)) return d;
             else return -d;
         }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            GeoPoint la = Plane.ToLocal(a);
+            GeoPoint lb = Plane.ToLocal(b);
+            return Math.Sign(la.z) != Math.Sign(lb.z);
+        }
+
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingBox, out GeoPoint2D)"/>
         /// </summary>

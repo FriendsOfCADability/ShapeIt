@@ -1,323 +1,323 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
-	<language id="deutsch" default="true">deutsch</language>
-	<data name="Modelling.Properties">
-		<label>Modellier Modus</label>
-		<info>Modelliermodus: ändere geometrische EIgenschaften der Objekte </info>
-	</data>
-	<data name="Accumulating.Faces">
-		<label>Flächen ansammeln</label>
-		<info>Im Sammelmodus für Flächen kannst du mehrere Flächen auswählen und gemeinsam verwenden</info>
-	</data>
-	<data name="Accumulating.Faces.List">
-		<label>Liste der Flächen ({0})</label>
-		<info>Liste der angesammelten Flächen</info>
-	</data>
-	<data name="MenuId.GeneralModifications">
-		<label>Allgmeine Änderungen für dieses Objekt</label>
-		<info>Verschieben, drehen, skalieren, spiegeln, kopieren oder löschen</info>
-	</data>
-	<data name="Mate.Mode">
-		<label>Orientierung</label>
-		<info>Von innen oder außen andocken</info>
-	</data>
-	<data name="Mate.Mode.Values">
-		<label>|von innen|von außen</label>
-	</data>
-	<data name="Mate.Target">
-		<label>Zielfläche</label>
-		<info>Fläche, an die angedockt werden soll</info>
-	</data>
-	<data name="Construct.MateFaces">
-		<label>Andocken</label>
-	</data>
-	<data name="MenuId.Edge">
-		<label>Kante [[A]]</label>
-		<info>Untermenü für die Kante</info>
-	</data>
-	<data name="MenuId.Face">
-		<label>Fläche [[F]]</label>
-		<info>Untermenü für die Fläche</info>
-	</data>
-	<data name="MenuId.Shell">
-		<label>Schale [[H]]</label>
-		<info>Untermenü für die Schale</info>
-	</data>
-	<data name="MenuId.Solid">
-		<label>Körper [[K]]</label>
-		<info>Untermenü für den Körper</info>
-	</data>
-	<data name="MenuId.Solid.RemoveFrom">
-		<label>Vom Körper abziehen (spezifizieren)</label>
-		<info>Dieser Körper wird von einem anderen Körper abgezogen, den Sie im nächsten Schritt spezifizieren</info>
-	</data>
-	<data name="MenuId.Solid.RemoveFromAll">
-		<label>Von überlappenden Körpern abziehen[[S]]</label>
-		<info>Zieht diesen Körper von allen überlappenden oder sich schneidenden Körpern ab</info>
-	</data>
-	<data name="MenuId.Solid.RemoveAll">
-		<label>Überlappende Körper abziehen [[D]]</label>
-		<info>Zieht alle überlappenden oder sich schneidenden Körper von diesem Körper ab</info>
-	</data>
-	<data name="MenuId.Solid.UniteWith">
-		<label>Mit Körper vereinigen (spezifizieren)</label>
-	</data>
-	<data name="MenuId.Solid.UniteWithAll">
-		<label>Mit überlappenden Körpern vereinigen [[V]]</label>
-		<info>Vereint diesen Körper mit allen überlappenden oder sich schneidenden Körpern zu einem einzigen Körper</info>
-	</data>
-	<data name="MenuId.Solid.UniteAll">
-		<label>Alle überlappende Körpern vereinigen [[V]]</label>
-		<info>Vereint alle Körper die sich berühren oder überlappen</info>
-	</data>
-	<data name="MenuId.Solid.IntersectWith">
-		<label>Mit Körper schneiden (spezifizieren)</label>
-		<info>Erstellt einen neuen Körper aus dem überlappenden Volumen dieses Körpers und eines anderen, zu spezifizierenden Körpers</info>
-	</data>
-	<data name="MenuId.Solid.IntersectWithAll">
-		<label>Mit überlappenden Körpern schneiden</label>
-		<info>Erstellt einen neuen Körper aus der Schnittmenge dieses Körpers mit allen überlappenden oder berührenden Körpern</info>
-	</data>
-	<data name="MenuId.Solid.SplitWith">
-		<label>Mit Körper teilen (spezifizieren)</label>
-		<info>Teilt diesen Körper mit einem zu spezifizierenden Körper in separate Teile, wobei individuelle Körper für die überlappenden und nicht überlappenden Bereiche erstellt werden</info>
-	</data>
-	<data name="MenuId.Solid.SplitWithAll">
-		<label>Mit überlappenden Körpern teilen[[T]]</label>
-		<info>Teilt sich schneidende Körper in separate Teile, wobei individuelle Körper für die überlappenden und nicht überlappenden Bereiche erstellt werden</info>
-	</data>
-	<data name="MenuId.Parametrics.Cylinder.Radius">
-		<label>Radius ändern</label>
-		<info>Radius von zylindrischen Details ändern</info>
-	</data>
-	<data name="MenuId.Parametrics.Cylinder.Diameter">
-		<label>Durchmesser ändern</label>
-		<info>Durchmesser von zylindrischen Details ändern</info>
-	</data>
-	<data name="Constr.Parametrics.Cylinder.Radius">
-		<label>Radius ändern</label>
-		<info>Radius von zylindrischen Details ändern</info>
-	</data>
-	<data name="Constr.Parametrics.Cylinder.Diameter">
-		<label>Durchmesser ändern</label>
-		<info>Durchmesser von zylindrischen Details ändern</info>
-	</data>
-	<data name="Parametrics.Cylinder.Radius">
-		<label>Radius</label>
-		<info>Radius dieses Details ändern</info>
-	</data>
-	<data name="Parametrics.Cylinder.Diameter">
-		<label>Durchmesser</label>
-		<info>Durchmesser dieses Details ändern</info>
-	</data>
-	<data name="Parametrics.AssociateParametric">
-		<label>Als Parameter für den Körper verwenden</label>
-	</data>
-	<data name="Parametrics.ParametricsName">
-		<label>Name</label>
-		<info>Name für den Parameter. Wenn angegeben, wird dies eine Eigenschaft des Körpers</info>
-	</data>
-	<data name="Parametrics.PreserveValue">
-		<label>Wert beibehalten</label>
-		<info>Wenn aktiviert, bleibt der Wert des Parameters unverändert, wenn andere Parameter des Körpers geändert werden</info>
-	</data>
-	<data name="MenuId.ParametricProperty.Preserve">
-		<label>Wert beibehalten</label>
-		<info>Wenn aktiviert, bleibt der Wert des Parameters unverändert, wenn andere Parameter des Körpers geändert werden</info>
-	</data>
-	<data name="MenuId.Export.Solid">
-		<label>Exportieren als STL oder STEP Datei [[E]]</label>
-		<info>Diesen Körper als STL oder STEP Datei exportieren</info>
-	</data>
-	<data name="MenuId.Debug">
-		<label>Debug</label>
-		<info>Debug</info>
-	</data>
-	<data name="MenuId.Feature.CopyToClipboard">
-		<label>In Zwischenablage kopieren [[cC]]</label>
-		<info>Kopiere das Detail in die Zwischenablage um es anschließend zu verwenden</info>
-	</data>
-	<data name="MenuId.Feature.Split">
-		<label>Detail abtrennen [[T]]</label>
-		<info>Trenn das Detail vom Körper ab, bzw. erzeuge die Aussparung als Körper</info>
-	</data>
-	<data name="MenuId.Solid.SplitByPlane">
-		<label>Körper durch Ebene zerschneiden</label>
-		<info>Zerschneide den Körper durch eine zu spezifizierende Ebene in zwei oder mehrere Teile</info>
-	</data>
-	<data name="MenuId.FaceAngle">
-		<label>Winkel zwischen Flächen</label>
-		<info>Winkel zwischen zwei Flächen verändern</info>
-	</data>
-	<data name="MenuId.Center">
-		<label>Zentrieren</label>
-		<info>Zentriere diese Fläche zwischen zwei anderen Flächen oder Kanten</info>
-	</data>
-	<data name="MenuId.FaceDistanceTo">
-		<label>Abstand zu einer anderen Fläche</label>
-		<info>Lege den Abstand zu einer anderen, noch zu bestimmenden, Fläche fest</info>
-	</data>
-	<data name="MenuId.Gauge">
-		<label>Dicke (Stärke)</label>
-		<info>Die Dicke des Körpers ändern</info>
-	</data>
-	<data name="MenuId.ParametricProperty.Remove">
-		<label>Eigenschaft entfernen</label>
-		<info>Diese parametrische Eigenschaft von der Schale entfernen</info>
-	</data>
-	<data name="Solid.ParametricProperties">
-		<label>Parametrik</label>
-		<info>Die parametrischen Einträge der Schale</info>
-	</data>
-	<data name="MenuId.FaceDistance">
-		<label>Abstand zur Fläche</label>
-		<info>Abstand zu einer anderen Fläche</info>
-	</data>
-	<data name="Solid.NewFeatureName">
-		<label>Detail</label>
-	</data>
-	<data name="MenuId.Feature">
-		<label>Detail [[D]]</label>
-	</data>
-	<data name="MenuId.Feature.Position">
-		<label>Position</label>
-	</data>
-	<data name="MenuId.Feature.Name">
-		<label>Name</label>
-	</data>
-	<data name="MenuId.Feature.Remove">
-		<label>Entfernen [[Del]]</label>
-	</data>
-	<data name="Accumulating.Stop">
-		<label>Ansammeln beenden [[Esc]]</label>
-		<info>Keine weiteren Flächen/Kanten auswählen, zurück in den normalen Auswahlmodus</info>
-	</data>
-	<data name="MenuId.ExtrudeFace">
-		<label>Fläche extrudieren</label>
-		<info>Die ausgewählte Fläche extrudieren</info>
-	</data>
-	<data name="MenuId.Mate">
-		<label>Andocken</label>
-		<info>Diese Fläche mit einer anderen Fläche zur Deckung bringen</info>
-	</data>
-	<data name="MenuId.FacesAngle">
-		<label>Winkel zwischen Flächen</label>
-		<info>Winkel zwischen Flächen verändern</info>
-	</data>
-	<data name="Constr.Parametrics.Angle">
-		<label>Winkel zwischen Flächen</label>
-		<info>???</info>
-	</data>
-	<data name="Parametrics.Angle.FaceToRotate">
-		<label>zu drehende Fläche</label>
-		<info>???</info>
-	</data>
-	<data name="Parametrics.Angle.MoreFacesToRotate">
-		<label>Weitere Flächen zum drehen</label>
-		<info>???</info>
-	</data>
-	<data name="Parametrics.Angle.Reference">
-		<label>Bezugsfläche</label>
-		<info>???</info>
-	</data>
-	<data name="Parametrics.Angle.Angle">
-		<label>Drehwinkel</label>
-		<info>???</info>
-	</data>
-	<data name="Parametrics.InvalidPropertyValue">
-		<label>Stellen Sie sicher, dass der Wert innerhalb der gültigen Grenzen liegt, um die Designintegrität zu wahren</label>
-	</data>
-	<data name="MenuId.ExtrusionLength">
-		<label>Teleskopartig Verlängern oder Verkürzen</label>
-		<info>Die Extrusion in dieser Richtung teleskopartig verlängern oder verkürzen</info>
-	</data>
-	<data name="Extrude.Distance">
-		<label>Extrusionsabmessung</label>
-		<info>Länge oder Breite einer Extrusion in dieser Richtung festlegen</info>
-	</data>
-	<data name="Extrude.MeassureForwardObject">
-		<label>Messen bis</label>
-		<info>Bis zu diesem Objekt messen</info>
-	</data>
-	<data name="Extrude.MeassureBackwardObject">
-		<label>Messen von</label>
-		<info>Von diesem Objekt messen</info>
-	</data>
-	<data name="Vertex.Displayname">
-		<label>Ecke</label>
-		<info>Eine Ecke dieser Form</info>
-	</data>
-	<data name="Edge.Displayname">
-		<label>Kante</label>
-		<info>Eine Kante dieser Form</info>
-	</data>
-	<data name="Face.Displayname">
-		<label>Fläche</label>
-		<info>Eine Fläche dieser Form</info>
-	</data>
-	<data name="Constr.Parametrics.Center">
-		<label>Objekte zentrieren</label>
-		<info>Objekte zwischen zwei Flächen, Kanten oder Punkten zentrieren</info>
-	</data>
-	<data name="Center.FacesToCenter">
-		<label>Zu zentrierende Flächen</label>
-		<info>Diese Flächen werden zentriert</info>
-	</data>
-	<data name="Center.CenterOnToFirst">
-		<label>Eine Seite der Begrenzung</label>
-		<info>Die Begrenzung, bezüglich der zentriert werden soll</info>
-	</data>
-	<data name="Center.CenterOnToSecond">
-		<label>Andere Seite der Begrenzung</label>
-		<info>Die Begrenzung, bezüglich der zentriert werden soll</info>
-	</data>
-	<data name="Center.Ratio">
-		<label>Verhältnis</label>
-		<info>Das Verhältnis zwischen der 1. Begrenzung und der 2. Begrenzung. 0.5 ist in der Mitte</info>
-	</data>
-	<data name="Constr.Parametrics.BrepMove">
-		<label>Abstand zu einer anderen Fläche</label>
-		<info>Der Abstand zu einer anderen Fläche, Kante oder Ecke</info>
-	</data>
-	<data name="MenuId.Solid.PlaneIntersetionPath">
-		<label>Schnittkurven mit einer Ebene</label>
-		<info>Pfade als Schnittkurve dieses Körpers mit einer Ebene erzeugen</info>
-	</data>
-	<data name="ShapeIt.RestoreAfterCrash">
-		<label>Datei "{0}" wiederherstellen?</label>
-	</data>
-	<data name="MultipleEdges.Properties">
-		<label>{0} Kanten</label>
-		<info>Aktionen für mehrere Kanten</info>
-	</data>
-	<data name="MultipleCurves.Properties">
-		<label>{0} Kurven</label>
-		<info>Aktionen für mehrere Kurven</info>
-	</data>
-	<data name="MultipleFaces.Properties">
-		<label>{0} Flächen</label>
-		<info>Aktionen für mehrere Flächen</info>
-	</data>
-	<data name="MultipleSolids.Properties">
-		<label>{0} Körper</label>
-		<info>Aktionen für mehrere Körper</info>
-	</data>
-	<data name="MenuId.EdgesToCurves">
-		<label>Kanten in Kurven umwandeln</label>
-		<info>Die Kanten in Kurven umwandeln und zum Projekt hinzufügen</info>
-	</data>
-	<data name="MenuId.offsetSolid">
-		<label>Körper ausdehnen</label>
-		<info>Körper nach allen Seiten um einen Betrag erweitern oder schrumpfen</info>
-	</data>
-	<data name="Construct.OffsetSolid">
-		<label>Ausdehnen/Schrumpfen</label>
-		<info>Körper nach allen Seiten um einen Betrag erweitern oder schrumpfen</info>
-	</data>
-	<data name="OffsetSolid.Distance">
-		<label>Offset</label>
-		<info>Betrag, um welchen der Körper ausgedehnt (+) oder geschrumpft (-) werden soll</info>
-	</data>
+  <language id="deutsch" default="true">deutsch</language>
+  <data name="Modelling.Properties">
+    <label>Modellier Modus</label>
+    <info>Modelliermodus: ändere geometrische EIgenschaften der Objekte </info>
+  </data>
+  <data name="Accumulating.Faces">
+    <label>Flächen ansammeln</label>
+    <info>Im Sammelmodus für Flächen kannst du mehrere Flächen auswählen und gemeinsam verwenden</info>
+  </data>
+  <data name="Accumulating.Faces.List">
+    <label>Liste der Flächen ({0})</label>
+    <info>Liste der angesammelten Flächen</info>
+  </data>
+  <data name="MenuId.GeneralModifications">
+    <label>Allgmeine Änderungen für dieses Objekt</label>
+    <info>Verschieben, drehen, skalieren, spiegeln, kopieren oder löschen</info>
+  </data>
+  <data name="Mate.Mode">
+    <label>Orientierung</label>
+    <info>Von innen oder außen andocken</info>
+  </data>
+  <data name="Mate.Mode.Values">
+    <label>|von innen|von außen</label>
+  </data>
+  <data name="Mate.Target">
+    <label>Zielfläche</label>
+    <info>Fläche, an die angedockt werden soll</info>
+  </data>
+  <data name="Construct.MateFaces">
+    <label>Andocken</label>
+  </data>
+  <data name="MenuId.Edge">
+    <label>Kante [[A]]</label>
+    <info>Untermenü für die Kante</info>
+  </data>
+  <data name="MenuId.Face">
+    <label>Fläche [[F]]</label>
+    <info>Untermenü für die Fläche</info>
+  </data>
+  <data name="MenuId.Shell">
+    <label>Schale [[H]]</label>
+    <info>Untermenü für die Schale</info>
+  </data>
+  <data name="MenuId.Solid">
+    <label>Körper [[K]]</label>
+    <info>Untermenü für den Körper</info>
+  </data>
+  <data name="MenuId.Solid.RemoveFrom">
+    <label>Vom Körper abziehen (spezifizieren)</label>
+    <info>Dieser Körper wird von einem anderen Körper abgezogen, den Sie im nächsten Schritt spezifizieren</info>
+  </data>
+  <data name="MenuId.Solid.RemoveFromAll">
+    <label>Von überlappenden Körpern abziehen[[S]]</label>
+    <info>Zieht diesen Körper von allen überlappenden oder sich schneidenden Körpern ab</info>
+  </data>
+  <data name="MenuId.Solid.RemoveAll">
+    <label>Überlappende Körper abziehen [[D]]</label>
+    <info>Zieht alle überlappenden oder sich schneidenden Körper von diesem Körper ab</info>
+  </data>
+  <data name="MenuId.Solid.UniteWith">
+    <label>Mit Körper vereinigen (spezifizieren)</label>
+  </data>
+  <data name="MenuId.Solid.UniteWithAll">
+    <label>Mit überlappenden Körpern vereinigen [[V]]</label>
+    <info>Vereint diesen Körper mit allen überlappenden oder sich schneidenden Körpern zu einem einzigen Körper</info>
+  </data>
+  <data name="MenuId.Solid.UniteAll">
+    <label>Alle überlappende Körpern vereinigen [[V]]</label>
+    <info>Vereint alle Körper die sich berühren oder überlappen</info>
+  </data>
+  <data name="MenuId.Solid.IntersectWith">
+    <label>Mit Körper schneiden (spezifizieren)</label>
+    <info>Erstellt einen neuen Körper aus dem überlappenden Volumen dieses Körpers und eines anderen, zu spezifizierenden Körpers</info>
+  </data>
+  <data name="MenuId.Solid.IntersectWithAll">
+    <label>Mit überlappenden Körpern schneiden</label>
+    <info>Erstellt einen neuen Körper aus der Schnittmenge dieses Körpers mit allen überlappenden oder berührenden Körpern</info>
+  </data>
+  <data name="MenuId.Solid.SplitWith">
+    <label>Mit Körper teilen (spezifizieren)</label>
+    <info>Teilt diesen Körper mit einem zu spezifizierenden Körper in separate Teile, wobei individuelle Körper für die überlappenden und nicht überlappenden Bereiche erstellt werden</info>
+  </data>
+  <data name="MenuId.Solid.SplitWithAll">
+    <label>Mit überlappenden Körpern teilen[[T]]</label>
+    <info>Teilt sich schneidende Körper in separate Teile, wobei individuelle Körper für die überlappenden und nicht überlappenden Bereiche erstellt werden</info>
+  </data>
+  <data name="MenuId.Parametrics.Cylinder.Radius">
+    <label>Radius ändern</label>
+    <info>Radius von zylindrischen Details ändern</info>
+  </data>
+  <data name="MenuId.Parametrics.Cylinder.Diameter">
+    <label>Durchmesser ändern</label>
+    <info>Durchmesser von zylindrischen Details ändern</info>
+  </data>
+  <data name="Constr.Parametrics.Cylinder.Radius">
+    <label>Radius ändern</label>
+    <info>Radius von zylindrischen Details ändern</info>
+  </data>
+  <data name="Constr.Parametrics.Cylinder.Diameter">
+    <label>Durchmesser ändern</label>
+    <info>Durchmesser von zylindrischen Details ändern</info>
+  </data>
+  <data name="Parametrics.Cylinder.Radius">
+    <label>Radius</label>
+    <info>Radius dieses Details ändern</info>
+  </data>
+  <data name="Parametrics.Cylinder.Diameter">
+    <label>Durchmesser</label>
+    <info>Durchmesser dieses Details ändern</info>
+  </data>
+  <data name="Parametrics.AssociateParametric">
+    <label>Als Parameter für den Körper verwenden</label>
+  </data>
+  <data name="Parametrics.ParametricsName">
+    <label>Name</label>
+    <info>Name für den Parameter. Wenn angegeben, wird dies eine Eigenschaft des Körpers</info>
+  </data>
+  <data name="Parametrics.PreserveValue">
+    <label>Wert beibehalten</label>
+    <info>Wenn aktiviert, bleibt der Wert des Parameters unverändert, wenn andere Parameter des Körpers geändert werden</info>
+  </data>
+  <data name="MenuId.ParametricProperty.Preserve">
+    <label>Wert beibehalten</label>
+    <info>Wenn aktiviert, bleibt der Wert des Parameters unverändert, wenn andere Parameter des Körpers geändert werden</info>
+  </data>
+  <data name="MenuId.Export.Solid">
+    <label>Exportieren als STL oder STEP Datei [[E]]</label>
+    <info>Diesen Körper als STL oder STEP Datei exportieren</info>
+  </data>
+  <data name="MenuId.Debug">
+    <label>Debug</label>
+    <info>Debug</info>
+  </data>
+  <data name="MenuId.Feature.CopyToClipboard">
+    <label>In Zwischenablage kopieren [[cC]]</label>
+    <info>Kopiere das Detail in die Zwischenablage um es anschließend zu verwenden</info>
+  </data>
+  <data name="MenuId.Feature.Split">
+    <label>Detail abtrennen [[T]]</label>
+    <info>Trenn das Detail vom Körper ab, bzw. erzeuge die Aussparung als Körper</info>
+  </data>
+  <data name="MenuId.Solid.SplitByPlane">
+    <label>Körper durch Ebene zerschneiden</label>
+    <info>Zerschneide den Körper durch eine zu spezifizierende Ebene in zwei oder mehrere Teile</info>
+  </data>
+  <data name="MenuId.FaceAngle">
+    <label>Winkel zwischen Flächen</label>
+    <info>Winkel zwischen zwei Flächen verändern</info>
+  </data>
+  <data name="MenuId.Center">
+    <label>Zentrieren</label>
+    <info>Zentriere diese Fläche zwischen zwei anderen Flächen oder Kanten</info>
+  </data>
+  <data name="MenuId.FaceDistanceTo">
+    <label>Abstand zu einer anderen Fläche</label>
+    <info>Lege den Abstand zu einer anderen, noch zu bestimmenden, Fläche fest</info>
+  </data>
+  <data name="MenuId.Gauge">
+    <label>Dicke (Stärke)</label>
+    <info>Die Dicke des Körpers ändern</info>
+  </data>
+  <data name="MenuId.ParametricProperty.Remove">
+    <label>Eigenschaft entfernen</label>
+    <info>Diese parametrische Eigenschaft von der Schale entfernen</info>
+  </data>
+  <data name="Solid.ParametricProperties">
+    <label>Parametrik</label>
+    <info>Die parametrischen Einträge der Schale</info>
+  </data>
+  <data name="MenuId.FaceDistance">
+    <label>Abstand zur Fläche</label>
+    <info>Abstand zu einer anderen Fläche</info>
+  </data>
+  <data name="Solid.NewFeatureName">
+    <label>Detail</label>
+  </data>
+  <data name="MenuId.Feature">
+    <label>Detail [[D]]</label>
+  </data>
+  <data name="MenuId.Feature.Position">
+    <label>Position</label>
+  </data>
+  <data name="MenuId.Feature.Name">
+    <label>Name</label>
+  </data>
+  <data name="MenuId.Feature.Remove">
+    <label>Entfernen [[Del]]</label>
+  </data>
+  <data name="Accumulating.Stop">
+    <label>Ansammeln beenden [[Esc]]</label>
+    <info>Keine weiteren Flächen/Kanten auswählen, zurück in den normalen Auswahlmodus</info>
+  </data>
+  <data name="MenuId.ExtrudeFace">
+    <label>Fläche extrudieren</label>
+    <info>Die ausgewählte Fläche extrudieren</info>
+  </data>
+  <data name="MenuId.Mate">
+    <label>Andocken</label>
+    <info>Diese Fläche mit einer anderen Fläche zur Deckung bringen</info>
+  </data>
+  <data name="MenuId.FacesAngle">
+    <label>Winkel zwischen Flächen</label>
+    <info>Winkel zwischen Flächen verändern</info>
+  </data>
+  <data name="Constr.Parametrics.Angle">
+    <label>Winkel zwischen Flächen</label>
+    <info>???</info>
+  </data>
+  <data name="Parametrics.Angle.FaceToRotate">
+    <label>zu drehende Fläche</label>
+    <info>???</info>
+  </data>
+  <data name="Parametrics.Angle.MoreFacesToRotate">
+    <label>Weitere Flächen zum drehen</label>
+    <info>???</info>
+  </data>
+  <data name="Parametrics.Angle.Reference">
+    <label>Bezugsfläche</label>
+    <info>???</info>
+  </data>
+  <data name="Parametrics.Angle.Angle">
+    <label>Drehwinkel</label>
+    <info>???</info>
+  </data>
+  <data name="Parametrics.InvalidPropertyValue">
+    <label>Stellen Sie sicher, dass der Wert innerhalb der gültigen Grenzen liegt, um die Designintegrität zu wahren</label>
+  </data>
+  <data name="MenuId.ExtrusionLength">
+    <label>Teleskopartig Verlängern oder Verkürzen</label>
+    <info>Die Extrusion in dieser Richtung teleskopartig verlängern oder verkürzen</info>
+  </data>
+  <data name="Extrude.Distance">
+    <label>Extrusionsabmessung</label>
+    <info>Länge oder Breite einer Extrusion in dieser Richtung festlegen</info>
+  </data>
+  <data name="Extrude.MeassureForwardObject">
+    <label>Messen bis</label>
+    <info>Bis zu diesem Objekt messen</info>
+  </data>
+  <data name="Extrude.MeassureBackwardObject">
+    <label>Messen von</label>
+    <info>Von diesem Objekt messen</info>
+  </data>
+  <data name="Vertex.Displayname">
+    <label>Ecke</label>
+    <info>Eine Ecke dieser Form</info>
+  </data>
+  <data name="Edge.Displayname">
+    <label>Kante</label>
+    <info>Eine Kante dieser Form</info>
+  </data>
+  <data name="Face.Displayname">
+    <label>Fläche</label>
+    <info>Eine Fläche dieser Form</info>
+  </data>
+  <data name="Constr.Parametrics.Center">
+    <label>Objekte zentrieren</label>
+    <info>Objekte zwischen zwei Flächen, Kanten oder Punkten zentrieren</info>
+  </data>
+  <data name="Center.FacesToCenter">
+    <label>Zu zentrierende Flächen</label>
+    <info>Diese Flächen werden zentriert</info>
+  </data>
+  <data name="Center.CenterOnToFirst">
+    <label>Eine Seite der Begrenzung</label>
+    <info>Die Begrenzung, bezüglich der zentriert werden soll</info>
+  </data>
+  <data name="Center.CenterOnToSecond">
+    <label>Andere Seite der Begrenzung</label>
+    <info>Die Begrenzung, bezüglich der zentriert werden soll</info>
+  </data>
+  <data name="Center.Ratio">
+    <label>Verhältnis</label>
+    <info>Das Verhältnis zwischen der 1. Begrenzung und der 2. Begrenzung. 0.5 ist in der Mitte</info>
+  </data>
+  <data name="Constr.Parametrics.BrepMove">
+    <label>Abstand zu einer anderen Fläche</label>
+    <info>Der Abstand zu einer anderen Fläche, Kante oder Ecke</info>
+  </data>
+  <data name="MenuId.Solid.PlaneIntersetionPath">
+    <label>Schnittkurven mit einer Ebene</label>
+    <info>Pfade als Schnittkurve dieses Körpers mit einer Ebene erzeugen</info>
+  </data>
+  <data name="ShapeIt.RestoreAfterCrash">
+    <label>Datei "{0}" wiederherstellen?</label>
+  </data>
+  <data name="MultipleEdges.Properties">
+    <label>{0} Kanten</label>
+    <info>Aktionen für mehrere Kanten</info>
+  </data>
+  <data name="MultipleCurves.Properties">
+    <label>{0} Kurven</label>
+    <info>Aktionen für mehrere Kurven</info>
+  </data>
+  <data name="MultipleFaces.Properties">
+    <label>{0} Flächen</label>
+    <info>Aktionen für mehrere Flächen</info>
+  </data>
+  <data name="MultipleSolids.Properties">
+    <label>{0} Körper</label>
+    <info>Aktionen für mehrere Körper</info>
+  </data>
+  <data name="MenuId.EdgesToCurves">
+    <label>Kanten in Kurven umwandeln</label>
+    <info>Die Kanten in Kurven umwandeln und zum Projekt hinzufügen</info>
+  </data>
+  <data name="MenuId.offsetSolid">
+    <label>Körper ausdehnen</label>
+    <info>Körper nach allen Seiten um einen Betrag erweitern oder schrumpfen</info>
+  </data>
+  <data name="Construct.OffsetSolid">
+    <label>Ausdehnen/Schrumpfen</label>
+    <info>Körper nach allen Seiten um einen Betrag erweitern oder schrumpfen</info>
+  </data>
+  <data name="OffsetSolid.Distance">
+    <label>Offset</label>
+    <info>Betrag, um welchen der Körper ausgedehnt (+) oder geschrumpft (-) werden soll</info>
+  </data>
   <data name="UserInterface">
     <label>Benutzeroberfläche</label>
     <info>EInstellungen für die Benutzeroberfläche (0 ist Standard)</info>
@@ -331,30 +331,30 @@
     <info>Größe des Menues, 0 ist Standard</info>
   </data>
 
-	<data name="Object.Properties">
-		<label>Eigenschaften</label>
-		<info>Die geometrischen Eigenschaften und Attribute dies Objektes</info>
-	</data>
-	<data name="Message.DestroySolid">
-		<label>Das Löschen der Fläche wandelt den Körper in eine Schale um. Soll die Fläche wirklich gelöscht werden?</label>
-	</data>
-	
-	<data name="SelectSolid.Solid">
-		<label>Anderer Körper</label>
-		<info>Den anderen Körper für diese Operation anklicken</info>
-	</data>
-	<data name="SelectSolid.Union">
-		<label>Körper vereinigen</label>
-	</data>
-	<data name="SelectSolid.Intersection">
-		<label>Körper schneiden</label>
-	</data>
-	<data name="SelectSolid.Difference">
-		<label>Körper abziehen</label>
-	</data>
-	<data name="SelectSolid.Split">
-		<label>Körper aufteilen</label>
-	</data>
+  <data name="Object.Properties">
+    <label>Eigenschaften</label>
+    <info>Die geometrischen Eigenschaften und Attribute dies Objektes</info>
+  </data>
+  <data name="Message.DestroySolid">
+    <label>Das Löschen der Fläche wandelt den Körper in eine Schale um. Soll die Fläche wirklich gelöscht werden?</label>
+  </data>
+
+  <data name="SelectSolid.Solid">
+    <label>Anderer Körper</label>
+    <info>Den anderen Körper für diese Operation anklicken</info>
+  </data>
+  <data name="SelectSolid.Union">
+    <label>Körper vereinigen</label>
+  </data>
+  <data name="SelectSolid.Intersection">
+    <label>Körper schneiden</label>
+  </data>
+  <data name="SelectSolid.Difference">
+    <label>Körper abziehen</label>
+  </data>
+  <data name="SelectSolid.Split">
+    <label>Körper aufteilen</label>
+  </data>
   <data name ="MenuId.BodyOfRevolution">
     <label>Rotationskörper</label>
     <info>Diesen Pfad zu einem Rotationskörper machen</info>
@@ -393,25 +393,25 @@
     <label>Entlang Kurve abbilden</label>
     <info>die Körper von einer Ausgangskurve zu einer Zielkurve abbilden</info>
   </data>
-	<data name="Construct.ChamferEdges">
-		<label>Kanten fasen</label>
-		<info>Die ausgewählten Kanten anfasen</info>
-	</data>
-	<data name="ChamferEdges.Symmetric">
-		<label>Symmetrisch</label>
-		<info>Beide Fasen mit gleichem Abstand </info>
-	</data>
-	<data name="ChamferEdges.Symmetric.Values">
-		<label>|gleiche Abstände|verschiedene Abstände</label>
-	</data>
-	<data name="ChamferEdges.Distance1">
-		<label>1. Abstand</label>
-		<info>Abstand der Fase zur Kante</info>
-	</data>
-	<data name="ChamferEdges.Distance2">
-		<label>2. Abstand</label>
-		<info>Abstand der Fase zur Kante</info>
-	</data>
+  <data name="Construct.ChamferEdges">
+    <label>Kanten fasen</label>
+    <info>Die ausgewählten Kanten anfasen</info>
+  </data>
+  <data name="ChamferEdges.Symmetric">
+    <label>Symmetrisch</label>
+    <info>Beide Fasen mit gleichem Abstand </info>
+  </data>
+  <data name="ChamferEdges.Symmetric.Values">
+    <label>|gleiche Abstände|verschiedene Abstände</label>
+  </data>
+  <data name="ChamferEdges.Distance1">
+    <label>1. Abstand</label>
+    <info>Abstand der Fase zur Kante</info>
+  </data>
+  <data name="ChamferEdges.Distance2">
+    <label>2. Abstand</label>
+    <info>Abstand der Fase zur Kante</info>
+  </data>
   <data name="Construct.RoundEdges">
     <label>Kanten runden</label>
     <info>Die ausgewählten Kanten abrunden</info>
@@ -424,5 +424,37 @@
     <label>Zentrieren</label>
     <info>Diesen Körper zwischen zwei anderen Objekte (Flächen, Kanten) zentrieren</info>
   </data>
-  
+  <data name="Construct.HelicalExtrude">
+    <label>Schraubenextrusion</label>
+    <info>Diese Fläche entlang einer Achse verschrauben</info>
+  </data>
+  <data name="Helical.AxisLine">
+    <label>Achse selektieren</label>
+    <info>Linie aus dem Modell als Achse festlegen</info>
+  </data>
+  <data name=  "Helical.AxisPoint">
+    <label>Achsenpunkt</label>
+    <info>Fixpunkt für die Achse auswählen</info>
+  </data>
+  <data name=  "Helical.AxisDirection">
+    <label>Achsenrichtung</label>
+    <info>Richtung der Achse spezifizieren</info>
+  </data>
+  <data name=  "Helical.Pitch">
+    <label>Steigung</label>
+    <info>Steigung einer Verschraubung definieren</info>
+  </data>
+  <data name=  "Helical.ExtrusionHeight">
+    <label>Länge der Extrusion</label>
+    <info>Länge der Extrusion festlegen</info>
+  </data>
+  <data name=  "Helical.ExtrusionOffset">
+    <label>Offset der Extrusion</label>
+    <info>Offset der Extrusion festlegen</info>
+  </data>
+  <data name="MenuId.HelicalExtrude">
+    <label>Fläche schraubenförmig extrudieren</label>
+    <info>Die ausgewählte Fläche schraubenförmig extrudieren</info>
+  </data>
+
 </root>

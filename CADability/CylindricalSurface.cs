@@ -566,6 +566,17 @@ namespace CADability.GeoObject
             }
             base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            double da = Geometry.DistPL(a, Location, Axis);
+            double db = Geometry.DistPL(b, Location, Axis);
+            if (da < RadiusX && db < RadiusX) return false; // both inside: no intersection
+            if (Math.Sign(da - RadiusX) != Math.Sign(db - RadiusX)) return true; // one inside, one outside: intersection
+            double dl = Geometry.DistLL(Location, Axis, a, b - a, out double par1, out double par2);
+            if (dl > RadiusX) return false; // both outside and line misses cylinder:no intersection
+            return par2 >= 0.0 && par2 <= 1.0; // intersection only if within segment
+        }
+
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.IsVanishingProjection (Projection, double, double, double, double)"/>
         /// </summary>
@@ -2032,7 +2043,7 @@ namespace CADability.GeoObject
                             ext.MinMax(testPoints[i]);
                         }
                         SineCurve2D scFit = SineCurve2D.Create(testPoints[0], testPoints[2], testPoints[2], testPoints[3]);
-                        if (scFit!=null) return scFit;
+                        if (scFit != null) return scFit;
                         // we should not arrive here, if we do we have to check LevenbergMarquardt with different start conditions
                         GeoVector normal = e.Plane.Normal;
                         double fy = Math.Sqrt(normal.x * normal.x + normal.y * normal.y) / Math.Abs(normal.z); // the amplitude of the sine curve

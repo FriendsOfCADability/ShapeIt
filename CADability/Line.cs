@@ -221,7 +221,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override BoundingBox GetBoundingCube()
         {
-            BoundingBox res = BoundingBox.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             res.MinMax(startPoint);
             res.MinMax(endPoint);
             return res;
@@ -1004,7 +1004,7 @@ namespace CADability.GeoObject
 
         BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            return BoundingBox.InfiniteBoundingCube;
+            return BoundingBox.InfiniteBoundingBox;
         }
 
         bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)

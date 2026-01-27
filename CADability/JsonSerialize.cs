@@ -1088,7 +1088,6 @@ namespace CADability
             if (!(entities[(int)index] is JsonDict)) return entities[(int)index];
             JsonDict jd = entities[(int)index] as JsonDict;
             int ti = Convert.ToInt32(jd["$TypeIndex"]);
-            System.Diagnostics.Trace.WriteLine("CreateEntity: " + index.ToString() + " TypeIndex: " + ti.ToString());
             if (underConstruction.Contains(index)) throw new ApplicationException("Json stream contains cyclical reference");
             if (createEntity[ti] != null)
             {

@@ -465,7 +465,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         int GetExtremePositions(BoundingRect domain, ICurve curve3D, out List<Tuple<double, double, double>> positions);
         /// <summary>
-        /// Returns the distance of the provided point <paramref name="p"/> to the (unlimited) surface.
+        /// Returns the positive distance of the provided point <paramref name="p"/> to the (unlimited) surface.
         /// </summary>
         /// <param name="p"></param>
         /// <returns></returns>
@@ -502,6 +502,12 @@ namespace CADability.GeoObject
         double Fit(IEnumerable<GeoPoint> toPoints);
         bool IsCurveOnSurface(ICurve curve);
         BoundingRect GetBounds();
+        /// <summary>
+        /// Performs a fast conservative test whether the given line segment
+        /// may intersect this surface.
+        /// Returns false if an intersection can be safely excluded.
+        /// </summary>
+        bool MayIntersectSegment(GeoPoint a, GeoPoint b);
     }
 
     public static class SurfaceExtension
@@ -3028,6 +3034,7 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (!IsUPeriodic) return 0.0;
                 throw new NotImplementedException();
             }
         }
@@ -3035,6 +3042,7 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (!IsVPeriodic) return 0.0;
                 throw new NotImplementedException();
             }
         }
@@ -3708,7 +3716,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public virtual BoundingBox GetPatchExtent(BoundingRect uvPatch, bool rough)
         {   // kann natürlich in den einzelnen flächen besser gelöst werden
-            BoundingBox res = BoundingBox.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             GeoPoint2D[] extr = GetExtrema();
             for (int i = 0; i < extr.Length; ++i)
             {
@@ -3966,10 +3974,30 @@ namespace CADability.GeoObject
             }
             return positions.Count;
         }
+        /// <summary>
+        /// Distance from point p to the surface. The result is always &gt;= 0 (unfortunately the orientation is not
+        /// considered here).
+        /// </summary>
+        /// <param name="p"></param>
+        /// <returns></returns>
         public virtual double GetDistance(GeoPoint p)
         {
-            return PointAt(PositionOf(p)) | p;
+            GeoPoint2D uv = PositionOf(p);
+            // GeoVector n = GetNormal(uv).Normalized;
+            GeoPoint p0 = PointAt(uv);
+            return p | p0;
         }
+        public virtual bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {   // most surfaces can do better!
+            GeoPoint2D[] uv = GetLineIntersection(a, b - a);
+            for (int i = 0; i < uv.Length; i++)
+            {
+                double par = Geometry.LinePar(a, b, PointAt(uv[i]));
+                if (par >= 0 && par <= 1) return true;
+            }
+            return false;
+        }
+
         public virtual bool IsExtruded(GeoVector direction)
         {
             return false;
@@ -5312,7 +5340,7 @@ namespace CADability.GeoObject
             else return null;
             if (pes.Count == 0) return new IDualSurfaceCurve[0]; // no intersection, because there are no common parepis
             // find a rough estimate of the size of the intersection curves
-            BoundingBox ext = BoundingBox.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
             foreach (var parepi in pes)
             {
                 ext.MinMax(parepi.pll);
@@ -6402,6 +6430,12 @@ namespace CADability.GeoObject
         public static bool IntersectThreeSurfaces(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, ISurface surface3, BoundingRect bounds3, ref GeoPoint ip,
             out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3)
         {
+#if DEBUG
+            DebuggerContainer dc = new DebuggerContainer();
+            dc.Add(Face.MakeFace(surface1, bounds1), 1);
+            dc.Add(Face.MakeFace(surface2, bounds2), 2);
+            dc.Add(Face.MakeFace(surface3, bounds3), 3);
+#endif
             ISurface[] surfaces = new ISurface[] { surface1, surface2, surface3 };
             BoundingRect[] bounds = new BoundingRect[] { bounds1, bounds2, bounds3 };
             // if two of the surfaces are planes, use the surface/line intersection

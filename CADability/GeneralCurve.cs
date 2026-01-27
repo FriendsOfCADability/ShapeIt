@@ -197,7 +197,7 @@ namespace CADability.GeoObject
         {
         }
         private TetraederHull tetraederHull;
-        private BoundingBox extent = BoundingBox.EmptyBoundingCube;
+        private BoundingBox extent = BoundingBox.EmptyBoundingBox;
         internal TetraederHull TetraederHull
         {
             get
@@ -284,7 +284,7 @@ namespace CADability.GeoObject
         protected virtual void InvalidateSecondaryData()
         {
             tetraederHull = null;
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
         }
         // public abstract void Modify(ModOp m); ist schon abstract
         /// <summary>
@@ -742,7 +742,7 @@ namespace CADability.GeoObject
             // int xmin, xmax, ymin, ymax, zmin, zmax; // Indizes der extremen Vertexpunkte
             // noch nicht sauber implementiert: Gesucht werden müssen die lokalen
             // Minima und Maxima in x, y und z.
-            BoundingBox res = BoundingBox.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             for (int i = 0; i < TetraederHull.TetraederBase.Length; ++i)
             {
                 res.MinMax(TetraederHull.TetraederBase[i]);
@@ -1519,7 +1519,7 @@ namespace CADability.GeoObject
             {
                 if (octTree == null)
                 {
-                    BoundingBox ext = BoundingBox.EmptyBoundingCube;
+                    BoundingBox ext = BoundingBox.EmptyBoundingBox;
                     for (int i = 0; i < tetraederBase.Length - 1; ++i)
                     {
                         ext.MinMax(tetraederBase[i]);
@@ -2813,14 +2813,11 @@ namespace CADability.GeoObject
             double lastd = 0.0;
             for (int i = 0; i < tetraederBase.Length - 1; ++i)
             {
-                double d1;
-                if (i == 0) d1 = surface.GetDistance(tetraederBase[i]);
-                else d1 = lastd;
-                double d2 = surface.GetDistance(tetraederBase[i + 1]);
-                double d3 = surface.GetDistance(tetraederVertex[2 * i]);
-                double d4 = surface.GetDistance(tetraederVertex[2 * i + 1]);
-                lastd = d2;
-                if (Math.Sign(d1) != Math.Sign(d2) || Math.Sign(d2) != Math.Sign(d3) || Math.Sign(d3) != Math.Sign(d4))
+                if (surface.MayIntersectSegment(tetraederBase[i], tetraederBase[i+1]) ||
+                    surface.MayIntersectSegment(tetraederBase[i], tetraederVertex[2 * i]) ||
+                    surface.MayIntersectSegment(tetraederBase[i], tetraederVertex[2 * i+1]) ||
+                    surface.MayIntersectSegment(tetraederBase[i+1], tetraederVertex[2 * i]) ||
+                    surface.MayIntersectSegment(tetraederBase[i+1], tetraederVertex[2 * i + 1]))
                 {
                     double t = (tetraederParams[i] + tetraederParams[i + 1]) / 2;
                     GeoPoint2D uv = surface.PositionOf(theCurve.PointAt(t));

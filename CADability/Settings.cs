@@ -462,7 +462,7 @@ namespace CADability
             if (!colorSettings.ContainsSetting("Grid"))
             {
                 ColorSetting cs = new ColorSetting("Grid", "Setting.Colors.Grid");
-                cs.Color = Color.LightGoldenrodYellow;
+                cs.Color = Color.LightGoldenRodYellow;
                 colorSettings.AddSetting("Grid", cs);
             }
             if (!colorSettings.ContainsSetting("Feedback"))

@@ -49,7 +49,7 @@ namespace ShapeIt
             List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
             foreach (var ve in vertexToConvexEdges.Concat(vertexToConcaveEdges))
             {
-                HashSet<Shell>? filletAndExtension= null;
+                HashSet<Shell>? filletAndExtension = null;
                 if (ve.Value.Count == 1)
                 { // the fillet ends here, there are different cases:
                     // There is one or more "impact" faces
@@ -73,16 +73,36 @@ namespace ShapeIt
             Combine(concaveRoundingShells);
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
-            Shell? toOperateOn = shell.Clone() as Shell;
+            Dictionary<Edge, Edge> clonedEdges = [];
+            Dictionary<Vertex, Vertex> clonedVertices = [];
+            Dictionary<Face, Face> originalToModified = [];
+            Shell? toOperateOn = shell.Clone(clonedEdges, clonedVertices, originalToModified);
             for (int i = 0; i < convexRoundingShells.Count; i++)
             {
                 foreach (var item in convexRoundingShells[i])
                 {
                     BooleanOperation bo = new BooleanOperation();
                     bo.SetShells(toOperateOn, item, BooleanOperation.Operation.difference);
-
+                    var edgeLiesInFace = item.UserData.GetData("CADability.Cutter.EdgeLiesInFace") as Dictionary<Edge, (Face face, bool forward)>;
+                    var edgeEndsInFace = item.UserData.GetData("CADability.Cutter.EdgeEndsInFace") as Dictionary<Edge, HashSet<Face>>;
+                    if (edgeLiesInFace != null && edgeEndsInFace != null)
+                    {
+                        if (originalToModified != null)
+                        {
+                            Lookup(edgeLiesInFace, originalToModified);
+                            Lookup(edgeEndsInFace, originalToModified);
+                        }
+                        bo.EdgeLiesInFace = edgeLiesInFace;
+                        bo.EdgeEndsInFace = edgeEndsInFace;
+                    }
                     Shell[] roundedShells = bo.Execute();
-                    if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
+                    if (roundedShells != null && roundedShells.Length == 1)
+                    {
+                        toOperateOn = roundedShells[0];
+                        if (originalToModified == null) originalToModified = bo.OriginalToClonedFaces;
+                        else AppendLookup(originalToModified, bo.OriginalToClonedFaces);
+                        AppendLookup(originalToModified, bo.SplittedFaces);
+                    }
                 }
             }
             for (int i = 0; i < concaveRoundingShells.Count; i++)
@@ -583,10 +603,9 @@ namespace ShapeIt
                 bottomCurve = bcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lb) + c.DistanceTo(rb));
             }
             if (bottomCurve == null) return null;
-            TrimCurve(bottomCurve,rb, lb);
+            TrimCurve(bottomCurve, rb, lb);
 
             sweptFace = Face.MakeFace(sweptCircle, [topCurve, bottomCurve, lid2crv3, lid1crv3]);
-
 
             //sweptFace = Face.MakeFace(sweptCircle, [e1, e2, e3, e4]);
 
@@ -618,6 +637,25 @@ namespace ShapeIt
             rightEndFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
             leftEndFace.UserData.Add("CADability.Cutter.EndFace", "endface");
             sweptFace.UserData.Add("CADability.Cutter.SweptFace", "sweptface");
+            if (res != null)
+            {   // the edges play a role in the BooleanOperation, so we store which edge lies or ends in which face
+                // BooleanOperation doesn't need to calculate intersections which are already known
+                Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace = [];
+                Dictionary<Edge, HashSet<Face>> edgeEndsInFace = [];
+                foreach (Edge edg in res.Edges)
+                {
+                    if (edg.Curve3D.SameGeometry(topCurve, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.PrimaryFace, edg.Forward(topFace));
+                    if (edg.Curve3D.SameGeometry(topRight, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.PrimaryFace, edg.Forward(topFace));
+                    if (edg.Curve3D.SameGeometry(topLeft, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.PrimaryFace, edg.Forward(topFace));
+                    if (edg.Curve3D.SameGeometry(bottomCurve, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.SecondaryFace, edg.Forward(bottomFace));
+                    if (edg.Curve3D.SameGeometry(bottomRight, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.SecondaryFace, edg.Forward(bottomFace));
+                    if (edg.Curve3D.SameGeometry(bottomLeft, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.SecondaryFace, edg.Forward(bottomFace));
+                    if (edg.Curve3D.SameGeometry(lid1crv3, Precision.eps)) edgeEndsInFace[edg] = [edgeToRound.PrimaryFace, edgeToRound.SecondaryFace];
+                    if (edg.Curve3D.SameGeometry(lid2crv3, Precision.eps)) edgeEndsInFace[edg] = [edgeToRound.PrimaryFace, edgeToRound.SecondaryFace];
+                }
+                res.UserData.Add("CADability.Cutter.EdgeLiesInFace", edgeLiesInFace);
+                res.UserData.Add("CADability.Cutter.EdgeEndsInFace", edgeEndsInFace);
+            }
 #if DEBUG
             bool? ok = res?.CheckConsistency();
 #endif

@@ -487,15 +487,19 @@ namespace CADability.GeoObject
             : base()
         {
             if (Constructed != null) Constructed(this);
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
         }
-        public static BSpline Approximate(Func<double, GeoPoint> curve, double precision, double minPar = 0, double maxPar = 1, int maxCount = 1000)
+        public static BSpline Approximate(Func<double, GeoPoint> curve, double precision = 0.0, double minPar = 0, double maxPar = 1, int maxCount = 1000)
         {
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
             SortedList<double, GeoPoint> positions = [];
             for (double par = minPar; par < maxPar + (maxPar - minPar) / 20; par += (maxPar - minPar) / 10)
             {
-                positions[par] = curve(par);
+                GeoPoint p = curve(par);
+                positions[par] = p;
+                ext.MinMax(p);
             }
+            if (precision == 0.0) precision = ext.Size * 1e-6;
             BSpline bsp = BSpline.Construct();
             bsp.FromNurbs(new Nurbs<GeoPoint, GeoPointPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3), minPar, maxPar);
             double lastPos = 0.0;
@@ -505,11 +509,12 @@ namespace CADability.GeoObject
                 List<(double, GeoPoint)> toAdd = [];
                 foreach (KeyValuePair<double, GeoPoint> item in positions)
                 {
-                    if (item.Key > minPar)
+                    if (item.Key > minPar && (item.Key - lastPos) > 1e-6)
                     {
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint p = curve(mpos);
-                        if (((bsp as ICurve).PointAt(mpos) | p) > precision)
+                        if (((bsp as ICurve).DistanceTo(p) > precision))
+                        // if (((bsp as ICurve).PointAt(mpos) | p) > precision)
                         {
                             toAdd.Add((mpos, p));
                         }
@@ -548,7 +553,7 @@ namespace CADability.GeoObject
                 interdir = null;
                 interparam = null;
                 approximation = null;
-                extent = BoundingBox.EmptyBoundingCube;
+                extent = BoundingBox.EmptyBoundingBox;
                 tetraederHull = null;
                 extrema = null;
             }
@@ -1780,11 +1785,11 @@ namespace CADability.GeoObject
         {
             if (extent.IsEmpty && poles != null)
             {
-                extent = BoundingBox.EmptyBoundingCube;
+                extent = BoundingBox.EmptyBoundingBox;
                 double[] extx = (this as ICurve).GetExtrema(GeoVector.XAxis);
                 double[] exty = (this as ICurve).GetExtrema(GeoVector.YAxis);
                 double[] extz = (this as ICurve).GetExtrema(GeoVector.ZAxis);
-                BoundingBox res = BoundingBox.EmptyBoundingCube;
+                BoundingBox res = BoundingBox.EmptyBoundingBox;
                 for (int i = 0; i < extx.Length; ++i)
                 {
                     extent.MinMax((this as ICurve).PointAt(extx[i]));
@@ -2013,7 +2018,7 @@ namespace CADability.GeoObject
                         break;
                 }
             }
-            extent = BoundingBox.EmptyBoundingCube;
+            extent = BoundingBox.EmptyBoundingBox;
             if (Constructed != null) Constructed(this);
         }
         /// <summary>
@@ -3919,7 +3924,7 @@ namespace CADability.GeoObject
         }
         internal BoundingBox GetIntervalExtent(double pmin, double pmax)
         {   // liefert die Ausdehnung eines Abschnitts der Kurve in 3D
-            BoundingBox res = BoundingBox.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             res.MinMax(PointAtParam(pmin));
             res.MinMax(PointAtParam(pmax));
             foreach (GeoVector dir in GeoVector.MainAxis)

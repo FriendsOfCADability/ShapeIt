@@ -57,7 +57,6 @@ namespace ShapeIt
 
             SetInput(sourceCurve, targetCurve, reverse, mode, offset);
 
-            base.OnSetAction();
             feedback = new Feedback();
             feedback.Attach(CurrentMouseView);
             base.OnSetAction();

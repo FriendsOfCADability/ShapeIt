@@ -661,6 +661,18 @@ namespace CADability.GeoObject
             }
             return false;
         }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            double da = Location | a;
+            double db = Location | b;
+            if (da < RadiusX && db < RadiusX) return false; // both points are inside the sphere
+            if (Math.Sign(da - RadiusX) != Math.Sign(db - RadiusX)) return true; // one point is inside, the other outside)
+            // both points are outside the sphere, check the distance of the segment to the sphere center
+            double par = Geometry.LinePar(a, b, Location);
+            if (par < 0) return false;
+            if (par > 1) return false;
+            return Geometry.DistPL(Location, a, b - a) <= RadiusX; // distance of the segment to the sphere center is less than radius and both points are outside
+        }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetSaveUSteps ()"/>
         /// </summary>

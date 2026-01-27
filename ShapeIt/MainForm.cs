@@ -321,7 +321,7 @@ namespace ShapeIt
         private void AutoDebug()
         {
             // return;
-            string? filename = @"C:\Users\gerha\Documents\Zeichnungen\RoundEdgesTest2.cdb.json";
+            string? filename = null; // @"C:\Users\gerha\Documents\Zeichnungen\RoundEdgesTest2.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -354,7 +354,7 @@ namespace ShapeIt
                 }
                 if (go is ICurve curve)
                 {
-                    if (go.Style!=null && go.Style.Name == "EdgeMarker")
+                    if (go.Style != null && go.Style.Name == "EdgeMarker")
                     {
                         edgeMarkers.Add(curve);
                     }
@@ -376,7 +376,7 @@ namespace ShapeIt
                 //        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
                 //    }
                 //}
-                if (command.StartsWith("Difference",StringComparison.OrdinalIgnoreCase))
+                if (command.StartsWith("Difference", StringComparison.OrdinalIgnoreCase))
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                 }
@@ -425,10 +425,10 @@ namespace ShapeIt
                 if (command.StartsWith("RoundEdges", StringComparison.OrdinalIgnoreCase))
                 {
                     string[] parts = command.Split(':');
-                    if (parts.Length==2)
+                    if (parts.Length == 2)
                     {
                         double d = double.Parse(parts[1]);
-                        if (d>0)
+                        if (d > 0)
                         {
                             Shell? rounded = shellToRound?.RoundEdges(edgesToRound, d);
                         }

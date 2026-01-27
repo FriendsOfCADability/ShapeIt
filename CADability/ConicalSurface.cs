@@ -1536,6 +1536,20 @@ namespace CADability.GeoObject
             uv = PositionOf(toCone * (new GeoPoint(d, 0, d)));
             return true;
         }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            GeoPoint ua = toUnit * a; // to unit cone system
+            GeoPoint ub = toUnit * b;
+            bool ia = ua.x * ua.x + ua.y * ua.y - ua.z * ua.z < 0; // a is inside the cone
+            bool ib = ub.x * ub.x + ub.y * ub.y - ub.z * ub.z < 0; // b is inside the cone
+            if (ia != ib) return true; // one point is inside, the other outside
+            if (ia && ib) return false; // both points are inside
+            double d = Geometry.DistLL(ua, ub - ua, GeoPoint.Origin, GeoVector.ZAxis, out double par1, out double par2);
+            // both points are outside, check the distance of the line to the cone axis, it must be less than
+            // z coordinate at the closest point in order to intersect the (unit) cone
+            return par1 >= 0 && par1 <= 1 && d < Math.Abs(par2); // the segment intersects the cone
+        }
+
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetExtrema ()"/>
         /// </summary>

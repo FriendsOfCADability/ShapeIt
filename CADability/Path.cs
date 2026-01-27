@@ -1306,7 +1306,7 @@ namespace CADability.GeoObject
 		/// <returns></returns>
 		public override BoundingBox GetBoundingCube()
 		{
-			BoundingBox res = BoundingBox.EmptyBoundingCube;
+			BoundingBox res = BoundingBox.EmptyBoundingBox;
 			for (int i = 0; i < subCurves.Length; ++i)
 			{
 				res.MinMax((subCurves[i] as IGeoObject).GetBoundingCube());
@@ -2550,7 +2550,7 @@ namespace CADability.GeoObject
 		{
 			if (infinite)
 			{
-				return BoundingBox.InfiniteBoundingCube;
+				return BoundingBox.InfiniteBoundingBox;
 			}
 			else
 			{

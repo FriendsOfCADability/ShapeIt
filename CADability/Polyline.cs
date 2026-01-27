@@ -563,7 +563,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override BoundingBox GetBoundingCube()
         {
-            BoundingBox res = BoundingBox.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             if (vertex != null)
             {
                 for (int i = 0; i < vertex.Length; ++i)
@@ -1725,7 +1725,7 @@ namespace CADability.GeoObject
 
         BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            return BoundingBox.InfiniteBoundingCube; // stimmt nicht unbedingt
+            return BoundingBox.InfiniteBoundingBox; // stimmt nicht unbedingt
         }
 
         bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)

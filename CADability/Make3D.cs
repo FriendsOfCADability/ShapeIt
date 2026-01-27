@@ -1321,6 +1321,30 @@ namespace CADability.GeoObject
         {
             return MakeFace(path, project, true) as Face;
         }
+
+        public static Shell MakeHelicalSolid(Face face, Axis axis, double pitch, double extrHeight, double extrOffset, bool rightHanded)
+        {
+            double K = pitch / (2.0 * Math.PI);
+            double vmin = extrOffset / pitch * (2.0 * Math.PI);
+            double vmax = (extrOffset + extrHeight) / pitch * (2.0 * Math.PI);
+            GeoVector offset = extrOffset * axis.Direction;
+
+            Face lid0 = face.Clone() as Face;
+            lid0.Modify(ModOp.Translate(extrOffset * axis.Direction) * ModOp.Rotate(axis.Location, axis.Direction, new SweepAngle(vmin)));
+            Face lid1 = face.Clone() as Face;
+            lid1.Modify(ModOp.Translate((extrOffset + extrHeight) * axis.Direction) * ModOp.Rotate(axis.Location, axis.Direction, new SweepAngle(vmax)));
+            List<Face> faces = [lid0, lid1];
+            foreach (Edge edge in lid0.Edges)
+            {
+                HelicalSweepSurface hs = new HelicalSweepSurface(edge.Curve3D.Clone(), pitch, axis);
+                BoundingRect bdr = new BoundingRect(0, 0, 1, vmax - vmin);
+                Face sideFace = Face.MakeFace(hs, bdr);
+                faces.Add(sideFace);
+            }
+            Shell[] shell = SewFaces(faces.ToArray());
+            if (shell.Length == 1) return shell[0];
+            else return null;
+        }
         /// <summary>
         /// Creates a Solid by winding the closed path around the axis. The axisDirection also specifies the pitch
         /// </summary>
@@ -1819,7 +1843,7 @@ namespace CADability.GeoObject
             }
             else return null;
         }
-        public static Shell[] SewFaces(Face[] faces, bool edgesArUnambiguous = false)
+        public static Shell[] SewFaces(Face[] faces)
         {
 #if DEBUG
             for (int i = 0; i < faces.Length; i++)
@@ -1886,7 +1910,7 @@ namespace CADability.GeoObject
             }
 #endif
             List<Vertex> allVertices = new List<Vertex>();
-            BoundingBox ext = BoundingBox.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
             for (int i = 0; i < faces.Length; i++)
             {
                 Vertex[] v = faces[i].Vertices;
@@ -2844,7 +2868,8 @@ namespace CADability.GeoObject
                                 {
                                     pls = (arcs[i] as ICurve).GetPlane();
                                     surface = new PlaneSurface(pls);
-                                } else if (arcs[i+1]!=null) // we can savely use i+1, because there is one more arc than curves, so i+1 always exists
+                                }
+                                else if (arcs[i + 1] != null) // we can savely use i+1, because there is one more arc than curves, so i+1 always exists
                                 {
                                     pls = (arcs[i + 1]).GetPlane();
                                     surface = new PlaneSurface(pls);
@@ -2904,15 +2929,16 @@ namespace CADability.GeoObject
                                         p1 = arcs[i].PointAt(0.5);
                                         p2 = arcs[i + 1].PointAt(0.5);
                                         sphereAxis = (p2 - p1).Normalized;
-                                    } else if (arcs[i]!=null)
+                                    }
+                                    else if (arcs[i] != null)
                                     {
                                         sphereAxis = (arcs[i].PointAt(0.5) - e.Center).Normalized; // pole would be at arcs[i].PointAt(0.5)
-                                        if (sphereAxis*axis.Direction>0) sphereAxis = sphereAxis+axis.Direction.Normalized; // bend it towards the rotation axis
+                                        if (sphereAxis * axis.Direction > 0) sphereAxis = sphereAxis + axis.Direction.Normalized; // bend it towards the rotation axis
                                         else sphereAxis = sphereAxis - axis.Direction.Normalized;
                                     }
-                                    else if (arcs[i+1]!=null)
+                                    else if (arcs[i + 1] != null)
                                     {
-                                        sphereAxis = (arcs[i+1].PointAt(0.5) - e.Center).Normalized;
+                                        sphereAxis = (arcs[i + 1].PointAt(0.5) - e.Center).Normalized;
                                         if (sphereAxis * axis.Direction > 0) sphereAxis = sphereAxis + axis.Direction.Normalized;
                                         else sphereAxis = sphereAxis - axis.Direction.Normalized;
                                     }

@@ -1057,6 +1057,13 @@ namespace CADability
             Location = location;
             Direction = direction;
         }
+        public Axis Normalized
+        {
+            get
+            {
+                return new Axis(Location, Direction.Normalized);
+            }
+        }
         static public Axis InvalidAxis
         {
             get

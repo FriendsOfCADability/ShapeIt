@@ -97,7 +97,14 @@ namespace CADability
                 NonlinearMinimizationResult mres = lm.FindMinimum(iom, new DenseVector(new double[] { res.x, res.y }));
                 res = new GeoPoint2D(mres.MinimizingPoint[0], mres.MinimizingPoint[1]);
                 mindist = (p3d.x - mres.MinimizedValues[0]) * (p3d.x - mres.MinimizedValues[0]) + (p3d.y - mres.MinimizedValues[1]) * (p3d.y - mres.MinimizedValues[1]) + (p3d.z - mres.MinimizedValues[2]) * (p3d.z - mres.MinimizedValues[2]);
-                return true;
+                if (mres.ReasonForExit == ExitCondition.RelativePoints || mres.ReasonForExit == ExitCondition.RelativeGradient || mres.ReasonForExit == ExitCondition.Converged)
+                {
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
             }
             catch
             {
