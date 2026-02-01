@@ -207,6 +207,8 @@ namespace CADability.Actions
             arcCenterInput = new GeoPointInput("Constr.Arc.Center");
             arcCenterInput.DefaultGeoPoint = ConstrDefaults.DefaultArcCenter;
             arcCenterInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(Center);
+            arcCenterInput.canOverrideDrawingPlane = true;
+
             arcStartPointInput = new GeoPointInput("Constr.Arc.StartPoint");
             arcStartPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(StartPoint);
             arcEndPointInput = new GeoPointInput("Constr.Arc.EndPoint");

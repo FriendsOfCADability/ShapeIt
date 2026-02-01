@@ -160,6 +160,7 @@ namespace CADability.Actions
             startPointInput.DefaultGeoPoint = ConstrDefaults.DefaultStartPoint;
             startPointInput.DefinesBasePoint = true;
             startPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(StartPoint);
+            startPointInput.canOverrideDrawingPlane = true;
 
             width = new LengthInput("Rect.Width");
             width.DefaultLength = ConstrDefaults.DefaultRectWidth;

@@ -126,6 +126,8 @@ namespace CADability.GeoObject
         public GeoPoint SnapPoint;
         public GeoPoint BasePoint;
         public bool BasePointValid;
+        public Plane planeOnSurface;
+        public bool planeOnSurfaceValid;
         public SnapModes SnapMode;
         public bool Snap30;
         public bool Snap45;
@@ -162,6 +164,7 @@ namespace CADability.GeoObject
             this.MaxDist = Math.Max(Math.Max(p1 | this.SourcePoint, p2 | this.SourcePoint), Math.Max(p3 | this.SourcePoint, p4 | this.SourcePoint));
             pickArea = projection.GetPickSpace(new Substitutes.Rectangle(SourcePoint.X - MaxDist, SourcePoint.Y - MaxDist, 2 * MaxDist, 2 * MaxDist));
             this.BasePointValid = false;
+            planeOnSurfaceValid = false;
             this.SnapMode = SnapMode;
             this.DidSnap = DidSnapModes.DidNotSnap;
             faceDist = double.MaxValue;
@@ -266,12 +269,14 @@ namespace CADability.GeoObject
             double d = Projection.WorldToProjectionPlane(p) | Projection.WorldToProjectionPlane(p2);
             // d ist der Abstand bezogen auf die projectionplane
             bool DoIt = false;
+            planeOnSurfaceValid = true;
             if (SnapHierarchy(mode) <= SnapHierarchy(DidSnap))
             {
                 if (mode == DidSnapModes.DidSnapToFaceSurface)
                 {   // hier zählt die sichtbare Fläche, die das
                     // kleinste faceDist hat. Das wird in Face gecheckt
                     DoIt = true;
+                    planeOnSurfaceValid = true;
                 }
                 else if (SnapHierarchy(mode) == SnapHierarchy(DidSnap))
                     DoIt = (d < BestDist && d < MaxDist);

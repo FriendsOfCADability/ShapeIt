@@ -98,6 +98,7 @@ namespace CADability
         GeoObjectList PickObjects(Point MousePoint, PickMode pickMode);
         IGeoObject LastSnapObject { get; }
         SnapPointFinder.DidSnapModes LastSnapMode { get; }
+        Plane LastSnapPlane { get; }
 
         IShowProperty GetShowProperties(IFrame Frame);
         string Name { get; }
@@ -398,6 +399,7 @@ namespace CADability
         private Color? backgroundColor;
         private IGeoObject lastSnapObject;
         private SnapPointFinder.DidSnapModes lastSnapMode;
+        private Plane lastSnapPlane;
         private double displayPrecision;
         private BoundingBox additionalExtent;
 
@@ -1466,6 +1468,8 @@ namespace CADability
             WorldPoint = spf.SnapPoint; // ist auch gesetzt, wenn nicht gefangen (gemäß DrawingPlane)
             lastSnapObject = spf.BestObject;
             lastSnapMode = spf.DidSnap;
+            if (spf.planeOnSurfaceValid) lastSnapPlane = spf.planeOnSurface;
+            else lastSnapPlane = Plane.Invalid;
             return spf.DidSnap;
         }
         SnapPointFinder.DidSnapModes IView.AdjustPoint(GeoPoint BasePoint, Point MousePoint, out GeoPoint WorldPoint, GeoObjectList ToIgnore)
@@ -1484,6 +1488,8 @@ namespace CADability
             WorldPoint = spf.SnapPoint;
             lastSnapObject = spf.BestObject;
             lastSnapMode = spf.DidSnap;
+            if (spf.planeOnSurfaceValid) lastSnapPlane = spf.planeOnSurface;
+            else lastSnapPlane = Plane.Invalid;
             return spf.DidSnap;
         }
         GeoObjectList IView.PickObjects(Point MousePoint, PickMode pickMode)
@@ -1509,6 +1515,7 @@ namespace CADability
                 return lastSnapMode;
             }
         }
+        Plane IView.LastSnapPlane => lastSnapPlane;
         #endregion
         #region IShowProperty
         private bool viewDirectionModified;

@@ -569,10 +569,19 @@ namespace CADability.Actions
         {
             get
             {
+                if (overrideDrawingPlane.IsValid()) return overrideDrawingPlane;
                 if (CurrentMouseView != null)
                     return CurrentMouseView.Projection.DrawingPlane;
                 else
                     return actionStack.Frame.ActiveView.Projection.DrawingPlane;
+            }
+        }
+        private Plane overrideDrawingPlane = Plane.Invalid;
+        public Plane OverrideDrawingPlane
+        {
+            set
+            {
+                overrideDrawingPlane = value;
             }
         }
         /// <summary>

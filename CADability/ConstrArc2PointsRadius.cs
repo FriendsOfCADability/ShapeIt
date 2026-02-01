@@ -191,12 +191,14 @@ namespace CADability.Actions
             {
                 len.Optional = true;
                 diamInput.Optional = false;
-            };
+            }
+            ;
             if (activeInput == len)
             {
                 len.Optional = false;
                 diamInput.Optional = true;
-            };
+            }
+            ;
         }
 
 
@@ -213,6 +215,7 @@ namespace CADability.Actions
 
             arcPoint1Input = new GeoPointInput("Constr.Arc.Point1");
             arcPoint1Input.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(ArcPoint1);
+            arcPoint1Input.canOverrideDrawingPlane = true;
             arcPoint2Input = new GeoPointInput("Constr.Arc.Point2");
             arcPoint2Input.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(ArcPoint2);
 
@@ -235,6 +238,7 @@ namespace CADability.Actions
 
             GeoPointInput arcCenter = new GeoPointInput("Constr.Arc.Center");
             arcCenter.GetGeoPointEvent += new CADability.Actions.ConstructAction.GeoPointInput.GetGeoPointDelegate(ArcCenter);
+            arcCenter.canOverrideDrawingPlane= true;
             arcCenter.Optional = true;
             arcCenter.ReadOnly = true;
 

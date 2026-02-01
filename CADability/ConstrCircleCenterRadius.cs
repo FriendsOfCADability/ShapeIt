@@ -93,6 +93,7 @@ namespace CADability.Actions
             circCenter = new GeoPointInput("Constr.Circle.Center");
             circCenter.DefaultGeoPoint = ConstrDefaults.DefaultArcCenter;
             circCenter.DefinesBasePoint = true;
+            circCenter.canOverrideDrawingPlane = true;
             circCenter.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(Center);
 
             rad = new LengthInput("Constr.Circle.Radius");

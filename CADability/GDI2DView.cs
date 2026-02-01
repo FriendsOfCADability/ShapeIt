@@ -1478,6 +1478,7 @@ namespace CADability
         {
             get { return lastSnapMode; }
         }
+        Plane IView.LastSnapPlane => Plane.Invalid;
 
         #endregion
         /// <summary>

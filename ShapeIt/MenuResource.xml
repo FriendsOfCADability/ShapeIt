@@ -115,7 +115,8 @@
 				<MenuItem MenuId="MenuId.Constr.Rect.PointWidthHeightAngle" IconNr="50" />
 				<MenuItem MenuId="MenuId.Constr.Rect.2PointsHeight" IconNr="51" />
 				<MenuItem MenuId="MenuId.Constr.Rect.2DiagonalPoints" IconNr="52" />
-				<MenuItem MenuId="MenuId.Constr.Rect.Parallelogram" IconNr="108" />
+        <MenuItem MenuId="MenuId.Constr.Rect.Parallelogram" IconNr="108" />
+        <MenuItem MenuId="MenuId.Constr.Polygon" />
 			</Popup>
 			<Popup MenuId="MenuId.Constr.Circle" IconNr="14">
 				<MenuItem MenuId="MenuId.Constr.Circle.CenterRadius" IconNr="53" />

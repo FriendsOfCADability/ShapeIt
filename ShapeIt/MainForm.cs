@@ -193,6 +193,11 @@ namespace ShapeIt
             Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false);
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);
+            if (!Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false))
+            {
+                Settings colorSettings = Settings.GlobalSettings.GetSubSetting("Colors");
+
+            }
             Settings.GlobalSettings.SetValue("ShapeIt.Initialized", true);
             CadFrame.FileNameChangedEvent += (name) =>
             {
@@ -320,7 +325,7 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            // return;
+            return;
             string? filename = null; // @"C:\Users\gerha\Documents\Zeichnungen\RoundEdgesTest2.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished

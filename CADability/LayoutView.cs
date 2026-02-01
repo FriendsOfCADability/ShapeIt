@@ -704,6 +704,8 @@ namespace CADability
                 return SnapPointFinder.DidSnapModes.DidNotSnap;
             }
         }
+        Plane IView.LastSnapPlane => Plane.Invalid;
+
         string IView.Name
         {
             get

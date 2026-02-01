@@ -59,7 +59,7 @@ namespace CADability.GeoObject
         public override ModOp2D ReverseOrientation()
         {
             curve.Reverse();
-            return new ModOp2D(-1, 0, 0, 0, 1, 0);
+            return new ModOp2D(-1, 0, 1, 0, 1, 0);
         }
         public override ISurface Clone()
         {

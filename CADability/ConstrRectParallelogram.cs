@@ -92,6 +92,7 @@ namespace CADability.Actions
             startPointInput.DefaultGeoPoint = ConstrDefaults.DefaultStartPoint;
             startPointInput.DefinesBasePoint = true;
             startPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(StartPoint);
+            startPointInput.canOverrideDrawingPlane = true;
 
             xVectorInput = new GeoVectorInput("Constr.Rect.Parallelogram.X-Direction");
             xVectorInput.SetGeoVectorEvent += new ConstructAction.GeoVectorInput.SetGeoVectorDelegate(XVector);

@@ -1282,6 +1282,9 @@ namespace CADability
                 case "MenuId.Constr.Rect.Parallelogram":
                     SetAction(new ConstrRectParallelogram());
                     return true;
+                case "MenuId.Constr.Polygon":
+                    SetAction(new ConstrRegularPolygon());
+                    return true;
                 case "MenuId.Constr.Circle.CenterRadius":
                     SetAction(new ConstrCircleCenterRadius());
                     return true;

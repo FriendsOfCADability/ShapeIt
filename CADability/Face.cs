@@ -5970,6 +5970,8 @@ namespace CADability.GeoObject
                         if (linepos < spf.faceDist)
                         {
                             spf.faceDist = linepos;
+                            Plane touchingPlane = new Plane(p, surface.UDirection(sp[i]), surface.VDirection(sp[i]));
+                            spf.planeOnSurface = touchingPlane;
                             spf.Check(spf.SourceBeam.Location + linepos * spf.SourceBeam.Direction, this, SnapPointFinder.DidSnapModes.DidSnapToFaceSurface);
                         }
                     }
