@@ -7,6 +7,11 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>disable</ImplicitUsings>
 	</PropertyGroup>
+	<PropertyGroup>
+	    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+	    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+	</PropertyGroup>
+
 
 	<PropertyGroup Condition="'$(UiFramework)' == 'Avalonia'">
 		<OutputType>WinExe</OutputType>

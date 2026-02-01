@@ -59,7 +59,7 @@ namespace CADability
         /// <returns></returns>
         IView GetView();
         /// <summary>
-        /// 
+        ///
         /// </summary>
         /// <param name="mousePosition"></param>
         /// <returns></returns>
@@ -158,7 +158,7 @@ namespace CADability
         }
         #region IShowProperty Members
         /// <summary>
-        /// Overrides <see cref="IShowPropertyImpl.EntryType"/>, 
+        /// Overrides <see cref="IShowPropertyImpl.EntryType"/>,
         /// returns <see cref="ShowPropertyEntryType.GroupTitle"/>.
         /// </summary>
         public override ShowPropertyEntryType EntryType
@@ -179,7 +179,7 @@ namespace CADability
             }
         }
         /// <summary>
-        /// Overrides <see cref="IShowPropertyImpl.SubEntriesCount"/>, 
+        /// Overrides <see cref="IShowPropertyImpl.SubEntriesCount"/>,
         /// returns the number of subentries in this property view.
         /// </summary>
         public override int SubEntriesCount
@@ -191,7 +191,7 @@ namespace CADability
         }
         IShowProperty[] subEntries;
         /// <summary>
-        /// Overrides <see cref="IShowPropertyImpl.SubEntries"/>, 
+        /// Overrides <see cref="IShowPropertyImpl.SubEntries"/>,
         /// returns the subentries in this property view.
         /// </summary>
         public override IShowProperty[] SubEntries
@@ -1372,7 +1372,7 @@ namespace CADability
         }
         void IView.InvalidateAll()
         {
-            // ForceInvalidateAll(); // das ist definitiv zuviel, bei FeedbackObjekten wird das aufgerufen und es bräuchte nur ein 
+            // ForceInvalidateAll(); // das ist definitiv zuviel, bei FeedbackObjekten wird das aufgerufen und es bräuchte nur ein
             // neuzeichnen der Feedback Objekte
             canvas?.Invalidate();
         }
@@ -1524,7 +1524,7 @@ namespace CADability
             }
         }
         /// <summary>
-        /// Overrides <see cref="IShowPropertyImpl.EntryType"/>, 
+        /// Overrides <see cref="IShowPropertyImpl.EntryType"/>,
         /// returns <see cref="ShowPropertyEntryType.GroupTitle"/>.
         /// </summary>
         public override ShowPropertyEntryType EntryType
@@ -1570,7 +1570,7 @@ namespace CADability
             }
         }
         /// <summary>
-        /// Overrides <see cref="PropertyEntryImpl.ContextMenu"/>, 
+        /// Overrides <see cref="PropertyEntryImpl.ContextMenu"/>,
         /// returns the context menu with the id "MenuId.ModelView".
         /// (see <see cref="MenuResource.LoadContextMenu"/>)
         /// </summary>
@@ -1586,7 +1586,7 @@ namespace CADability
 
         IShowProperty[] subEntries;
         /// <summary>
-        /// Overrides <see cref="IShowPropertyImpl.SubEntriesCount"/>, 
+        /// Overrides <see cref="IShowPropertyImpl.SubEntriesCount"/>,
         /// returns the number of subentries in this property view.
         /// </summary>
         public override int SubEntriesCount
@@ -1597,7 +1597,7 @@ namespace CADability
             }
         }
         /// <summary>
-        /// Overrides <see cref="IShowPropertyImpl.SubEntries"/>, 
+        /// Overrides <see cref="IShowPropertyImpl.SubEntries"/>,
         /// returns the subentries in this property view.
         /// </summary>
         public override IShowProperty[] SubEntries

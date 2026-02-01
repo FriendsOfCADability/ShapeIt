@@ -15,7 +15,7 @@ public partial class ShapeIt : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainForm();
+            desktop.MainWindow = new MainWindow(desktop.Args);
         }
 
         base.OnFrameworkInitializationCompleted();

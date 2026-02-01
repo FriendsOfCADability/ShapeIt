@@ -18,7 +18,7 @@ namespace CADability.Avalonia
             return new Substitutes.Rectangle((int)v.X, (int)v.Y, (int)v.Width, (int)v.Height);
         }
 
-        private IPaintTo3D paintTo3D;
+        private PaintToOpenGL paintTo3D;
         private IFrame frame;
         private IView view;
         private String currentCursor;
@@ -27,18 +27,14 @@ namespace CADability.Avalonia
         {
             InitializeComponent();
             // CadCanvasControl canvasControl = new CadCanvasControl();
-            PaintToOpenGL openGlControl = new PaintToOpenGL();
-            this.Content = openGlControl;
+            paintTo3D = new PaintToOpenGL(1e-6);
+            this.Content = paintTo3D;
         }
 
         void ICanvas.Invalidate() {}
 
         Rectangle ICanvas.ClientRectangle => Subst(base.Bounds);
-
-        IFrame ICanvas.Frame
-        {
-            get { return frame; }
-        }
+        public IFrame Frame { get; set; }
 
         string ICanvas.Cursor
         {
@@ -53,7 +49,14 @@ namespace CADability.Avalonia
 
         public event Action<ICanvas> OnPaintDone;
 
-        void ICanvas.ShowView(IView toShow) {}
+        void ICanvas.ShowView(IView toShow)
+        {
+            view = toShow;
+            // TODO init paintTo3D here or in constructor?
+            paintTo3D.View = view;
+            // TODO view.Connect needed?
+            view.Connect(this);
+        }
 
         IView ICanvas.GetView()
         {

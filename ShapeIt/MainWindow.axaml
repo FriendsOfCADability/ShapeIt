@@ -2,7 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ca="using:CADability.Avalonia"
         Title="ShapeIt"
-        x:Class="ShapeIt.MainForm">
+        x:Class="ShapeIt.MainWindow">
   <DockPanel>
     <Border DockPanel.Dock="Top"
       BorderBrush="LightGray"
@@ -35,6 +35,7 @@
       DockPanel.Dock="Bottom"
       Text="Placeholder">
     </TextBlock>
-    <ca:CadForm/>
+    <ca:CadControl Name="cadControl"></ca:CadControl>
+    <!-- <ca:CadCanvas Name="cadCanvas"></ca:CadCanvas> -->
   </DockPanel>
 </Window>
