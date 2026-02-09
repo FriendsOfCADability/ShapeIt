@@ -68,8 +68,8 @@
 				<MenuItem MenuId="MenuId.DrawingPlane.Tangential" Shortcut="CtrlM"/>
 				<MenuItem MenuId="MenuId.DrawingPlane.Three.Points" />
 				<MenuItem MenuId="MenuId.DrawingPlane.OfCurve" />
-        <MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
-        <MenuItem MenuId="MenuId.DrawingPlane.Show" />
+				<MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
+				<MenuItem MenuId="MenuId.DrawingPlane.Show" />
 				<!-- <MenuItem MenuId="MenuId.DrawingPlane.Point.Direction" /> -->
 			</Popup>
 			<MenuItem MenuId="MenuId.Zoom.Total" IconNr="31" />
@@ -115,8 +115,8 @@
 				<MenuItem MenuId="MenuId.Constr.Rect.PointWidthHeightAngle" IconNr="50" />
 				<MenuItem MenuId="MenuId.Constr.Rect.2PointsHeight" IconNr="51" />
 				<MenuItem MenuId="MenuId.Constr.Rect.2DiagonalPoints" IconNr="52" />
-        <MenuItem MenuId="MenuId.Constr.Rect.Parallelogram" IconNr="108" />
-        <MenuItem MenuId="MenuId.Constr.Polygon" />
+				<MenuItem MenuId="MenuId.Constr.Rect.Parallelogram" IconNr="108" />
+				<MenuItem MenuId="MenuId.Constr.Polygon" />
 			</Popup>
 			<Popup MenuId="MenuId.Constr.Circle" IconNr="14">
 				<MenuItem MenuId="MenuId.Constr.Circle.CenterRadius" IconNr="53" />
@@ -323,8 +323,8 @@
 		<MenuItem MenuId="MenuId.DrawingPlane.Tangential" />
 		<MenuItem MenuId="MenuId.DrawingPlane.Three.Points" />
 		<MenuItem MenuId="MenuId.DrawingPlane.OfCurve" />
-    <MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
-    <MenuItem MenuId="MenuId.DrawingPlane.Show" />
+		<MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
+		<MenuItem MenuId="MenuId.DrawingPlane.Show" />
 		<!-- <MenuItem MenuId="MenuId.DrawingPlane.Point.Direction" /> -->
 	</Popup>
 	<Popup MenuId="MenuId.IntersectionPlane" Shortcuts="true" Usage="3D">
@@ -335,8 +335,8 @@
 		<MenuItem MenuId="MenuId.Plane.2PointsDrawingPlane" />
 		<MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
 		<MenuItem MenuId="MenuId.DrawingPlane.Tangential" />
-    <MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
-    <MenuItem MenuId="MenuId.Plane.OfCurve" />
+		<MenuItem MenuId="MenuId.Plane.OriginNormalPoint" />
+		<MenuItem MenuId="MenuId.Plane.OfCurve" />
 		<!-- <MenuItem MenuId="MenuId.DrawingPlane.Point.Direction" /> -->
 	</Popup>
 
@@ -855,7 +855,7 @@
 			<MenuItem MenuId="MenuId.Edit.Paste"/>
 			<MenuItem MenuId="MenuId.Edit.Undo"/>
 			<MenuItem MenuId="MenuId.Edit.Redo"/>
-			</Popup>
+		</Popup>
 		<Popup MenuId= "Construct">
 			<MenuItem MenuId="MenuId.Select"/>
 			<MenuItem MenuId="MenuId.Constr.Point"/>

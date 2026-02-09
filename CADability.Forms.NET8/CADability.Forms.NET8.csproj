@@ -128,6 +128,7 @@
     <None Remove="Icons\MenuId.Constr.Line.TwoPoints.svg" />
     <None Remove="Icons\MenuId.Constr.Line.TwoTangents.svg" />
     <None Remove="Icons\MenuId.Constr.Point.svg" />
+    <None Remove="Icons\MenuId.Constr.Polygon.svg" />
     <None Remove="Icons\MenuId.Constr.Polyline.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.2DiagonalPoints.svg" />
     <None Remove="Icons\MenuId.Constr.Rect.2PointsHeight.svg" />
@@ -289,6 +290,7 @@
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.TwoPoints.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Line.TwoTangents.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Point.svg" />
+    <EmbeddedResource Include="Icons\MenuId.Constr.Polygon.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Polyline.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.2DiagonalPoints.svg" />
     <EmbeddedResource Include="Icons\MenuId.Constr.Rect.2PointsHeight.svg" />

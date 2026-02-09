@@ -30,6 +30,8 @@ namespace CADability.UserInterface
         private IPropertyEntry rectangleProperty; // nur gesetzt, wenn es ein Rechteck ist, die GroupProperty des Rechtecks
         private IPropertyEntry parallelProperty; // nur gesetzt, wenn es ein Rechteck ist, die GroupProperty des Rechtecks
         private IPropertyEntry polygonProperty; // nur gesetzt, wenn es ein Rechteck ist, die GroupProperty des Rechtecks
+
+        private Plane referencePlane = Plane.Invalid;
         private class VertexIndexedGeoPoint : IIndexedGeoPoint
         {
             ShowPropertyPolyline showPropertyPolyline; // nach außen
@@ -209,7 +211,36 @@ namespace CADability.UserInterface
                 polygonInnerRadiusHotSpot = new GeoPointHotSpot(new GeoPoint(polyline.Vertices[0], polyline.Vertices[1]));
                 polygonInnerRadiusHotSpot.StartDragHotspotEvent += OnInnerRadiusHotSpotStartDragHotspot;
 
-                polygonProperty = new GroupProperty("Polyline.Polygon", new IPropertyEntry[] { polygonCenterProperty, outerRadius, innerRadius });
+                IntegerProperty sides = new IntegerProperty(polyline.Vertices.Length, "Polygon.NumberOfSides");
+                sides.SetMinMax(3, 1000, true);
+                sides.OnGetValue = () => polyline.Vertices.Length;
+                sides.SetIntEvent += (IntegerProperty sender, int newValue) =>
+                {
+                    if (newValue < 3) newValue = 3;
+                    polyline.SetRegularPolygon(polyline.PolygonPlane, polyline.PolygonOuterRadius, 0.0, newValue);
+                };
+
+                if (Precision.SameDirection(polyline.PolygonPlane.Normal, Frame.ActiveView.Projection.DrawingPlane.Normal, false))
+                {
+                    referencePlane = Frame.ActiveView.Projection.DrawingPlane;
+                    referencePlane.Location = polyline.PolygonPlane.Location;
+                }
+
+                if (referencePlane.IsValid())
+                {
+                    double a = (referencePlane.Project(polyline.Vertices[0]) - referencePlane.Project(polyline.PolygonPlane.Location)).Angle;
+                    AngleProperty angle = new AngleProperty(Frame, "Polygon.RotationAngle");
+                    angle.OnGetValue = () => a;
+                    angle.OnSetValue = ang =>
+                    {
+                        polyline.SetRegularPolygon(referencePlane, polyline.PolygonOuterRadius, ang, polyline.Vertices.Length);
+                    };
+                    polygonProperty = new GroupProperty("Polyline.Polygon", [polygonCenterProperty, outerRadius, innerRadius, sides, angle]);
+                }
+                else
+                {
+                    polygonProperty = new GroupProperty("Polyline.Polygon", [polygonCenterProperty, outerRadius, innerRadius, sides]);
+                }
                 subEntries[0] = polygonProperty;
                 polygonProperty.PropertyEntryChangedStateEvent += OnPolygonPropertyStateChanged;
 
