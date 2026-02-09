@@ -132,7 +132,7 @@ namespace CADability.GeoObject
 
         }
 
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             double u = uv.x;
             double v = uv.y;
@@ -160,7 +160,7 @@ namespace CADability.GeoObject
             dv = (axis.Direction ^ rRot) + K * axis.Direction;
         }
 
-        public override void Derivation2At(GeoPoint2D uv,
+        public override void Derivative2At(GeoPoint2D uv,
             out GeoPoint location,
             out GeoVector du, out GeoVector dv,
             out GeoVector duu, out GeoVector dvv, out GeoVector duv)

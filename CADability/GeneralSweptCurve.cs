@@ -256,7 +256,7 @@ namespace CADability
             this.c2d = c2d;
             this.surface = surface;
             GeoVector du, dv;
-            surface.DerivationAt(c2d.StartPoint, out startPos, out du, out dv);
+            surface.DerivativeAt(c2d.StartPoint, out startPos, out du, out dv);
             GeoVector2D dir2d = c2d.StartDirection;
             GeoVector2D dir2dr = dir2d.ToRight();
             startX = dir2d.x * du + dir2d.y * dv;
@@ -271,7 +271,7 @@ namespace CADability
         {
             GeoVector du, dv;
             GeoPoint loc;
-            surface.DerivationAt(c2d.PointAt(u), out loc, out du, out dv);
+            surface.DerivativeAt(c2d.PointAt(u), out loc, out du, out dv);
             GeoVector2D dir2d = c2d.DirectionAt(u);
             GeoVector ux = dir2d.x * du + dir2d.y * dv;
             GeoVector uz = du ^ dv;
@@ -290,7 +290,7 @@ namespace CADability
             {
                 GeoVector du, dv;
                 GeoPoint loc;
-                surface.DerivationAt(c2d.PointAt(0.0), out loc, out du, out dv);
+                surface.DerivativeAt(c2d.PointAt(0.0), out loc, out du, out dv);
                 GeoVector2D dir2d = c2d.DirectionAt(0.0);
                 return dir2d.x * du + dir2d.y * dv;
             }
@@ -316,7 +316,7 @@ namespace CADability
                     double u = i / 100.0;
                     GeoVector du, dv;
                     GeoPoint loc;
-                    surface.DerivationAt(c2d.PointAt(u), out loc, out du, out dv);
+                    surface.DerivativeAt(c2d.PointAt(u), out loc, out du, out dv);
                     GeoPoint2D loc2d = c2d.PointAt(u);
                     GeoVector2D dir2d = c2d.DirectionAt(u);
                     GeoVector2D dir2dr = dir2d.ToRight();
@@ -339,7 +339,7 @@ namespace CADability
                     double u = i / 100.0;
                     GeoVector du, dv;
                     GeoPoint loc;
-                    surface.DerivationAt(c2d.PointAt(u), out loc, out du, out dv);
+                    surface.DerivativeAt(c2d.PointAt(u), out loc, out du, out dv);
                     GeoPoint2D loc2d = c2d.PointAt(u);
                     GeoVector2D dir2d = c2d.DirectionAt(u);
                     GeoVector2D dir2dr = dir2d.ToRight();
@@ -734,13 +734,13 @@ namespace CADability
         {
             return modOpAt(uv.y) * toSweep.PointAt(uv.x);
         }
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             location = PointAt(uv);
             du = UDirection(uv);
             dv = VDirection(uv);
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             throw new NotImplementedException("Derivation2At must be implemented");
         }

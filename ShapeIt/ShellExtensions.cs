@@ -276,7 +276,7 @@ namespace ShapeIt
             for (int iter = 0; iter < maxIter; iter++)
             {
                 // First- and second-order surface data
-                surface.Derivation2At(
+                surface.Derivative2At(
                     uv, out GeoPoint loc, out GeoVector du, out GeoVector dv,
                     out GeoVector duu, out GeoVector dvv, out GeoVector duv);
 

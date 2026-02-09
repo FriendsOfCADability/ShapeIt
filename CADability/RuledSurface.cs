@@ -263,13 +263,13 @@ namespace CADability
             return p2 - p1; // ist ja auf die Länge bezogen, wie es sein soll
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivationAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivativeAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
         /// <param name="du"></param>
         /// <param name="dv"></param>
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             GeoPoint p1 = firstCurve.PointAt(uv.x);
             GeoPoint p2 = secondCurve.PointAt(uv.x);
@@ -280,7 +280,7 @@ namespace CADability
             dv = p2 - p1;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivation2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
@@ -289,7 +289,7 @@ namespace CADability
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             GeoPoint p1, p2;
             GeoVector dir11, dir12, dir21, dir22;
@@ -306,7 +306,7 @@ namespace CADability
             }
             else
             {
-                base.Derivation2At(uv, out location, out du, out dv, out duu, out dvv, out duv);
+                base.Derivative2At(uv, out location, out du, out dv, out duu, out dvv, out duv);
             }
         }
         /// <summary>

@@ -31,7 +31,7 @@ namespace CADability.GeoObject
     /// cone. The u parameter always describes a circle or ellipse, the v parameter a Line.
     /// </summary>
     [Serializable()]
-    public class ConicalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, ISurfaceOfRevolution, IExportStep, ICone
+    public class ConicalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, ISurfaceOfRevolution, IExportStep, ICone, IJsonSerialize, IJsonSerializeDone
     {
         // Der Einheitskegel hat als halben Öffnungswinkel 45°, Der Ursprung ist die Kegelspitze, u geht im Kreis
         // v in die ZRichtung
@@ -380,7 +380,7 @@ namespace CADability.GeoObject
             uv.y += voffset; // v-offset is not guaranteed to be 0, step import creates such surfaces
             return toCone * new GeoVector(Math.Cos(uv.x), Math.Sin(uv.x), 1.0);
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             location = PointAt(uv); // GeoPoint(uv.y * Math.Cos(uv.x), uv.y * Math.Sin(uv.x), uv.y);
             uv.y += voffset; // v-offset is not guaranteed to be 0, step import creates such surfaces
@@ -2169,6 +2169,29 @@ namespace CADability.GeoObject
         {
             toUnit = toCone.GetInverse();
             voffset = 0.0;
+        }
+        #endregion
+        #region IJsonSerialize
+        protected ConicalSurface() // for IJsonSerialize
+        {
+            voffset = 0.0;
+        }
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("Domain", usedArea);
+            data.AddProperty("ToUnit", toUnit);
+
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+            usedArea = data.GetProperty<BoundingRect>("Domain");
+            toUnit = data.GetProperty<ModOp>("ToUnit");
+            data.RegisterForSerializationDoneCallback(this);
+        }
+        void IJsonSerializeDone.SerializationDone(JsonSerialize jsonSerialize)
+        {
+            toUnit = toCone.GetInverse();
         }
         #endregion
         public override IPropertyEntry GetPropertyEntry(IFrame frame)

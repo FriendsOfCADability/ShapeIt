@@ -2922,47 +2922,47 @@ namespace CADability
 
         public override GeoVector DirectionAt(double Position)
         {
-            return (ApproxBSpline as ICurve).DirectionAt(Position);
-            GeoPoint2D uv1, uv2;
-            GeoPoint p;
-            ApproximatePosition(Position, out uv1, out uv2, out p);
-            GeoVector dir;
-            if (isTangential)
+            if (PrecisionContext.Current.Value == PrecisionMode.High)
             {
-                dir = (ApproxBSpline as ICurve).DirectionAt(Position); // here we cannnot use the normals of the surfaces, they are parallel
-                surface1.Derivation2At(uv1, out _, out GeoVector su1, out GeoVector sv1, out GeoVector suu1, out GeoVector suv1, out GeoVector svv1);
-                surface2.Derivation2At(uv2, out _, out GeoVector su2, out GeoVector sv2, out GeoVector suu2, out GeoVector suv2, out GeoVector svv2);
-                GeoVector dirt = TangentDirectionAtContact(su1, sv1, suu1, suv1, svv1, su2, sv2, suu2, suv2, svv2, (su1 ^ sv1 + su2 ^ sv2).Normalized, dir, dir);
-                dirt.Length = dir.Length;
-                // the directions should be very similar, since the ApproxBSpline is very close to the real curve
-                // but sometimes TangentDirectionAtContact fails (reason should be checked) and then we prefer the ApproxBSpline direction
-                if (dir.Normalized * dirt.Normalized > 0.999) dir = dirt;
+                GeoPoint2D uv1, uv2;
+                GeoPoint p;
+                ApproximatePosition(Position, out uv1, out uv2, out p);
+                GeoVector dir;
+                if (isTangential)
+                {
+                    dir = (ApproxBSpline as ICurve).DirectionAt(Position); // here we cannnot use the normals of the surfaces, they are parallel
+                    surface1.Derivative2At(uv1, out _, out GeoVector su1, out GeoVector sv1, out GeoVector suu1, out GeoVector suv1, out GeoVector svv1);
+                    surface2.Derivative2At(uv2, out _, out GeoVector su2, out GeoVector sv2, out GeoVector suu2, out GeoVector suv2, out GeoVector svv2);
+                    GeoVector dirt = TangentDirectionAtContact(su1, sv1, suu1, suv1, svv1, su2, sv2, suu2, suv2, svv2, (su1 ^ sv1 + su2 ^ sv2).Normalized, dir, dir);
+                    dirt.Length = dir.Length;
+                    // the directions should be very similar, since the ApproxBSpline is very close to the real curve
+                    // but sometimes TangentDirectionAtContact fails (reason should be checked) and then we prefer the ApproxBSpline direction
+                    if (dir.Normalized * dirt.Normalized > 0.999) dir = dirt;
+                }
+                else
+                {
+                    dir = surface1.GetNormal(uv1) ^ surface2.GetNormal(uv2);
+                    dir.Length = (ApproxBSpline as ICurve).DirectionAt(Position).Length; // make the same lengt as the approximating BSpline would have. This is very close
+                }
+                if (!forwardOriented) dir.Reverse();
+                return dir;
             }
             else
-            {
-                dir = surface1.GetNormal(uv1) ^ surface2.GetNormal(uv2);
-                dir.Length = (ApproxBSpline as ICurve).DirectionAt(Position).Length; // make the same lengt as the approximating BSpline would have. This is very close
-            }
-            if (!forwardOriented) dir.Reverse();
-            return dir;
+                return (ApproxBSpline as ICurve).DirectionAt(Position);
         }
         public override GeoPoint PointAt(double Position)
         {
-            return (ApproxBSpline as ICurve).PointAt(Position);
-            GeoPoint2D uv1, uv2;
-            GeoPoint p;
-#if DEBUG
-            // double oldLength = hashedPositionsLength();
-#endif
-            var dumy = ApproxBSpline; // a better syntax needed here to ensure that approxPolynom is initialized
-            ApproximatePosition(Position, out uv1, out uv2, out p);
-#if DEBUG
-            //if (oldLength > 0.0 && hashedPositionsLength() / oldLength > 2)
-            //{   // something invalid happened
-
-            //}
-#endif
-            return p;
+            if (PrecisionContext.Current.Value == PrecisionMode.High)
+            {
+                GeoPoint2D uv1, uv2;
+                GeoPoint p;
+                ApproximatePosition(Position, out uv1, out uv2, out p);
+                return p;
+            }
+            else
+            {
+                return (ApproxBSpline as ICurve).PointAt(Position);
+            }
         }
 #if DEBUG
         double hashedPositionsLength()
@@ -3196,7 +3196,7 @@ namespace CADability
         }
         public override void Trim(double StartPos, double EndPos)
         {
-            // if (StartPos <= 0 && EndPos >= 1) return; ; // nichts zu tun
+            if (StartPos <= Precision.eps && EndPos >= 1-Precision.eps) return; // trim from start to end, nothing to do
             List<SurfacePoint> spl = new List<SurfacePoint>();
             GeoPoint2D uv1, uv2;
             GeoPoint p;
@@ -3302,7 +3302,7 @@ namespace CADability
             {
                 sp[i].p3d = m * sp[i].p3d;
             }
-            InterpolatedDualSurfaceCurve ipdsc = new InterpolatedDualSurfaceCurve(surface1.GetModified(m), surface2.GetModified(m), sp, forwardOriented);
+            InterpolatedDualSurfaceCurve ipdsc = new InterpolatedDualSurfaceCurve(surface1.GetModified(m), surface2.GetModified(m), sp, IsTangential);
             return ipdsc;
         }
         public override PlanarState GetPlanarState()

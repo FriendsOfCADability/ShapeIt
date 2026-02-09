@@ -92,7 +92,7 @@ namespace CADability.GeoObject
         /// <param name="location">Resulting 3D point</param>
         /// <param name="du">Resulting derivation in u</param>
         /// <param name="dv">Resulting derivation in v</param>
-        void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
+        void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
         /// <summary>
         /// Returns the point, the two first derivations and the three second derivations of the surface at the provided parameter position.
         /// 
@@ -104,7 +104,7 @@ namespace CADability.GeoObject
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+        void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
         /// <summary>
         /// Returns the intersection curve(s) of this surface with the given plane. An empty array is returned if there is no intersection.
         /// umin, umax, vmin, vmax define the Parameterspace of this surface (not of the PlaneSurface) for the intersection. It is also the periodic domain
@@ -1275,7 +1275,7 @@ namespace CADability.GeoObject
                     value = new GeoPoint(0, 0, 0);
                     return false;
                 }
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -1414,7 +1414,7 @@ namespace CADability.GeoObject
                     value = new GeoPoint(0, 0, 0);
                     return false;
                 }
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -1642,7 +1642,7 @@ namespace CADability.GeoObject
         {
             verfahren = '1';
 
-            surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+            surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -1703,7 +1703,7 @@ namespace CADability.GeoObject
                     return false;
                 }
 
-                surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+                surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du = direction * dutemp;
                 dv = direction * dvtemp;
@@ -1738,7 +1738,7 @@ namespace CADability.GeoObject
         private bool StartNewtonLine()
         {
             verfahren = '2';
-            surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+            surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -1793,7 +1793,7 @@ namespace CADability.GeoObject
                     return false;
                 }
 
-                surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+                surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du = direction * dutemp;
                 dv = direction * dvtemp;
@@ -1833,7 +1833,7 @@ namespace CADability.GeoObject
             verfahren = '3';
             duv = 0;
 
-            surface.DerivationAt(x, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(x, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -1850,7 +1850,7 @@ namespace CADability.GeoObject
 
             ap = new GeoPoint2D(steplength * p.x, steplength * p.y);
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
 
@@ -1885,7 +1885,7 @@ namespace CADability.GeoObject
                 return false;
             }
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
@@ -1972,7 +1972,7 @@ namespace CADability.GeoObject
                 }
 
                 // Bestimmt die Werte am neuen Punkt.
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -2002,7 +2002,7 @@ namespace CADability.GeoObject
             verfahren = '4';
             dir = new GeoVector2D(end.x - start.x, end.y - start.y).Normalized;
 
-            surface.DerivationAt(x, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(x, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -2028,7 +2028,7 @@ namespace CADability.GeoObject
             }
 
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
             gradient2 = dir.x * du2 + dir.y * dv2;
@@ -2066,7 +2066,7 @@ namespace CADability.GeoObject
 
             // Obiges diente soweit dazu, eine ganz gute erste Annäherung zu finden. Genaueres steht im SR1Rectangle
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
@@ -2153,7 +2153,7 @@ namespace CADability.GeoObject
                     return false;
                 }
 
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -2884,7 +2884,7 @@ namespace CADability.GeoObject
                     GeoVector dirx;
                     GeoVector diry;
                     GeoPoint loc;
-                    this.DerivationAt(res, out loc, out dirx, out diry);
+                    this.DerivativeAt(res, out loc, out dirx, out diry);
                     Matrix mtx = DenseMatrix.OfRowArrays(dirx, diry, dirx ^ diry);
                     Vector b = new DenseVector(p - loc);
                     if (!Precision.IsNullVector(dirx) && !Precision.IsNullVector(diry))
@@ -2906,20 +2906,20 @@ namespace CADability.GeoObject
             // return new GeoPoint2D(Helper.PositionOf(p.ToCndHlp()));
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.DerivationAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.DerivativeAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
         /// <param name="du"></param>
         /// <param name="dv"></param>
-        public virtual void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public virtual void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             location = (this as ISurface).PointAt(uv);
             du = (this as ISurface).UDirection(uv);
             dv = (this as ISurface).VDirection(uv);
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.Derivation2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/> numerically. If possible, implement a derivative
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
@@ -2928,9 +2928,40 @@ namespace CADability.GeoObject
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        public virtual void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public virtual void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
-            throw new NotImplementedException("Derivation2At must be implemented");
+            BoundingRect uvminmax = usedArea;
+            double hu, hv;
+            if (!uvminmax.IsInvalid() && !uvminmax.IsEmpty() && !uvminmax.IsInfinite)
+            {
+                hu = 1e-6 * (uvminmax.Width);
+                hv = 1e-6 * (uvminmax.Height);
+            }
+            else
+            {
+                hu = 1e-6; hv = 1e-6;
+            }
+            // 1) location + 1. Ableitungen analytisch
+            location = PointAt(uv);
+            du = UDirection(uv);
+            dv = VDirection(uv);
+
+            // 2) 2. Ableitungen numerisch (Punkt-basiert)
+
+            GeoPoint SuP = PointAt(new GeoPoint2D(uv.x + hu, uv.y));
+            GeoPoint SuM = PointAt(new GeoPoint2D(uv.x - hu, uv.y));
+            GeoPoint SvP = PointAt(new GeoPoint2D(uv.x, uv.y + hv));
+            GeoPoint SvM = PointAt(new GeoPoint2D(uv.x, uv.y - hv));
+
+            duu = (1 / (hu * hu)) * (SuP.ToVector() - 2 * location.ToVector() + SuM.ToVector());
+            dvv = (1 / (hu * hu)) * (SvP.ToVector() - 2 * location.ToVector() + SvM.ToVector());
+
+            GeoPoint SuvPP = PointAt(new GeoPoint2D(uv.x + hu, uv.y + hv));
+            GeoPoint SuvPM = PointAt(new GeoPoint2D(uv.x + hu, uv.y - hv));
+            GeoPoint SuvMP = PointAt(new GeoPoint2D(uv.x - hu, uv.y + hv));
+            GeoPoint SuvMM = PointAt(new GeoPoint2D(uv.x - hu, uv.y - hv));
+
+            duv = (SuvPP.ToVector() - SuvPM.ToVector() - SuvMP.ToVector() + SuvMM.ToVector()) / (4 * hu * hv);
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.GetPlaneIntersection (PlaneSurface, double, double, double, double, double)"/>
@@ -3859,7 +3890,7 @@ namespace CADability.GeoObject
             GeoPoint2D pos = PositionOf(fromHere);
             GeoPoint loc;
             GeoVector du, dv;
-            DerivationAt(pos, out loc, out du, out dv);
+            DerivativeAt(pos, out loc, out du, out dv);
             double d = Geometry.DistPL(fromHere, loc, du ^ dv);
             // if (Precision.IsEqual(fromHere, loc) || Precision.SameDirection(du ^ dv, fromHere - loc, false))
             // bei PositionOf in der BoxedSurfaces ist das Abbruchkriterium der Abstand des Punktes von der Normalen in pos.
@@ -4584,7 +4615,7 @@ namespace CADability.GeoObject
                 mp = sp + u0 * (ep - sp);
                 GeoPoint location;
                 GeoVector du, dv, duu, dvv, duv;
-                this.Derivation2At(mp, out location, out du, out dv, out duu, out dvv, out duv);
+                this.Derivative2At(mp, out location, out du, out dv, out duu, out dvv, out duv);
 
                 double len2 = sp | ep;
                 double a = (ep.x - sp.x) / len2;
@@ -6431,10 +6462,10 @@ namespace CADability.GeoObject
             out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3)
         {
 #if DEBUG
-            DebuggerContainer dc = new DebuggerContainer();
-            dc.Add(Face.MakeFace(surface1, bounds1), 1);
-            dc.Add(Face.MakeFace(surface2, bounds2), 2);
-            dc.Add(Face.MakeFace(surface3, bounds3), 3);
+            //DebuggerContainer dc = new DebuggerContainer();
+            //dc.Add(Face.MakeFace(surface1, bounds1), 1);
+            //dc.Add(Face.MakeFace(surface2, bounds2), 2);
+            //dc.Add(Face.MakeFace(surface3, bounds3), 3);
 #endif
             ISurface[] surfaces = new ISurface[] { surface1, surface2, surface3 };
             BoundingRect[] bounds = new BoundingRect[] { bounds1, bounds2, bounds3 };
@@ -10785,7 +10816,7 @@ namespace CADability.GeoObject
             {
                 norm.Norm();
 
-                surface.Derivation2At(result, out location, out du, out dv, out duu, out dvv, out duv);
+                surface.Derivative2At(result, out location, out du, out dv, out duu, out dvv, out duv);
                 GeoVector d2u = 0.5 * duu;
                 GeoVector d2v = 0.5 * dvv;
 #if DEBUG
@@ -10842,7 +10873,7 @@ namespace CADability.GeoObject
                     result = sp + t * ab;
                     uc = result.x; // fürs nächste t
                     vc = result.y;
-                    surface.Derivation2At(result, out location, out du, out dv, out duu, out dvv, out duv);
+                    surface.Derivative2At(result, out location, out du, out dv, out duu, out dvv, out duv);
                     d2u = 0.5 * duu;
                     d2v = 0.5 * dvv;
                     bduvz = (b * duv.z); // fürs nächste t
@@ -10902,7 +10933,7 @@ namespace CADability.GeoObject
             try // wenn die Ableitungen 0 werden z.B.
             {
                 normal.NormIfNotNull();
-                surface.Derivation2At(result, out location, out du, out dv, out duu, out dvv, out duv);
+                surface.Derivative2At(result, out location, out du, out dv, out duu, out dvv, out duv);
 #if DEBUG
                 DebuggerContainer dc = new DebuggerContainer();
                 GeoPoint lastPoint = location;
@@ -10928,7 +10959,7 @@ namespace CADability.GeoObject
                         double te;
                         do
                         {
-                            surface.Derivation2At(result + step, out location, out du, out dv, out duu, out dvv, out duv);
+                            surface.Derivative2At(result + step, out location, out du, out dv, out duu, out dvv, out duv);
                             te = Math.Abs(du.Normalized * normal) + Math.Abs(dv.Normalized * normal);
                             if (te < err) break;
                             step = 0.3 * step; // wenn der Fehler nicht kleiner wird, dann einen drittel Schritt weitergehen
@@ -13272,8 +13303,8 @@ namespace CADability.GeoObject
                     lip.ui1 = lip.vi1 = lip.ui2 = lip.vi2 = -1;
                     GeoVector diru1, dirv1, diru2, dirv2;
                     GeoPoint ip;
-                    surface1.DerivationAt(lip.uv1, out ip, out diru1, out dirv1);
-                    surface2.DerivationAt(lip.uv2, out ip, out diru2, out dirv2);
+                    surface1.DerivativeAt(lip.uv1, out ip, out diru1, out dirv1);
+                    surface2.DerivativeAt(lip.uv2, out ip, out diru2, out dirv2);
                     GeoVector n1 = (diru1 ^ dirv1).Normalized;
                     GeoVector n2 = (diru2 ^ dirv2).Normalized;
                     lip.cross = n1 ^ n2;
@@ -13319,8 +13350,8 @@ namespace CADability.GeoObject
                 lip.AdjustPeriodic(surface1, surface2, bounds1, bounds2);
                 lip.ui1 = lip.vi1 = lip.ui2 = lip.vi2 = -1;
                 GeoVector diru1, dirv1, diru2, dirv2;
-                surface1.DerivationAt(lip.uv1, out ip, out diru1, out dirv1);
-                surface2.DerivationAt(lip.uv2, out ip, out diru2, out dirv2);
+                surface1.DerivativeAt(lip.uv1, out ip, out diru1, out dirv1);
+                surface2.DerivativeAt(lip.uv2, out ip, out diru2, out dirv2);
                 GeoVector n1 = (diru1 ^ dirv1).Normalized;
                 GeoVector n2 = (diru2 ^ dirv2).Normalized;
                 lip.cross = n1 ^ n2;
@@ -15500,7 +15531,7 @@ namespace CADability.GeoObject
         }
         public static void MinMaxCurvature(ISurface surface, GeoPoint2D uv, out ICurve minCurvature, out ICurve maxCurvature)
         {   // to be tested
-            surface.Derivation2At(uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+            surface.Derivative2At(uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
             Matrix I = DenseMatrix.Create(2, 2, 0);
             I[0, 0] = du * du;
             I[0, 1] = I[1, 0] = du * dv;

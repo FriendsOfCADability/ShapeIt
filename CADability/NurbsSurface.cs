@@ -3503,13 +3503,13 @@ namespace CADability.GeoObject
             }
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivationAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivativeAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
         /// <param name="du"></param>
         /// <param name="dv"></param>
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             if (nubs == null && nurbs == null) Init(); // sometimes necessary
             if (IsUPeriodic && UPeriod > 0)
@@ -4927,7 +4927,7 @@ namespace CADability.GeoObject
             base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivation2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
@@ -4936,7 +4936,7 @@ namespace CADability.GeoObject
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             if (nubs == null && nurbs == null) Init();
             if (nubs != null)

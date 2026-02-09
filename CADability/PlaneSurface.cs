@@ -193,7 +193,7 @@ namespace CADability.GeoObject
             if (toUnitPlane.IsNull) toUnitPlane = fromUnitPlane.GetInverse();
             return (toUnitPlane * p).To2D();
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             location = PointAt(uv);
             du = UDirection(uv);

@@ -241,13 +241,9 @@ namespace CADability.GeoObject
 
             GeoVector du, dv, duu, dvv, duv;
             GeoPoint loc;
-            baseSurface.Derivation2At(uv, out loc, out du, out dv, out duu, out dvv, out duv);
+            baseSurface.Derivative2At(uv, out loc, out du, out dv, out duu, out dvv, out duv);
             GeoVector crop;
-            //CndHlp3D.GeoVector3D dbg = Helper.UDirection(uv.ToCndHlp());
             crop = (dv ^ (du ^ dv));
-            //GeoVector dbg1 = -0.5 * offset * (duu * crop + (du * (dv ^ ((duu ^ dv) + (du ^ duv)))) + (du * (duv ^ (du ^ dv)))) / System.Math.Pow((du * crop), 1.5) * (du ^ dv);
-            //GeoVector dgb2 = (offset / System.Math.Pow((du * crop), 0.5)) * ((duu ^ dv) + (du ^ duv));
-            //GeoVector dgb4 = -0.5 * offset * (duu * crop + (du * (dv ^ ((duu ^ dv) + (du ^ duv)))) + (du * (duv ^ (du ^ dv)))) / System.Math.Pow((du * crop), 1.5) * (du ^ dv) + offset * ((duu ^ dv) + (du ^ duv)) / System.Math.Pow((du * crop), 0.5) + du;
             return -0.5 * offset * (duu * crop + (du * (dv ^ ((duu ^ dv) + (du ^ duv)))) + (du * (duv ^ (du ^ dv)))) / System.Math.Pow((du * crop), 1.5) * (du ^ dv) + offset * ((duu ^ dv) + (du ^ duv)) / System.Math.Pow((du * crop), 0.5) + du;
         }
         /// <summary>
@@ -267,10 +263,8 @@ namespace CADability.GeoObject
              */
             GeoVector du, dv, duu, dvv, duv;
             GeoPoint loc;
-            baseSurface.Derivation2At(uv, out loc, out du, out dv, out duu, out dvv, out duv);
-            //CndHlp3D.GeoVector3D dbg = Helper.VDirection(uv.ToCndHlp());
+            baseSurface.Derivative2At(uv, out loc, out du, out dv, out duu, out dvv, out duv);
             GeoVector crop = dv ^ (du ^ dv);
-            //GeoVector dbg1 = (-0.5 * offset * ((duv * crop) + (du * (dvv ^ (du ^ dv))) + (du * (dv ^ ((duv ^ dv) + (du ^ dvv))))) / System.Math.Pow(du * crop, 1.5) * (du ^ dv)) + (offset / System.Math.Pow(du * crop, 0.5) * ((duv ^ dv) + (du ^ dvv))) + dv;
             return (-0.5 * offset * ((duv * crop) + (du * (dvv ^ (du ^ dv))) + (du * (dv ^ ((duv ^ dv) + (du ^ dvv))))) / System.Math.Pow(du * crop, 1.5) * (du ^ dv)) + (offset / System.Math.Pow(du * crop, 0.5) * ((duv ^ dv) + (du ^ dvv))) + dv;
         }
         /// <summary>
@@ -304,11 +298,6 @@ namespace CADability.GeoObject
         public override void GetZMinMax(Projection p, double umin, double umax, double vmin, double vmax, ref double zMin, ref double zMax)
         {
             throw new NotImplementedException("GetZMinMax not implemented");
-        }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
-        {
-            BaseSurface.Derivation2At(uv, out location, out du, out dv, out duu, out dvv, out duv);
-            //base.Derivation2At(uv, out location, out du, out dv, out duu, out dvv, out duv);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Make3dCurve (ICurve2D)"/>

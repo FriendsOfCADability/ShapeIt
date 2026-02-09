@@ -326,7 +326,7 @@ namespace CADability.GeoObject
                 return toSurface * rot * dir;
             }
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             // with simple maxima:
             // loc: [sqrt(cx(v)^2+cy(v)^2)*cos(u),sqrt(cx(v)^2+cy(v)^2)*sin(u),cz(v)]

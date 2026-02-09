@@ -1529,8 +1529,8 @@ namespace CADability
                 derivs = DenseMatrix.Create(4, 4, 0);
                 GeoPoint2D uvs1 = new GeoPoint2D(parameters[0], parameters[1]);
                 GeoPoint2D uvs2 = new GeoPoint2D(parameters[2], parameters[3]);
-                surface1.Derivation2At(uvs1, out GeoPoint s, out GeoVector sdu, out GeoVector sdv, out GeoVector sduu, out GeoVector sdvv, out GeoVector sdudv);
-                surface2.Derivation2At(uvs2, out GeoPoint r, out GeoVector rds, out GeoVector rdt, out GeoVector rdss, out GeoVector rdtt, out GeoVector rdsdt);
+                surface1.Derivative2At(uvs1, out GeoPoint s, out GeoVector sdu, out GeoVector sdv, out GeoVector sduu, out GeoVector sdvv, out GeoVector sdudv);
+                surface2.Derivative2At(uvs2, out GeoPoint r, out GeoVector rds, out GeoVector rdt, out GeoVector rdss, out GeoVector rdtt, out GeoVector rdsdt);
 
                 // some regex: 
                 // \([su],[tv]\) -> 
@@ -1605,7 +1605,7 @@ namespace CADability
         }
         /// <summary>
         /// Tries to find a maximum or minimum point in the direction <paramref name="dir"/> of <paramref name="surface"/> within the patch <paramref name="bounds"/>.
-        /// Requires the surface to implement <see cref="ISurface.Derivation2At(GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>.
+        /// Requires the surface to implement <see cref="ISurface.Derivative2At(GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>.
         /// </summary>
         /// <param name="surface">The surface</param>
         /// <param name="bounds">The patch of the surface to be examined</param>
@@ -1641,7 +1641,7 @@ namespace CADability
             {
                 derivs = DenseMatrix.Create(2, 2, 0);
                 GeoPoint2D suv = new GeoPoint2D(parameters[0], parameters[1]);
-                surface.Derivation2At(suv, out GeoPoint s, out GeoVector sdu, out GeoVector sdv, out GeoVector sduu, out GeoVector sdvv, out GeoVector sdudv);
+                surface.Derivative2At(suv, out GeoPoint s, out GeoVector sdu, out GeoVector sdv, out GeoVector sduu, out GeoVector sdvv, out GeoVector sdudv);
 
                 derivs[0, 0] = dir.z * sduu.z + dir.y * sduu.y + dir.x * sduu.x;
                 derivs[0, 1] = dir.z * sdudv.z + dir.y * sdudv.y + dir.x * sdudv.x;
@@ -1693,7 +1693,7 @@ namespace CADability
                 derivs = DenseMatrix.Create(3, 3, 0);
                 GeoPoint2D uvs1 = new GeoPoint2D(parameters[0], parameters[1]);
                 double us2 = parameters[2];
-                surface1.Derivation2At(uvs1, out GeoPoint s, out GeoVector sdu, out GeoVector sdv, out GeoVector sduu, out GeoVector sdvv, out GeoVector sdudv);
+                surface1.Derivative2At(uvs1, out GeoPoint s, out GeoVector sdu, out GeoVector sdv, out GeoVector sduu, out GeoVector sdvv, out GeoVector sdudv);
                 if (!curve2.TryPointDeriv2At(us2, out GeoPoint r, out GeoVector rds, out GeoVector rdss))
                 {
                     r = curve2.PointAt(us2);

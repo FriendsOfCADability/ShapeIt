@@ -3252,7 +3252,7 @@ namespace CADability
                 Vector b = new DenseVector(nPoints * 4);
                 for (int i = 0; i < nPoints; i++)
                 {
-                    surface.DerivationAt(new GeoPoint2D(u, v), out GeoPoint p, out GeoVector diru, out GeoVector dirv);
+                    surface.DerivativeAt(new GeoPoint2D(u, v), out GeoPoint p, out GeoVector diru, out GeoVector dirv);
                     GeoVector normal = (diru ^ dirv).Normalized; // we use normalized, because the sphere in u/v returns shorter diru vectors closer to the pole
                     u += du;
                     if (u > uvbounds.Width)

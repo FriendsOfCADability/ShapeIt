@@ -205,20 +205,20 @@ namespace CADability.GeoObject
             return toCylinder * GeoVector.ZAxis;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivationAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivativeAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
         /// <param name="du"></param>
         /// <param name="dv"></param>
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             location = toCylinder * new GeoPoint(Math.Cos(uv.x), Math.Sin(uv.x), uv.y);
             du = toCylinder * new GeoVector(-Math.Sin(uv.x), Math.Cos(uv.x), 0.0);
             dv = toCylinder * GeoVector.ZAxis;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivation2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
@@ -227,7 +227,7 @@ namespace CADability.GeoObject
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             location = toCylinder * new GeoPoint(Math.Cos(uv.x), Math.Sin(uv.x), uv.y);
             du = toCylinder * new GeoVector(-Math.Sin(uv.x), Math.Cos(uv.x), 0.0);

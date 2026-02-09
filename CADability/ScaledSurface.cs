@@ -55,14 +55,14 @@ namespace CADability
             return scale * original.PositionOf(p);
         }
 
-        public void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
-            original.DerivationAt(unscale * uv, out location, out du, out dv); // du und dv noch skalieren?
+            original.DerivativeAt(unscale * uv, out location, out du, out dv); // du und dv noch skalieren?
         }
 
-        public void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
-            original.Derivation2At(unscale * uv, out location, out du, out dv, out duu, out dvv, out duv); // du und dv noch skalieren?
+            original.Derivative2At(unscale * uv, out location, out du, out dv, out duu, out dvv, out duv); // du und dv noch skalieren?
         }
 
         public IDualSurfaceCurve[] GetPlaneIntersection(PlaneSurface pl, double umin, double umax, double vmin, double vmax, double precision)

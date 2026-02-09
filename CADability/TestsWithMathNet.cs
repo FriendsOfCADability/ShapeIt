@@ -34,7 +34,7 @@ namespace CADability
                 new Func<Vector<double>, (double, Vector<double>, Matrix<double>)>(delegate (Vector<double> vd)
                 {
                     GeoPoint2D uv = new GeoPoint2D(vd[0], vd[1]);
-                    surface.Derivation2At(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+                    surface.Derivative2At(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
                     double val = (p3d.x - loc.x) * (p3d.x - loc.x) + (p3d.y - loc.y) * (p3d.y - loc.y) + (p3d.z - loc.z) * (p3d.z - loc.z);
                     double u = -2 * du.x * (p3d.x - loc.x) - 2 * du.y * (p3d.y - loc.y) - 2 * du.z * (p3d.z - loc.z);
                     double v = -2 * dv.x * (p3d.x - loc.x) - 2 * dv.y * (p3d.y - loc.y) - 2 * dv.z * (p3d.z - loc.z);
@@ -82,7 +82,7 @@ namespace CADability
                 new Func<Vector<double>, Vector<double>, Matrix<double>>(delegate (Vector<double> vd, Vector<double> ox) // derivatives
                 {   // these are the derivations for PointAt(uv)-p3d in x, y and z
                     GeoPoint2D uv = new GeoPoint2D(vd[0], vd[1]);
-                    surface.DerivationAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
+                    surface.DerivativeAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
                     var prime = new DenseMatrix(3, 2);
                     prime[0, 0] = du.x;
                     prime[0, 1] = dv.x;
@@ -138,8 +138,8 @@ namespace CADability
             {
                 double u1 = p[0], v1 = p[1], u2 = p[2], v2 = p[3];
                 //System.Diagnostics.Trace.WriteLine($"uv: {u1}; {v1}; {u2}; {v2}");
-                surface1.DerivationAt(new GeoPoint2D(u1, v1), out var P1, out var Su1, out var Sv1);
-                surface2.DerivationAt(new GeoPoint2D(u2, v2), out var P2, out var Su2, out var Sv2);
+                surface1.DerivativeAt(new GeoPoint2D(u1, v1), out var P1, out var Su1, out var Sv1);
+                surface2.DerivativeAt(new GeoPoint2D(u2, v2), out var P2, out var Su2, out var Sv2);
                 // Residuenblöcke
                 var rp = P1 - P2;                          // 3
                 double rpi = pHat * (P1 - planeLocation);  // 1
@@ -187,8 +187,8 @@ namespace CADability
             double rnNorm = Math.Sqrt(r[4] * r[4] + r[5] * r[5] + r[6] * r[6]);
 
             // Toleranzen ggf. skalieren an deine Längeneinheit:
-            const double epsPos = 1e-6;
-            const double epsPlane = 1e-6;
+            const double epsPos = 1e-3;
+            const double epsPlane = 1e-3;
             const double epsNorm = 1e-3;
 
             bool ok = (result.ReasonForExit == ExitCondition.Converged || result.ReasonForExit == ExitCondition.RelativePoints || result.ReasonForExit == ExitCondition.RelativeGradient)
@@ -222,8 +222,8 @@ namespace CADability
                       out GeoVector n1, out GeoVector n2, out GeoVector nh1, out GeoVector nh2,
                       out double n1Norm, out double n2Norm)
             {
-                s1.Derivation2At(new GeoPoint2D(u1, v1), out P1, out Su1, out Sv1, out Suu1, out Svv1, out Suv1);
-                s2.Derivation2At(new GeoPoint2D(u2, v2), out P2, out Su2, out Sv2, out Suu2, out Svv2, out Suv2);
+                s1.Derivative2At(new GeoPoint2D(u1, v1), out P1, out Su1, out Sv1, out Suu1, out Svv1, out Suv1);
+                s2.Derivative2At(new GeoPoint2D(u2, v2), out P2, out Su2, out Sv2, out Suu2, out Svv2, out Suv2);
                 n1 = Su1 ^ Sv1; n2 = Su2 ^ Sv2;
                 n1Norm = n1.Length; n2Norm = n2.Length;
                 nh1 = n1 / n1Norm; nh2 = n2 / n2Norm; // normalisierte Normalen
@@ -235,8 +235,8 @@ namespace CADability
                 double u1 = p[0], v1 = p[1], u2 = p[2], v2 = p[3];
                 //System.Diagnostics.Trace.WriteLine($"uv: {u1}; {v1}; {u2}; {v2}");
 
-                s1.DerivationAt(new GeoPoint2D(u1, v1), out var P1, out var Su1, out var Sv1);
-                s2.DerivationAt(new GeoPoint2D(u2, v2), out var P2, out var Su2, out var Sv2);
+                s1.DerivativeAt(new GeoPoint2D(u1, v1), out var P1, out var Su1, out var Sv1);
+                s2.DerivativeAt(new GeoPoint2D(u2, v2), out var P2, out var Su2, out var Sv2);
                 GeoVector n1 = Su1 ^ Sv1, n2 = Su2 ^ Sv2;
                 GeoVector nh1 = n1.Normalized, nh2 = n2.Normalized;
                 var rp = P1 - P2;                         // 3
@@ -377,7 +377,7 @@ namespace CADability
                 new Func<Vector<double>, (double, Vector<double>, Matrix<double>)>(delegate (Vector<double> vd)
                 {
                     GeoPoint2D uv = new GeoPoint2D(vd[0], vd[1]); // parameter on surface
-                    surface.Derivation2At(uv, out GeoPoint s, out GeoVector su, out GeoVector sv, out GeoVector suu, out GeoVector svv, out GeoVector suv);
+                    surface.Derivative2At(uv, out GeoPoint s, out GeoVector su, out GeoVector sv, out GeoVector suu, out GeoVector svv, out GeoVector suv);
                     double t = vd[2]; // parameter on curve
                     curve.TryPointDeriv2At(t, out GeoPoint c, out GeoVector ct, out GeoVector ctt);
                     double val = c & s; // the squared distance between the two points, which newton has to minimize
@@ -430,7 +430,7 @@ namespace CADability
                 new Func<Vector<double>, Vector<double>, Matrix<double>>(delegate (Vector<double> vd, Vector<double> ox) // derivatives
                 {   // these are the derivations for PointAt(uv)-p3d in x, y and z
                     GeoPoint2D uv = new GeoPoint2D(vd[0], vd[1]);
-                    surface.DerivationAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
+                    surface.DerivativeAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
                     double t = vd[2]; // parameter on curve
                     GeoVector dt = curve.DirectionAt(t);
                     var prime = new DenseMatrix(3, 3);
@@ -486,7 +486,7 @@ namespace CADability
                 new Func<Vector<double>, Vector<double>, Matrix<double>>(delegate (Vector<double> vd, Vector<double> ox) // derivatives
                 {   // these are the derivations for PointAt(uv)-p3d in x, y and z
                     GeoPoint2D uv = new GeoPoint2D(vd[0], vd[1]);
-                    surface.DerivationAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
+                    surface.DerivativeAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
                     double t = vd[2]; // parameter on curve
                     GeoVector dt = curve.DirectionAt(t);
                     var prime = new DenseMatrix(3, 3);
@@ -543,7 +543,7 @@ namespace CADability
                 new Func<Vector<double>, Vector<double>, Matrix<double>>(delegate (Vector<double> vd, Vector<double> ox) // derivatives
                 {   // these are the derivations for PointAt(uv)-p3d in x, y and z
                     GeoPoint2D uv = new GeoPoint2D(vd[0], vd[1]);
-                    surface.DerivationAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
+                    surface.DerivativeAt(uv, out GeoPoint loc, out GeoVector du, out GeoVector dv);
                     double t = vd[2]; // parameter on curve
                     GeoVector dt = curve.DirectionAt(t);
                     var prime = new DenseMatrix(3, 3);
@@ -589,9 +589,9 @@ namespace CADability
                 }),
                 new Func<Vector<double>, Vector<double>, Matrix<double>>(delegate (Vector<double> vd, Vector<double> ox) // derivatives
                 {   // these are the derivations for p1-p2, p2-3 and p3-p1 in x, y and z
-                    surface1.DerivationAt(new GeoPoint2D(vd[0], vd[1]), out GeoPoint loc1, out GeoVector du1, out GeoVector dv1);
-                    surface2.DerivationAt(new GeoPoint2D(vd[2], vd[3]), out GeoPoint loc2, out GeoVector du2, out GeoVector dv2);
-                    surface3.DerivationAt(new GeoPoint2D(vd[4], vd[5]), out GeoPoint loc3, out GeoVector du3, out GeoVector dv3);
+                    surface1.DerivativeAt(new GeoPoint2D(vd[0], vd[1]), out GeoPoint loc1, out GeoVector du1, out GeoVector dv1);
+                    surface2.DerivativeAt(new GeoPoint2D(vd[2], vd[3]), out GeoPoint loc2, out GeoVector du2, out GeoVector dv2);
+                    surface3.DerivativeAt(new GeoPoint2D(vd[4], vd[5]), out GeoPoint loc3, out GeoVector du3, out GeoVector dv3);
                     var prime = new DenseMatrix(9, 6);
                     prime[0, 0] = du1.x;
                     prime[0, 1] = dv1.x;

@@ -233,7 +233,7 @@ namespace CADability.GeoObject
                 (-(2 * uv.y * s * zAxis.y) / (l * (uv2 + 1))) + (s * yAxis.y) / l - (uv.y * uv.y * s * yAxis.y) / uv232 + (2 * uv.y * uv.y * c * yAxis.y) / ((uv2) * (uv2 + 1)) - (uv.x * uv.y * s * xAxis.y) / uv232 + (2 * uv.x * uv.y * c * xAxis.y) / ((uv2) * (uv2 + 1)),
                 (-(2 * uv.y * s * zAxis.z) / (l * (uv2 + 1))) + (s * yAxis.z) / l - (uv.y * uv.y * s * yAxis.z) / uv232 + (2 * uv.y * uv.y * c * yAxis.z) / ((uv2) * (uv2 + 1)) - (uv.x * uv.y * s * xAxis.z) / uv232 + (2 * uv.x * uv.y * c * xAxis.z) / ((uv2) * (uv2 + 1)));
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {   // from maxima and common sub expression
             double u = uv.x;
             double v = uv.y;

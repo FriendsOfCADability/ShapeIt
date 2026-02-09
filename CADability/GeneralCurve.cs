@@ -713,7 +713,10 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public virtual bool SameGeometry(ICurve other, double precision)
         {
-            throw new NotImplementedException();
+            if (other.DistanceTo(StartPoint)>Precision.eps) { return false; }
+            if (other.DistanceTo(EndPoint)>Precision.eps) { return false; }
+            if (other.DistanceTo(PointAt(0.5))>Precision.eps) { return false; }
+            return true;
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ICurve.PositionAtLength (double)"/>
@@ -968,7 +971,7 @@ namespace CADability.GeoObject
             GeoPoint2D p2d = surfaceCurve.PointAt(Position);
             GeoPoint location;
             GeoVector du, dv;
-            surface.DerivationAt(p2d, out location, out du, out dv);
+            surface.DerivativeAt(p2d, out location, out du, out dv);
             return d2d.x * du + d2d.y * dv; // wie ist es mit der Länge?
         }
 

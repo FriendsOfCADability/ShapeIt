@@ -238,7 +238,7 @@ namespace CADability.GeoObject
             extent = BoundingBox.EmptyBoundingBox;
             if (Constructed != null) Constructed(this);
 #if DEBUG
-            if (hashCode == 6)
+            if (hashCode == 367)
             {
 
             }
@@ -3740,7 +3740,7 @@ namespace CADability.GeoObject
             for (int i = 0; i < edges.Length; i++)
             {
                 Edge next = edges[(i + 1) % edges.Length];
-                if ((edges[i].Vertex2.Position | next.Vertex1.Position) < 10 * Precision.eps)
+                if ((edges[i].Vertex2.Position | next.Vertex1.Position) < 100 * Precision.eps)
                 {
                     edges[i].Vertex2.MergeWith(next.Vertex1);
                 }
@@ -7709,7 +7709,7 @@ namespace CADability.GeoObject
                         GeoPoint2D spos = vertices[i].GetPositionOnFace(this);
                         GeoPoint f;
                         GeoVector du, dv;
-                        surface.DerivationAt(spos, out f, out du, out dv);
+                        surface.DerivativeAt(spos, out f, out du, out dv);
                         foot = f;
                         n = du ^ dv;
                     }
@@ -8332,8 +8332,19 @@ namespace CADability.GeoObject
                 }
                 try
                 {
-                    // Surface.SetBounds(Area.GetExtent());
-                    // problem: outline no completely deserialized here
+                    jsonSerialize.InvokeSerializationDoneCallback(surface);
+                    if (surface.GetBounds().IsEmpty())
+                    {   // this should not happen, but in old files there are surfaces without bounds, and then we have to recalculate them here.
+                        foreach (Edge edg in Edges)
+                        {
+                            jsonSerialize.InvokeSerializationDoneCallback(edg);
+                        }
+                        foreach (Vertex vtx in Vertices)
+                        {
+                            surface.ExtendBoundsTo(vtx.Position); // this might already need bounds
+                        }
+                        // surface.SetBounds(Area.GetExtent()); // not working well,because some data is not yet read
+                    }
                 }
                 catch { }
                 // repairing poles:
@@ -10023,8 +10034,31 @@ namespace CADability.GeoObject
             if (combined.IsClosed) return false; // we do not want closed edges. They are not supported by the BRep algorithms
             Face otherface = edg1.OtherFace(this);
             if (edg2.OtherFace(this) != otherface) return false; // the other face of both edges must be the same
-            if (edg1.EndVertex(this) != edg2.StartVertex(this)) return false; // edg2 must be the follower of edg1
-            if (this.surface is SphericalSurface && otherface.surface is SphericalSurface) return false; // problem result could go around a pole
+            if (edg1.EndVertex(this) != edg2.StartVertex(this)) return false; // edg2 must be the follower of 
+            if (this.surface is SphericalSurface && otherface!=null && otherface.surface is SphericalSurface) return false; // problem result could go around a pole
+            if (otherface!=null)
+            {   // the two edges on otherface must be in the same outline or hole
+                // there are cases where two holes are connected with a single vertex. We cannot connect two edges
+                // in this case.
+                HashSet<Edge> bothEdges = new HashSet<Edge>([edg1, edg2]);
+                bool ok = false;
+                int n = bothEdges.Intersect(otherface.outline).Count();
+                ok = n == 2;
+                if (!ok)
+                {
+                    for (int i = 0; i < otherface.holes.Length; i++)
+                    {
+                        n = bothEdges.Intersect(otherface.holes[i]).Count();
+                        if (n == 2)
+                        {
+                            ok = true;
+                            break;
+                        }
+                        else if (n == 1) break; // the hole contains only one of the edges: we cannot combine these edges
+                    }
+                }
+                if (!ok) return false; // the two edges are not in the same outline or hole on the other face, we cannot combine them
+            }
             if (!edg1.Forward(this)) edg1.ReverseCurve3D();
             if (!edg2.Forward(this)) edg2.ReverseCurve3D();
             // do single closed edges make problems? For parametric operations we would prefer them
@@ -10976,7 +11010,7 @@ namespace CADability.GeoObject
 
                 GeoPoint loc;
                 GeoVector diru, dirv;
-                surface.DerivationAt(c2d.StartPoint, out loc, out diru, out dirv);
+                surface.DerivativeAt(c2d.StartPoint, out loc, out diru, out dirv);
                 GeoVector normal = diru ^ dirv;
                 if (normal.Length > Precision.eps)
                 {

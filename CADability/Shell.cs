@@ -3612,6 +3612,9 @@ namespace CADability.GeoObject
             // suche einen Face-Mittelpunkt, so dass kein Schnittpunkt zwischen toTest und dem Facemittelpunkt liegt
             // wenn gefunden, dann bestimme ob der Strahl von toTest und diesem Punkt von innen oder außen scheidet (Orientierung vorausgesetzt)
             // Wenn es keinen solchen gibt, dann müsste noch genauer geprüft werden (noch nicht implementiert)
+            // there should be a better way: take the line from toTest away from the center of the bounding box.
+            // if the first intersection (if any) comes from inside, we are inside, otherwise outside.
+            // we need to know, which face was involved.
             foreach (Face fc in faces)
             {
                 SimpleShape ss = fc.Area;
@@ -3628,8 +3631,10 @@ namespace CADability.GeoObject
                         double pos = Geometry.LinePar(toTest, dir, ip[i]);
                         if (pos > 0.0 && pos < 1.0 - Precision.eps)
                         {
-                            double d = fc.Distance(ip[i]);
-                            if (Math.Abs(d) > Precision.eps) ++n;
+                            // there was a check, whether we did hit the face itself, but this is wrong.
+                            ++n;
+                            //double d = fc.Distance(ip[i]);
+                            //if (Math.Abs(d) > Precision.eps) ++n;
                         }
                     }
                     if (n == 0)
@@ -5873,6 +5878,7 @@ namespace CADability.GeoObject
                                 edges.RemoveMany(toRemove);
                                 allFaces.Remove(faceToRemove);
 #if DEBUG
+                                if (combinedFace.GetHashCode() == 367) combinedFace.AssureTriangles(0.1);
                                 if (!combinedFace.CheckConsistency())
                                 { }
 #endif

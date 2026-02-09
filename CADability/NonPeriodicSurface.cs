@@ -234,7 +234,7 @@ namespace CADability.GeoObject
         }
         public override GeoVector UDirection(GeoPoint2D uv)
         {
-            periodicSurface.DerivationAt(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv);
+            periodicSurface.DerivativeAt(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv);
             double l = uv.x * uv.x + uv.y * uv.y;
             double sl = Math.Sqrt(l);
             double dsdu, dtdu;
@@ -247,7 +247,7 @@ namespace CADability.GeoObject
             else
             {   // toPeriodic at (0,0) did return toPeriodicBounds * (0,0), but we also need toPeriodicBounds * (pi/2,0), because at (0,0) there is the pole
                 GeoPoint2D pole1 = toPeriodicBounds * new GeoPoint2D(Math.PI / 2.0, 0.0);
-                periodicSurface.DerivationAt(pole1, out GeoPoint ploc1, out GeoVector pdu1, out GeoVector pdv1);
+                periodicSurface.DerivativeAt(pole1, out GeoPoint ploc1, out GeoVector pdu1, out GeoVector pdv1);
                 dsdu = toPeriodicBounds[0, 1] - toPeriodicBounds[0, 0];
                 dtdu = toPeriodicBounds[1, 1] - toPeriodicBounds[1, 0];
                 return dsdu * pdu + dtdu * pdv;
@@ -260,7 +260,7 @@ namespace CADability.GeoObject
             double dsdv, dtdv;
             if (l > 0)
             {
-                periodicSurface.DerivationAt(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv);
+                periodicSurface.DerivativeAt(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv);
                 dsdv = toPeriodicBounds[0, 1] * uv.y / sl + toPeriodicBounds[0, 0] * uv.x / l;
                 dtdv = toPeriodicBounds[1, 1] * uv.y / sl + toPeriodicBounds[1, 0] * uv.x / l;
                 return dsdv * pdu + dtdv * pdv;
@@ -268,16 +268,16 @@ namespace CADability.GeoObject
             else
             {   // toPeriodic at (0,0) did return toPeriodicBounds * (0,0), but we also need toPeriodicBounds * (pi/2,0), because at (0,0) there is the pole
                 GeoPoint2D pole1 = toPeriodicBounds * new GeoPoint2D(Math.PI / 2.0, 0.0);
-                periodicSurface.DerivationAt(pole1, out GeoPoint ploc1, out GeoVector pdu1, out GeoVector pdv1);
+                periodicSurface.DerivativeAt(pole1, out GeoPoint ploc1, out GeoVector pdu1, out GeoVector pdv1);
                 dsdv = toPeriodicBounds[0, 1] + toPeriodicBounds[0, 0];
                 dtdv = toPeriodicBounds[1, 1] + toPeriodicBounds[1, 0];
                 return dsdv * pdu1 + dtdv * pdv1;
             }
         }
 
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
-            periodicSurface.DerivationAt(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv);
+            periodicSurface.DerivativeAt(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv);
             location = ploc;
             double l = uv.x * uv.x + uv.y * uv.y;
             double sl = Math.Sqrt(l);
@@ -294,7 +294,7 @@ namespace CADability.GeoObject
             else
             {   // toPeriodic at (0,0) did return toPeriodicBounds * (0,0), but we also need toPeriodicBounds * (pi/2,0), because at (0,0) there is the pole
                 GeoPoint2D pole1 = toPeriodicBounds * new GeoPoint2D(Math.PI / 2.0, 0.0);
-                periodicSurface.DerivationAt(pole1, out GeoPoint ploc1, out GeoVector pdu1, out GeoVector pdv1);
+                periodicSurface.DerivativeAt(pole1, out GeoPoint ploc1, out GeoVector pdu1, out GeoVector pdv1);
                 dsdu = toPeriodicBounds[0, 1] - toPeriodicBounds[0, 0];
                 dsdv = toPeriodicBounds[0, 1] + toPeriodicBounds[0, 0];
                 dtdu = toPeriodicBounds[1, 1] - toPeriodicBounds[1, 0];
@@ -308,9 +308,9 @@ namespace CADability.GeoObject
         {
             return periodicSurface.PointAt(toPeriodic(uv));
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
-            periodicSurface.Derivation2At(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv, out GeoVector pduu, out GeoVector pdvv, out GeoVector pduv);
+            periodicSurface.Derivative2At(toPeriodic(uv), out GeoPoint ploc, out GeoVector pdu, out GeoVector pdv, out GeoVector pduu, out GeoVector pdvv, out GeoVector pduv);
             location = ploc;
             // toPeriodic 
             // s := m00*atan2(v, u)+m01*sqrt(u^2 + v^2)+m02;
@@ -494,7 +494,7 @@ namespace CADability.GeoObject
                         GeoPoint2D p2d = new GeoPoint2D(umin + j * (umax - umin) / n, vmin + i * (vmax - vmin) / n);
                         if (IsInside(p2d))
                         {
-                            DerivationAt(p2d, out GeoPoint loc, out GeoVector diru, out GeoVector dirv);
+                            DerivativeAt(p2d, out GeoPoint loc, out GeoVector diru, out GeoVector dirv);
                             if ((loc | PointAt(p2d)) > length)
                             {
                                 loc = PointAt(p2d);

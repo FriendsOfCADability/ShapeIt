@@ -294,7 +294,7 @@ namespace CADability.GeoObject
 			double r = xAxis.Length;
 			return (-(uv.y * (r - l)) / l32) * zAxis - (uv.y) / l2 * zAxis + 1 / l * yAxis - (uv.y * uv.y) / l32 * yAxis - (uv.x * uv.y) / l32 * xAxis;
 		}
-		public override void Derivation2At(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+		public override void Derivative2At(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
 		{   // from maxima and common sub expression
 			double u = uv.x;
 			double v = uv.y;

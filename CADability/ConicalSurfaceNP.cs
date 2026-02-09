@@ -211,7 +211,7 @@ namespace CADability.GeoObject
             double v = uv.y;
             return v * zAxis / Math.Sqrt(sqr(v) + sqr(u)) + yAxis;
         }
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv)
         {
             double u = uv.x;
             double v = uv.y;
@@ -220,7 +220,7 @@ namespace CADability.GeoObject
             du = u * zAxis / sc3 + xAxis;
             dv = v * zAxis / sc3 + yAxis;
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint p, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             double u = uv.x;
             double v = uv.y;

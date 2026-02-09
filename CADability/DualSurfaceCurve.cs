@@ -682,7 +682,8 @@ namespace CADability
                     double prec = Math.Max(curve3D.Length * 1e-5, Precision.eps);
                     approxBSpline2D = BSpline2D.Approximate(pos =>
                     {
-                        GeoPoint2D p = surface.PositionOf(curve3D.PointAt(pos));
+                        // Get3dParameter also reflects orientation
+                        GeoPoint2D p = surface.PositionOf(curve3D.PointAt(Get3dParameter(pos)));
                         SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref p); 
                         return p;
                     }, prec);
@@ -954,7 +955,7 @@ namespace CADability
                     double tmp = startParam;
                     startParam = endParam;
                     endParam = tmp;
-                    base.ClearTriangulation();
+                    InvalidateSecondaryData();
                 }
             }
         }
@@ -1002,7 +1003,7 @@ namespace CADability
             // wie drückt sich diese Raumrichtung in diru und dirv aus
             GeoPoint loc;
             GeoVector diru, dirv;
-            surface.DerivationAt(duv, out loc, out diru, out dirv);
+            surface.DerivativeAt(duv, out loc, out diru, out dirv);
             Matrix m = DenseMatrix.OfColumnArrays(diru, dirv, diru ^ dirv);
             Vector b = new DenseVector(dir3d);
             Vector s = (Vector)m.Solve(b);
@@ -1072,7 +1073,7 @@ namespace CADability
         public override void Reverse()
         {
             (startParam, endParam) = (endParam, startParam);
-            base.ClearTriangulation();
+            InvalidateSecondaryData();
         }
         public override ICurve2D Clone()
         {
@@ -1142,7 +1143,7 @@ namespace CADability
                 periodicDomain.Move(offset);
                 startPoint2d += offset;
                 endPoint2d += offset;
-                base.ClearTriangulation();
+                InvalidateSecondaryData();
             }
             else throw new ApplicationException("cannot move ProjectedCurve");
         }
@@ -1203,6 +1204,7 @@ namespace CADability
 
         internal void InvalidateSecondaryData()
         {
+            approxBSpline2D = null;
             ClearTriangulation();
         }
 
