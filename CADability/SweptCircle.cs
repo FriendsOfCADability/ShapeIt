@@ -376,18 +376,16 @@ namespace CADability.GeoObject
             #endregion
             #region IJsonSerialize
             protected FixedVCurve() { } // we need this for JsonSerialisation
-            public override void GetObjectData(IJsonWriteData data)
+            public void GetObjectData(IJsonWriteData data)
             {
-                base.GetObjectData(data);
                 data.AddProperty("SweptCircle", sweptCircle);
                 data.AddProperty("V0", v0);
                 data.AddProperty("Umin", umin);
                 data.AddProperty("Umax", umax);
             }
 
-            public override void SetObjectData(IJsonReadData data)
+            public void SetObjectData(IJsonReadData data)
             {
-                base.SetObjectData(data);
                 sweptCircle = data.GetProperty<SweptCircle>("SweptCircle");
                 v0 = data.GetProperty<double>("V0");
                 umin = data.GetProperty<double>("Umin");

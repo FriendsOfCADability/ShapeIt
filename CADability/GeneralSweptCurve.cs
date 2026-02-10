@@ -381,8 +381,8 @@ namespace CADability
     /// OrientationAt(u) is the x-axis
     /// </summary>
     [Serializable]
-    public class 
-        GeneralSweptCurve : ISurfaceImpl, ISerializable
+    public class
+        GeneralSweptCurve : ISurfaceImpl, ISerializable, IJsonSerialize
     {   // erstmal nur zum internen berechnen verwenden, kein Helper
         /*
          * gegeben: 2d Kurve "c" und surface "s" für das Bewegungssystem, das ist die v-Richtung
@@ -749,7 +749,7 @@ namespace CADability
             umin = 0.0;
             umax = 1.0;
             vmin = 0.0;
-            vmax = 1.0; 
+            vmax = 1.0;
         }
         public override bool IsUPeriodic
         {
@@ -833,6 +833,24 @@ namespace CADability
             info.AddValue("Vmin", vmin, typeof(double));
             info.AddValue("Vmax", vmax, typeof(double));
         }
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("ToSweep", toSweep);
+            data.AddProperty("Along", along);
+            data.AddProperty("Normal", normal);
+            data.AddProperty("Vmin", vmin);
+            data.AddProperty("Vmax", vmax);
+        }
+        protected GeneralSweptCurve() { } // for JSON
+        public void SetObjectData(IJsonReadData data)
+        {
+            toSweep = data.GetProperty<ICurve>("ToSweep");
+            along = data.GetProperty<ICurve>("Along");
+            normal = data.GetProperty<GeoVector>("Normal");
+            vmin = data.GetDoubleProperty("Vmin");
+            vmax = data.GetDoubleProperty("Vmax");
+        }
+
 #if DEBUG
         internal GeoObjectList DebugAlong
         {

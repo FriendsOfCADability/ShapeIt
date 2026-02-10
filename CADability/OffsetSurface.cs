@@ -7,7 +7,7 @@ using System.Runtime.Serialization;
 namespace CADability.GeoObject
 {
     [Serializable()]
-    public class OffsetSurface : ISurfaceImpl, ISerializable, IExportStep
+    public class OffsetSurface : ISurfaceImpl, ISerializable, IExportStep, IJsonSerialize
     {
         private ISurface baseSurface;
         private double offset;
@@ -505,6 +505,26 @@ namespace CADability.GeoObject
             info.AddValue("Umax", umax);
             info.AddValue("Vmin", vmin);
             info.AddValue("Vmax", vmax);
+        }
+
+        protected OffsetSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("BaseSurface", baseSurface);
+            data.AddProperty("Offset", offset);
+            data.AddProperty("Umin", umin);
+            data.AddProperty("Umax", umax);
+            data.AddProperty("Vmin", vmin);
+            data.AddProperty("Vmax", vmax);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            baseSurface = data.GetProperty<ISurface>("BaseSurface");
+            offset = data.GetProperty<double>("Offset");
+            umin = data.GetProperty<double>("Umin");
+            umax = data.GetProperty<double>("Umax");
+            vmin = data.GetProperty<double>("Vmin");
+            vmax = data.GetProperty<double>("Vmax");
         }
 
         int IExportStep.Export(ExportStep export, bool topLevel)

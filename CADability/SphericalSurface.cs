@@ -15,7 +15,7 @@ namespace CADability.GeoObject
         bool OutwardOriented { get; }
     }
     [Serializable()]
-    public class SphericalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep, ISphere
+    public class SphericalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep, ISphere, IJsonSerialize
     {
         // Die Kugel ist so beschaffen, dass sie lediglich durch eine ModOp definiert ist.
         // Die Einheitskugel steht im Ursprung mit Radius 1, u beschreibt einen Breitenkreis, v einen Längenkreis
@@ -1277,6 +1277,16 @@ namespace CADability.GeoObject
         void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
         {
             info.AddValue("ToSphere", toSphere, typeof(ModOp));
+        }
+        protected SphericalSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("ToSphere", toSphere);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            toSphere = data.GetProperty<ModOp>("ToSphere");
+            toUnit = toSphere.GetInverse();
         }
 
         #endregion

@@ -2699,9 +2699,8 @@ namespace CADability.GeoObject
             if (Constructed != null) Constructed(this);
         }
         #endregion
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Faces", faces);
             if (colorDef != null) data.AddProperty("ColorDef", colorDef);
             if (name != null) data.AddProperty("Name", name);
@@ -2709,9 +2708,8 @@ namespace CADability.GeoObject
             if (parametricProperties != null) data.AddProperty("ParametricProperties", parametricProperties);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             faces = data.GetProperty<Face[]>("Faces");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");
             name = data.GetPropertyOrDefault<string>("Name");

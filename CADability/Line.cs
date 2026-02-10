@@ -411,9 +411,9 @@ namespace CADability.GeoObject
             info.AddValue("LineWidth", lineWidth);
             info.AddValue("LinePattern", linePattern);
         }
-        public override void GetObjectData(IJsonWriteData data)
+        public new void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
+            // base.GetObjectData(data);
             data.AddProperty("StartPoint", startPoint);
             data.AddProperty("EndPoint", endPoint);
             if (colorDef != null) data.AddProperty("ColorDef", colorDef);
@@ -421,9 +421,9 @@ namespace CADability.GeoObject
             if (linePattern != null) data.AddProperty("LinePattern", linePattern);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public new void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
+            // base.SetObjectData(data);
             startPoint = data.GetProperty<GeoPoint>("StartPoint");
             endPoint = data.GetProperty<GeoPoint>("EndPoint");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");

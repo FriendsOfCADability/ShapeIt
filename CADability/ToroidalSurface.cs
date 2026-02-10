@@ -1,5 +1,6 @@
 ﻿using CADability.Curve2D;
 using CADability.UserInterface;
+using MathNet.Numerics.Distributions;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
@@ -12,7 +13,7 @@ namespace CADability.GeoObject
     /// the "big" circles around the main axis, the v parameter describes the "small" circles.
     /// </summary>
     [Serializable()]
-    public class ToroidalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IImplicitPSurface, IExportStep, ISurfaceOfArcExtrusion, ISurfaceOfRevolution
+    public class ToroidalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IImplicitPSurface, IExportStep, ISurfaceOfArcExtrusion, ISurfaceOfRevolution, IJsonSerialize
     {
         private ModOp toTorus; // diese ModOp modifiziert den Einheitstorus in den konkreten Torus
         private ModOp toUnit; // die inverse ModOp zum schnelleren Rechnen
@@ -2758,6 +2759,19 @@ namespace CADability.GeoObject
             toUnit = toTorus.GetInverse();
         }
         #endregion
+        protected ToroidalSurface() { } // we need this for JsonSerialisation
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("ToTorus", toTorus);
+            data.AddProperty("MinorRadius", minorRadius);
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+            toTorus=data.GetProperty<ModOp>("ToTorus");
+            minorRadius=data.GetProperty<double>("MinorRadius");
+        }
+
         public override IPropertyEntry GetPropertyEntry(IFrame frame)
         {
             List<IPropertyEntry> se = new List<IPropertyEntry>();

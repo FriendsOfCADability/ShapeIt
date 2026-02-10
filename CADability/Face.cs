@@ -8294,9 +8294,8 @@ namespace CADability.GeoObject
 
         }
         #region IJsonSerialize Members
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Surface", surface);
             data.AddProperty("Outline", outline);
             data.AddProperty("Holes", holes);
@@ -8304,9 +8303,8 @@ namespace CADability.GeoObject
             data.AddProperty("OrientedOutward", orientedOutward);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             surface = data.GetProperty<ISurface>("Surface");
             outline = data.GetProperty<Edge[]>("Outline");
             holes = data.GetProperty<Edge[][]>("Holes");

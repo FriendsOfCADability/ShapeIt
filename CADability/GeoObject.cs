@@ -532,7 +532,7 @@ namespace CADability.GeoObject
     /// This class helps to implement IGeoObject by implementing some IGeoObject methods
     /// in a default way and by offering some helper methods.
     /// </summary>
-    public abstract class IGeoObjectImpl : IGeoObject,
+    public abstract class IGeoObjectImpl : IGeoObject, IJsonSerialize,
         ISerializable, IFeedBack, ICloneable
     {
 #if DEBUG
@@ -1973,7 +1973,7 @@ namespace CADability.GeoObject
             return this.GetExtent(1.0);
         }
 
-        public virtual void GetObjectData(IJsonWriteData data)
+        void IJsonSerialize.GetObjectData(IJsonWriteData data)
         {
             data.AddProperty("UserData", userData);
             if (layer != null) data.AddProperty("Layer", layer);
@@ -1983,7 +1983,7 @@ namespace CADability.GeoObject
         }
 
 
-        public virtual void SetObjectData(IJsonReadData data)
+        void IJsonSerialize.SetObjectData(IJsonReadData data)
         {
             userData = data.GetPropertyOrDefault<UserData>("UserData");
             layer = data.GetPropertyOrDefault<Layer>("Layer");

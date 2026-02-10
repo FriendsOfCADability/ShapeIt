@@ -794,19 +794,17 @@ namespace CADability.GeoObject
         /// Need to make it public in order to allow inheriting classes to acces this method via base.GetObjectData
         /// </summary>
         /// <param name="data"></param>
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
             data.RegisterForSerializationDoneCallback(this);
-            base.GetObjectData(data);
             data.AddProperty("ColorDef", colorDef);
             data.AddProperty("RefPoint", refPoint);
             data.AddProperty("ContainedObjects", containedObjects);
             data.AddProperty("Name", name);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             refPoint = data.GetProperty<GeoPoint>("RefPoint");
             containedObjects = data.GetProperty<GeoObjectList>("ContainedObjects");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");

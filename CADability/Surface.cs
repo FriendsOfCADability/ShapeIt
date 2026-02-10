@@ -2342,7 +2342,7 @@ namespace CADability.GeoObject
     /// <summary>
     /// Internal helper class for <see cref="ISurface"/> implementation.
     /// </summary>
-    public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable
+    public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable, IJsonSerialize
     {
         protected GeoPoint2D[] extrema; // Achtung, muss bei Modify auf null gesetzt werden
         internal BoxedSurface boxedSurface;
@@ -5759,6 +5759,16 @@ namespace CADability.GeoObject
         public virtual ICurve2D[] GetSelfIntersections(BoundingRect bounds)
         {
             return null;
+        }
+
+        void IJsonSerialize.GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("Domain", usedArea);
+        }
+
+        void IJsonSerialize.SetObjectData(IJsonReadData data)
+        {
+            usedArea = data.GetProperty<BoundingRect>("Domain");
         }
 
 

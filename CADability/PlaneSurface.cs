@@ -11,7 +11,7 @@ namespace CADability.GeoObject
     /// The plane is defined by two vectors which are not necessary perpendicular or normalized.
     /// </summary>
     [Serializable()]
-    public class PlaneSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep
+    public class PlaneSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep, IJsonSerialize
     {
         private ModOp fromUnitPlane; // projects the XY plane into this surface
         private ModOp toUnitPlane; // inverted fromUnitPlane
@@ -739,6 +739,17 @@ namespace CADability.GeoObject
         {
             info.AddValue("FromUnitPlane", fromUnitPlane, typeof(ModOp));
         }
+        protected PlaneSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("FromUnitPlane", fromUnitPlane);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            fromUnitPlane = data.GetProperty<ModOp>("FromUnitPlane");
+            toUnitPlane = fromUnitPlane.GetInverse();
+        }
+
         #endregion
         #region IDeserializationCallback Members
         void IDeserializationCallback.OnDeserialization(object sender)

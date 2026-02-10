@@ -31,7 +31,7 @@ namespace CADability.GeoObject
     /// cone. The u parameter always describes a circle or ellipse, the v parameter a Line.
     /// </summary>
     [Serializable()]
-    public class ConicalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, ISurfaceOfRevolution, IExportStep, ICone, IJsonSerialize, IJsonSerializeDone
+    public class ConicalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, ISurfaceOfRevolution, IExportStep, ICone, IJsonSerialize
     {
         // Der Einheitskegel hat als halben Öffnungswinkel 45°, Der Ursprung ist die Kegelspitze, u geht im Kreis
         // v in die ZRichtung
@@ -2178,20 +2178,13 @@ namespace CADability.GeoObject
         }
         public void GetObjectData(IJsonWriteData data)
         {
-            data.AddProperty("Domain", usedArea);
             data.AddProperty("ToUnit", toUnit);
-
         }
 
         public void SetObjectData(IJsonReadData data)
         {
-            usedArea = data.GetProperty<BoundingRect>("Domain");
             toUnit = data.GetProperty<ModOp>("ToUnit");
-            data.RegisterForSerializationDoneCallback(this);
-        }
-        void IJsonSerializeDone.SerializationDone(JsonSerialize jsonSerialize)
-        {
-            toUnit = toCone.GetInverse();
+            toCone = toUnit.GetInverse();
         }
         #endregion
         public override IPropertyEntry GetPropertyEntry(IFrame frame)

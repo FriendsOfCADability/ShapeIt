@@ -464,9 +464,8 @@ namespace CADability.GeoObject
         }
         #endregion
         #region IJSonSerialize
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Location", location);
             data.AddProperty("DirectionWidth", directionWidth);
             data.AddProperty("DirectionHeight", directionHeight);
@@ -476,9 +475,8 @@ namespace CADability.GeoObject
             data.AddProperty("Data", Convert.ToBase64String(bitmap.Data));
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             location = data.GetProperty<GeoPoint>("Location");
             directionWidth = data.GetProperty<GeoVector>("DirectionWidth");
             directionHeight = data.GetProperty<GeoVector>("DirectionHeight");

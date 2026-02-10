@@ -12,7 +12,8 @@ namespace CADability
     /// so assignements always make a copy.
     /// </summary>
     [Serializable()]
-    public struct BoundingRect : IQuadTreeInsertable, IComparable<BoundingRect>, ISerializable, IEquatable<BoundingRect>
+    [JsonVersion(serializeAsStruct = true, version = 1)]
+    public struct BoundingRect : IQuadTreeInsertable, IComparable<BoundingRect>, ISerializable, IEquatable<BoundingRect>, IJsonSerialize
     {
         public double Left;
         public double Right;
@@ -736,6 +737,24 @@ namespace CADability
             info.AddValue("Bottom", Bottom);
             info.AddValue("Top", Top);
         }
+        #region IJsonSerialize Members
+        internal BoundingRect(IJsonReadStruct data)
+        {
+            Left = data.GetValue<double>();
+            Bottom = data.GetValue<double>();
+            Right = data.GetValue<double>();
+            Top = data.GetValue<double>();
+        }
+
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddValues(Left, Bottom, Right, Top);
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+        }
+        #endregion
 
         internal BoundingRect GetModified(ModOp2D m)
         {
@@ -855,6 +874,7 @@ namespace CADability
                 return hashCode;
             }
         }
+
     }
 
 }

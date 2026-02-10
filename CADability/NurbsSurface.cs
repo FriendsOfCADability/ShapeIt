@@ -16,7 +16,7 @@ namespace CADability.GeoObject
     /// A NURBS surface implementing <see cref="ISurface"/>. 
     /// </summary>
     [Serializable()]
-    public class NurbsSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep
+    public class NurbsSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep, IJsonSerialize
     {
         private GeoPoint[,] poles;
         private double[,] weights;
@@ -372,7 +372,7 @@ namespace CADability.GeoObject
             GeoPoint dbg = PointAt(new GeoPoint2D(this.uKnots[0], this.vKnots[0]));
 #endif
         }
-        public NurbsSurface(Ellipse[] throughEllis, double[] knots=null)
+        public NurbsSurface(Ellipse[] throughEllis, double[] knots = null)
         {
             GeoPoint[,] rawpoles = null;
             int numEPoles = 0;
@@ -4598,68 +4598,68 @@ namespace CADability.GeoObject
             double error = GaussNewtonMinimizer.SurfaceExtrema(this, new BoundingRect(umin, vmin, umax, vmax), dir, ref extr);
             return error < 1e-6;
 
-//            extr = GeoPoint2D.Origin;
-//            GeoPoint p1 = PointAt(new GeoPoint2D(u, v));
-//            GeoPoint p2 = p1;
-//            double mindist = double.MaxValue;
-//            int dbgn = 0;
-//            while (mindist > Precision.eps)
-//            {
-//                if (dbgn > 1000) return false; // muss noch genauer untersucht werden
-//                ++dbgn;
-//                bool foundU = false;
-//                bool foundV = false;
-//                BSpline fixedu = FixedU(u);
-//                BSpline fixedv = FixedV(v);
-//                if (!fixedv.IsSingular)
-//                {
-//                    double[] exu = (fixedv as ICurve).GetExtrema(dir);
-//                    for (int k = 0; k < exu.Length; ++k)
-//                    {
-//                        double uex = uKnots[0] + exu[k] * (uKnots[uKnots.Length - 1] - uKnots[0]);
-//                        if (uex > umin && uex < umax)
-//                        {
-//                            p1 = fixedv.PointAtParam(uex);
-//                            u = uex;
-//                            foundU = true;
-//                            break;
-//                        }
-//                    }
-//                }
-//                if (!fixedu.IsSingular)
-//                {
-//                    double[] exv = (fixedu as ICurve).GetExtrema(dir);
-//                    for (int k = 0; k < exv.Length; ++k)
-//                    {
-//                        double vex = vKnots[0] + exv[k] * (vKnots[vKnots.Length - 1] - vKnots[0]);
-//                        if (vex > vmin && vex < vmax)
-//                        {
-//                            p2 = fixedu.PointAtParam(vex);
-//                            v = vex;
-//                            foundV = true;
-//                            break;
-//                        }
-//                    }
-//                }
-//                //if ((!foundU || !foundV) && exv.Length > 0 && exu.Length > 0)
-//                //{
-//                //    // das ist der Fall, dass man beim Iterieren aus dem Patch hinausläuft
-//                //    // noch kein solcher Fall bekannt
-//                //    // man müsste entscheiden, ob man solche Werte auch zulässt und die Bedingung müsste
-//                //    // nicht lauten ob innerhalb von min und max sondern die nächstgelegene Lösung
-//                //}
-//                if (!foundU || !foundV) return false; // kein passendes Extremum gefunden
-//                double d = p1 | p2;
-//                if (d >= mindist) return false; // konvergiert nicht
-//                mindist = d;
-//            }
-//            extr = new GeoPoint2D(u, v);
-//#if DEBUG
-//            double ddd = extr | uvse;
-//            if (ddd > 1e-6) { }
-//#endif
-//            GeoPoint dbg = PointAt(extr);
-//            return true;
+            //            extr = GeoPoint2D.Origin;
+            //            GeoPoint p1 = PointAt(new GeoPoint2D(u, v));
+            //            GeoPoint p2 = p1;
+            //            double mindist = double.MaxValue;
+            //            int dbgn = 0;
+            //            while (mindist > Precision.eps)
+            //            {
+            //                if (dbgn > 1000) return false; // muss noch genauer untersucht werden
+            //                ++dbgn;
+            //                bool foundU = false;
+            //                bool foundV = false;
+            //                BSpline fixedu = FixedU(u);
+            //                BSpline fixedv = FixedV(v);
+            //                if (!fixedv.IsSingular)
+            //                {
+            //                    double[] exu = (fixedv as ICurve).GetExtrema(dir);
+            //                    for (int k = 0; k < exu.Length; ++k)
+            //                    {
+            //                        double uex = uKnots[0] + exu[k] * (uKnots[uKnots.Length - 1] - uKnots[0]);
+            //                        if (uex > umin && uex < umax)
+            //                        {
+            //                            p1 = fixedv.PointAtParam(uex);
+            //                            u = uex;
+            //                            foundU = true;
+            //                            break;
+            //                        }
+            //                    }
+            //                }
+            //                if (!fixedu.IsSingular)
+            //                {
+            //                    double[] exv = (fixedu as ICurve).GetExtrema(dir);
+            //                    for (int k = 0; k < exv.Length; ++k)
+            //                    {
+            //                        double vex = vKnots[0] + exv[k] * (vKnots[vKnots.Length - 1] - vKnots[0]);
+            //                        if (vex > vmin && vex < vmax)
+            //                        {
+            //                            p2 = fixedu.PointAtParam(vex);
+            //                            v = vex;
+            //                            foundV = true;
+            //                            break;
+            //                        }
+            //                    }
+            //                }
+            //                //if ((!foundU || !foundV) && exv.Length > 0 && exu.Length > 0)
+            //                //{
+            //                //    // das ist der Fall, dass man beim Iterieren aus dem Patch hinausläuft
+            //                //    // noch kein solcher Fall bekannt
+            //                //    // man müsste entscheiden, ob man solche Werte auch zulässt und die Bedingung müsste
+            //                //    // nicht lauten ob innerhalb von min und max sondern die nächstgelegene Lösung
+            //                //}
+            //                if (!foundU || !foundV) return false; // kein passendes Extremum gefunden
+            //                double d = p1 | p2;
+            //                if (d >= mindist) return false; // konvergiert nicht
+            //                mindist = d;
+            //            }
+            //            extr = new GeoPoint2D(u, v);
+            //#if DEBUG
+            //            double ddd = extr | uvse;
+            //            if (ddd > 1e-6) { }
+            //#endif
+            //            GeoPoint dbg = PointAt(extr);
+            //            return true;
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.SameGeometry (BoundingRect, ISurface, BoundingRect, double, out ModOp2D)"/>
@@ -5318,6 +5318,41 @@ namespace CADability.GeoObject
             info.AddValue("VMinRestrict", vMinRestrict, typeof(double));
             info.AddValue("VMaxRestrict", vMaxRestrict, typeof(double));
 
+        }
+        protected NurbsSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("Poles", poles);
+            data.AddProperty("Weights", weights);
+            data.AddProperty("UKnots", uKnots);
+            data.AddProperty("VKnots", vKnots);
+            data.AddProperty("UMults", uMults);
+            data.AddProperty("VMults", vMults);
+            data.AddProperty("UDegree", uDegree);
+            data.AddProperty("VDegree", vDegree);
+            data.AddProperty("UPeriodic", uPeriodic);
+            data.AddProperty("VPeriodic", vPeriodic);
+            data.AddProperty("UMinRestrict", uMinRestrict);
+            data.AddProperty("UMaxRestrict", uMaxRestrict);
+            data.AddProperty("VMinRestrict", vMinRestrict);
+            data.AddProperty("VMaxRestrict", vMaxRestrict);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            poles = data.GetProperty<GeoPoint[,]>("Poles");       
+            weights = data.GetProperty<double[,]>("Weights");     
+            uKnots = data.GetProperty<double[]>("UKnots");      
+            vKnots = data.GetProperty<double[]>("VKnots");      
+            uMults = data.GetProperty<int[]>("UMults");      
+            vMults = data.GetProperty<int[]>("VMults");      
+            uDegree = data.GetProperty<int>("UDegree");     
+            vDegree = data.GetProperty<int>("VDegree");     
+            uPeriodic = data.GetProperty<bool>("UPeriodic");   
+            vPeriodic = data.GetProperty<bool>("VPeriodic");   
+            uMinRestrict = data.GetProperty<double>("UMinRestrict");
+            uMaxRestrict = data.GetProperty<double>("UMaxRestrict");
+            vMinRestrict = data.GetProperty<double>("VMinRestrict");
+            vMaxRestrict = data.GetProperty<double>("VMaxRestrict");
         }
 
         #endregion

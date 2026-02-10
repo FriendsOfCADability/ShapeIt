@@ -3534,9 +3534,8 @@ namespace CADability
             CheckSurfaceParameters();
 #endif
         }
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Surface1", surface1);
             data.AddProperty("Surface2", surface2);
             data.AddProperty("BasePoints", basePoints);
@@ -3546,9 +3545,8 @@ namespace CADability
             data.AddProperty("Bounds2", bounds2);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             surface1 = data.GetPropertyOrDefault<ISurface>("Surface1");
             surface2 = data.GetPropertyOrDefault<ISurface>("Surface2");
             basePoints = data.GetPropertyOrDefault<SurfacePoint[]>("BasePoints");

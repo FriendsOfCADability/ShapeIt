@@ -880,18 +880,16 @@ namespace CADability.GeoObject
             info.AddValue("ColorDef", colorDef);
             info.AddValue("Name", name);
         }
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             shells = data.GetProperty<Shell[]>("Shells");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");
             name = data.GetPropertyOrDefault<string>("Name");
             flags = data.GetPropertyOrDefault<Flags>("Flags");
             data.RegisterForSerializationDoneCallback(this);
         }
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Shells", shells);
             data.AddProperty("ColorDef", colorDef);
             data.AddProperty("Name", name);

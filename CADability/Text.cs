@@ -2807,9 +2807,8 @@ namespace CADability.GeoObject
 
         }
 
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("TextString", textString);
             data.AddProperty("LineDirection", lineDirection);
             data.AddProperty("GlyphDirection", glyphDirection);
@@ -2822,9 +2821,8 @@ namespace CADability.GeoObject
             data.AddProperty("IsReflected", isReflected);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             textString = data.GetProperty<string>("TextString");
             lineDirection = data.GetProperty<GeoVector>("LineDirection");
             glyphDirection = data.GetProperty<GeoVector>("GlyphDirection");

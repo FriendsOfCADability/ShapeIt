@@ -14,7 +14,7 @@ namespace CADability
     /// the two curves. the default parameter space is 0.0 to 1.0 on u and v.
     /// </summary>
     [Serializable()]
-    public class RuledSurface : ISurfaceImpl, ISerializable, IExportStep
+    public class RuledSurface : ISurfaceImpl, ISerializable, IExportStep, IJsonSerialize
     {
         /// <summary>
         /// Dient der Beschreibung einer Zwischenkurve bei festem V
@@ -975,6 +975,18 @@ namespace CADability
             info.AddValue("FirstCurve", firstCurve);
             info.AddValue("SecondCurve", secondCurve);
         }
+        protected RuledSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("FirstCurve", firstCurve);
+            data.AddProperty("SecondCurve", secondCurve);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            firstCurve = data.GetProperty<ICurve>("FirstCurve");
+            secondCurve = data.GetProperty<ICurve>("SecondCurve");
+        }
+
 
         int IExportStep.Export(ExportStep export, bool topLevel)
         {

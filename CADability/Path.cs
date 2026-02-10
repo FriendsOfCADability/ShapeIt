@@ -2241,18 +2241,16 @@ namespace CADability.GeoObject
 			info.AddValue("LinePattern", linePattern);
 		}
 
-		public override void GetObjectData(IJsonWriteData data)
+		public void GetObjectData(IJsonWriteData data)
 		{
-			base.GetObjectData(data);
 			data.AddProperty("SubCurves", subCurves);
 			if (colorDef != null) data.AddProperty("ColorDef", colorDef);
 			if (lineWidth != null) data.AddProperty("LineWidth", lineWidth);
 			if (linePattern != null) data.AddProperty("LinePattern", linePattern);
 		}
 
-		public override void SetObjectData(IJsonReadData data)
+		public void SetObjectData(IJsonReadData data)
 		{
-			base.SetObjectData(data);
 			subCurves = data.GetProperty<ICurve[]>("SubCurves");
 			colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");
 			lineWidth = data.GetPropertyOrDefault<LineWidth>("LineWidth");

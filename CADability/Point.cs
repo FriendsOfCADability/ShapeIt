@@ -427,18 +427,16 @@ namespace CADability.GeoObject
             info.AddValue("Size", size);
             info.AddValue("Name", name);
         }
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Location", location);
             data.AddProperty("Symbol", symbol);
             if (colorDef != null) data.AddProperty("ColorDef", colorDef);
             data.AddProperty("Size", size);
             data.AddProperty("Name", name);
         }
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             location = data.GetProperty<GeoPoint>("Location");
             symbol = data.GetProperty<PointSymbol>("Symbol");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");

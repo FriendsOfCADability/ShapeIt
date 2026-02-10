@@ -1721,9 +1721,8 @@ namespace CADability.GeoObject
             info.AddValue("LinePattern", linePattern);
         }
 
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Vertex", vertex);
             data.AddProperty("Closed", closed);
             if (colorDef != null) data.AddProperty("ColorDef", colorDef);
@@ -1731,9 +1730,8 @@ namespace CADability.GeoObject
             if (linePattern != null) data.AddProperty("LinePattern", linePattern);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             vertex = data.GetProperty<GeoPoint[]>("Vertex");
             closed = data.GetProperty<bool>("Closed");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");

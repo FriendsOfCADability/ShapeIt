@@ -468,6 +468,99 @@ namespace CADability
 
         }
 
+        public void CallGetObjectDataAllLevels(object val)
+        {
+            if (val is null) return;
+
+            var iface = typeof(IJsonSerialize);
+            var runtimeType = val.GetType();
+
+            // Vererbungskette sammeln (egal welche Reihenfolge – du sagst ist egal)
+            // Ich sammle Derived->Base; wenn du Base->Derived willst: einfach Reverse().
+            foreach (var t in EnumerateTypeChain(runtimeType))
+            {
+                if (!iface.IsAssignableFrom(t))
+                    continue; // dieser Level hat das Interface nicht (oder nicht sichtbar)
+
+                // Interface-Map für *diesen* Typ holen
+                // Wichtig: bei expliziter Implementierung findest du die Methode nur so zuverlässig.
+                InterfaceMapping map;
+                try
+                {
+                    map = t.GetInterfaceMap(iface);
+                }
+                catch (ArgumentException)
+                {
+                    // t behauptet zwar assignable zu sein, aber InterfaceMap kann aus Sondergründen knallen.
+                    // (sehr selten; aber sauber handeln)
+                    continue;
+                }
+
+                // Wir wollen nur Implementierungen, die *auf dieser Ebene* deklariert sind
+                // (= nicht nur geerbt).
+                for (int i = 0; i < map.TargetMethods.Length; i++)
+                {
+                    MethodInfo target = map.TargetMethods[i];
+
+                    // Nur die Methoden dieses Levels
+                    if (target.DeclaringType != t)
+                        continue;
+
+                    // Nur die GetObjectData-Methode des Interfaces
+                    // (map.InterfaceMethods[i] ist die Interface-Methode; vergleichen ist stabil)
+                    if (map.InterfaceMethods[i].Name != nameof(IJsonSerialize.GetObjectData))
+                        continue;
+
+                    // Aufrufen: target ist entweder public (implizit) oder private (explizit),
+                    // Invoke funktioniert trotzdem.
+                    target.Invoke(val, new object[] { this as IJsonWriteData });
+                }
+            }
+        }
+
+        public void CallSetObjectDataAllLevels(object val, IJsonReadData data)
+        {
+            if (val is null) return;
+
+            var iface = typeof(IJsonSerialize);
+            var runtimeType = val.GetType();
+
+            foreach (var t in EnumerateTypeChain(runtimeType))
+            {
+                if (!iface.IsAssignableFrom(t))
+                    continue;
+
+                InterfaceMapping map;
+                try
+                {
+                    map = t.GetInterfaceMap(iface);
+                }
+                catch (ArgumentException)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < map.TargetMethods.Length; i++)
+                {
+                    MethodInfo target = map.TargetMethods[i];
+
+                    if (target.DeclaringType != t)
+                        continue;
+
+                    if (map.InterfaceMethods[i].Name != nameof(IJsonSerialize.SetObjectData))
+                        continue;
+
+                    target.Invoke(val, new object[] { data });
+                }
+            }
+        }
+
+        private IEnumerable<Type> EnumerateTypeChain(Type start)
+        {
+            for (Type? t = start; t != null && t != typeof(object); t = t.BaseType)
+                yield return t;
+        }
+
         private void RegisterForSerializationDoneCallback(IJsonSerializeDone toCall)
         {
             SerializationDoneCallback.Add(toCall);
@@ -1013,7 +1106,9 @@ namespace CADability
                                         }
                                     }
                                 }
-                                (created as IJsonSerialize).SetObjectData(data);
+                                // (created as IJsonSerialize).SetObjectData(data);
+                                CallSetObjectDataAllLevels(created, data);
+                                
                                 created = cnvt.Convert(); // convert from JsonDictinary to Hashable or similar
                                 entities[(int)index] = created;
                                 underConstruction.Remove(index);
@@ -1069,7 +1164,9 @@ namespace CADability
                     }
                 }
             }
-            obj.SetObjectData(data);
+            // obj.SetObjectData(data);
+            CallSetObjectDataAllLevels(obj, data);
+
         }
         private void CreateEntities(List<object> entities)
         {
@@ -1267,7 +1364,8 @@ namespace CADability
                     int version = SerializeVersion(val.GetType());
                     (this as IJsonWriteData).AddProperty("$TypeVersion", version);
                 }
-                (val as IJsonSerialize).GetObjectData(this); // calls one ore more of the AddValue methods
+                //(val as IJsonSerialize).GetObjectData(this); // calls one ore more of the AddValue methods
+                CallGetObjectDataAllLevels(val);
             }
             else if (val is ISerializable)
             {
@@ -1370,7 +1468,7 @@ namespace CADability
                 WriteProperty("$Type");
                 WriteString(value.GetType().FullName);
                 WriteProperty("$Value");
-                (value as IJsonSerialize).GetObjectData(this);
+                (value as IJsonSerialize).GetObjectData(this); // struct is only on a single level, no type hierarchy with multiple IJsonSerialize levels
                 EndObject();
             }
             //else if (value is Hashtable) // 
@@ -1525,7 +1623,7 @@ namespace CADability
             }
             else if (serializeAsStruct)
             {
-                (value as IJsonSerialize).GetObjectData(this);
+                (value as IJsonSerialize).GetObjectData(this); // struct is only on a single level, no type hierarchy with 
             }
             else if (value is IJsonSerialize || value is ISerializable)
             {
