@@ -713,9 +713,9 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public virtual bool SameGeometry(ICurve other, double precision)
         {
-            if (other.DistanceTo(StartPoint)>Precision.eps) { return false; }
-            if (other.DistanceTo(EndPoint)>Precision.eps) { return false; }
-            if (other.DistanceTo(PointAt(0.5))>Precision.eps) { return false; }
+            if (other.DistanceTo(StartPoint) > Precision.eps) { return false; }
+            if (other.DistanceTo(EndPoint) > Precision.eps) { return false; }
+            if (other.DistanceTo(PointAt(0.5)) > Precision.eps) { return false; }
             return true;
         }
         /// <summary>
@@ -939,7 +939,7 @@ namespace CADability.GeoObject
     /// Curve given by a surface and a 2d curve on this surface. Used mainly for edges.
     /// </summary>
     [Serializable()]
-    internal class CurveOnSurface : GeneralCurve, ISerializable
+    internal class CurveOnSurface : GeneralCurve, ISerializable, IJsonSerialize
     {
         private ICurve2D surfaceCurve;
         private ISurface surface;
@@ -1045,6 +1045,18 @@ namespace CADability.GeoObject
             info.AddValue("Surface", surface);
             info.AddValue("SurfaceCurve", surfaceCurve);
         }
+
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("Surface", surface);
+            data.AddProperty("SurfaceCurve", surfaceCurve);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            surface = data.GetProperty<ISurface>("Surface");
+            surfaceCurve = data.GetProperty<ICurve2D>("SurfaceCurve");
+        }
+
     }
 
     /// <summary>
@@ -2816,11 +2828,11 @@ namespace CADability.GeoObject
             double lastd = 0.0;
             for (int i = 0; i < tetraederBase.Length - 1; ++i)
             {
-                if (surface.MayIntersectSegment(tetraederBase[i], tetraederBase[i+1]) ||
+                if (surface.MayIntersectSegment(tetraederBase[i], tetraederBase[i + 1]) ||
                     surface.MayIntersectSegment(tetraederBase[i], tetraederVertex[2 * i]) ||
-                    surface.MayIntersectSegment(tetraederBase[i], tetraederVertex[2 * i+1]) ||
-                    surface.MayIntersectSegment(tetraederBase[i+1], tetraederVertex[2 * i]) ||
-                    surface.MayIntersectSegment(tetraederBase[i+1], tetraederVertex[2 * i + 1]))
+                    surface.MayIntersectSegment(tetraederBase[i], tetraederVertex[2 * i + 1]) ||
+                    surface.MayIntersectSegment(tetraederBase[i + 1], tetraederVertex[2 * i]) ||
+                    surface.MayIntersectSegment(tetraederBase[i + 1], tetraederVertex[2 * i + 1]))
                 {
                     double t = (tetraederParams[i] + tetraederParams[i + 1]) / 2;
                     GeoPoint2D uv = surface.PositionOf(theCurve.PointAt(t));
