@@ -54,7 +54,9 @@ namespace CADability.GeoObject
 
         public override ISurface GetModified(ModOp m)
         {
-            return new HelicalSweepSurface(curve.CloneModified(m), pitch, (m * axis).Normalized);
+            HelicalSweepSurface res = new HelicalSweepSurface(curve.CloneModified(m), pitch, (m * axis).Normalized);
+            res.SetBounds(this.GetBounds());
+            return res;
         }
         public override ModOp2D ReverseOrientation()
         {
@@ -72,7 +74,10 @@ namespace CADability.GeoObject
         {
             return new GroupProperty("HelicalSweptSurface", new IPropertyEntry[0]);
         }
-
+        public override void GetSafeParameterSteps(double umin, double umax, double vmin, double vmax, out double[] intu, out double[] intv)
+        {
+            base.GetSafeParameterSteps(umin, umax, vmin, vmax, out intu, out intv);
+        }
         public override GeoPoint PointAt(GeoPoint2D uv)
         {
             double u = uv.x;

@@ -3716,7 +3716,8 @@ namespace CADability.GeoObject
                     }
                 }
             }
-            if (!Precision.IsEqual(bounds2d[0].StartPoint, bounds2d[bounds2d.Count - 1].EndPoint)) return null;
+            // if (!Precision.IsEqual(bounds2d[0].StartPoint, bounds2d[bounds2d.Count - 1].EndPoint)) return null;
+            // why would we test the endpoints connected, when we don't test the other connetions?
             double area = Border.SignedArea(bounds2d);
             if (area < 0)
             {
