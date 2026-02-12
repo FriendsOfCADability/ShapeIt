@@ -1057,6 +1057,13 @@ namespace CADability
             Location = location;
             Direction = direction;
         }
+        public Axis Normalized
+        {
+            get
+            {
+                return new Axis(Location, Direction.Normalized);
+            }
+        }
         static public Axis InvalidAxis
         {
             get
@@ -1115,7 +1122,7 @@ namespace CADability
         {
         }
 
-        public Line Clip(BoundingCube ext)
+        public Line Clip(BoundingBox ext)
         {
             Line res = Line.Construct();
             if (ext.ClipAxis(this, out GeoPoint startPoint, out GeoPoint endPoint))

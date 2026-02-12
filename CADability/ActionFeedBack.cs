@@ -147,7 +147,7 @@ namespace CADability.Actions
 
         void OnFeedBackChanged(IFeedBack sender)
         {
-            BoundingCube ext = BoundingCube.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
             for (int i = 0; i < repaintObjects.Count; i++)
             {
                 ext.MinMax(repaintObjects[i].GetExtent());

@@ -38,7 +38,7 @@ namespace CADability.GeoObject
         {
             GeoPoint2D p = curve2D.PointAt(pos);
             GeoVector2D dir = curve2D.DirectionAt(pos);
-            surface.DerivationAt(p, out GeoPoint location, out GeoVector diru, out GeoVector dirv);
+            surface.DerivativeAt(p, out GeoPoint location, out GeoVector diru, out GeoVector dirv);
             return dir.x * diru + dir.y * dirv;
         }
 

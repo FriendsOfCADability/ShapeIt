@@ -2164,7 +2164,7 @@ namespace CADability.Curve2D
         /// <returns></returns>
         public virtual bool IsParameterOnCurve(double par)
         {
-            return par >= -1e-8 && par <= 1 + 1e-8;
+            return par >= -1e-6 && par <= 1 + 1e-6; // changed from 1e-8 to 1e-6 to allow for more numerical inaccuracies
         }
 
         /// <summary>

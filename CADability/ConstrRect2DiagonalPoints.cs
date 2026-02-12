@@ -54,6 +54,7 @@ namespace CADability.Actions
             startPointInput.DefaultGeoPoint = ConstrDefaults.DefaultStartPoint;
             startPointInput.DefinesBasePoint = true;
             startPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(StartPoint);
+            startPointInput.canOverrideDrawingPlane = true;
 
             secondPointInput = new GeoPointInput("Rect.DiagonalPoint");
             secondPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(SecondPoint);

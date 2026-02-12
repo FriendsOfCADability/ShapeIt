@@ -720,10 +720,11 @@ namespace CADability
                 return SnapPointFinder.DidSnapModes.DidNotSnap;
             }
         }
+        Plane IView.LastSnapPlane => Plane.Invalid;
 
 #pragma warning disable 67 // Suppress "event is never used" warning
-		//TODO: Use this event e.g. in RecalcScrollPosition() like other views did
-		public event CADability.ScrollPositionChanged ScrollPositionChangedEvent;
+        //TODO: Use this event e.g. in RecalcScrollPosition() like other views did
+        public event CADability.ScrollPositionChanged ScrollPositionChangedEvent;
 #pragma warning restore 67
 
         private void Scroll(double dx, double dy)
@@ -761,7 +762,7 @@ namespace CADability
             ipaintTo3D.Clear(BackgroundColor);
 
             ipaintTo3D.UseZBuffer(true);
-            BoundingCube bc = model.Extent;
+            BoundingBox bc = model.Extent;
             bc.MinMax(model.MinExtend);
             // sicherstellen, dass die komplette Rasterebene auch mit angezeigt wird
             BoundingRect ext = BoundingRect.EmptyBoundingRect;

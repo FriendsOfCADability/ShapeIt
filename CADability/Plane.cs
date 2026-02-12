@@ -113,10 +113,10 @@ namespace CADability
         /// <summary>
         /// Creates a new plane with the given parameters. Throws a <see cref="PlaneException"/>, if <paramref name="DirectionX"/>
         /// and <paramref name="DirectionY"/> have the same direction.
-		/// </summary>
-		/// <param name="Location">location of the plane</param>
-		/// <param name="DirectionX">direction of the x-axis</param>
-		/// <param name="DirectionY">direction of the y-axis, will be adapted if not perpendicular to the x-axis</param>
+        /// </summary>
+        /// <param name="Location">location of the plane</param>
+        /// <param name="DirectionX">direction of the x-axis</param>
+        /// <param name="DirectionY">direction of the y-axis, will be adapted if not perpendicular to the x-axis</param>
         public Plane(GeoPoint Location, GeoVector DirectionX, GeoVector DirectionY)
         {
             try
@@ -187,7 +187,7 @@ namespace CADability
                             dx = GeoVector.ZAxis;
                         }
                     }
-                    GeoVector v = dx ^normal;
+                    GeoVector v = dx ^ normal;
                     coordSys = new CoordSys(location, v ^ normal, v);
 #if DEBUG
                     if (!Precision.SameNotOppositeDirection(coordSys.Normal, normal)) { }
@@ -239,7 +239,7 @@ namespace CADability
             {   // this might be the case when the optimal plane geos through the origin
                 // then we need to move the point cloud
                 // a goo direction seems to be the axis direction where the extent is smallest
-                BoundingCube ext = new BoundingCube(points.ToArray());
+                BoundingBox ext = new BoundingBox(points.ToArray());
                 int ind;
                 if (ext.XDiff < ext.YDiff && ext.XDiff < ext.ZDiff) ind = 0;
                 else if (ext.YDiff < ext.XDiff && ext.YDiff < ext.ZDiff) ind = 1;
@@ -313,7 +313,7 @@ namespace CADability
             isLinear = false;
             MaxDistance = double.MaxValue;
             GeoPoint centroid = new GeoPoint(Points);
-            BoundingCube ext = new BoundingCube(Points);
+            BoundingBox ext = new BoundingBox(Points);
             if (ext.Size == 0.0)
             {
                 isLinear = true;
@@ -357,17 +357,17 @@ namespace CADability
                         return Plane.XYPlane;
                     }
                 }
-                catch  { }
+                catch { }
                 // there must be a better way than this!
                 double mindist = double.MaxValue;
-                GeoVector dir=GeoVector.NullVector;
-                GeoPoint loc=GeoPoint.Origin;
+                GeoVector dir = GeoVector.NullVector;
+                GeoPoint loc = GeoPoint.Origin;
                 for (int i = 0; i < Points.Length; i++)
                 {
-                    for (int j = i+1; j < Points.Length; j++)
+                    for (int j = i + 1; j < Points.Length; j++)
                     {
                         GeoVector tdir = Points[i] - Points[j];
-                        if (tdir.Length<mindist)
+                        if (tdir.Length < mindist)
                         {
                             mindist = tdir.Length;
                             loc = Points[j];
@@ -500,6 +500,7 @@ namespace CADability
         /// Returns the Y/Z plane.
         /// </summary>
         public static readonly Plane YZPlane = new Plane(StandardPlane.YZPlane, 0.0);
+        public static readonly Plane Invalid = new Plane(GeoPoint.Invalid, GeoVector.XAxis, GeoVector.YAxis);
         public bool Intersect(GeoPoint LinePoint, GeoVector LineDir, out GeoPoint ip)
         {
 
@@ -710,7 +711,7 @@ namespace CADability
         /// <returns></returns>
         public bool IsValid()
         {
-            return !coordSys.Normal.IsNullVector();
+            return Location.IsValid && !coordSys.Normal.IsNullVector();
         }
         /// <summary>
         /// Returns the coordinate system corresponding to this plane. The z-axis of the coordinate system 
@@ -854,11 +855,11 @@ namespace CADability
         public double[] Explicit()
         {
             double d = -(Normal * Location.ToVector());
-            return [ Normal.x, Normal.y, Normal.z, d ];
+            return [Normal.x, Normal.y, Normal.z, d];
         }
         public GeoPoint FootPoint(GeoPoint fromHere)
         {
-            GeoPoint onPlane = coordSys.GlobalToLocal* fromHere;
+            GeoPoint onPlane = coordSys.GlobalToLocal * fromHere;
             onPlane.z = 0.0;
             return coordSys.LocalToGlobal * onPlane;
         }
@@ -923,7 +924,7 @@ namespace CADability
         {
             coordSys.Modify(m);
         }
-#region ISerializable Members
+        #region ISerializable Members
         /// <summary>
         /// Constructor required by deserialization
         /// </summary>
@@ -949,7 +950,7 @@ namespace CADability
         public void SetObjectData(IJsonReadData data)
         {
         }
-#endregion
+        #endregion
 
 
         public void Align(GeoPoint2D c)
@@ -965,7 +966,7 @@ namespace CADability
         {
             Matrix m = DenseMatrix.OfRowArrays(norm1, norm2, norm3);
             // Matrix s = (Matrix)m.Solve(DenseMatrix.OfArray(new double[,] { { norm1 * loc1.ToVector() }, { norm2 * loc2.ToVector() }, { norm3 * loc3.ToVector() } }));
-            Vector s = (Vector)m.Solve(new DenseVector( new double[] { norm1 * loc1.ToVector() ,  norm2 * loc2.ToVector() ,  norm3 * loc3.ToVector() } ));
+            Vector s = (Vector)m.Solve(new DenseVector(new double[] { norm1 * loc1.ToVector(), norm2 * loc2.ToVector(), norm3 * loc3.ToVector() }));
             if (s.IsValid())
             {
                 ip = new GeoPoint(s);
@@ -994,6 +995,7 @@ namespace CADability
                 return CADability.GeoObject.Face.MakeFace(ps, new Shapes.SimpleShape(CADability.Shapes.Border.MakeRectangle(0, 100, 0, 100)));
             }
         }
+
 #endif
     }
 }

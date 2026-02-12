@@ -2,6 +2,7 @@
 using CADability.GeoObject;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,6 +21,11 @@ namespace ShapeIt
             Shell[] res = bo.Execute();
             if (res.Length == 1)
             {
+#if DEBUG
+                if (!res[0].CheckConsistency())
+                {
+                }
+#endif
                 return Solid.MakeSolid(res[0]);
             }
             else

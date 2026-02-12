@@ -205,20 +205,20 @@ namespace CADability.GeoObject
             return toCylinder * GeoVector.ZAxis;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivationAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivativeAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
         /// <param name="du"></param>
         /// <param name="dv"></param>
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             location = toCylinder * new GeoPoint(Math.Cos(uv.x), Math.Sin(uv.x), uv.y);
             du = toCylinder * new GeoVector(-Math.Sin(uv.x), Math.Cos(uv.x), 0.0);
             dv = toCylinder * GeoVector.ZAxis;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivation2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
@@ -227,7 +227,7 @@ namespace CADability.GeoObject
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             location = toCylinder * new GeoPoint(Math.Cos(uv.x), Math.Sin(uv.x), uv.y);
             du = toCylinder * new GeoVector(-Math.Sin(uv.x), Math.Cos(uv.x), 0.0);
@@ -520,7 +520,7 @@ namespace CADability.GeoObject
             if (curve.GetPlanarState() == PlanarState.Planar)
             {
                 Plane pln = curve.GetPlane();
-                BoundingCube ext = curve.GetExtent();
+                BoundingBox ext = curve.GetExtent();
                 ext.Modify(toUnit); // macht ihn ggf. zu groß, curve.CloneModified(toUnit).GetExtent() geht aber manchmal nicht und dauert zu lange
                 IDualSurfaceCurve[] dsc = GetPlaneIntersection(new PlaneSurface(pln), 0.0, Math.PI * 2.0, ext.Zmin, ext.Zmax, 0.0);
                 // liefert eine Ellipse oder zwei Linien oder nichts
@@ -566,6 +566,17 @@ namespace CADability.GeoObject
             }
             base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            double da = Geometry.DistPL(a, Location, Axis);
+            double db = Geometry.DistPL(b, Location, Axis);
+            if (da < RadiusX && db < RadiusX) return false; // both inside: no intersection
+            if (Math.Sign(da - RadiusX) != Math.Sign(db - RadiusX)) return true; // one inside, one outside: intersection
+            double dl = Geometry.DistLL(Location, Axis, a, b - a, out double par1, out double par2);
+            if (dl > RadiusX) return false; // both outside and line misses cylinder:no intersection
+            return par2 >= 0.0 && par2 <= 1.0; // intersection only if within segment
+        }
+
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.IsVanishingProjection (Projection, double, double, double, double)"/>
         /// </summary>
@@ -2032,7 +2043,7 @@ namespace CADability.GeoObject
                             ext.MinMax(testPoints[i]);
                         }
                         SineCurve2D scFit = SineCurve2D.Create(testPoints[0], testPoints[2], testPoints[2], testPoints[3]);
-                        if (scFit!=null) return scFit;
+                        if (scFit != null) return scFit;
                         // we should not arrive here, if we do we have to check LevenbergMarquardt with different start conditions
                         GeoVector normal = e.Plane.Normal;
                         double fy = Math.Sqrt(normal.x * normal.x + normal.y * normal.y) / Math.Abs(normal.z); // the amplitude of the sine curve
@@ -2070,7 +2081,7 @@ namespace CADability.GeoObject
             return new ModOp2D(-1, 0, Math.PI, 0, 1, 0);
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingCube, double, double, double, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingBox, double, double, double, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="umin"></param>
@@ -2078,17 +2089,17 @@ namespace CADability.GeoObject
         /// <param name="vmin"></param>
         /// <param name="vmax"></param>
         /// <returns></returns>
-        public override bool HitTest(BoundingCube cube, double umin, double umax, double vmin, double vmax)
+        public override bool HitTest(BoundingBox cube, double umin, double umax, double vmin, double vmax)
         {
             throw new NotImplementedException("HitTest must be implemented");
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingCube, out GeoPoint2D)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingBox, out GeoPoint2D)"/>
         /// </summary>
         /// <param name="bc"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public override bool HitTest(BoundingCube bc, out GeoPoint2D uv)
+        public override bool HitTest(BoundingBox bc, out GeoPoint2D uv)
         {
             // any vertex of the cube on the cylinder?
             uv = GeoPoint2D.Origin;

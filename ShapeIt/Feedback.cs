@@ -68,6 +68,12 @@ namespace ShapeIt
 
         public void Refresh()
         {
+            // in den Frame ein CancellationTokenSource einbauen, mit EnableCancellation() starten
+            // mit ThrowIfCancellationRequested abbrechen
+            // hier Face für Face/Shell/Solid mit PreCalcTriangulation abbrechbar berechnen 
+            // Invalidate muss als this.BeginInvoke(() => control.Invalidate()); implementiert werden 
+            //double precision = view.Projection.WorldToDeviceFactor;
+            //view.Canvas.Frame
             view.Invalidate(PaintBuffer.DrawingAspect.Select, view.DisplayRectangle);
         }
 

@@ -1986,6 +1986,19 @@ namespace CADability
             }
 
         }
+        public static Axis operator *(ModOp m, Axis v)
+        {
+            if (m.mode == ModificationMode.Identity) return v;
+            else if (m.mode == ModificationMode.Translation)
+            {
+                return new Axis(m*v.Location,v.Direction);
+            }
+            else
+            {
+                return new Axis(m * v.Location, m * v.Direction);
+            }
+
+        }
         /// <summary>
         /// Modifies the given 2d vector by this modification, The vector is assumed in the x/y plane
         /// </summary>

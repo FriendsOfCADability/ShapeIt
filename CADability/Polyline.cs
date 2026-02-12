@@ -1,9 +1,11 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.UserInterface;
+using MathNet.Numerics.Financial;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.Serialization;
 
 namespace CADability.GeoObject
@@ -11,7 +13,7 @@ namespace CADability.GeoObject
 
     public class PolylineException : ApplicationException
     {
-        public enum PolylineExceptionType { General, NoPoints, NoRectangle, NoParallelogram, RectangleSameDirections };
+        public enum PolylineExceptionType { General, NoPoints, NoRectangle, NoParallelogram, NoPolygon, RectangleSameDirections };
         public PolylineExceptionType ExceptionType;
         public PolylineException(string message, PolylineExceptionType tp)
             : base(message)
@@ -250,6 +252,43 @@ namespace CADability.GeoObject
             points[3] = location + directionY;
             SetPoints(points, true);
         }
+
+        public void SetRegularPolygon(Plane pln, double outerRadius, double offsteAngle, int numVertices)
+        {
+            GeoPoint[] points = new GeoPoint[numVertices];
+            double da = 2 * Math.PI / numVertices;
+            for (int i = 0; i < numVertices; i++)
+            {
+                double s = Math.Sin(i * da + offsteAngle);
+                double c = Math.Cos(i * da + offsteAngle);
+                points[i] = pln.ToGlobal(new GeoPoint2D(outerRadius * c, outerRadius * s));
+            }
+            SetPoints(points, true);
+        }
+
+        public bool IsRegularPolygon
+        {
+            get
+            {
+                if (GetPlanarState() == PlanarState.Planar)
+                {
+                    Plane pln = GetPlane();
+                    double d = vertex.Last() | vertex[0];
+                    for (int i = 1; i < vertex.Length; ++i)
+                    {
+                        if (Math.Abs(d - (vertex[i] | vertex[i - 1])) > Precision.eps) return false;
+                    }
+                    GeoPoint center = new GeoPoint(vertex);
+                    double radius = vertex[0] | center;
+                    for (int i = 1; i < vertex.Length; ++i)
+                    {
+                        if (Math.Abs(radius - (vertex[i] | center)) > Precision.eps) return false;
+                    }
+                    return true;
+                }
+                return false;
+            }
+        }
         public double RectangleWidth
         {
             get
@@ -358,6 +397,71 @@ namespace CADability.GeoObject
                 if (!IsParallelogram) throw new PolylineException("Attempt to set Parallelogram location on polyline that is no Parallelogram", PolylineException.PolylineExceptionType.NoParallelogram);
                 ModOp m = ModOp.Translate(value - vertex[0]);
                 this.Modify(m);
+            }
+        }
+        public Plane PolygonPlane
+        {
+            get
+            {
+                if (!IsRegularPolygon) throw new PolylineException("Attempt to get polygon center on polyline that is no polygon", PolylineException.PolylineExceptionType.NoPolygon);
+                Plane res = GetPlane();
+                GeoPoint center = new GeoPoint(vertex);
+                res.Location = center;
+                return res;
+            }
+            set
+            {
+                if (!IsRegularPolygon) throw new PolylineException("Attempt to set polygon center on polyline that is no polygon", PolylineException.PolylineExceptionType.NoPolygon);
+                Plane pln = PolygonPlane;
+                GeoPoint2D[] v2d = new GeoPoint2D[vertex.Length];
+                for (int i = 0; i < vertex.Length; i++)
+                {
+                    v2d[i] = pln.Project(vertex[i]);
+                }
+                using (new Changing(this, "SetPoints", vertex, this.closed))
+                {
+                    for (int i = 0; i < vertex.Length; i++)
+                    {
+                        vertex[i] = value.ToGlobal(v2d[i]);
+                    }
+                }
+            }
+        }
+        public double PolygonOuterRadius
+        {
+            get
+            {
+                if (!IsRegularPolygon) throw new PolylineException("Attempt to get polygon center on polyline that is no polygon", PolylineException.PolylineExceptionType.NoPolygon);
+                GeoPoint center = new GeoPoint(vertex);
+                return vertex[0] | center;
+            }
+            set
+            {
+                if (!IsRegularPolygon) throw new PolylineException("Attempt to get polygon center on polyline that is no polygon", PolylineException.PolylineExceptionType.NoPolygon);
+                GeoPoint center = new GeoPoint(vertex);
+                using (new Changing(this, "SetPoints", vertex, this.closed))
+                {
+                    for (int i = 0; i < vertex.Length; i++)
+                    {
+                        GeoVector dirv = vertex[i] - center;
+                        dirv.Length = value;
+                        vertex[i] = center + dirv;
+                    }
+                }
+            }
+        }
+        public double PolygonInnerRadius
+        {
+            get
+            {
+                if (!IsRegularPolygon) throw new PolylineException("Attempt to get polygon radius on polyline that is no polygon", PolylineException.PolylineExceptionType.NoPolygon);
+                GeoPoint center = new GeoPoint(vertex);
+                return new GeoPoint(vertex[0], vertex[1]) | center;
+            }
+            set
+            {
+                if (!IsRegularPolygon) throw new PolylineException("Attempt to set polygon radius on polyline that is no polygon", PolylineException.PolylineExceptionType.NoPolygon);
+                PolygonOuterRadius = value / Math.Cos(Math.PI / vertex.Length);
             }
         }
         public GeoVector ParallelogramMainDirection
@@ -561,9 +665,9 @@ namespace CADability.GeoObject
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.GetBoundingCube ()"/>
         /// </summary>
         /// <returns></returns>
-        public override BoundingCube GetBoundingCube()
+        public override BoundingBox GetBoundingCube()
         {
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             if (vertex != null)
             {
                 for (int i = 0; i < vertex.Length; ++i)
@@ -705,17 +809,17 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override BoundingCube GetExtent(double precision)
+        public override BoundingBox GetExtent(double precision)
         {
             return GetBoundingCube();
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingCube, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingBox, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override bool HitTest(ref BoundingCube cube, double precision)
+        public override bool HitTest(ref BoundingBox cube, double precision)
         {
             for (int i = 0; i < vertex.Length - 1; ++i)
             {
@@ -753,7 +857,7 @@ namespace CADability.GeoObject
             {
                 for (int i = 0; i < vertex.Length; ++i)
                 {
-                    if (!BoundingCube.UnitBoundingCube.Contains(area.ToUnitBox * vertex[i])) return false;
+                    if (!BoundingBox.UnitBoundingCube.Contains(area.ToUnitBox * vertex[i])) return false;
                 }
                 return true;
             }
@@ -764,64 +868,64 @@ namespace CADability.GeoObject
                 for (int i = 1; i < vertex.Length; ++i)
                 {
                     GeoPoint thisPoint = area.ToUnitBox * vertex[i];
-                    if (BoundingCube.UnitBoundingCube.Interferes(ref lastPoint, ref thisPoint)) return true;
+                    if (BoundingBox.UnitBoundingCube.Interferes(ref lastPoint, ref thisPoint)) return true;
                     lastPoint = thisPoint;
                 }
-                if (closed && BoundingCube.UnitBoundingCube.Interferes(ref lastPoint, ref firstPoint)) return true;
+                if (closed && BoundingBox.UnitBoundingCube.Interferes(ref lastPoint, ref firstPoint)) return true;
                 return false;
             }
         }
-		/// <summary>
-		/// Computes the parameter value along the given ray (fromHere + t * direction)
-		/// where it intersects the polyline (if any). Returns <c>double.MaxValue</c>
-		/// if no intersection is found or if the polyline is planar and the ray is parallel to the plane.
-		/// </summary>
-		/// <param name="fromHere">Start point of the ray.</param>
-		/// <param name="direction">Direction of the ray.</param>
-		/// <param name="precision">Tolerance for intersection tests (not used here).</param>
-		/// <returns>The parameter t where the intersection occurs, or <c>double.MaxValue</c> if no hit.</returns>
-		public override double Position(GeoPoint fromHere, GeoVector direction, double precision)
-		{
-			// Check if the polyline lies in a single plane
-			if ((this as ICurve).GetPlanarState() == PlanarState.Planar)
-			{
-				try
-				{
-					// Attempt to intersect with the plane
-					GeoPoint p = GetPlane().Intersect(fromHere, direction);
-					// Return parameter t on the ray for the intersection point
-					return Geometry.LinePar(fromHere, direction, p);
-				}
-				catch (PlaneException)
-				{
-					// Ray is parallel to the plane → no intersection
-					return double.MaxValue;
-				}
-			}
+        /// <summary>
+        /// Computes the parameter value along the given ray (fromHere + t * direction)
+        /// where it intersects the polyline (if any). Returns <c>double.MaxValue</c>
+        /// if no intersection is found or if the polyline is planar and the ray is parallel to the plane.
+        /// </summary>
+        /// <param name="fromHere">Start point of the ray.</param>
+        /// <param name="direction">Direction of the ray.</param>
+        /// <param name="precision">Tolerance for intersection tests (not used here).</param>
+        /// <returns>The parameter t where the intersection occurs, or <c>double.MaxValue</c> if no hit.</returns>
+        public override double Position(GeoPoint fromHere, GeoVector direction, double precision)
+        {
+            // Check if the polyline lies in a single plane
+            if ((this as ICurve).GetPlanarState() == PlanarState.Planar)
+            {
+                try
+                {
+                    // Attempt to intersect with the plane
+                    GeoPoint p = GetPlane().Intersect(fromHere, direction);
+                    // Return parameter t on the ray for the intersection point
+                    return Geometry.LinePar(fromHere, direction, p);
+                }
+                catch (PlaneException)
+                {
+                    // Ray is parallel to the plane → no intersection
+                    return double.MaxValue;
+                }
+            }
 
-			// Not planar: manually test each segment for intersection
-			double res = double.MaxValue;
-			for (int i = 0; i < vertex.Length - 1; ++i)
-			{
-				Geometry.DistLL(vertex[i], vertex[i + 1] - vertex[i], fromHere, direction, out double pos1, out double pos2);
-				if (pos1 >= 0.0 && pos1 <= 1.0 && pos2 < res) 
-					res = pos2;
-			}
+            // Not planar: manually test each segment for intersection
+            double res = double.MaxValue;
+            for (int i = 0; i < vertex.Length - 1; ++i)
+            {
+                Geometry.DistLL(vertex[i], vertex[i + 1] - vertex[i], fromHere, direction, out double pos1, out double pos2);
+                if (pos1 >= 0.0 && pos1 <= 1.0 && pos2 < res)
+                    res = pos2;
+            }
 
-			// If closed, check the last-to-first segment
-			if (closed)
-			{
-				Geometry.DistLL(vertex[vertex.Length - 1], vertex[0] - vertex[vertex.Length - 1], fromHere, direction, out double pos1, out double pos2);
-				if (pos1 >= 0.0 && pos1 <= 1.0 && pos2 < res) 
-					res = pos2;
-			}
+            // If closed, check the last-to-first segment
+            if (closed)
+            {
+                Geometry.DistLL(vertex[vertex.Length - 1], vertex[0] - vertex[vertex.Length - 1], fromHere, direction, out double pos1, out double pos2);
+                if (pos1 >= 0.0 && pos1 <= 1.0 && pos2 < res)
+                    res = pos2;
+            }
 
-			return res;
-		}
+            return res;
+        }
 
-		#endregion
-		#region IColorDef Members
-		public ColorDef ColorDef
+        #endregion
+        #region IColorDef Members
+        public ColorDef ColorDef
         {
             get
             {
@@ -922,7 +1026,7 @@ namespace CADability.GeoObject
             //}
             //GeoVector dir = new GeoVector(vertex[i-1],vertex[i]);
             dir.Norm();
-            return Length*dir.Normalized;
+            return Length * dir.Normalized;
         }
         public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
         {
@@ -1486,11 +1590,11 @@ namespace CADability.GeoObject
         {
             return false;
         }
-        BoundingCube ICurve.GetExtent()
+        BoundingBox ICurve.GetExtent()
         {
             return GetExtent(0.0);
         }
-        bool ICurve.HitTest(BoundingCube cube)
+        bool ICurve.HitTest(BoundingBox cube)
         {
             return HitTest(ref cube, 0.0);
         }
@@ -1617,9 +1721,8 @@ namespace CADability.GeoObject
             info.AddValue("LinePattern", linePattern);
         }
 
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Vertex", vertex);
             data.AddProperty("Closed", closed);
             if (colorDef != null) data.AddProperty("ColorDef", colorDef);
@@ -1627,9 +1730,8 @@ namespace CADability.GeoObject
             if (linePattern != null) data.AddProperty("LinePattern", linePattern);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             vertex = data.GetProperty<GeoPoint[]>("Vertex");
             closed = data.GetProperty<bool>("Closed");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");
@@ -1723,12 +1825,12 @@ namespace CADability.GeoObject
 
         #region IOctTreeInsertable Members
 
-        BoundingCube IOctTreeInsertable.GetExtent(double precision)
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {
-            return BoundingCube.InfiniteBoundingCube; // stimmt nicht unbedingt
+            return BoundingBox.InfiniteBoundingBox; // stimmt nicht unbedingt
         }
 
-        bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
         {
             for (int i = 1; i < vertex.Length - 3; ++i)
             {

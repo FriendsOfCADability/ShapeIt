@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 
 namespace CADability
 {
@@ -374,4 +375,40 @@ namespace CADability
 
         #endregion
     }
+
+    public enum PrecisionMode
+    {
+        Default,
+        High
+    }
+
+    public static class PrecisionContext
+    {
+        public static readonly AsyncLocal<PrecisionMode> Current = new()
+        {
+            Value = PrecisionMode.Default
+        };
+    }
+    public sealed class PrecisionScope : IDisposable
+    {
+        private readonly PrecisionMode _previous;
+
+        private PrecisionScope(PrecisionMode newMode)
+        {
+            _previous = PrecisionContext.Current.Value;
+            PrecisionContext.Current.Value = newMode;
+        }
+
+        public static IDisposable High()
+            => new PrecisionScope(PrecisionMode.High);
+
+        public static IDisposable Default()
+            => new PrecisionScope(PrecisionMode.Default);
+
+        public void Dispose()
+        {
+            PrecisionContext.Current.Value = _previous;
+        }
+    }
+
 }

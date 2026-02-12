@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Printing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows.Forms;
 using Action = CADability.Actions.Action;
@@ -41,6 +42,7 @@ namespace CADability.Forms
         public Action<bool, double, string> ProgressAction { get; set; }
 
         #endregion PUBLIC PROPERTIES
+        private const string ClipFormat = "CADability.GeoObjectList.Json";
 
         /// <summary>
         /// Constructor without form dependency.
@@ -307,22 +309,89 @@ namespace CADability.Forms
         }
         void IUIService.SetClipboardData(GeoObjectList objects, bool copy)
         {
-            Clipboard.SetDataObject(objects, copy);
+            //Clipboard.SetDataObject(objects, copy);
+            // -> JSON in Byte-Array serialisieren
+            byte[] payload;
+            using (var ms = new MemoryStream())
+            {
+                var js = new JsonSerialize();
+                js.ToStream(ms, objects, closeStream: false);
+                payload = ms.ToArray();
+            }
+
+            // DataObject mit eigenem Format befüllen (ohne Auto-Konvertierung)
+            var dob = new DataObject();
+            dob.SetData(ClipFormat, false, payload);
+
+            // Optional: eine menschenlesbare Text-Notiz (damit Paste in Notepad nicht leer ist)
+            dob.SetText($"CADability GeoObjectList ({objects?.Count ?? 0} items)");
+
+            // copy=true: Inhalte bleiben erhalten, auch wenn die App endet
+            Clipboard.SetDataObject(dob, copy);
         }
         object IUIService.GetClipboardData(Type typeOfdata)
         {
-            IDataObject data = Clipboard.GetDataObject();
-            return data.GetData(typeOfdata);
+            //IDataObject data = Clipboard.GetDataObject();
+            //return data.GetData(typeOfdata);
+            try
+            {
+                // defensiv prüfen, ohne GetDataObject()
+                if (!Clipboard.ContainsData(ClipFormat))
+                    return null;
+
+                var data = Clipboard.GetData(ClipFormat);
+                if (data is byte[] bytes)
+                {
+                    using (var ms = new MemoryStream(bytes))
+                    {
+                        var js = new JsonSerialize();
+                        return js.FromStream(ms); // -> GeoObjectList
+                    }
+                }
+
+                // Falls ein Stream geliefert wird (kann je nach Host passieren)
+                if (data is Stream s)
+                {
+                    using (var ms = new MemoryStream())
+                    {
+                        s.CopyTo(ms);
+                        ms.Position = 0;
+                        var js = new JsonSerialize();
+                        return js.FromStream(ms);
+                    }
+                }
+
+                // Worst case: String (sollten wir nicht bekommen, aber behandeln)
+                if (data is string json)
+                {
+                    return JsonSerialize.FromString(json);
+                }
+
+                return null;
+            }
+            catch (ExternalException)
+            {
+                // Clipboard gerade gelockt o.ä. – einfach "kein Inhalt" signalisieren
+                return null;
+            }
         }
         bool IUIService.HasClipboardData(Type typeOfdata)
         {
-            IDataObject data = Clipboard.GetDataObject();
-            return data.GetDataPresent(typeOfdata);
-            //for (int i = 0; i < formats.Length; i++)
-            //{
-            //    if (formats[i] == typeOfdata.FullName) return true;
-            //}
-            //return false;
+            try
+            {
+                // Leichtgewichtige .NET-Variante:
+                if (Clipboard.ContainsData(ClipFormat)) return true;
+
+                // Optional, noch robuster & COM-frei (empfohlen im Idle):
+                // return NativeClipboard.HasMyFormat();
+
+                return false;
+            }
+            catch (ExternalException)
+            {
+                // z. B. wenn gerade ein anderer Prozess das Clipboard geöffnet hat
+                return false;
+            }
         }
         public Substitutes.FontFamily GetFontFamily(string fontFamilyName)
         {

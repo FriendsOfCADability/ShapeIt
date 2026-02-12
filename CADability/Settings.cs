@@ -374,7 +374,7 @@ namespace CADability
 
             if (!GlobalSettings.ContainsSetting("DefaultModelSize"))
             {
-                GlobalSettings.AddSetting("DefaultModelSize", new BoundingCube(0, 100, 0, 100, 0, 100));
+                GlobalSettings.AddSetting("DefaultModelSize", new BoundingBox(0, 100, 0, 100, 0, 100));
             }
             if (!GlobalSettings.ContainsSetting("Formatting"))
             {
@@ -462,7 +462,7 @@ namespace CADability
             if (!colorSettings.ContainsSetting("Grid"))
             {
                 ColorSetting cs = new ColorSetting("Grid", "Setting.Colors.Grid");
-                cs.Color = Color.LightGoldenrodYellow;
+                cs.Color = Color.LightGoldenRodYellow;
                 colorSettings.AddSetting("Grid", cs);
             }
             if (!colorSettings.ContainsSetting("Feedback"))

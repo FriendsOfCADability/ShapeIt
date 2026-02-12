@@ -256,7 +256,7 @@ namespace CADability
             this.c2d = c2d;
             this.surface = surface;
             GeoVector du, dv;
-            surface.DerivationAt(c2d.StartPoint, out startPos, out du, out dv);
+            surface.DerivativeAt(c2d.StartPoint, out startPos, out du, out dv);
             GeoVector2D dir2d = c2d.StartDirection;
             GeoVector2D dir2dr = dir2d.ToRight();
             startX = dir2d.x * du + dir2d.y * dv;
@@ -271,7 +271,7 @@ namespace CADability
         {
             GeoVector du, dv;
             GeoPoint loc;
-            surface.DerivationAt(c2d.PointAt(u), out loc, out du, out dv);
+            surface.DerivativeAt(c2d.PointAt(u), out loc, out du, out dv);
             GeoVector2D dir2d = c2d.DirectionAt(u);
             GeoVector ux = dir2d.x * du + dir2d.y * dv;
             GeoVector uz = du ^ dv;
@@ -290,7 +290,7 @@ namespace CADability
             {
                 GeoVector du, dv;
                 GeoPoint loc;
-                surface.DerivationAt(c2d.PointAt(0.0), out loc, out du, out dv);
+                surface.DerivativeAt(c2d.PointAt(0.0), out loc, out du, out dv);
                 GeoVector2D dir2d = c2d.DirectionAt(0.0);
                 return dir2d.x * du + dir2d.y * dv;
             }
@@ -316,7 +316,7 @@ namespace CADability
                     double u = i / 100.0;
                     GeoVector du, dv;
                     GeoPoint loc;
-                    surface.DerivationAt(c2d.PointAt(u), out loc, out du, out dv);
+                    surface.DerivativeAt(c2d.PointAt(u), out loc, out du, out dv);
                     GeoPoint2D loc2d = c2d.PointAt(u);
                     GeoVector2D dir2d = c2d.DirectionAt(u);
                     GeoVector2D dir2dr = dir2d.ToRight();
@@ -333,13 +333,13 @@ namespace CADability
                 GeoObjectList res = new GeoObjectList();
                 ICurve c3d = surface.Make3dCurve(c2d);
                 res.Add(c3d as IGeoObject);
-                BoundingCube ext = c3d.GetExtent();
+                BoundingBox ext = c3d.GetExtent();
                 for (int i = 0; i < 100; i++)
                 {
                     double u = i / 100.0;
                     GeoVector du, dv;
                     GeoPoint loc;
-                    surface.DerivationAt(c2d.PointAt(u), out loc, out du, out dv);
+                    surface.DerivativeAt(c2d.PointAt(u), out loc, out du, out dv);
                     GeoPoint2D loc2d = c2d.PointAt(u);
                     GeoVector2D dir2d = c2d.DirectionAt(u);
                     GeoVector2D dir2dr = dir2d.ToRight();
@@ -381,8 +381,8 @@ namespace CADability
     /// OrientationAt(u) is the x-axis
     /// </summary>
     [Serializable]
-    public class 
-        GeneralSweptCurve : ISurfaceImpl, ISerializable
+    public class
+        GeneralSweptCurve : ISurfaceImpl, ISerializable, IJsonSerialize
     {   // erstmal nur zum internen berechnen verwenden, kein Helper
         /*
          * gegeben: 2d Kurve "c" und surface "s" für das Bewegungssystem, das ist die v-Richtung
@@ -734,13 +734,13 @@ namespace CADability
         {
             return modOpAt(uv.y) * toSweep.PointAt(uv.x);
         }
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             location = PointAt(uv);
             du = UDirection(uv);
             dv = VDirection(uv);
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             throw new NotImplementedException("Derivation2At must be implemented");
         }
@@ -749,7 +749,7 @@ namespace CADability
             umin = 0.0;
             umax = 1.0;
             vmin = 0.0;
-            vmax = 1.0; 
+            vmax = 1.0;
         }
         public override bool IsUPeriodic
         {
@@ -833,6 +833,24 @@ namespace CADability
             info.AddValue("Vmin", vmin, typeof(double));
             info.AddValue("Vmax", vmax, typeof(double));
         }
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("ToSweep", toSweep);
+            data.AddProperty("Along", along);
+            data.AddProperty("Normal", normal);
+            data.AddProperty("Vmin", vmin);
+            data.AddProperty("Vmax", vmax);
+        }
+        protected GeneralSweptCurve() { } // for JSON
+        public void SetObjectData(IJsonReadData data)
+        {
+            toSweep = data.GetProperty<ICurve>("ToSweep");
+            along = data.GetProperty<ICurve>("Along");
+            normal = data.GetProperty<GeoVector>("Normal");
+            vmin = data.GetDoubleProperty("Vmin");
+            vmax = data.GetDoubleProperty("Vmax");
+        }
+
 #if DEBUG
         internal GeoObjectList DebugAlong
         {
@@ -840,7 +858,7 @@ namespace CADability
             {
                 GeoObjectList res = new GeoObjectList();
                 res.Add(along as IGeoObject);
-                BoundingCube ext = along.GetExtent();
+                BoundingBox ext = along.GetExtent();
                 double length = ext.Size / 200;
                 ColorDef cdx = new ColorDef("dirx", Color.Red);
                 ColorDef cdy = new ColorDef("diry", Color.LawnGreen);

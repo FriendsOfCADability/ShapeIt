@@ -94,7 +94,7 @@ namespace CADability
                 {
                     GeoPoint location;
                     GeoVector udirection, vdirection;
-                    surface.DerivationAt(points[i][j], out location, out udirection, out vdirection);
+                    surface.DerivativeAt(points[i][j], out location, out udirection, out vdirection);
                     TangentPlane tp = new TangentPlane(this, points[i][j], location, udirection, vdirection);
                     allPlanes.Add(tp);
                     if (j > 0) tp.IntersectWith(allPlanes[first + j - 1], true); // schneiden mit der vorherigen

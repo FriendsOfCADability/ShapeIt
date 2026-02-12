@@ -11,7 +11,7 @@ namespace CADability.GeoObject
     /// The plane is defined by two vectors which are not necessary perpendicular or normalized.
     /// </summary>
     [Serializable()]
-    public class PlaneSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep
+    public class PlaneSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep, IJsonSerialize
     {
         private ModOp fromUnitPlane; // projects the XY plane into this surface
         private ModOp toUnitPlane; // inverted fromUnitPlane
@@ -193,7 +193,7 @@ namespace CADability.GeoObject
             if (toUnitPlane.IsNull) toUnitPlane = fromUnitPlane.GetInverse();
             return (toUnitPlane * p).To2D();
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             location = PointAt(uv);
             du = UDirection(uv);
@@ -437,13 +437,20 @@ namespace CADability.GeoObject
             if (Precision.IsEqual(q + d / Normal.Length * Normal, p)) return d;
             else return -d;
         }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            GeoPoint la = Plane.ToLocal(a);
+            GeoPoint lb = Plane.ToLocal(b);
+            return Math.Sign(la.z) != Math.Sign(lb.z);
+        }
+
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingCube, out GeoPoint2D)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingBox, out GeoPoint2D)"/>
         /// </summary>
         /// <param name="bc"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public override bool HitTest(BoundingCube bc, out GeoPoint2D uv)
+        public override bool HitTest(BoundingBox bc, out GeoPoint2D uv)
         {
             GeoPoint[] cube = bc.Points;
             bool[] pos = new bool[8];
@@ -732,6 +739,17 @@ namespace CADability.GeoObject
         {
             info.AddValue("FromUnitPlane", fromUnitPlane, typeof(ModOp));
         }
+        protected PlaneSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("FromUnitPlane", fromUnitPlane);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            fromUnitPlane = data.GetProperty<ModOp>("FromUnitPlane");
+            toUnitPlane = fromUnitPlane.GetInverse();
+        }
+
         #endregion
         #region IDeserializationCallback Members
         void IDeserializationCallback.OnDeserialization(object sender)

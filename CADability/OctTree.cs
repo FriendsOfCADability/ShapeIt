@@ -61,14 +61,14 @@ namespace CADability
         /// </summary>
         /// <param name="precision">Precision of the test</param>
         /// <returns>The minmax cube</returns>
-        BoundingCube GetExtent(double precision);
+        BoundingBox GetExtent(double precision);
         /// <summary>
         /// Tests whether an object is touched by the provided cube
         /// </summary>
         /// <param name="cube">To test with</param>
         /// <param name="precision">Required precision</param>
         /// <returns>true if the object strikes the cube</returns>
-        bool HitTest(ref BoundingCube cube, double precision);
+        bool HitTest(ref BoundingBox cube, double precision);
         /// <summary>
         /// Tests whether an object is inside or touched by the rectangle when projected with the 
         /// provided projection
@@ -152,7 +152,7 @@ namespace CADability
             /// <summary>
             /// Cube defining this node
             /// </summary>
-            public BoundingCube cube;
+            public BoundingBox cube;
             /// <summary>
             /// Derived OctTrees may use this for whatever they need it
             /// </summary>
@@ -165,7 +165,7 @@ namespace CADability
                 this.size = size;
                 this.list = null; // keine Liste im Gegensatz zu siehe unten
                 this.deepth = 0;
-                this.cube = new BoundingCube(center, size);
+                this.cube = new BoundingBox(center, size);
             }
             public Node(OctTree<TT> root, Node<TT> parent, GeoPoint center, double halfSize)
             {
@@ -175,10 +175,10 @@ namespace CADability
                 this.size = halfSize;
                 this.list = new HashSet<TT>(); // beginnt als blatt mit leerer liste, im gegensatz zum root, der ganz leer beginnt
                 this.deepth = parent.deepth + 1;
-                // this.cube = new BoundingCube(center, size);
+                // this.cube = new BoundingBox(center, size);
                 // the cubes of the octtree may not have gaps inbetween. Because of precisiion loss when adding this might occur
                 // so we "round up" the maximum values
-                this.cube = new BoundingCube(center.x - halfSize, Geometry.NextDouble(center.x + halfSize), center.y - halfSize, Geometry.NextDouble(center.y + halfSize), center.z - halfSize, Geometry.NextDouble(center.z + halfSize));
+                this.cube = new BoundingBox(center.x - halfSize, Geometry.NextDouble(center.x + halfSize), center.y - halfSize, Geometry.NextDouble(center.y + halfSize), center.z - halfSize, Geometry.NextDouble(center.z + halfSize));
 
             }
             internal Node<TT> extend(bool toleft, bool tofront, bool tobottom)
@@ -242,7 +242,7 @@ namespace CADability
             {
                 if (parent == null && ppp == null)
                 {	// this is the root and it must be initialized
-                    BoundingCube ext = objectToAdd.GetExtent(root.precision);
+                    BoundingBox ext = objectToAdd.GetExtent(root.precision);
                     if (ext.IsEmpty) return;
                     lock (this)
                     {   // there may be only a single thread, which creates the empty list
@@ -276,13 +276,13 @@ namespace CADability
                                     center = new GeoPoint(center.x + size * 0.0001, center.y + size * 0.0001, center.z + size * 0.0001);
                                 }
                             }
-                            cube = new BoundingCube(center, size);
+                            cube = new BoundingBox(center, size);
                         }
                     }
                 }
                 bool insert;
                 lock (objectToAdd) // HitTest and GetExtent are maybe not reentrant, because they may modify the approximation of the object
-                    insert = !BoundingCube.Disjoint(objectToAdd.GetExtent(root.precision), cube) && objectToAdd.HitTest(ref cube, root.precision);
+                    insert = !BoundingBox.Disjoint(objectToAdd.GetExtent(root.precision), cube) && objectToAdd.HitTest(ref cube, root.precision);
                 if (insert)
                 {
                     HashSet<TT> toInsert = null;
@@ -352,7 +352,7 @@ namespace CADability
                 {	// der Baum ist noch unreif, da er nur aus einer Liste besteht
                     // das von der Wurzel überdeckte Quadrat kann also noch beliebig manipuliert
                     // werden. Es soll 10% größer sein als alle Objekte in der Wurzel
-                    BoundingCube ext = objectToAdd.GetExtent(root.precision);
+                    BoundingBox ext = objectToAdd.GetExtent(root.precision);
                     if (ext.IsEmpty) return;
                     if (list == null)
                     {	// das allererste Objekt wird im root eingefügt
@@ -382,11 +382,11 @@ namespace CADability
                             center = new GeoPoint(center.x + size * 0.0001, center.y + size * 0.0001, center.z + size * 0.0001);
                         }
                     }
-                    cube = new BoundingCube(center, size);
+                    cube = new BoundingBox(center, size);
                 }
                 // der Test auf Disjoint ist wahrscheinlich schneller und greift meistens
                 //if (root.FilterHitTest(objectToAdd, this as CADability.OctTree<TT>.Node<TT>) || // evtl schneller mit diesem Filter
-                if ((!BoundingCube.Disjoint(objectToAdd.GetExtent(root.precision), cube) && objectToAdd.HitTest(ref cube, root.precision)))
+                if ((!BoundingBox.Disjoint(objectToAdd.GetExtent(root.precision), cube) && objectToAdd.HitTest(ref cube, root.precision)))
                 {
                     if (ppp == null)
                     {	// es ist ein Blatt und kein Knoten
@@ -551,7 +551,7 @@ namespace CADability
             }
             internal void GetObjectsCloseTo(IOctTreeInsertable closeToThis, Set<TT> addToList)
             {
-                BoundingCube clone = cube;
+                BoundingBox clone = cube;
                 if (closeToThis.HitTest(ref clone, root.precision))
                 {
                     if (list != null)
@@ -589,7 +589,7 @@ namespace CADability
             internal IEnumerable<Node<T>> GetNodesCloseTo(IOctTreeInsertable closeToThis)
             {
                 List<Node<T>> res = new List<Node<T>>();
-                BoundingCube clone = cube;
+                BoundingBox clone = cube;
                 if (closeToThis.HitTest(ref clone, root.precision))
                 {
                     if (list != null)
@@ -646,9 +646,9 @@ namespace CADability
                     }
                 }
             }
-            internal void GetObjectsFromBox(BoundingCube box, Set<TT> addToList, Filter filter)
+            internal void GetObjectsFromBox(BoundingBox box, Set<TT> addToList, Filter filter)
             {
-                if (!BoundingCube.Disjoint(cube, box))
+                if (!BoundingBox.Disjoint(cube, box))
                 {
                     if (list != null)
                     {
@@ -671,9 +671,9 @@ namespace CADability
                     }
                 }
             }
-            internal void GetNodesFromBox(BoundingCube box, List<Node<TT>> addToList, FilterNode filter)
+            internal void GetNodesFromBox(BoundingBox box, List<Node<TT>> addToList, FilterNode filter)
             {
-                if (!BoundingCube.Disjoint(cube, box))
+                if (!BoundingBox.Disjoint(cube, box))
                 {
                     if (list != null)
                     {
@@ -868,7 +868,7 @@ namespace CADability
                 }
             }
 #endif
-            internal Node<T> FindExactNode(BoundingCube bc)
+            internal Node<T> FindExactNode(BoundingBox bc)
             {
                 if (bc.Equals(cube)) return this as Node<T>;
                 if (cube.Contains(bc))
@@ -1077,7 +1077,7 @@ namespace CADability
         public OctTree()
         {
         }
-        public void Initialize(BoundingCube ext, double precision)
+        public void Initialize(BoundingBox ext, double precision)
         {
             this.precision = precision;
             double size = ext.MaxSide / 2.0;
@@ -1091,7 +1091,7 @@ namespace CADability
             }
             node = new Node<T>(this, center, size * 1.01); // 1% größer
         }
-        public void InitializePrecise(BoundingCube ext, double precision)
+        public void InitializePrecise(BoundingBox ext, double precision)
         {
             this.precision = precision;
             double size = ext.MaxSide / 2.0;
@@ -1104,7 +1104,7 @@ namespace CADability
         /// <param name="ext">Initial size of the tree. Objects beeng added later may exceed this cube</param>
         /// <param name="precision">Precision, used internally</param>
         public delegate bool SplitTestFunction(Node<T> node, T objectToAdd);
-        public OctTree(BoundingCube ext, double precision, SplitTestFunction splitTest = null)
+        public OctTree(BoundingBox ext, double precision, SplitTestFunction splitTest = null)
         {
             this.precision = precision;
             double size = ext.MaxSide / 2.0;
@@ -1126,7 +1126,7 @@ namespace CADability
         public void AddObject(T objectToAdd)
         {   // an dieser Stelle könnte man ein neues Objekt machen, welches objectToAdd enthält und einen Stempel
             // fürs Iterieren. Node müsste dann entsprechend geändert werden
-            BoundingCube ext = objectToAdd.GetExtent(precision);
+            BoundingBox ext = objectToAdd.GetExtent(precision);
 #if DEBUG
             if (!ext.IsValid || !node.cube.GetCenter().IsValid)
             {
@@ -1150,7 +1150,7 @@ namespace CADability
         public void AddObjectAsync(T objectToAdd)
         {   // an dieser Stelle könnte man ein neues Objekt machen, welches objectToAdd enthält und einen Stempel
             // fürs Iterieren. Node müsste dann entsprechend geändert werden
-            BoundingCube ext = objectToAdd.GetExtent(precision);
+            BoundingBox ext = objectToAdd.GetExtent(precision);
             if (node.cube.Contains(ext))
             {
                 node.AddObjectAsync(objectToAdd);
@@ -1203,7 +1203,7 @@ namespace CADability
         /// <returns>Array of all objects which match the criterion</returns>
         public T[] GetObjectsFromRect(Projection projection, BoundingRect rect, bool onlyInside)
         {
-            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingCube bc) { return bc.Interferes(projection, rect); });
+            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingBox bc) { return bc.Interferes(projection, rect); });
             Set<T> addToList = new Set<T>();
             node.GetObjectsFromRect(projection, rect, onlyInside, addToList);
             return addToList.ToArray();
@@ -1218,7 +1218,7 @@ namespace CADability
         /// <returns>Array of all objects which match the criterion</returns>
         public T[] GetObjectsFromRect(Projection.PickArea area, bool onlyInside)
         {
-            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingCube bc) { return bc.Interferes(projection, rect); });
+            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingBox bc) { return bc.Interferes(projection, rect); });
             Set<T> addToList = new Set<T>();
             node.GetObjectsFromRect(area, onlyInside, addToList);
             return addToList.ToArray();
@@ -1228,9 +1228,9 @@ namespace CADability
         /// </summary>
         /// <param name="box">Box for the selection</param>
         /// <returns>Array of all objects which match the criterion</returns>
-        public T[] GetObjectsFromBox(BoundingCube box)
+        public T[] GetObjectsFromBox(BoundingBox box)
         {
-            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingCube bc) { return bc.Interferes(projection, rect); });
+            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingBox bc) { return bc.Interferes(projection, rect); });
             Set<T> addToList = new Set<T>();
             node.GetObjectsFromBox(box, addToList, null);
             return addToList.ToArray();
@@ -1241,9 +1241,9 @@ namespace CADability
         /// <param name="box">Box specifying the selection</param>
         /// <param name="filter">Filter restriction the result</param>
         /// <returns>Array of all objects which match the criterion</returns>
-        public T[] GetObjectsFromBox(BoundingCube box, Filter filter)
+        public T[] GetObjectsFromBox(BoundingBox box, Filter filter)
         {
-            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingCube bc) { return bc.Interferes(projection, rect); });
+            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingBox bc) { return bc.Interferes(projection, rect); });
             Set<T> addToList = new Set<T>();
             node.GetObjectsFromBox(box, addToList, filter);
             return addToList.ToArray();
@@ -1254,9 +1254,9 @@ namespace CADability
         /// <param name="box">Restricting box</param>
         /// <param name="filter">Additional filter (may be null)</param>
         /// <returns>All nodes which match the criterion</returns>
-        public Node<T>[] GetNodesFromBox(BoundingCube box, FilterNode filter)
+        public Node<T>[] GetNodesFromBox(BoundingBox box, FilterNode filter)
         {
-            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingCube bc) { return bc.Interferes(projection, rect); });
+            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingBox bc) { return bc.Interferes(projection, rect); });
             List<Node<T>> addToList = new List<Node<T>>();
             node.GetNodesFromBox(box, addToList, filter);
             return addToList.ToArray();
@@ -1268,7 +1268,7 @@ namespace CADability
         /// <returns>Array of all objects which match the criterion</returns>
         public T[] GetObjectsFromPoint(GeoPoint p)
         {
-            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingCube bc) { return bc.Interferes(projection, rect); });
+            //GeoObjectList dbg = DebugCheck(delegate(IOctTreeInsertable[] theList, BoundingBox bc) { return bc.Interferes(projection, rect); });
             Set<T> addToList = new Set<T>();
             if (node != null) node.GetObjectsFromPoint(p, addToList);
             return addToList.ToArray();
@@ -1299,7 +1299,7 @@ namespace CADability
         /// <summary>
         /// returns the extend of the root node.
         /// </summary>
-        public BoundingCube Extend
+        public BoundingBox Extend
         {
             get
             {
@@ -1341,7 +1341,7 @@ namespace CADability
         /// </summary>
         /// <param name="bc"></param>
         /// <returns></returns>
-        public Node<T> FindExactNode(BoundingCube bc)
+        public Node<T> FindExactNode(BoundingBox bc)
         {
             return node.FindExactNode(bc);
         }
@@ -1370,30 +1370,30 @@ namespace CADability
         /// <returns>The neighbours</returns>
         protected T[][] GetNeighbours(Node<T> node, Filter filter)
         {
-            BoundingCube bc = node.cube;
+            BoundingBox bc = node.cube;
             T[][] res = new T[6][]; // alle Seiten
             res[(int)Side.left] = GetObjectsFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin - precision, bc.Ymin + precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmin - precision, bc.Ymax - precision, bc.Zmax - precision)), filter);
             res[(int)Side.right] = GetObjectsFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmax + precision, bc.Ymin + precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmax + precision, bc.Ymax - precision, bc.Zmax - precision)));
             res[(int)Side.front] = GetObjectsFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymin - precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymin - precision, bc.Zmax - precision)));
             res[(int)Side.back] = GetObjectsFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymax + precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymax + precision, bc.Zmax - precision)));
             res[(int)Side.bottom] = GetObjectsFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymin + precision, bc.Zmin - precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymax - precision, bc.Zmin - precision)));
             res[(int)Side.top] = GetObjectsFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymin + precision, bc.Zmax + precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymax - precision, bc.Zmax + precision)));
             return res;
@@ -1407,30 +1407,30 @@ namespace CADability
         /// <returns>The neighbour nodes</returns>
         protected Node<T>[][] GetNeighbourNodes(Node<T> node, FilterNode filter)
         {
-            BoundingCube bc = node.cube;
+            BoundingBox bc = node.cube;
             Node<T>[][] res = new Node<T>[6][]; // alle Seiten
             res[(int)Side.left] = GetNodesFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin - precision, bc.Ymin + precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmin - precision, bc.Ymax - precision, bc.Zmax - precision)), filter);
             res[(int)Side.right] = GetNodesFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmax + precision, bc.Ymin + precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmax + precision, bc.Ymax - precision, bc.Zmax - precision)), filter);
             res[(int)Side.front] = GetNodesFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymin - precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymin - precision, bc.Zmax - precision)), filter);
             res[(int)Side.back] = GetNodesFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymax + precision, bc.Zmin + precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymax + precision, bc.Zmax - precision)), filter);
             res[(int)Side.bottom] = GetNodesFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymin + precision, bc.Zmin - precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymax - precision, bc.Zmin - precision)), filter);
             res[(int)Side.top] = GetNodesFromBox(
-                new BoundingCube(
+                new BoundingBox(
                     new GeoPoint(bc.Xmin + precision, bc.Ymin + precision, bc.Zmax + precision),
                     new GeoPoint(bc.Xmax - precision, bc.Ymax - precision, bc.Zmax + precision)), filter);
             return res;
@@ -1475,7 +1475,7 @@ namespace CADability
                 return res;
             }
         }
-        internal delegate bool CheckThis(IOctTreeInsertable[] theList, BoundingCube bc);
+        internal delegate bool CheckThis(IOctTreeInsertable[] theList, BoundingBox bc);
         internal GeoObjectList DebugCheck(CheckThis checkThis)
         {
             GeoObjectList res = new GeoObjectList();

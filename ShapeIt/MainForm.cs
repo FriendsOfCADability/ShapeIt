@@ -194,6 +194,11 @@ namespace ShapeIt
             Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false);
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);
+            if (!Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false))
+            {
+                Settings colorSettings = Settings.GlobalSettings.GetSubSetting("Colors");
+
+            }
             Settings.GlobalSettings.SetValue("ShapeIt.Initialized", true);
             CadFrame.FileNameChangedEvent += (name) =>
             {
@@ -322,7 +327,7 @@ namespace ShapeIt
         private void AutoDebug()
         {
             return;
-            string? filename = @"C:\Users\gerha\Documents\Zeichnungen\RoundEdgesTest2.cdb.json";
+            string? filename =  @"C:\Users\gerha\Documents\Zeichnungen\UniteAllTest.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -348,14 +353,14 @@ namespace ShapeIt
                     {
                         if (sld.Style.Name == "Operand1") operand1 = sld;
                         else if (sld.Style.Name == "Operand2") operand2 = sld;
-                        else if (sld.Style.Name == "Difference") difference.Add(sld);
-                        else if (sld.Style.Name == "Union") union.Add(sld);
-                        else if (sld.Style.Name == "Intersection") intersection.Add(sld);
+                        //else if (sld.Style.Name == "Difference") difference.Add(sld);
+                        //else if (sld.Style.Name == "Union") union.Add(sld);
+                        //else if (sld.Style.Name == "Intersection") intersection.Add(sld);
                     }
                 }
                 if (go is ICurve curve)
                 {
-                    if (go.Style!=null && go.Style.Name == "EdgeMarker")
+                    if (go.Style != null && go.Style.Name == "EdgeMarker")
                     {
                         edgeMarkers.Add(curve);
                     }
@@ -377,33 +382,52 @@ namespace ShapeIt
                 //        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
                 //    }
                 //}
-                if (command.StartsWith("Difference",StringComparison.OrdinalIgnoreCase))
+                if (command.StartsWith("Difference", StringComparison.OrdinalIgnoreCase))
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
+                }
+                if (command.StartsWith("Intersect", StringComparison.OrdinalIgnoreCase))
+                {
+                    Solid[] sres = NewBooleanOperation.Intersect(operand1, operand2);
                 }
                 if (command.Equals("Union", StringComparison.OrdinalIgnoreCase) || command.Equals("Unite", StringComparison.OrdinalIgnoreCase))
                 {
                     Solid sres = NewBooleanOperation.Unite(operand1, operand2);
                 }
             }
-            if (slds.Count == 2)
+            if (slds.Count >1)
             {
-                //Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
-                //Solid[] sld;
-                //if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
-                //{
-                //    sld = NewBooleanOperation.Subtract(slds[0], slds[1]);
-                //}
-                //else
-                //{
-                //    sld = NewBooleanOperation.Subtract(slds[1], slds[0]);
-                //}
-                //if (sld.Length > 0)
-                //{
-                //    Project proj = Project.CreateSimpleProject();
-                //    proj.GetActiveModel().Add(sld);
-                //    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
-                //}
+                if (command.Equals("UniteAll", StringComparison.OrdinalIgnoreCase))
+                {
+                    slds.Sort((s1, s2) =>
+                    {
+                        GeoPoint cnt1 = s1.GetExtent(0.0).GetCenter();
+                        GeoPoint cnt2 = s2.GetExtent(0.0).GetCenter();
+                        if (cnt1.y == cnt2.y) return cnt1.x.CompareTo(cnt2.x);
+                        else return cnt1.y.CompareTo(cnt2.y);
+                    });
+                    for (int i = 0; i < slds.Count; i++)
+                    {
+                        System.Diagnostics.Trace.WriteLine(slds[i].GetExtent(0.0).GetCenter().ToString() + " " + slds[i].Shells[0].GetHashCode().ToString());
+                    }
+                    Queue<Solid> queue = new Queue<Solid>(slds.Skip(1).Reverse());
+                    Solid accumulate = slds[0];
+                    int count = 0;
+                    while (queue.Count > 0)
+                    {
+                        Solid sld = queue.Dequeue();
+                        Solid tmp = NewBooleanOperation.Unite(sld, accumulate);
+                        if (tmp != null)
+                        {
+                            accumulate = tmp;
+                            count++;
+                        }
+                        else
+                        {
+                            queue.Enqueue(sld);
+                        }
+                    }
+                }
             }
             if (edgeMarkers.Count > 0)
             {
@@ -426,10 +450,10 @@ namespace ShapeIt
                 if (command.StartsWith("RoundEdges", StringComparison.OrdinalIgnoreCase))
                 {
                     string[] parts = command.Split(':');
-                    if (parts.Length==2)
+                    if (parts.Length == 2)
                     {
                         double d = double.Parse(parts[1]);
-                        if (d>0)
+                        if (d > 0)
                         {
                             Shell? rounded = shellToRound?.RoundEdges(edgesToRound, d);
                         }

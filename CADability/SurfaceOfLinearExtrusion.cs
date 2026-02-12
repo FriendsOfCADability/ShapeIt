@@ -14,7 +14,7 @@ namespace CADability.GeoObject
     /// be defined by a startParameter and an endParameter. 
     /// </summary>
     [Serializable()]
-    public class SurfaceOfLinearExtrusion : ISurfaceImpl, ISerializable, IExportStep
+    public class SurfaceOfLinearExtrusion : ISurfaceImpl, ISerializable, IExportStep, IJsonSerialize
     {
         private ICurve basisCurve;
         private GeoVector direction;
@@ -198,7 +198,7 @@ namespace CADability.GeoObject
         {
             return UDirection(uv) ^ VDirection(uv);
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             if (IsUPeriodic)
             {
@@ -363,12 +363,12 @@ namespace CADability.GeoObject
             return res;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingCube, out GeoPoint2D)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingBox, out GeoPoint2D)"/>
         /// </summary>
         /// <param name="bc"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public override bool HitTest(BoundingCube bc, out GeoPoint2D uv)
+        public override bool HitTest(BoundingBox bc, out GeoPoint2D uv)
         {
             Plane p = new Plane(GeoPoint.Origin, direction);
             PlaneSurface ps = new PlaneSurface(p);
@@ -513,17 +513,17 @@ namespace CADability.GeoObject
                 List<GeoPoint> points = new List<GeoPoint>();
                 for (int i = 0; i < 5; i++)
                 {
-                    GeoPoint pe = elli.PointAtParam(i*Math.PI/2.5);
+                    GeoPoint pe = elli.PointAtParam(i * Math.PI / 2.5);
                     if (pl.Plane.Intersect(pe, direction, out GeoPoint pi))
                     {
                         points.Add(pi);
                     }
                 }
                 // make an ellipse from these 5 points
-                if (points.Count==5)
+                if (points.Count == 5)
                 {
                     Ellipse intsElli = Ellipse.FromFivePoints(points.ToArray(), true);
-                    if (intsElli!=null && intsElli.MajorRadius / intsElli.MinorRadius < 100)
+                    if (intsElli != null && intsElli.MajorRadius / intsElli.MinorRadius < 100)
                     {   // dont return degenerated ellipses
                         DualSurfaceCurve dsc = new DualSurfaceCurve(intsElli, this, this.GetProjectedCurve(intsElli, 0.0), pl, pl.GetProjectedCurve(intsElli, 0.0));
                         return new IDualSurfaceCurve[] { dsc };
@@ -781,6 +781,22 @@ namespace CADability.GeoObject
             info.AddValue("Direction", direction, typeof(GeoVector));
             info.AddValue("CurveStartParameter", curveStartParameter, typeof(double));
             info.AddValue("CurveEndParameter", curveEndParameter, typeof(double));
+        }
+
+        protected SurfaceOfLinearExtrusion() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("BasisCurve", basisCurve);
+            data.AddProperty("Direction", direction);
+            data.AddProperty("CurveStartParameter", curveStartParameter);
+            data.AddProperty("CurveEndParameter", curveEndParameter);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            basisCurve = data.GetProperty<ICurve>("BasisCurve");
+            direction = data.GetProperty<GeoVector>("Direction");
+            curveStartParameter = data.GetProperty<double>("CurveStartParameter");
+            curveEndParameter = data.GetProperty<double>("CurveEndParameter");
         }
 
         int IExportStep.Export(ExportStep export, bool topLevel)

@@ -51,9 +51,9 @@ namespace CADability
             ISurface s1, ISurface s2, ISurface s3, Vector<double> vd)
         {
             // DerivationAt returns loc + tangents du/dv
-            s1.DerivationAt(new GeoPoint2D(vd[0], vd[1]), out GeoPoint loc1, out GeoVector du1, out GeoVector dv1);
-            s2.DerivationAt(new GeoPoint2D(vd[2], vd[3]), out GeoPoint loc2, out GeoVector du2, out GeoVector dv2);
-            s3.DerivationAt(new GeoPoint2D(vd[4], vd[5]), out GeoPoint loc3, out GeoVector du3, out GeoVector dv3);
+            s1.DerivativeAt(new GeoPoint2D(vd[0], vd[1]), out GeoPoint loc1, out GeoVector du1, out GeoVector dv1);
+            s2.DerivativeAt(new GeoPoint2D(vd[2], vd[3]), out GeoPoint loc2, out GeoVector du2, out GeoVector dv2);
+            s3.DerivativeAt(new GeoPoint2D(vd[4], vd[5]), out GeoPoint loc3, out GeoVector du3, out GeoVector dv3);
 
             var J = new DenseMatrix(9, 6);
 
@@ -79,9 +79,9 @@ namespace CADability
         private static Matrix<double> Jacobian6_Analytic(
             ISurface s1, ISurface s2, ISurface s3, Vector<double> vd)
         {
-            s1.DerivationAt(new GeoPoint2D(vd[0], vd[1]), out GeoPoint loc1, out GeoVector du1, out GeoVector dv1);
-            s2.DerivationAt(new GeoPoint2D(vd[2], vd[3]), out GeoPoint loc2, out GeoVector du2, out GeoVector dv2);
-            s3.DerivationAt(new GeoPoint2D(vd[4], vd[5]), out GeoPoint loc3, out GeoVector du3, out GeoVector dv3);
+            s1.DerivativeAt(new GeoPoint2D(vd[0], vd[1]), out GeoPoint loc1, out GeoVector du1, out GeoVector dv1);
+            s2.DerivativeAt(new GeoPoint2D(vd[2], vd[3]), out GeoPoint loc2, out GeoVector du2, out GeoVector dv2);
+            s3.DerivativeAt(new GeoPoint2D(vd[4], vd[5]), out GeoPoint loc3, out GeoVector du3, out GeoVector dv3);
 
             var J = new DenseMatrix(6, 6);
 
@@ -350,7 +350,7 @@ namespace CADability
             ISurface surface, GeoPoint2D uv,
             double relStep = 1e-6)
         {
-            surface.DerivationAt(uv, out GeoPoint locA, out GeoVector duA, out GeoVector dvA);
+            surface.DerivativeAt(uv, out GeoPoint locA, out GeoVector duA, out GeoVector dvA);
             NumericalDerivationAt(surface, uv, out GeoPoint locN, out GeoVector duN, out GeoVector dvN, relStep);
 
             // location should match exactly (both from PointAt)

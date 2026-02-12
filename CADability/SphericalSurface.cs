@@ -15,7 +15,7 @@ namespace CADability.GeoObject
         bool OutwardOriented { get; }
     }
     [Serializable()]
-    public class SphericalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep, ISphere
+    public class SphericalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, IExportStep, ISphere, IJsonSerialize
     {
         // Die Kugel ist so beschaffen, dass sie lediglich durch eine ModOp definiert ist.
         // Die Einheitskugel steht im Ursprung mit Radius 1, u beschreibt einen Breitenkreis, v einen Längenkreis
@@ -187,7 +187,7 @@ namespace CADability.GeoObject
         {
             return toSphere * new GeoVector(-Math.Cos(uv.x) * Math.Sin(uv.y), -Math.Sin(uv.x) * Math.Sin(uv.y), Math.Cos(uv.y));
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             location = PointAt(uv);
             du = UDirection(uv);
@@ -567,12 +567,12 @@ namespace CADability.GeoObject
             //return ((p|Location) - d);
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingCube, out GeoPoint2D)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingBox, out GeoPoint2D)"/>
         /// </summary>
         /// <param name="bc"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public override bool HitTest(BoundingCube bc, out GeoPoint2D uv)
+        public override bool HitTest(BoundingBox bc, out GeoPoint2D uv)
         {
             // any vertex of the cube on the sphere?
             uv = GeoPoint2D.Origin;
@@ -660,6 +660,18 @@ namespace CADability.GeoObject
                 }
             }
             return false;
+        }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            double da = Location | a;
+            double db = Location | b;
+            if (da < RadiusX && db < RadiusX) return false; // both points are inside the sphere
+            if (Math.Sign(da - RadiusX) != Math.Sign(db - RadiusX)) return true; // one point is inside, the other outside)
+            // both points are outside the sphere, check the distance of the segment to the sphere center
+            double par = Geometry.LinePar(a, b, Location);
+            if (par < 0) return false;
+            if (par > 1) return false;
+            return Geometry.DistPL(Location, a, b - a) <= RadiusX; // distance of the segment to the sphere center is less than radius and both points are outside
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetSaveUSteps ()"/>
@@ -1265,6 +1277,16 @@ namespace CADability.GeoObject
         void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
         {
             info.AddValue("ToSphere", toSphere, typeof(ModOp));
+        }
+        protected SphericalSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("ToSphere", toSphere);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            toSphere = data.GetProperty<ModOp>("ToSphere");
+            toUnit = toSphere.GetInverse();
         }
 
         #endregion

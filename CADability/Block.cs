@@ -128,9 +128,9 @@ namespace CADability.GeoObject
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.GetBoundingCube ()"/>
         /// </summary>
         /// <returns></returns>
-        public override BoundingCube GetBoundingCube()
+        public override BoundingBox GetBoundingCube()
         {
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             // lock (this)
             {
                 for (int i = 0; i < containedObjects.Count; ++i)
@@ -591,17 +591,17 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override BoundingCube GetExtent(double precision)
+        public override BoundingBox GetExtent(double precision)
         {
             return GetBoundingCube();
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingCube, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingBox, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override bool HitTest(ref BoundingCube cube, double precision)
+        public override bool HitTest(ref BoundingBox cube, double precision)
         {
             // lock (this)
             {
@@ -794,19 +794,17 @@ namespace CADability.GeoObject
         /// Need to make it public in order to allow inheriting classes to acces this method via base.GetObjectData
         /// </summary>
         /// <param name="data"></param>
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
             data.RegisterForSerializationDoneCallback(this);
-            base.GetObjectData(data);
             data.AddProperty("ColorDef", colorDef);
             data.AddProperty("RefPoint", refPoint);
             data.AddProperty("ContainedObjects", containedObjects);
             data.AddProperty("Name", name);
         }
 
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             refPoint = data.GetProperty<GeoPoint>("RefPoint");
             containedObjects = data.GetProperty<GeoObjectList>("ContainedObjects");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");

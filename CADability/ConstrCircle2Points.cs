@@ -80,6 +80,7 @@ namespace CADability.Actions
             GeoPointInput arcCenterInput = new GeoPointInput("Constr.Circle.Center");
             arcCenterInput.GetGeoPointEvent += new ConstructAction.GeoPointInput.GetGeoPointDelegate(CircleCenter);
             arcCenterInput.Optional = true;
+            arcCenterInput.canOverrideDrawingPlane= true;
             arcCenterInput.ReadOnly = true;
             LengthInput arcRadius = new LengthInput("Constr.Circle.Radius");
             arcRadius.GetLengthEvent += new ConstructAction.LengthInput.GetLengthDelegate(CircleRadius);

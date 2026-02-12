@@ -333,7 +333,7 @@ namespace CADability.GeoObject
             }
             public override bool TryPointDeriv2At(double position, out GeoPoint point, out GeoVector deriv, out GeoVector deriv2)
             {
-                sweptCircle.Derivation2At(new GeoPoint2D(posToParam(position), v0), out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+                sweptCircle.Derivative2At(new GeoPoint2D(posToParam(position), v0), out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
                 point = location;
                 deriv = (umax - umin) * du;
                 deriv2 = (umax - umin) * (umax - umin) * duu;
@@ -376,18 +376,16 @@ namespace CADability.GeoObject
             #endregion
             #region IJsonSerialize
             protected FixedVCurve() { } // we need this for JsonSerialisation
-            public override void GetObjectData(IJsonWriteData data)
+            public void GetObjectData(IJsonWriteData data)
             {
-                base.GetObjectData(data);
                 data.AddProperty("SweptCircle", sweptCircle);
                 data.AddProperty("V0", v0);
                 data.AddProperty("Umin", umin);
                 data.AddProperty("Umax", umax);
             }
 
-            public override void SetObjectData(IJsonReadData data)
+            public void SetObjectData(IJsonReadData data)
             {
-                base.SetObjectData(data);
                 sweptCircle = data.GetProperty<SweptCircle>("SweptCircle");
                 v0 = data.GetProperty<double>("V0");
                 umin = data.GetProperty<double>("Umin");
@@ -737,7 +735,7 @@ namespace CADability.GeoObject
             }
             return base.GetProjectedCurve(curve, precision);
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             double u = uv.x;
             double v = uv.y;
@@ -1069,7 +1067,7 @@ namespace CADability.GeoObject
                                 }
                                 for (int j = 0; j < uvalues.Count; j++)
                                 {
-                                    swc0.Derivation2At(new GeoPoint2D(uvalues[j], v), out GeoPoint location, out GeoVector ddu, out GeoVector ddv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+                                    swc0.Derivative2At(new GeoPoint2D(uvalues[j], v), out GeoPoint location, out GeoVector ddu, out GeoVector ddv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
                                     points0[j, i] = location;
                                     du0[j, i] = ddu;
                                     dv0[j, i] = ddv;
@@ -1099,7 +1097,7 @@ namespace CADability.GeoObject
                                 }
                                 for (int j = 0; j < uvalues.Count; j++)
                                 {
-                                    swc1.Derivation2At(new GeoPoint2D(uvalues[j], v), out GeoPoint location, out GeoVector ddu, out GeoVector ddv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+                                    swc1.Derivative2At(new GeoPoint2D(uvalues[j], v), out GeoPoint location, out GeoVector ddu, out GeoVector ddv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
                                     points1[j, i] = location;
                                     du1[j, i] = ddu;
                                     dv1[j, i] = ddv;

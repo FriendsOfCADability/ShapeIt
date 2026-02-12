@@ -866,7 +866,7 @@ namespace CADability
 
         public override object GetAnchor()
         {
-            BoundingCube ext = new BoundingCube(facesToCenter);
+            BoundingBox ext = new BoundingBox(facesToCenter);
             return ext.GetCenter();
         }
 

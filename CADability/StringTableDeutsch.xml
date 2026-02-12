@@ -752,14 +752,14 @@
 		<label>|Standard|Hintergrund|2D|3D|Text|Bemaßung</label>
 	</data>
 	<data name="StyleList.Default">
-		<label>|2D:2D,rot,dünn,durchgezogen|3D:3D,blau,dünn,durchgezogen|Text:Text,blau,-,-|Bemaßung:Bemaßung,blau,-,-</label>
+		<label>|2D:2D,rot,dünn,durchgezogen|3D:3D,Grau,dünn,durchgezogen|Text:Text,blau,-,-|Bemaßung:Bemaßung,blau,-,-</label>
 	</data>
 	<data name="LayerName">
 		<label>Ebene</label>
 		<info>Konkrete Ebene definieren</info>
 	</data>
 	<data name="ColorList.Default">
-		<label>|Rot(255,0,0)|Grün(0,255,0)|Blau(0,0,255)</label>
+		<label>|Rot(255,0,0)|Grün(0,255,0)|Blau(0,0,255)|Grau(128,128,128)</label>
 	</data>
 	<data name="LayerList.NewLayerName">
 		<label>Ebene</label>
@@ -6075,5 +6075,76 @@
 	<data name="Construct.Plane.DircetionY">
 		<label>Y-Achse der Ebene</label>
 		<info>Y-Achse der Ebene</info>
+	</data>
+	<data name="Constr.Polygon">
+		<label>Regelmäßiges Polygon</label>
+		<info>Regelmäßiges Polygon zeichnen</info>
+	</data>
+	<data name="Rect.Polygon.Center">
+		<label>Mittelpunkt</label>
+		<info>Mittelpunkt des regelmäßigen Polygons</info>
+	</data>
+	<data name="Rect.Polygon.DiagonalPoint1">
+		<label>Diagonalpunkt</label>
+		<info>1. Diagonalpunkt des regelmäßigen Polygons</info>
+	</data>
+	<data name="Rect.Polygon.DiagonalPoint1">
+		<label>Diagonalpunkt</label>
+		<info>2. Diagonalpunkt des regelmäßigen Polygons</info>
+	</data>
+	<data name="Rect.Polygon.NumberOfSides">
+		<label>Anzahl der Seiten</label>
+		<info>Anzahl der Seiten des regelmäßigen Polygons</info>
+	</data>
+	<data name="Rect.Polygon.Angle">
+		<label>Winkel</label>
+		<info>Winkel eines Eckpunkts</info>
+	</data>
+	<data name="Rect.Polygon.Radius">
+		<label>Radius</label>
+		<info>Innen- oder Außsnradius des regelmäßigen Polygons</info>
+	</data>
+	<data name="Rect.Polygon.SideLength">
+		<label>Seitenlänge</label>
+		<info>Seitenlänge des regelmäßigen Polygons</info>
+	</data>
+	<data name="Rect.Polygon.RadiusMode">
+		<label>Radius</label>
+		<info>Innen oder Außenradius spezifizieren</info>
+	</data>
+	<data name="Rect.Polygon.RadiusMode.Values">
+		<label>|Außenradius|Innenradius</label>
+	</data>
+	<data name="MenuId.Constr.Polygon">
+		<label>Regelmäßiges Polygon</label>
+		<info>Regelmäßiges Polygon zeichnen</info>
+	</data>
+	<data name="Polygon.Center">
+		<label>Mittelpunkt</label>
+		<info>Mittelpunkt des regelmäßigen Polygons</info>
+	</data>
+	<data name="Polygon.OuterRadius">
+		<label>Äußerer Radius</label>
+		<info>Äußerer Radius des regelmäßigen Polygons</info>
+	</data>
+	<data name="Polygon.InnerRadius">
+		<label>Innerer Radius</label>
+		<info>Innerer Radius des regelmäßigen Polygons</info>
+	</data>
+	<data name="Polygon.NumberOfSides">
+		<label>Anzahl der Seiten</label>
+		<info>Anzahl der Seiten des regelmäßigen Polygons</info>
+	</data>
+	<data name="Polygon.RotationAngle">
+		<label>Winkel</label>
+		<info>Winkel eines Eckpunktes des regelmäßigen Polygons</info>
+	</data>
+	<data name="MenuId.Constr.Polygon">
+		<label>regelmäßiges Polygon</label>
+		<info>Ein regelmäßiges Polygon zeichnen</info>
+	</data>
+	<data name="Polyline.Polygon">
+		<label>Polygon</label>
+		<info>Daten des regelmäßigen Polygons</info>
 	</data>
 </root>

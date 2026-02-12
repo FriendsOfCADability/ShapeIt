@@ -14,7 +14,7 @@ namespace CADability
     /// the two curves. the default parameter space is 0.0 to 1.0 on u and v.
     /// </summary>
     [Serializable()]
-    public class RuledSurface : ISurfaceImpl, ISerializable, IExportStep
+    public class RuledSurface : ISurfaceImpl, ISerializable, IExportStep, IJsonSerialize
     {
         /// <summary>
         /// Dient der Beschreibung einer Zwischenkurve bei festem V
@@ -263,13 +263,13 @@ namespace CADability
             return p2 - p1; // ist ja auf die Länge bezogen, wie es sein soll
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivationAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.DerivativeAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
         /// <param name="du"></param>
         /// <param name="dv"></param>
-        public override void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public override void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             GeoPoint p1 = firstCurve.PointAt(uv.x);
             GeoPoint p2 = secondCurve.PointAt(uv.x);
@@ -280,7 +280,7 @@ namespace CADability
             dv = p2 - p1;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivation2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
@@ -289,7 +289,7 @@ namespace CADability
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             GeoPoint p1, p2;
             GeoVector dir11, dir12, dir21, dir22;
@@ -306,7 +306,7 @@ namespace CADability
             }
             else
             {
-                base.Derivation2At(uv, out location, out du, out dv, out duu, out dvv, out duv);
+                base.Derivative2At(uv, out location, out du, out dv, out duu, out dvv, out duv);
             }
         }
         /// <summary>
@@ -718,7 +718,7 @@ namespace CADability
         }
 
         // BoxedSurfaceEx is alot faster with the HitTest. Don't override it
-        //public override bool HitTest(BoundingCube cube, out GeoPoint2D uv)
+        //public override bool HitTest(BoundingBox cube, out GeoPoint2D uv)
         //{
         //    foreach (GeoPoint2D pnt in new GeoPoint2D[] { GeoPoint2D.Origin, new GeoPoint2D(0.0, 1.0), new GeoPoint2D(1.0, 0.0), new GeoPoint2D(1.0, 1.0) })
         //    {
@@ -975,6 +975,18 @@ namespace CADability
             info.AddValue("FirstCurve", firstCurve);
             info.AddValue("SecondCurve", secondCurve);
         }
+        protected RuledSurface() { } // for IJsonSerialize
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("FirstCurve", firstCurve);
+            data.AddProperty("SecondCurve", secondCurve);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            firstCurve = data.GetProperty<ICurve>("FirstCurve");
+            secondCurve = data.GetProperty<ICurve>("SecondCurve");
+        }
+
 
         int IExportStep.Export(ExportStep export, bool topLevel)
         {

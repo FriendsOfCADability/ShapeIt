@@ -168,9 +168,9 @@ namespace CADability.GeoObject
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.GetBoundingCube ()"/>
         /// </summary>
         /// <returns></returns>
-        public override BoundingCube GetBoundingCube()
+        public override BoundingBox GetBoundingCube()
         {
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             res.MinMax(location);
             return res;
         }
@@ -320,17 +320,17 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override BoundingCube GetExtent(double precision)
+        public override BoundingBox GetExtent(double precision)
         {
             return GetBoundingCube();
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingCube, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingBox, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override bool HitTest(ref BoundingCube cube, double precision)
+        public override bool HitTest(ref BoundingBox cube, double precision)
         {
             return cube.Contains(location);
         }
@@ -353,7 +353,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override bool HitTest(Projection.PickArea area, bool onlyInside)
         {
-            return BoundingCube.UnitBoundingCube.Contains(area.ToUnitBox * location);
+            return BoundingBox.UnitBoundingCube.Contains(area.ToUnitBox * location);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.Position (GeoPoint, GeoVector, double)"/>
@@ -427,18 +427,16 @@ namespace CADability.GeoObject
             info.AddValue("Size", size);
             info.AddValue("Name", name);
         }
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Location", location);
             data.AddProperty("Symbol", symbol);
             if (colorDef != null) data.AddProperty("ColorDef", colorDef);
             data.AddProperty("Size", size);
             data.AddProperty("Name", name);
         }
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             location = data.GetProperty<GeoPoint>("Location");
             symbol = data.GetProperty<PointSymbol>("Symbol");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");

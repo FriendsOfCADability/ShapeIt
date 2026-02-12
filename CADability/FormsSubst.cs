@@ -2,6 +2,7 @@
 using StbImageSharp;
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using Wintellect.PowerCollections;
 
@@ -364,67 +365,154 @@ namespace CADability.Substitutes
         public bool IsNamedColor => _isNamed;
         public bool IsEmpty => _argb == 0 && !_isNamed;
 
-        public static Color Brown => FromArgb(165, 42, 42);
-        public static Color Blue => FromArgb(0, 0, 255);
-        public static Color Red => FromArgb(255, 0, 0);
-        public static Color DarkCyan => FromArgb(0, 139, 139);
-        public static Color GreenYellow => FromArgb(173, 255, 47);
-
-        public static Color Green => FromArgb(0, 128, 0);
-
-        public static Color Black => FromArgb(0, 0, 0);
-        public static Color BlueViolet => FromArgb(138, 43, 226);
-
-        public static Color DarkBlue => FromArgb(0, 0, 139);
-
-        public static Color DarkRed => FromArgb(139, 0, 0);
-
-        public static Color DarkMagenta => FromArgb(139, 0, 139);
-
-        public static Color DarkOrange => FromArgb(255, 140, 0);
-        public static Color Violet => FromArgb(238, 130, 238);
-
-        public static Color White => FromArgb(255, 255, 255);
-
-        public static Color DarkGray => FromArgb(169, 169, 169);
-
-        public static Color AliceBlue => FromArgb(240, 248, 255);
-
-        public static Color LightYellow => FromArgb(255, 255, 224);
-
-        public static Color Yellow => FromArgb(255, 255, 0);
-        public static Color Turquoise => FromArgb(64, 224, 208);
-
-        public static Color HotPink => FromArgb(255, 105, 180);
-
-        public static Color LawnGreen => FromArgb(124, 252, 0);
-
-        public static Color Lime => FromArgb(0, 255, 0);
-        public static Color Magenta => FromArgb(255, 0, 255);
-        public static Color Cyan => FromArgb(0, 255, 255);
-
-        public static Color LightGray => FromArgb(211, 211, 211);
-
-        public static Color Chartreuse => FromArgb(127, 255, 0);
-
-        public static Color LightBlue => FromArgb(128, 128, 255);
-        public static Color Gray => FromArgb(128, 128, 128);
-
-        public static Color LightGoldenrodYellow => FromArgb(unchecked((int)0xFFFAFAD2));
-
-        public static Color LightSkyBlue => FromArgb(unchecked((int)0xFF87CEFA));
-
-        public static Color DeepPink => FromArgb(unchecked((int)0xFFFF1493));
-
+        public static Color AliceBlue => FromArgb(unchecked((int)0xFFF0F8FF));
+        public static Color AntiqueWhite => FromArgb(unchecked((int)0xFFFAEBD7));
+        public static Color Aqua => FromArgb(unchecked((int)0xFF00FFFF));
+        public static Color Aquamarine => FromArgb(unchecked((int)0xFF7FFFD4));
+        public static Color Azure => FromArgb(unchecked((int)0xFFF0FFFF));
+        public static Color Beige => FromArgb(unchecked((int)0xFFF5F5DC));
+        public static Color Bisque => FromArgb(unchecked((int)0xFFFFE4C4));
+        public static Color Black => FromArgb(unchecked((int)0xFF000000));
+        public static Color BlanchedAlmond => FromArgb(unchecked((int)0xFFFFEBCD));
+        public static Color Blue => FromArgb(unchecked((int)0xFF0000FF));
+        public static Color BlueViolet => FromArgb(unchecked((int)0xFF8A2BE2));
+        public static Color Brown => FromArgb(unchecked((int)0xFFA52A2A));
+        public static Color BurlyWood => FromArgb(unchecked((int)0xFFDEB887));
+        public static Color CadetBlue => FromArgb(unchecked((int)0xFF5F9EA0));
+        public static Color Chartreuse => FromArgb(unchecked((int)0xFF7FFF00));
+        public static Color Chocolate => FromArgb(unchecked((int)0xFFD2691E));
+        public static Color Coral => FromArgb(unchecked((int)0xFFFF7F50));
+        public static Color CornflowerBlue => FromArgb(unchecked((int)0xFF6495ED));
+        public static Color Cornsilk => FromArgb(unchecked((int)0xFFFFF8DC));
+        public static Color Crimson => FromArgb(unchecked((int)0xFFDC143C));
+        public static Color Cyan => FromArgb(unchecked((int)0xFF00FFFF));
+        public static Color DarkBlue => FromArgb(unchecked((int)0xFF00008B));
+        public static Color DarkCyan => FromArgb(unchecked((int)0xFF008B8B));
+        public static Color DarkGoldenRod => FromArgb(unchecked((int)0xFFB8860B));
+        public static Color DarkGray => FromArgb(unchecked((int)0xFFA9A9A9));
+        public static Color DarkGrey => FromArgb(unchecked((int)0xFFA9A9A9));
+        public static Color DarkGreen => FromArgb(unchecked((int)0xFF006400));
+        public static Color DarkKhaki => FromArgb(unchecked((int)0xFFBDB76B));
+        public static Color DarkMagenta => FromArgb(unchecked((int)0xFF8B008B));
+        public static Color DarkOliveGreen => FromArgb(unchecked((int)0xFF556B2F));
+        public static Color DarkOrange => FromArgb(unchecked((int)0xFFFF8C00));
+        public static Color DarkOrchid => FromArgb(unchecked((int)0xFF9932CC));
+        public static Color DarkRed => FromArgb(unchecked((int)0xFF8B0000));
         public static Color DarkSalmon => FromArgb(unchecked((int)0xFFE9967A));
-        public static Color Orange => FromArgb(unchecked((int)0xFFFF8000));
-
-        public static Color MediumVioletRed => FromArgb(unchecked((int)0xFFC71585));
-        public static Color SeaShell => FromArgb(unchecked((int)0xFFFFF5EE));
-
+        public static Color DarkSeaGreen => FromArgb(unchecked((int)0xFF8FBC8F));
+        public static Color DarkSlateBlue => FromArgb(unchecked((int)0xFF483D8B));
+        public static Color DarkSlateGray => FromArgb(unchecked((int)0xFF2F4F4F));
+        public static Color DarkSlateGrey => FromArgb(unchecked((int)0xFF2F4F4F));
+        public static Color DarkTurquoise => FromArgb(unchecked((int)0xFF00CED1));
+        public static Color DarkViolet => FromArgb(unchecked((int)0xFF9400D3));
+        public static Color DeepPink => FromArgb(unchecked((int)0xFFFF1493));
+        public static Color DeepSkyBlue => FromArgb(unchecked((int)0xFF00BFFF));
+        public static Color DimGray => FromArgb(unchecked((int)0xFF696969));
+        public static Color DimGrey => FromArgb(unchecked((int)0xFF696969));
+        public static Color DodgerBlue => FromArgb(unchecked((int)0xFF1E90FF));
+        public static Color FireBrick => FromArgb(unchecked((int)0xFFB22222));
+        public static Color FloralWhite => FromArgb(unchecked((int)0xFFFFFAF0));
+        public static Color ForestGreen => FromArgb(unchecked((int)0xFF228B22));
+        public static Color Fuchsia => FromArgb(unchecked((int)0xFFFF00FF));
+        public static Color Gainsboro => FromArgb(unchecked((int)0xFFDCDCDC));
+        public static Color GhostWhite => FromArgb(unchecked((int)0xFFF8F8FF));
+        public static Color Gold => FromArgb(unchecked((int)0xFFFFD700));
+        public static Color GoldenRod => FromArgb(unchecked((int)0xFFDAA520));
+        public static Color Gray => FromArgb(unchecked((int)0xFF808080));
+        public static Color Grey => FromArgb(unchecked((int)0xFF808080));
+        public static Color Green => FromArgb(unchecked((int)0xFF008000));
+        public static Color GreenYellow => FromArgb(unchecked((int)0xFFADFF2F));
+        public static Color HoneyDew => FromArgb(unchecked((int)0xFFF0FFF0));
+        public static Color HotPink => FromArgb(unchecked((int)0xFFFF69B4));
+        public static Color IndianRed => FromArgb(unchecked((int)0xFFCD5C5C));
+        public static Color Indigo => FromArgb(unchecked((int)0xFF4B0082));
+        public static Color Ivory => FromArgb(unchecked((int)0xFFFFFFF0));
+        public static Color Khaki => FromArgb(unchecked((int)0xFFF0E68C));
+        public static Color Lavender => FromArgb(unchecked((int)0xFFE6E6FA));
+        public static Color LavenderBlush => FromArgb(unchecked((int)0xFFFFF0F5));
+        public static Color LawnGreen => FromArgb(unchecked((int)0xFF7CFC00));
+        public static Color LemonChiffon => FromArgb(unchecked((int)0xFFFFFACD));
+        public static Color LightBlue => FromArgb(unchecked((int)0xFFADD8E6));
+        public static Color LightCoral => FromArgb(unchecked((int)0xFFF08080));
+        public static Color LightCyan => FromArgb(unchecked((int)0xFFE0FFFF));
+        public static Color LightGoldenRodYellow => FromArgb(unchecked((int)0xFFFAFAD2));
+        public static Color LightGray => FromArgb(unchecked((int)0xFFD3D3D3));
+        public static Color LightGrey => FromArgb(unchecked((int)0xFFD3D3D3));
         public static Color LightGreen => FromArgb(unchecked((int)0xFF90EE90));
-        public static Color PaleVioletRed => FromArgb(unchecked((int)0xFFDB7093));
         public static Color LightPink => FromArgb(unchecked((int)0xFFFFB6C1));
+        public static Color LightSalmon => FromArgb(unchecked((int)0xFFFFA07A));
+        public static Color LightSeaGreen => FromArgb(unchecked((int)0xFF20B2AA));
+        public static Color LightSkyBlue => FromArgb(unchecked((int)0xFF87CEFA));
+        public static Color LightSlateGray => FromArgb(unchecked((int)0xFF778899));
+        public static Color LightSlateGrey => FromArgb(unchecked((int)0xFF778899));
+        public static Color LightSteelBlue => FromArgb(unchecked((int)0xFFB0C4DE));
+        public static Color LightYellow => FromArgb(unchecked((int)0xFFFFFFE0));
+        public static Color Lime => FromArgb(unchecked((int)0xFF00FF00));
+        public static Color LimeGreen => FromArgb(unchecked((int)0xFF32CD32));
+        public static Color Linen => FromArgb(unchecked((int)0xFFFAF0E6));
+        public static Color Magenta => FromArgb(unchecked((int)0xFFFF00FF));
+        public static Color Maroon => FromArgb(unchecked((int)0xFF800000));
+        public static Color MediumAquaMarine => FromArgb(unchecked((int)0xFF66CDAA));
+        public static Color MediumBlue => FromArgb(unchecked((int)0xFF0000CD));
+        public static Color MediumOrchid => FromArgb(unchecked((int)0xFFBA55D3));
+        public static Color MediumPurple => FromArgb(unchecked((int)0xFF9370DB));
+        public static Color MediumSeaGreen => FromArgb(unchecked((int)0xFF3CB371));
+        public static Color MediumSlateBlue => FromArgb(unchecked((int)0xFF7B68EE));
+        public static Color MediumSpringGreen => FromArgb(unchecked((int)0xFF00FA9A));
+        public static Color MediumTurquoise => FromArgb(unchecked((int)0xFF48D1CC));
+        public static Color MediumVioletRed => FromArgb(unchecked((int)0xFFC71585));
+        public static Color MidnightBlue => FromArgb(unchecked((int)0xFF191970));
+        public static Color MintCream => FromArgb(unchecked((int)0xFFF5FFFA));
+        public static Color MistyRose => FromArgb(unchecked((int)0xFFFFE4E1));
+        public static Color Moccasin => FromArgb(unchecked((int)0xFFFFE4B5));
+        public static Color NavajoWhite => FromArgb(unchecked((int)0xFFFFDEAD));
+        public static Color Navy => FromArgb(unchecked((int)0xFF000080));
+        public static Color OldLace => FromArgb(unchecked((int)0xFFFDF5E6));
+        public static Color Olive => FromArgb(unchecked((int)0xFF808000));
+        public static Color OliveDrab => FromArgb(unchecked((int)0xFF6B8E23));
+        public static Color Orange => FromArgb(unchecked((int)0xFFFFA500));
+        public static Color OrangeRed => FromArgb(unchecked((int)0xFFFF4500));
+        public static Color Orchid => FromArgb(unchecked((int)0xFFDA70D6));
+        public static Color PaleGoldenRod => FromArgb(unchecked((int)0xFFEEE8AA));
+        public static Color PaleGreen => FromArgb(unchecked((int)0xFF98FB98));
+        public static Color PaleTurquoise => FromArgb(unchecked((int)0xFFAFEEEE));
+        public static Color PaleVioletRed => FromArgb(unchecked((int)0xFFDB7093));
+        public static Color PapayaWhip => FromArgb(unchecked((int)0xFFFFEFD5));
+        public static Color PeachPuff => FromArgb(unchecked((int)0xFFFFDAB9));
+        public static Color Peru => FromArgb(unchecked((int)0xFFCD853F));
+        public static Color Pink => FromArgb(unchecked((int)0xFFFFC0CB));
+        public static Color Plum => FromArgb(unchecked((int)0xFFDDA0DD));
+        public static Color PowderBlue => FromArgb(unchecked((int)0xFFB0E0E6));
+        public static Color Purple => FromArgb(unchecked((int)0xFF800080));
+        public static Color RebeccaPurple => FromArgb(unchecked((int)0xFF663399));
+        public static Color Red => FromArgb(unchecked((int)0xFFFF0000));
+        public static Color RosyBrown => FromArgb(unchecked((int)0xFFBC8F8F));
+        public static Color RoyalBlue => FromArgb(unchecked((int)0xFF4169E1));
+        public static Color SaddleBrown => FromArgb(unchecked((int)0xFF8B4513));
+        public static Color Salmon => FromArgb(unchecked((int)0xFFFA8072));
+        public static Color SandyBrown => FromArgb(unchecked((int)0xFFF4A460));
+        public static Color SeaGreen => FromArgb(unchecked((int)0xFF2E8B57));
+        public static Color SeaShell => FromArgb(unchecked((int)0xFFFFF5EE));
+        public static Color Sienna => FromArgb(unchecked((int)0xFFA0522D));
+        public static Color Silver => FromArgb(unchecked((int)0xFFC0C0C0));
+        public static Color SkyBlue => FromArgb(unchecked((int)0xFF87CEEB));
+        public static Color SlateBlue => FromArgb(unchecked((int)0xFF6A5ACD));
+        public static Color SlateGray => FromArgb(unchecked((int)0xFF708090));
+        public static Color SlateGrey => FromArgb(unchecked((int)0xFF708090));
+        public static Color Snow => FromArgb(unchecked((int)0xFFFFFAFA));
+        public static Color SpringGreen => FromArgb(unchecked((int)0xFF00FF7F));
+        public static Color SteelBlue => FromArgb(unchecked((int)0xFF4682B4));
+        public static Color Tan => FromArgb(unchecked((int)0xFFD2B48C));
+        public static Color Teal => FromArgb(unchecked((int)0xFF008080));
+        public static Color Thistle => FromArgb(unchecked((int)0xFFD8BFD8));
+        public static Color Tomato => FromArgb(unchecked((int)0xFFFF6347));
+        public static Color Turquoise => FromArgb(unchecked((int)0xFF40E0D0));
+        public static Color Violet => FromArgb(unchecked((int)0xFFEE82EE));
+        public static Color Wheat => FromArgb(unchecked((int)0xFFF5DEB3));
+        public static Color White => FromArgb(unchecked((int)0xFFFFFFFF));
+        public static Color WhiteSmoke => FromArgb(unchecked((int)0xFFF5F5F5));
+        public static Color Yellow => FromArgb(unchecked((int)0xFFFFFF00));
+        public static Color YellowGreen => FromArgb(unchecked((int)0xFF9ACD32));
 
         // ---------------- Factory ----------------
 
@@ -453,8 +541,14 @@ namespace CADability.Substitutes
             if (string.IsNullOrWhiteSpace(name))
                 return Empty;
 
-            // Minimal: du kannst hier später KnownColors ergänzen
-            return new Color(unchecked((int)0xFF000000), name, true);
+            var prop = typeof(Color).GetProperty(name, BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase);
+
+            if (prop != null && prop.PropertyType == typeof(Color))
+            {
+                return (Color)prop.GetValue(null);
+            }
+
+            return Empty;
         }
 
         // ---------------- Conversion ----------------

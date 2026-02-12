@@ -13,6 +13,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 #if !AVALONIA
 using System.Windows.Forms.Design;
@@ -191,7 +192,7 @@ namespace ShapeIt
             foreach (IHotSpot hotspot in activeHotspots)
             {
                 GeoPoint hp = hotspot.GetHotspotPosition();
-                if (BoundingCube.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
+                if (BoundingBox.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
                 {
                     hotspotUnderCursor = hotspot;
                     return CursorPosition.OverHotSpot;
@@ -547,7 +548,7 @@ namespace ShapeIt
             foreach (IHotSpot hotspot in activeHotspots)
             {
                 GeoPoint hp = hotspot.GetHotspotPosition();
-                if (BoundingCube.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
+                if (BoundingBox.UnitBoundingCube.Contains(pickArea.ToUnitBox * hp))
                 {
                     hotspotUnderCursor = hotspot;
                     return "Pen";
@@ -1241,7 +1242,15 @@ namespace ShapeIt
             for (int i = 0; i < curves.Count; i++) curves[i] = curves[i].Clone();
             if (curves.Count < 100) // Path.FromSegments is quite slow for many curves
             {
-                List<Path> paths = Path.FromSegments(curves);
+                List<Path> paths = [];
+                try
+                {
+                    paths = Path.FromSegments(curves);
+                }
+                catch (Exception ex)
+                {   // sometimes throws an exception, because some curves cannot be modified (set startpoint) 
+                    
+                }
                 // if we have two paths which are flat but not in the same plane, we could make a ruled solid directly
                 // if we need more user control, e.g. specifying synchronous points on each path, we woould need a more
                 // sophisticated action
@@ -1334,6 +1343,30 @@ namespace ShapeIt
                                 return true;
                             };
                             res.Add(rotate);
+
+                            DirectMenuEntry helixExtrudeFace = new DirectMenuEntry("MenuId.HelicalExtrude");
+                            helixExtrudeFace.ExecuteMenu = (frame) =>
+                            {
+                                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                if (fc== null) return false;
+                                cadFrame.SetAction(new HelicalExtrudeAction(fc));
+                                return true;
+                            };
+                            helixExtrudeFace.IsSelected = (selected, frame) =>
+                            {
+                                feedback.Clear();
+                                if (selected)
+                                {
+                                    Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                    if (fc == null) return false;
+                                    feedback.ShadowFaces.Add(fc);
+                                }
+                                feedback.Refresh();
+                                return true;
+                            };
+                            res.Add(helixExtrudeFace);
+
                         }
                         if (bdrs.Count > 0)
                         {
@@ -1400,6 +1433,31 @@ namespace ShapeIt
                                         return true;
                                     };
                                     res.Add(rotate);
+
+                                    DirectMenuEntry helixExtrudeFace = new DirectMenuEntry("MenuId.HelicalExtrude");
+                                    helixExtrudeFace.ExecuteMenu = (frame) =>
+                                    {
+                                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                                        Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                        if (fc == null) return false;
+                                        cadFrame.SetAction(new HelicalExtrudeAction(fc));
+                                        return true;
+                                    };
+                                    helixExtrudeFace.IsSelected = (selected, frame) =>
+                                    {
+                                        feedback.Clear();
+                                        if (selected)
+                                        {
+                                            Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
+                                            if (fc == null) return false;
+                                            feedback.ShadowFaces.Add(fc);
+                                        }
+                                        feedback.Refresh();
+                                        return true;
+                                    };
+                                    res.Add(helixExtrudeFace);
+
+
                                 }
                             }
                         }
@@ -1443,6 +1501,25 @@ namespace ShapeIt
                     return true;
                 };
                 res.Add(rotate);
+                DirectMenuEntry helixExtrudeFace = new DirectMenuEntry("MenuId.HelicalExtrude");
+                helixExtrudeFace.ExecuteMenu = (frame) =>
+                {
+                    cadFrame.ControlCenter.ShowPropertyPage("Action");
+                    cadFrame.SetAction(new HelicalExtrudeAction(fc));
+                    return true;
+                };
+                helixExtrudeFace.IsSelected = (selected, frame) =>
+                {
+                    feedback.Clear();
+                    if (selected)
+                    {
+                        feedback.ShadowFaces.Add(fc);
+                    }
+                    feedback.Refresh();
+                    return true;
+                };
+                res.Add(helixExtrudeFace);
+
             }
 
             if (path2D != null)
@@ -1644,6 +1721,26 @@ namespace ShapeIt
                         return true;
                     };
                     curveMenus.Add(rotate);
+
+                    DirectMenuEntry helixExtrudeFace = new DirectMenuEntry("MenuId.HelicalExtrude");
+                    helixExtrudeFace.ExecuteMenu = (frame) =>
+                    {
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        cadFrame.SetAction(new HelicalExtrudeAction(fc));
+                        return true;
+                    };
+                    helixExtrudeFace.IsSelected = (selected, frame) =>
+                    {
+                        feedback.Clear();
+                        if (selected)
+                        {
+                            feedback.ShadowFaces.Add(fc);
+                        }
+                        feedback.Refresh();
+                        return true;
+                    };
+                    curveMenus.Add(helixExtrudeFace);
+
                 }
                 if (!suppresRuledSolid)
                 {
@@ -2255,7 +2352,7 @@ namespace ShapeIt
             {
                 List<Face> faces = new List<Face>();
                 Shell shl = sld.Shells[0];
-                BoundingCube bc = shl.GetExtent(0.0);
+                BoundingBox bc = shl.GetExtent(0.0);
                 foreach (Face fc in shl.Faces)
                 {
                     Face nurbsFace = Face.Construct();
@@ -2273,7 +2370,7 @@ namespace ShapeIt
                     for (int i = 0; i < fc.HoleCount; i++)
                     {
                         List<Edge> holeEdges = [];
-                        for (int j=0; j< fc.HoleEdges(i).Length; ++j)
+                        for (int j = 0; j < fc.HoleEdges(i).Length; ++j)
                         {
                             Edge edg = fc.HoleEdges(i)[j];
                             ICurve c3d = edg.Curve3D.Clone();
@@ -2288,7 +2385,7 @@ namespace ShapeIt
                 }
                 foreach (Face fc in faces)
                 {
-                    Twist(fc,new GeoPoint(bc.Xmin, bc.Ymin+bc.YDiff/2, bc.Zmin+bc.ZDiff/2), new GeoPoint(bc.Xmax, bc.Ymin + bc.YDiff / 2, bc.Zmin + bc.ZDiff / 2), Math.PI / 2);
+                    Twist(fc, new GeoPoint(bc.Xmin, bc.Ymin + bc.YDiff / 2, bc.Zmin + bc.ZDiff / 2), new GeoPoint(bc.Xmax, bc.Ymin + bc.YDiff / 2, bc.Zmin + bc.ZDiff / 2), Math.PI / 2);
                 }
                 Shell[] shls = Make3D.SewFaces(faces.ToArray());
                 return true;
@@ -2296,7 +2393,7 @@ namespace ShapeIt
             solidMenus.Add(mhdbg);
             return solidMenus;
         }
-        private void Twist(Face fc,GeoPoint startPoint, GeoPoint endPoint, double angle)
+        private void Twist(Face fc, GeoPoint startPoint, GeoPoint endPoint, double angle)
         {
             if (fc == null) return;
             if (fc.Surface is NurbsSurface ns)
@@ -2776,7 +2873,7 @@ namespace ShapeIt
                 // in order to show an arrow on menu selection, we use the maximum extent of the selected face in direction of the plane
                 Face toGetExtent = fc.Clone() as Face;
                 toGetExtent.Modify(loopPlanes[i].CoordSys.GlobalToLocal);
-                BoundingCube ext = toGetExtent.GetBoundingCube();
+                BoundingBox ext = toGetExtent.GetBoundingCube();
                 GeoPoint zmax = loopPlanes[i].CoordSys.LocalToGlobal * new GeoPoint(0, 0, ext.Zmax);
                 GeoPoint zmin = loopPlanes[i].CoordSys.LocalToGlobal * new GeoPoint(0, 0, ext.Zmin);
                 Plane arrowPlane = new Plane(loopPlanes[i].Location, fc.Surface.GetNormal(fc.PositionOf(loopPlanes[i].Location)));
@@ -2819,7 +2916,7 @@ namespace ShapeIt
                     GeoVector crossDir = lplane.Normal ^ fc.Surface.GetNormal(fc.PositionOf(pointOnFace));
                     Face arrow1 = FeedbackArrow.MakeSimpleTriangle(pointOnFace, lplane.Normal, crossDir, vw.Projection);
                     Face arrow2 = FeedbackArrow.MakeSimpleTriangle(pointOnFace, -lplane.Normal, -crossDir, vw.Projection);
-                    ParametricsExtrudeAction? ppea = ParametricsExtrudeAction.Create(fc.Owner as Shell, extrFace, pointOnFace, [ arrow1, arrow2 ], minObject, maxObject, cadFrame);
+                    ParametricsExtrudeAction? ppea = ParametricsExtrudeAction.Create(fc.Owner as Shell, extrFace, pointOnFace, [arrow1, arrow2], minObject, maxObject, cadFrame);
                     ParametricsExtrudeActionOld pea = new ParametricsExtrudeActionOld(minObject, maxObject, lfaces, ledges, lplane, extrFace,
                         pointOnFace, new Face[] { arrow1, arrow2 }, cadFrame);
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
@@ -2857,7 +2954,7 @@ namespace ShapeIt
                 fc.ReverseOrientation();
             }
             ff.AddRange(connection.Select(fc => fc.Clone() as Face));
-            BoundingCube ext = BoundingCube.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
             ext.MinMax(ff);
             Shell.ConnectFaces(ff.ToArray(), Math.Max(Precision.eps, ext.Size * 1e-6));
             Shell feature = Shell.FromFaces(ff.ToArray());
@@ -3051,7 +3148,7 @@ namespace ShapeIt
                     }
                 }
                 // we create an octtree of the edges of the shell to have fast acces to the edges from a point
-                BoundingCube ext = shell.GetExtent(0.0); // for symmetric objects this sometimes leads to problems, because we later try to find edges from a point
+                BoundingBox ext = shell.GetExtent(0.0); // for symmetric objects this sometimes leads to problems, because we later try to find edges from a point
                 OctTree<EdgeInOctTree> edgeOctTree = new OctTree<EdgeInOctTree>(ext, Precision.eps);
                 edgeOctTree.AddMany(shell.Edges.Select(e => new EdgeInOctTree(e)));
 
@@ -3080,7 +3177,7 @@ namespace ShapeIt
                             {
                                 crvs.Add(planeSurface.Make3dCurve(curve2D));
                                 GeoPoint pointOnEdge = planeSurface.PointAt(curve2D.EndPoint);
-                                EdgeInOctTree[] eo = edgeOctTree.GetObjectsFromBox(new BoundingCube(pointOnEdge, ext.Size / 1000)); // search from point failed sometimes
+                                EdgeInOctTree[] eo = edgeOctTree.GetObjectsFromBox(new BoundingBox(pointOnEdge, ext.Size / 1000)); // search from point failed sometimes
                                 Edge edgeFound = null;
                                 foreach (Edge edg in eo.Select(e => e.Edge))
                                 {
@@ -3222,7 +3319,7 @@ namespace ShapeIt
             {
                 List<Face> lconnected = new List<Face>(connected);
                 lconnected.Add(face);
-                BoundingCube ext = BoundingCube.EmptyBoundingCube;
+                BoundingBox ext = BoundingBox.EmptyBoundingBox;
                 foreach (Face fc in connected)
                 {
                     ext.MinMax(fc.GetExtent(0.0));
@@ -3392,6 +3489,27 @@ namespace ShapeIt
 
 
             }
+            // why does the face have to be planar in order to extrude it?
+            // for the helical extrusion, we can ectrude all kind of faces
+            DirectMenuEntry helixExtrudeFace = new DirectMenuEntry("MenuId.HelicalExtrude");
+            helixExtrudeFace.ExecuteMenu = (frame) =>
+            {
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                cadFrame.SetAction(new HelicalExtrudeAction(face));
+                return true;
+            };
+            helixExtrudeFace.IsSelected = (selected, frame) =>
+            {
+                feedback.Clear();
+                if (selected)
+                {
+                    feedback.ShadowFaces.Add(face);
+                }
+                feedback.Refresh();
+                return true;
+            };
+            res.Add(helixExtrudeFace);
+
             if (res.Count > 6)
             {
                 List<IPropertyEntry> lm = new List<IPropertyEntry>();

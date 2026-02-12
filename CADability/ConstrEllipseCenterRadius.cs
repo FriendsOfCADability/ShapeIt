@@ -142,6 +142,7 @@ namespace CADability.Actions
             GeoPointInput elliCenter = new GeoPointInput("Constr.Ellipse.CenterRadius.Center");
             elliCenter.DefaultGeoPoint = ConstrDefaults.DefaultEllipseCenter;
             elliCenter.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(Center);
+            elliCenter.canOverrideDrawingPlane = true;
 
             elliPointInput = new GeoPointInput("Constr.Ellipse.CenterRadius.Point");
             elliPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(Point1);

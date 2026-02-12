@@ -31,7 +31,7 @@ namespace CADability.GeoObject
     /// cone. The u parameter always describes a circle or ellipse, the v parameter a Line.
     /// </summary>
     [Serializable()]
-    public class ConicalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, ISurfaceOfRevolution, IExportStep, ICone
+    public class ConicalSurface : ISurfaceImpl, ISerializable, IDeserializationCallback, ISurfaceOfRevolution, IExportStep, ICone, IJsonSerialize
     {
         // Der Einheitskegel hat als halben Öffnungswinkel 45°, Der Ursprung ist die Kegelspitze, u geht im Kreis
         // v in die ZRichtung
@@ -380,7 +380,7 @@ namespace CADability.GeoObject
             uv.y += voffset; // v-offset is not guaranteed to be 0, step import creates such surfaces
             return toCone * new GeoVector(Math.Cos(uv.x), Math.Sin(uv.x), 1.0);
         }
-        public override void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
             location = PointAt(uv); // GeoPoint(uv.y * Math.Cos(uv.x), uv.y * Math.Sin(uv.x), uv.y);
             uv.y += voffset; // v-offset is not guaranteed to be 0, step import creates such surfaces
@@ -1474,12 +1474,12 @@ namespace CADability.GeoObject
             return q.x * q.x + q.y * q.y - q.z * q.z;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingCube, out GeoPoint2D)"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.HitTest (BoundingBox, out GeoPoint2D)"/>
         /// </summary>
         /// <param name="bc"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public override bool HitTest(BoundingCube bc, out GeoPoint2D uv)
+        public override bool HitTest(BoundingBox bc, out GeoPoint2D uv)
         {
             // any vertex of the cube on the cone?
             uv = GeoPoint2D.Origin;
@@ -1536,6 +1536,20 @@ namespace CADability.GeoObject
             uv = PositionOf(toCone * (new GeoPoint(d, 0, d)));
             return true;
         }
+        public override bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {
+            GeoPoint ua = toUnit * a; // to unit cone system
+            GeoPoint ub = toUnit * b;
+            bool ia = ua.x * ua.x + ua.y * ua.y - ua.z * ua.z < 0; // a is inside the cone
+            bool ib = ub.x * ub.x + ub.y * ub.y - ub.z * ub.z < 0; // b is inside the cone
+            if (ia != ib) return true; // one point is inside, the other outside
+            if (ia && ib) return false; // both points are inside
+            double d = Geometry.DistLL(ua, ub - ua, GeoPoint.Origin, GeoVector.ZAxis, out double par1, out double par2);
+            // both points are outside, check the distance of the line to the cone axis, it must be less than
+            // z coordinate at the closest point in order to intersect the (unit) cone
+            return par1 >= 0 && par1 <= 1 && d < Math.Abs(par2); // the segment intersects the cone
+        }
+
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetExtrema ()"/>
         /// </summary>
@@ -2155,6 +2169,22 @@ namespace CADability.GeoObject
         {
             toUnit = toCone.GetInverse();
             voffset = 0.0;
+        }
+        #endregion
+        #region IJsonSerialize
+        protected ConicalSurface() // for IJsonSerialize
+        {
+            voffset = 0.0;
+        }
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("ToUnit", toUnit);
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+            toUnit = data.GetProperty<ModOp>("ToUnit");
+            toCone = toUnit.GetInverse();
         }
         #endregion
         public override IPropertyEntry GetPropertyEntry(IFrame frame)

@@ -121,7 +121,7 @@ namespace ShapeIt
             GeoVector n2 = (endFace2.Surface as PlaneSurface)!.Normal.Normalized;
 
             SweepAngle sw = new SweepAngle(edge1.Curve2D(commonFace).EndDirection, edge2.Curve2D(commonFace).StartDirection);
-            if (Math.Abs(sw) < 1e-6)
+            if (Math.Abs(sw) < 1e-5)
             {   // tangential connection, we need the two fillets without any connection patch in between
                 return [fillet1, fillet2];
             }
@@ -233,5 +233,53 @@ namespace ShapeIt
             return result;
         }
 
+        protected void AppendLookup(Dictionary<Face,Face> start, Dictionary<Face, Face> append)
+        {
+            foreach (var kv in start.ToList()) // ToList(), weil wir d1 verändern
+            {
+                if (append.TryGetValue(kv.Value, out var a))
+                {
+                    start[kv.Key] = a;
+                }
+                else
+                {
+                    // leave unchanged
+                }
+            }
+        }
+        protected void AppendLookup(Dictionary<Face, Face> start, Dictionary<Face, List<Face>> append)
+        {
+            foreach (var kv in start.ToList()) // ToList(), weil wir d1 verändern
+            {
+                if (append.TryGetValue(kv.Value, out var a))
+                {   // in most cases, there is only one face in the list: the face, which has been trimmed
+                    // sometimes faces have been split into two or more faces. Then we don't have a good solution anyhow
+                    start[kv.Key] = a.First();
+                }
+                else
+                {
+                    // leave unchanged
+                }
+            }
+        }
+        protected void Lookup(Dictionary<Edge, (Face face, bool forward)> edgeToFace, Dictionary<Face, Face> lookup)
+        {
+            foreach (var kv in edgeToFace.ToList())
+            {
+                if (lookup.TryGetValue(kv.Value.face, out Face? lookedup)) edgeToFace[kv.Key] = (lookedup, kv.Value.forward);
+            }
+        }
+        protected void Lookup(Dictionary<Edge, HashSet<Face> > edgeToFaces, Dictionary<Face, Face> lookup)
+        {
+            foreach (var kv in edgeToFaces.ToList())
+            {
+                HashSet<Face> faces = [];
+                foreach (var item in kv.Value)
+                {
+                    if (lookup.TryGetValue(item, out Face? found)) faces.Add(found);
+                }
+                edgeToFaces[kv.Key] = faces;
+            }
+        }
     }
 }

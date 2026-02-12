@@ -1549,19 +1549,26 @@ namespace CADability
 
         int FindSpanU(int high, int low, double u)
         {
+            double eps = 1e-12;
             //if ((u >= uknots[high] && high < uknots.Length - 1) || (u <= uknots[low] && low > 0)) return FindSpanU(uknots.Length - 1, 0, u); // ggf. bei v nachziehen!
-            if (u >= uknots[high])
-            {
-                int res = high - 1; // this was -1, but in one case we need res = high. any cases?
-                // im folgenden eine Notbremse, die nur bei periodischen Splines benötigt wird:
-                // vermutlich wid das mit einer ordentlichen Implementierung von unclamped unnötig
-                while (res > low && uknots[res] == uknots[res + 1]) --res;
-                if (res < low) res = low;
-                return res;
-            }
+            //if (u >= uknots[high])
+            //{
+            //    int res = high - 1; // this was -1, but in one case we need res = high. any cases?
+            //    // im folgenden eine Notbremse, die nur bei periodischen Splines benötigt wird:
+            //    // vermutlich wid das mit einer ordentlichen Implementierung von unclamped unnötig
+            //    while (res > low && uknots[res] == uknots[res + 1]) --res;
+            //    if (res < low) res = low;
+            //    return res;
+            //}
             // versuchsweise auch für Werte außerhalb arbeiten
             // if (u >= uknots[high]) return high-1;
-            if (u <= uknots[low]) return low;
+            // if (u <= uknots[low]) return low;
+            // rechts außen (inkl. u == U[n+1])
+            if (u >= uknots[high] - eps) return high-1;
+
+            // links außen
+            if (u <= uknots[udegree] + eps) return udegree;
+
             int mid = (low + high) / 2;
             while (u < uknots[mid] || u >= uknots[mid + 1])
             {
@@ -3549,6 +3556,11 @@ namespace CADability
             var py = lu.Solve(qy);
             Vector<double> pz = null;
             if (dim > 2) pz = lu.Solve(qz);
+#if DEBUG
+            var rx = A * px - qx;
+            var ry = A * py - qy;
+            double res = rx.L2Norm() + ry.L2Norm();
+#endif
             poles = new T[n + 1];
             for (int i = 0; i <= n; i++)
             {
@@ -3579,6 +3591,8 @@ namespace CADability
                     s += u[i];
 
                 U[j + p] = s / p;
+                // if (Math.Abs(U[j + p] - u[j + p / 2]) < 1e-6) U[j + p] = u[j + p / 2];
+                // above was intended to fix precision bugs, but didn't help
             }
 
             // clamp Ende

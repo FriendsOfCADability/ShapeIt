@@ -447,9 +447,9 @@ namespace CADability.GeoObject
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.GetBoundingCube ()"/>
         /// </summary>
         /// <returns></returns>
-        public override BoundingCube GetBoundingCube()
+        public override BoundingBox GetBoundingCube()
         {
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             for (int i = 0; i < shells.Length; ++i)
             {
                 res.MinMax(shells[i].GetBoundingCube());
@@ -575,17 +575,17 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override BoundingCube GetExtent(double precision)
+        public override BoundingBox GetExtent(double precision)
         {
             return GetBoundingCube();
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingCube, double)"/>
+        /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.HitTest (ref BoundingBox, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="precision"></param>
         /// <returns></returns>
-        public override bool HitTest(ref BoundingCube cube, double precision)
+        public override bool HitTest(ref BoundingBox cube, double precision)
         {
             foreach (Shell sh in Shells)
             {
@@ -880,18 +880,16 @@ namespace CADability.GeoObject
             info.AddValue("ColorDef", colorDef);
             info.AddValue("Name", name);
         }
-        public override void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
-            base.SetObjectData(data);
             shells = data.GetProperty<Shell[]>("Shells");
             colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");
             name = data.GetPropertyOrDefault<string>("Name");
             flags = data.GetPropertyOrDefault<Flags>("Flags");
             data.RegisterForSerializationDoneCallback(this);
         }
-        public override void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
-            base.GetObjectData(data);
             data.AddProperty("Shells", shells);
             data.AddProperty("ColorDef", colorDef);
             data.AddProperty("Name", name);

@@ -92,7 +92,7 @@ namespace CADability.GeoObject
         /// <param name="location">Resulting 3D point</param>
         /// <param name="du">Resulting derivation in u</param>
         /// <param name="dv">Resulting derivation in v</param>
-        void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
+        void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
         /// <summary>
         /// Returns the point, the two first derivations and the three second derivations of the surface at the provided parameter position.
         /// 
@@ -104,7 +104,7 @@ namespace CADability.GeoObject
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+        void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
         /// <summary>
         /// Returns the intersection curve(s) of this surface with the given plane. An empty array is returned if there is no intersection.
         /// umin, umax, vmin, vmax define the Parameterspace of this surface (not of the PlaneSurface) for the intersection. It is also the periodic domain
@@ -311,12 +311,12 @@ namespace CADability.GeoObject
         /// <param name="vmin">Minimum for the v parameter</param>
         /// <param name="vmax">Maximum for the v parameter</param>
         /// <returns>true if the cube and the surface interfere</returns>
-        bool HitTest(BoundingCube cube, double umin, double umax, double vmin, double vmax);
+        bool HitTest(BoundingBox cube, double umin, double umax, double vmin, double vmax);
         /// <summary>
         /// Returns true, if this surface interferes with the provided cube. If this is the case
         /// uv will contain a point (in the parameter system of the surface) which is inside the cube
         /// </summary>
-        bool HitTest(BoundingCube cube, out GeoPoint2D uv);
+        bool HitTest(BoundingBox cube, out GeoPoint2D uv);
         /// <summary>
         /// Returns true, if this surface divides the space into two parts. If the surfaces is Oriented 
         /// <see cref="Orientation"/> returns a valid result
@@ -344,7 +344,7 @@ namespace CADability.GeoObject
         /// <param name="vmin"></param>
         /// <param name="vmax"></param>
         /// <returns></returns>
-        BoundingCube GetPatchExtent(BoundingRect uvPatch, bool rough = false);
+        BoundingBox GetPatchExtent(BoundingRect uvPatch, bool rough = false);
         /// <summary>
         /// Returns a curve where the u parameter of this surface is fixed and the v parameter starts a vmin and ends at vmax
         /// </summary>
@@ -465,7 +465,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         int GetExtremePositions(BoundingRect domain, ICurve curve3D, out List<Tuple<double, double, double>> positions);
         /// <summary>
-        /// Returns the distance of the provided point <paramref name="p"/> to the (unlimited) surface.
+        /// Returns the positive distance of the provided point <paramref name="p"/> to the (unlimited) surface.
         /// </summary>
         /// <param name="p"></param>
         /// <returns></returns>
@@ -502,6 +502,12 @@ namespace CADability.GeoObject
         double Fit(IEnumerable<GeoPoint> toPoints);
         bool IsCurveOnSurface(ICurve curve);
         BoundingRect GetBounds();
+        /// <summary>
+        /// Performs a fast conservative test whether the given line segment
+        /// may intersect this surface.
+        /// Returns false if an intersection can be safely excluded.
+        /// </summary>
+        bool MayIntersectSegment(GeoPoint a, GeoPoint b);
     }
 
     public static class SurfaceExtension
@@ -1269,7 +1275,7 @@ namespace CADability.GeoObject
                     value = new GeoPoint(0, 0, 0);
                     return false;
                 }
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -1408,7 +1414,7 @@ namespace CADability.GeoObject
                     value = new GeoPoint(0, 0, 0);
                     return false;
                 }
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -1636,7 +1642,7 @@ namespace CADability.GeoObject
         {
             verfahren = '1';
 
-            surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+            surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -1697,7 +1703,7 @@ namespace CADability.GeoObject
                     return false;
                 }
 
-                surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+                surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du = direction * dutemp;
                 dv = direction * dvtemp;
@@ -1732,7 +1738,7 @@ namespace CADability.GeoObject
         private bool StartNewtonLine()
         {
             verfahren = '2';
-            surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+            surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -1787,7 +1793,7 @@ namespace CADability.GeoObject
                     return false;
                 }
 
-                surface.Derivation2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
+                surface.Derivative2At(x, out loctemp, out dutemp, out dvtemp, out duutemp, out dvvtemp, out duvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du = direction * dutemp;
                 dv = direction * dvtemp;
@@ -1827,7 +1833,7 @@ namespace CADability.GeoObject
             verfahren = '3';
             duv = 0;
 
-            surface.DerivationAt(x, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(x, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -1844,7 +1850,7 @@ namespace CADability.GeoObject
 
             ap = new GeoPoint2D(steplength * p.x, steplength * p.y);
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
 
@@ -1879,7 +1885,7 @@ namespace CADability.GeoObject
                 return false;
             }
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
@@ -1966,7 +1972,7 @@ namespace CADability.GeoObject
                 }
 
                 // Bestimmt die Werte am neuen Punkt.
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -1996,7 +2002,7 @@ namespace CADability.GeoObject
             verfahren = '4';
             dir = new GeoVector2D(end.x - start.x, end.y - start.y).Normalized;
 
-            surface.DerivationAt(x, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(x, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du = direction * dutemp;
             dv = direction * dvtemp;
@@ -2022,7 +2028,7 @@ namespace CADability.GeoObject
             }
 
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
             gradient2 = dir.x * du2 + dir.y * dv2;
@@ -2060,7 +2066,7 @@ namespace CADability.GeoObject
 
             // Obiges diente soweit dazu, eine ganz gute erste Annäherung zu finden. Genaueres steht im SR1Rectangle
 
-            surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+            surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
             loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
             du2 = direction * dutemp;
             dv2 = direction * dvtemp;
@@ -2147,7 +2153,7 @@ namespace CADability.GeoObject
                     return false;
                 }
 
-                surface.DerivationAt(xap, out loctemp, out dutemp, out dvtemp);
+                surface.DerivativeAt(xap, out loctemp, out dutemp, out dvtemp);
                 loc = direction.x * loctemp.x + direction.y * loctemp.y + direction.z * loctemp.z;
                 du2 = direction * dutemp;
                 dv2 = direction * dvtemp;
@@ -2336,7 +2342,7 @@ namespace CADability.GeoObject
     /// <summary>
     /// Internal helper class for <see cref="ISurface"/> implementation.
     /// </summary>
-    public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable
+    public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable, IJsonSerialize
     {
         protected GeoPoint2D[] extrema; // Achtung, muss bei Modify auf null gesetzt werden
         internal BoxedSurface boxedSurface;
@@ -2878,7 +2884,7 @@ namespace CADability.GeoObject
                     GeoVector dirx;
                     GeoVector diry;
                     GeoPoint loc;
-                    this.DerivationAt(res, out loc, out dirx, out diry);
+                    this.DerivativeAt(res, out loc, out dirx, out diry);
                     Matrix mtx = DenseMatrix.OfRowArrays(dirx, diry, dirx ^ diry);
                     Vector b = new DenseVector(p - loc);
                     if (!Precision.IsNullVector(dirx) && !Precision.IsNullVector(diry))
@@ -2900,20 +2906,20 @@ namespace CADability.GeoObject
             // return new GeoPoint2D(Helper.PositionOf(p.ToCndHlp()));
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.DerivationAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.DerivativeAt (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector)"/>
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
         /// <param name="du"></param>
         /// <param name="dv"></param>
-        public virtual void DerivationAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
+        public virtual void DerivativeAt(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv)
         {
             location = (this as ISurface).PointAt(uv);
             du = (this as ISurface).UDirection(uv);
             dv = (this as ISurface).VDirection(uv);
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.Derivation2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/> numerically. If possible, implement a derivative
         /// </summary>
         /// <param name="uv"></param>
         /// <param name="location"></param>
@@ -2922,9 +2928,40 @@ namespace CADability.GeoObject
         /// <param name="duu"></param>
         /// <param name="dvv"></param>
         /// <param name="duv"></param>
-        public virtual void Derivation2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
+        public virtual void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
-            throw new NotImplementedException("Derivation2At must be implemented");
+            BoundingRect uvminmax = usedArea;
+            double hu, hv;
+            if (!uvminmax.IsInvalid() && !uvminmax.IsEmpty() && !uvminmax.IsInfinite)
+            {
+                hu = 1e-6 * (uvminmax.Width);
+                hv = 1e-6 * (uvminmax.Height);
+            }
+            else
+            {
+                hu = 1e-6; hv = 1e-6;
+            }
+            // 1) location + 1. Ableitungen analytisch
+            location = PointAt(uv);
+            du = UDirection(uv);
+            dv = VDirection(uv);
+
+            // 2) 2. Ableitungen numerisch (Punkt-basiert)
+
+            GeoPoint SuP = PointAt(new GeoPoint2D(uv.x + hu, uv.y));
+            GeoPoint SuM = PointAt(new GeoPoint2D(uv.x - hu, uv.y));
+            GeoPoint SvP = PointAt(new GeoPoint2D(uv.x, uv.y + hv));
+            GeoPoint SvM = PointAt(new GeoPoint2D(uv.x, uv.y - hv));
+
+            duu = (1 / (hu * hu)) * (SuP.ToVector() - 2 * location.ToVector() + SuM.ToVector());
+            dvv = (1 / (hu * hu)) * (SvP.ToVector() - 2 * location.ToVector() + SvM.ToVector());
+
+            GeoPoint SuvPP = PointAt(new GeoPoint2D(uv.x + hu, uv.y + hv));
+            GeoPoint SuvPM = PointAt(new GeoPoint2D(uv.x + hu, uv.y - hv));
+            GeoPoint SuvMP = PointAt(new GeoPoint2D(uv.x - hu, uv.y + hv));
+            GeoPoint SuvMM = PointAt(new GeoPoint2D(uv.x - hu, uv.y - hv));
+
+            duv = (SuvPP.ToVector() - SuvPM.ToVector() - SuvMP.ToVector() + SuvMM.ToVector()) / (4 * hu * hv);
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.GetPlaneIntersection (PlaneSurface, double, double, double, double, double)"/>
@@ -3028,6 +3065,7 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (!IsUPeriodic) return 0.0;
                 throw new NotImplementedException();
             }
         }
@@ -3035,6 +3073,7 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (!IsVPeriodic) return 0.0;
                 throw new NotImplementedException();
             }
         }
@@ -3190,18 +3229,18 @@ namespace CADability.GeoObject
                 {
                     return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2;
                 }
-                // Test auf geometrische Gleichheit
-                ModOp2D firstToSecond;
-                if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface1, ((curve as InterpolatedDualSurfaceCurve).Surface1 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
-                {
-                    if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1;
-                    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1.GetModified(firstToSecond); // ist die ModOp so richtigrum?
-                }
-                else if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface2, ((curve as InterpolatedDualSurfaceCurve).Surface2 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
-                {
-                    if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2;
-                    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2.GetModified(firstToSecond); // ist die ModOp so richtigrum?
-                }
+                // there is a bug with SameGeometry and modifications. we use normal ProjectedCurve instead
+                //ModOp2D firstToSecond;
+                //if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface1, ((curve as InterpolatedDualSurfaceCurve).Surface1 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
+                //{
+                //    if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1;
+                //    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1.GetModified(firstToSecond); // ist die ModOp so richtigrum?
+                //}
+                //else if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface2, ((curve as InterpolatedDualSurfaceCurve).Surface2 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
+                //{
+                //    if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2;
+                //    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2.GetModified(firstToSecond); // ist die ModOp so richtigrum?
+                //}
             }
             if (!IsUPeriodic && !IsVPeriodic)
             {
@@ -3245,8 +3284,16 @@ namespace CADability.GeoObject
             {
                 //for some curves it is alot faster to use the TetraederHull for intersection.
                 // it is typically much slimmer than the BoxedSurfaceEx
-                (curve as GeneralCurve).TetraederHull.Intersect(this, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
-                return;
+                if (curve is GeneralCurve gc)
+                {
+                    gc.TetraederHull.Intersect(this, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+                    return;
+                }
+                else if (curve is BSpline bsp)
+                {
+                    bsp.TetraederHull.Intersect(this, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+                    return;
+                }
             }
             BoxedSurfaceEx.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
@@ -3383,7 +3430,7 @@ namespace CADability.GeoObject
             }
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.HitTest (BoundingCube, double, double, double, double)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.HitTest (BoundingBox, double, double, double, double)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="umin"></param>
@@ -3391,17 +3438,17 @@ namespace CADability.GeoObject
         /// <param name="vmin"></param>
         /// <param name="vmax"></param>
         /// <returns></returns>
-        public virtual bool HitTest(BoundingCube cube, double umin, double umax, double vmin, double vmax)
+        public virtual bool HitTest(BoundingBox cube, double umin, double umax, double vmin, double vmax)
         {
             throw new NotImplementedException("HitTest must be implemented");
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.HitTest (BoundingCube, out GeoPoint2D)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.HitTest (BoundingBox, out GeoPoint2D)"/>
         /// </summary>
         /// <param name="cube"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public virtual bool HitTest(BoundingCube cube, out GeoPoint2D uv)
+        public virtual bool HitTest(BoundingBox cube, out GeoPoint2D uv)
         {
             Polynom implicitSurface = GetImplicitPolynomial();
             uv = GeoPoint2D.Origin;
@@ -3501,7 +3548,7 @@ namespace CADability.GeoObject
             }
             return this.BoxedSurfaceEx.HitTest(cube, out uv);
         }
-        private bool DebugNewHitTest(BoundingCube cube, out GeoPoint2D uv)
+        private bool DebugNewHitTest(BoundingBox cube, out GeoPoint2D uv)
         {
             Polynom implicitSurface = GetImplicitPolynomial();
             uv = GeoPoint2D.Origin;
@@ -3698,9 +3745,9 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="uvPatch"></param>
         /// <returns></returns>
-        public virtual BoundingCube GetPatchExtent(BoundingRect uvPatch, bool rough)
+        public virtual BoundingBox GetPatchExtent(BoundingRect uvPatch, bool rough)
         {   // kann natürlich in den einzelnen flächen besser gelöst werden
-            BoundingCube res = BoundingCube.EmptyBoundingCube;
+            BoundingBox res = BoundingBox.EmptyBoundingBox;
             GeoPoint2D[] extr = GetExtrema();
             for (int i = 0; i < extr.Length; ++i)
             {
@@ -3843,7 +3890,7 @@ namespace CADability.GeoObject
             GeoPoint2D pos = PositionOf(fromHere);
             GeoPoint loc;
             GeoVector du, dv;
-            DerivationAt(pos, out loc, out du, out dv);
+            DerivativeAt(pos, out loc, out du, out dv);
             double d = Geometry.DistPL(fromHere, loc, du ^ dv);
             // if (Precision.IsEqual(fromHere, loc) || Precision.SameDirection(du ^ dv, fromHere - loc, false))
             // bei PositionOf in der BoxedSurfaces ist das Abbruchkriterium der Abstand des Punktes von der Normalen in pos.
@@ -3958,10 +4005,30 @@ namespace CADability.GeoObject
             }
             return positions.Count;
         }
+        /// <summary>
+        /// Distance from point p to the surface. The result is always &gt;= 0 (unfortunately the orientation is not
+        /// considered here).
+        /// </summary>
+        /// <param name="p"></param>
+        /// <returns></returns>
         public virtual double GetDistance(GeoPoint p)
         {
-            return PointAt(PositionOf(p)) | p;
+            GeoPoint2D uv = PositionOf(p);
+            // GeoVector n = GetNormal(uv).Normalized;
+            GeoPoint p0 = PointAt(uv);
+            return p | p0;
         }
+        public virtual bool MayIntersectSegment(GeoPoint a, GeoPoint b)
+        {   // most surfaces can do better!
+            GeoPoint2D[] uv = GetLineIntersection(a, b - a);
+            for (int i = 0; i < uv.Length; i++)
+            {
+                double par = Geometry.LinePar(a, b, PointAt(uv[i]));
+                if (par >= 0 && par <= 1) return true;
+            }
+            return false;
+        }
+
         public virtual bool IsExtruded(GeoVector direction)
         {
             return false;
@@ -4548,7 +4615,7 @@ namespace CADability.GeoObject
                 mp = sp + u0 * (ep - sp);
                 GeoPoint location;
                 GeoVector du, dv, duu, dvv, duv;
-                this.Derivation2At(mp, out location, out du, out dv, out duu, out dvv, out duv);
+                this.Derivative2At(mp, out location, out du, out dv, out duu, out dvv, out duv);
 
                 double len2 = sp | ep;
                 double a = (ep.x - sp.x) / len2;
@@ -5227,12 +5294,12 @@ namespace CADability.GeoObject
 
         #region IOctTreeInsertable Members
 
-        BoundingCube IOctTreeInsertable.GetExtent(double precision)
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
         {   // IOctTreeInsertable wird nur verwendet um octtree.GetObjectsCloseTo aufzurufen, das sollte keinen extent verlangen
             throw new Exception("The method or operation is not implemented.");
         }
 
-        bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
         {
             GeoPoint2D uv;
             return HitTest(cube, out uv);
@@ -5304,7 +5371,7 @@ namespace CADability.GeoObject
             else return null;
             if (pes.Count == 0) return new IDualSurfaceCurve[0]; // no intersection, because there are no common parepis
             // find a rough estimate of the size of the intersection curves
-            BoundingCube ext = BoundingCube.EmptyBoundingCube;
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
             foreach (var parepi in pes)
             {
                 ext.MinMax(parepi.pll);
@@ -5692,6 +5759,16 @@ namespace CADability.GeoObject
         public virtual ICurve2D[] GetSelfIntersections(BoundingRect bounds)
         {
             return null;
+        }
+
+        void IJsonSerialize.GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("Domain", usedArea);
+        }
+
+        void IJsonSerialize.SetObjectData(IJsonReadData data)
+        {
+            usedArea = data.GetProperty<BoundingRect>("Domain");
         }
 
 
@@ -6394,6 +6471,12 @@ namespace CADability.GeoObject
         public static bool IntersectThreeSurfaces(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2, ISurface surface3, BoundingRect bounds3, ref GeoPoint ip,
             out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3)
         {
+#if DEBUG
+            //DebuggerContainer dc = new DebuggerContainer();
+            //dc.Add(Face.MakeFace(surface1, bounds1), 1);
+            //dc.Add(Face.MakeFace(surface2, bounds2), 2);
+            //dc.Add(Face.MakeFace(surface3, bounds3), 3);
+#endif
             ISurface[] surfaces = new ISurface[] { surface1, surface2, surface3 };
             BoundingRect[] bounds = new BoundingRect[] { bounds1, bounds2, bounds3 };
             // if two of the surfaces are planes, use the surface/line intersection
@@ -6955,7 +7038,7 @@ namespace CADability.GeoObject
         {
             Face fc1 = Face.MakeFace(surface1, new SimpleShape(ext1.ToBorder()));
             Face fc2 = Face.MakeFace(surface2, new SimpleShape(ext2.ToBorder()));
-            BoundingCube ext = fc1.GetExtent(0.0) + fc1.GetExtent(0.0);
+            BoundingBox ext = fc1.GetExtent(0.0) + fc1.GetExtent(0.0);
             bool found = false;
             GeoPoint seed = GeoPoint.Invalid;
             bool SplitTestFunction(OctTree<Face>.Node<Face> node, Face objectToAdd)
@@ -7586,7 +7669,7 @@ namespace CADability.GeoObject
     }
 
     /// <summary>
-    /// Ein Klasse, die ein Surface Objekt mit Würfeln einhüllt: Jeder Patch hat einen BoundingCube. Alle BoundingCubes
+    /// Ein Klasse, die ein Surface Objekt mit Würfeln einhüllt: Jeder Patch hat einen BoundingBox. Alle BoundingCubes
     /// sind in einem OctTree enthalten. Wenn ein Würfelchen verkleinert werden muss, dann wird es aus dem
     /// OctTree entfernt und die kleinen werden eingefügt. Die Würfelchen können sich überlappen
     /// </summary>
@@ -7598,17 +7681,17 @@ namespace CADability.GeoObject
         }
         class Cube : IOctTreeInsertable
         {   // 
-            public BoundingCube boundingCube;
+            public BoundingBox boundingCube;
             public BoundingRect uvPatch;
             public GeoPoint pll, plr, pul, pur; // die 4 Eckpunkte und die 4 Richtungen
             public GeoVector nll, nlr, nul, nur; // die Normalen in den Ecken
                                                  // hier auch noch die 4 Eckpunkte speichern, die werden vermutlich auch öfter gebraucht
             #region IOctTreeInsertable Members
-            BoundingCube IOctTreeInsertable.GetExtent(double precision)
+            BoundingBox IOctTreeInsertable.GetExtent(double precision)
             {
                 return boundingCube;
             }
-            bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+            bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
             {
                 return cube.Interferes(boundingCube);
             }
@@ -7726,13 +7809,13 @@ namespace CADability.GeoObject
             }
         }
         /// <summary>
-        /// Stellt fest, ob die Fläche von dem BoundingCube getroffen wird und wenn ja liefert es einen inneren Flächenpunkt
+        /// Stellt fest, ob die Fläche von dem BoundingBox getroffen wird und wenn ja liefert es einen inneren Flächenpunkt
         /// zurück. Der OctTree wird bei deiser Gelegenheit u.U. verfeinert
         /// </summary>
         /// <param name="test"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public bool HitTest(BoundingCube test, out GeoPoint2D uv)
+        public bool HitTest(BoundingBox test, out GeoPoint2D uv)
         {
             Cube[] hits = octtree.GetObjectsFromBox(test);
             List<Cube> untested = new List<Cube>();
@@ -7765,7 +7848,7 @@ namespace CADability.GeoObject
             uv = GeoPoint2D.Origin;
             return false;
         }
-        private bool SplitHit(Cube toSplit, BoundingCube test, out GeoPoint2D uv, List<Cube> unknown)
+        private bool SplitHit(Cube toSplit, BoundingBox test, out GeoPoint2D uv, List<Cube> unknown)
         {
             // Teile toSplit auf bis entweder ein Treffer mit test gefunden ist
             // oder keine Überschneidung mehr da ist
@@ -7814,7 +7897,7 @@ namespace CADability.GeoObject
                 double size = octtree.Extend.Size / 10000;
                 while (cubes.Length == 0)
                 {
-                    cubes = octtree.GetObjectsFromBox(new BoundingCube(p3d, size));
+                    cubes = octtree.GetObjectsFromBox(new BoundingBox(p3d, size));
                     size *= 2.0;
                 }
             }
@@ -9135,7 +9218,7 @@ namespace CADability.GeoObject
 
 
     /// <summary>
-    /// Ein Klasse, die ein Surface Objekt mit Würfeln einhüllt: Jeder Patch hat einen BoundingCube. Alle BoundingCubes
+    /// Ein Klasse, die ein Surface Objekt mit Würfeln einhüllt: Jeder Patch hat einen BoundingBox. Alle BoundingCubes
     /// sind in einem OctTree enthalten. Wenn ein Würfelchen verkleinert werden muss, dann wird es aus dem
     /// OctTree entfernt und die kleinen werden eingefügt. Die Würfelchen können sich überlappen
     /// </summary>
@@ -9170,12 +9253,12 @@ namespace CADability.GeoObject
 #endif
             }
             #region IOctTreeInsertable Members
-            BoundingCube IOctTreeInsertable.GetExtent(double precision)
+            BoundingBox IOctTreeInsertable.GetExtent(double precision)
             {
                 GeoPoint locz = loc + normal;
-                return new BoundingCube(loc, loc + diru, loc + dirv, loc + diru + dirv, locz, locz + diru, locz + dirv, locz + diru + dirv);
+                return new BoundingBox(loc, loc + diru, loc + dirv, loc + diru + dirv, locz, locz + diru, locz + dirv, locz + diru + dirv);
             }
-            bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+            bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
             {
                 return cube.Interferes(loc, diru, dirv, normal);
             }
@@ -9222,7 +9305,7 @@ namespace CADability.GeoObject
                 }
                 else
                 {
-                    return BoundingCube.UnitBoundingCube.Interferes(toUnit * startPoint, toUnit * direction, maxdist, onlyForward);
+                    return BoundingBox.UnitBoundingCube.Interferes(toUnit * startPoint, toUnit * direction, maxdist, onlyForward);
                 }
             }
             public bool Interferes(GeoPoint startPoint, GeoPoint endPoint)
@@ -9246,14 +9329,14 @@ namespace CADability.GeoObject
                 {
                     startPoint = toUnit * startPoint;
                     endPoint = toUnit * endPoint;
-                    return BoundingCube.UnitBoundingCube.Interferes(ref startPoint, ref endPoint);
+                    return BoundingBox.UnitBoundingCube.Interferes(ref startPoint, ref endPoint);
                 }
             }
             public bool ClipLine(ref GeoPoint sp, ref GeoPoint ep)
             {
                 GeoPoint usp = toUnit * sp;
                 GeoPoint uep = toUnit * ep;
-                if (BoundingCube.UnitBoundingCube.ClipLine(ref usp, ref uep))
+                if (BoundingBox.UnitBoundingCube.ClipLine(ref usp, ref uep))
                 {
                     ModOp inv = toUnit.GetInverse();
                     sp = inv * usp;
@@ -9316,17 +9399,17 @@ namespace CADability.GeoObject
                     return GetSolid();
                 }
             }
-            internal BoundingCube BoundingCube
+            internal BoundingBox BoundingBox
             {
                 get
                 {
                     GeoPoint locz = loc + normal;
-                    return new BoundingCube(loc, loc + diru, loc + dirv, loc + diru + dirv, locz, locz + diru, locz + dirv, locz + diru + dirv);
+                    return new BoundingBox(loc, loc + diru, loc + dirv, loc + diru + dirv, locz, locz + diru, locz + dirv, locz + diru + dirv);
                 }
             }
             internal bool Interferes(GeoPoint tb1, GeoPoint tb2, GeoPoint t3, GeoPoint t4)
             {   // Test mit Tetraeder
-                return BoundingCube.UnitBoundingCube.Interferes(toUnit * tb1, toUnit * tb2, toUnit * t3, toUnit * t4);
+                return BoundingBox.UnitBoundingCube.Interferes(toUnit * tb1, toUnit * tb2, toUnit * t3, toUnit * t4);
             }
             internal bool Interferes(ParEpi other)
             {
@@ -9349,14 +9432,14 @@ namespace CADability.GeoObject
                         return other.Interferes(this);
                     }
                 }
-                return BoundingCube.UnitBoundingCube.Interferes(toUnit * other.loc, toUnit * other.diru, toUnit * other.dirv, toUnit * other.normal);
+                return BoundingBox.UnitBoundingCube.Interferes(toUnit * other.loc, toUnit * other.diru, toUnit * other.dirv, toUnit * other.normal);
             }
             internal bool Interferes(ICurve curve, double u1, double u2, GeoPoint tb1, GeoPoint tb2, GeoPoint t3, GeoPoint t4)
             {   // geht das Kurvenstück durch diesen ParEpi?
                 // Endpunkte werden zu oft getestet, private Methode ohne Endpunkttest machen!
                 if (!Interferes(tb1, tb2, t3, t4)) return false;
-                if (BoundingCube.UnitBoundingCube.Contains(toUnit * tb1)) return true;
-                if (BoundingCube.UnitBoundingCube.Contains(toUnit * tb2)) return true;
+                if (BoundingBox.UnitBoundingCube.Contains(toUnit * tb1)) return true;
+                if (BoundingBox.UnitBoundingCube.Contains(toUnit * tb2)) return true;
                 // Start u. Endpunkt nicht drin, wohl aber das Thetraeder, da heißt es aufteilen
                 if (u2 - u1 > 1e-3)
                 {
@@ -9369,7 +9452,7 @@ namespace CADability.GeoObject
             }
             internal bool Contains(GeoPoint p)
             {
-                return BoundingCube.UnitBoundingCube.Contains(toUnit * p);
+                return BoundingBox.UnitBoundingCube.Contains(toUnit * p);
             }
 
             /// <summary>
@@ -9906,7 +9989,7 @@ namespace CADability.GeoObject
                 if (m.IsValid())
                 {
                     // zunächst verwenden wir einen Kubus, da hier die minima/maxima einfacher zu bestimmen sind
-                    BoundingCube bc = new BoundingCube(m * pll, m * plr, m * pul, m * pur);
+                    BoundingBox bc = new BoundingBox(m * pll, m * plr, m * pul, m * pur);
                     // bestimme minima und maxima in alle 6 Richtungen
                     GeoVector[] dirs = new GeoVector[6];
                     dirs[0] = normal;
@@ -9955,7 +10038,7 @@ namespace CADability.GeoObject
 
                     // TEST:
                     //m = Matrix.RowVector(cube.diru, cube.dirv, cube.normal).Inverse();
-                    //bc = new BoundingCube(cube.toUnit * cube.pll, cube.toUnit * cube.plr, cube.toUnit * cube.pul, cube.toUnit * cube.pur);
+                    //bc = new BoundingBox(cube.toUnit * cube.pll, cube.toUnit * cube.plr, cube.toUnit * cube.pul, cube.toUnit * cube.pur);
                 }
                 else
                 {   // wenigstens zwei Vektoren sind linear abhängig, das sollte nicht vorkommen
@@ -10039,7 +10122,7 @@ namespace CADability.GeoObject
                 try
                 {
                     Matrix m = (Matrix)DenseMatrix.OfColumnArrays(cube.diru, cube.dirv, cube.normal).Inverse();
-                    BoundingCube bc = new BoundingCube(m * cube.pll, m * cube.plr, m * cube.pul, m * cube.pur);
+                    BoundingBox bc = new BoundingBox(m * cube.pll, m * cube.plr, m * cube.pul, m * cube.pur);
                     // für die neue Methode (7.7.2016)
                     //                GeoPoint2D found;
                     //                bool innerMaximum = false;
@@ -10158,9 +10241,9 @@ namespace CADability.GeoObject
                     cube.toUnit.SetData(m, m * (-cube.loc));
 
 #if DEBUGx
-                    BoundingCube dbgext = new BoundingCube(cube.pll, cube.plr, cube.pul, cube.pur);
+                    BoundingBox dbgext = new BoundingBox(cube.pll, cube.plr, cube.pul, cube.pur);
                     // System.Diagnostics.Trace.WriteLine("ParallelEpiped " + cube.id.ToString() + ": " + cube.Volume.ToString());
-                    //if (dbgext.Size < cube.BoundingCube.Size * 0.01)
+                    //if (dbgext.Size < cube.BoundingBox.Size * 0.01)
                     if (cube.Volume > 1000)
                     {
                         GeoObjectList dbgl = new GeoObjectList();
@@ -10190,7 +10273,7 @@ namespace CADability.GeoObject
 
                     // TEST:
                     //m = Matrix.RowVector(cube.diru, cube.dirv, cube.normal).Inverse();
-                    bc = new BoundingCube(cube.toUnit * cube.pll, cube.toUnit * cube.plr, cube.toUnit * cube.pul, cube.toUnit * cube.pur);
+                    bc = new BoundingBox(cube.toUnit * cube.pll, cube.toUnit * cube.plr, cube.toUnit * cube.pul, cube.toUnit * cube.pur);
                 }
                 catch (System.ApplicationException)
                 {   // die Matrix ist singulär, d.h. aber dass die u und v Richtung parallel sind
@@ -10213,7 +10296,7 @@ namespace CADability.GeoObject
                 }
             }
         }
-        public BoundingCube GetRawExtent()
+        public BoundingBox GetRawExtent()
         {
             return octtree.Extend;
         }
@@ -10240,7 +10323,7 @@ namespace CADability.GeoObject
         /// <param name="test"></param>
         /// <param name="uv"></param>
         /// <returns></returns>
-        public bool HitTest(BoundingCube test, out GeoPoint2D uv)
+        public bool HitTest(BoundingBox test, out GeoPoint2D uv)
         {
             ParEpi[] hits = octtree.GetObjectsFromBox(test);
             List<ParEpi> totest = new List<ParEpi>();
@@ -10406,7 +10489,7 @@ namespace CADability.GeoObject
             extrema = extr.ToArray();
         }
 
-        private bool SplitHit(ParEpi toSplit, BoundingCube test, out GeoPoint2D uv, List<ParEpi> unknown)
+        private bool SplitHit(ParEpi toSplit, BoundingBox test, out GeoPoint2D uv, List<ParEpi> unknown)
         {
             // Teile toSplit auf bis entweder ein Treffer mit test gefunden ist
             // oder keine Überschneidung mehr da ist
@@ -10554,7 +10637,7 @@ namespace CADability.GeoObject
                 double size = octtree.Extend.Size / 10000;
                 while (cubes.Length == 0)
                 {
-                    cubes = octtree.GetObjectsFromBox(new BoundingCube(p3d, size));
+                    cubes = octtree.GetObjectsFromBox(new BoundingBox(p3d, size));
                     size *= 2.0;
                 }
             }
@@ -10743,7 +10826,7 @@ namespace CADability.GeoObject
             {
                 norm.Norm();
 
-                surface.Derivation2At(result, out location, out du, out dv, out duu, out dvv, out duv);
+                surface.Derivative2At(result, out location, out du, out dv, out duu, out dvv, out duv);
                 GeoVector d2u = 0.5 * duu;
                 GeoVector d2v = 0.5 * dvv;
 #if DEBUG
@@ -10800,7 +10883,7 @@ namespace CADability.GeoObject
                     result = sp + t * ab;
                     uc = result.x; // fürs nächste t
                     vc = result.y;
-                    surface.Derivation2At(result, out location, out du, out dv, out duu, out dvv, out duv);
+                    surface.Derivative2At(result, out location, out du, out dv, out duu, out dvv, out duv);
                     d2u = 0.5 * duu;
                     d2v = 0.5 * dvv;
                     bduvz = (b * duv.z); // fürs nächste t
@@ -10860,7 +10943,7 @@ namespace CADability.GeoObject
             try // wenn die Ableitungen 0 werden z.B.
             {
                 normal.NormIfNotNull();
-                surface.Derivation2At(result, out location, out du, out dv, out duu, out dvv, out duv);
+                surface.Derivative2At(result, out location, out du, out dv, out duu, out dvv, out duv);
 #if DEBUG
                 DebuggerContainer dc = new DebuggerContainer();
                 GeoPoint lastPoint = location;
@@ -10886,7 +10969,7 @@ namespace CADability.GeoObject
                         double te;
                         do
                         {
-                            surface.Derivation2At(result + step, out location, out du, out dv, out duu, out dvv, out duv);
+                            surface.Derivative2At(result + step, out location, out du, out dv, out duu, out dvv, out duv);
                             te = Math.Abs(du.Normalized * normal) + Math.Abs(dv.Normalized * normal);
                             if (te < err) break;
                             step = 0.3 * step; // wenn der Fehler nicht kleiner wird, dann einen drittel Schritt weitergehen
@@ -11798,7 +11881,7 @@ namespace CADability.GeoObject
                 ParEpi[] cubes = octtree.GetObjectsCloseTo(curve as IOctTreeInsertable);
                 for (int j = 0; j < cubes.Length; ++j)
                 {
-                    BoundingCube bc = cubes[j].BoundingCube;
+                    BoundingBox bc = cubes[j].BoundingBox;
                     if (cubes[j].uvPatch.Interferes(ref uvExtent) && (curve as IOctTreeInsertable).HitTest(ref bc, 0.0))
                     {   // only check the relevant cubes
                         // there is a bug: GetCurveIntersection only finds single intersection points where there might be multiple intersections
@@ -12045,7 +12128,7 @@ namespace CADability.GeoObject
                             ParEpi[] splitted = SplitCube(cube);
                             for (int i = 0; i < splitted.Length; ++i)
                             {
-                                BoundingCube bc = splitted[i].BoundingCube;
+                                BoundingBox bc = splitted[i].BoundingBox;
                                 // der Test ist leider recht mager, aber die Kurve mit ToUnit zu modifizieren und dann zu testen ist 
                                 // zu aufwendig. Vielleicht extra interface, welches den Test mit Parallelepiped zulässt machen
                                 if ((curve as IOctTreeInsertable).HitTest(ref bc, 0.0))
@@ -13230,8 +13313,8 @@ namespace CADability.GeoObject
                     lip.ui1 = lip.vi1 = lip.ui2 = lip.vi2 = -1;
                     GeoVector diru1, dirv1, diru2, dirv2;
                     GeoPoint ip;
-                    surface1.DerivationAt(lip.uv1, out ip, out diru1, out dirv1);
-                    surface2.DerivationAt(lip.uv2, out ip, out diru2, out dirv2);
+                    surface1.DerivativeAt(lip.uv1, out ip, out diru1, out dirv1);
+                    surface2.DerivativeAt(lip.uv2, out ip, out diru2, out dirv2);
                     GeoVector n1 = (diru1 ^ dirv1).Normalized;
                     GeoVector n2 = (diru2 ^ dirv2).Normalized;
                     lip.cross = n1 ^ n2;
@@ -13277,8 +13360,8 @@ namespace CADability.GeoObject
                 lip.AdjustPeriodic(surface1, surface2, bounds1, bounds2);
                 lip.ui1 = lip.vi1 = lip.ui2 = lip.vi2 = -1;
                 GeoVector diru1, dirv1, diru2, dirv2;
-                surface1.DerivationAt(lip.uv1, out ip, out diru1, out dirv1);
-                surface2.DerivationAt(lip.uv2, out ip, out diru2, out dirv2);
+                surface1.DerivativeAt(lip.uv1, out ip, out diru1, out dirv1);
+                surface2.DerivativeAt(lip.uv2, out ip, out diru2, out dirv2);
                 GeoVector n1 = (diru1 ^ dirv1).Normalized;
                 GeoVector n2 = (diru2 ^ dirv2).Normalized;
                 lip.cross = n1 ^ n2;
@@ -13305,12 +13388,12 @@ namespace CADability.GeoObject
                 return lip;
             }
 
-            BoundingCube IOctTreeInsertable.GetExtent(double precision)
+            BoundingBox IOctTreeInsertable.GetExtent(double precision)
             {
-                return new CADability.BoundingCube(ip);
+                return new CADability.BoundingBox(ip);
             }
 
-            bool IOctTreeInsertable.HitTest(ref BoundingCube cube, double precision)
+            bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
             {
                 return cube.Contains(ip);
             }
@@ -15458,7 +15541,7 @@ namespace CADability.GeoObject
         }
         public static void MinMaxCurvature(ISurface surface, GeoPoint2D uv, out ICurve minCurvature, out ICurve maxCurvature)
         {   // to be tested
-            surface.Derivation2At(uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
+            surface.Derivative2At(uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
             Matrix I = DenseMatrix.Create(2, 2, 0);
             I[0, 0] = du * du;
             I[0, 1] = I[1, 0] = du * dv;
