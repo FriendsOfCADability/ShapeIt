@@ -81,6 +81,6 @@
   </PropertyGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy /Y /D /F &quot;$(TargetDir)CADability.DebuggerVisualizers.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.Forms.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.DebuggerVisualizers.ObjectSource.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 2022\Visualizers\netstandard2.0\&quot;" />
+    <Exec Command="xcopy /Y /D /F &quot;$(TargetDir)CADability.DebuggerVisualizers.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 18\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 18\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.Forms.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 18\Visualizers\&quot;&#xD;&#xA;xcopy /Y /D /F &quot;$(TargetDir)CADability.DebuggerVisualizers.ObjectSource.dll&quot; &quot;%25USERPROFILE%25\Documents\Visual Studio 18\Visualizers\netstandard2.0\&quot;" />
   </Target>
 </Project>

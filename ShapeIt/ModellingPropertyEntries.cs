@@ -1240,7 +1240,15 @@ namespace ShapeIt
             for (int i = 0; i < curves.Count; i++) curves[i] = curves[i].Clone();
             if (curves.Count < 100) // Path.FromSegments is quite slow for many curves
             {
-                List<Path> paths = Path.FromSegments(curves);
+                List<Path> paths = [];
+                try
+                {
+                    paths = Path.FromSegments(curves);
+                }
+                catch (Exception ex)
+                {   // sometimes throws an exception, because some curves cannot be modified (set startpoint) 
+                    
+                }
                 // if we have two paths which are flat but not in the same plane, we could make a ruled solid directly
                 // if we need more user control, e.g. specifying synchronous points on each path, we woould need a more
                 // sophisticated action

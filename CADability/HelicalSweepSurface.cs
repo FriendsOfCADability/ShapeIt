@@ -75,7 +75,10 @@ namespace CADability.GeoObject
         {
             return new GroupProperty("HelicalSweptSurface", new IPropertyEntry[0]);
         }
-
+        public override void GetSafeParameterSteps(double umin, double umax, double vmin, double vmax, out double[] intu, out double[] intv)
+        {
+            base.GetSafeParameterSteps(umin, umax, vmin, vmax, out intu, out intv);
+        }
         public override GeoPoint PointAt(GeoPoint2D uv)
         {
             double u = uv.x;
