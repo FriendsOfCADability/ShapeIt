@@ -780,6 +780,8 @@ namespace CADability.GeoObject
                 duu = acc + radius * sinV * (xAxis ^ tangent2nd);
                 duv = -radius * curvature * speed * cosV * tangent;
                 dvv = -(location - spinePoint);
+                base.Derivative2At(uv, out GeoPoint _location, out GeoVector _du, out GeoVector _dv, out GeoVector _duu, out GeoVector _dvv, out GeoVector _duv); // for debug only
+                GeoPoint __location = PointAt(uv); // for debug only
             }
             else
             {

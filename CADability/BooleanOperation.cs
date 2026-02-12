@@ -225,19 +225,25 @@ namespace CADability
                             }
                             knownIntersectionCurves.Add(edge.Curve3D.Clone());
                             knownIntersectionCurveDirections.Add((fca == fc1) ? f.fw : !f.fw);
-                            intersectionVertices.Add(edge.Vertex1);
-                            intersectionVertices.Add(edge.Vertex2);
-                            usedVerticedByKnownIntersections.Add(edge.Vertex1);
-                            usedVerticedByKnownIntersections.Add(edge.Vertex2);
+                            if (fca.Contains(edge.Vertex1.Position, true))
+                            {
+                                intersectionVertices.Add(edge.Vertex1);
+                                usedVerticedByKnownIntersections.Add(edge.Vertex1);
+                            }
+                            if (fca.Contains(edge.Vertex2.Position, true))
+                            {
+                                intersectionVertices.Add(edge.Vertex2);
+                                usedVerticedByKnownIntersections.Add(edge.Vertex2);
+                            }
                         }
                         else if (edgeEndsInFace != null && edgeEndsInFace.TryGetValue(edge, out var faces) && faces.Contains(fca))
                         {   // either the startvertex or the endvertex of edge lies on fca
                             // but here we don't know the orientation of the curve
-                            if (fca.Surface.GetDistance(edge.Vertex1.Position) < Precision.eps)
+                            if (fca.Surface.GetDistance(edge.Vertex1.Position) < Precision.eps && fca.Contains(edge.Vertex1.Position, true))
                             {
                                 intersectionVertices.Add(edge.Vertex1);
                             }
-                            else if (fca.Surface.GetDistance(edge.Vertex2.Position) < Precision.eps)
+                            else if (fca.Surface.GetDistance(edge.Vertex2.Position) < Precision.eps && fca.Contains(edge.Vertex2.Position, true))
                             {
                                 intersectionVertices.Add(edge.Vertex2);
                             }
@@ -311,6 +317,18 @@ namespace CADability
             {
                 if (knownIntersectionCurves != null)
                 {
+                    foreach (Vertex v in intersectionVertices.Except(usedVerticedByKnownIntersections))
+                    {   // additional intersections may lie on the known intersection curves. E.g.when the curve extends beyond the boundary of the face.
+                        for (int i = 0; i < knownIntersectionCurves.Count; i++)
+                        {
+                            double pos = knownIntersectionCurves[i].PositionOf(v.Position);
+                            if (pos > Precision.eps && pos < 1 - Precision.eps)
+                            {
+                                usedVerticedByKnownIntersections.Add(v);
+                                break;
+                            }
+                        }
+                    }
                     CreateIntersectionEdges(fc1, fc2, usedVerticedByKnownIntersections.ToHashSet(), knownIntersectionCurves, knownIntersectionCurveDirections);
                     intersectionVertices.ExceptWith(usedVerticedByKnownIntersections);
                 }
@@ -603,7 +621,7 @@ namespace CADability
                         else
                         {
                             bool? forwardOnFace1 = GetOrientation(fc1, fc2, tr, paramsuvsurf1[j1], paramsuvsurf2[j1], paramsuvsurf1[j2], paramsuvsurf2[j2]);
-                            if (forwardOnFace1.HasValue) {dirs1 = forwardOnFace1.Value;}
+                            if (forwardOnFace1.HasValue) { dirs1 = forwardOnFace1.Value; }
                             else
                             {
                                 continue; // we cannot determine the direction of the edge, so we skip it. 

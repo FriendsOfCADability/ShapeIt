@@ -12102,6 +12102,10 @@ namespace CADability.GeoObject
             {
                 case CurveIntersectionMode.simpleIntersection:
                     {
+                        if (Math.Abs(surface.GetNormal(uv).Normalized * (curve as ICurve).DirectionAt(u).Normalized)<0.01)
+                        {
+                            BoxedSurfaceExtension.CurveSurfaceIntersectionLM_Tangential(surface, curve as ICurve, ref uv, ref u, out ip);
+                        }
                         lips.Add(ip);
                         luvOnFace.Add(uv);
                         luOnCurve.Add(u);

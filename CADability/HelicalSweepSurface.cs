@@ -54,7 +54,10 @@ namespace CADability.GeoObject
 
         public override ISurface GetModified(ModOp m)
         {
-            return new HelicalSweepSurface(curve.CloneModified(m), pitch, (m * axis).Normalized);
+            
+            HelicalSweepSurface res = new HelicalSweepSurface(curve.CloneModified(m), pitch, (m * axis).Normalized);
+            res.SetBounds(this.GetBounds());
+            return res;
         }
         public override ModOp2D ReverseOrientation()
         {
