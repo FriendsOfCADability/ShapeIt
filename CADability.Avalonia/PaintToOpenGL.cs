@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Numerics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using Silk.NET.OpenGL;
 using Avalonia.Controls;
 using Avalonia.OpenGL;
@@ -454,12 +455,21 @@ namespace CADability.Avalonia
             }
 
             if (!vao.HasIndices) {
-                // TODO draw using vao.Segments to prevent line segments between different lines
-                _gl.DrawArrays(vao.Primitive, 0, vao.FloatCount);
+                // for simple lines, just drawing the whole VBO with DrawArrays should be fine.
+                // However, this does not work for line strips
+                // _gl.DrawArrays(vao.Primitive, 0, vao.FloatCount);
+                fixed (void* offsets = CollectionsMarshal.AsSpan(vao.SegmentOffsets), counts = CollectionsMarshal.AsSpan(vao.SegmentCounts)) {
+                    _gl.MultiDrawArrays(vao.Primitive, (int*)offsets, (uint*)counts, (uint)vao.SegmentOffsets.Count);
+                }
             }
             else
             {
-                _gl.DrawElements(vao.Primitive, vao.IndicesCount, DrawElementsType.UnsignedInt, (void*)0);
+                // for triangles, we could just use DrawElements and not care about multiple objects
+                // in one VBO. However, it could be a problem for other primitives and triangle strips
+                // _gl.DrawElements(vao.Primitive, vao.IndicesCount, DrawElementsType.UnsignedInt, (void*)0);
+                fixed (void* offsets = vao.OffsetPointers, counts = CollectionsMarshal.AsSpan(vao.SegmentCounts)) {
+                    _gl.MultiDrawElements(vao.Primitive, (uint*)counts, GLEnum.UnsignedInt, (void**)offsets, (uint)vao.SegmentOffsets.Count);
+                }
             }
 
             _gl.BindVertexArray(0);
@@ -519,7 +529,7 @@ namespace CADability.Avalonia
             return mat;
         }
 
-        void IPaintTo3D.SetProjection(Projection projection, BoundingCube boundingCube)
+        void IPaintTo3D.SetProjection(Projection projection, BoundingBox boundingCube)
         {
             _gl.Viewport(0, 0, (uint)Bounds.Width, (uint)Bounds.Height);
 
@@ -533,7 +543,7 @@ namespace CADability.Avalonia
             // There is no foolproof way to handle this, but at least the most common cases should work when we alway use a equilateral (regular) cube
             double size = Math.Max(boundingCube.XDiff, Math.Max(boundingCube.YDiff, boundingCube.ZDiff));
             GeoPoint center = boundingCube.GetCenter();
-            BoundingCube boundingCubeEquilateral = new BoundingCube(new GeoPoint(center.x - size / 2, center.y - size / 2, center.z - size / 2),
+            BoundingBox boundingCubeEquilateral = new BoundingBox(new GeoPoint(center.x - size / 2, center.y - size / 2, center.z - size / 2),
                                                                     new GeoPoint(center.x + size / 2, center.y + size / 2, center.z + size / 2));
 
             double [,] mm = projection.GetOpenGLProjection(0, (int)Bounds.Width, 0, (int)Bounds.Height, boundingCubeEquilateral);
@@ -763,7 +773,9 @@ namespace CADability.Avalonia
             private uint stride;
             private Substitutes.Color color;
             private float[] modelView; // column major order 4x4 matrix
-            private List<(uint, uint)> segments;
+            private List<int> segmentOffsets;
+            private List<uint> segmentCounts;
+            unsafe private uint*[] offsetPointers;
 
             public VertexArrayObject(string name, GL gl)
             {
@@ -779,7 +791,8 @@ namespace CADability.Avalonia
                 elementBufferObject = _gl.GenBuffer();
                 vertices = new List<float>();
                 indices = new List<uint>();
-                segments = new List<(uint, uint)>();
+                segmentOffsets = new List<int>();
+                segmentCounts = new List<uint>();
             }
 
             public string Name
@@ -802,10 +815,14 @@ namespace CADability.Avalonia
             public uint IndicesCount => indicesCount;
             public uint Stride => stride;
             public bool IsClosed => closed;
+            public bool HasNormals => hasNormals;
+            public List<int> SegmentOffsets => segmentOffsets;
+            public List<uint> SegmentCounts => segmentCounts;
+            unsafe public uint*[] OffsetPointers => offsetPointers;
             public Substitutes.Color Color { set; get; }
             public float[] ModelView { set; get; }
 
-            public void addVertices(GeoPoint[] points, GLEnum primitiveType, uint stride, GeoVector[] normals = null) {
+            public void addVertices(GeoPoint[] points, GLEnum primitiveType, uint stride, GeoVector[] normals = null, bool addSegment = true) {
                 if (this.primitiveType != GLEnum.False && primitiveType != this.primitiveType) {
                     throw new ApplicationException("Only supports one primitive type in a VertexArrayObject");
                 }
@@ -813,6 +830,12 @@ namespace CADability.Avalonia
                     throw new ApplicationException("Cannot change stride of VertexArrayObject");
                 }
                 if (closed) throw new ApplicationException("Cannot add to closed VertexArrayObject");
+
+                if (addSegment) {
+                    int offset = segmentOffsets.LastOrDefault() + (int)segmentCounts.LastOrDefault();
+                    segmentCounts.Add((uint)points.Length);
+                    segmentOffsets.Add(offset);
+                }
 
                 if (normals == null)
                 {
@@ -834,7 +857,10 @@ namespace CADability.Avalonia
                 // only apply an offset if not drawing in segments and offsetting the vertex attrib pointer
                 uint offset = (uint) (this.vertices.Count / (stride / sizeof(float)));
 
-                this.addVertices(points, primitiveType, stride, normals);
+                this.addVertices(points, primitiveType, stride, normals, false);
+
+                segmentCounts.Add((uint)indices.Length);
+                segmentOffsets.Add(this.indices.Count * sizeof(uint));
 
                 this.indices.AddRange(indices.Select(i => (uint) i + offset));
                 this.hasIndices = true;
@@ -859,17 +885,23 @@ namespace CADability.Avalonia
                         pIData, BufferUsageARB.StaticDraw);
                 }
 
-                // TODO VertexAttribPointer here or when drawing in List?
                 _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, stride, (void*)0);
                 _gl.EnableVertexAttribArray(0);
 
-                if (this.hasNormals)
+                if (this.HasNormals)
                 {
                     _gl.VertexAttribPointer(1, 3, VertexAttribPointerType.Float, false, stride, (void*)(3 * sizeof(float)));
                     _gl.EnableVertexAttribArray(1);
                 }
 
-                _gl.BindVertexArray(vertexArrayObject);
+                _gl.BindVertexArray(0);
+                if (this.hasIndices) {
+                    // we have to convert segment offsets to pointers, c# does not support pointers in lists/generic type expressions
+                    offsetPointers = new uint*[this.segmentOffsets.Count];
+                    for (int i = 0; i < this.segmentOffsets.Count; i++) {
+                        offsetPointers[i] = (uint*)this.segmentOffsets[i];
+                    }
+                }
                 floatCount = (uint)vertices.Count;
                 indicesCount = (uint)indices.Count;
                 vertices.Clear();
