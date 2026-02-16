@@ -281,7 +281,7 @@ namespace ShapeIt
                 MenuResource.SetMenuResource(menuDocument);
 
                 // TODO move this to CadControl?
-                MenuWithHandler[] mainMenuDefinition = MenuResource.LoadMenuDefinition("SDI Menu", true, CadFrame);
+                MenuWithHandler[] mainMenuDefinition = MenuResource.LoadMenuDefinition("SDI Menu", true, this);
                 // MenuManager.MakeMainMenu(mainMenuDefinition, dockPanel, this);
                 MenuManager.MakeMainMenu(mainMenuDefinition, mainMenuObject, this);
 

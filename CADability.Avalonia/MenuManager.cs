@@ -41,7 +41,7 @@ namespace CADability.Avalonia
             foreach (var menuDefinition in definition) {
                 MenuItem item = new MenuItem {
                     Header = menuDefinition.Text,
-                    Command = new MenuCommand(handler),
+                    Command = new MenuCommand(menuDefinition),
                     CommandParameter = menuDefinition.ID,
                 };
                 CreateMenuItems(menuDefinition.SubMenus, item, handler);
