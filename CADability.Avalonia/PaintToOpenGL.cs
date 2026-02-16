@@ -23,8 +23,6 @@ namespace CADability.Avalonia
         private uint _shaderProgram;
         private uint _vertexShader;
         private uint _fragmentShader;
-        private uint _vertexBufferObject;
-        private uint _vertexArrayObject;
         private uint _indexBufferObject;
         private int modelViewLocation;
         private int projectionLocation;
@@ -106,32 +104,7 @@ namespace CADability.Avalonia
             colorLocation = _gl.GetUniformLocation(_shaderProgram, "color");
             lightPositionLocation = _gl.GetUniformLocation(_shaderProgram, "lightPosition");
             ambientFactorLocation = _gl.GetUniformLocation(_shaderProgram, "ambientFactor");
-            Console.WriteLine("modelViewLocation: " + modelViewLocation);
-            Console.WriteLine("projectionLocation: " + projectionLocation);
-            Console.WriteLine("colorLocation: " + colorLocation);
             GlCheckError();
-        }
-
-        private unsafe void CreateVertexBuffer()
-        {
-            Vector3[] vertices = new Vector3[]
-            {
-                new Vector3(-1.0f, -1.0f, 0.0f),
-                new Vector3(1.0f, -1.0f, 0.0f),
-                new Vector3(0.0f, 1.0f, 0.0f),
-            };
-
-            _vertexBufferObject = _gl.GenBuffer();
-            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vertexBufferObject);
-
-            fixed(void * pData = vertices)
-                _gl.BufferData(BufferTargetARB.ArrayBuffer, (nuint) (sizeof(Vector3) * vertices.Length),
-                pData, BufferUsageARB.StaticDraw);
-
-            _vertexArrayObject = _gl.GenVertexArray();
-            _gl.BindVertexArray(_vertexArrayObject);
-            _gl.VertexAttribPointer(0, 3, GLEnum.Float, false, (uint) sizeof(Vector3), (void*)0);
-            _gl.EnableVertexAttribArray(0);
         }
 
         protected override void OnOpenGlInit(GlInterface gl)
@@ -142,7 +115,6 @@ namespace CADability.Avalonia
             _gl = GL.GetApi(gl.GetProcAddress);
 
             ConfigureShaders();
-            CreateVertexBuffer();
 
             GlCheckError();
         }
@@ -155,8 +127,6 @@ namespace CADability.Avalonia
             _gl.BindBuffer(BufferTargetARB.ElementArrayBuffer, 0);
             _gl.BindVertexArray(0);
             _gl.UseProgram(0);
-            _gl.DeleteBuffer(_vertexBufferObject);
-            _gl.DeleteVertexArray(_vertexArrayObject);
             _gl.DeleteProgram(_shaderProgram);
             _gl.DeleteShader(_vertexShader);
             _gl.DeleteShader(_fragmentShader);
@@ -177,8 +147,7 @@ namespace CADability.Avalonia
             }
             GlCheckError();
 
-            // disabled redraw for debugging
-            // Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Background);
+            Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Background);
         }
 
         string VertexShaderSource => GetShader(@"
@@ -311,7 +280,6 @@ namespace CADability.Avalonia
 
         void IPaintTo3D.SetColor(Color color, int lockColor = 0)
         {
-            Console.WriteLine("Setting color: " + color);
             Color res;
             if (!colorOverride)
             {
@@ -349,7 +317,7 @@ namespace CADability.Avalonia
         void IPaintTo3D.SetLineWidth(LineWidth lineWidth)
         {
             if (lineWidth != null) {
-                Console.WriteLine("SetLineWidth: " + lineWidth.Width);
+                // Console.WriteLine("SetLineWidth: " + lineWidth.Width);
             }
             // throw new NotImplementedException();
         }
@@ -359,8 +327,6 @@ namespace CADability.Avalonia
         }
         unsafe void IPaintTo3D.Polyline(GeoPoint[] points)
         {
-            Console.WriteLine("Paint Polyline");
-
             VertexArrayObject vao = currentVao;
             if (vao == null) vao = new VertexArrayObject("single Polyline VAO", _gl);
 
@@ -390,7 +356,6 @@ namespace CADability.Avalonia
 
             // TODO correctly sort indices depending on direction and enable culling
 
-            Console.WriteLine("normals.Length: " + normals.Length);
             vao.addIndexedVertices(vertices, indextriples, GLEnum.Triangles, (uint)(6 * sizeof(float)), normals);
             // vao.addIndexedVertices(vertices, indextriples, GLEnum.Triangles, (uint)(3 * sizeof(float)));
 
@@ -440,7 +405,6 @@ namespace CADability.Avalonia
             {
                 throw new ApplicationException("paintThisList does not exist: " + paintThisList.Name);
             }
-            Console.WriteLine("IpaintTo3D.List: " + vao.Name);
 
             if (!vao.IsClosed) throw new ApplicationException("Can only paint closed VAOs");
 
@@ -547,14 +511,6 @@ namespace CADability.Avalonia
                                                                     new GeoPoint(center.x + size / 2, center.y + size / 2, center.z + size / 2));
 
             double [,] mm = projection.GetOpenGLProjection(0, (int)Bounds.Width, 0, (int)Bounds.Height, boundingCubeEquilateral);
-            float [,] mmFloat = new float[,] {
-                { (float)mm[0, 0], (float)mm[0, 1], (float)mm[0, 2], (float)mm[0, 3]},
-                { (float)mm[1, 0], (float)mm[1, 1], (float)mm[1, 2], (float)mm[1, 3]},
-                { (float)mm[2, 0], (float)mm[2, 1], (float)mm[2, 2], (float)mm[2, 3]},
-                { (float)mm[3, 0], (float)mm[3, 1], (float)mm[3, 2], (float)mm[3, 3]}
-            };
-            Matrix debugMatrix = DenseMatrix.OfArray(mmFloat);
-            Console.WriteLine(debugMatrix);
             float[] pmat = new float[16];
             // ACHTUNG: Matrix ist vertauscht!!!
             pmat[0] = (float) mm[0, 0];
@@ -581,7 +537,6 @@ namespace CADability.Avalonia
             GeoVector v;
             // v = projection.InverseProjection * new GeoVector(0.5, 0.3, -1.0);
             v = projection.InverseProjection * new GeoVector(100.0, 300.0, 1000.0);
-            Console.WriteLine("Light Position: " + v);
             pixelToWorld = projection.DeviceToWorldFactor;
             _gl.Enable(GLEnum.DepthTest);
 
@@ -611,8 +566,6 @@ namespace CADability.Avalonia
             if (name == null) throw new ApplicationException("List name cannot be empty.");
             if (currentVao != null) throw new ApplicationException("VAOs cannot be nested!");
 
-            Console.WriteLine("OpenList: " + name);
-
             currentVao = new VertexArrayObject(name, _gl);
             // this overwrites any previously existing vao with this name
             vaos[name] = currentVao;
@@ -620,7 +573,6 @@ namespace CADability.Avalonia
         }
         IPaintTo3DList IPaintTo3D.CloseList()
         {
-            Console.WriteLine("Close List: " + currentVao.Name);
             if (currentVao != null) currentVao.Close();
             VertexArrayObject res = currentVao;
             currentVao = null;
@@ -673,24 +625,20 @@ namespace CADability.Avalonia
         }
         unsafe void IPaintTo3D.PaintFaces(PaintTo3D.PaintMode paintMode)
         {
-            Console.WriteLine("PaintFaces: " + paintMode);
             if (paintMode == PaintTo3D.PaintMode.FacesOnly)
             {
                 if (isPerspective)
                 {
-                    Console.WriteLine("Perspective Mode");
+                    throw new NotImplementedException();
                 }
                 else
                 {
-                    // TODO is this a operation used in display list?
-                    // then we would have to save the matrix to VertexBufferObject
                     Matrix modelViewMat = DenseMatrix.OfArray(new float[,] {
                         { 1.0f, 0.0f, 0.0f, (float)(2 * precision * projectionDirection.x)},
                         { 0.0f, 1.0f, 0.0f, (float)(2 * precision * projectionDirection.y)},
                         { 0.0f, 0.0f, 1.0f, (float)(2 * precision * projectionDirection.z)},
                         { 0.0f, 0.0f, 0.0f, 1.0f }
                     });
-                    Console.WriteLine("Paint Faces, modelView Matrix: " + modelViewMat.ToString());
 
                     if (currentVao != null)
                     {
