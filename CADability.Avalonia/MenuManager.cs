@@ -31,26 +31,21 @@ namespace CADability.Avalonia
     {
         public static void MakeMainMenu(MenuWithHandler[] definition, Menu mainMenu, ICommandHandler handler)
         {
+            CreateMenuItems(definition, mainMenu, handler);
+        }
+
+        private static void CreateMenuItems(MenuWithHandler[] definition, ItemsControl menu, ICommandHandler handler)
+        {
+            if (definition is null) return;
+
             foreach (var menuDefinition in definition) {
                 MenuItem item = new MenuItem {
                     Header = menuDefinition.Text,
                     Command = new MenuCommand(handler),
                     CommandParameter = menuDefinition.ID,
                 };
-                foreach (var subMenuItem in menuDefinition.SubMenus) {
-                    if (subMenuItem.ID == "SEPARATOR") {
-                        item.Items.Add(new Separator());
-                    } else {
-                        MenuItem subItem = new MenuItem {
-                            Header = subMenuItem.Text,
-                            Command = new MenuCommand(handler),
-                            CommandParameter = subMenuItem.ID,
-                        };
-                        item.Items.Add(subItem);
-                    }
-                }
-                mainMenu.Items.Add(item);
-                // TODO sub menu items recursive?
+                CreateMenuItems(menuDefinition.SubMenus, item, handler);
+                menu.Items.Add(item);
             }
         }
     }
