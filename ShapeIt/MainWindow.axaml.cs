@@ -21,10 +21,9 @@ using System.Text;
 
 namespace ShapeIt
 {
-
     // TODO move gui related things to CADability.Avalonia.CadForm and inherit from that here?
     // or just implement ICommandHandler here?
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, ICommandHandler
     {
         // public MainForm()
         // {
@@ -159,17 +158,21 @@ namespace ShapeIt
 
         // TODO taken from CadForm, as we don't inherit from it
 
-        // public bool OnCommand(string menuId)
-        // {
-        //     return false;
-        // }
-        // public bool OnUpdateCommand(string menuId, CommandState commandState)
-        // {
-        //     return false;
-        // }
-        // public void OnSelected(MenuWithHandler selectedMenu, bool selected)
-        // {
-        // }
+        public bool OnCommand(string menuId)
+        {
+            Console.WriteLine("MainWindow.OnCommand(" + menuId + ")");
+            if (menuId == "MenuId.App.Exit") {
+                Close();
+            }
+            return CadFrame.OnCommand(menuId);
+        }
+        public bool OnUpdateCommand(string menuId, CommandState commandState)
+        {
+            return false;
+        }
+        public void OnSelected(MenuWithHandler selectedMenu, bool selected)
+        {
+        }
 
         // delegate to cadControl (old: cadForm)
         // public PropertiesExplorer PropertiesExplorer => propertiesExplorer;
@@ -276,6 +279,12 @@ namespace ShapeIt
                 XmlNode toolbar = menuDocument.SelectSingleNode("Menus/Popup[@MenuId='Toolbar']");
                 // SetToolbar(toolbar); // TODO CadForm
                 MenuResource.SetMenuResource(menuDocument);
+
+                // TODO move this to CadControl?
+                MenuWithHandler[] mainMenuDefinition = MenuResource.LoadMenuDefinition("SDI Menu", true, CadFrame);
+                // MenuManager.MakeMainMenu(mainMenuDefinition, dockPanel, this);
+                MenuManager.MakeMainMenu(mainMenuDefinition, mainMenuObject, this);
+
                 // ResetMainMenu(null); // TODO CadForm
             }
 

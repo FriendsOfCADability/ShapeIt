@@ -25,6 +25,8 @@ namespace CADability.Avalonia
             // propertiesExplorer.Frame = cadFrame;
             // show this menu in the MainForm
             // MenuWithHandler[] mainMenu = MenuResource.LoadMenuDefinition("SDI Menu", true, cadFrame);
+            // MenuManager.MakeMainMenu(mainMenu, dockPanel, this); TODO moved to Main Window
+
             // MainMenuStrip = MenuManager.MakeMainMenu(mainMenu);
             // Controls.Add(MainMenuStrip);
             // cadFrame.FormMenu = MainMenuStrip;
