@@ -1108,7 +1108,7 @@ namespace CADability
                                 }
                                 // (created as IJsonSerialize).SetObjectData(data);
                                 CallSetObjectDataAllLevels(created, data);
-                                
+
                                 created = cnvt.Convert(); // convert from JsonDictinary to Hashable or similar
                                 entities[(int)index] = created;
                                 underConstruction.Remove(index);
@@ -1305,11 +1305,25 @@ namespace CADability
         {
             outStream.Write("\"#" + index.ToString() + "\"");
         }
+        static bool IsValueTupleObject(object val)
+        {
+            if (val is null) return false;
+            Type t = val.GetType();
+            return t.IsValueType
+                && t.IsGenericType
+                && t.Namespace == "System"
+                && t.Name.StartsWith("ValueTuple`", StringComparison.Ordinal);
+        }
+
         private void WriteObject(object val)
         {
             BeginObject();
 
             if (verbose) (this as IJsonWriteData).AddProperty("$Index(Debug)", objectCount);
+            if (IsValueTupleObject(val) && !(val is IJsonSerialize))
+            {
+                val = new JsonValueTuple(val, val.GetType());
+            }
             if (val is IDictionary ht && !(val is IJsonSerialize))
             {   // a hashtable or some other kind of dictionary is serialized as 
                 val = new JSonDictionary(ht, val.GetType());
@@ -1416,7 +1430,11 @@ namespace CADability
                 }
                 else
                 {
-                    throw new ApplicationException("Cannot serialize object" + val.ToString());
+#if DEBUG
+                    Type tp = val.GetType();
+                    string tpdbg = tp.FullName;
+#endif
+                    // throw new ApplicationException("Cannot serialize object" + val.ToString());
                 }
             }
             EndObject();
@@ -1854,6 +1872,196 @@ namespace CADability
             return res;
         }
     }
+
+    internal class JsonValueTuple : IJsonSerialize, IJsonConvert
+    {
+        private Type originalType;
+        private object[] items;
+        private string[] itemTypes; // FullName pro Element, synchron zu items
+
+        public JsonValueTuple(object tuple, Type originalType)
+        {
+            if (tuple == null) throw new ArgumentNullException(nameof(tuple));
+            this.originalType = originalType ?? throw new ArgumentNullException(nameof(originalType));
+
+            // ITuple liefert Count + Indexer für alle ValueTuple-Längen (inkl. Rest)
+            List<object> litems = [];
+            List<string> litemTypes = [];
+            FlattenValueTuple(tuple, litems, litemTypes);
+            items = litems.ToArray();
+            itemTypes = litemTypes.ToArray();
+
+        }
+
+        private static bool IsValueTupleType(Type t)
+        {
+            if (t == null) return false;
+            if (!t.IsValueType) return false;
+            if (!t.IsGenericType) return false;
+
+            var def = t.GetGenericTypeDefinition();
+            return def.FullName != null && def.FullName.StartsWith("System.ValueTuple`", StringComparison.Ordinal);
+        }
+
+        private void FlattenValueTuple(object tuple, List<object> items, List<string> itemTypes)
+        {
+            if (tuple == null) throw new ArgumentNullException(nameof(tuple));
+
+            Type t = tuple.GetType();
+            if (!IsValueTupleType(t)) throw new ArgumentException("Not a ValueTuple.", nameof(tuple));
+
+            // ValueTuple hat public fields: Item1..Item7 und evtl. Rest
+            for (int i = 1; i <= 7; i++)
+            {
+                FieldInfo fi = t.GetField("Item" + i, BindingFlags.Public | BindingFlags.Instance);
+                if (fi == null) break; // z.B. bei ValueTuple`2 nur Item1+Item2
+
+                object v = fi.GetValue(tuple);
+                items.Add(v);
+                itemTypes.Add((v?.GetType() ?? typeof(object)).FullName);
+            }
+
+            // Bei arity 8 gibt es "Rest" (ValueTuple`8<...>)
+            FieldInfo restFi = t.GetField("Rest", BindingFlags.Public | BindingFlags.Instance);
+            if (restFi != null)
+            {
+                object rest = restFi.GetValue(tuple);
+                if (rest != null)
+                {
+                    // Rest ist wieder ein ValueTuple
+                    FlattenValueTuple(rest, items, itemTypes);
+                }
+            }
+        }
+
+
+        // für Deserialisierung
+        protected JsonValueTuple() { }
+
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("$OriginalType", originalType.FullName);
+            data.AddProperty("$ItemTypes", itemTypes);
+            data.AddProperty("$Items", items);
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+            originalType = Type.GetType(data.GetProperty<string>("$OriginalType"));
+
+            itemTypes = data.GetProperty<string[]>("$ItemTypes");
+            // Je nach deinem JSON-Parser kann "$Items" als List<object> oder object[] kommen
+            object rawItems = data.GetProperty<object>("$Items");
+            if (rawItems is List<object> lo) items = lo.ToArray();
+            else if (rawItems is object[] oa) items = oa;
+            else throw new ApplicationException("Unexpected $Items type in JsonValueTuple.");
+
+            // Optional: du kannst hier bereits Convert.ChangeType/Struct-Handling machen,
+            // wie du es im Dictionary machst. Oft reicht es, das im BuildValueTuple zu machen.
+        }
+
+        object IJsonConvert.Convert()
+        {
+            if (originalType == null) throw new ApplicationException("Missing original type for JsonValueTuple.");
+            if (items == null) items = Array.Empty<object>();
+
+            // Rekonstruiert ValueTuple<...> inkl. Rest
+            return BuildValueTuple(originalType, items, 0);
+        }
+
+        /// <summary>
+        /// Baut eine ValueTuple-Instanz vom Typ tupleType aus items[offset..].
+        /// Unterstützt ValueTuple`1..`8 (wobei `8 das Rest-Muster nutzt).
+        /// </summary>
+        private static object BuildValueTuple(Type tupleType, object[] flatItems, int offset)
+        {
+            if (!tupleType.IsGenericType) throw new ArgumentException("tupleType must be generic ValueTuple type.", nameof(tupleType));
+
+            Type gdef = tupleType.GetGenericTypeDefinition();
+            Type[] gargs = tupleType.GetGenericArguments();
+
+            int arity = gargs.Length; // 1..8
+            if (arity < 1 || arity > 8) throw new NotSupportedException("Unsupported ValueTuple arity: " + arity);
+
+            // ctor-Parameter vorbereiten
+            object[] ctorArgs = new object[arity];
+
+            if (arity < 8)
+            {
+                // ValueTuple`N: ctor(T1..TN)
+                for (int i = 0; i < arity; i++)
+                {
+                    ctorArgs[i] = Coerce(flatItems[offset + i], gargs[i]);
+                }
+
+                ConstructorInfo ci = tupleType.GetConstructor(
+                    BindingFlags.Instance | BindingFlags.Public,
+                    binder: null,
+                    types: gargs,
+                    modifiers: null);
+
+                if (ci == null)
+                    throw new MissingMethodException($"No suitable ctor found for {tupleType}.");
+
+                return ci.Invoke(ctorArgs);
+            }
+            else
+            {
+                // ValueTuple`8<T1..T7, TRest> where TRest : struct
+                for (int i = 0; i < 7; i++)
+                {
+                    ctorArgs[i] = Coerce(flatItems[offset + i], gargs[i]);
+                }
+
+                Type restType = gargs[7];
+                object rest = BuildValueTuple(restType, flatItems, offset + 7);
+                ctorArgs[7] = rest;
+
+                Type[] ctorSig = new Type[8];
+                Array.Copy(gargs, ctorSig, 8);
+
+                ConstructorInfo ci = tupleType.GetConstructor(
+                    BindingFlags.Instance | BindingFlags.Public,
+                    binder: null,
+                    types: ctorSig,
+                    modifiers: null);
+
+                if (ci == null)
+                    throw new MissingMethodException($"No suitable ctor found for {tupleType}.");
+
+                return ci.Invoke(ctorArgs);
+            }
+        }
+
+        /// <summary>
+        /// Versucht value auf targetType zu bringen (für primitive, enums, nullables).
+        /// Optional kannst du hier dein SerializeAsStruct-Handling einhängen.
+        /// </summary>
+        private static object Coerce(object value, Type targetType)
+        {
+            if (value == null)
+            {
+                // null für Nullable oder Referenztypen ok; für non-nullable ValueTypes -> default
+                if (!targetType.IsValueType || Nullable.GetUnderlyingType(targetType) != null) return null;
+                return Activator.CreateInstance(targetType);
+            }
+
+            Type vtype = value.GetType();
+            if (targetType.IsAssignableFrom(vtype)) return value;
+
+            Type nn = Nullable.GetUnderlyingType(targetType);
+            if (nn != null) targetType = nn;
+
+            if (targetType.IsEnum)
+            {
+                if (value is string s) return Enum.Parse(targetType, s);
+                return Enum.ToObject(targetType, Convert.ChangeType(value, Enum.GetUnderlyingType(targetType)));
+            }
+
+            return Convert.ChangeType(value, targetType);
+        }
+    }
+
     internal class JsonProxyType : Hashtable, IJsonSerialize, ISerializable
     {
         Dictionary<string, object> dict;

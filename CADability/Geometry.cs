@@ -1987,7 +1987,7 @@ namespace CADability
             // bl = 0
             r2 = sqr(radius);
             cl = r2 - sqr(lf);
-            if (Math.Abs(cl) < radius * 1e-10)
+            if (Math.Abs(cl) < radius * 1e-7) // changed from -10 to -7, because of tangential problems with BooleanOperation
             {
                 ModOp2D rev = ModOp2D.Translate(center.x, center.y) * ModOp2D.Rotate(a);
                 GeoPoint2D[] IntersectionPoints = new GeoPoint2D[1];

@@ -74,6 +74,29 @@ namespace CADability.Curve2D
             vtx[numberOfVertices] = vtx[0];
             return new Polyline2D(vtx);
         }
+        public static Polyline2D MakeRegularPolygon(GeoPoint2D center, double outerRadius, double offsteAngle, int numVertices)
+        {
+            GeoPoint2D[] points = new GeoPoint2D[numVertices + 1];
+            double da = 2 * Math.PI / numVertices;
+            for (int i = 0; i < numVertices; i++)
+            {
+                double s = Math.Sin(i * da + offsteAngle);
+                double c = Math.Cos(i * da + offsteAngle);
+                points[i] = center + (new GeoVector2D(outerRadius * c, outerRadius * s));
+            }
+            points[numVertices] = points[0];
+            return new Polyline2D(points);
+        }
+        public static Polyline2D MakeRectangle(GeoPoint2D center, double width, double height, Angle angle)
+        {
+            GeoPoint2D[] vtx = new GeoPoint2D[5];
+            vtx[0] = new GeoPoint2D(center.x - width / 2, center.y - height / 2);
+            vtx[1] = new GeoPoint2D(center.x + width / 2, center.y - height / 2);
+            vtx[2] = new GeoPoint2D(center.x + width / 2, center.y + height / 2);
+            vtx[3] = new GeoPoint2D(center.x - width / 2, center.y + height / 2);
+            vtx[4] = vtx[0];
+            return new Polyline2D(vtx);
+        }
         public void SetVertices(GeoPoint2D[] vertices)
         {
             vertex = vertices;

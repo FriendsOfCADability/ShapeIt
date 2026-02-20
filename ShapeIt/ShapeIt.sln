@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36414.22
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11505.172
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShapeIt", "ShapeIt.csproj", "{5DAC6BCB-046E-8A6E-B538-A1E5BDEB8DEF}"
 EndProject
@@ -16,6 +16,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CADability.DebuggerVisualizers", "..\CADability.DebuggerVisualizers\CADability.DebuggerVisualizers.csproj", "{30824EF1-C924-C8F6-5D88-6A87DE13EC38}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CADability.DebuggerVisualizers.ObjectSource", "..\CADability.DebuggerVisualizers.ObjectSource\CADability.DebuggerVisualizers.ObjectSource.csproj", "{2AFD877D-A3EA-B389-284A-B637F03208A7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MCPDispatcherGenerator", "..\MCPDispatcherGenerator\MCPDispatcherGenerator.csproj", "{101A05A5-3743-4839-9AFE-DFDAF3E1A808}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -51,6 +53,10 @@ Global
 		{2AFD877D-A3EA-B389-284A-B637F03208A7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2AFD877D-A3EA-B389-284A-B637F03208A7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2AFD877D-A3EA-B389-284A-B637F03208A7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{101A05A5-3743-4839-9AFE-DFDAF3E1A808}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{101A05A5-3743-4839-9AFE-DFDAF3E1A808}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{101A05A5-3743-4839-9AFE-DFDAF3E1A808}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{101A05A5-3743-4839-9AFE-DFDAF3E1A808}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

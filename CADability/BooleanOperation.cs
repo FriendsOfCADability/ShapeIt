@@ -1617,6 +1617,42 @@ namespace CADability
             return resultSolids.ToArray();
         }
 
+        private void combineVertices(OctTree<Vertex> vo)
+        {
+            foreach (Vertex v in shell1.Vertices.Concat(shell2.Vertices))
+            {
+                Vertex[] close = vo.GetObjectsCloseTo(v);
+                bool found = false;
+                for (int j = 0; j < close.Length; j++)
+                {
+                    if (close[j] == v) found = true;
+                    else if ((close[j].Position | v.Position) < precision)
+                    {
+                        close[j].MergeWith(v);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) vo.AddObject(v);
+            }
+            var allVerticesOfIntersectionEdges = faceToIntersectionEdges.Values.SelectMany(e => e).ToHashSet().SelectMany(e => new Vertex[] { e.Vertex1, e.Vertex2 }).ToHashSet();
+            foreach (Vertex iv in allVerticesOfIntersectionEdges)
+            {
+                Vertex[] close = vo.GetObjectsCloseTo(iv);
+                bool found = false;
+                for (int j = 0; j < close.Length; j++)
+                {
+                    if ((close[j].Position | iv.Position) < precision)
+                    {
+                        close[j].MergeWith(iv);
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) vo.AddObject(iv); // die sind alle verschieden
+            }
+        }
+
         public Shell[] Execute()
         {   // we expect the shell sare in a proper state: outward oriented, no full periodic faces
             // don't know, whether we need the followin:
@@ -1720,6 +1756,7 @@ namespace CADability
             CreateFaceIntersections();
 
 #if DEBUG
+            int dbgNumVert = verticesOctTree.GetAllObjects().Length;
             DebuggerContainer dc3 = new DebuggerContainer();
             foreach (Edge edge in edgesToSplit.Keys)
             {
@@ -1737,9 +1774,10 @@ namespace CADability
             {   // Für testonly genügen die Kantenschnitte (fast)
                 SplitEdges(); // mit den gefundenen Schnittpunkten werden die Edges jetzt gesplittet
                 ProcessOverlappingFaces();
-
+                combineVertices(verticesOctTree);
             }
 #if DEBUG
+            int dbgNumVert1 = verticesOctTree.GetAllObjects().Length;
             foreach (KeyValuePair<Face, HashSet<Edge>> item in faceToIntersectionEdges)
             {
                 foreach (Edge edg in item.Value)
@@ -3129,11 +3167,15 @@ namespace CADability
                 DebuggerContainer dcedges = new DebuggerContainer();
                 dcedges.Add(originalEdges, faceToSplit, arrowSize, Color.Blue, -1);
                 dcedges.Add(intersectionEdges, faceToSplit, arrowSize, Color.Red, -1);
+                HashSet<Vertex> intVertices = new HashSet<Vertex>();
                 foreach (Edge edg in intersectionEdges)
                 {
                     dcedges.Add(edg.Vertex1.GetPositionOnFace(faceToSplit), Color.Blue, edg.Vertex1.GetHashCode());
                     dcedges.Add(edg.Vertex2.GetPositionOnFace(faceToSplit), Color.Blue, edg.Vertex2.GetHashCode());
+                    intVertices.Add(edg.Vertex1);
+                    intVertices.Add(edg.Vertex2);
                 }
+
 #endif
                 if (intersectionEdges.Count == 0)
                 {
@@ -4643,6 +4685,8 @@ namespace CADability
                 }
             }
         }
+
+
         private void SplitEdges()
         {
             // Split all edges at the vertices provided in edgesToSplit
@@ -5413,6 +5457,33 @@ namespace CADability
             this.shell2IsClosed = shell2IsClosed;
         }
 
+        public static Solid Unite(Solid sld1, Solid sld2)
+        {
+            BooleanOperation operation = new BooleanOperation();
+            operation.SetShells(sld1.Shells[0], sld2.Shells[0], BooleanOperation.Operation.union);
+            Shell[] res = operation.Execute();
+            if (res != null && res.Length == 1)
+            {
+                return Solid.MakeSolid(res[0]);
+            }
+            return null;
+        }
+        public static Solid[] Subtract(Solid sld1, Solid sld2)
+        {
+            BooleanOperation operation = new BooleanOperation();
+            operation.SetShells(sld1.Shells[0], sld2.Shells[0], BooleanOperation.Operation.difference);
+            Shell[] res = operation.Execute();
+            if (res != null && res.Length > 0)
+            {
+                Solid[] sres = new Solid[res.Length];
+                for (int i = 0; i < res.Length; i++)
+                {
+                    sres[i] = Solid.MakeSolid(res[0]);
+                }
+                return sres;
+            }
+            return null;
+        }
     }
 
     public static class BOExtension

@@ -1218,6 +1218,12 @@ namespace CADability.GeoObject
             res.Add(mhremove);
             return res.ToArray();
         }
+
+        public Face FindFace(GeoPoint point3dOnFace)
+        {
+            var res = Shells[0].Faces.MinBy(f => Math.Abs(f.Distance(point3dOnFace)));
+            return res;
+        }
     }
     public class BRepOpWith : ICommandHandler
     {

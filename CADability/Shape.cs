@@ -3119,6 +3119,11 @@ namespace CADability.Shapes
             }
         }
 
+        public CompoundShape RoundVertices(double r)
+        {
+            // use Path2D.RoundVertices
+            throw new NotImplementedException();
+        }
     }
 
 }

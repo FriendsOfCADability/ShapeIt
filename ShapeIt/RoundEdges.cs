@@ -677,20 +677,20 @@ namespace ShapeIt
             IDualSurfaceCurve[] dsctr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [leadingEdge.EndPoint, lid2crv3.StartPoint], null);
             topRight = dsctr.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.EndPoint) + dsc.Curve3D.DistanceTo(lid2crv3.StartPoint))?.Curve3D; // when there are more, , take the one closest to the endpoints
             // we should not trim topLeft and topRight, it may lead to numerical problems
-            // topRight?.Trim(topRight.PositionOf(leadingEdge.EndPoint), topRight.PositionOf(lid2crv3.StartPoint));
+            // but we need to trimm it. There must be another solution for numerical precision
+            topRight?.Trim(topRight.PositionOf(leadingEdge.EndPoint), topRight.PositionOf(lid2crv3.StartPoint));
             IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [lid1crv3.EndPoint, leadingEdge.StartPoint], null);
             topLeft = dsctl.MinBy(dsc => dsc.Curve3D.DistanceTo(lid1crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
-            // we should not trim topLeft and topRight, it may lead to numerical problems
-            // topLeft?.Trim(topLeft.PositionOf(lid1crv3.EndPoint), topLeft.PositionOf(leadingEdge.StartPoint));
+            topLeft?.Trim(topLeft.PositionOf(lid1crv3.EndPoint), topLeft.PositionOf(leadingEdge.StartPoint));
             // leadingEdge.StartPoint | topLeft.EndPoint should be 0
             Face topFace = Face.MakeFace(topSurface, [topRight, topCurve, topLeft, leadingEdge]);
 
             IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [lid2crv3.EndPoint, leadingEdge.EndPoint], null);
             bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(lid2crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
-            // bottomRight?.Trim(bottomRight.PositionOf(lid2crv3.EndPoint), bottomRight.PositionOf(leadingEdge.EndPoint));
+            bottomRight?.Trim(bottomRight.PositionOf(lid2crv3.EndPoint), bottomRight.PositionOf(leadingEdge.EndPoint));
             IDualSurfaceCurve[] dscbl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [leadingEdge.StartPoint, lid1crv3.StartPoint], null);
             bottomLeft = dscbl.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.StartPoint) + dsc.Curve3D.DistanceTo(lid1crv3.StartPoint))?.Curve3D; // when there are more, take the shortest
-            // bottomLeft?.Trim(bottomLeft.PositionOf(leadingEdge.StartPoint), bottomLeft.PositionOf(lid1crv3.StartPoint));
+            bottomLeft?.Trim(bottomLeft.PositionOf(leadingEdge.StartPoint), bottomLeft.PositionOf(lid1crv3.StartPoint));
 
             Face bottomFace = Face.MakeFace(bottomSurface, [bottomRight, bottomCurve, bottomLeft, leadingEdge]);
 

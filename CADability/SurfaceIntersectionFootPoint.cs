@@ -22,9 +22,9 @@ public static class SurfaceIntersectionFootPoint
         out GeoPoint f,
         int maxIterations = 50,
         double initialMu = 1e-3,
-        double gradientTolerance = 1e-10,
-        double stepTolerance = 1e-12,
-        double functionTolerance = 1e-10,
+        double gradientTolerance = 1e-14,
+        double stepTolerance = 1e-16,
+        double functionTolerance = 1e-14,
         double orthWeight = 1.0,
         double fdStep = 1e-6)
     {
