@@ -19,7 +19,7 @@ namespace CADability.Avalonia
             InitializeComponent(); // makes the cadCanvas and the propertiesExplorer
             // KeyPreview = true; // used to filter the escape key (and maybe some more?)
             // cadFrame = new CadFrame(propertiesExplorer, cadCanvas, this);
-            cadFrame = new CadFrame(cadCanvas, this);
+            cadFrame = new CadFrame(propertiesExplorer, cadCanvas, this);
             // cadFrame.ProgressAction = (show, percent, title) => { this.ProgressForm.ShowProgressBar(show, percent, title); };
             cadCanvas.Frame = cadFrame;
             // propertiesExplorer.Frame = cadFrame;
@@ -87,7 +87,7 @@ namespace CADability.Avalonia
         //         return progressForm;
         //     }
         // }
-        // public PropertiesExplorer PropertiesExplorer => propertiesExplorer;
+        public PropertiesExplorer PropertiesExplorer => propertiesExplorer;
         public CadCanvas CadCanvas => cadCanvas;
         public CadFrame CadFrame => cadFrame;
 

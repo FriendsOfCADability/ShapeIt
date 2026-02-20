@@ -790,21 +790,27 @@
 		<info>Größe der Hotspots zum Verändern der markierten Objekte (Skalieren, Drehen, Verschieben, Fixpunkt)</info>
 	</data>
 	<data name="ActionTabPage">
+		<label>Aktion</label>
 		<info>Informationen und Eingabemöglichkeiten für die gerade aktive Aktion (z.B. Markieren, Zeichnen, Verändern)</info>
 	</data>
 	<data name="ProjectTabPage">
+		<label>Projekt</label>
 		<info>Anzeige und Änderungsmöglichkeit für die Vorgaben der projektbezogenen Systemeinstellungen</info>
 	</data>
 	<data name="GlobalTabPage">
+		<label>Global</label>
 		<info>Anzeige und Änderungsmöglichkeit für die Vorgaben der globalen Systemeinstellungen</info>
 	</data>
 	<data name="ViewTabPage">
+		<label>Ansicht</label>
 		<info>Einstellungen der Darstellung: Layout mit Ausschnitt, Modell mit Projektion, Zeichenebene.</info>
 	</data>
 	<data name="SymbolTabPage">
+		<label>Symbole</label>
 		<info>Symbole zur Verwendung im Projekt</info>
 	</data>
 	<data name="ModellingTabPage">
+		<label>Modellierung</label>
 		<info>Modellierwerkzeuge zum Verändern der Geometrie eines Körpers</info>
 	</data>
 	<data name="Line.Length">

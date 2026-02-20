@@ -81,8 +81,8 @@ namespace CADability.Avalonia
         //
         // TODO add propertyExplorer to parameters and add to base call
         // allows cadFrame.ControlCenter to work
-        public CadFrame(CadCanvas cadCanvas, ICommandHandler commandHandler)
-            : base(cadCanvas)
+        public CadFrame(PropertiesExplorer propertiesExplorer, CadCanvas cadCanvas, ICommandHandler commandHandler)
+            : base(propertiesExplorer, cadCanvas)
         {
             this.commandHandler = commandHandler;
         }
