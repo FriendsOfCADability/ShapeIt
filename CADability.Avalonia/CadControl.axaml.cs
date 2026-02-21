@@ -1,4 +1,6 @@
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
@@ -22,7 +24,7 @@ namespace CADability.Avalonia
             cadFrame = new CadFrame(propertiesExplorer, cadCanvas, this);
             // cadFrame.ProgressAction = (show, percent, title) => { this.ProgressForm.ShowProgressBar(show, percent, title); };
             cadCanvas.Frame = cadFrame;
-            // propertiesExplorer.Frame = cadFrame;
+            propertiesExplorer.Frame = cadFrame;
             // show this menu in the MainForm
             // MenuWithHandler[] mainMenu = MenuResource.LoadMenuDefinition("SDI Menu", true, cadFrame);
             // MenuManager.MakeMainMenu(mainMenu, dockPanel, this); TODO moved to Main Window
@@ -136,29 +138,45 @@ namespace CADability.Avalonia
 
         //     base.OnFormClosed(e);
         // }
-        // TODO
-        // protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
-        // {
-        //     Keys nmKeyData = (Keys)((int)keyData & 0x0FFFF);
-        //     bool preProcess = nmKeyData >= Keys.F1 && nmKeyData <= Keys.F24;
-        //     preProcess = preProcess || (nmKeyData == Keys.Escape);
-        //     preProcess = preProcess || (nmKeyData == Keys.Up) || (nmKeyData == Keys.Down);
-        //     preProcess = preProcess || (nmKeyData == Keys.Tab) || (nmKeyData == Keys.Enter);
-        //     preProcess = preProcess || keyData.HasFlag(Keys.Control) || keyData.HasFlag(Keys.Alt); // menu shortcut
-        //     if (propertiesExplorer.EntryWithTextBox == null) preProcess |= (nmKeyData == Keys.Delete); // the delete key is preferred by the textbox, if there is one
-        //     Substitutes.KeyEventArgs e = new Substitutes.KeyEventArgs((Substitutes.Keys)keyData);
-        //     if (preProcess)
-        //     {
-        //         e.Handled = false;
-        //         cadFrame.PreProcessKeyDown(e);
-        //         if (e.Handled) return true;
-        //     }
-        //     CadFrame.PreProcessKeyDown(e);
-        //     if (e.Handled) return true;
-        //     //if (msg.Msg== 0x0101) // WM_KEYUP
-        //     //{ }
-        //     return base.ProcessCmdKey(ref msg, keyData);
-        // }
+
+        protected override void OnLoaded(RoutedEventArgs e)
+        {
+            var topLevel = TopLevel.GetTopLevel(this)!;
+            topLevel.KeyDown += OnKeyDown;
+            base.OnLoaded(e);
+        }
+
+        private Substitutes.Keys Subst(Key key)
+        {
+            return Enum.TryParse(key.ToString(), out Substitutes.Keys res) ? res : Substitutes.Keys.None;
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs keyEvent)
+        {
+            Key key = keyEvent.Key;
+            bool preProcess = key >= Key.F1 && key <= Key.F24;
+            preProcess = preProcess || (key == Key.Escape);
+            preProcess = preProcess || (key == Key.Up) || (key == Key.Down);
+            preProcess = preProcess || (key == Key.Tab) || (key == Key.Enter);
+            preProcess = preProcess || keyEvent.KeyModifiers.HasFlag(KeyModifiers.Control) || keyEvent.KeyModifiers.HasFlag(KeyModifiers.Alt); // menu shortcut
+            if (propertiesExplorer.EntryWithTextBox == null) preProcess |= (key == Key.Delete); // the delete key is preferred by the textbox, if there is one
+            Substitutes.KeyEventArgs e = new Substitutes.KeyEventArgs(Subst(key));
+            if (preProcess)
+            {
+                e.Handled = false;
+                cadFrame.PreProcessKeyDown(e);
+                if (e.Handled) {
+                    keyEvent.Handled = true;
+                    return;
+                }
+            }
+            CadFrame.PreProcessKeyDown(e);
+            if (e.Handled) {
+                keyEvent.Handled = true;
+                return;
+            }
+            base.OnKeyDown(keyEvent);
+        }
 
         public virtual bool OnCommand(string MenuId)
         {

@@ -30,7 +30,6 @@ namespace CADability.Avalonia
         private int lightPositionLocation;
         private int ambientFactorLocation;
 
-        private IView _view;
         private GL _gl; // use Silk.NET gl interface, as Avalonia only has incomplete bindings
         private GlInterface _aGl; // Avalonia gl interface
         private Color _backgroundColor;
@@ -55,6 +54,8 @@ namespace CADability.Avalonia
         private double pixelToWorld;
         private Color selectColor;
         private PaintCapabilities capabilities;
+
+        public CadCanvas CadCanvas { get; set; }
 
         public PaintToOpenGL(double precision = 1e-6)
         {
@@ -136,15 +137,13 @@ namespace CADability.Avalonia
 
         protected override void OnOpenGlRender(GlInterface _, int fb)
         {
-            if (_view != null) {
-                Substitutes.PaintEventArgs paintEventArgs = new Substitutes.PaintEventArgs()
-                {
-                    ClipRectangle = new Substitutes.Rectangle(0, 0, (int)Bounds.Width, (int)Bounds.Height),
-                    // ClipRectangle = new Substitutes.Rectangle((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, (int)Bounds.Height),
-                    Graphics = null // TODO should be fine, is there a better solution?
-                };
-                _view.OnPaint(paintEventArgs);
-            }
+            Substitutes.PaintEventArgs paintEventArgs = new Substitutes.PaintEventArgs()
+            {
+                ClipRectangle = new Substitutes.Rectangle(0, 0, (int)Bounds.Width, (int)Bounds.Height),
+                // ClipRectangle = new Substitutes.Rectangle((int)Bounds.X, (int)Bounds.Y, (int)Bounds.Width, (int)Bounds.Height),
+                Graphics = null // TODO should be fine, is there a better solution?
+            };
+            CadCanvas?.OnPaint(paintEventArgs);
             GlCheckError();
 
             Dispatcher.UIThread.Post(InvalidateVisual, DispatcherPriority.Background);
@@ -440,7 +439,8 @@ namespace CADability.Avalonia
         }
         void IPaintTo3D.SelectedList(IPaintTo3DList paintThisList, int wobbleRadius)
         {
-            throw new NotImplementedException();
+            // throw new NotImplementedException();
+            (this as IPaintTo3D).List(paintThisList); // TODO select color
         }
         void IPaintTo3D.Nurbs(GeoPoint[] poles, double[] weights, double[] knots, int degree)
         {
@@ -680,27 +680,27 @@ namespace CADability.Avalonia
         }
         void IPaintTo3D.PushState()
         {
-            throw new NotImplementedException();
+            // throw new NotImplementedException();
+            // TODO do we have to do something here? new vao?
         }
         void IPaintTo3D.PopState()
         {
-            throw new NotImplementedException();
+            // throw new NotImplementedException();
+            // TODO do we have to do something here? new vao?
         }
         void IPaintTo3D.PushMultModOp(ModOp insertion)
         {
-            throw new NotImplementedException();
+            // throw new NotImplementedException();
+            // TODO do we have to do something here? new vao?
         }
         void IPaintTo3D.PopModOp()
         {
-            throw new NotImplementedException();
+            // throw new NotImplementedException();
+            // TODO do we have to do something here? new vao?
         }
         void IPaintTo3D.SetClip(Substitutes.Rectangle clipRectangle)
         {
             throw new NotImplementedException();
-        }
-
-        public IView View {
-            set => _view = value;
         }
 
         internal class VertexArrayObject : IPaintTo3DList

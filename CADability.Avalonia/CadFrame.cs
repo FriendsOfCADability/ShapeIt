@@ -1,3 +1,5 @@
+using AvaloniaBase = Avalonia;
+using Avalonia.Controls;
 using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
@@ -22,6 +24,7 @@ namespace CADability.Avalonia
         #region PRIVATE FIELDS
 
         private ICommandHandler commandHandler;
+        private CadCanvas cadCanvas;
 
         private const string ClipFormat = "CADability.GeoObjectList.Json";
 
@@ -79,12 +82,12 @@ namespace CADability.Avalonia
         /// <param name="cadCanvas"></param>
         /// <param name="commandHandler"></param>
         //
-        // TODO add propertyExplorer to parameters and add to base call
         // allows cadFrame.ControlCenter to work
         public CadFrame(PropertiesExplorer propertiesExplorer, CadCanvas cadCanvas, ICommandHandler commandHandler)
             : base(propertiesExplorer, cadCanvas)
         {
             this.commandHandler = commandHandler;
+            this.cadCanvas = cadCanvas;
         }
 
         #region FrameImpl override
@@ -170,21 +173,9 @@ namespace CADability.Avalonia
         //     }
         //     return null;
         // }
-        // Substitutes.Keys IUIService.ModifierKeys => (Substitutes.Keys)Control.ModifierKeys;
-        // Substitutes.Point IUIService.CurrentMousePosition => Subst(Control.MousePosition);
-        Substitutes.Keys IUIService.ModifierKeys
-        {
-            get { throw new NotImplementedException(); }
-        }
-        Substitutes.Point IUIService.CurrentMousePosition
-        {
-            get { throw new NotImplementedException(); }
-        }
 
-        private Substitutes.Point Subst(System.Drawing.Point mousePosition)
-        {
-            return new Substitutes.Point(mousePosition.X, mousePosition.Y);
-        }
+        Substitutes.Keys IUIService.ModifierKeys => cadCanvas.ModifierKeys;
+        Substitutes.Point IUIService.CurrentMousePosition => cadCanvas.CurrentMousePosition;
 
         private static Dictionary<string, string> directories = new Dictionary<string, string>();
         // TODO reimplement in Avalonia

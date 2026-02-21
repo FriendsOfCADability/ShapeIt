@@ -29,9 +29,10 @@ namespace CADability.Avalonia
             return page;
         }
 
-        IPropertyPage IControlCenter.ActivePropertyPage => throw new System.NotImplementedException();
+        public IPropertyPage ActivePropertyPage => (tabControl.SelectedItem as PropertyPage);
 
-        IFrame IControlCenter.Frame { get; set; }
+        public IFrame Frame { get; set; }
+        public IPropertyEntry EntryWithTextBox { get; private set; }
 
         IPropertyPage IControlCenter.GetPropertyPage(string titleId)
         {
@@ -66,7 +67,19 @@ namespace CADability.Avalonia
 
         void IControlCenter.PreProcessKeyDown(KeyEventArgs e)
         {
-            throw new System.NotImplementedException();
+            switch (e.KeyData) {
+                // case Keys.Tab: // TODO use ctrl to switch tabs
+                // case Keys.Enter:
+                //     if (EntryWithTextBox != null)
+                //     {
+                //         // TODO end editing of text box
+                //         // EntryWithTextBox.EndEdit(false, textBox.Modified, textBox.Text);
+                //     }
+
+            }
+            if (!e.SuppressKeyPress) {
+                (ActivePropertyPage as PropertyPage)?.PreProcessKeyDown(e);
+            }
         }
 
         void IControlCenter.HideEntry(string entryId, bool hide)

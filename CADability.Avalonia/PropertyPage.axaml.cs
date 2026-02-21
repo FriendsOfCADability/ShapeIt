@@ -1,15 +1,25 @@
 using Avalonia.Controls;
 using CADability.UserInterface;
+using System;
+using System.Collections.Generic;
 
 namespace CADability.Avalonia
 {
     public partial class PropertyPage : UserControl, IPropertyPage
     {
         private PropertiesExplorer propertiesExplorer;
+        private string TitleId { get; }
+        private Dictionary<IPropertyEntry, PropertyEntry> properties;
+
+        public event PreProcessKeyDown OnPreProcessKeyDown;
+        public event SelectionChanged OnSelectionChanged;
 
         public PropertyPage(string titleId, int iconId, PropertiesExplorer propExplorer)
         {
+            InitializeComponent();
             this.propertiesExplorer = propExplorer;
+            this.TitleId = titleId;
+            properties = new Dictionary<IPropertyEntry, PropertyEntry>();
         }
 
         IPropertyEntry IPropertyPage.Selected { get => throw new System.NotImplementedException(); set => throw new System.NotImplementedException(); }
@@ -18,48 +28,29 @@ namespace CADability.Avalonia
 
         IView IPropertyPage.ActiveView => throw new System.NotImplementedException();
 
-        event PreProcessKeyDown IPropertyPage.OnPreProcessKeyDown
+        public void PreProcessKeyDown(Substitutes.KeyEventArgs e)
         {
-            add
-            {
-                throw new System.NotImplementedException();
-            }
-
-            remove
-            {
-                throw new System.NotImplementedException();
-            }
-        }
-
-        event SelectionChanged IPropertyPage.OnSelectionChanged
-        {
-            add
-            {
-                throw new System.NotImplementedException();
-            }
-
-            remove
-            {
-                throw new System.NotImplementedException();
-            }
+            OnPreProcessKeyDown?.Invoke(e);
         }
 
         void IPropertyPage.Add(IPropertyEntry toAdd, bool showOpen)
         {
-            // throw new System.NotImplementedException();
-            // TODO
+            Console.WriteLine("Label: " + toAdd.Label + " Index: " + toAdd.Index);
+            PropertyEntry prop = new PropertyEntry(toAdd);
+            properties[toAdd] = prop;
+            panel.Children.Add(prop);
+            // TODO select if showOpen
         }
 
         void IPropertyPage.BringToFront()
         {
-            // throw new System.NotImplementedException();
-            // TODO
+            (propertiesExplorer as IControlCenter).ShowPropertyPage(this.TitleId);
         }
 
         void IPropertyPage.Clear()
         {
-            // throw new System.NotImplementedException();
-            // TODO
+            panel.Children.Clear();
+            properties.Clear();
         }
 
         bool IPropertyPage.ContainsEntry(IPropertyEntry entryWithTextBox)
@@ -111,8 +102,10 @@ namespace CADability.Avalonia
 
         void IPropertyPage.Remove(IPropertyEntry toRemove)
         {
-            // throw new System.NotImplementedException();
-            // TODO
+            if (properties.ContainsKey(toRemove)) {
+                PropertyEntry res = properties[toRemove];
+                panel.Children.Remove(res);
+            }
         }
 
         void IPropertyPage.SelectEntry(IPropertyEntry toSelect)

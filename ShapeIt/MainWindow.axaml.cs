@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using CADability.Avalonia;
 using CADability;
 using CADability.Actions;
@@ -161,6 +162,7 @@ namespace ShapeIt
         public bool OnCommand(string menuId)
         {
             Console.WriteLine("MainWindow.OnCommand(" + menuId + ")");
+            if (modellingPropertyEntries.OnCommand(menuId)) return true;
             if (menuId == "MenuId.App.Exit") {
                 Close();
             }
@@ -168,10 +170,11 @@ namespace ShapeIt
         }
         public bool OnUpdateCommand(string menuId, CommandState commandState)
         {
-            return false;
+            throw new NotImplementedException();
         }
         public void OnSelected(MenuWithHandler selectedMenu, bool selected)
         {
+            throw new NotImplementedException();
         }
 
         // delegate to cadControl (old: cadForm)
@@ -183,7 +186,6 @@ namespace ShapeIt
         {   // interpret the command line arguments as a name of a file, which should be opened
 
             InitializeComponent();
-            // cadFrame = new CadFrame(cadCanvas, this);
             // ShowLogo(); TODO
             // this.Icon = Properties.Resources.Icon;
             Assembly ThisAssembly = Assembly.GetExecutingAssembly();
@@ -233,6 +235,7 @@ namespace ShapeIt
             Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false);
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);
+            // TODO do we need to load colorSettings here?
             Settings.GlobalSettings.SetValue("ShapeIt.Initialized", true);
             CadFrame.FileNameChangedEvent += (name) =>
             {
@@ -245,7 +248,7 @@ namespace ShapeIt
             // CadFrame.UIService.ApplicationIdle += OnIdle; TODO
             CadFrame.ViewsChangedEvent += OnViewsChanged;
             if (CadFrame.ActiveView != null) OnViewsChanged(CadFrame);
-            // CadFrame.ControlCenter.RemovePropertyPage("View"); TODO
+            CadFrame.ControlCenter.RemovePropertyPage("View");
             using (str = ThisAssembly.GetManifestResourceStream("ShapeIt.StringTableDeutsch.xml"))
             {
                 XmlDocument stringXmlDocument = new XmlDocument();
@@ -317,10 +320,10 @@ namespace ShapeIt
             };
             // the following installs the property page for modelling. This connects all modelling
             // tasks of ShapeIt with CADability
-            // IPropertyPage modellingPropPage = CadFrame.ControlCenter.AddPropertyPage("Modelling", 6); TODO
-            // modellingPropertyEntries = new ModellingPropertyEntries(CadFrame); TODO currently crashes
-            // modellingPropPage.Add(modellingPropertyEntries, false); TODO implement properties explorer implementing IControlCenter
-            // CadFrame.ControlCenter.ShowPropertyPage("Modelling"); TODO
+            IPropertyPage modellingPropPage = CadFrame.ControlCenter.AddPropertyPage("Modelling", 6);
+            modellingPropertyEntries = new ModellingPropertyEntries(CadFrame);
+            modellingPropPage.Add(modellingPropertyEntries, false);
+            CadFrame.ControlCenter.ShowPropertyPage("Modelling");
         }
 
         private void OnViewsChanged(IFrame theFrame)
@@ -331,7 +334,8 @@ namespace ShapeIt
 
         private void OnProjectionChanged(Projection sender, EventArgs args)
         {
-            projectionChanged = true;
+            // projectionChanged = true;
+            modellingPropertyEntries.OnProjectionChanged(); // TODO move to OnIdle?
         }
 
 //                 // TODO reimplement in Avalonia
@@ -504,7 +508,6 @@ namespace ShapeIt
         /// <param name="msg"></param>
         /// <param name="keyData"></param>
         /// <returns></returns>
-//                 // TODO reimplement in Avalonia
         // protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         // {
         //     Keys nmKeyData = (Keys)((int)keyData & 0x0FFFF);
@@ -515,6 +518,17 @@ namespace ShapeIt
         //     }
         //     return base.ProcessCmdKey(ref msg, keyData);
         // }
+        protected override void OnKeyDown(KeyEventArgs keyEvent)
+        {
+            Console.WriteLine("Process Key: " + keyEvent.Key);
+            if (keyEvent.Key == Key.Escape) {
+                if (modellingPropertyEntries.OnEscape()) {
+                    keyEvent.Handled = true;
+                    return;
+                }
+            }
+            base.OnKeyDown(keyEvent);
+        }
         /// <summary>
         /// Called when CADability is idle. We use it to save the current project data to a temp file in case of a crash
         /// </summary>
