@@ -24,22 +24,26 @@ namespace CADability.Avalonia
 
         IPropertyEntry IPropertyPage.Selected { get => throw new System.NotImplementedException(); set => throw new System.NotImplementedException(); }
 
-        IFrame IPropertyPage.Frame => (propertiesExplorer as IControlCenter).Frame;
+        public IFrame Frame => (propertiesExplorer as IControlCenter).Frame;
 
-        IView IPropertyPage.ActiveView => throw new System.NotImplementedException();
+        public IView ActiveView => Frame.ActiveView;
 
         public void PreProcessKeyDown(Substitutes.KeyEventArgs e)
         {
             OnPreProcessKeyDown?.Invoke(e);
         }
 
+        public void AddToHash(PropertyEntry toAdd)
+        {
+            properties[toAdd.Prop] = toAdd;
+        }
+
         void IPropertyPage.Add(IPropertyEntry toAdd, bool showOpen)
         {
             Console.WriteLine("Label: " + toAdd.Label + " Index: " + toAdd.Index);
-            PropertyEntry prop = new PropertyEntry(toAdd);
-            properties[toAdd] = prop;
+
+            PropertyEntry prop = new PropertyEntry(toAdd, this, showOpen);
             panel.Children.Add(prop);
-            // TODO select if showOpen
         }
 
         void IPropertyPage.BringToFront()
@@ -65,7 +69,8 @@ namespace CADability.Avalonia
 
         IPropertyEntry IPropertyPage.GetCurrentSelection()
         {
-            throw new System.NotImplementedException();
+            // throw new System.NotImplementedException();
+            return null; // TODO
         }
 
         IFrame IPropertyPage.GetFrame() => (this as IPropertyPage).Frame;
@@ -97,20 +102,33 @@ namespace CADability.Avalonia
 
         void IPropertyPage.Refresh(IPropertyEntry toRefresh)
         {
-            throw new System.NotImplementedException();
+            if (!properties.ContainsKey(toRefresh)) return;
+
+            properties[toRefresh].Refresh();
+            // PropertyEntry oldProp = properties[toRefresh];
+            // // For now, just recreate it. Can be improved later.
+            // PropertyEntry prop = new PropertyEntry(toRefresh, this, toRefresh.IsOpen);
+            // properties[toRefresh] = prop;
+            // panel.Children.Insert(panel.Children.IndexOf(oldProp), prop);
+            // panel.Children.Remove(oldProp);
         }
 
         void IPropertyPage.Remove(IPropertyEntry toRemove)
         {
             if (properties.ContainsKey(toRemove)) {
                 PropertyEntry res = properties[toRemove];
+                if (!panel.Children.Contains(res)) {
+                    // TODO recursive removal
+                    throw new NotImplementedException();
+                }
                 panel.Children.Remove(res);
             }
         }
 
         void IPropertyPage.SelectEntry(IPropertyEntry toSelect)
         {
-            throw new System.NotImplementedException();
+            // throw new System.NotImplementedException();
+            // TODO focus that entry
         }
 
         void IPropertyPage.StartEditLabel(IPropertyEntry ToEdit)

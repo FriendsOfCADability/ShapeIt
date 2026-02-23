@@ -19,12 +19,13 @@ namespace CADability.Avalonia
         public CadControl()
         {
             InitializeComponent(); // makes the cadCanvas and the propertiesExplorer
+            propertiesExplorer.Frame = cadFrame;
+
             // KeyPreview = true; // used to filter the escape key (and maybe some more?)
             // cadFrame = new CadFrame(propertiesExplorer, cadCanvas, this);
             cadFrame = new CadFrame(propertiesExplorer, cadCanvas, this);
             // cadFrame.ProgressAction = (show, percent, title) => { this.ProgressForm.ShowProgressBar(show, percent, title); };
             cadCanvas.Frame = cadFrame;
-            propertiesExplorer.Frame = cadFrame;
             // show this menu in the MainForm
             // MenuWithHandler[] mainMenu = MenuResource.LoadMenuDefinition("SDI Menu", true, cadFrame);
             // MenuManager.MakeMainMenu(mainMenu, dockPanel, this); TODO moved to Main Window
