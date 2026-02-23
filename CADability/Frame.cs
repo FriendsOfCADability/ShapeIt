@@ -52,7 +52,7 @@ namespace CADability
     /// <param name="Processed">Set to true, if you have processed this command and no further action is required, leave unmodified if CADability should process this command</param>
     public delegate void ProcessCommandDelegate(string MenuId, ref bool Processed);
     /// <summary>
-    /// 
+    ///
     /// </summary>
     /// <param name="MenuId"></param>
     /// <param name="CommandState"></param>
@@ -102,7 +102,7 @@ namespace CADability
         /// </summary>
         void RemoveActiveAction();
         /// <summary>
-        /// Returns the currently active action. Call <see cref="Action.GetID"/> to find out more about 
+        /// Returns the currently active action. Call <see cref="Action.GetID"/> to find out more about
         /// that action.
         /// </summary>
         Action ActiveAction { get; }
@@ -120,7 +120,7 @@ namespace CADability
         /// </summary>
         event ProcessCommandDelegate ProcessCommandEvent;
         /// <summary>
-        /// Provide a event handler if you want to control the appearnce of commands in the menu or toolbar 
+        /// Provide a event handler if you want to control the appearnce of commands in the menu or toolbar
         /// (set the enabled and check flags).
         /// </summary>
         event UpdateCommandDelegate UpdateCommandEvent;
@@ -142,7 +142,7 @@ namespace CADability
         /// </summary>
         event ProcessContextMenuDelegate ProcessContextMenuEvent;
         /// <summary>
-        /// Provide a event handler if you want to control the appearance of commands in a context the menu 
+        /// Provide a event handler if you want to control the appearance of commands in a context the menu
         /// (set the enabled and check flags).
         /// </summary>
         event UpdateContextMenuDelegate UpdateContextMenuEvent;
@@ -178,7 +178,7 @@ namespace CADability
         /// </summary>
         Settings GlobalSettings { get; set; }
         /// <summary>
-                                                    /// Gets the <see cref="Settings"/> for the provided <paramref name="Name"/>. First the <see cref="Project"/>s settings are 
+                                                    /// Gets the <see cref="Settings"/> for the provided <paramref name="Name"/>. First the <see cref="Project"/>s settings are
                                                     /// checked, if it is not defined there, the global settings will be queried.
                                                     /// </summary>
                                                     /// <param name="Name"></param>
@@ -615,7 +615,7 @@ namespace CADability
             }
         }
         private void OnSettingChanged(string Name, object NewValue)
-        {	
+        {
             object o = this.GetSetting(Name);
             SettingChangedEvent?.Invoke(Name, NewValue);
             // }
@@ -756,7 +756,7 @@ namespace CADability
         }
         public virtual void PreProcessKeyDown(KeyEventArgs e)
         {
-            // it is difficult to find an order of processing: 
+            // it is difficult to find an order of processing:
             // the construct-action processes the enter key, no chance to use it in a list-box for the selection
             // the property page processes the tab key, no chance to use it in the action for "next modal input field"
             // we need to replace the KeyEventArgs class by a CADability class anyhow, we could introduce a first-pass, second-pass member
@@ -2410,7 +2410,7 @@ namespace CADability
                     {
                         // get a raw model extent to know a precision for the triangulation
                         // parallel triangulate all faces with this precision to show a progress bar
-                        // then zoom total 
+                        // then zoom total
                         ModelView mv = FirstModelView;
                         // display the first ModelView
                         if (mv != null)

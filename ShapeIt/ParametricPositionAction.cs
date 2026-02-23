@@ -7,13 +7,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+#if !AVALONIA
 using System.Windows.Forms;
+#endif
 
 namespace ShapeIt
 {
     /// <summary>
     /// This action starts with a object to position. This might be one or more faces (like a feature) and a touching point or axis where to meassure.
-    /// 
+    ///
     /// </summary>
     internal class ParametricPositionAction : ConstructAction
     {

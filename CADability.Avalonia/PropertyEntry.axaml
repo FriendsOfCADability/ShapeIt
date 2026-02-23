@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ca="using:CADability.Avalonia"
+        x:Class="CADability.Avalonia.PropertyEntry">
+        <StackPanel>
+                <Grid Name="panel" ColumnDefinitions="40*, 60*"/>
+                <StackPanel Name="childPanel"/>
+        </StackPanel>
+</UserControl>

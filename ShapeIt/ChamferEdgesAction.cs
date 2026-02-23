@@ -3,7 +3,9 @@ using CADability;
 using CADability.Actions;
 using CADability.Attribute;
 using CADability.GeoObject;
+#if !AVALONIA
 using ExCSS;
+#endif
 using System;
 using System.Collections.Generic;
 using System.Linq;

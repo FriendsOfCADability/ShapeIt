@@ -1,8 +1,9 @@
-﻿#if !AVALONIA
+using Avalonia.Controls;
+using Avalonia.Input;
+using CADability.Avalonia;
 using CADability;
 using CADability.Actions;
 using CADability.Attribute;
-using CADability.Forms.NET8;
 using CADability.GeoObject;
 using CADability.UserInterface;
 using MathNet.Numerics.LinearAlgebra.Factorization;
@@ -11,130 +12,142 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
 using System.Diagnostics;
-using System.Drawing;
-using System.Drawing.Imaging;
-using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms;
+using System.Reflection;
+using System.Linq;
+using System.IO;
 using System.Xml;
 using System.Xml.Linq;
-using static ShapeIt.MainForm;
-using static System.Windows.Forms.VisualStyles.VisualStyleElement;
-using Point = System.Drawing.Point;
+using System.Text;
 
 namespace ShapeIt
 {
-
-    public partial class MainForm : CadForm
+    // TODO move gui related things to CADability.Avalonia.CadForm and inherit from that here?
+    // or just implement ICommandHandler here?
+    public partial class MainWindow : Window, ICommandHandler
     {
-        private PictureBox logoBox;
+        // public MainForm()
+        // {
+        //     InitializeComponent();
+        //     cadFrame = new CadFrame(propertiesExplorer, cadCanvas, this);
+        // }
+        // TODO
+        // create CAD project
+        // create FrameImpl (or implement own subclass)
+        // in CadForm (here named CadControl?): create Frame/cadFrame (type x -> FrameImpl -> IFrame) and
+        // set cadCanvas.Frame = cadFrame (in CadForm)
+        //
+
+        // currently here because we dont inherit from CadForm
+        // private CadFrame cadFrame;
+
+        // private PictureBox logoBox;
         private ModellingPropertyEntries modellingPropertyEntries;
         private DateTime lastSaved; // time, when the current file has been saved the last time, see OnIdle
         private bool modifiedSinceLastAutosave = false;
         bool projectionChanged = false; // to handle projection changes in OnIdle
         bool crashChecked = false;
 
-        private Control FindControlByName(Control parent, string name)
-        {
-            foreach (Control child in parent.Controls)
-            {
-                if (child.Name == name)
-                    return child;
+        // TODO needed? how to do in Avalonia?
+        // private Control FindControlByName(Control parent, string name)
+        // {
+        //     foreach (Control child in parent.Controls)
+        //     {
+        //         if (child.Name == name)
+        //             return child;
 
-                Control found = FindControlByName(child, name);
-                if (found != null)
-                    return found;
-            }
+        //         Control found = FindControlByName(child, name);
+        //         if (found != null)
+        //             return found;
+        //     }
 
-            return null;
-        }
+        //     return null;
+        // }
 
-        void FadeOutPictureBox(PictureBox pb)
-        {
-            var timer = new System.Windows.Forms.Timer();
-            timer.Interval = 50;
-            double alpha = 1.0;
+        // TODO reimplement in Avalonia
+        // void FadeOutPictureBox(PictureBox pb)
+        // {
+        //     var timer = new System.Windows.Forms.Timer();
+        //     timer.Interval = 50;
+        //     double alpha = 1.0;
 
-            Image original = pb.Image;
-            Bitmap faded = new Bitmap(original.Width, original.Height);
+        //     Image original = pb.Image;
+        //     Bitmap faded = new Bitmap(original.Width, original.Height);
 
-            timer.Tick += (s, e) =>
-            {
-                alpha -= 0.01;
-                if (alpha <= 0)
-                {
-                    timer.Stop();
-                    pb.Parent.Controls.Remove(pb);
-                    //pb.Visible = false;
-                    pb.Dispose();
-                    return;
-                }
+        //     timer.Tick += (s, e) =>
+        //     {
+        //         alpha -= 0.01;
+        //         if (alpha <= 0)
+        //         {
+        //             timer.Stop();
+        //             pb.Parent.Controls.Remove(pb);
+        //             //pb.Visible = false;
+        //             pb.Dispose();
+        //             return;
+        //         }
 
-                using (Graphics g = Graphics.FromImage(faded))
-                {
-                    g.Clear(Color.Transparent);
-                    ColorMatrix matrix = new ColorMatrix
-                    {
-                        Matrix33 = (float)alpha // Alpha-Kanal
-                    };
-                    ImageAttributes attributes = new ImageAttributes();
-                    attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+        //         using (Graphics g = Graphics.FromImage(faded))
+        //         {
+        //             g.Clear(Color.Transparent);
+        //             ColorMatrix matrix = new ColorMatrix
+        //             {
+        //                 Matrix33 = (float)alpha // Alpha-Kanal
+        //             };
+        //             ImageAttributes attributes = new ImageAttributes();
+        //             attributes.SetColorMatrix(matrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
 
-                    g.DrawImage(original,
-                        new Rectangle(0, 0, faded.Width, faded.Height),
-                        0, 0, original.Width, original.Height,
-                        GraphicsUnit.Pixel,
-                        attributes);
-                }
+        //             g.DrawImage(original,
+        //                 new Rectangle(0, 0, faded.Width, faded.Height),
+        //                 0, 0, original.Width, original.Height,
+        //                 GraphicsUnit.Pixel,
+        //                 attributes);
+        //         }
 
-                pb.Image = (Image)faded.Clone(); // neues Bild setzen
-            };
+        //         pb.Image = (Image)faded.Clone(); // neues Bild setzen
+        //     };
 
-            timer.Start();
-        }
+        //     timer.Start();
+        // }
 
-        private void ShowLogo()
-        {
-            Control pex = FindControlByName(this, "propertiesExplorer");
-            // Create PictureBox
-            logoBox = new PictureBox();
-            Assembly ThisAssembly = Assembly.GetExecutingAssembly();
-            using (System.IO.Stream str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.ShapeIt2.png"))
-            {
-                logoBox.Image = new Bitmap(str);
-            }
-            logoBox.SizeMode = PictureBoxSizeMode.Zoom;
+        // TODO reimplement in Avalonia
+        // private void ShowLogo()
+        // {
+        //     Control pex = FindControlByName(this, "propertiesExplorer");
+        //     // Create PictureBox
+        //     logoBox = new PictureBox();
+        //     Assembly ThisAssembly = Assembly.GetExecutingAssembly();
+        //     using (System.IO.Stream str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.ShapeIt2.png"))
+        //     {
+        //         logoBox.Image = new Bitmap(str);
+        //     }
+        //     logoBox.SizeMode = PictureBoxSizeMode.Zoom;
 
-            double aspectRatio = (double)logoBox.Image.Height / logoBox.Image.Width;
+        //     double aspectRatio = (double)logoBox.Image.Height / logoBox.Image.Width;
 
-            // Zielbreite übernehmen
-            int targetWidth = pex.ClientSize.Width - 4;
-            int berechneteHoehe = (int)(targetWidth * aspectRatio);
+        //     // Zielbreite übernehmen
+        //     int targetWidth = pex.ClientSize.Width - 4;
+        //     int berechneteHoehe = (int)(targetWidth * aspectRatio);
 
-            // Größe setzen
-            logoBox.Size = new Size(targetWidth, berechneteHoehe);
+        //     // Größe setzen
+        //     logoBox.Size = new Size(targetWidth, berechneteHoehe);
 
-            // Position am unteren Rand
-            logoBox.Location = new Point(2, pex.ClientSize.Height - berechneteHoehe - 2);
+        //     // Position am unteren Rand
+        //     logoBox.Location = new Point(2, pex.ClientSize.Height - berechneteHoehe - 2);
 
-            // Logo zum Ziel-Control hinzufügen
-            pex.Controls.Add(logoBox);
-            logoBox.BringToFront();
+        //     // Logo zum Ziel-Control hinzufügen
+        //     pex.Controls.Add(logoBox);
+        //     logoBox.BringToFront();
 
-            FadeOutPictureBox(logoBox);
+        //     FadeOutPictureBox(logoBox);
 
-            pex.Resize += (s, e) =>
-            {
-                int newWidth = pex.ClientSize.Width - 4;
-                int newHeight = (int)(newWidth * aspectRatio);
-                logoBox.Size = new Size(newWidth, newHeight);
-                logoBox.Location = new Point(2, pex.ClientSize.Height - newHeight - 2);
-            };
-        }
+        //     pex.Resize += (s, e) =>
+        //     {
+        //         int newWidth = pex.ClientSize.Width - 4;
+        //         int newHeight = (int)(newWidth * aspectRatio);
+        //         logoBox.Size = new Size(newWidth, newHeight);
+        //         logoBox.Location = new Point(2, pex.ClientSize.Height - newHeight - 2);
+        //     };
+        // }
 
         private string ReadEmbeddedVersion()
         {
@@ -143,23 +156,45 @@ namespace ShapeIt
             using var sr = new StreamReader(s!);
             return sr.ReadToEnd().Trim();
         }
-        public MainForm(string[] args) : base(args)
+
+        // TODO taken from CadForm, as we don't inherit from it
+
+        public bool OnCommand(string menuId)
+        {
+            Console.WriteLine("MainWindow.OnCommand(" + menuId + ")");
+            if (modellingPropertyEntries.OnCommand(menuId)) return true;
+            if (menuId == "MenuId.App.Exit") {
+                Close();
+            }
+            return CadFrame.OnCommand(menuId);
+        }
+        public bool OnUpdateCommand(string menuId, CommandState commandState)
+        {
+            throw new NotImplementedException();
+        }
+        public void OnSelected(MenuWithHandler selectedMenu, bool selected)
+        {
+            throw new NotImplementedException();
+        }
+
+        // delegate to cadControl (old: cadForm)
+        // public PropertiesExplorer PropertiesExplorer => propertiesExplorer;
+        public CadCanvas CadCanvas => cadControl.CadCanvas;
+        public CadFrame CadFrame => cadControl.CadFrame;
+
+        public MainWindow(string[] args) // TODO inherit from CadForm? : base(args)
         {   // interpret the command line arguments as a name of a file, which should be opened
-#if DEBUG
-            // to make debugging easier, we disable the parallelization in MathNet.Numerics, which is used for some boolean
-            // operations. This avoids the debugger message: "Cannot evaluate expression since the function evaluation requires
-            // all threads to run.". In release mode, we keep the parallelization enabled for better performance.
-            MathNet.Numerics.Control.MaxDegreeOfParallelism = 1;
-#endif
-            //InitializeComponent();
-            ShowLogo();
+
+            InitializeComponent();
+            // ShowLogo(); TODO
             // this.Icon = Properties.Resources.Icon;
             Assembly ThisAssembly = Assembly.GetExecutingAssembly();
-            System.IO.Stream? str;
-            using (str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.Icon.ico"))
-            {
-                this.Icon = new System.Drawing.Icon(str);
-            }
+            System.IO.Stream str;
+            // TODO
+            // using (str = ThisAssembly.GetManifestResourceStream("ShapeIt.Resources.Icon.ico"))
+            // {
+            //     this.Icon = new System.Drawing.Icon(str);
+            // }
 
             string fileName = "";
             for (int i = 0; i < args.Length; i++)
@@ -176,6 +211,7 @@ namespace ShapeIt
                 try
                 {
                     toOpen = Project.ReadFromFile(fileName);
+                    Console.WriteLine("Read Project from file: " + fileName);
                 }
                 catch { }
             }
@@ -183,7 +219,7 @@ namespace ShapeIt
             else CadFrame.Project = toOpen;
 
             string version = ReadEmbeddedVersion(); // version from version.txt
-            this.Text = $"ShapeIt with CADability – Version: {version}";
+            // this.Text = $"ShapeIt with CADability – Version: {version}";
 
             if (!Settings.GlobalSettings.ContainsSetting("UserInterface"))
             {
@@ -199,21 +235,17 @@ namespace ShapeIt
             Settings.GlobalSettings.SetValue("Construct.3D_Delete2DBase", false);
             bool exp = Settings.GlobalSettings.GetBoolValue("Experimental.TestNewContextMenu", false);
             bool tst = Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false);
-            if (!Settings.GlobalSettings.GetBoolValue("ShapeIt.Initialized", false))
-            {
-                Settings colorSettings = Settings.GlobalSettings.GetSubSetting("Colors");
-
-            }
+            // TODO do we need to load colorSettings here?
             Settings.GlobalSettings.SetValue("ShapeIt.Initialized", true);
             CadFrame.FileNameChangedEvent += (name) =>
             {
-                if (string.IsNullOrEmpty(name)) this.Text = "ShapeIt with CADability";
-                else this.Text = "ShapeIt -- " + name;
+                // if (string.IsNullOrEmpty(name)) this.Text = "ShapeIt with CADability";
+                // else this.Text = "ShapeIt -- " + name;
                 lastSaved = DateTime.Now; // a new file has been opened
             };
             CadFrame.ProjectClosedEvent += OnProjectClosed;
             CadFrame.ProjectOpenedEvent += OnProjectOpened;
-            CadFrame.UIService.ApplicationIdle += OnIdle;
+            // CadFrame.UIService.ApplicationIdle += OnIdle; TODO
             CadFrame.ViewsChangedEvent += OnViewsChanged;
             if (CadFrame.ActiveView != null) OnViewsChanged(CadFrame);
             CadFrame.ControlCenter.RemovePropertyPage("View");
@@ -248,9 +280,15 @@ namespace ShapeIt
                 }
 #endif
                 XmlNode toolbar = menuDocument.SelectSingleNode("Menus/Popup[@MenuId='Toolbar']");
-                SetToolbar(toolbar);
+                // SetToolbar(toolbar); // TODO CadForm
                 MenuResource.SetMenuResource(menuDocument);
-                ResetMainMenu(null);
+
+                // TODO move this to CadControl?
+                MenuWithHandler[] mainMenuDefinition = MenuResource.LoadMenuDefinition("SDI Menu", true, this);
+                // MenuManager.MakeMainMenu(mainMenuDefinition, dockPanel, this);
+                MenuManager.MakeMainMenu(mainMenuDefinition, mainMenuObject, this);
+
+                // ResetMainMenu(null); // TODO CadForm
             }
 
             lastSaved = DateTime.Now;
@@ -296,43 +334,45 @@ namespace ShapeIt
 
         private void OnProjectionChanged(Projection sender, EventArgs args)
         {
-            projectionChanged = true;
+            // projectionChanged = true;
+            modellingPropertyEntries.OnProjectionChanged(); // TODO move to OnIdle?
         }
 
-        protected override void OnShown(EventArgs e)
-        {
-            // check for crash
-            if (!crashChecked)
-            {
-                crashChecked = true;
-                string crashPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), @"ShapeIt\Crash.txt");
-                if (File.Exists(crashPath))
-                {
-                    string[] lines = File.ReadAllLines(System.IO.Path.Combine(System.IO.Path.GetTempPath(), @"ShapeIt\Crash.txt"));
-                    if (lines.Length == 2)
-                    {
-                        string ask = StringTable.GetFormattedString("ShapeIt.RestoreAfterCrash", lines[0]);
-                        if (CadFrame.UIService.ShowMessageBox(ask, "ShapeIt", CADability.Substitutes.MessageBoxButtons.YesNo) == CADability.Substitutes.DialogResult.Yes)
-                        {
-                            CadFrame.Project = Project.ReadFromFile(lines[1]);
-                            CadFrame.Project.FileName = lines[0];
+//                 // TODO reimplement in Avalonia
+//         protected override void OnShown(EventArgs e)
+//         {
+//             // check for crash
+//             if (!crashChecked)
+//             {
+//                 crashChecked = true;
+//                 string crashPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), @"ShapeIt\Crash.txt");
+//                 // if (File.Exists(crashPath))
+//                 // {
+//                 //     string[] lines = File.ReadAllLines(System.IO.Path.Combine(System.IO.Path.GetTempPath(), @"ShapeIt\Crash.txt"));
+//                 //     if (lines.Length == 2)
+//                 //     {
+//                 //         string ask = StringTable.GetFormattedString("ShapeIt.RestoreAfterCrash", lines[0]);
+//                 //         if (CadFrame.UIService.ShowMessageBox(ask, "ShapeIt", CADability.Substitutes.MessageBoxButtons.YesNo) == CADability.Substitutes.DialogResult.Yes)
+//                 //         {
+//                 //             CadFrame.Project = Project.ReadFromFile(lines[1]);
+//                 //             CadFrame.Project.FileName = lines[0];
 
-                            this.Text = "ShapeIt -- " + lines[0];
-                        }
-                    }
-                    File.Delete(crashPath);
-                }
-#if DEBUG
-                AutoDebug();
-#endif
-            }
-            base.OnActivated(e);
-        }
+//                 //             this.Text = "ShapeIt -- " + lines[0];
+//                 //         }
+//                 //     }
+//                 //     File.Delete(crashPath);
+//                 // }
+// #if DEBUG
+//                 AutoDebug();
+// #endif
+//             }
+//             base.OnActivated(e);
+//         }
 #if DEBUG
         private void AutoDebug()
         {
             return;
-            string? filename = null; // @"C:\Users\gerha\Documents\Zeichnungen\HelicalRoundEdges.cdb.json";
+            string? filename = @"C:\Users\gerha\Documents\Zeichnungen\RoundEdgesTest2.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -358,14 +398,14 @@ namespace ShapeIt
                     {
                         if (sld.Style.Name == "Operand1") operand1 = sld;
                         else if (sld.Style.Name == "Operand2") operand2 = sld;
-                        //else if (sld.Style.Name == "Difference") difference.Add(sld);
-                        //else if (sld.Style.Name == "Union") union.Add(sld);
-                        //else if (sld.Style.Name == "Intersection") intersection.Add(sld);
+                        else if (sld.Style.Name == "Difference") difference.Add(sld);
+                        else if (sld.Style.Name == "Union") union.Add(sld);
+                        else if (sld.Style.Name == "Intersection") intersection.Add(sld);
                     }
                 }
                 if (go is ICurve curve)
                 {
-                    if (go.Style != null && go.Style.Name == "EdgeMarker")
+                    if (go.Style!=null && go.Style.Name == "EdgeMarker")
                     {
                         edgeMarkers.Add(curve);
                     }
@@ -387,52 +427,33 @@ namespace ShapeIt
                 //        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
                 //    }
                 //}
-                if (command.StartsWith("Difference", StringComparison.OrdinalIgnoreCase))
+                if (command.StartsWith("Difference",StringComparison.OrdinalIgnoreCase))
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
-                }
-                if (command.StartsWith("Intersect", StringComparison.OrdinalIgnoreCase))
-                {
-                    Solid[] sres = NewBooleanOperation.Intersect(operand1, operand2);
                 }
                 if (command.Equals("Union", StringComparison.OrdinalIgnoreCase) || command.Equals("Unite", StringComparison.OrdinalIgnoreCase))
                 {
                     Solid sres = NewBooleanOperation.Unite(operand1, operand2);
                 }
             }
-            if (slds.Count >1)
+            if (slds.Count == 2)
             {
-                if (command.Equals("UniteAll", StringComparison.OrdinalIgnoreCase))
-                {
-                    slds.Sort((s1, s2) =>
-                    {
-                        GeoPoint cnt1 = s1.GetExtent(0.0).GetCenter();
-                        GeoPoint cnt2 = s2.GetExtent(0.0).GetCenter();
-                        if (cnt1.y == cnt2.y) return cnt1.x.CompareTo(cnt2.x);
-                        else return cnt1.y.CompareTo(cnt2.y);
-                    });
-                    for (int i = 0; i < slds.Count; i++)
-                    {
-                        System.Diagnostics.Trace.WriteLine(slds[i].GetExtent(0.0).GetCenter().ToString() + " " + slds[i].Shells[0].GetHashCode().ToString());
-                    }
-                    Queue<Solid> queue = new Queue<Solid>(slds.Skip(1).Reverse());
-                    Solid accumulate = slds[0];
-                    int count = 0;
-                    while (queue.Count > 0)
-                    {
-                        Solid sld = queue.Dequeue();
-                        Solid tmp = NewBooleanOperation.Unite(sld, accumulate);
-                        if (tmp != null)
-                        {
-                            accumulate = tmp;
-                            count++;
-                        }
-                        else
-                        {
-                            queue.Enqueue(sld);
-                        }
-                    }
-                }
+                //Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
+                //Solid[] sld;
+                //if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
+                //{
+                //    sld = NewBooleanOperation.Subtract(slds[0], slds[1]);
+                //}
+                //else
+                //{
+                //    sld = NewBooleanOperation.Subtract(slds[1], slds[0]);
+                //}
+                //if (sld.Length > 0)
+                //{
+                //    Project proj = Project.CreateSimpleProject();
+                //    proj.GetActiveModel().Add(sld);
+                //    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
+                //}
             }
             if (edgeMarkers.Count > 0)
             {
@@ -455,10 +476,10 @@ namespace ShapeIt
                 if (command.StartsWith("RoundEdges", StringComparison.OrdinalIgnoreCase))
                 {
                     string[] parts = command.Split(':');
-                    if (parts.Length == 2)
+                    if (parts.Length==2)
                     {
                         double d = double.Parse(parts[1]);
-                        if (d > 0)
+                        if (d>0)
                         {
                             Shell? rounded = shellToRound?.RoundEdges(edgesToRound, d);
                         }
@@ -487,15 +508,26 @@ namespace ShapeIt
         /// <param name="msg"></param>
         /// <param name="keyData"></param>
         /// <returns></returns>
-        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        // protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        // {
+        //     Keys nmKeyData = (Keys)((int)keyData & 0x0FFFF);
+        //     CADability.Substitutes.KeyEventArgs e = new CADability.Substitutes.KeyEventArgs((CADability.Substitutes.Keys)keyData);
+        //     if (nmKeyData == Keys.Escape)
+        //     {
+        //         if (modellingPropertyEntries.OnEscape()) return true;
+        //     }
+        //     return base.ProcessCmdKey(ref msg, keyData);
+        // }
+        protected override void OnKeyDown(KeyEventArgs keyEvent)
         {
-            Keys nmKeyData = (Keys)((int)keyData & 0x0FFFF);
-            CADability.Substitutes.KeyEventArgs e = new CADability.Substitutes.KeyEventArgs((CADability.Substitutes.Keys)keyData);
-            if (nmKeyData == Keys.Escape)
-            {
-                if (modellingPropertyEntries.OnEscape()) return true;
+            Console.WriteLine("Process Key: " + keyEvent.Key);
+            if (keyEvent.Key == Key.Escape) {
+                if (modellingPropertyEntries.OnEscape()) {
+                    keyEvent.Handled = true;
+                    return;
+                }
             }
-            return base.ProcessCmdKey(ref msg, keyData);
+            base.OnKeyDown(keyEvent);
         }
         /// <summary>
         /// Called when CADability is idle. We use it to save the current project data to a temp file in case of a crash
@@ -557,52 +589,57 @@ namespace ShapeIt
                 if (sender == theProject) modifiedSinceLastAutosave = true;
             };
         }
-        protected override void OnLoad(EventArgs e)
-        {
-            base.OnLoad(e);
+//                 // TODO reimplement in Avalonia
+        // protected override void OnLoad(EventArgs e)
+        // {
+        //     base.OnLoad(e);
 
-            // this is for recording the session with 1280x720 pixel.
-            this.Size = new Size(1294, 727);
+        //     // this is for recording the session with 1280x720 pixel.
+        //     this.Size = new Size(1294, 727);
 
-        }
+        // }
         /// <summary>
         /// Give the user a chance to save the modified project
         /// </summary>
         /// <param name="e"></param>
-        protected override void OnFormClosing(FormClosingEventArgs e)
-        {
-            if (!CadFrame.Project.SaveModified()) e.Cancel = true;
-            base.OnFormClosing(e);
-        }
-        public override bool OnCommand(string MenuId)
-        {
-            // forward to modellingPropertyEntries first
-            if (modellingPropertyEntries.OnCommand(MenuId)) return true;
-            if (MenuId == "MenuId.App.Exit")
-            {   // this command cannot be handled by CADability.dll
-                Application.Exit();
-                return true;
-            }
-#if DEBUG
-            else if (MenuId == "MenuId.Debug")
-            {
-                Debug();
-                return true;
-            }
-#endif
-            else return base.OnCommand(MenuId);
-        }
-        public override bool OnUpdateCommand(string MenuId, CommandState CommandState)
-        {
-            // forward to modellingPropertyEntries first
-            if (modellingPropertyEntries.OnUpdateCommand(MenuId, CommandState)) return true;
-            return base.OnUpdateCommand(MenuId, CommandState);
-        }
-        public override void OnSelected(MenuWithHandler selectedMenuItem, bool selected)
-        {
-            modellingPropertyEntries.OnSelected(selectedMenuItem, selected);
-            base.OnSelected(selectedMenuItem, selected);
-        }
+//                 // TODO reimplement in Avalonia
+        // protected override void OnFormClosing(FormClosingEventArgs e)
+        // {
+        //     if (!CadFrame.Project.SaveModified()) e.Cancel = true;
+        //     base.OnFormClosing(e);
+        // }
+//                 // TODO reimplement in Avalonia
+//         public override bool OnCommand(string MenuId)
+//         {
+//             // forward to modellingPropertyEntries first
+//             if (modellingPropertyEntries.OnCommand(MenuId)) return true;
+//             if (MenuId == "MenuId.App.Exit")
+//             {   // this command cannot be handled by CADability.dll
+//                 Application.Exit();
+//                 return true;
+//             }
+// #if DEBUG
+//             else if (MenuId == "MenuId.Debug")
+//             {
+//                 Debug();
+//                 return true;
+//             }
+// #endif
+//             else return base.OnCommand(MenuId);
+//         }
+//                 // TODO reimplement in Avalonia
+        // public override bool OnUpdateCommand(string MenuId, CommandState CommandState)
+        // {
+        //     // forward to modellingPropertyEntries first
+        //     if (modellingPropertyEntries.OnUpdateCommand(MenuId, CommandState)) return true;
+        //     return base.OnUpdateCommand(MenuId, CommandState);
+        // }
+//                 // TODO reimplement in Avalonia
+        // public override void OnSelected(MenuWithHandler selectedMenuItem, bool selected)
+        // {
+        //     modellingPropertyEntries.OnSelected(selectedMenuItem, selected);
+        //     base.OnSelected(selectedMenuItem, selected);
+        // }
 #if DEBUG
         private static Random rnd = new Random();
         private GeoVector RandomVector(double len)
@@ -776,4 +813,3 @@ namespace ShapeIt
 #endif
     }
 }
-#endif

@@ -1,0 +1,22 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ca="using:CADability.Avalonia"
+        xmlns:si="using:ShapeIt"
+        Title="ShapeIt"
+        x:DataType="si:MainWindow"
+        x:Class="ShapeIt.MainWindow">
+  <DockPanel Name="dockPanel">
+    <Border DockPanel.Dock="Top"
+      BorderBrush="LightGray"
+      BorderThickness="1">
+      <Menu Name = "mainMenuObject">
+      </Menu>
+    </Border>
+    <TextBlock
+      DockPanel.Dock="Bottom"
+      Text="Placeholder">
+    </TextBlock>
+    <ca:CadControl Name="cadControl"></ca:CadControl>
+    <!-- <ca:CadCanvas Name="cadCanvas"></ca:CadCanvas> -->
+  </DockPanel>
+</Window>
