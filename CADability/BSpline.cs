@@ -1,14 +1,15 @@
 ﻿using CADability.Attribute;
 using CADability.Curve2D;
-using CADability.UserInterface;
 using CADability.Substitutes;
+using CADability.UserInterface;
+using MathNet.Numerics.LinearAlgebra.Double;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Net;
 using System.Runtime.Serialization;
 using System.Threading;
 using Wintellect.PowerCollections;
-using MathNet.Numerics.LinearAlgebra.Double;
-using System.Linq;
 
 namespace CADability.GeoObject
 {
@@ -26,7 +27,7 @@ namespace CADability.GeoObject
     /// A BSpline is a smooth curve defined by a set of control points. It is implemented as a NURBS - non uniform rational b-spline.
     /// </summary>
     [Serializable]
-    public class BSpline : IGeoObjectImpl, IColorDef, ILineWidth, ILinePattern, ISerializable, ICurve, IExplicitPCurve3D, IExportStep
+    public class BSpline : IGeoObjectImpl, IColorDef, ILineWidth, ILinePattern, ISerializable, ICurve, IExplicitPCurve3D, IExportStep, IJsonSerialize
     {
         // im folgenden die wesentlichen Daten zur Darstellung:
         private GeoPoint[] poles; // die Kontrollpunkte, deren Anzahl bestimmt die Größe der anderen Arrays
@@ -2053,6 +2054,54 @@ namespace CADability.GeoObject
             info.AddValue("ColorDef", colorDef);
             info.AddValue("LineWidth", lineWidth);
             info.AddValue("LinePattern", linePattern);
+        }
+        #endregion
+        #region IJsonSerialize
+        public new void GetObjectData(IJsonWriteData data)
+        {
+            data.AddProperty("Poles", poles);
+            data.AddProperty("Weights", weights);
+            data.AddProperty("Knots", knots);
+            data.AddProperty("Multiplicities", multiplicities);
+            data.AddProperty("Degree", degree);
+            data.AddProperty("Periodic", periodic);
+            data.AddProperty("StartParam", startParam);
+            data.AddProperty("EndParam", endParam);
+            if (throughPoints3d != null)
+            {
+                data.AddProperty("ThroughPoints3d", throughPoints3d);
+                data.AddProperty("Direction3D", direction3D);
+                data.AddProperty("ThroughPointsParam", throughPointsParam);
+            }
+            if (colorDef != null) data.AddProperty("ColorDef", colorDef);
+            if (lineWidth != null) data.AddProperty("LineWidth", lineWidth);
+            if (linePattern != null) data.AddProperty("LinePattern", linePattern);
+        }
+
+        public new void SetObjectData(IJsonReadData data)
+        {
+            // base.SetObjectData(data);
+            poles = data.GetProperty<GeoPoint[]>("Poles");
+            weights = data.GetProperty<double[]>("Weights");
+            knots = data.GetProperty<double[]>("Knots");
+            double[] dm = data.GetProperty<double[]>("Multiplicities");
+            multiplicities = new int[dm.Length]; // json saves it as numbers, which are restored as double, but we need int
+            for (int i = 0; i < dm.Length; i++) multiplicities[i] = (int)dm[i];
+            // multiplicities = data.GetProperty<int[]>("Multiplicities");
+            degree = data.GetProperty<int>("Degree");
+            periodic = data.GetProperty<bool>("Periodic");
+            startParam = data.GetProperty<double>("StartParam");
+            endParam = data.GetProperty<double>("EndParam");
+            if (data.HasProperty("ThroughPoints3d"))
+            {
+                throughPoints3d = data.GetProperty<GeoPoint[]>("ThroughPoints3d");
+                direction3D = data.GetProperty<GeoVector[]>("Direction3D");
+                throughPointsParam = data.GetProperty<double[]>("ThroughPointsParam");
+            }
+
+            colorDef = data.GetPropertyOrDefault<ColorDef>("ColorDef");
+            lineWidth = data.GetPropertyOrDefault<LineWidth>("LineWidth");
+            linePattern = data.GetPropertyOrDefault<LinePattern>("LinePattern");
         }
         #endregion
         #region ICurve Members

@@ -150,7 +150,7 @@ namespace CADability
         {
             get
             {
-                object res;
+                object res = null;
                 data.TryGetValue(Name, out res); // res wird null wenn nicht gefunden
                 return res;
             }
@@ -482,7 +482,7 @@ namespace CADability
         public void GetObjectData(IJsonWriteData data)
         {
             foreach (KeyValuePair<string, object> de in this.data)
-            {	
+            {
                 // since the keys must be unique, we use the keys as property names
                 // UserDate starting with CADability are temporary data used by CADability and are not saved
                 // they sometimes contain types which are not serializable
@@ -507,10 +507,10 @@ namespace CADability
         }
         public void SetObjectData(IJsonReadData data)
         {
-            foreach (KeyValuePair<string,object> item in data)
+            foreach (KeyValuePair<string, object> item in data)
             {
-                if (!item.Key.StartsWith("$") && item.Key!="§Index") this.data[item.Key] = item.Value;
-            }   
+                if (!item.Key.StartsWith("$") && item.Key != "§Index") this.data[item.Key] = item.Value;
+            }
         }
 
         #endregion

@@ -1077,7 +1077,7 @@ namespace CADability
         }
         public bool SameGeometry(Axis other)
         {
-            if (Precision.SameDirection(Direction,other.Direction,false))
+            if (Precision.SameDirection(Direction, other.Direction, false))
             {
                 if (Geometry.DistPL(other.Location, this) < Precision.eps) return true;
             }
@@ -1131,6 +1131,104 @@ namespace CADability
             }
             return res;
         }
+        #endregion
+    }
+
+    public struct Axis2D : ISerializable, IJsonSerialize
+    {
+        /// <summary>
+        /// An arbitrary location of the axis
+        /// </summary>
+        public GeoPoint2D Location;
+        /// <summary>
+        /// The direction of the axis
+        /// </summary>
+        public GeoVector2D Direction;
+        /// <summary>
+        /// Creates a new axis from two points
+        /// </summary>
+        /// <param name="StartPoint">startpoint</param>
+        /// <param name="EndPoint">direction point</param>
+        public Axis2D(GeoPoint2D StartPoint, GeoPoint2D EndPoint)
+        {
+            Location = StartPoint;
+            Direction = EndPoint - StartPoint;
+        }
+        /// <summary>
+        /// Creates a new axis from a location and a direction
+        /// </summary>
+        /// <param name="location">location</param>
+        /// <param name="direction">direction</param>
+        public Axis2D(GeoPoint2D location, GeoVector2D direction)
+        {
+            Location = location;
+            Direction = direction;
+        }
+        public Axis2D Normalized
+        {
+            get
+            {
+                return new Axis2D(Location, Direction.Normalized);
+            }
+        }
+        static public Axis2D InvalidAxis
+        {
+            get
+            {
+                return new Axis2D(GeoPoint2D.Invalid, GeoVector2D.NullVector);
+            }
+        }
+        public bool IsValid
+        {
+            get { return Location.IsValid; }
+        }
+        public bool SameGeometry(Axis2D other)
+        {
+            if (Precision.SameDirection(Direction, other.Direction, false))
+            {
+                if (Geometry.DistPL(other.Location, Location, Direction) < Precision.eps) return true;
+            }
+            return false;
+        }
+        public double Distance(GeoPoint2D p)
+        {
+            return Geometry.DistPL(p, Location,Direction);
+        }
+        #region ISerializable Members
+        /// <summary>
+        /// Constructor required by deserialization
+        /// </summary>
+        /// <param name="info">SerializationInfo</param>
+        /// <param name="context">StreamingContext</param>
+        public Axis2D(SerializationInfo info, StreamingContext context)
+        {
+            Location = (GeoPoint2D)info.GetValue("Location", typeof(GeoPoint2D));
+            Direction = (GeoVector2D)info.GetValue("Direction", typeof(GeoVector2D));
+        }
+        /// <summary>
+        /// Implements <see cref="ISerializable.GetObjectData"/>
+        /// </summary>
+        /// <param name="info">The <see cref="System.Runtime.Serialization.SerializationInfo"/> to populate with data.</param>
+        /// <param name="context">The destination (<see cref="System.Runtime.Serialization.StreamingContext"/>) for this serialization.</param>
+        public void GetObjectData(SerializationInfo info, StreamingContext context)
+        {
+            info.AddValue("Location", Location, typeof(GeoPoint2D));
+            info.AddValue("Direction", Direction, typeof(GeoVector2D));
+        }
+        public Axis2D(IJsonReadStruct data)
+        {
+            Location = data.GetValue<GeoPoint2D>();
+            Direction = data.GetValue<GeoVector2D>();
+        }
+        public void GetObjectData(IJsonWriteData data)
+        {
+            data.AddValues(Location, Direction);
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+        }
+
         #endregion
     }
 

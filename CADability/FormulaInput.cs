@@ -1,264 +1,166 @@
 ﻿using CADability;
+using CADability.Curve2D;
+using CADability.GeoObject;
+using CADability.Shapes;
+using MathNet.Numerics;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Reflection;
 
-#region Value wrapper
-
-public enum ValueKind { Scalar, Vector, Point }
-
-public readonly struct Value
-{
-    public ValueKind Kind { get; }
-    public double Scalar { get; }
-    public GeoVector Vector { get; }
-    public GeoPoint Point { get; }
-
-    private Value(ValueKind kind, double scalar, GeoVector vec, GeoPoint pt)
-    {
-        Kind = kind;
-        Scalar = scalar;
-        Vector = vec;
-        Point = pt;
-    }
-
-    public static Value FromScalar(double d) => new Value(ValueKind.Scalar, d, default, default);
-    public static Value FromVector(GeoVector v) => new Value(ValueKind.Vector, 0.0, v, default);
-    public static Value FromPoint(GeoPoint p) => new Value(ValueKind.Point, 0.0, default, p);
-
-    public object ToObject()
-    {
-        return Kind switch
-        {
-            ValueKind.Scalar => (object)Scalar,
-            ValueKind.Vector => (object)Vector,
-            ValueKind.Point => (object)Point,
-            _ => throw new InvalidOperationException()
-        };
-    }
-}
-
-#endregion
 
 #region Geometry helpers (type operations)
 
+class MathStub
+{   // helps with syntax like "Math.PI"
+    public MathStub() { }
+    public double PI => Math.PI;
+    public double E => Math.E;
+    public double Sqrt(double s) => Math.Sqrt(s);
+
+}
 public static class GeometryOps
 {
-    public static Value UnaryMinus(Value v)
+    public static object UnaryMinus(object v)
     {
-        switch (v.Kind)
-        {
-            case ValueKind.Scalar:
-                return Value.FromScalar(-v.Scalar);
-
-            case ValueKind.Vector:
-                return Value.FromVector(new GeoVector(
-                    -v.Vector.x, -v.Vector.y, -v.Vector.z));
-
-            case ValueKind.Point:
-                // Unary '-' for GeoPoint is not defined.
-                throw new InvalidOperationException("Unary '-' für GeoPoint ist nicht definiert.");
-
-            default:
-                throw new InvalidOperationException();
-        }
+        if (v is double d)
+            return -d;
+        if (v is GeoVector vec)
+            return new GeoVector(-vec.x, -vec.y, -vec.z);
+        if (v is GeoVector2D vec2)
+            return new GeoVector2D(-vec2.x, -vec2.y);
+        throw new InvalidOperationException($"Unary '-' is not defined for type {v.GetType()}.");
+    }
+    public static object Add(object a, object b)
+    {
+        if (a is IConvertible && b is IConvertible)
+            return Convert.ToDouble(a) + Convert.ToDouble(b);
+        if (a is double da && b is double db)
+            return da + db;
+        if (a is GeoVector va && b is GeoVector vb)
+            return new GeoVector(va.x + vb.x, va.y + vb.y, va.z + vb.z);
+        if (a is GeoPoint pa && b is GeoVector vbb)
+            return new GeoPoint(pa.x + vbb.x, pa.y + vbb.y, pa.z + vbb.z);
+        if (a is GeoPoint2D pa2 && b is GeoVector2D vb2)
+            return new GeoPoint2D(pa2.x + vb2.x, pa2.y + vb2.y);
+        throw new InvalidOperationException($"Operator '+' is not defined for {a.GetType()} + {b.GetType()}.");
+    }
+    public static object Sub(object a, object b)
+    {
+        if (a is IConvertible && b is IConvertible)
+            return Convert.ToDouble(a) - Convert.ToDouble(b);
+        if (a is GeoVector va && b is GeoVector vb)
+            return new GeoVector(va.x - vb.x, va.y - vb.y, va.z - vb.z);
+        if (a is GeoPoint pa && b is GeoVector vbb)
+            return new GeoPoint(pa.x - vbb.x, pa.y - vbb.y, pa.z - vbb.z);
+        if (a is GeoPoint2D pa2 && b is GeoVector2D vb2)
+            return new GeoPoint2D(pa2.x - vb2.x, pa2.y - vb2.y);
+        if (a is GeoPoint pa1 && b is GeoPoint pb1)
+            return new GeoVector(pa1.x - pb1.x, pa1.y - pb1.y, pa1.z - pb1.z);
+        if (a is GeoPoint2D pa12 && b is GeoPoint2D pb12)
+            return new GeoVector2D(pa12.x - pb12.x, pa12.y - pb12.y);
+        throw new InvalidOperationException($"Operator '-' is not defined for {a.GetType()} - {b.GetType()}.");
+    }
+    public static object Mul(object a, object b)
+    {
+        if (a is IConvertible && b is IConvertible)
+            return Convert.ToDouble(a) * Convert.ToDouble(b);
+        if (a is double da2 && b is GeoVector vb)
+            return new GeoVector(da2 * vb.x, da2 * vb.y, da2 * vb.z);
+        if (a is double da22 && b is GeoVector2D vb2)
+            return new GeoVector2D(da22 * vb2.x, da22 * vb2.y);
+        if (a is GeoVector va && b is double db2)
+            return new GeoVector(db2 * va.x, db2 * va.y, db2 * va.z);
+        if (a is GeoVector2D va2 && b is double db22)
+            return new GeoVector2D(db22 * va2.x, db22 * va2.y);
+        if (a is GeoVector va3 && b is GeoVector vb3)
+            return va3.x * vb3.x + va3.y * vb3.y + va3.z * vb3.z;
+        throw new InvalidOperationException($"Operator '*' is not defined for {a.GetType()} * {b.GetType()}.");
+    }
+    public static object Div(object a, object b)
+    {
+        if (a is IConvertible && b is IConvertible)
+            return Convert.ToDouble(a) / Convert.ToDouble(b);
+        if (a is GeoVector va && b is double db2)
+            return new GeoVector(va.x / db2, va.y / db2, va.z / db2);
+        if (a is GeoVector2D va2 && b is double db22)
+            return new GeoVector2D(va2.x / db22, va2.y / db22);
+        throw new InvalidOperationException($"Operator '/' is not defined for {a.GetType()} * {b.GetType()}.");
+    }
+    public static object Pow(object a, object b)
+    {
+        if (a is IConvertible && b is IConvertible)
+            return Math.Pow(Convert.ToDouble(a), Convert.ToDouble(b));
+        throw new InvalidOperationException($"Function 'pow' is not defined for {a.GetType()} * {b.GetType()}.");
+    }
+    public static object Cross(object a, object b)
+    {
+        if (a is GeoVector va && b is GeoVector vb)
+            return new GeoVector(
+                va.y * vb.z - va.z * vb.y,
+                va.z * vb.x - va.x * vb.z,
+                va.x * vb.y - va.y * vb.x);
+        if (a is IConvertible && b is IConvertible)
+            return Math.Pow(Convert.ToDouble(a), Convert.ToDouble(b));
+        throw new InvalidOperationException($"Operator '^' is only defined for GeoVector ^ GeoVector or double ^ double.");
     }
 
-    public static Value Add(Value a, Value b)
+    public static object Distance(object a, object b)
     {
-        // p + v -> p
-        if (a.Kind == ValueKind.Point && b.Kind == ValueKind.Vector)
-        {
-            return Value.FromPoint(new GeoPoint(
-                a.Point.x + b.Vector.x,
-                a.Point.y + b.Vector.y,
-                a.Point.z + b.Vector.z));
-        }
-
-        // v + v -> v
-        if (a.Kind == ValueKind.Vector && b.Kind == ValueKind.Vector)
-        {
-            return Value.FromVector(new GeoVector(
-                a.Vector.x + b.Vector.x,
-                a.Vector.y + b.Vector.y,
-                a.Vector.z + b.Vector.z));
-        }
-
-        // scalar + scalar -> scalar
-        if (a.Kind == ValueKind.Scalar && b.Kind == ValueKind.Scalar)
-        {
-            return Value.FromScalar(a.Scalar + b.Scalar);
-        }
-
-        // Operator '+' is not defined for {a.Kind} + {b.Kind}.
-        throw new InvalidOperationException($"Operator '+' ist nicht definiert für {a.Kind} + {b.Kind}.");
+        if (a is GeoPoint pa && b is GeoPoint pb) return pa | pb;
+        if (a is GeoPoint2D pa2 && b is GeoPoint2D pb2) return pa2 | pb2;
+        throw new InvalidOperationException($"Distance is only defined for GeoPoint and GeoPoint2D");
+    }
+    public static object Normalize(object v)
+    {
+        if (v is GeoVector gv) return gv.Normalized;
+        if (v is GeoVector2D gv2) return gv2.Normalized;
+        throw new InvalidOperationException("Normalize is only defined for vectors.");
     }
 
-    public static Value Sub(Value a, Value b)
+    public static object FuncSin(object x)
     {
-        // p - v -> p
-        if (a.Kind == ValueKind.Point && b.Kind == ValueKind.Vector)
-        {
-            return Value.FromPoint(new GeoPoint(
-                a.Point.x - b.Vector.x,
-                a.Point.y - b.Vector.y,
-                a.Point.z - b.Vector.z));
-        }
-
-        // p2 - p1 -> v
-        if (a.Kind == ValueKind.Point && b.Kind == ValueKind.Point)
-        {
-            return Value.FromVector(new GeoVector(
-                a.Point.x - b.Point.x,
-                a.Point.y - b.Point.y,
-                a.Point.z - b.Point.z));
-        }
-
-        // v - v -> v
-        if (a.Kind == ValueKind.Vector && b.Kind == ValueKind.Vector)
-        {
-            return Value.FromVector(new GeoVector(
-                a.Vector.x - b.Vector.x,
-                a.Vector.y - b.Vector.y,
-                a.Vector.z - b.Vector.z));
-        }
-
-        // scalar - scalar -> scalar
-        if (a.Kind == ValueKind.Scalar && b.Kind == ValueKind.Scalar)
-        {
-            return Value.FromScalar(a.Scalar - b.Scalar);
-        }
-
-        // Operator '-' is not defined for {a.Kind} - {b.Kind}.
-        throw new InvalidOperationException($"Operator '-' ist nicht definiert für {a.Kind} - {b.Kind}.");
+        if (x is double d) return Math.Sin(d);
+        throw new InvalidOperationException("sin(x): x must be a scalar.");
+    }
+    public static object FuncCos(object x)
+    {
+        if (x is double d) return Math.Cos(d);
+        throw new InvalidOperationException("cos(x): x must be a scalar.");
+    }
+    public static object FuncTan(object x)
+    {
+        if (x is double d) return Math.Tan(d);
+        throw new InvalidOperationException("tan(x): x must be a scalar.");
+    }
+    public static object FuncAtan(object x)
+    {
+        if (x is double d) return Math.Atan(d);
+        throw new InvalidOperationException("atan(x): x must be a scalar.");
+    }
+    public static object FuncAtan2(object x, object y)
+    {
+        if (x is double d && y is double f) return Math.Atan2(f, d);
+        throw new InvalidOperationException("atan2(y, x): x and y must be scalar.");
+    }
+    public static object FuncSqrt(object x)
+    {
+        if (x is IConvertible) return Math.Sqrt(Convert.ToDouble(x));
+        throw new InvalidOperationException("sqrt(x): x must be a scalar.");
     }
 
-    public static Value Mul(Value a, Value b)
+    public static object FuncAbs(object x)
     {
-        // d * v -> v
-        if (a.Kind == ValueKind.Scalar && b.Kind == ValueKind.Vector)
-        {
-            return Value.FromVector(new GeoVector(
-                a.Scalar * b.Vector.x,
-                a.Scalar * b.Vector.y,
-                a.Scalar * b.Vector.z));
-        }
-
-        // v * d -> v (symmetric is nice)
-        if (a.Kind == ValueKind.Vector && b.Kind == ValueKind.Scalar)
-        {
-            return Value.FromVector(new GeoVector(
-                b.Scalar * a.Vector.x,
-                b.Scalar * a.Vector.y,
-                b.Scalar * a.Vector.z));
-        }
-
-        // v * v -> scalar (dot product)
-        if (a.Kind == ValueKind.Vector && b.Kind == ValueKind.Vector)
-        {
-            double dot = a.Vector.x * b.Vector.x +
-                         a.Vector.y * b.Vector.y +
-                         a.Vector.z * b.Vector.z;
-            return Value.FromScalar(dot);
-        }
-
-        // scalar * scalar -> scalar
-        if (a.Kind == ValueKind.Scalar && b.Kind == ValueKind.Scalar)
-        {
-            return Value.FromScalar(a.Scalar * b.Scalar);
-        }
-
-        // Operator '*' is not defined for {a.Kind} * {b.Kind}.
-        throw new InvalidOperationException($"Operator '*' ist nicht definiert für {a.Kind} * {b.Kind}.");
+        if (x is IConvertible) return Math.Abs(Convert.ToDouble(x));
+        throw new InvalidOperationException("abs(x): x must be a scalar.");
     }
 
-    public static Value Div(Value a, Value b)
+    public static object FuncLen(object x)
     {
-
-        // v / d -> v (dividing a vector)
-        if (a.Kind == ValueKind.Vector && b.Kind == ValueKind.Scalar)
-        {
-            return Value.FromVector(new GeoVector(
-                a.Vector.x / b.Scalar,
-                a.Vector.y / b.Scalar,
-                a.Vector.z / b.Scalar));
-        }
-
-        // scalar * scalar -> scalar
-        if (a.Kind == ValueKind.Scalar && b.Kind == ValueKind.Scalar)
-        {
-            return Value.FromScalar(a.Scalar / b.Scalar);
-        }
-
-        // Operator '/' is not defined for {a.Kind} * {b.Kind}.
-        throw new InvalidOperationException($"Operator '/' ist nicht definiert für {a.Kind} * {b.Kind}.");
-    }
-    public static Value Cross(Value a, Value b)
-    {
-        // v ^ v -> v (cross product)
-        if (a.Kind == ValueKind.Vector && b.Kind == ValueKind.Vector)
-        {
-            return Value.FromVector(new GeoVector(
-                a.Vector.y * b.Vector.z - a.Vector.z * b.Vector.y,
-                a.Vector.z * b.Vector.x - a.Vector.x * b.Vector.z,
-                a.Vector.x * b.Vector.y - a.Vector.y * b.Vector.x));
-        }
-
-        // Operator '^' is only defined for GeoVector ^ GeoVector.
-        throw new InvalidOperationException($"Operator '^' ist nur für GeoVector ^ GeoVector definiert.");
-    }
-
-    public static Value Distance(Value a, Value b)
-    {
-        // p | p -> scalar (distance)
-        if (a.Kind == ValueKind.Point && b.Kind == ValueKind.Point)
-        {
-            double dx = a.Point.x - b.Point.x;
-            double dy = a.Point.y - b.Point.y;
-            double dz = a.Point.z - b.Point.z;
-            double dist = Math.Sqrt(dx * dx + dy * dy + dz * dz);
-            return Value.FromScalar(dist);
-        }
-
-        // Operator '|' is only defined for GeoPoint | GeoPoint.
-        throw new InvalidOperationException($"Operator '|' ist nur für GeoPoint | GeoPoint definiert.");
-    }
-
-    // Funktionen
-    public static Value FuncSin(Value x)
-    {
-        if (x.Kind != ValueKind.Scalar)
-            // sin(x): x must be a scalar.
-            throw new InvalidOperationException("sin(x): x muss ein Skalar sein.");
-        return Value.FromScalar(Math.Sin(x.Scalar));
-    }
-
-    public static Value FuncSqrt(Value x)
-    {
-        if (x.Kind != ValueKind.Scalar)
-            // sqrt(x): x must be a scalar.
-            throw new InvalidOperationException("sqrt(x): x muss ein Skalar sein.");
-        return Value.FromScalar(Math.Sqrt(x.Scalar));
-    }
-
-    public static Value FuncAbs(Value x)
-    {
-        if (x.Kind != ValueKind.Scalar)
-            // abs(x): x must be a scalar.
-            throw new InvalidOperationException("abs(x): x muss ein Skalar sein.");
-        return Value.FromScalar(Math.Abs(x.Scalar));
-    }
-
-    public static Value FuncLen(Value x)
-    {
-        if (x.Kind != ValueKind.Vector)
-            // len(v): v must be a vector.
-            throw new InvalidOperationException("len(v): v muss ein Vektor sein.");
-        double l = Math.Sqrt(
-            x.Vector.x * x.Vector.x +
-            x.Vector.y * x.Vector.y +
-            x.Vector.z * x.Vector.z);
-        return Value.FromScalar(l);
+        if (x is GeoVector gv) return gv.Length;
+        if (x is GeoVector2D gv2) return gv2.Length;
+        throw new InvalidOperationException("len(v): v must be a vector.");
     }
 }
 
@@ -268,11 +170,14 @@ public static class GeometryOps
 
 public enum TokenType
 {
-    Number,
+    Number, String,
     Identifier,
     Plus, Minus, Star, Slash, Caret, Pipe,
     LParen, RParen,
-    Comma, // für evtl. mehrargumentige Funktionen in Zukunft
+    Comma,
+    Dot,
+    Equal, GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual,
+    And, Or, Not, NotEqual,
 }
 
 public readonly struct Token
@@ -334,6 +239,19 @@ public static class Lexer
                 tokens.Add(new Token(TokenType.Identifier, identText));
                 continue;
             }
+            if (c == '"')
+            {
+                int start = i;
+                i++;
+                while (i < expr.Length && expr[i] != '"')
+                {
+                    i++;
+                }
+                string stringText = expr.Substring(start + 1, i - start);
+                ++i;
+                tokens.Add(new Token(TokenType.String, stringText));
+                continue;
+            }
 
             // Single-char operators / parentheses / comma
             switch (c)
@@ -343,14 +261,33 @@ public static class Lexer
                 case '*': tokens.Add(new Token(TokenType.Star, "*")); i++; continue;
                 case '/': tokens.Add(new Token(TokenType.Slash, "/")); i++; continue;
                 case '^': tokens.Add(new Token(TokenType.Caret, "^")); i++; continue;
-                case '|': tokens.Add(new Token(TokenType.Pipe, "|")); i++; continue;
+                case '|':
+                    if (expr[i + 1] == '|') { tokens.Add(new Token(TokenType.Or, "||")); i += 2; continue; }
+                    else tokens.Add(new Token(TokenType.Pipe, "|")); i++; continue;
                 case '(': tokens.Add(new Token(TokenType.LParen, "(")); i++; continue;
                 case ')': tokens.Add(new Token(TokenType.RParen, ")")); i++; continue;
                 case ',': tokens.Add(new Token(TokenType.Comma, ",")); i++; continue;
+                case '.': tokens.Add(new Token(TokenType.Dot, ",")); i++; continue;
+                case '<':
+                    if (expr[i + 1] == '=') { tokens.Add(new Token(TokenType.LessThanOrEqual, ",")); i += 2; continue; }
+                    else tokens.Add(new Token(TokenType.LessThan, "<")); i++; continue;
+                case '>':
+                    if (expr[i + 1] == '=') { tokens.Add(new Token(TokenType.GreaterThanOrEqual, ",")); i += 2; continue; }
+                    else tokens.Add(new Token(TokenType.GreaterThan, ">")); i++; continue;
+                case '=':
+                    if (expr[i + 1] == '=') { tokens.Add(new Token(TokenType.Equal, "==")); i += 2; continue; }
+                    break;
+                case '&':
+                    if (expr[i + 1] == '&') { tokens.Add(new Token(TokenType.And, "&&")); i += 2; continue; }
+                    break;
+                case '!':
+                    if (expr[i + 1] == '=') { tokens.Add(new Token(TokenType.NotEqual, "!=")); i += 2; continue; }
+                    else tokens.Add(new Token(TokenType.Not, ",")); i++; continue;
+
             }
 
             // Unexpected character '{c}' at position {i}.
-            throw new Exception($"Unerwartetes Zeichen '{c}' an Position {i}.");
+            throw new Exception($"Unexpected character '{c}' at position {i}.");
         }
 
         return tokens;
@@ -378,19 +315,30 @@ public static class Parser
     // + and -  : 1
     private static readonly Dictionary<TokenType, OpInfo> BinaryOps = new Dictionary<TokenType, OpInfo>
     {
+        { TokenType.Dot, new OpInfo { Prec = 4, Assoc = Assoc.Right, Symbol="." } },
         { TokenType.Caret, new OpInfo { Prec = 3, Assoc = Assoc.Left, Symbol="^" } },
         { TokenType.Star,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="*" } },
         { TokenType.Slash,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="/" } },
         { TokenType.Pipe,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="|" } },
         { TokenType.Plus,  new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol="+" } },
         { TokenType.Minus, new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol="-" } },
-    };
+        { TokenType.Equal, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol="==" } },
+        { TokenType.GreaterThan, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol=">" } },
+        { TokenType.GreaterThanOrEqual, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = ">=" } },
+        { TokenType.LessThan, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "<" } },
+        { TokenType.LessThanOrEqual,new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "<=" } },
+        { TokenType.And, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "&&" } },
+        { TokenType.Or, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "||" } },
+        { TokenType.Not, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "!" } },
+        { TokenType.NotEqual,new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "!=" } },
+};
 
     // Stack-Eintrag für eine offene Funktion: Name + wie viele Argumente bisher gezählt
     private class OpenFunctionInfo
     {
         public string Name;
         public int ArgCount;
+        public bool IsObjectMehtod;
     }
 
     public static List<object> ToRpn(List<Token> tokens)
@@ -400,6 +348,7 @@ public static class Parser
         var funcStack = new Stack<OpenFunctionInfo>();
 
         bool expectUnary = true;
+        Stack<bool> paranIsFunc = new Stack<bool>();
 
         for (int i = 0; i < tokens.Count; i++)
         {
@@ -414,25 +363,45 @@ public static class Parser
                 case TokenType.Identifier:
                     {
                         bool isFunction = (i + 1 < tokens.Count && tokens[i + 1].Type == TokenType.LParen);
-
-                        if (isFunction)
+                        bool isProperty = (i > 0 && tokens[i - 1].Type == TokenType.Dot);
+                        if (isProperty)
                         {
-                            // Wir legen uns die Funktion erstmal im Output ab als Marker,
-                            // und merken sie uns parallel auf funcStack, sobald die '(' kommt.
+                            // Wir erlauben auch "p1.x" als Zugriff auf Eigenschaften von Punkten/Vektoren.
+                            // In diesem Fall ist "p1" die Variable, und "x" die Eigenschaft.
+                            // Wir markieren das im Output entsprechend, damit der Evaluator das später weiß.
                             output.Add(new FunctionOrVariableMarker
                             {
                                 Name = t.Text,
-                                IsFunction = true
+                                IsFunction = isFunction, // a method of the property? not implemented yet
+                                IsProperty = true
                             });
+                            if (opStack.Peek() is Token tt && tt.Type == TokenType.Dot)
+                            {   // we need to add the dot here because of chains of properties a.x.y to apper in the correct order.
+                                output.Add(opStack.Pop());
+                            }
+                            expectUnary = false; // nach "p1.x" kommt ja kein '(' mehr, sondern vielleicht ein Operator oder Ende
                         }
                         else
                         {
-                            // Variable
-                            output.Add(new FunctionOrVariableMarker
+                            if (isFunction)
                             {
-                                Name = t.Text,
-                                IsFunction = false
-                            });
+                                // Wir legen uns die Funktion erstmal im Output ab als Marker,
+                                // und merken sie uns parallel auf funcStack, sobald die '(' kommt.
+                                output.Add(new FunctionOrVariableMarker
+                                {
+                                    Name = t.Text,
+                                    IsFunction = true
+                                });
+                            }
+                            else
+                            {
+                                // Variable
+                                output.Add(new FunctionOrVariableMarker
+                                {
+                                    Name = t.Text,
+                                    IsFunction = false
+                                });
+                            }
                         }
 
                         expectUnary = isFunction; // nach Funktionsnamen kommt '(' -> noch kein fertiger Operand
@@ -444,16 +413,26 @@ public static class Parser
                         // Prüfen, ob das '(' zu einer gerade gesehenen Funktions-ID gehört:
                         // Das ist der Fall, wenn der letzte Output-Eintrag ein FunctionOrVariableMarker mit IsFunction==true ist,
                         // und wir haben noch keinen OpenFunctionInfo dafür erzeugt.
-                        bool isFuncCall = false;
-                        if (output.Count > 0 && output[output.Count - 1] is FunctionOrVariableMarker m && m.IsFunction)
+                        bool isFunction = (i > 0 && tokens[i - 1].Type == TokenType.Identifier);
+                        FunctionOrVariableMarker? function = null;
+                        if (output.Count > 1 && output[output.Count - 1] is Token tk && tk.Type == TokenType.Dot && output[output.Count - 2] is FunctionOrVariableMarker m && m.IsFunction) function = m; // .func(x)
+                        else
+                            if (isFunction && output.Count > 0 && output[output.Count - 1] is FunctionOrVariableMarker m1 && m1.IsFunction) function = m1;
+                        if (function.HasValue)
                         {
                             // Neue offene Funktion
                             funcStack.Push(new OpenFunctionInfo
                             {
-                                Name = m.Name,
-                                ArgCount = 1 // sobald wir in Klammern sind, erwarten wir mindestens 1 Argument
+                                Name = function.Value.Name,
+                                ArgCount = 1, // sobald wir in Klammern sind, erwarten wir mindestens 1 Argument
+                                IsObjectMehtod = function.Value.IsProperty // there was a dot left of the name
                             });
-                            isFuncCall = true;
+                            if (function.Value.IsProperty && opStack.Peek() is Token ptk && ptk.Type==TokenType.Dot) opStack.Pop(); // pop the dot operand, because it is not needed after the function call
+                            paranIsFunc.Push(true);
+                        }
+                        else
+                        {
+                            paranIsFunc.Push(false);
                         }
 
                         // Push '(' auf den Operator-Stack
@@ -480,7 +459,7 @@ public static class Parser
                             output.Add(obj);
                         }
                         if (!foundLParen)
-                            throw new Exception("Fehlende '('.");
+                            throw new Exception("Missing '('.");
 
                         // Jetzt prüfen: War das eine Funktion?
                         // Falls ja, holen wir die Funktionsinfo und erzeugen FunctionCallMarker
@@ -492,8 +471,8 @@ public static class Parser
                             // Wir lösen das so: wenn direkt "func(" dann ")" ohne Arg -> ArgCount=0
                             // Das erkennen wir aber nur über funcStack.
                         }
-
-                        if (funcStack.Count > 0)
+                        bool isFunc = paranIsFunc.Pop();
+                        if (funcStack.Count > 0 && isFunc)
                         {
                             // Aber Achtung: Wir wissen NICHT sicher, ob dieses ')' wirklich zu der obersten Funktion gehört
                             // oder nur eine normale Klammer war. Das sehen wir so:
@@ -514,16 +493,32 @@ public static class Parser
                             {
                                 // Dann committen wir den Funktionscall:
                                 funcStack.Pop();
+                                fm = (FunctionOrVariableMarker)output[idx];
 
                                 // Entferne den Marker aus output
-                                output.RemoveAt(idx);
-
-                                // Erzeuge Call-Marker mit ArgCount:
-                                output.Add(new FunctionCallMarker
+                                if (fm.IsProperty)
                                 {
-                                    Name = topFunc.Name,
-                                    ArgCount = topFunc.ArgCount
-                                });
+                                    // this is a function call where the function is already on the stack
+                                    // since the funtion is a method of an object
+                                    output.Add(new FunctionCallMarker
+                                    {
+                                        Name = topFunc.Name,
+                                        ArgCount = topFunc.ArgCount,
+                                        IsObjectMember = fm.IsProperty // a dot left of the name
+                                    });
+                                }
+                                else
+                                {
+                                    output.RemoveAt(idx);
+
+                                    // Erzeuge Call-Marker mit ArgCount:
+                                    output.Add(new FunctionCallMarker
+                                    {
+                                        Name = topFunc.Name,
+                                        ArgCount = topFunc.ArgCount,
+                                        IsObjectMember = fm.IsProperty // a dot left of the name
+                                    });
+                                }
                             }
                             // Sonst: war wohl doch nur eine normale Klammergruppe, also keine Funktion.
                         }
@@ -547,16 +542,21 @@ public static class Parser
                             output.Add(opStack.Pop());
                         }
                         if (!hitParen)
-                            throw new Exception("Unerwartetes ',' außerhalb eines Funktionsaufrufs?");
+                            throw new Exception("Unexpected ',' outside of a function call?");
 
                         // Erhöhe ArgCount der aktuellen Funktion
                         if (funcStack.Count == 0)
-                            throw new Exception("',' gefunden, aber keine offene Funktion.");
+                            throw new Exception("',' found, but no open function.");
 
                         funcStack.Peek().ArgCount++;
 
                         // Nach Komma erwarten wir wieder einen neuen Operand
                         expectUnary = true;
+                    }
+                    break;
+                case TokenType.Dot:
+                    {
+                        opStack.Push(t);
                     }
                     break;
 
@@ -566,10 +566,28 @@ public static class Parser
                 case TokenType.Slash:
                 case TokenType.Caret:
                 case TokenType.Pipe:
+                case TokenType.Equal:
+                case TokenType.GreaterThan:
+                case TokenType.GreaterThanOrEqual:
+                case TokenType.LessThan:
+                case TokenType.LessThanOrEqual:
+                case TokenType.And:
+                case TokenType.Or:
+                case TokenType.NotEqual:
                     {
-                        if (expectUnary && t.Type == TokenType.Minus)
+                        if (expectUnary && t.Type == TokenType.Not)
+                        {
+                            opStack.Push(new UnaryNotMarker());
+                            // expectUnary bleibt true (wir erwarten weiter Operand)
+                        }
+                        else if (expectUnary && t.Type == TokenType.Minus)
                         {
                             opStack.Push(new UnaryMinusMarker());
+                            // expectUnary bleibt true (wir erwarten weiter Operand)
+                        }
+                        else if (expectUnary && t.Type == TokenType.Plus)
+                        {
+                            opStack.Push(new UnaryPlusMarker());
                             // expectUnary bleibt true (wir erwarten weiter Operand)
                         }
                         else
@@ -579,6 +597,16 @@ public static class Parser
                             while (opStack.Count > 0)
                             {
                                 if (opStack.Peek() is UnaryMinusMarker)
+                                {
+                                    output.Add(opStack.Pop());
+                                    continue;
+                                }
+                                if (opStack.Peek() is UnaryNotMarker)
+                                {
+                                    output.Add(opStack.Pop());
+                                    continue;
+                                }
+                                if (opStack.Peek() is UnaryPlusMarker)
                                 {
                                     output.Add(opStack.Pop());
                                     continue;
@@ -606,7 +634,7 @@ public static class Parser
                     break;
 
                 default:
-                    throw new Exception($"Unerwartetes Token {t} im Parser.");
+                    throw new Exception($"Unexpected token {t} in parser.");
             }
         }
 
@@ -617,14 +645,14 @@ public static class Parser
             if (obj is Token tok2 &&
                 (tok2.Type == TokenType.LParen || tok2.Type == TokenType.RParen))
             {
-                throw new Exception("Klammern unausgeglichen.");
+                throw new Exception("Mismatched parentheses.");
             }
             output.Add(obj);
         }
 
         if (funcStack.Count > 0)
         {
-            throw new Exception("Fehlende ')' bei Funktionsaufruf.");
+            throw new Exception("Missing ')' in function call.");
         }
 
         return output;
@@ -649,20 +677,25 @@ internal struct FunctionOrVariableMarker
 {
     public string Name;
     public bool IsFunction; // true = "sin(...)", false = "p1"
+    public bool IsProperty;
 }
 
 internal struct FunctionCallMarker
 {
     public string Name;
     public int ArgCount;
-    public FunctionCallMarker(string name, int argCount)
+    public bool IsObjectMember;
+    public FunctionCallMarker(string name, int argCount, bool isObjectMember = false)
     {
         Name = name;
+        IsObjectMember = isObjectMember;
         ArgCount = argCount;
     }
 }
 
 internal struct UnaryMinusMarker { }
+internal struct UnaryNotMarker { }
+internal struct UnaryPlusMarker { }
 
 #endregion
 
@@ -670,6 +703,80 @@ internal struct UnaryMinusMarker { }
 
 public static class Evaluator
 {
+    static bool TryCoerceArg(object? arg, ParameterInfo p, out object? coerced)
+    {
+        coerced = arg;
+
+        // ref/out: ParameterType ist z.B. Double& -> ElementType ist Double
+        var pt = p.ParameterType;
+        var targetType = pt.IsByRef ? pt.GetElementType()! : pt;
+
+        // null-Handling
+        if (arg is null)
+        {
+            // null ist ok bei Referenztypen oder Nullable<T>
+            if (!targetType.IsValueType || Nullable.GetUnderlyingType(targetType) != null)
+                return true;
+
+            return false;
+        }
+
+        // Schon passend?
+        if (targetType.IsInstanceOfType(arg))
+            return true;
+
+        // Nullable<T> behandeln
+        var nonNullTarget = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        try
+        {
+            // Enum: z.B. "Red" oder 1
+            if (nonNullTarget.IsEnum)
+            {
+                if (arg is string s)
+                {
+                    coerced = Enum.Parse(nonNullTarget, s, ignoreCase: true);
+                    return true;
+                }
+                coerced = Enum.ToObject(nonNullTarget, Convert.ChangeType(arg, Enum.GetUnderlyingType(nonNullTarget), CultureInfo.InvariantCulture)!);
+                return true;
+            }
+
+            // string -> Guid
+            if (nonNullTarget == typeof(Guid) && arg is string gs)
+            {
+                if (Guid.TryParse(gs, out var g))
+                {
+                    coerced = g;
+                    return true;
+                }
+                return false;
+            }
+
+            // IConvertible-Konvertierung (Zahlen, bool, DateTime je nach Eingabe)
+            if (arg is IConvertible && typeof(IConvertible).IsAssignableFrom(nonNullTarget))
+            {
+                coerced = Convert.ChangeType(arg, nonNullTarget, CultureInfo.InvariantCulture);
+                return true;
+            }
+        }
+        catch
+        {
+            // Konvertierung fehlgeschlagen -> passt nicht
+        }
+
+        return false;
+    }
+    private class ObjectMethodPair
+    {
+        public MethodInfo method;
+        public object obj;
+        public ObjectMethodPair(MethodInfo method, object obj)
+        {
+            this.method = method;
+            this.obj = obj;
+        }
+    }
     public static object Evaluate(string expr, Dictionary<string, object> namedValues)
     {
         try
@@ -677,7 +784,7 @@ public static class Evaluator
             var tokens = Lexer.Tokenize(expr);
             var rpn = Parser.ToRpn(tokens);
 
-            var stack = new Stack<Value>();
+            var stack = new Stack<object>();
 
             foreach (var item in rpn)
             {
@@ -687,24 +794,103 @@ public static class Evaluator
                         {
                             // double mit invariant culture
                             double d = double.Parse(t.Text, CultureInfo.InvariantCulture);
-                            stack.Push(Value.FromScalar(d));
+                            stack.Push(d);
                             break;
                         }
+                    case Token t when t.Type == TokenType.Dot:
+                        {
+                            if (stack.Count < 2)
+                                throw new Exception("Too few operands for binary operator.");
+
+                            object b = stack.Pop(); // the property name
+                            object a = stack.Pop(); // the object with the property
+                            if (!(b is string bs))
+                                throw new Exception("Expected property name as string on the right side of '.' operator.");
+                            object aa = a;
+                            if (a is IEnumerable<object> seq && seq.Count()==1)
+                            {   // MCP Server makes no difference between a List<T> of a single object and
+                                // the object itself, when the list only contains a single object
+                                aa = seq.First();
+                            }
+                            
+                            PropertyInfo pi = aa.GetType().GetProperty(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                            if (pi != null)
+                            {
+                                object propValue = pi.GetValue(aa);
+                                stack.Push(propValue);
+                                break;
+                            }
+                            FieldInfo fi = aa.GetType().GetField(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                            if (fi != null)
+                            {
+                                object f = fi.GetValue(aa);
+                                stack.Push(f);
+                                break;
+                            }
+                            // GetMethod must also be implemented, what about number and type of parameters?
+                            MethodInfo[] methods = aa.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                            bool found = false;
+                            for (int i = 0; i < methods.Length; i++)
+                            {
+                                if (methods[i].Name.Equals(bs, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    stack.Push(new ObjectMethodPair(methods[i], aa)); // target object and method
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (found) break;
+
+                            // for List<T> we want to accept a few properties here
+                            if (a is IEnumerable<object> seqa)
+                            {
+                                if (bs.Equals("count",StringComparison.OrdinalIgnoreCase))
+                                {
+                                    stack.Push(seqa.Count()); 
+                                    break;
+                                } if (bs.Equals("bounds"))
+                                {
+                                    BoundingRect br = BoundingRect.EmptyBoundingRect;
+                                    BoundingBox bc = BoundingBox.EmptyBoundingBox;
+                                    foreach (object obj in seqa)
+                                    {
+                                        if (obj is CompoundShape cs) br.MinMax(cs.GetExtent());
+                                        else if (obj is ICurve2D c2) br.MinMax(c2.GetExtent());
+                                        else if (obj is IGeoObject go) bc.MinMax(go.GetExtent(0.0));
+                                    }
+                                    if (!br.IsEmpty()) { stack.Push(br); break; }
+                                    else if (!bc.IsEmpty) { stack.Push(bc); break; }
+                                }
+                            }
+                            // Property '{b}' not found on type {a.GetType()}.
+                            throw new Exception($"Property '{b}' not found on type {a.GetType()}.");
+
+                        }
+                        break;
 
                     case Token t when t.Type == TokenType.Plus ||
                                        t.Type == TokenType.Minus ||
                                        t.Type == TokenType.Star ||
-                                       t.Type == TokenType.Slash||
+                                       t.Type == TokenType.Slash ||
                                        t.Type == TokenType.Caret ||
-                                       t.Type == TokenType.Pipe:
+                                       t.Type == TokenType.Pipe ||
+                                        t.Type == TokenType.Equal ||
+                                        t.Type == TokenType.GreaterThan ||
+                                        t.Type == TokenType.GreaterThanOrEqual ||
+                                        t.Type == TokenType.LessThan ||
+                                        t.Type == TokenType.LessThanOrEqual ||
+                                        t.Type == TokenType.And ||
+                                         t.Type == TokenType.Or ||
+                                        t.Type == TokenType.Not ||
+                                        t.Type == TokenType.NotEqual:
                         {
                             if (stack.Count < 2)
-                                throw new Exception("Zu wenige Operanden für binären Operator.");
+                                throw new Exception("Too few operands for binary operator.");
 
-                            Value b = stack.Pop();
-                            Value a = stack.Pop();
+                            object b = stack.Pop();
+                            object a = stack.Pop();
 
-                            Value res;
+                            object res;
                             switch (t.Type)
                             {
                                 case TokenType.Plus:
@@ -725,8 +911,50 @@ public static class Evaluator
                                 case TokenType.Pipe:
                                     res = GeometryOps.Distance(a, b);
                                     break;
+                                case TokenType.Equal:
+                                    res = a.Equals(b);
+                                    break;
+                                case TokenType.GreaterThan:
+                                    {
+                                        res = false;
+                                        if (a is double aa && b is double bb) res = aa > bb;
+                                    }
+                                    break;
+                                case TokenType.GreaterThanOrEqual:
+                                    {
+                                        res = false;
+                                        if (a is double aa && b is double bb) res = aa >= bb;
+                                    }
+                                    break;
+                                case TokenType.LessThan:
+                                    {
+                                        res = false;
+                                        if (a is double aa && b is double bb) res = aa < bb;
+                                    }
+                                    break;
+                                case TokenType.LessThanOrEqual:
+                                    {
+                                        res = false;
+                                        if (a is double aa && b is double bb) res = aa <= bb;
+                                    }
+                                    break;
+                                case TokenType.And:
+                                    {
+                                        res = false;
+                                        if (a is bool aa && b is bool bb) res = aa && bb;
+                                    }
+                                    break;
+                                case TokenType.Or:
+                                    {
+                                        res = false;
+                                        if (a is bool aa && b is bool bb) res = aa || bb;
+                                    }
+                                    break;
+                                case TokenType.NotEqual:
+                                    res = !a.Equals(b);
+                                    break;
                                 default:
-                                    throw new Exception("Unerwarteter Operator.");
+                                    throw new Exception("Unexpected operator.");
                             }
 
                             stack.Push(res);
@@ -736,30 +964,57 @@ public static class Evaluator
                     case UnaryMinusMarker _:
                         {
                             if (stack.Count < 1)
-                                throw new Exception("Zu wenige Operanden für unary '-'.");
+                                throw new Exception("Too few operands for unary '-'.");
                             var v = stack.Pop();
                             stack.Push(GeometryOps.UnaryMinus(v));
                             break;
                         }
-
+                    case UnaryPlusMarker _:
+                        {
+                            if (stack.Count < 1)
+                                throw new Exception("Too few operands for unary '-'.");
+                            // stack remains unchanged
+                            break;
+                        }
+                    case UnaryNotMarker _:
+                        {
+                            if (stack.Count < 1)
+                                throw new Exception("Too few operands for unary '-'.");
+                            var v = stack.Pop();
+                            stack.Push(!(bool)(v));
+                            break;
+                        }
                     case FunctionOrVariableMarker marker:
                         {
-                            if (marker.IsFunction)
+                            if (marker.IsProperty)
                             {
-                                // Funktionsaufruf wird nicht hier,
-                                // sondern durch FunctionCallMarker behandelt.
-                                // Hier machen wir NICHTS, denn der echte Call
-                                // kommt später.
-                                // ABER: für ein nacktes "sin" ohne () wäre das falsch,
-                                // aber so etwas wollen wir eh nicht erlauben.
+                                stack.Push(marker.Name);
                             }
                             else
                             {
-                                // Variable
-                                if (!namedValues.TryGetValue(marker.Name, out object obj))
-                                    throw new Exception($"Unbekannter Name '{marker.Name}'.");
+                                if (marker.IsFunction)
+                                {
+                                    // Funktionsaufruf wird nicht hier,
+                                    // sondern durch FunctionCallMarker behandelt.
+                                    // Hier machen wir NICHTS, denn der echte Call
+                                    // kommt später.
+                                    // ABER: für ein nacktes "sin" ohne () wäre das falsch,
+                                    // aber so etwas wollen wir eh nicht erlauben.
+                                }
+                                else
+                                {
+                                    // Variable
+                                    if (namedValues.TryGetValue(marker.Name, out object obj))
+                                    {
+                                        stack.Push(obj);
+                                    }
+                                    else if (marker.Name == "Math")
+                                    {
+                                        stack.Push(new MathStub());
+                                    }
+                                    else throw new Exception($"Unknown name '{marker.Name}'.");
 
-                                stack.Push(ObjectToValue(obj, marker.Name));
+                                }
                             }
                             break;
                         }
@@ -768,10 +1023,10 @@ public static class Evaluator
                         {
                             if (stack.Count < call.ArgCount)
                                 throw new Exception(
-                                    $"Funktion {call.Name} erwartet {call.ArgCount} Argument(e), aber es sind nur {stack.Count} da.");
+                                    $"Function {call.Name} expects {call.ArgCount} argument(s), but only {stack.Count} are present.");
 
                             // Argumente rückwärts vom Stack holen
-                            var argsReversed = new List<Value>();
+                            var argsReversed = new List<object>();
                             for (int k = 0; k < call.ArgCount; k++)
                                 argsReversed.Add(stack.Pop());
 
@@ -779,45 +1034,131 @@ public static class Evaluator
                             argsReversed.Reverse();
                             var args = argsReversed.ToArray();
 
-                            Value fres;
+                            object fres = null;
 
-                            switch (call.Name)
+                            if (call.IsObjectMember)
                             {
-                                // 1-Argument-Funktionen (wie vorher)
-                                case "sin":
-                                    CheckArgCount(call, args, 1);
-                                    fres = GeometryOps.FuncSin(args[0]);
-                                    break;
+                                object toCallWith = stack.Pop();
+                                MethodInfo? toCall = null;
+                                object target = null;
+                                if (toCallWith is ObjectMethodPair om)
+                                {
+                                    toCall = om.method;
+                                    target = om.obj;
+                                }
+                                else
+                                {
+                                    MethodInfo[] methods = toCallWith.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                    for (int i = 0; i < methods.Length; i++)
+                                    {
+                                        if (!string.Equals(methods[i].Name, call.Name, StringComparison.OrdinalIgnoreCase))
+                                            continue;
 
-                                case "sqrt":
-                                    CheckArgCount(call, args, 1);
-                                    fres = GeometryOps.FuncSqrt(args[0]);
-                                    break;
+                                        var parameters = methods[i].GetParameters();
+                                        if (parameters.Length != call.ArgCount)
+                                            continue;
+                                        toCall = methods[i];
+                                        target = toCallWith;
+                                        break;
+                                    }
+                                }
+                                if (toCall != null)
+                                {
+                                    var parameters = toCall.GetParameters();
 
-                                case "abs":
-                                    CheckArgCount(call, args, 1);
-                                    fres = GeometryOps.FuncAbs(args[0]);
-                                    break;
+                                    object?[] coercedArgs = new object?[parameters.Length];
+                                    bool ok = true;
 
-                                case "len":
-                                    CheckArgCount(call, args, 1);
-                                    fres = GeometryOps.FuncLen(args[0]);
-                                    break;
+                                    for (int j = 0; j < parameters.Length; j++)
+                                    {
+                                        if (!TryCoerceArg(args[j], parameters[j], out var c))
+                                        {
+                                            ok = false;
+                                            break;
+                                        }
+                                        coercedArgs[j] = c;
+                                    }
 
-                                // p(x,y,z) => GeoPoint
-                                case "p":
-                                    CheckArgCount(call, args, 3);
-                                    fres = MakePoint(args);
-                                    break;
+                                    if (!ok) continue;
 
-                                // v(x,y,z) => GeoVector
-                                case "v":
-                                    CheckArgCount(call, args, 3);
-                                    fres = MakeVector(args);
-                                    break;
+                                    fres = toCall.Invoke(target, coercedArgs);
+                                }
+                            }
+                            else
+                            {
 
-                                default:
-                                    throw new Exception($"Unbekannte Funktion '{call.Name}'.");
+                                switch (call.Name)
+                                {
+                                    // 1-Argument-Funktionen (wie vorher)
+                                    case "sin":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.FuncSin(args[0]);
+                                        break;
+
+                                    case "cos":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.FuncCos(args[0]);
+                                        break;
+
+                                    case "tan":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.FuncTan(args[0]);
+                                        break;
+
+                                    case "atan":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.FuncAtan(args[0]);
+                                        break;
+
+                                    case "atan2":
+                                        CheckArgCount(call, args, 2);
+                                        fres = GeometryOps.FuncAtan2(args[0], args[1]);
+                                        break;
+
+                                    case "sqrt":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.FuncSqrt(args[0]);
+                                        break;
+
+                                    case "pow":
+                                        CheckArgCount(call, args, 2);
+                                        fres = GeometryOps.Pow(args[0], args[1]);
+                                        break;
+                                    case "abs":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.FuncAbs(args[0]);
+                                        break;
+                                    case "sign":
+                                        CheckArgCount(call, args, 1);
+                                        if (args[0] is IConvertible) fres = Math.Sign(Convert.ToDouble(args[0]));
+                                        else throw new InvalidOperationException("sign(x): x must be a scalar.");
+                                        break;
+                                    case "len":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.FuncLen(args[0]);
+                                        break;
+
+                                    // p(x,y,z) => GeoPoint or GeoPoint2D
+                                    case "p":
+                                        fres = MakePoint(args);
+                                        break;
+
+                                    // v(x,y,z) => GeoVector or GeoVector2D
+                                    case "v":
+                                        fres = MakeVector(args);
+                                        break;
+                                    case "distance":
+                                        CheckArgCount(call, args, 2);
+                                        fres = GeometryOps.Distance(args[0], args[1]);
+                                        break;
+                                    case "normalize":
+                                        CheckArgCount(call, args, 1);
+                                        fres = GeometryOps.Normalize(args[0]);
+                                        break;
+
+                                    default:
+                                        throw new Exception($"Unknown function '{call.Name}'.");
+                                }
                             }
 
                             stack.Push(fres);
@@ -825,14 +1166,14 @@ public static class Evaluator
                         }
 
                     default:
-                        throw new Exception($"Unerwartetes RPN-Element: {item}");
+                        throw new Exception($"Unexpected RPN element: {item}");
                 }
             }
 
             if (stack.Count != 1)
-                throw new Exception("Ausdruck unvollständig oder überbestimmt.");
+                throw new Exception("Expression incomplete or overdetermined.");
 
-            return stack.Pop().ToObject();
+            return stack.Pop();
         }
         catch (Exception ex)
         {
@@ -840,61 +1181,48 @@ public static class Evaluator
         }
     }
 
-    private static void CheckArgCount(FunctionCallMarker call, Value[] args, int expected)
+    private static void CheckArgCount(FunctionCallMarker call, object[] args, int expected)
     {
         if (args.Length != expected)
-            throw new Exception($"Funktion {call.Name} erwartet {expected} Argument(e), bekommen: {args.Length}.");
+            throw new Exception($"Function {call.Name} expects {expected} argument(s), got: {args.Length}.");
     }
 
-    private static Value MakePoint(Value[] args)
+    private static object MakePoint(object[] args)
     {
-        // alle müssen Skalar sein
-        if (args[0].Kind != ValueKind.Scalar ||
-            args[1].Kind != ValueKind.Scalar ||
-            args[2].Kind != ValueKind.Scalar)
-            throw new Exception("p(x,y,z): alle Argumente müssen Skalare sein.");
-
-        var pt = new GeoPoint(
-            args[0].Scalar,
-            args[1].Scalar,
-            args[2].Scalar
-        );
-        return Value.FromPoint(pt);
-    }
-
-    private static Value MakeVector(Value[] args)
-    {
-        if (args[0].Kind != ValueKind.Scalar ||
-            args[1].Kind != ValueKind.Scalar ||
-            args[2].Kind != ValueKind.Scalar)
-            throw new Exception("v(x,y,z): alle Argumente müssen Skalare sein.");
-
-        var vec = new GeoVector(
-            args[0].Scalar,
-            args[1].Scalar,
-            args[2].Scalar
-        );
-        return Value.FromVector(vec);
-    }
-
-    private static Value ObjectToValue(object obj, string nameForError)
-    {
-        switch (obj)
+        if (args.Length == 2)
         {
-            case double d:
-                return Value.FromScalar(d);
+            if (!(args[0] is double a0) || !(args[1] is double a1))
+                throw new Exception("p(x,y): all arguments must be scalar.");
+            return new GeoPoint2D(a0, a1);
+        }
+        else
+        {
+            // alle müssen Skalar sein
+            if (!(args[0] is double a0) || !(args[1] is double a1) || !(args[2] is double a2))
+                throw new Exception("p(x,y,z): all arguments must be scalar.");
 
-            case GeoPoint p:
-                return Value.FromPoint(p);
-
-            case GeoVector v:
-                return Value.FromVector(v);
-
-            default:
-                // Der Name '{nameForError}' hat einen nicht unterstützten Typ ({obj.GetType().Name}).
-                throw new Exception($"Der Name '{nameForError}' hat einen nicht unterstützten Typ ({obj.GetType().Name}).");
+            return new GeoPoint(a0, a1, a2);
         }
     }
+
+    private static object MakeVector(object[] args)
+    {
+        if (args.Length == 2)
+        {
+            if (!(args[0] is double a0) || !(args[1] is double a1))
+                throw new Exception("v(x,y): all arguments must be scalar.");
+            return new GeoVector2D(a0, a1);
+        }
+        else
+        {
+            // alle müssen Skalar sein
+            if (!(args[0] is double a0) || !(args[1] is double a1) || !(args[2] is double a2))
+                throw new Exception("v(x,y,z): all arguments must be scalar.");
+
+            return new GeoVector(a0, a1, a2);
+        }
+    }
+
 }
 
 #endregion

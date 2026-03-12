@@ -109,7 +109,6 @@ namespace CADability
                 .ToList();
 #if DEBUG
             bool useParallel = false; // switch off for debugging
-            foreach (var (f1, f2) in allPairs) System.Diagnostics.Trace.WriteLine("pair: " + f1.GetHashCode().ToString() + ", " + f2.GetHashCode().ToString());
 #else
             bool useParallel = false; // doesn't work, use Lazy<>
 #endif
@@ -981,8 +980,10 @@ namespace CADability
             if (face.Surface.IsCurveOnSurface(edge.Curve3D))
             {
                 ICurve2D c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);
+                // TODO: there is a problem here: in UniteBug8 there are two differen ways to oproject the ellipse onto the sphere:
+                // u==1,5 and u=4.7 which describe two different part of a projected curve. This cannot be resolved by GetProjectedCurve
                 SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, c2d);
-                double[] parts = face.Area.Clip(c2d, true);
+                double[] parts = face.Area.Clip(c2d, true); // there could be multiple parts with periodic surfaces, which are not found here
                 for (int i = 0; i < parts.Length; i++)
                 {
                     GeoPoint2D uv = c2d.PointAt(parts[i]);
@@ -1588,7 +1589,7 @@ namespace CADability
             return null;
         }
 
-        public static Solid[] SplitSolidByPlane(Solid solidToSplit, Plane splitBy)
+        public static Solid[] SplitSolidByPlane(Solid solidToSplit, Plane splitBy, bool onlyInnerParts=false)
         {
             Shell shellToSplit = solidToSplit.Shells[0];
             BoundingBox ext = shellToSplit.GetExtent(0.0);
@@ -1606,13 +1607,16 @@ namespace CADability
             {
                 resultSolids.Add(Solid.MakeSolid(resultShells[i]));
             }
-            bo = new BooleanOperation();
-            splittingShell = Shell.MakeShell([fcpl1], false); // the same plane but inversed
-            bo.SetShells(shellToSplit, splittingShell, Operation.difference);
-            resultShells = bo.Execute();
-            for (int i = 0; i < resultShells.Length; i++)
+            if (!onlyInnerParts)
             {
-                resultSolids.Add(Solid.MakeSolid(resultShells[i]));
+                bo = new BooleanOperation();
+                splittingShell = Shell.MakeShell([fcpl1], false); // the same plane but inversed
+                bo.SetShells(shellToSplit, splittingShell, Operation.difference);
+                resultShells = bo.Execute();
+                for (int i = 0; i < resultShells.Length; i++)
+                {
+                    resultSolids.Add(Solid.MakeSolid(resultShells[i]));
+                }
             }
             return resultSolids.ToArray();
         }
@@ -3567,7 +3571,7 @@ namespace CADability
             if (allFaces.Count == 0 && discardedFaces.Count > 0)
             {   // there were no intersections, only identical opposite faces, like when glueing two parts together
                 // this remains empty in case of intersection and returns the full body in case of union
-                if (this.operation == Operation.union)
+                if (this.operation == Operation.union || this.operation == Operation.difference)
                 {
                     allFaces.UnionWith(shell1.Faces);
                     allFaces.UnionWith(shell2.Faces);

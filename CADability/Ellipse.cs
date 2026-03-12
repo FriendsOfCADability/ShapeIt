@@ -2558,11 +2558,11 @@ namespace CADability.GeoObject
         {
             if (StartPos == 0 && EndPos == 1) return; // kommt oft vor
             bool reversed = false;
-            if (StartPos > EndPos)
-            {   // without this we could end up with the complimentary arc
-                (StartPos, EndPos) = (EndPos, StartPos);
-                reversed = true;
-            }
+            //if (StartPos > EndPos)
+            //{   // without this we could end up with the complimentary arc
+            //    (StartPos, EndPos) = (EndPos, StartPos);
+            //    reversed = true;
+            //}
             Angle newStartAngle = startParameter + StartPos * sweepParameter;
             Angle newEndAngle = startParameter + EndPos * sweepParameter;
             SweepAngle newSweepAngle = new SweepAngle(newStartAngle, newEndAngle, sweepParameter > 0.0);

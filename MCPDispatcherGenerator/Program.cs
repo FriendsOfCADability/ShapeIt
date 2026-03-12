@@ -62,6 +62,9 @@ namespace MCPDispatcherGenerator
             {
                 writer.WriteLine(sb.ToString());
             }
+
+
+            ToolsetOutlineWriter.Generate(path, @"C:\Temp\JsonOutputTest.tst");
             return 0;
         }
 
@@ -108,6 +111,7 @@ namespace MCPDispatcherGenerator
             sb.AppendLine("using System;");
             sb.AppendLine("using System.Text.Json;");
             sb.AppendLine("using System.Text.Json.Nodes;");
+            sb.AppendLine("using CADability;");
             sb.AppendLine();
             sb.AppendLine($"namespace {ns};");
             sb.AppendLine();
@@ -168,7 +172,7 @@ namespace MCPDispatcherGenerator
             sb.AppendLine($"    /// </summary>");
             sb.AppendLine($"    private JsonNode {handlerName}(JsonElement root)");
             sb.AppendLine("    {");
-            sb.AppendLine("        var p = RequireObject(root, \"params\");");
+            sb.AppendLine("        AssertIsObject(root);");
 
             var paramVars = new List<string>();
 
@@ -219,15 +223,23 @@ namespace MCPDispatcherGenerator
             bool isRequired)
         {
             var varName = SafeVarName(propName);
-
+            string? refStr = null;
             if (TryGet(propSchema, "$ref", out var refEl) && refEl.ValueKind == JsonValueKind.String)
             {
-                var refStr = refEl.GetString() ?? "";
+                refStr = refEl.GetString() ?? "";
                 if (refStr.EndsWith("/ObjectRef", StringComparison.Ordinal))
                 {
                     var reader = isRequired
-                        ? $"RequireObjectRef<object>(p, \"{propName}\"); // maybe you need to change the <type> manually"
-                        : $"(GetOptional(p, \"{propName}\") is {{ }} ? RequireObjectRef<object>(p, \"{propName}\") : null)";
+                        ? $"RequireObjectRef<object>(root, \"{propName}\");"
+                        : $"(GetOptional(root, \"{propName}\") is {{ }} ? RequireObjectRef<object>(root, \"{propName}\") : null)";
+                    sb.AppendLine($"        var {varName} = {reader};");
+                    return varName;
+                }
+                if (refStr.EndsWith("/SketchRef", StringComparison.Ordinal))
+                {
+                    var reader = isRequired
+                        ? $"RequireObjectRef<Sketch>(root, \"{propName}\");"
+                        : $"(GetOptional(root, \"{propName}\") is {{ }} ? RequireObjectRef<object>(root, \"{propName}\") : null)";
                     sb.AppendLine($"        var {varName} = {reader};");
                     return varName;
                 }
@@ -237,35 +249,105 @@ namespace MCPDispatcherGenerator
 
             if (type == "string")
             {
-                if (isRequired) sb.AppendLine($"        var {varName} = RequireString(p, \"{propName}\");");
-                else sb.AppendLine($"        var {varName} = GetOptionalString(p, \"{propName}\");");
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireString(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalString(root, \"{propName}\");");
                 return varName;
             }
             if (type == "number")
             {
                 double def = GetDoubleDefault(propSchema, "default");
-                if (isRequired) sb.AppendLine($"        var {varName} = RequireNumber(p, \"{propName}\");");
-                else sb.AppendLine($"        var {varName} = GetOptionalNumber(p, \"{propName}\", {def});");
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireNumber(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalNumber(root, \"{propName}\", {def});");
                 return varName;
             }
             if (type == "integer")
             {
                 int def = GetIntegerDefault(propSchema, "default");
-                if (isRequired) sb.AppendLine($"        var {varName} = RequireInteger(p, \"{propName}\");");
-                else sb.AppendLine($"        var {varName} = GetOptionalInteger(p, \"{propName}\", {def});");
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireInteger(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalInteger(root, \"{propName}\", {def});");
                 return varName;
             }
-            if (type == "boolean")
+            if (type == "boolean" || (refStr != null && refStr.EndsWith("/ExpressionBool")))
             {
                 bool def = GetBoolDefault(propSchema, "default");
                 string defaultString = def ? "true" : "false";
-                if (isRequired) sb.AppendLine($"        var {varName} = RequireBool(p, \"{propName}\");");
-                else sb.AppendLine($"        var {varName} = GetOptionalBool(p, \"{propName}\", {defaultString});");
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireBool(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalBool(root, \"{propName}\", {defaultString});");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Point3"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequirePoint3D(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalPoint3D(root, \"{propName}\", GeoPoint.Invalid);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Point2"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequirePoint2D(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalPoint2D(root, \"{propName}\", GeoPoint2D.Invalid);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Vec3"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireVector3D(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalVector3D(root, \"{propName}\", GeoVector.Invalid);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Vec2"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireVector2D(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalVector2D(root, \"{propName}\", GeoVector2D.Invalid);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Axis2"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireAxis2D(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalAxis2D(root, \"{propName}\", Axis2D.InvalidAxis);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Axis3"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireAxis3D(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalAxis3D(root, \"{propName}\", Axis.InvalidAxis);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Plane"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequirePlane(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalPlane(root, \"{propName}\", Plane.Invalid);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Plane"))
+            {
+                if (isRequired) sb.AppendLine($"        var {varName} = RequirePlane(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalPlane(root, \"{propName}\", Plane.Invalid);");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/ExpressionNumber"))
+            {
+                double def = GetDoubleDefault(propSchema, "default");
+                string defString = double.IsNaN(def) ? "double.NaN" : def.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireDouble(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalDouble(root, \"{propName}\", {defString});");
+                return varName;
+            }
+            if (refStr != null && refStr.EndsWith("/Angle"))
+            {
+                string? defString = null;
+                double def = GetDoubleDefault(propSchema, "default");
+                if (double.IsNaN(def))
+                {
+                    string? sdef = GetString(propSchema, "default");
+                    if (sdef != null && sdef == "full") def = 360;
+                }
+                defString = double.IsNaN(def) ? "double.NaN" : def.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                if (isRequired) sb.AppendLine($"        var {varName} = RequireAngle(root, \"{propName}\");");
+                else sb.AppendLine($"        var {varName} = GetOptionalDouble(root, \"{propName}\", {defString});");
                 return varName;
             }
 
-            if (isRequired) sb.AppendLine($"        var {varName} = RequireProperty(p, \"{propName}\");");
-            else sb.AppendLine($"        var {varName} = GetOptional(p, \"{propName}\");");
+            if (isRequired) sb.AppendLine($"        var {varName} = RequireProperty(root, \"{propName}\");");
+            else sb.AppendLine($"        var {varName} = GetOptional(root, \"{propName}\");");
 
             return varName;
         }
@@ -354,9 +436,9 @@ namespace MCPDispatcherGenerator
         private static string? GetString(JsonElement obj, string prop)
             => TryGet(obj, prop, out var el) && el.ValueKind == JsonValueKind.String ? el.GetString() : null;
         private static bool GetBoolDefault(JsonElement obj, string prop)
-            => TryGet(obj, prop, out var el) && el.ValueKind == JsonValueKind.True? true : false;
+            => TryGet(obj, prop, out var el) && el.ValueKind == JsonValueKind.True ? true : false;
         private static double GetDoubleDefault(JsonElement obj, string prop)
-            => TryGet(obj, prop, out var el) && el.ValueKind == JsonValueKind.Number? el.GetDouble() : double.NaN;
+            => TryGet(obj, prop, out var el) && el.ValueKind == JsonValueKind.Number ? el.GetDouble() : double.NaN;
         private static int GetIntegerDefault(JsonElement obj, string prop)
             => TryGet(obj, prop, out var el) && el.ValueKind == JsonValueKind.Number ? el.GetInt32() : 0;
 

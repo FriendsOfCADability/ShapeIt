@@ -8,76 +8,242 @@
 		"sketchCoordinates": "Sketch entities use 2D coordinates (Point2/Vec2) in the sketch plane coordinate system."
 	},
 	"types": {
-		"ObjectRef": {
-			"description": "Reference by id or by name.",
-			"oneOf": [
+		"ParameterInputSpec": {
+			"type": "object",
+			"description": "Optional UI metadata describing how a workspace value should be exposed as a user-editable parameter.",
+			"properties": {
+				"kind": {
+					"type": "string",
+					"enum": [
+						"length",
+						"angle",
+						"integer",
+						"number",
+						"text",
+						"point2",
+						"point3",
+						"enum",
+						"bool"
+					],
+					"description": "The logical input type shown to the user."
+				},
+				"description": {
+					"type": "string",
+					"description": "Optional help text shown in the parameter UI."
+				},
+				"group": {
+					"type": "string",
+					"description": "Optional group/category name used to organize parameters in the UI."
+				},
+				"order": {
+					"type": "integer",
+					"description": "Optional sort key for displaying parameters in a stable order."
+				},
+				"editable": {
+					"type": "boolean",
+					"default": true,
+					"description": "If true, the parameter is intended to be editable by the user."
+				},
+				"min": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Optional minimum allowed value for numeric inputs."
+				},
+				"max": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Optional maximum allowed value for numeric inputs."
+				},
+				"step": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Optional preferred increment for numeric inputs."
+				},
+				"unit": {
+					"type": "string",
+					"enum": [ "mm", "cm", "m", "deg", "rad" ],
+					"description": "Optional display unit override. If omitted, the default for the input kind is used."
+				},
+				"decimals": {
+					"type": "integer",
+					"minimum": 0,
+					"description": "Optional number of decimals suggested for display."
+				},
+				"options": {
+					"type": "array",
+					"description": "Allowed options for enum inputs.",
+					"items": {
+						"type": "object",
+						"properties": {
+							"value": {
+								"oneOf": [
+									{ "type": "string" },
+									{ "type": "number" },
+									{ "type": "integer" },
+									{ "type": "boolean" }
+								]
+							},
+							"label": {
+								"type": "string",
+								"description": "User-friendly label shown in the UI."
+							}
+						},
+						"required": [ "value", "label" ],
+						"additionalProperties": false
+					}
+				},
+				"allowMeasure": {
+					"type": "boolean",
+					"default": false,
+					"description": "If true, the UI may offer picking or measuring from existing model geometry where supported."
+				}
+			},
+			"required": [ "kind" ],
+			"additionalProperties": false,
+			"allOf": [
 				{
-					"type": "object",
-					"properties": {
-						"id": {
-							"type": "string"
+					"if": {
+						"properties": {
+							"kind": { "const": "enum" }
 						}
 					},
-					"required": [
-						"id"
-					],
-					"additionalProperties": false
+					"then": {
+						"required": [ "options" ]
+					}
+				}
+			]
+		},
+		"ExpressionBool": {
+			"description": "A boolean literal or a boolean expression string evaluated in the current context (C#-like syntax).",
+			"oneOf": [
+				{
+					"type": "boolean"
+				},
+				{
+					"type": "string",
+					"description": "Boolean expression in C#-like syntax, e.g. 'n_ip >= 1 && n_ip < 10' or 'arc.SweepAngle > 0' or 's1.IsDisjunct(s2)'. The evaluator may resolve named workspace values."
 				},
 				{
 					"type": "object",
 					"properties": {
-						"name": {
-							"type": "string"
-						}
+						"expr": {
+							"type": "string",
+							"minLength": 1,
+							"description": "Boolean expression in C#-like syntax, e.g. 'n_ip >= 1 && n_ip < 10' or 'arc.SweepAngle > 0' or 's1.IsDisjunct(s2)'. The evaluator may resolve named workspace values."
+						},
+						"description": "An explicit version of the direct string value."
 					},
 					"required": [
-						"name"
+						"expr"
 					],
 					"additionalProperties": false
 				}
 			]
 		},
-		"Vec3": {
+		"ObjectRef": {
+			"description": "Reference by name.",
 			"type": "object",
 			"properties": {
-				"x": {
-					"type": "number"
-				},
-				"y": {
-					"type": "number"
-				},
-				"z": {
-					"type": "number"
+				"name": {
+					"type": "string"
 				}
 			},
 			"required": [
-				"x",
-				"y",
-				"z"
+				"name"
+			],
+			"additionalProperties": false
+		},
+		"SketchRef": {
+			"description": "Reference of a sketch object by name.",
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				}
+			},
+			"required": [
+				"name"
 			],
 			"additionalProperties": false
 		},
 		"Point3": {
-			"type": "object",
-			"properties": {
-				"x": {
-					"type": "number"
+			"description": "A 3D point. May be provided as an expression string, a three-element array [x, y, z], or an object with x, y, z components.",
+			"oneOf": [
+				{
+					"type": "string",
+					"minLength": 1,
+					"description": "An expression that evaluates to a 3D point."
 				},
-				"y": {
-					"type": "number"
+				{
+					"type": "array",
+					"minItems": 3,
+					"maxItems": 3,
+					"items": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"description": "A three-element array: [x, y, z]. Each component may be a number literal or an expression."
 				},
-				"z": {
-					"type": "number"
+				{
+					"type": "object",
+					"properties": {
+						"x": {
+							"$ref": "#/types/ExpressionNumber"
+						},
+						"y": {
+							"$ref": "#/types/ExpressionNumber"
+						},
+						"z": {
+							"$ref": "#/types/ExpressionNumber"
+						}
+					},
+					"required": [
+						"x",
+						"y",
+						"z"
+					],
+					"additionalProperties": false,
+					"description": "An explicit object form with x, y, z components. Each component may be a number literal or an expression."
 				}
-			},
-			"required": [
-				"x",
-				"y",
-				"z"
-			],
-			"additionalProperties": false
+			]
 		},
-		"PlaneRef": {
+		"Vec3": {
+			"description": "A 3D vector. May be provided as an expression string, a three-element array [x, y, z], or an object with x, y, z components.",
+			"oneOf": [
+				{
+					"type": "string",
+					"minLength": 1,
+					"description": "An expression that evaluates to a 3D vector."
+				},
+				{
+					"type": "array",
+					"minItems": 3,
+					"maxItems": 3,
+					"items": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"description": "A three-element array: [x, y, z]. Each component may be a number literal or an expression."
+				},
+				{
+					"type": "object",
+					"properties": {
+						"x": {
+							"$ref": "#/types/ExpressionNumber"
+						},
+						"y": {
+							"$ref": "#/types/ExpressionNumber"
+						},
+						"z": {
+							"$ref": "#/types/ExpressionNumber"
+						}
+					},
+					"required": [
+						"x",
+						"y",
+						"z"
+					],
+					"additionalProperties": false,
+					"description": "An explicit object form with x, y, z components. Each component may be a number literal or an expression."
+				}
+			]
+		},
+		"Plane": {
 			"description": "Either a named standard plane or a plane defined by origin+normal (and optional xAxis).",
 			"oneOf": [
 				{
@@ -118,83 +284,73 @@
 						"xAxis"
 					],
 					"oneOf": [
-						{ "required": [ "yAxis" ] },
-						{ "required": [ "normal" ] }
+						{
+							"required": [
+								"yAxis"
+							]
+						},
+						{
+							"required": [
+								"normal"
+							]
+						}
 					],
 					"additionalProperties": false
 				}
 			]
 		},
 		"ExpressionNumber": {
-			"description": "A number literal or an expression string evaluated in the current context.",
+			"description": "A numeric literal or an expression evaluated in the current workspace context. If a string is provided, it is evaluated by the expression evaluator and must return a number.",
 			"oneOf": [
 				{
-					"type": "number"
+					"type": "number",
+					"description": "A numeric literal."
 				},
 				{
-					"type": "object",
-					"properties": {
-						"expr": {
-							"type": "string",
-							"description": "Expression like 'p.x + 10' or 'bbox(body).center.z'."
-						}
-					},
-					"required": [
-						"expr"
-					],
-					"additionalProperties": false
+					"type": "string",
+					"minLength": 1,
+					"description": "An expression that evaluates to a number (may also be the name of a previously defined numeric workspace value)."
 				}
 			]
 		},
-		"ExpressionPoint3": {
-			"description": "A point literal or an expression that evaluates to a point.",
-			"oneOf": [
-				{
-					"$ref": "#/types/Point3"
+		"ExpressionBBox": {
+			"type": "object",
+			"description": "A literal value or expression for an axis-aligned bounding box in 3D.",
+			"properties": {
+				"xmin": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Minimum X of the bounding box."
 				},
-				{
-					"type": "object",
-					"properties": {
-						"expr": {
-							"type": "string",
-							"description": "Expression like 'bbox(body).center + (0,0,10)'."
-						}
-					},
-					"required": [
-						"expr"
-					],
-					"additionalProperties": false
-				}
-			]
-		},
-		"EntityRef": {
-			"description": "Reference by id or by name.",
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"id": {
-							"type": "string"
-						}
-					},
-					"required": [
-						"id"
-					],
-					"additionalProperties": false
+				"xmax": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Maximum X of the bounding box."
 				},
-				{
-					"type": "object",
-					"properties": {
-						"name": {
-							"type": "string"
-						}
-					},
-					"required": [
-						"name"
-					],
-					"additionalProperties": false
+				"ymin": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Minimum Y of the bounding box."
+				},
+				"ymax": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Maximum Y of the bounding box."
+				},
+				"zmin": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Minimum Z of the bounding box."
+				},
+				"zmax": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Maximum Z of the bounding box."
 				}
-			]
+			},
+			"required": [
+				"xmin",
+				"xmax",
+				"ymin",
+				"ymax",
+				"zmin",
+				"zmax"
+			],
+			"additionalProperties": false
 		},
 		"EdgeFilter": {
 			"type": "object",
@@ -204,12 +360,12 @@
 					"description": "If true, selects only convex (external) edges; if false only concave."
 				},
 				"notOnFace": {
-					"$ref": "#/types/ObjectRef",
-					"description": "Exclude edges that belong to the given face."
+					"$ref": "#/types/Selector",
+					"description": "Exclude edges that belong to the given face(s). Face selector is resolved at runtime (expected faces)."
 				},
 				"onFace": {
-					"$ref": "#/types/ObjectRef",
-					"description": "Include only edges that belong to the given face."
+					"$ref": "#/types/Selector",
+					"description": "Include only edges that belong to the given face(s). Face selector is resolved at runtime (expected faces)."
 				},
 				"dihedralAngleDeg": {
 					"type": "object",
@@ -226,202 +382,72 @@
 				"length": {
 					"type": "object",
 					"properties": {
-						"min": {
+						"minValue": {
 							"type": "number"
 						},
-						"max": {
+						"maxValue": {
 							"type": "number"
 						}
 					},
 					"additionalProperties": false
-				}
-			},
-			"additionalProperties": false
-		},
-		"EdgeQuery": {
-			"type": "object",
-			"properties": {
-				"from": {
-					"$ref": "#/types/ObjectRef"
 				},
-				"filter": {
-					"$ref": "#/types/EdgeFilter"
-				}
-			},
-			"required": [
-				"from"
-			],
-			"additionalProperties": false
-		},
-		"EdgeSelector": {
-			"description": "Select one or many edges. Accepts edge id/name, a named set, a query, or set expressions (union/except/intersect).",
-			"oneOf": [
-				{
+				"boundingBox": {
 					"type": "object",
+					"description": "Filters edges based on a component of their bounding box. The bounding box is computed from the geometry of the edge in model coordinates. This filter is useful for selecting edges by spatial position or by their extent in a certain direction (e.g. vertical edges by zDiff).",
 					"properties": {
-						"id": {
-							"type": "string"
-						}
-					},
-					"required": [
-						"id"
-					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"name": {
-							"type": "string"
-						}
-					},
-					"required": [
-						"name"
-					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"query": {
-							"$ref": "#/types/EdgeQuery"
-						}
-					},
-					"required": [
-						"query"
-					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"op": {
+						"component": {
 							"type": "string",
+							"description": "The bounding box component to test.",
 							"enum": [
-								"union",
-								"except",
-								"intersect"
+								"xMin",
+								"xMax",
+								"yMin",
+								"yMax",
+								"zMin",
+								"zMax",
+								"xDiff",
+								"yDiff",
+								"zDiff"
 							]
 						},
-						"items": {
-							"type": "array",
-							"minItems": 2,
-							"items": {
-								"$ref": "#/types/EdgeSelector"
-							}
+						"minValue": {
+							"type": "number",
+							"description": "Minimum allowed value for the selected component (inclusive). If omitted, no lower bound is applied."
+						},
+						"maxValue": {
+							"type": "number",
+							"description": "Maximum allowed value for the selected component (inclusive). If omitted, no upper bound is applied."
 						}
 					},
 					"required": [
-						"op",
-						"items"
-					],
-					"additionalProperties": false
-				}
-			]
-		},
-		"FaceQuery": {
-			"type": "object",
-			"properties": {
-				"kind": {
-					"type": "string",
-					"enum": [
-						"solid_faces"
+						"component"
 					]
 				},
-				"solid": {
-					"$ref": "#/types/ObjectRef"
+				"condition": {
+					"type": "string",
+					"description": "A boolean expression evaluated for the current edge. The edge is available as 'this'. The expression must resolve to true to accept the edge."
+				}
+			},
+			"additionalProperties": false
+		},
+		"Axis2": {
+			"description": "Axis for sketch (2D) defined by an origin point and a direction vector (will be normalized).",
+			"type": "object",
+			"properties": {
+				"origin": {
+					"$ref": "#/types/Point2"
 				},
-				"filter": {
-					"type": "object",
-					"description": "Same shape as topology.find_faces filter.",
-					"additionalProperties": true
+				"direction": {
+					"$ref": "#/types/Vec2"
 				}
 			},
 			"required": [
-				"kind",
-				"solid"
+				"origin",
+				"direction"
 			],
 			"additionalProperties": false
 		},
-		"FaceSelector": {
-			"description": "Select one or many faces by id/name/set/query or set expressions.",
-			"oneOf": [
-				{
-					"type": "object",
-					"properties": {
-						"id": {
-							"type": "string"
-						}
-					},
-					"required": [
-						"id"
-					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"name": {
-							"type": "string"
-						}
-					},
-					"required": [
-						"name"
-					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"set": {
-							"type": "string"
-						}
-					},
-					"required": [
-						"set"
-					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"query": {
-							"$ref": "#/types/FaceQuery"
-						}
-					},
-					"required": [
-						"query"
-					],
-					"additionalProperties": false
-				},
-				{
-					"type": "object",
-					"properties": {
-						"op": {
-							"type": "string",
-							"enum": [
-								"union",
-								"except",
-								"intersect"
-							]
-						},
-						"items": {
-							"type": "array",
-							"minItems": 2,
-							"items": {
-								"$ref": "#/types/FaceSelector"
-							}
-						}
-					},
-					"required": [
-						"op",
-						"items"
-					],
-					"additionalProperties": false
-				}
-			]
-		},
-		"AxisRef": {
+		"Axis3": {
 			"description": "Axis defined by an origin point and a direction vector (will be normalized).",
 			"type": "object",
 			"properties": {
@@ -438,7 +464,7 @@
 			],
 			"additionalProperties": false
 		},
-		"AngleSpec": {
+		"Angle": {
 			"description": "Angle in degrees or full rotation.",
 			"oneOf": [
 				{
@@ -466,100 +492,588 @@
 				"type": "string"
 			}
 		},
-		"Vec2": {
-			"type": "object",
-			"properties": {
-				"x": {
-					"type": "number"
-				},
-				"y": {
-					"type": "number"
-				}
-			},
-			"required": [
-				"x",
-				"y"
-			],
-			"additionalProperties": false
-		},
 		"Point2": {
-			"type": "object",
-			"properties": {
-				"x": {
-					"type": "number"
-				},
-				"y": {
-					"type": "number"
-				}
-			},
-			"required": [
-				"x",
-				"y"
-			],
-			"additionalProperties": false
-		},
-		"ExpressionPoint2": {
-			"description": "A 2D point literal or an expression that evaluates to a 2D point in sketch coordinates.",
+			"description": "A 2D point in sketch coordinates. May be provided as an expression string, a two-element array [x, y], or an object with x and y components.",
 			"oneOf": [
 				{
-					"$ref": "#/types/Point2"
+					"type": "string",
+					"minLength": 1,
+					"description": "An expression that evaluates to a 2D point in sketch coordinates."
+				},
+				{
+					"type": "array",
+					"minItems": 2,
+					"maxItems": 2,
+					"items": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"description": "A two-element array: [x, y]. Each component may be a number literal or an expression."
 				},
 				{
 					"type": "object",
 					"properties": {
-						"expr": {
-							"type": "string",
-							"description": "Expression like 'p2 + (10,0)' or '(w/2, h/2)'."
+						"x": {
+							"$ref": "#/types/ExpressionNumber"
+						},
+						"y": {
+							"$ref": "#/types/ExpressionNumber"
 						}
 					},
 					"required": [
-						"expr"
+						"x",
+						"y"
+					],
+					"additionalProperties": false,
+					"description": "An explicit object form with x and y components. Each component may be a number literal or an expression."
+				}
+			]
+		},
+		"Vec2": {
+			"description": "A 2D vector in sketch coordinates. May be provided as an expression string, a two-element array [x, y], or an object with x and y components.",
+			"oneOf": [
+				{
+					"type": "string",
+					"minLength": 1,
+					"description": "An expression that evaluates to a 2D vector in sketch coordinates."
+				},
+				{
+					"type": "array",
+					"minItems": 2,
+					"maxItems": 2,
+					"items": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"description": "A two-element array: [x, y]. Each component may be a number literal or an expression."
+				},
+				{
+					"type": "object",
+					"properties": {
+						"x": {
+							"$ref": "#/types/ExpressionNumber"
+						},
+						"y": {
+							"$ref": "#/types/ExpressionNumber"
+						}
+					},
+					"required": [
+						"x",
+						"y"
+					],
+					"additionalProperties": false,
+					"description": "An explicit object form with x and y components. Each component may be a number literal or an expression."
+				}
+			]
+		},
+		"SketchGeometryRef": {
+			"description": "Reference by name.",
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				}
+			},
+			"required": [
+				"name"
+			],
+			"additionalProperties": false
+		},
+		"FaceFilter": {
+			"type": "object",
+			"description": "Filter for selecting faces.",
+			"properties": {
+				"surfaceType": {
+					"type": "string",
+					"enum": [
+						"planar",
+						"cylindrical",
+						"conical",
+						"spherical",
+						"toroidal",
+						"freeform"
+					],
+					"description": "Optional surface type."
+				},
+				"extreme": {
+					"type": "object",
+					"description": "Select a face at an extreme position along a global axis (e.g., top-most face).",
+					"properties": {
+						"axis": {
+							"type": "string",
+							"enum": [
+								"x",
+								"y",
+								"z"
+							],
+							"description": "Global axis."
+						},
+						"which": {
+							"type": "string",
+							"enum": [
+								"min",
+								"max"
+							],
+							"description": "Choose minimum or maximum along the axis."
+						}
+					},
+					"required": [
+						"axis",
+						"which"
+					],
+					"additionalProperties": false
+				},
+				"closeTo": {
+					"$ref": "#/types/Point3",
+					"description": "Optional point near the desired face (used for best-match selection)."
+				},
+				"inside": {
+					"$ref": "#/types/ExpressionBBox",
+					"description": "Optional bounding box that must fully contain the face."
+				},
+				"touchedBy": {
+					"$ref": "#/types/ExpressionBBox",
+					"description": "Optional bounding box that must intersect/touch the face."
+				},
+				"sameSurface": {
+					"$ref": "#/types/ObjectRef",
+					"description": "Optional reference face. Only faces with the same underlying surface (same geometric support) are accepted."
+				},
+				"boundingBox": {
+					"type": "object",
+					"description": "Constraint on a specific component of the face bounding box.",
+					"properties": {
+						"component": {
+							"type": "string",
+							"enum": [
+								"left",
+								"right",
+								"bottom",
+								"top",
+								"front",
+								"back",
+								"centerX",
+								"centerY",
+								"centerZ"
+							],
+							"description": "Select which bounding box component to evaluate."
+						},
+						"minValue": {
+							"$ref": "#/types/ExpressionNumber",
+							"description": "If provided, the selected component must be greater than or equal to this value."
+						},
+						"maxValue": {
+							"$ref": "#/types/ExpressionNumber",
+							"description": "If provided, the selected component must be less than or equal to this value."
+						}
+					},
+					"required": [
+						"component"
+					],
+					"additionalProperties": false
+				},
+				"additionalProperties": false
+			}
+		},
+		"SolidFilter": {
+			"type": "object",
+			"description": "Filter for selecting solids.",
+			"properties": {
+				"closeTo": {
+					"$ref": "#/types/Point3",
+					"description": "Optional point near the desired solid (used for best-match selection)."
+				},
+				"contains": {
+					"$ref": "#/types/Point3",
+					"description": "Optional point that must lie inside the solid."
+				},
+				"inside": {
+					"$ref": "#/types/ExpressionBBox",
+					"description": "Optional bounding box that must fully contain the solid."
+				},
+				"touchedBy": {
+					"$ref": "#/types/ExpressionBBox",
+					"description": "Optional bounding box that must intersect/touch the solid."
+				}
+			},
+			"additionalProperties": false
+		},
+		"SketchGeometryFilter": {
+			"type": "object",
+			"properties": {},
+			"additionalProperties": false,
+			"description": "Filter for sketch geometry. Currently empty; reserved for future sketch-geometry-specific filters."
+		},
+		"Query": {
+			"type": "object",
+			"properties": {
+				"target": {
+					"type": "string",
+					"enum": [
+						"solids",
+						"faces",
+						"edges",
+						"sketch_geometry"
+					]
+				},
+				"from": {
+					"description": "One object reference or a list of references used as the query scope.",
+					"oneOf": [
+						{
+							"$ref": "#/types/ObjectRef"
+						},
+						{
+							"type": "array",
+							"minItems": 1,
+							"items": {
+								"$ref": "#/types/ObjectRef"
+							}
+						}
+					]
+				},
+				"filter": {
+					"description": "Target-specific filter schema depends on target.",
+					"oneOf": [
+						{
+							"$ref": "#/types/SolidFilter"
+						},
+						{
+							"$ref": "#/types/FaceFilter"
+						},
+						{
+							"$ref": "#/types/EdgeFilter"
+						},
+						{
+							"$ref": "#/types/SketchGeometryFilter"
+						}
+					]
+				}
+			},
+			"required": [
+				"target",
+				"from"
+			],
+			"additionalProperties": false,
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"target": {
+								"const": "solids"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"filter": {
+								"$ref": "#/types/SolidFilter"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"target": {
+								"const": "faces"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"filter": {
+								"$ref": "#/types/FaceFilter"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"target": {
+								"const": "edges"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"filter": {
+								"$ref": "#/types/EdgeFilter"
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"target": {
+								"const": "sketch_geometry"
+							}
+						}
+					},
+					"then": {
+						"properties": {
+							"filter": {
+								"$ref": "#/types/SketchGeometryFilter"
+							}
+						}
+					}
+				}
+			]
+		},
+		"Selector": {
+			"type": "object",
+			"description": "Select one or many items of a given target type. Accepts name, a named set, a query, an explicit list of references, or set expressions (union/except/intersect).",
+			"properties": {
+				"target": {
+					"type": "string",
+					"enum": [
+						"solids",
+						"faces",
+						"edges",
+						"sketch_geometry",
+						"points3",
+						"points2"
+					],
+					"description": "Optional hint to disambiguate named sets."
+				}
+			},
+			"oneOf": [
+				{
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"$ref": "#/types/Selector"
+					}
+				},
+				{
+					"type": "string",
+					"description": "A name of an item. Togehter with the array option, you can provide an array of names"
+				},
+				{
+					"properties": {
+						"name": {
+							"type": "string"
+						}
+					},
+					"required": [
+						"name"
+					],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"names": {
+							"type": "array",
+							"minItems": 1,
+							"items": {
+								"$ref": "#/types/ObjectRef"
+							}
+						}
+					},
+					"required": [
+						"refs"
+					],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"query": {
+							"$ref": "#/types/Query"
+						}
+					},
+					"required": [
+						"query"
+					],
+					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"op": {
+							"type": "string",
+							"enum": [
+								"union",
+								"except",
+								"intersect"
+							]
+						},
+						"items": {
+							"type": "array",
+							"minItems": 2,
+							"items": {
+								"$ref": "#/types/Selector"
+							}
+						}
+					},
+					"required": [
+						"op",
+						"items"
 					],
 					"additionalProperties": false
 				}
+			],
+			"additionalProperties": false
+		},
+		"SolidRef": {
+			"description": "Reference to a solid (BRep body) by name.",
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				}
+			},
+			"required": [
+				"name"
+			],
+			"additionalProperties": false
+		},
+		"TextVerticalAlign": {
+			"type": "string",
+			"description": "Vertical interpretation of the text location point.",
+			"enum": [
+				"baseline",
+				"bottom",
+				"top",
+				"center"
 			]
+		},
+		"TextHorizontalAlign": {
+			"type": "string",
+			"description": "Horizontal interpretation of the text location point.",
+			"enum": [
+				"left",
+				"center",
+				"right"
+			]
+		},
+		"FontSpec": {
+			"type": "object",
+			"description": "Font properties used to generate the text outline.",
+			"properties": {
+				"family": {
+					"type": "string",
+					"minLength": 1,
+					"description": "Font family name, for example 'Arial', 'Calibri', or 'Times New Roman'."
+				},
+				"bold": {
+					"type": "boolean",
+					"default": false,
+					"description": "If true, uses the bold font style."
+				},
+				"italic": {
+					"type": "boolean",
+					"default": false,
+					"description": "If true, uses the italic font style."
+				},
+				"underline": {
+					"type": "boolean",
+					"default": false,
+					"description": "If true, includes underline decoration if supported by the font engine."
+				},
+				"strikeout": {
+					"type": "boolean",
+					"default": false,
+					"description": "If true, includes strikeout decoration if supported by the font engine."
+				}
+			},
+			"required": [
+				"family"
+			],
+			"additionalProperties": false
 		}
 	},
 	"tools": [
 		{
-			"name": "toolset.get_info",
-			"description": "Returns information about the active MCP toolset definition loaded by the server.",
+			"name": "assert.check",
+			"description": "Checks a global boolean expression or validates a condition for all objects selected by a selector/query. If the check fails, the batch stops with an error.",
 			"inputSchema": {
 				"type": "object",
-				"properties": {},
+				"properties": {
+					"objects": {
+						"$ref": "#/types/Selector",
+						"description": "Optional set of objects to validate. If provided, condition is evaluated once for each object, with the current object available as 'this'."
+					},
+					"condition": {
+						"type": "string",
+						"__comment__": "cannot be '#/types/ExpressionBool' because of autogeneration of MCPServer code",
+						"description": "Boolean condition. Without 'objects', evaluated once globally. With 'objects', evaluated for each selected object using 'this'."
+					},
+					"minCount": {
+						"type": "integer",
+						"minimum": 0,
+						"default": -1,
+						"description": "Optional minimum number of selected objects."
+					},
+					"maxCount": {
+						"type": "integer",
+						"minimum": 0,
+						"default": -1,
+						"description": "Optional maximum number of selected objects."
+					},
+					"message": {
+						"type": "string",
+						"description": "Optional diagnostic message when the assertion fails."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for logging/debugging."
+					}
+				},
+				"additionalProperties": false,
+				"anyOf": [
+					{
+						"required": [
+							"condition"
+						]
+					},
+					{
+						"required": [
+							"objects"
+						]
+					},
+					{
+						"required": [
+							"minCount"
+						]
+					},
+					{
+						"required": [
+							"maxCount"
+						]
+					}
+				]
+			}
+		},
+		{
+			"name": "document.commit_objects",
+			"description": "Commits one or more workspace objects into the document model (so they appear in the model tree and will be saved). Returns committed object ids. Note: objects are resolved via Selector (may select one or many).",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"objects": {
+						"$ref": "#/types/Selector"
+					}
+				},
+				"required": [
+					"objects"
+				],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
-					"toolsetId": {
-						"type": "string"
-					},
-					"toolsetVersion": {
-						"type": "string"
-					},
-					"schemaVersion": {
-						"type": "string"
-					},
-					"generatedAt": {
-						"type": "string"
-					},
-					"toolsHash": {
-						"type": "string"
+					"committed": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
 					}
 				},
 				"required": [
-					"toolsetId",
-					"toolsetVersion",
-					"schemaVersion",
-					"generatedAt",
-					"toolsHash"
-				],
-				"additionalProperties": false
+					"committed"
+				]
 			}
 		},
 		{
-			"name": "doc.get_state",
+			"name": "document.get_state",
 			"description": "Returns document state: active units (length), active selection, and current document version counter (monotonic).",
 			"inputSchema": {
 				"type": "object",
@@ -596,1209 +1110,57 @@
 			}
 		},
 		{
-			"name": "undo.begin",
-			"description": "Begins an undo frame. All subsequent committed changes until undo.end are grouped into one undo step. Returns undoFrameId.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"label": {
-						"type": "string",
-						"description": "Human-friendly label, e.g. 'Create base plate'."
-					}
-				},
-				"required": [
-					"label"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"undoFrameId": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"undoFrameId"
-				]
-			}
-		},
-		{
-			"name": "undo.end",
-			"description": "Ends an undo frame started with undo.begin. If errors occurred, server may auto-cancel the frame.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"undoFrameId": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"undoFrameId"
-				],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "workspace.name",
-			"description": "Defines or updates a named value (number, point, vector) in the current workspace context. Used for expressions. Returns the canonical name.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"name": {
-						"type": "string",
-						"minLength": 1
-					},
-					"value": {
-						"oneOf": [
-							{
-								"$ref": "#/types/ExpressionNumber"
-							},
-							{
-								"$ref": "#/types/ExpressionPoint3"
-							},
-							{
-								"$ref": "#/types/Vec3"
-							}
-						]
-					}
-				},
-				"required": [
-					"name",
-					"value"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"name": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"name"
-				]
-			}
-		},
-		{
-			"name": "sketch.create",
-			"description": "Creates a new sketch on a plane. Returns sketchId.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"plane": {
-						"$ref": "#/types/PlaneRef"
-					},
-					"name": {
-						"type": "string",
-						"description": "Optional sketch name."
-					}
-				},
-				"required": [
-					"plane"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"sketch"
-				]
-			}
-		},
-		{
-			"name": "sketch.add_entity",
-			"description": "Adds a 2D entity to a sketch. All coordinates are in sketch (u,v) coordinates on the sketch plane. Entities must lie in the sketch plane; 3D points are not accepted here.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"kind": {
-						"type": "string",
-						"enum": [
-							"line",
-							"arc",
-							"circle",
-							"ellipse",
-							"ellipse_arc",
-							"regular_polygon",
-							"slot",
-							"nurbs",
-							"polycurve",
-							"rectangle"
-						]
-					},
-					"params": {
-						"type": "object",
-						"description": "Entity parameters. Schema depends on params.kind (must match top-level kind).",
-						"oneOf": [
-							{
-								"title": "line",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "line" },
-									"start": { "$ref": "#/types/ExpressionPoint2" },
-									"end": { "$ref": "#/types/ExpressionPoint2" }
-								},
-								"required": [ "kind", "start", "end" ],
-								"additionalProperties": false
-							},
-							{
-								"title": "arc",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "arc" },
-									"center": { "$ref": "#/types/ExpressionPoint2" },
-									"radius": { "$ref": "#/types/ExpressionNumber" },
-									"startAngleDeg": { "$ref": "#/types/ExpressionNumber" },
-									"sweepAngleDeg": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center", "radius", "startAngleDeg", "sweepAngleDeg" ],
-								"additionalProperties": false
-							},
-							{
-								"title": "circle",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "circle" },
-									"center": { "$ref": "#/types/ExpressionPoint2" },
-									"radius": { "$ref": "#/types/ExpressionNumber" },
-									"diameter": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center" ],
-								"oneOf": [
-									{ "required": [ "radius" ] },
-									{ "required": [ "diameter" ] }
-								],
-								"additionalProperties": false
-							},
-							{
-								"title": "ellipse",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "ellipse" },
-									"center": { "$ref": "#/types/ExpressionPoint2" },
-									"radiusMajor": { "$ref": "#/types/ExpressionNumber" },
-									"radiusMinor": { "$ref": "#/types/ExpressionNumber" },
-									"rotationDeg": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center", "radiusMajor", "radiusMinor" ],
-								"additionalProperties": false
-							},
-							{
-								"title": "ellipse_arc",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "ellipse_arc" },
-									"center": { "$ref": "#/types/ExpressionPoint2" },
-									"radiusMajor": { "$ref": "#/types/ExpressionNumber" },
-									"radiusMinor": { "$ref": "#/types/ExpressionNumber" },
-									"rotationDeg": { "$ref": "#/types/ExpressionNumber" },
-									"startAngleDeg": { "$ref": "#/types/ExpressionNumber" },
-									"sweepAngleDeg": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center", "radiusMajor", "radiusMinor", "startAngleDeg", "sweepAngleDeg" ],
-								"additionalProperties": false
-							},
-							{
-								"title": "regular_polygon",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "regular_polygon" },
-									"center": { "$ref": "#/types/ExpressionPoint2" },
-									"innerRadius": { "$ref": "#/types/ExpressionNumber" },
-									"outerRadius": { "$ref": "#/types/ExpressionNumber" },
-									"sides": {
-										"type": "integer",
-										"minimum": 3
-									},
-									"rotationDeg": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center", "sides" ],
-								"oneOf": [
-									{ "required": [ "innerRadius" ] },
-									{ "required": [ "outerRadius" ] }
-								],
-								"additionalProperties": false
-							},
-							{
-								"title": "slot",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "slot" },
-									"center": { "$ref": "#/types/ExpressionPoint2" },
-									"length": { "$ref": "#/types/ExpressionNumber" },
-									"width": { "$ref": "#/types/ExpressionNumber" },
-									"rotationDeg": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center", "length", "width" ],
-								"additionalProperties": false
-							},
-							{
-								"title": "nurbs",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "nurbs" },
-									"degree": {
-										"type": "integer",
-										"minimum": 1,
-										"maximum": 10
-									},
-									"controlPoints": {
-										"type": "array",
-										"minItems": 2,
-										"items": { "$ref": "#/types/ExpressionPoint2" }
-									},
-									"throughPoints": {
-										"type": "array",
-										"minItems": 2,
-										"description": "Points the NURBS curve must interpolate (curve will pass through these points).",
-										"items": { "$ref": "#/types/ExpressionPoint2" }
-									},
-									"knots": {
-										"type": "array",
-										"items": { "type": "number" }
-									},
-									"weights": {
-										"type": "array",
-										"items": { "type": "number" }
-									},
-									"isPeriodic": {
-										"type": "boolean",
-										"default": false
-									}
-								},
-								"required": [ "kind", "degree" ],
-								"oneOf": [
-									{ "required": [ "controlPoints" ] },
-									{ "required": [ "throughPoints" ] }
-								],
-								"additionalProperties": false
-							},
-							{
-								"title": "polycurve",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "polycurve" },
-									"vertices": {
-										"type": "array",
-										"minItems": 2,
-										"description": "Polyline vertices with bulge (DXF style). Each entry is a triple (x,y,b). Bulge b defines the circular arc from this vertex to the next one. For closed polylines, the last vertex bulge applies to the segment from last to first.",
-										"items": {
-											"type": "object",
-											"properties": {
-												"x": { "$ref": "#/types/ExpressionNumber" },
-												"y": { "$ref": "#/types/ExpressionNumber" },
-												"b": {
-													"$ref": "#/types/ExpressionNumber",
-													"description": "Bulge for segment starting at this vertex (0 = straight line). Sign indicates arc direction."
-												}
-											},
-											"required": [ "x", "y", "b" ],
-											"additionalProperties": false
-										}
-									},
-									"isClosed": {
-										"type": "boolean",
-										"default": false
-									}
-								},
-								"required": [ "kind", "vertices" ],
-								"additionalProperties": false
-							},
-							{
-								"title": "rectangle",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "rectangle" },
-									"width": { "$ref": "#/types/ExpressionNumber" },
-									"height": { "$ref": "#/types/ExpressionNumber" },
-									"cornerRadius": {
-										"$ref": "#/types/ExpressionNumber",
-										"description": "Optional corner radius. If omitted, defaults to 0 (sharp corners)."
-									},
-									"center": { "$ref": "#/types/ExpressionPoint2" },
-									"rotationDeg": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "width", "height" ],
-								"additionalProperties": false
-							}
-						]
-					},
-					"name": {
-						"type": "string",
-						"description": "Optional entity name."
-					}
-				},
-				"required": [ "sketch", "kind", "params" ],
-				"additionalProperties": false,
-
-				"allOf": [
-					{
-						"if": { "properties": { "kind": { "const": "line" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "line" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "arc" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "arc" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "circle" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "circle" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "ellipse" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "ellipse" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "ellipse_arc" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "ellipse_arc" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "regular_polygon" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "regular_polygon" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "slot" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "slot" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "nurbs" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "nurbs" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "polycurve" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "polycurve" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "rectangle" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "rectangle" } } } } }
-					}
-				]
-			}
-		},
-		{
-			"name": "sketch.round_vertices",
-			"description": "Rounds (fillets) vertices of sketch entities. If entity is omitted, applies to all eligible entities in the sketch. Vertex selection can be done by proximity points (2D) or by vertex indices (for entities with an ordered vertex list such as polycurve/rectangle/ngon). If neither points nor indices are provided, all vertices are rounded. If name is omitted, the operation overwrites the original entity (same name as the source). If name is provided, a new entity is created and the original remains.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"$ref": "#/types/ObjectRef",
-						"description": "Target sketch."
-					},
-
-					"entity": {
-						"$ref": "#/types/EntityRef",
-						"description": "Optional. Target entity within the sketch. If omitted, applies to all eligible entities."
-					},
-
-					"radius": {
-						"$ref": "#/types/ExpressionNumber",
-						"description": "Fillet radius in sketch units."
-					},
-
-					"nearPoints": {
-						"type": "array",
-						"description": "Optional list of 2D points. Vertices near these points will be selected (within tolerance).",
-						"items": {
-							"$ref": "#/types/ExpressionPoint2"
-						},
-						"minItems": 1
-					},
-
-					"indices": {
-						"type": "array",
-						"description": "Optional list of vertex indices (0-based) for entities that have an ordered vertex list (e.g., polycurve, rectangle, ngon).",
-						"items": {
-							"type": "integer",
-							"minimum": 0
-						},
-						"minItems": 1
-					},
-
-					"tolerance": {
-						"$ref": "#/types/ExpressionNumber",
-						"description": "Optional search tolerance for nearPoints selection (default depends on kernel/model tolerance)."
-					},
-
-					"name": {
-						"type": "string",
-						"description": "Optional name for the result. If omitted, the result overwrites the original entity (inherits its name). If provided, the original remains and a new entity is created."
-					}
-				},
-
-				"required": [ "sketch", "radius" ],
-
-				"allOf": [
-					{
-						"not": {
-							"allOf": [
-								{ "required": [ "nearPoints" ] },
-								{ "required": [ "indices" ] }
-							]
-						}
-					}
-				],
-
-				"additionalProperties": false
-			},
-
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"entities": {
-						"type": "array",
-						"description": "Created/updated entities.",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": { "type": "string" },
-								"name": { "type": "string" }
-							},
-							"required": [ "id" ]
-						}
-					},
-					"affectedCount": {
-						"type": "integer",
-						"description": "Number of vertices that were successfully rounded."
-					}
-				},
-				"required": [ "entities", "affectedCount" ],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "solid.extrude",
-			"description": "Extrudes a profile into a new solid body. direction defaults to profile/sketch normal. The extrusion spans from offset to offset+length along direction. If pitch is provided, performs a helical (screw-like) extrusion around the axis. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named sets.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"profile": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"length": {
-						"$ref": "#/types/ExpressionNumber"
-					},
-					"direction": {
-						"$ref": "#/types/Vec3",
-						"description": "Optional. If omitted: profile normal."
-					},
-					"name": {
-						"type": "string"
-					},
-					"offset": {
-						"$ref": "#/types/ExpressionNumber",
-						"description": "Start offset along extrusion direction (mm). Use negative offset for symmetric extrusion. Default 0."
-					},
-					"pitch": {
-						"$ref": "#/types/ExpressionNumber",
-						"description": "Optional. If provided, performs a helical (screw-like) extrusion around the extrusion axis with this pitch (mm per revolution). Number of turns is length/pitch."
-					},
-					"capture": {
-						"type": "object",
-						"description": "Optional names for captured topology sets produced by this extrusion.",
-						"properties": {
-							"startEdges": {
-								"type": "string",
-								"description": "Name of set containing the edges corresponding to the profile at the start cap."
-							},
-							"endEdges": {
-								"type": "string",
-								"description": "Name of set containing the edges corresponding to the profile at the end cap."
-							},
-							"startFace": {
-								"type": "string",
-								"description": "Name of the start cap face reference (stored as a named object)."
-							},
-							"endFace": {
-								"type": "string",
-								"description": "Name of the end cap face reference (stored as a named object)."
-							}
-						},
-						"additionalProperties": false
-					}
-				},
-				"required": [
-					"profile",
-					"length"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"solid": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"solid"
-				]
-			}
-		},
-		{
-			"name": "topology.find_faces",
-			"description": "Finds faces on a solid by filter. Optionally captures the resulting face list as a named set for later selection without ids.",
+			"name": "feature.chamfer",
+			"description": "Chamfers the specified edges of a solid. Edges can be selected by named sets, queries, or set expressions. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. For an unsymmetric chamfer you must provide 'primaryFace' and 'secondaryDistance'",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/ObjectRef"
+						"$ref": "#/types/Selector"
 					},
-					"filter": {
-						"type": "object",
-						"properties": {
-							"surfaceType": {
-								"type": "string",
-								"enum": [
-									"planar",
-									"cylindrical",
-									"conical",
-									"spherical",
-									"toroidal",
-									"freeform"
-								]
-							},
-							"normalApprox": {
-								"$ref": "#/types/Vec3",
-								"description": "Optional approximate outward normal."
-							},
-							"extreme": {
-								"type": "object",
-								"properties": {
-									"axis": {
-										"type": "string",
-										"enum": [
-											"x",
-											"y",
-											"z"
-										]
-									},
-									"which": {
-										"type": "string",
-										"enum": [
-											"min",
-											"max"
-										]
-									}
-								},
-								"required": [
-									"axis",
-									"which"
-								],
-								"additionalProperties": false
-							}
-						},
-						"additionalProperties": false
+					"edges": {
+						"$ref": "#/types/Selector"
 					},
-					"limit": {
-						"type": "integer",
-						"minimum": 1,
-						"maximum": 100,
-						"default": 20
+					"distance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "distance from the edge"
+					},
+					"primaryFace": {
+						"$ref": "#/types/Selector",
+						"description": "If a primary face is provided, the distance refers to that primary face of the edge. The distance on the secondary face secondaryDistance must be provided in that case. When no primaryFace is provided, the distance is applied to both faces, it is a symmetrical chamfer"
+					},
+					"secondaryDistance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "distance from the edge on the other face"
 					},
 					"name": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"solid",
-					"filter"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"faces": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"faces"
-				]
-			}
-		},
-		{
-			"name": "pattern.inset_rectangle_points",
-			"description": "Generates points on a planar face by inset distances from its outer boundary bounding rectangle in face coordinates. Typical use: 4 corner hole centers with inset=10mm. Returns points in 3D.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"face": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"insetX": {
-						"$ref": "#/types/ExpressionNumber"
-					},
-					"insetY": {
-						"$ref": "#/types/ExpressionNumber"
-					},
-					"mode": {
 						"type": "string",
-						"enum": [
-							"four_corners"
-						],
-						"default": "four_corners"
-					}
-				},
-				"required": [
-					"face",
-					"insetX",
-					"insetY"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"points": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/Point3"
-						}
-					}
-				},
-				"required": [
-					"points"
-				]
-			}
-		},
-		{
-			"name": "doc.commit_objects",
-			"description": "Commits one or more workspace objects into the document model (so they appear in the model tree and will be saved). Returns committed object ids.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/ObjectRef"
-						},
-						"minItems": 1
-					}
-				},
-				"required": [
-					"objects"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"committed": {
+						"description": "the name of the resulting solid. If omitted, the name remains unchanged and the original is no more accessible"
+					},
+					"rebind": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true (default), the server rebinds named topology references (faces/edges and sets) associated with the affected solid(s) using the operation's internal topology mapping."
+					},
+					"rebindTargets": {
 						"type": "array",
 						"items": {
 							"type": "string"
-						}
-					}
-				},
-				"required": [
-					"committed"
-				]
-			}
-		},
-		{
-			"name": "undo.cancel",
-			"description": "Cancels an undo frame started with undo.begin, rolling back all changes in that frame.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"undoFrameId": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"undoFrameId"
-				],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "workspace.delete",
-			"description": "Deletes one or more workspace objects (temporary objects not yet committed). Deleting a committed object is not allowed and returns E_INVALID_PARAMS.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/ObjectRef"
 						},
-						"minItems": 1
-					}
-				},
-				"required": [
-					"objects"
-				],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "sketch.boolean",
-			"description": "Performs a 2D boolean on sketch entities/regions and returns a new region object. Inputs are treated as closed planar regions in the sketch plane.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"op": {
-						"type": "string",
-						"enum": [
-							"union",
-							"difference",
-							"intersect"
-						]
-					},
-					"inputs": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/EntityRef"
-						},
-						"minItems": 1
-					},
-					"subtract": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/EntityRef"
-						},
-						"minItems": 1
-					},
-					"name": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"sketch",
-					"op",
-					"inputs"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"region": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"region"
-				]
-			}
-		},
-		{
-			"name": "sketch.connect",
-			"description": "Connects open sketch entities into continuous chains/contours when endpoints match within precision. If entities is omitted, considers all eligible entities in the sketch. If closeGaps=true, remaining gaps are closed by inserting straight line segments (useful e.g. to close a 'C' shape made from two concentric arcs). If name is omitted, the operation overwrites the original entity/entities; if name is provided, the original remains and new connected entities are created.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"$ref": "#/types/ObjectRef",
-						"description": "Target sketch."
-					},
-
-					"entities": {
-						"type": "array",
-						"items": { "$ref": "#/types/EntityRef" },
-						"minItems": 1,
-						"description": "Optional subset of entities to connect. If omitted, all eligible entities in the sketch are used."
-					},
-
-					"precision": {
-						"$ref": "#/types/ExpressionNumber",
-						"description": "Endpoint matching tolerance in sketch units."
-					},
-
-					"closeGaps": {
-						"type": "boolean",
-						"default": false,
-						"description": "If true, closes remaining gaps by inserting straight line segments between unmatched endpoints."
-					},
-
-					"name": {
-						"type": "string",
-						"description": "Optional name for the result. If omitted, the result overwrites the original entity/entities. If provided, the original remains and new connected entities are created."
-					}
-				},
-				"required": [ "sketch", "precision" ],
-				"additionalProperties": false
-			},
-
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"entities": {
-						"type": "array",
-						"description": "Resulting connected entities/contours created or updated by the operation.",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": { "type": "string" },
-								"name": { "type": "string" }
-							},
-							"required": [ "id" ]
-						}
-					},
-					"affectedCount": {
-						"type": "integer",
-						"description": "Number of connections created (including inserted gap-closing line segments, if any)."
-					},
-					"contourCount": {
-						"type": "integer",
-						"description": "Number of resulting chains/contours."
-					}
-				},
-				"required": [ "entities", "affectedCount", "contourCount" ],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "sketch.create_on_face",
-			"description": "Creates a new sketch attached to a planar face. Returns sketchId and the derived sketch plane.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"face": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"name": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"face"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					},
-					"plane": {
-						"$ref": "#/types/PlaneRef"
-					}
-				},
-				"required": [
-					"sketch",
-					"plane"
-				]
-			}
-		},
-
-		{
-			"name": "pattern.grid_entities",
-			"description": "Creates a rectangular/grid pattern of sketch entities. Step vectors are given in sketch plane coordinates (2D), allowing arbitrary directions (not limited to horizontal/vertical). If merge=true, attempts to merge/boolean overlapping closed entities where applicable. If name is provided and nameWithSuffix=false, the name can refer to the whole result set; if nameWithSuffix=true, each created entity is named with a suffix.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"entities": {
-						"type": "array",
-						"items": { "$ref": "#/types/EntityRef" },
-						"minItems": 1
-					},
-					"countX": {
-						"type": "integer",
-						"minimum": 1
-					},
-					"countY": {
-						"type": "integer",
-						"minimum": 1
-					},
-					"stepX": {
-						"type": "object",
-						"description": "Step vector for X direction in sketch coordinates (2D).",
-						"properties": {
-							"x": { "$ref": "#/types/ExpressionNumber" },
-							"y": { "$ref": "#/types/ExpressionNumber" }
-						},
-						"required": [ "x", "y" ],
-						"additionalProperties": false
-					},
-					"stepY": {
-						"type": "object",
-						"description": "Step vector for Y direction in sketch coordinates (2D).",
-						"properties": {
-							"x": { "$ref": "#/types/ExpressionNumber" },
-							"y": { "$ref": "#/types/ExpressionNumber" }
-						},
-						"required": [ "x", "y" ],
-						"additionalProperties": false
-					},
-					"merge": {
-						"type": "boolean",
-						"default": false,
-						"description": "If true, attempts to merge/boolean overlapping closed entities where applicable."
-					},
-					"name": {
-						"type": "string",
-						"description": "Optional name for the pattern result. If nameWithSuffix=false, this name can represent the whole resulting set."
-					},
-					"nameWithSuffix": {
-						"type": "boolean",
-						"default": false,
-						"description": "If true, assigns individual names with suffixes (name_01, name_02, ...). If false, name refers to the whole result set."
-					}
-				},
-				"required": [ "sketch", "entities", "countX", "countY", "stepX", "stepY" ],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"entities": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": { "type": "string" },
-								"name": { "type": "string" }
-							},
-							"required": [ "id" ]
-						}
-					}
-				},
-				"required": [ "entities" ],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "pattern.circular_objects",
-			"description": "Creates a circular pattern of workspace objects (e.g., solids, curves, sketches) around a 3D axis passing through center. If angle is omitted, a full 360° pattern is created. If copy=false, keeps originals as the first instance and creates remaining as copies. If name is provided and nameWithSuffix=false, the name can refer to the whole result set; if nameWithSuffix=true, each created object is named with a suffix.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": { "$ref": "#/types/ObjectRef" },
-						"minItems": 1
-					},
-					"center": {
-						"$ref": "#/types/Point3"
-					},
-					"axis": {
-						"$ref": "#/types/Vec3",
-						"description": "Rotation axis direction (3D). Will be normalized by the server."
-					},
-					"count": {
-						"type": "integer",
-						"minimum": 2,
-						"maximum": 360
-					},
-					"angle": {
-						"type": "#/types/ExpressionNumber",
-						"description": "Optional total sweep angle in degrees. If omitted, defaults to 360°."
-					},
-					"copy": {
-						"type": "boolean",
-						"default": true
-					},
-					"name": {
-						"type": "string"
-					},
-					"nameWithSuffix": {
-						"type": "boolean",
-						"default": false
-					}
-				},
-				"required": [ "objects", "center", "axis", "count" ],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": { "type": "string" },
-								"name": { "type": "string" }
-							},
-							"required": [ "id" ]
-						}
-					}
-				},
-				"required": [ "objects" ],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "pattern.circular_entities",
-			"description": "Creates a circular pattern of sketch entities around a 2D center point in sketch coordinates. If angle is omitted, a full 360° pattern is created. If merge=true, attempts to merge/boolean overlapping closed entities where applicable. If name is provided and nameWithSuffix=false, the name can refer to the whole result set; if nameWithSuffix=true, each created entity is named with a suffix.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"entities": {
-						"type": "array",
-						"items": { "$ref": "#/types/EntityRef" },
-						"minItems": 1
-					},
-					"center": {
-						"$ref": "#/types/ExpressionPoint2"
-					},
-					"count": {
-						"type": "integer",
-						"minimum": 2,
-						"maximum": 360
-					},
-					"angle": {
-						"type": "#/types/ExpressionNumber",
-						"description": "Optional total sweep angle in degrees. If omitted, defaults to 360°."
-					},
-					"merge": {
-						"type": "boolean",
-						"default": false
-					},
-					"name": {
-						"type": "string"
-					},
-					"nameWithSuffix": {
-						"type": "boolean",
-						"default": false
-					}
-				},
-				"required": [ "sketch", "entities", "center", "count" ],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"entities": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": { "type": "string" },
-								"name": { "type": "string" }
-							},
-							"required": [ "id" ]
-						}
-					}
-				},
-				"required": [ "entities" ],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "topology.pick_face",
-			"description": "Picks a face on a solid near a given point and matching an optional filter (surface type, approximate normal). Useful to disambiguate faces.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"solid": {
-						"$ref": "#/types/ObjectRef"
-					},
-					"nearPoint": {
-						"$ref": "#/types/ExpressionPoint3"
-					},
-					"filter": {
-						"type": "object",
-						"properties": {
-							"surfaceType": {
-								"type": "string",
-								"enum": [
-									"planar",
-									"cylindrical",
-									"conical",
-									"spherical",
-									"toroidal",
-									"freeform"
-								]
-							},
-							"normalApprox": {
-								"$ref": "#/types/Vec3"
-							}
-						},
-						"additionalProperties": false
-					},
-					"name": {
-						"type": "string"
+						"description": "Optional list of workspace names to rebind. If omitted, all named topology entries associated with the affected solid(s) are rebound."
 					}
 				},
 				"required": [
 					"solid",
-					"nearPoint"
+					"edges",
+					"distance"
 				],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
-					"face": {
+					"feature": {
 						"type": "object",
 						"properties": {
 							"id": {
@@ -1814,71 +1176,83 @@
 					}
 				},
 				"required": [
-					"face"
+					"feature"
 				]
 			}
 		},
 		{
-			"name": "topology.find_edges",
-			"description": "Finds edges on a solid by filter. Optionally captures the resulting edge list as a named set for later selection without ids.",
+			"name": "feature.fillet",
+			"description": "Rounds (fillets) the specified edges of a solid. Edges can be selected by ids, named sets, queries, or set expressions. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/ObjectRef"
+						"$ref": "#/types/Selector"
 					},
-					"filter": {
-						"$ref": "#/types/EdgeFilter"
+					"edges": {
+						"$ref": "#/types/Selector"
 					},
-					"limit": {
-						"type": "integer",
-						"minimum": 1,
-						"maximum": 500,
-						"default": 200
+					"radius": {
+						"$ref": "#/types/ExpressionNumber"
 					},
 					"name": {
-						"type": "string"
+						"type": "string",
+						"description": "the name of the resulting solid. If omitted, the name remains unchanged and the original is no more accessible"
+					},
+					"rebind": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true (default), the server rebinds named topology references (faces/edges and sets) associated with the affected solid(s) using the operation's internal topology mapping."
+					},
+					"rebindTargets": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Optional list of workspace names to rebind. If omitted, all named topology entries associated with the affected solid(s) are rebound."
 					}
 				},
 				"required": [
-					"solid"
+					"solid",
+					"edges",
+					"radius"
 				],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
-					"edges": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								}
+					"feature": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
 							},
-							"required": [
-								"id"
-							]
-						}
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"id"
+						]
 					}
 				},
 				"required": [
-					"edges"
+					"feature"
 				]
 			}
 		},
 		{
 			"name": "feature.hole",
-			"description": "Creates a cylindrical hole on a planar face of a solid. centerOnFace uses face-local UV coordinates (0,0 is face origin). Optionally captures created topology outputs as named sets. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.",
+			"description": "Creates a cylindrical hole on a planar face of a solid. centerOnFace uses face-local UV coordinates (0,0 is face origin). Optionally captures created topology outputs as named sets. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. Note: solid is resolved via Selector (expected single solid). Note: face is resolved via Selector (expected single face).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/ObjectRef"
+						"$ref": "#/types/Selector"
 					},
 					"face": {
-						"$ref": "#/types/ObjectRef"
+						"$ref": "#/types/Selector"
 					},
 					"centerOnFace": {
 						"type": "object",
@@ -2024,28 +1398,31 @@
 			}
 		},
 		{
-			"name": "feature.fillet_edges",
-			"description": "Rounds (fillets) the specified edges of a solid. Edges can be selected by ids, named sets, queries, or set expressions. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.",
+			"name": "feature.split",
+			"description": "Split a solid by a separating surface. Currently, splitBy is a plane. The selected solid is divided into parts on the two sides of the plane. Parts on the side pointed to by the plane normal are considered outer; parts on the opposite side are considered inner. Result solids are only created for the sides for which a target name is provided. This allows efficient batch processing when only one side of the split is needed. Note: solid is resolved via Selector and must identify exactly one solid.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/ObjectRef"
+						"$ref": "#/types/Selector",
+						"description": "The solid to split. Must resolve to exactly one solid."
 					},
-					"edges": {
-						"$ref": "#/types/EdgeSelector"
+					"splitBy": {
+						"$ref": "#/types/Plane",
+						"description": "The separating plane. Its normal defines the side classification: the side in normal direction is outer, the opposite side is inner."
 					},
-					"radius": {
-						"$ref": "#/types/ExpressionNumber"
-					},
-					"name": {
+					"nameInner": {
 						"type": "string",
-						"description": "the name of the resulting solid. If omitted, the name remains unchanged and the original is no more accessible"
+						"description": "Optional workspace name receiving the resulting solid or solids on the side opposite to the plane normal."
+					},
+					"nameOuter": {
+						"type": "string",
+						"description": "Optional workspace name receiving the resulting solid or solids on the side pointed to by the plane normal."
 					},
 					"rebind": {
 						"type": "boolean",
 						"default": true,
-						"description": "If true (default), the server rebinds named topology references (faces/edges and sets) associated with the affected solid(s) using the operation's internal topology mapping."
+						"description": "If true (default), the server rebinds named topology references (faces, edges, and sets) associated with the affected solid(s) using the operation's internal topology mapping."
 					},
 					"rebindTargets": {
 						"type": "array",
@@ -2057,15 +1434,928 @@
 				},
 				"required": [
 					"solid",
-					"edges",
-					"radius"
+					"splitBy"
+				],
+				"anyOf": [
+					{
+						"required": [
+							"nameInner"
+						]
+					},
+					{
+						"required": [
+							"nameOuter"
+						]
+					}
 				],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
-					"feature": {
+					"dumy": {
+						"type": "string"
+					}
+				},
+				"required": []
+			}
+		},
+		{
+			"name": "pattern.circular_sketch",
+			"description": "Creates a circular pattern of sketch geometry around a 2D center point in sketch coordinates. If angle is omitted, a full 360° pattern is created. If merge=true, attempts to merge/boolean overlapping closed sketch geometry where applicable. If name is provided and nameWithSuffix=false, the name can refer to the whole result set; if nameWithSuffix=true, each created entity is named with a suffix.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"sketchGeometry": {
+						"type": "array",
+						"items": {
+							"$ref": "#/types/SketchGeometryRef"
+						},
+						"minItems": 1
+					},
+					"center": {
+						"$ref": "#/types/Point2"
+					},
+					"count": {
+						"type": "integer",
+						"minimum": 2,
+						"maximum": 360
+					},
+					"angle": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional total sweep angle in degrees. If omitted, defaults to 360°."
+					},
+					"merge": {
+						"type": "boolean",
+						"default": false
+					},
+					"name": {
+						"type": "string"
+					},
+					"nameWithSuffix": {
+						"type": "boolean",
+						"default": false
+					}
+				},
+				"required": [
+					"sketch",
+					"sketchGeometry",
+					"center",
+					"count"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"sketchGeometry": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					}
+				},
+				"required": [
+					"sketchGeometry"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "pattern.circular_solids",
+			"description": "Creates a circular pattern of solids around a 3D axis passing through center. If angle is omitted, defaults to 360 degrees. If name is provided, it refers to the whole resulting set. If suffix is true, individual solids are also named using <base>_<n> where <base> is name (if provided) or the source object's name.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"solids": {
+						"description": "The objects to Pattern to pattern.",
+						"$ref": "#/types/Selector"
+					},
+					"center": {
+						"$ref": "#/types/Point3"
+					},
+					"axis": {
+						"$ref": "#/types/Vec3",
+						"description": "Rotation axis direction (3D). Will be normalized by the server."
+					},
+					"count": {
+						"type": "integer",
+						"minimum": 2,
+						"maximum": 360
+					},
+					"angle": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional total sweep angle in degrees. If omitted, defaults to 360.",
+						"default": 360
+					},
+					"copy": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true (default), creates copies. If false, keeps originals as the first instance and creates remaining as copies."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional group name for the result set."
+					},
+					"suffix": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, assigns individual names using <base>_<n> (e.g., bolt_1, bolt_2, ...). Base is name if provided, otherwise the source object's name."
+					}
+				},
+				"required": [
+					"solids",
+					"center",
+					"axis",
+					"count"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"solids": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					}
+				},
+				"required": [
+					"solids"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "pattern.grid_sketch",
+			"description": "Creates a rectangular/grid pattern of sketch geometry. Step vectors are given in sketch plane coordinates (2D), allowing arbitrary directions (not limited to horizontal/vertical). If merge=true, attempts to merge/boolean overlapping closed sketch geometry where applicable. If name is provided and nameWithSuffix=false, the name can refer to the whole result set; if nameWithSuffix=true, each created entity is named with a suffix.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"sketchGeometry": {
+						"type": "array",
+						"items": {
+							"$ref": "#/types/SketchGeometryRef"
+						},
+						"minItems": 1
+					},
+					"countX": {
+						"type": "integer",
+						"minimum": 1
+					},
+					"countY": {
+						"type": "integer",
+						"minimum": 1
+					},
+					"stepX": {
+						"type": "object",
+						"description": "Step vector for X direction in sketch coordinates (2D).",
+						"properties": {
+							"x": {
+								"$ref": "#/types/ExpressionNumber"
+							},
+							"y": {
+								"$ref": "#/types/ExpressionNumber"
+							}
+						},
+						"required": [
+							"x",
+							"y"
+						],
+						"additionalProperties": false
+					},
+					"stepY": {
+						"type": "object",
+						"description": "Step vector for Y direction in sketch coordinates (2D).",
+						"properties": {
+							"x": {
+								"$ref": "#/types/ExpressionNumber"
+							},
+							"y": {
+								"$ref": "#/types/ExpressionNumber"
+							}
+						},
+						"required": [
+							"x",
+							"y"
+						],
+						"additionalProperties": false
+					},
+					"merge": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, attempts to merge/boolean overlapping closed entities where applicable."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the pattern result. If nameWithSuffix=false, this name can represent the whole resulting set."
+					},
+					"nameWithSuffix": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, assigns individual names with suffixes (name_01, name_02, ...). If false, name refers to the whole result set."
+					}
+				},
+				"required": [
+					"sketch",
+					"sketchGeometry",
+					"countX",
+					"countY",
+					"stepX",
+					"stepY"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"sketchGeometry": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					}
+				},
+				"required": [
+					"sketchGeometry"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "pattern.grid_solids",
+			"description": "Creates a rectangular or linear grid pattern of solids using 3D step vectors. If 'name' is provided, it refers to the entire resulting set. If 'suffix' is true, individual solids are also named using <base>_<nx>_<ny> (or <base>_<n> if one dimension equals 1), where <base> is 'name' (if provided) or the source object's name.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"solids": {
+						"description": "One object reference or a list of object references to pattern.",
+						"$ref": "#/types/Selector"
+					},
+					"countX": {
+						"type": "integer",
+						"description": "The number of instances in the positive stepX direction excludin the original at index 0.",
+						"minimum": 1
+					},
+					"countY": {
+						"type": "integer",
+						"description": "Optional number of instances in the positive stepY direction excludin the original at index 0. If omittedt, only a single row of solids in stepX directen will be created",
+						"default": 0
+					},
+					"countXNegative": {
+						"type": "integer",
+						"description": "Optional number of copies of the solid in the negative stepX direction.",
+						"default": 0
+					},
+					"countYNegative": {
+						"type": "integer",
+						"description": "Optional number of copies of the solid in the negative stepY direction. ",
+						"default": 0
+					},
+					"stepX": {
+						"$ref": "#/types/Vec3",
+						"description": "Step vector for X direction (3D)."
+					},
+					"stepY": {
+						"$ref": "#/types/Vec3",
+						"description": "Step vector for Y direction (3D)."
+					},
+					"copy": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true (default), creates a copy of the original. If false, the original remains at its position."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the resulting set of solids. The set contains the grid instances of the input solids, including either the original objects or their copies depending on the 'copy' parameter."
+					},
+					"suffix": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, assigns individual names using <base>_<nx>_<ny> (e.g., peg_0_0, peg_1_0, ...). Base is name if provided, otherwise the source object's name."
+					}
+				},
+				"required": [
+					"solids",
+					"countX",
+					"stepX"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"solids": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					}
+				},
+				"required": [
+					"solids"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_arc",
+			"description": "Adds an arc entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"center": {
+						"$ref": "#/types/Point2",
+						"description": "Arc center point in sketch coordinates. Optional when three points on the arc are provided"
+					},
+					"radius": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Arc radius. Optional when three points on the arc or center and two points are provided"
+					},
+					"startAngleDeg": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Start angle of the arc in degrees"
+					},
+					"sweepAngleDeg": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Sweep angle of the arc in degrees. When >0 then ccw"
+					},
+					"start": {
+						"$ref": "#/types/Point2",
+						"description": "Startpoint of the arc. When center is provided, the distance to the center defines the radius"
+					},
+					"end": {
+						"$ref": "#/types/Point2",
+						"description": "Endpoint of the arc."
+					},
+					"middle": {
+						"$ref": "#/types/Point2",
+						"description": "Middle point of the arc. Can define an arc, when start- and endpoint are also provided."
+					},
+					"ccw": {
+						"$ref": "#/types/ExpressionBool",
+						"description": "true: couterclockwise, false: clockwise."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_circle",
+			"description": "Adds a circle entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"center": {
+						"$ref": "#/types/Point2"
+					},
+					"radius": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"diameter": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_ellipse",
+			"description": "Adds an ellipse entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"center": {
+						"$ref": "#/types/Point2"
+					},
+					"radiusMajor": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"radiusMinor": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"rotationDeg": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 0
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_ellipse_arc",
+			"description": "Adds an elliptical arc entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"center": {
+						"$ref": "#/types/Point2"
+					},
+					"radiusMajor": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"radiusMinor": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"rotationDeg": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 0
+					},
+					"startAngleDeg": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"sweepAngleDeg": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"name": {
+						"type": "string",
+						"description": "entity name."
+					}
+				},
+				"required": [
+					"sketch",
+					"radiusMajor",
+					"radiusMinor",
+					"startAngleDeg",
+					"sweepAngleDeg"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_line",
+			"description": "Adds a line entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"start": {
+						"$ref": "#/types/Point2"
+					},
+					"end": {
+						"$ref": "#/types/Point2"
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch",
+					"start",
+					"end"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_nurbs",
+			"description": "Adds a NURBS curve to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"degree": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 10,
+						"description": "Degree of the resulting NURBS curve. When using 'parametric', this is the degree of the approximating NURBS."
+					},
+					"controlPoints": {
+						"type": "array",
+						"minItems": 2,
+						"items": {
+							"$ref": "#/types/Point2"
+						},
+						"description": "Explicit control points for the NURBS curve."
+					},
+					"throughPoints": {
+						"type": "array",
+						"minItems": 2,
+						"items": {
+							"$ref": "#/types/Point2"
+						},
+						"description": "Points the NURBS curve must interpolate (curve will pass through these points)."
+					},
+					"knots": {
+						"type": "array",
+						"items": {
+							"type": "number"
+						},
+						"description": "Optional knot vector. If omitted, the kernel chooses a suitable knot vector."
+					},
+					"weights": {
+						"type": "array",
+						"items": {
+							"type": "number"
+						},
+						"description": "Optional weights for a rational NURBS. If omitted, weights default to 1."
+					},
+					"isPeriodic": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, creates a periodic NURBS (closed, smooth)."
+					},
+					"approximation": {
+						"type": "object",
+						"description": "Defines a 2D parametric curve P(t) that will be approximated by a NURBS curve using adaptive sampling.",
+						"properties": {
+							"parameter": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Name of the parameter variable used inside pointExpr (e.g. 't')."
+							},
+							"tMin": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Lower bound of the parameter domain."
+							},
+							"tMax": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Upper bound of the parameter domain."
+							},
+							"pointExpr": {
+								"$ref": "#/types/Point2",
+								"description": "Point expression for P(t) in sketch coordinates. Must reference the variable given in 'parameter'."
+							},
+							"tolerance": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Optional geometric approximation tolerance in sketch units (mm). Smaller values produce more samples."
+							},
+							"maxSegmentLength": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Optional upper bound for chord length between consecutive samples (mm). Smaller values produce more samples."
+							},
+							"minSamples": {
+								"type": "integer",
+								"minimum": 2,
+								"default": 6,
+								"description": "Minimum number of samples used in the initial approximation."
+							},
+							"maxSamples": {
+								"type": "integer",
+								"minimum": 2,
+								"default": 200,
+								"description": "Maximum number of samples. Acts as a safety limit."
+							},
+							"sampling": {
+								"type": "string",
+								"enum": [
+									"adaptive",
+									"uniform"
+								],
+								"default": "adaptive",
+								"description": "Sampling strategy. 'adaptive' refines where curvature is high. 'uniform' samples linearly in parameter space."
+							}
+						},
+						"required": [
+							"parameter",
+							"tMin",
+							"tMax",
+							"pointExpr"
+						],
+						"additionalProperties": false
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false,
+				"allOf": [
+					{
+						"description": "Exactly one curve definition must be provided: controlPoints, throughPoints, or parametric.",
+						"oneOf": [
+							{
+								"required": [
+									"controlPoints"
+								]
+							},
+							{
+								"required": [
+									"throughPoints"
+								]
+							},
+							{
+								"required": [
+									"approximation"
+								]
+							}
+						]
+					}
+				]
+			}
+		},
+		{
+			"name": "sketch.add_polycurve",
+			"description": "Adds a polycurve entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"vertices": {
+						"type": "array",
+						"minItems": 2,
+						"description": "Polyline vertices with bulge (DXF style). Each entry is a triple (x,y,b). Bulge b defines the circular arc from this vertex to the next one. For closed polylines, the last vertex bulge applies to the segment from last to first.",
+						"items": {
+							"type": "object",
+							"properties": {
+								"x": {
+									"$ref": "#/types/ExpressionNumber"
+								},
+								"y": {
+									"$ref": "#/types/ExpressionNumber"
+								},
+								"b": {
+									"$ref": "#/types/ExpressionNumber",
+									"description": "Bulge for segment starting at this vertex (0 = straight line). Sign indicates arc direction."
+								}
+							},
+							"required": [
+								"x",
+								"y",
+								"b"
+							],
+							"additionalProperties": false
+						}
+					},
+					"isClosed": {
+						"type": "boolean",
+						"default": false
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_rectangle",
+			"description": "Adds a rectangle entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"width": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"height": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"cornerRadius": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional corner radius. If omitted, defaults to 0 (sharp corners).",
+						"default": 0
+					},
+					"center": {
+						"$ref": "#/types/Point2"
+					},
+					"rotationDeg": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 0
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_regular_polygon",
+			"description": "Adds a regular polygon entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"center": {
+						"$ref": "#/types/Point2"
+					},
+					"innerRadius": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"outerRadius": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"sides": {
+						"type": "integer",
+						"minimum": 3
+					},
+					"rotationDeg": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 0
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_slot",
+			"description": "Adds a slot entity to a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"center": {
+						"$ref": "#/types/Point2"
+					},
+					"length": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"width": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"rotationDeg": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_text",
+			"description": "Adds text to a sketch and converts it to sketch geometry as closed outline contours, including inner islands where present. The text is placed in sketch coordinates and is always oriented horizontally along the sketch x-axis.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Target sketch."
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Text string to convert into outline geometry."
+					},
+					"location": {
+						"$ref": "#/types/Point2",
+						"description": "Insertion point of the text in sketch coordinates. Its meaning depends on horizontalAlign and verticalAlign."
+					},
+					"height": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Text height in sketch units."
+					},
+					"font": {
+						"$ref": "#/types/FontSpec",
+						"description": "Font properties used to generate the outline."
+					},
+					"horizontalAlign": {
+						"$ref": "#/types/TextHorizontalAlign",
+						"default": "left",
+						"description": "Defines whether location refers to the left edge, horizontal center, or right edge of the text box."
+					},
+					"verticalAlign": {
+						"$ref": "#/types/TextVerticalAlign",
+						"default": "baseline",
+						"description": "Defines whether location refers to the baseline, bottom, top, or vertical center of the text box."
+					},
+					"characterSpacing": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional additional spacing between characters in sketch units."
+					},
+					"wordSpacing": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional additional spacing between words in sketch units."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name of the resulting sketch geometry."
+					}
+				},
+				"required": [
+					"sketch",
+					"text",
+					"location",
+					"height",
+					"font"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"sketchGeometry": {
 						"type": "object",
 						"properties": {
 							"id": {
@@ -2081,8 +2371,743 @@
 					}
 				},
 				"required": [
-					"feature"
+					"sketchGeometry"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.angle_bisector",
+			"description": "Creates an angle bisector line between two intersecting lines in a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"required": [
+					"sketch",
+					"a",
+					"b"
+				],
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"a": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "First line geometry."
+					},
+					"b": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "Second line geometry."
+					},
+					"which": {
+						"type": "string",
+						"enum": [
+							"inner",
+							"outer",
+							"acute",
+							"obtuse",
+							"ccw",
+							"cw"
+						],
+						"default": "inner",
+						"description": "Selects which angle bisector to create."
+					},
+					"at": {
+						"$ref": "#/types/Point2",
+						"description": "Optional reference point to select the intersection region if multiple exist."
+					},
+					"length": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 1.0,
+						"description": "Optional length of the resulting line segment."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the created bisector."
+					}
+				}
+			},
+			"result": {
+				"$ref": "#/types/SketchGeometryRef",
+				"description": "The created bisector line."
+			}
+		},
+		{
+			"name": "sketch.boolean",
+			"description": "Performs a 2D boolean on sketch entities/regions and returns a new region object. Inputs are treated as closed planar regions in the sketch plane.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"op": {
+						"type": "string",
+						"enum": [
+							"union",
+							"difference",
+							"intersect"
+						]
+					},
+					"inputs": {
+						"type": "array",
+						"items": {
+							"$ref": "#/types/SketchGeometryRef"
+						},
+						"minItems": 1
+					},
+					"subtract": {
+						"type": "array",
+						"items": {
+							"$ref": "#/types/SketchGeometryRef"
+						},
+						"minItems": 1
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"sketch",
+					"op",
+					"inputs"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"region": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"id"
+						]
+					}
+				},
+				"required": [
+					"region"
 				]
+			}
+		},
+		{
+			"name": "sketch.connect",
+			"description": "Connects open sketch entities into continuous chains/contours when endpoints match within precision. If entities is omitted, considers all eligible entities in the sketch. If closeGaps=true, remaining gaps are closed by inserting straight line segments (useful e.g. to close a 'C' shape made from two concentric arcs). If name is omitted, the operation overwrites the original entity/entities; if name is provided, the original remains and new connected entities are created.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Target sketch."
+					},
+					"sketchGeometry": {
+						"$ref": "#/types/Selector",
+						"description": "Set of entities to connect. If omitted, all eligible entities in the sketch are used."
+					},
+					"precision": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Endpoint matching tolerance in sketch units."
+					},
+					"closeGaps": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, closes remaining gaps by inserting straight line segments between unmatched endpoints."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the result. If omitted, the result overwrites the original entity/entities. If provided, the original remains and new connected entities are created."
+					}
+				},
+				"required": [
+					"sketch",
+					"precision"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"affectedCount": {
+						"type": "integer",
+						"description": "Number of connections created (including inserted gap-closing line segments, if any)."
+					},
+					"contourCount": {
+						"type": "integer",
+						"description": "Number of resulting chains/contours."
+					},
+					"sketchGeometry": {
+						"type": "array",
+						"description": "Resulting connected entities/contours created or updated by the operation.",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					}
+				},
+				"required": [
+					"sketchGeometry",
+					"affectedCount",
+					"contourCount"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.create",
+			"description": "Creates a new sketch on a plane. Returns sketchId.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"plane": {
+						"$ref": "#/types/Plane"
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional sketch name."
+					}
+				},
+				"required": [
+					"plane"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"id"
+						]
+					}
+				},
+				"required": [
+					"sketch"
+				]
+			}
+		},
+		{
+			"name": "sketch.create_on_face",
+			"description": "Creates a new sketch attached to a planar face. Returns sketchId and the derived sketch plane. Note: face is resolved via Selector (expected single face).",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"face": {
+						"$ref": "#/types/Selector"
+					},
+					"point": {
+						"$ref": "#/types/Point3",
+						"description": "3D point on or close to the face. The projection of this point onto th face will be the origin of the sketch plane"
+					},
+					"xAxis": {
+						"$ref": "#/types/Vec3",
+						"description": "3D direction of the x axis fo the sketch plane.If not in the plane, it will be projected onto the plane."
+					},
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"face"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"id"
+						]
+					},
+					"plane": {
+						"$ref": "#/types/Plane"
+					}
+				},
+				"required": [
+					"sketch",
+					"plane"
+				]
+			}
+		},
+		{
+			"name": "sketch.foot_point_on_curve",
+			"description": "Computes the closest orthogonal foot point of a given point onto a curve in a sketch.",
+			"inputSchema": {
+				"type": "object",
+				"required": [
+					"sketch",
+					"point",
+					"curve"
+				],
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Reference to the sketch containing the curve."
+					},
+					"point": {
+						"$ref": "#/types/Point2",
+						"description": "The point from which the orthogonal foot point is computed."
+					},
+					"curve": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "The target curve (line, arc, circle, polycurve, nurbs, etc.)."
+					},
+					"mode": {
+						"type": "string",
+						"enum": [
+							"supporting",
+							"trimmed"
+						],
+						"default": "supporting",
+						"description": "Defines whether the orthogonal projection is computed on the infinite supporting curve ('supporting') or restricted to the trimmed segment ('trimmed')."
+					},
+					"clamp": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true and mode is 'trimmed', returns the nearest endpoint if the orthogonal foot lies outside the trimmed domain. If false, no result is returned in this case."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for storing resulting foot point in the workspace."
+					},
+					"captured": {
+						"type": "object",
+						"description": "Additional information about the foot poiint.",
+						"properties": {
+							"parameter": {
+								"type": "string",
+								"description": "Workspace name for the parameter of the foot point."
+							},
+							"distance": {
+								"type": "string",
+								"description": "Workspace name of the distance to the curve."
+							}
+						},
+						"additionalProperties": false
+					}
+				}
+			}
+		},
+		{
+			"name": "sketch.get_vertices",
+			"description": "Returns vertices of sketch geometry in sketch coordinates (2D). Vertices are derived from the topology of the selected sketch entities/regions (e.g., polycurve/rectangle/ngon vertices, arc/line endpoints, and region boundary vertices after boolean/offset operations). If 'sketchGeometry' is omitted, all eligible entities in the sketch are processed. If 'name' is provided, the resulting vertex set is stored in the workspace under this name. If 'suffix' is true, individual vertices are also stored as workspace points named <base>_<i> (0-based), where <base> is 'name'. The operation may return multiple disjoint vertex loops; vertices are returned in a deterministic order per loop as provided by the kernel.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Target sketch."
+					},
+					"sketchGeometry": {
+						"$ref": "#/types/Selector",
+						"description": "Optional selector for sketch geometry to analyze. If omitted, all eligible entities in the sketch are used."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional base name for capturing the resulting vertex set in the workspace."
+					},
+					"suffix": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, also captures individual vertices as workspace points named <name>_<i> (0-based). Requires 'name'."
+					},
+					"includeEndpoints": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true (default), includes endpoints of open entities (e.g., line/arc endpoints) as vertices."
+					},
+					"unique": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, attempts to remove duplicate vertices within tolerance and returns a unique list. If false, returns vertices as they appear along each loop/chain."
+					},
+					"tolerance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional tolerance used for duplicate removal when unique=true (default depends on kernel/model tolerance)."
+					}
+				},
+				"required": [
+					"sketch"
+				],
+				"additionalProperties": false,
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"suffix": {
+									"const": true
+								}
+							}
+						},
+						"then": {
+							"required": [
+								"name"
+							]
+						}
+					}
+				]
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"loops": {
+						"type": "array",
+						"description": "Vertex loops/chains. Each loop is an ordered list of 2D vertices in sketch coordinates. Multiple loops may be returned (e.g., disjoint regions or regions with holes).",
+						"items": {
+							"type": "object",
+							"properties": {
+								"vertices": {
+									"type": "array",
+									"items": {
+										"$ref": "#/types/Point2"
+									},
+									"minItems": 1
+								}
+							},
+							"required": [
+								"vertices"
+							],
+							"additionalProperties": false
+						}
+					},
+					"vertexCount": {
+						"type": "integer",
+						"description": "Total number of returned vertices across all loops."
+					},
+					"captured": {
+						"type": "object",
+						"description": "Information about created workspace captures (if 'name' was provided).",
+						"properties": {
+							"setName": {
+								"type": "string",
+								"description": "Workspace name of the captured vertex set (if created)."
+							},
+							"vertexNames": {
+								"type": "array",
+								"description": "Workspace names of individually captured vertices (if suffix=true).",
+								"items": {
+									"type": "string"
+								}
+							}
+						},
+						"additionalProperties": false
+					}
+				},
+				"required": [
+					"loops",
+					"vertexCount"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.intersections",
+			"description": "Computes intersection points between two sketch geometries.",
+			"inputSchema": {
+				"type": "object",
+				"required": [
+					"sketch",
+					"a",
+					"b"
+				],
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"a": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "First sketch geometry."
+					},
+					"b": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "Second sketch geometry."
+					},
+					"mode": {
+						"type": "string",
+						"enum": [
+							"infinite",
+							"segments"
+						],
+						"default": "segments",
+						"description": "Defines whether intersection is computed on infinite supporting curves or on the actual finite segments."
+					},
+					"tolerance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional geometric tolerance."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional base name for storing resulting intersection points in the workspace."
+					},
+					"suffix": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true, multiple intersection points are stored as name_0, name_1, ..."
+					}
+				}
+			}
+		},
+		{
+			"name": "sketch.offset",
+			"description": "Offsets sketch geometry by a given signed distance. Closed inputs produce parallel contours (region offsets). Open inputs produce equidistant curves. For open curves, positive distance offsets to the right side of the curve parameter direction, negative distance to the left side. If 'makeRegion' is true and the input is open, the tool attempts to create a closed region by combining the original curve and its offset (connecting corresponding end points). The operation may produce multiple disjoint results, including regions with holes, depending on the input geometry and distance. If 'sketchGeometry' is omitted, all eligible entities in the sketch are offset.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Target sketch."
+					},
+					"sketchGeometry": {
+						"$ref": "#/types/Selector",
+						"description": "Optional subset of entities to offset. If omitted, all eligible entities in the sketch are used."
+					},
+					"distance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Signed offset distance in sketch units. For closed inputs: positive offsets outward, negative inward. For open inputs: positive offsets to the right side of the curve direction, negative to the left."
+					},
+					"joinType": {
+						"type": "string",
+						"enum": [
+							"round",
+							"miter",
+							"bevel"
+						],
+						"default": "round",
+						"description": "Corner/join style used where the offset creates joins (e.g., at sharp corners)."
+					},
+					"miterLimit": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional miter limit used when joinType='miter'. If omitted, the kernel default is used."
+					},
+					"makeRegion": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true and the input is open, attempts to create a closed region by combining the original curve and its offset, connecting corresponding end points."
+					},
+					"capType": {
+						"type": "string",
+						"enum": [
+							"line",
+							"round"
+						],
+						"default": "line",
+						"description": "End-cap style used only when makeRegion=true (how the ends are connected)."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional base name for the result. If omitted, results overwrite the original entity/entities (inherit their names). If provided, new entities are created and originals remain."
+					}
+				},
+				"required": [
+					"sketch",
+					"distance"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"sketchGeometry": {
+						"type": "array",
+						"description": "Created/updated offset entities/regions. May contain multiple disjoint results (including regions with holes).",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					},
+					"createdCount": {
+						"type": "integer",
+						"description": "Number of resulting entities created/updated."
+					}
+				},
+				"required": [
+					"sketchGeometry",
+					"createdCount"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.perpendicular_through",
+			"description": "Creates a line perpendicular to a given line through a specified point.",
+			"inputSchema": {
+				"type": "object",
+				"required": [
+					"sketch",
+					"line",
+					"point"
+				],
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"line": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "Reference line geometry."
+					},
+					"point": {
+						"$ref": "#/types/Point2",
+						"description": "Point through which the perpendicular will pass."
+					},
+					"length": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 1.0,
+						"description": "Optional length of the resulting line segment."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the created perpendicular."
+					}
+				}
+			},
+			"result": {
+				"$ref": "#/types/SketchGeometryRef",
+				"description": "The created perpendicular line."
+			}
+		},
+		{
+			"name": "sketch.round_vertices",
+			"description": "Rounds (fillets) vertices of sketch entities. If entity is omitted, applies to all eligible entities in the sketch. Vertex selection can be done by proximity points (2D) or by vertex indices (for entities with an ordered vertex list such as polycurve/rectangle/ngon). If neither points nor indices are provided, all vertices are rounded. If name is omitted, the operation overwrites the original entity (same name as the source). If name is provided, a new entity is created and the original remains.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Target sketch."
+					},
+					"entity": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "Optional. Target entity within the sketch. If omitted, applies to all eligible entities."
+					},
+					"radius": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Fillet radius in sketch units."
+					},
+					"nearPoints": {
+						"type": "array",
+						"description": "Optional list of 2D points. Vertices near these points will be selected (within tolerance).",
+						"items": {
+							"$ref": "#/types/Point2"
+						},
+						"minItems": 1
+					},
+					"indices": {
+						"type": "array",
+						"description": "Optional list of vertex indices (0-based) for entities that have an ordered vertex list (e.g., polycurve, rectangle, ngon).",
+						"items": {
+							"type": "integer",
+							"minimum": 0
+						},
+						"minItems": 1
+					},
+					"tolerance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional search tolerance for nearPoints selection (default depends on kernel/model tolerance)."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the result. If omitted, the result overwrites the original entity (inherits its name). If provided, the original remains and a new entity is created."
+					}
+				},
+				"required": [
+					"sketch",
+					"radius"
+				],
+				"allOf": [
+					{
+						"not": {
+							"allOf": [
+								{
+									"required": [
+										"nearPoints"
+									]
+								},
+								{
+									"required": [
+										"indices"
+									]
+								}
+							]
+						}
+					}
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"affectedCount": {
+						"type": "integer",
+						"description": "Number of vertices that were successfully rounded."
+					},
+					"sketchGeometry": {
+						"type": "array",
+						"description": "Created/updated entities.",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					}
+				},
+				"required": [
+					"sketchGeometry",
+					"affectedCount"
+				],
+				"additionalProperties": false
 			}
 		},
 		{
@@ -2093,45 +3118,43 @@
 				"properties": {
 					"op": {
 						"type": "string",
-						"enum": [ "union", "difference", "intersect" ],
+						"enum": [
+							"union",
+							"difference",
+							"intersect"
+						],
 						"description": "Boolean operation: union, difference (target minus tools), intersect."
 					},
-
 					"a": {
-						"$ref": "#/types/ObjectRef",
+						"$ref": "#/types/Selector",
 						"description": "First operand (target). If name is omitted, the result will inherit this operand's name."
 					},
-
 					"b": {
 						"description": "Second operand(s). Either a single solid reference or an array of solid references.",
-						"oneOf": [
-							{ "$ref": "#/types/ObjectRef" },
-							{
-								"type": "array",
-								"items": { "$ref": "#/types/ObjectRef" },
-								"minItems": 1
-							}
-						]
+						"$ref": "#/types/Selector"
 					},
-
 					"name": {
 						"type": "string",
 						"description": "Optional name for the result. If omitted, the result inherits the name of operand a."
 					},
-
 					"rebind": {
 						"type": "boolean",
 						"default": true,
 						"description": "If true (default), the server rebinds named topology references (faces/edges and sets) associated with the affected solid(s) using the operation's internal topology mapping."
 					},
-
 					"rebindTargets": {
 						"type": "array",
-						"items": { "type": "string" },
+						"items": {
+							"type": "string"
+						},
 						"description": "Optional list of workspace names to rebind. If omitted, all named topology entries associated with the affected solid(s) are rebound."
 					}
 				},
-				"required": [ "op", "a", "b" ],
+				"required": [
+					"op",
+					"a",
+					"b"
+				],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
@@ -2140,28 +3163,420 @@
 					"solid": {
 						"type": "object",
 						"properties": {
-							"id": { "type": "string" },
-							"name": { "type": "string" }
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
 						},
-						"required": [ "id" ]
+						"required": [
+							"id"
+						]
 					}
 				},
-				"required": [ "solid" ],
+				"required": [
+					"solid"
+				],
 				"additionalProperties": false
 			}
 		},
 		{
-			"name": "solid.sweep",
-			"description": "Sweeps a profile along a path curve to create a new solid body. Path is a 3D curve or polycurve. Orientation defaults to 'follow' (Frenet/transport). Returns the new solid. Optionally captures start/end faces and profile-edge loops.",
+			"name": "solid.box",
+			"description": "Creates a box solid defined by an origin point and three edge lengths along a local coordinate system.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"origin": { "$ref": "#/types/Point3" },
+					"axisX": {
+						"$ref": "#/types/Vec3",
+						"description": "Optional local X axis direction."
+					},
+					"axisY": {
+						"$ref": "#/types/Vec3",
+						"description": "Optional local Y axis direction."
+					},
+					"sizeX": { "$ref": "#/types/ExpressionNumber" },
+					"sizeY": { "$ref": "#/types/ExpressionNumber" },
+					"sizeZ": { "$ref": "#/types/ExpressionNumber" },
+					"name": { "type": "string" }
+				},
+				"required": [ "origin", "sizeX", "sizeY", "sizeZ" ],
+				"additionalProperties": false
+			}
+		},
+
+		{
+			"name": "solid.sphere",
+			"description": "Creates a sphere solid. The sphere can be defined using different equivalent parameter sets.",
+			"inputSchema": {
+				"properties": {
+					"center": { "$ref": "#/types/Point3" },
+					"radius": { "$ref": "#/types/ExpressionNumber" },
+					"points": {
+						"type": "array",
+						"items": { "$ref": "#/types/Point3" },
+						"minItems": 1,
+						"maxItems": 4,
+						"description": "optional four points lying on the sphere."
+					},
+					"name": { "type": "string" }
+				},
+				"oneOf": [
+					{
+						"required": [
+							"center",
+							"radius"
+						]
+					},
+					{
+						"required": [
+							"points"
+						]
+					}
+				],
+				"additionalProperties": false
+			}
+
+		},
+
+		{
+			"name": "solid.cylinder",
+			"description": "Creates a cylinder solid defined by two axis points and a radius.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"start": { "$ref": "#/types/Point3" },
+					"end": { "$ref": "#/types/Point3" },
+					"radius": { "$ref": "#/types/ExpressionNumber" },
+					"name": { "type": "string" }
+				},
+				"required": [ "start", "end", "radius" ],
+				"additionalProperties": false
+			}
+		},
+
+		{
+			"name": "solid.cone",
+			"description": "Creates a cone or conical frustum solid.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"start": { "$ref": "#/types/Point3" },
+					"end": { "$ref": "#/types/Point3" },
+					"radiusStart": { "$ref": "#/types/ExpressionNumber" },
+					"radiusEnd": { "$ref": "#/types/ExpressionNumber" },
+					"name": { "type": "string" }
+				},
+				"required": [ "start", "end", "radiusStart", "radiusEnd" ],
+				"additionalProperties": false
+			}
+		},
+
+		{
+			"name": "solid.torus",
+			"description": "Creates a torus solid defined by center, axis, major radius and minor radius.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"center": { "$ref": "#/types/Point3" },
+					"axis": { "$ref": "#/types/Vec3" },
+					"majorRadius": { "$ref": "#/types/ExpressionNumber" },
+					"minorRadius": { "$ref": "#/types/ExpressionNumber" },
+					"name": { "type": "string" }
+				},
+				"required": [ "center", "axis", "majorRadius", "minorRadius" ],
+				"additionalProperties": false
+			}
+		},
+
+		{
+			"name": "solid.capsule",
+			"description": "Creates a capsule solid defined by two axis points and a radius.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"start": { "$ref": "#/types/Point3" },
+					"end": { "$ref": "#/types/Point3" },
+					"radius": { "$ref": "#/types/ExpressionNumber" },
+					"cap": {
+						"type": "string",
+						"enum": [ "spherical", "conical" ],
+						"default": "spherical"
+					},
+					"coneTipDistance": { "$ref": "#/types/ExpressionNumber" },
+					"name": { "type": "string" }
+				},
+				"required": [ "start", "end", "radius" ],
+				"additionalProperties": false
+			}
+		},
+
+		{
+			"name": "solid.pipe",
+			"description": "Creates a hollow cylindrical pipe solid.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"start": { "$ref": "#/types/Point3" },
+					"end": { "$ref": "#/types/Point3" },
+					"outerRadius": { "$ref": "#/types/ExpressionNumber" },
+					"innerRadius": { "$ref": "#/types/ExpressionNumber" },
+					"name": { "type": "string" }
+				},
+				"required": [ "start", "end", "outerRadius", "innerRadius" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "solid.extrude",
+			"description": "Extrudes a profile into a new solid body. direction defaults to profile/sketch normal. The extrusion spans from offset to offset+length along direction. If pitch is provided, performs a helical (screw-like) extrusion around the axis. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named sets. Note: profile is resolved via Selector (expected sketch geometry or sketch with closed loops).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"profile": {
-						"$ref": "#/types/ObjectRef"
+						"$ref": "#/types/Selector"
+					},
+					"length": {
+						"$ref": "#/types/ExpressionNumber"
+					},
+					"direction": {
+						"$ref": "#/types/Vec3",
+						"description": "Optional. If omitted: profile normal."
+					},
+					"name": {
+						"type": "string"
+					},
+					"offset": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 0.0,
+						"description": "Start offset along extrusion direction (mm). Use negative offset for symmetric extrusion. Default 0."
+					},
+					"pitch": {
+						"$ref": "#/types/ExpressionNumber",
+						"default": 0.0,
+						"description": "Optional. If provided, performs a helical (screw-like) extrusion around the extrusion axis with this pitch (mm per revolution). Number of turns is length/pitch."
+					},
+					"capture": {
+						"type": "object",
+						"description": "Optional names for captured topology sets produced by this extrusion.",
+						"properties": {
+							"startEdges": {
+								"type": "string",
+								"description": "Name of set containing the edges corresponding to the profile at the start cap."
+							},
+							"endEdges": {
+								"type": "string",
+								"description": "Name of set containing the edges corresponding to the profile at the end cap."
+							},
+							"startFace": {
+								"type": "string",
+								"description": "Name of the start cap face reference (stored as a named object)."
+							},
+							"endFace": {
+								"type": "string",
+								"description": "Name of the end cap face reference (stored as a named object)."
+							}
+						},
+						"additionalProperties": false
+					}
+				},
+				"required": [
+					"profile",
+					"length"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"solid": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"id"
+						]
+					}
+				},
+				"required": [
+					"solid"
+				]
+			}
+		},
+		{
+			"name": "solid.rotate",
+			"description": "Revolves a planar profile around an axis to create a new solid body (revolve). angle can be full rotation or degrees. Returns the new solid. For partial revolves, start/end cap faces may be captured. Note: profile is resolved via Selector.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"profile": {
+						"$ref": "#/types/Selector"
+					},
+					"axis": {
+						"$ref": "#/types/Axis3"
+					},
+					"angle": {
+						"$ref": "#/types/Angle",
+						"description": "Rotation angle. Use {\"full\":true} for 360°."
+					},
+					"name": {
+						"type": "string"
+					},
+					"capture": {
+						"type": "object",
+						"properties": {
+							"startFace": {
+								"type": "string",
+								"description": "Name for the start cap face (only for partial revolutions)."
+							},
+							"endFace": {
+								"type": "string",
+								"description": "Name for the end cap face (only for partial revolutions)."
+							},
+							"sideFace": {
+								"type": "string",
+								"description": "Name for the revolved side face (if unambiguous)."
+							},
+							"seamEdges": {
+								"type": "string",
+								"description": "Name for set containing seam edge(s) (if any)."
+							}
+						},
+						"additionalProperties": false
+					}
+				},
+				"required": [
+					"profile",
+					"axis",
+					"angle"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"solid": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"id"
+						]
+					}
+				},
+				"required": [
+					"solid"
+				]
+			}
+		},
+		{
+			"name": "solid.ruled",
+			"description": "Creates a solid by connecting two closed sketch profiles with ruled surfaces. Corresponding points on the two profiles are connected by straight line segments. The profiles must be closed sketch geometries.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"profile1": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "First closed sketch profile."
+					},
+					"profile2": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "Second closed sketch profile."
+					},
+					"synchronization": {
+						"type": "string",
+						"enum": [
+							"arcLength",
+							"bySegments"
+						],
+						"default": "bySegments",
+						"description": "Controls how corresponding positions along the two profiles are matched. 'arcLength' matches positions proportionally by accumulated curve length. 'bySegments' matches corresponding curve segments of the two profiles."
+					},
+					"alignment": {
+						"type": "string",
+						"enum": [
+							"natural",
+							"closestPoints"
+						],
+						"default": "natural",
+						"description": "Controls how the start positions of the two closed profiles are aligned before synchronization. 'natural' uses the existing parameterization of both profiles. 'closestPoints' first finds a pair of closest points on the two profiles and uses them as the start correspondence."
+					},
+					"matchPoints1": {
+						"type": "array",
+						"items": {
+							"$ref": "#/types/Point2"
+						},
+						"description": "Optional correspondence points on the first profile. Each point must lie on profile1."
+					},
+					"matchPoints2": {
+						"type": "array",
+						"items": {
+							"$ref": "#/types/Point2"
+						},
+						"description": "Optional correspondence points on the second profile. Each point must lie on profile2. Must have the same number of entries as matchPoints1."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name of the resulting solid."
+					}
+				},
+				"required": [
+					"profile1",
+					"profile2"
+				],
+				"additionalProperties": false,
+				"allOf": [
+					{
+						"if": {
+							"required": [
+								"matchPoints1"
+							]
+						},
+						"then": {
+							"required": [
+								"matchPoints2"
+							]
+						}
+					},
+					{
+						"if": {
+							"required": [
+								"matchPoints2"
+							]
+						},
+						"then": {
+							"required": [
+								"matchPoints1"
+							]
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "solid.sweep",
+			"description": "Sweeps a profile along a path curve to create a new solid body. Path is a 3D curve or polycurve. Orientation defaults to 'follow' (Frenet/transport). Returns the new solid. Optionally captures start/end faces and profile-edge loops. Note: profile is resolved via Selector. Note: path is resolved via Selector (expected single path/curve).",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"profile": {
+						"$ref": "#/types/Selector"
 					},
 					"path": {
-						"$ref": "#/types/ObjectRef",
-						"description": "Curve/path object to sweep along."
+						"$ref": "#/types/Selector"
 					},
 					"orientation": {
 						"type": "string",
@@ -2224,191 +3639,287 @@
 			}
 		},
 		{
-			"name": "solid.rotate",
-			"description": "Revolves a planar profile around an axis to create a new solid body (revolve). angle can be full rotation or degrees. Returns the new solid. For partial revolves, start/end cap faces may be captured.",
+			"name": "surface.parametric",
+			"description": "Creates a parametric surface from three expressions x(u,v), y(u,v), z(u,v) over a rectangular parameter domain. The surface is internally approximated by a NURBS surface and can be used as an unbounded carrier surface for later operations such as solid splitting.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
-					"profile": {
-						"$ref": "#/types/ObjectRef"
+					"degreeU": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 10,
+						"default": 3,
+						"description": "Degree of the approximating NURBS surface in u direction."
 					},
-					"axis": {
-						"$ref": "#/types/AxisRef"
+					"degreeV": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 10,
+						"default": 3,
+						"description": "Degree of the approximating NURBS surface in v direction."
 					},
-					"angle": {
-						"$ref": "#/types/AngleSpec",
-						"description": "Rotation angle. Use {\"full\":true} for 360°."
+					"approximation": {
+						"type": "object",
+						"description": "Defines a 3D parametric surface S(u,v) that will be approximated by a NURBS surface using adaptive sampling.",
+						"properties": {
+							"uParameter": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Name of the first parameter variable used inside xExpr, yExpr and zExpr (e.g. 'u')."
+							},
+							"vParameter": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Name of the second parameter variable used inside xExpr, yExpr and zExpr (e.g. 'v')."
+							},
+							"uMin": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Lower bound of the u parameter domain."
+							},
+							"uMax": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Upper bound of the u parameter domain."
+							},
+							"vMin": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Lower bound of the v parameter domain."
+							},
+							"vMax": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Upper bound of the v parameter domain."
+							},
+							"xExpr": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Expression for the x coordinate of S(u,v)."
+							},
+							"yExpr": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Expression for the y coordinate of S(u,v)."
+							},
+							"zExpr": {
+								"type": "string",
+								"minLength": 1,
+								"description": "Expression for the z coordinate of S(u,v)."
+							},
+							"uPeriodic": {
+								"type": "boolean",
+								"default": false,
+								"description": "If true, the surface is periodic in u direction."
+							},
+							"vPeriodic": {
+								"type": "boolean",
+								"default": false,
+								"description": "If true, the surface is periodic in v direction."
+							},
+							"singularities": {
+								"type": "array",
+								"description": "Optional information about degenerate boundaries or singularities of the parameterization.",
+								"items": {
+									"type": "object",
+									"properties": {
+										"location": {
+											"type": "string",
+											"enum": [ "uMin", "uMax", "vMin", "vMax" ],
+											"description": "Boundary of the parameter domain where the singularity occurs."
+										},
+										"kind": {
+											"type": "string",
+											"enum": [ "point", "collapsedBoundary" ],
+											"default": "point",
+											"description": "Type of singularity at the given boundary."
+										}
+									},
+									"required": [ "location" ],
+									"additionalProperties": false
+								}
+							},
+							"tolerance": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Optional geometric approximation tolerance in model units (mm). Smaller values produce more samples."
+							},
+							"maxSegmentLengthU": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Optional upper bound for sample spacing in u direction (mm). Smaller values produce more samples."
+							},
+							"maxSegmentLengthV": {
+								"$ref": "#/types/ExpressionNumber",
+								"description": "Optional upper bound for sample spacing in v direction (mm). Smaller values produce more samples."
+							},
+							"minSamplesU": {
+								"type": "integer",
+								"minimum": 2,
+								"default": 6,
+								"description": "Minimum number of samples used in u direction."
+							},
+							"minSamplesV": {
+								"type": "integer",
+								"minimum": 2,
+								"default": 6,
+								"description": "Minimum number of samples used in v direction."
+							},
+							"maxSamplesU": {
+								"type": "integer",
+								"minimum": 2,
+								"default": 100,
+								"description": "Maximum number of samples in u direction. Acts as a safety limit."
+							},
+							"maxSamplesV": {
+								"type": "integer",
+								"minimum": 2,
+								"default": 100,
+								"description": "Maximum number of samples in v direction. Acts as a safety limit."
+							},
+							"sampling": {
+								"type": "string",
+								"enum": [ "adaptive", "uniform" ],
+								"default": "adaptive",
+								"description": "Sampling strategy. 'adaptive' refines where curvature changes strongly. 'uniform' samples linearly in parameter space."
+							}
+						},
+						"required": [ "uParameter", "vParameter", "uMin", "uMax", "vMin", "vMax", "xExpr", "yExpr", "zExpr" ],
+						"additionalProperties": false
 					},
 					"name": {
-						"type": "string"
-					},
-					"capture": {
-						"type": "object",
-						"properties": {
-							"startFace": {
-								"type": "string",
-								"description": "Name for the start cap face (only for partial revolutions)."
-							},
-							"endFace": {
-								"type": "string",
-								"description": "Name for the end cap face (only for partial revolutions)."
-							},
-							"sideFace": {
-								"type": "string",
-								"description": "Name for the revolved side face (if unambiguous)."
-							},
-							"seamEdges": {
-								"type": "string",
-								"description": "Name for set containing seam edge(s) (if any)."
-							}
-						},
-						"additionalProperties": false
+						"type": "string",
+						"description": "Optional name of the resulting surface."
 					}
 				},
-				"required": [
-					"profile",
-					"axis",
-					"angle"
-				],
+				"required": [ "approximation" ],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"solid": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"solid"
-				]
 			}
 		},
 		{
-			"name": "pattern.grid_objects",
-			"description": "Creates a rectangular/grid pattern of workspace objects (e.g., solids, curves). Copies the given objects in a countX by countY grid using 3D step vectors. If copy=false, moves originals to the first position and creates remaining as copies (typical CAD behavior is copy=true). Returns created object references.",
+			"name": "surface.nurbs",
+			"description": "Creates a NURBS surface from control points, knot vectors and optional weights. The resulting surface can be used as an unbounded carrier surface for later operations such as solid splitting.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
-					"objects": {
+					"degreeU": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 10,
+						"description": "Degree of the NURBS surface in u direction."
+					},
+					"degreeV": {
+						"type": "integer",
+						"minimum": 1,
+						"maximum": 10,
+						"description": "Degree of the NURBS surface in v direction."
+					},
+					"controlPoints": {
 						"type": "array",
+						"minItems": 2,
+						"description": "Two-dimensional array of NURBS control points. The outer array runs in v direction, the inner array runs in u direction.",
 						"items": {
-							"$ref": "#/types/ObjectRef"
-						},
-						"minItems": 1
+							"type": "array",
+							"minItems": 2,
+							"items": {
+								"$ref": "#/types/Point3"
+							}
+						}
 					},
-					"countX": {
-						"type": "integer",
-						"minimum": 1
+					"uKnots": {
+						"type": "array",
+						"description": "Knot vector in u direction.",
+						"items": {
+							"$ref": "#/types/ExpressionNumber"
+						}
 					},
-					"countY": {
-						"type": "integer",
-						"minimum": 1
+					"vKnots": {
+						"type": "array",
+						"description": "Knot vector in v direction.",
+						"items": {
+							"$ref": "#/types/ExpressionNumber"
+						}
 					},
-					"stepX": {
-						"$ref": "#/types/Vec3"
+					"weights": {
+						"type": "array",
+						"description": "Optional two-dimensional array of weights matching the controlPoints layout. If omitted, all weights default to 1.",
+						"items": {
+							"type": "array",
+							"items": {
+								"$ref": "#/types/ExpressionNumber"
+							}
+						}
 					},
-					"stepY": {
-						"$ref": "#/types/Vec3"
-					},
-					"copy": {
+					"uPeriodic": {
 						"type": "boolean",
-						"default": true
+						"default": false,
+						"description": "If true, the surface is treated as periodic in u direction."
 					},
-					"namePrefix": {
+					"vPeriodic": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, the surface is treated as periodic in v direction."
+					},
+					"name": {
 						"type": "string",
-						"description": "Optional prefix for generated object names (if source had no name)."
+						"description": "Optional name of the resulting surface."
 					}
 				},
-				"required": [
-					"objects",
-					"countX",
-					"countY",
-					"stepX",
-					"stepY"
-				],
+				"required": [ "degreeU", "degreeV", "controlPoints", "uKnots", "vKnots" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "system.get_info",
+			"description": "Returns information about the active MCP toolset definition loaded by the server.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {},
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
+					"toolsetId": {
+						"type": "string"
+					},
+					"toolsetVersion": {
+						"type": "string"
+					},
+					"schemaVersion": {
+						"type": "string"
+					},
+					"generatedAt": {
+						"type": "string"
+					},
+					"toolsHash": {
+						"type": "string"
 					}
 				},
 				"required": [
-					"objects"
-				]
+					"toolsetId",
+					"toolsetVersion",
+					"schemaVersion",
+					"generatedAt",
+					"toolsHash"
+				],
+				"additionalProperties": false
 			}
 		},
 		{
 			"name": "transform.move",
-			"description": "Translates one or more objects by a 3D vector. If copy=true, returns new objects; otherwise modifies originals. Returned objects are references to moved/copied objects. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix.",
+			"description": "Translates one or more objects by a 3D vector. If copy=true, returns new objects; otherwise modifies originals. Returned objects are references to moved/copied objects. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are resolved via Selector (may select one or many).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/ObjectRef"
-						},
-						"minItems": 1
+						"$ref": "#/types/Selector"
 					},
 					"delta": {
 						"$ref": "#/types/Vec3"
 					},
-					"copy": {
-						"type": "boolean",
-						"default": false
-					},
-					"namePrefix": {
+					"name": {
 						"type": "string",
-						"description": "When copy=true: When multiple objects are modifiedand this is the prefix of the names of the copied objects. When a single object is modified, this is the new name of the object. When omitted, the copy will have the name of the original"
+						"description": "The name of the result. If provided, the original objects will be copied. If omitted, the original objects are transformed and keep their name(s). "
 					},
-					"copyNamed": {
-						"type": "boolean",
-						"default": true,
-						"description": "When copy=true, also duplicate all named topology entries (faces/edges and sets) that belong to the copied objects."
-					},
-					"nameSuffix": {
+					"copySuffix": {
 						"type": "string",
 						"default": "_copy",
-						"description": "Suffix appended to duplicated workspace names when copy=true and copyNamed=true (e.g. topFace -> topFace_copy)."
-					},
-					"nameConflict": {
-						"type": "string",
-						"enum": [
-							"error",
-							"overwrite",
-							"autoIndex"
-						],
-						"default": "autoIndex",
-						"description": "How to handle conflicts when generating duplicated workspace names."
+						"description": "Suffix appended to individual object names when 'name' is provided and multiple objects are copied (e.g., body -> body_copy)."
 					}
 				},
 				"required": [
@@ -2444,51 +3955,90 @@
 			}
 		},
 		{
-			"name": "transform.rotate",
-			"description": "Rotates one or more objects around an axis by a given angle. If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix.",
+			"name": "transform.reflect",
+			"description": "Reflects (mirrors) one or more objects across a plane. If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are resolved via Selector (may select one or many).",
 			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"objects": {
+						"$ref": "#/types/Selector"
+					},
+					"plane": {
+						"$ref": "#/types/Plane",
+						"description": "For reflections in 3D we need a plane or an axis. For 2D reflections (sketch) a plane is not considered"
+					},
+					"axis3D": {
+						"$ref": "#/types/Axis3",
+						"description": "Reflection on a 3d axis. "
+					},
+					"axis2D": {
+						"$ref": "#/types/Axis2",
+						"description": "For reflections in 2D we need an axis. "
+					},
+					"name": {
+						"type": "string",
+						"description": "The name of the result. If provided, the original objects will be copied. If omitted, the original objects are transformed and keep their name(s). "
+					},
+					"copySuffix": {
+						"type": "string",
+						"default": "_copy",
+						"description": "Suffix appended to individual object names when 'name' is provided and multiple objects are copied (e.g., body -> body_copy)."
+					}
+				},
+				"required": [
+					"objects"
+				],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
 						"type": "array",
 						"items": {
-							"$ref": "#/types/ObjectRef"
-						},
-						"minItems": 1
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							},
+							"required": [
+								"id"
+							]
+						}
+					}
+				},
+				"required": [
+					"objects"
+				]
+			}
+		},
+		{
+			"name": "transform.rotate",
+			"description": "Rotates one or more objects around an axis by a given angle. If 'name' is omitted, the selected objects are rotated in place and keep their names. If 'name' is provided, copies are created, rotated, and captured as a named set. When multiple objects are copied, individual result names are derived from the original names by appending 'nameSuffix'.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"objects": {
+						"$ref": "#/types/Selector"
 					},
 					"axis": {
-						"$ref": "#/types/AxisRef"
+						"$ref": "#/types/Axis3"
 					},
 					"angle": {
-						"$ref": "#/types/AngleSpec"
+						"$ref": "#/types/Angle"
 					},
-					"copy": {
-						"type": "boolean",
-						"default": false
-					},
-					"namePrefix": {
+					"name": {
 						"type": "string",
-						"description": "When copy=true: When multiple objects are modifiedand this is the prefix of the names of the copied objects. When a single object is modified, this is the new name of the object. When omitted, the copy will have the name of the original"
+						"description": "The name of the result. If provided, the original objects will be copied. If omitted, the original objects are transformed and keep their name(s). "
 					},
-					"copyNamed": {
-						"type": "boolean",
-						"default": true,
-						"description": "When copy=true, also duplicate all named topology entries (faces/edges and sets) that belong to the copied objects."
-					},
-					"nameSuffix": {
+					"copySuffix": {
 						"type": "string",
 						"default": "_copy",
-						"description": "Suffix appended to duplicated workspace names when copy=true and copyNamed=true (e.g. topFace -> topFace_copy)."
-					},
-					"nameConflict": {
-						"type": "string",
-						"enum": [
-							"error",
-							"overwrite",
-							"autoIndex"
-						],
-						"default": "autoIndex",
-						"description": "How to handle conflicts when generating duplicated workspace names."
+						"description": "Suffix appended to individual object names when 'name' is provided and multiple objects are copied (e.g., body -> body_copy)."
 					}
 				},
 				"required": [
@@ -2525,97 +4075,16 @@
 			}
 		},
 		{
-			"name": "transform.reflect",
-			"description": "Reflects (mirrors) one or more objects across a plane. If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/ObjectRef"
-						},
-						"minItems": 1
-					},
-					"plane": {
-						"$ref": "#/types/PlaneRef"
-					},
-					"copy": {
-						"type": "boolean",
-						"default": true
-					},
-					"namePrefix": {
-						"type": "string",
-						"description": "When copy=true: When multiple objects are modifiedand this is the prefix of the names of the copied objects. When a single object is modified, this is the new name of the object. When omitted, the copy will have the name of the original"
-					},
-					"copyNamed": {
-						"type": "boolean",
-						"default": true,
-						"description": "When copy=true, also duplicate all named topology entries (faces/edges and sets) that belong to the copied objects."
-					},
-					"nameSuffix": {
-						"type": "string",
-						"default": "_copy",
-						"description": "Suffix appended to duplicated workspace names when copy=true and copyNamed=true (e.g. topFace -> topFace_copy)."
-					},
-					"nameConflict": {
-						"type": "string",
-						"enum": [
-							"error",
-							"overwrite",
-							"autoIndex"
-						],
-						"default": "autoIndex",
-						"description": "How to handle conflicts when generating duplicated workspace names."
-					}
-				},
-				"required": [
-					"objects",
-					"plane"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"objects"
-				]
-			}
-		},
-		{
 			"name": "transform.scale",
-			"description": "Scales one or more objects about an origin. Provide either uniform factor or non-uniform factors (x,y,z). If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix.",
+			"description": "Scales one or more objects about an origin. Provide either uniform factor or non-uniform factors (x,y,z). If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are resolved via Selector (may select one or many).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
-						"type": "array",
-						"items": {
-							"$ref": "#/types/ObjectRef"
-						},
-						"minItems": 1
+						"$ref": "#/types/Selector"
 					},
 					"origin": {
-						"$ref": "#/types/ExpressionPoint3"
+						"$ref": "#/types/Point3"
 					},
 					"factor": {
 						"$ref": "#/types/ExpressionNumber",
@@ -2641,33 +4110,14 @@
 						],
 						"additionalProperties": false
 					},
-					"copy": {
-						"type": "boolean",
-						"default": false
-					},
-					"namePrefix": {
+					"name": {
 						"type": "string",
-						"description": "When copy=true: When multiple objects are modifiedand this is the prefix of the names of the copied objects. When a single object is modified, this is the new name of the object. When omitted, the copy will have the name of the original"
+						"description": "The name of the result. If provided, the original objects will be copied. If omitted, the original objects are transformed and keep their name(s). "
 					},
-					"copyNamed": {
-						"type": "boolean",
-						"default": true,
-						"description": "When copy=true, also duplicate all named topology entries (faces/edges and sets) that belong to the copied objects."
-					},
-					"nameSuffix": {
+					"copySuffix": {
 						"type": "string",
 						"default": "_copy",
-						"description": "Suffix appended to duplicated workspace names when copy=true and copyNamed=true (e.g. topFace -> topFace_copy)."
-					},
-					"nameConflict": {
-						"type": "string",
-						"enum": [
-							"error",
-							"overwrite",
-							"autoIndex"
-						],
-						"default": "autoIndex",
-						"description": "How to handle conflicts when generating duplicated workspace names."
+						"description": "Suffix appended to individual object names when 'name' is provided and multiple objects are copied (e.g., body -> body_copy)."
 					}
 				},
 				"required": [
@@ -2703,206 +4153,131 @@
 			}
 		},
 		{
-			"name": "solid.create_primitive",
-			"description": "Creates a basic 3D primitive solid in the workspace. These primitives are often used as tools for boolean operations (e.g., to subtract a cone for a countersink). If name is provided, it is used to reference the created solid in subsequent operations, which is typically easier than using an auto-generated id.",
+			"name": "undo.begin",
+			"description": "Begins an undo frame. All subsequent committed changes until undo.end are grouped into one undo step. Returns undoFrameId.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
-					"kind": {
+					"label": {
 						"type": "string",
-						"enum": [
-							"box",
-							"sphere",
-							"cylinder",
-							"cone",
-							"torus",
-							"capsule",
-							"pipe"
-						]
-					},
-
-					"params": {
-						"type": "object",
-						"description": "Primitive parameters. Schema depends on params.kind (must match top-level kind).",
-						"oneOf": [
-							{
-								"title": "box",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "box" },
-									"origin": { "$ref": "#/types/Point3" },
-
-									"axisX": {
-										"$ref": "#/types/Vec3",
-										"description": "Optional local X axis direction. If omitted, global +X is used."
-									},
-									"axisY": {
-										"$ref": "#/types/Vec3",
-										"description": "Optional local Y axis direction. If omitted, global +Y is used. Must not be parallel to axisX."
-									},
-
-									"sizeX": { "$ref": "#/types/ExpressionNumber" },
-									"sizeY": { "$ref": "#/types/ExpressionNumber" },
-									"sizeZ": {
-										"$ref": "#/types/ExpressionNumber",
-										"description": "Length along axisZ, where axisZ is derived from axisX × axisY (right-handed)."
-									}
-								},
-								"required": [ "kind", "origin", "sizeX", "sizeY", "sizeZ" ],
-								"additionalProperties": false
-							},
-
-							{
-								"title": "sphere",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "sphere" },
-									"center": { "$ref": "#/types/Point3" },
-									"radius": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center", "radius" ],
-								"additionalProperties": false
-							},
-
-							{
-								"title": "cylinder",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "cylinder" },
-									"start": { "$ref": "#/types/Point3" },
-									"end": { "$ref": "#/types/Point3" },
-									"radius": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "start", "end", "radius" ],
-								"additionalProperties": false
-							},
-
-							{
-								"title": "cone",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "cone" },
-									"start": { "$ref": "#/types/Point3" },
-									"end": { "$ref": "#/types/Point3" },
-									"radiusStart": { "$ref": "#/types/ExpressionNumber" },
-									"radiusEnd": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "start", "end", "radiusStart", "radiusEnd" ],
-								"additionalProperties": false
-							},
-
-							{
-								"title": "torus",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "torus" },
-									"center": { "$ref": "#/types/Point3" },
-									"axis": { "$ref": "#/types/Vec3" },
-									"majorRadius": { "$ref": "#/types/ExpressionNumber" },
-									"minorRadius": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "center", "axis", "majorRadius", "minorRadius" ],
-								"additionalProperties": false
-							},
-
-							{
-								"title": "capsule",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "capsule" },
-									"start": { "$ref": "#/types/Point3" },
-									"end": { "$ref": "#/types/Point3" },
-									"radius": { "$ref": "#/types/ExpressionNumber" },
-
-									"cap": {
-										"type": "string",
-										"enum": [ "spherical", "conical" ],
-										"default": "spherical",
-										"description": "End-cap type. spherical = cylinder with hemispherical ends; conical = cylinder with conical ends."
-									},
-
-									"coneTipDistance": {
-										"$ref": "#/types/ExpressionNumber",
-										"description": "Only for cap=conical: distance from each end plane to the cone tip along the axis. If omitted, the server chooses a default (e.g., radius)."
-									}
-								},
-								"required": [ "kind", "start", "end", "radius" ],
-								"additionalProperties": false
-							},
-
-							{
-								"title": "pipe",
-								"type": "object",
-								"properties": {
-									"kind": { "const": "pipe" },
-									"start": { "$ref": "#/types/Point3" },
-									"end": { "$ref": "#/types/Point3" },
-									"outerRadius": { "$ref": "#/types/ExpressionNumber" },
-									"innerRadius": { "$ref": "#/types/ExpressionNumber" }
-								},
-								"required": [ "kind", "start", "end", "outerRadius", "innerRadius" ],
-								"additionalProperties": false
-							}
-						]
-					},
-
-					"name": {
-						"type": "string",
-						"description": "Optional solid name. Using a name makes it easier to reference the created solid in subsequent operations."
+						"description": "Human-friendly label, e.g. 'Create base plate'."
 					}
 				},
-
-				"required": [ "kind", "params" ],
-				"additionalProperties": false,
-
-				"allOf": [
-					{
-						"if": { "properties": { "kind": { "const": "box" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "box" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "sphere" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "sphere" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "cylinder" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "cylinder" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "cone" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "cone" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "torus" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "torus" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "capsule" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "capsule" } } } } }
-					},
-					{
-						"if": { "properties": { "kind": { "const": "pipe" } } },
-						"then": { "properties": { "params": { "properties": { "kind": { "const": "pipe" } } } } }
-					}
-				]
+				"required": [
+					"label"
+				],
+				"additionalProperties": false
 			},
-
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
-					"solid": {
-						"type": "object",
-						"properties": {
-							"id": { "type": "string" },
-							"name": { "type": "string" }
-						},
-						"required": [ "id" ]
+					"undoFrameId": {
+						"type": "string"
 					}
 				},
-				"required": [ "solid" ],
+				"required": [
+					"undoFrameId"
+				]
+			}
+		},
+		{
+			"name": "undo.cancel",
+			"description": "Cancels an undo frame started with undo.begin, rolling back all changes in that frame.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"undoFrameId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"undoFrameId"
+				],
 				"additionalProperties": false
 			}
+		},
+		{
+			"name": "undo.end",
+			"description": "Ends an undo frame started with undo.begin. If errors occurred, server may auto-cancel the frame.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"undoFrameId": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"undoFrameId"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "workspace.delete",
+			"description": "Deletes one or more workspace objects (temporary objects not yet committed). Deleting a committed object is not allowed and returns E_INVALID_PARAMS. Note: objects are resolved via Selector (may select one or many).",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"objects": {
+						"$ref": "#/types/Selector"
+					}
+				},
+				"required": [
+					"objects"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "workspace.set",
+			"description": "Defines or updates a named workspace value. Optionally, the value can be marked as a user-editable parameter with UI metadata such as label, input type, limits, and choices.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Internal workspace name used in expressions."
+					},
+					"value": {
+						"oneOf": [
+							{ "$ref": "#/types/ExpressionNumber" },
+							{ "$ref": "#/types/Point2" },
+							{ "$ref": "#/types/Point3" },
+							{ "$ref": "#/types/Vec2" },
+							{ "$ref": "#/types/Vec3" },
+							{ "$ref": "#/types/Selector" },
+							{ "$ref": "#/types/ExpressionBool" },
+							{ "$ref": "#/types/ExpressionBBox" },
+							{
+								"type": "string",
+								"description": "A plain text value or an expression string, depending on the selected input kind and server context."
+							}
+						],
+						"description": "Value assigned to the workspace name."
+					},
+					"label": {
+						"type": "string",
+						"description": "Optional user-friendly label for display in a parameter input form."
+					},
+					"input": {
+						"$ref": "#/types/ParameterInputSpec"
+					}
+				},
+				"required": [ "name", "value" ],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					}
+				},
+				"required": [ "name" ]
+			}
 		}
+
 	],
 	"errors": [
 		{
@@ -2950,13 +4325,12 @@
 			"message": "Selection query returned multiple items where one was required."
 		},
 		{
-
 			"code": "E_PROFILE_OPEN",
 			"message": "Profile is not closed where it is necessary for the operation."
 		}
 	],
 	"toolsetId": "shapeit.mcp",
 	"schemaVersion": "2020-12",
-	"generatedAt": "2026-02-18T11:06:01.058825Z",
+	"generatedAt": "2026-02-22T13:27:52.573811",
 	"toolsHash": "sha256:e0c7a835f255c5dfeec639da8a12279641d79467d068b9af80ac8556792b67e5"
 }

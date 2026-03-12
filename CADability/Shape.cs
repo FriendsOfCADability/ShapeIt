@@ -3046,6 +3046,13 @@ namespace CADability.Shapes
             }
             return res;
         }
+        public BoundingRect bounds
+        {
+            get
+            {
+                return GetExtent(); // for expression evaluator
+            }
+        }
         public bool HitTest(ref BoundingRect Rect, bool IncludeControlPoints)
         {
             return HitTest(ref Rect);

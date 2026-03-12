@@ -73,10 +73,6 @@
 		</EmbeddedResource>
 	</ItemGroup>
 
-	<ItemGroup>
-	  <PackageReference Include="MethodDecorator.Fody" Version="1.1.1" />
-	</ItemGroup>
-
 	<!-- Mini-Task zum Erhöhen der 4. Stelle (Revision) -->
 	<UsingTask TaskName="BumpVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
 		<ParameterGroup>
@@ -107,6 +103,7 @@
 		<WriteLinesToFile File="$(VersionFile)" Lines="$(_NewVersion)" Overwrite="true" />
 		<Message Importance="High" Text="Release-Build → version.txt erhöht auf $(_NewVersion)" />
 	</Target>
+	<ProjectExtensions><VisualStudio><UserProperties /></VisualStudio></ProjectExtensions>
 
 
 </Project>

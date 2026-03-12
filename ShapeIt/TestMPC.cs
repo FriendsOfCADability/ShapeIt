@@ -1,6 +1,8 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Windows.Forms;
 
@@ -12,6 +14,56 @@ namespace ShapeIt
         private Button okButton;
         private MCPServer server;
 
+
+        private static IEnumerable<string> ReadJsonObjects(string text)
+        {
+            var sb = new StringBuilder();
+
+            int braceDepth = 0;
+            bool inString = false;
+            bool escape = false;
+
+            foreach (char c in text)
+            {
+                sb.Append(c);
+
+                if (escape)
+                {
+                    escape = false;
+                    continue;
+                }
+
+                if (c == '\\')
+                {
+                    escape = true;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString)
+                {
+                    if (c == '{')
+                    {
+                        braceDepth++;
+                    }
+                    else if (c == '}')
+                    {
+                        braceDepth--;
+
+                        if (braceDepth == 0)
+                        {
+                            yield return sb.ToString();
+                            sb.Clear();
+                        }
+                    }
+                }
+            }
+        }
         public TestMCP()
         {
             InitializeComponents();
@@ -64,21 +116,17 @@ namespace ShapeIt
 
         private void ProcessText(string text)
         {
-            using (StringReader reader = new StringReader(text))
+            foreach (var jsonBlock in ReadJsonObjects(text))
             {
-                string? line;
-                while ((line = reader.ReadLine()) != null)
-                {
-                    ProcessLine(line);
-                }
+                TryParseRpcBlock(jsonBlock);
             }
         }
 
         private void ProcessLine(string line)
         {
-            bool ok = TryParseRpcLine(line);
+            bool ok = TryParseRpcBlock(line);
         }
-        bool TryParseRpcLine(string json)
+        bool TryParseRpcBlock(string json)
         {
             string? method = null;
             int? id = null;

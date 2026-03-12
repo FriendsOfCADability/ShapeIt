@@ -821,7 +821,15 @@ namespace CADability.Curve2D
                     {
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint2D p = curve(mpos);
-                        if ((bsp.PointAt(mpos) | p) > precision)
+                        double d = bsp.Distance(p);
+                        if (d==double.MaxValue)
+                        {
+                            double pos = bsp.PositionOf(p);
+                            GeoPoint2D onCurve = bsp.PointAt(pos);
+                            d = p | onCurve;
+                        }
+                        if (d > precision)
+                            // if ((bsp.PointAt(mpos) | p) > precision) leads to too many points
                         {
                             toAdd.Add((mpos, p));
                         }
