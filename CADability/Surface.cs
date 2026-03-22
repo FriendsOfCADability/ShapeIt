@@ -537,6 +537,29 @@ namespace CADability.GeoObject
 
             surface.SetBounds(ext);
         }
+        public static void SetBoundsTo(this ISurface surface, params GeoPoint[] pp)
+        {
+            BoundingRect ext = BoundingRect.EmptyBoundingRect;
+            for (int j = 0; j < pp.Length; j++)
+            {
+                GeoPoint p = pp[j];
+                GeoPoint2D uv = surface.PositionOf(p);
+
+                double[] us = surface.GetUSingularities();
+                double[] vs = surface.GetVSingularities();
+                bool uPole = false, vPole = false;
+                for (int i = 0; i < us.Length; i++) if (Math.Abs(uv.x - us[i]) < 1e-6) uPole = true;
+                for (int i = 0; i < vs.Length; i++) if (Math.Abs(uv.y - vs[i]) < 1e-6) vPole = true;
+
+                if (!ext.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, ext, ref uv);
+
+                if (uPole) ext.MinMaxHeight(uv.y); // only adjust the height of ext
+                else if (vPole) ext.MinMaxWidth(uv.x); // only adjust the width of ext
+                else ext.MinMax(uv); // adjust both width and height
+            }
+            surface.SetBounds(ext);
+        }
+
         /// <summary>
         /// Adjusts the provided UV coordinates to align with a pole on the surface, if the coordinates are near a
         /// singularity.
@@ -6186,7 +6209,7 @@ namespace CADability.GeoObject
                 for (int j = 0; j < points.Count; j++)
                 {
                     double d = cv.DistanceTo(points[j]);
-                    if (d < precision) // auf die nächstgelegene Kurve mappen
+                    if (d < 10*precision) // auf die nächstgelegene Kurve mappen
                     {
                         params3d[i, j] = cv.PositionOf(points[j]);
                         params2dsurf1[i, j] = cvons1.PositionOf(paramsuvsurf1[j]);

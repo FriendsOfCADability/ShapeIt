@@ -244,7 +244,7 @@
 			]
 		},
 		"Plane": {
-			"description": "Either a named standard plane or a plane defined by origin+normal (and optional xAxis).",
+			"description": "Either a named standard plane or a plane defined by origin, xAxis and normal or yAxis (when no xAxis is provided, an arbitrary xAxis and yAxis will be used).",
 			"oneOf": [
 				{
 					"type": "object",
@@ -269,13 +269,13 @@
 						"origin": {
 							"$ref": "#/types/Point3"
 						},
-						"normal": {
-							"$ref": "#/types/Vec3"
-						},
 						"xAxis": {
 							"$ref": "#/types/Vec3"
 						},
 						"yAxis": {
+							"$ref": "#/types/Vec3"
+						},
+						"normal": {
 							"$ref": "#/types/Vec3"
 						}
 					},
@@ -300,7 +300,7 @@
 			]
 		},
 		"ExpressionNumber": {
-			"description": "A numeric literal or an expression evaluated in the current workspace context. If a string is provided, it is evaluated by the expression evaluator and must return a number.",
+			"description": "A numeric literal or an expression evaluated in the current workspace context. If a string is provided, it is evaluated by the expression evaluator and must return a floatingpoint value.",
 			"oneOf": [
 				{
 					"type": "number",
@@ -310,6 +310,20 @@
 					"type": "string",
 					"minLength": 1,
 					"description": "An expression that evaluates to a number (may also be the name of a previously defined numeric workspace value)."
+				}
+			]
+		},
+		"ExpressionInteger": {
+			"description": "A numeric literal or an expression evaluated in the current workspace context. If a string is provided, it is evaluated by the expression evaluator and must return a integer value.",
+			"oneOf": [
+				{
+					"type": "integer",
+					"description": "A numeric literal."
+				},
+				{
+					"type": "string",
+					"minLength": 1,
+					"description": "An expression that evaluates to a integer value (may also be the name of a previously defined  workspace value)."
 				}
 			]
 		},
@@ -367,7 +381,7 @@
 					"$ref": "#/types/Selector",
 					"description": "Include only edges that belong to the given face(s). Face selector is resolved at runtime (expected faces)."
 				},
-				"dihedralAngleDeg": {
+				"dihedralAngle": {
 					"type": "object",
 					"properties": {
 						"min": {
@@ -426,6 +440,14 @@
 				"condition": {
 					"type": "string",
 					"description": "A boolean expression evaluated for the current edge. The edge is available as 'this'. The expression must resolve to true to accept the edge."
+				},
+				"inside": {
+					"$ref": "#/types/ExpressionBBox",
+					"description": "Optional bounding box that must fully contain the edge."
+				},
+				"touchedBy": {
+					"$ref": "#/types/ExpressionBBox",
+					"description": "Optional bounding box that must intersect/touch the edge."
 				}
 			},
 			"additionalProperties": false
@@ -842,11 +864,12 @@
 					"minItems": 1,
 					"items": {
 						"$ref": "#/types/Selector"
-					}
+					},
+					"description": "Select multiple objects. Preferred shorthand is an array of names, e.g. [\"tool1\", \"tool2\"], but each array element may also be any other valid Selector form such as a query, named set, or set expression."
 				},
 				{
 					"type": "string",
-					"description": "A name of an item. Togehter with the array option, you can provide an array of names"
+					"description": "Preferred shorthand for selecting a single named object."
 				},
 				{
 					"properties": {
@@ -997,13 +1020,13 @@
 						"description": "Boolean condition. Without 'objects', evaluated once globally. With 'objects', evaluated for each selected object using 'this'."
 					},
 					"minCount": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"minimum": 0,
 						"default": -1,
 						"description": "Optional minimum number of selected objects."
 					},
 					"maxCount": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"minimum": 0,
 						"default": -1,
 						"description": "Optional maximum number of selected objects."
@@ -1056,20 +1079,6 @@
 					"objects"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"committed": {
-						"type": "array",
-						"items": {
-							"type": "string"
-						}
-					}
-				},
-				"required": [
-					"committed"
-				]
 			}
 		},
 		{
@@ -1156,28 +1165,6 @@
 					"distance"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"feature": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"feature"
-				]
 			}
 		},
 		{
@@ -1218,28 +1205,6 @@
 					"radius"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"feature": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"feature"
-				]
 			}
 		},
 		{
@@ -1325,77 +1290,8 @@
 					"diameter"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"feature": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					},
-					"outputs": {
-						"type": "object",
-						"properties": {
-							"entryEdges": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"properties": {
-										"id": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"id"
-									]
-								}
-							},
-							"exitEdges": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"properties": {
-										"id": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"id"
-									]
-								}
-							},
-							"wallFaces": {
-								"type": "array",
-								"items": {
-									"type": "object",
-									"properties": {
-										"id": {
-											"type": "string"
-										}
-									},
-									"required": [
-										"id"
-									]
-								}
-							}
-						},
-						"additionalProperties": false
-					}
-				},
-				"required": [
-					"feature"
-				]
 			}
+
 		},
 		{
 			"name": "feature.split",
@@ -1408,8 +1304,16 @@
 						"description": "The solid to split. Must resolve to exactly one solid."
 					},
 					"splitBy": {
-						"$ref": "#/types/Plane",
-						"description": "The separating plane. Its normal defines the side classification: the side in normal direction is outer, the opposite side is inner."
+						"oneOf": [
+							{
+								"$ref": "#/types/Plane",
+								"description": "Split by a plane defined by a point and a normal vector."
+							},
+							{
+								"$ref": "#/types/ObjectRef",
+								"description": "Split by a surface. This could be the result of surface.parametric or the surface of a face."
+							}
+						]
 					},
 					"nameInner": {
 						"type": "string",
@@ -1449,15 +1353,6 @@
 					}
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"dumy": {
-						"type": "string"
-					}
-				},
-				"required": []
 			}
 		},
 		{
@@ -1480,7 +1375,7 @@
 						"$ref": "#/types/Point2"
 					},
 					"count": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"minimum": 2,
 						"maximum": 360
 					},
@@ -1507,32 +1402,6 @@
 					"count"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketchGeometry": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"sketchGeometry"
-				],
-				"additionalProperties": false
 			}
 		},
 		{
@@ -1545,15 +1414,12 @@
 						"description": "The objects to Pattern to pattern.",
 						"$ref": "#/types/Selector"
 					},
-					"center": {
-						"$ref": "#/types/Point3"
-					},
 					"axis": {
-						"$ref": "#/types/Vec3",
+						"$ref": "#/types/Axis3",
 						"description": "Rotation axis direction (3D). Will be normalized by the server."
 					},
 					"count": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"minimum": 2,
 						"maximum": 360
 					},
@@ -1579,35 +1445,8 @@
 				},
 				"required": [
 					"solids",
-					"center",
 					"axis",
 					"count"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"solids": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"solids"
 				],
 				"additionalProperties": false
 			}
@@ -1629,11 +1468,11 @@
 						"minItems": 1
 					},
 					"countX": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"minimum": 1
 					},
 					"countY": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"minimum": 1
 					},
 					"stepX": {
@@ -1694,32 +1533,6 @@
 					"stepY"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketchGeometry": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"sketchGeometry"
-				],
-				"additionalProperties": false
 			}
 		},
 		{
@@ -1733,22 +1546,22 @@
 						"$ref": "#/types/Selector"
 					},
 					"countX": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"description": "The number of instances in the positive stepX direction excludin the original at index 0.",
 						"minimum": 1
 					},
 					"countY": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"description": "Optional number of instances in the positive stepY direction excludin the original at index 0. If omittedt, only a single row of solids in stepX directen will be created",
 						"default": 0
 					},
 					"countXNegative": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"description": "Optional number of copies of the solid in the negative stepX direction.",
 						"default": 0
 					},
 					"countYNegative": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"description": "Optional number of copies of the solid in the negative stepY direction. ",
 						"default": 0
 					},
@@ -1781,32 +1594,6 @@
 					"stepX"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"solids": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"solids"
-				],
-				"additionalProperties": false
 			}
 		},
 		{
@@ -1826,11 +1613,11 @@
 						"$ref": "#/types/ExpressionNumber",
 						"description": "Arc radius. Optional when three points on the arc or center and two points are provided"
 					},
-					"startAngleDeg": {
+					"startAngle": {
 						"$ref": "#/types/ExpressionNumber",
 						"description": "Start angle of the arc in degrees"
 					},
-					"sweepAngleDeg": {
+					"sweepAngle": {
 						"$ref": "#/types/ExpressionNumber",
 						"description": "Sweep angle of the arc in degrees. When >0 then ccw"
 					},
@@ -1945,10 +1732,10 @@
 						"$ref": "#/types/ExpressionNumber",
 						"default": 0
 					},
-					"startAngleDeg": {
+					"startAngle": {
 						"$ref": "#/types/ExpressionNumber"
 					},
-					"sweepAngleDeg": {
+					"sweepAngle": {
 						"$ref": "#/types/ExpressionNumber"
 					},
 					"name": {
@@ -1960,8 +1747,8 @@
 					"sketch",
 					"radiusMajor",
 					"radiusMinor",
-					"startAngleDeg",
-					"sweepAngleDeg"
+					"startAngle",
+					"sweepAngle"
 				],
 				"additionalProperties": false
 			}
@@ -2007,6 +1794,7 @@
 						"type": "integer",
 						"minimum": 1,
 						"maximum": 10,
+						"default":  3,
 						"description": "Degree of the resulting NURBS curve. When using 'parametric', this is the degree of the approximating NURBS."
 					},
 					"controlPoints": {
@@ -2074,13 +1862,13 @@
 								"description": "Optional upper bound for chord length between consecutive samples (mm). Smaller values produce more samples."
 							},
 							"minSamples": {
-								"type": "integer",
+								"$ref": "#/types/ExpressionInteger",
 								"minimum": 2,
 								"default": 6,
 								"description": "Minimum number of samples used in the initial approximation."
 							},
 							"maxSamples": {
-								"type": "integer",
+								"$ref": "#/types/ExpressionInteger",
 								"minimum": 2,
 								"default": 200,
 								"description": "Maximum number of samples. Acts as a safety limit."
@@ -2243,7 +2031,7 @@
 						"$ref": "#/types/ExpressionNumber"
 					},
 					"sides": {
-						"type": "integer",
+						"$ref": "#/types/ExpressionInteger",
 						"minimum": 3
 					},
 					"rotationDeg": {
@@ -2351,29 +2139,6 @@
 					"font"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketchGeometry": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"sketchGeometry"
-				],
-				"additionalProperties": false
 			}
 		},
 		{
@@ -2472,28 +2237,6 @@
 					"inputs"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"region": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"region"
-				]
 			}
 		},
 		{
@@ -2529,43 +2272,6 @@
 					"precision"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"affectedCount": {
-						"type": "integer",
-						"description": "Number of connections created (including inserted gap-closing line segments, if any)."
-					},
-					"contourCount": {
-						"type": "integer",
-						"description": "Number of resulting chains/contours."
-					},
-					"sketchGeometry": {
-						"type": "array",
-						"description": "Resulting connected entities/contours created or updated by the operation.",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"sketchGeometry",
-					"affectedCount",
-					"contourCount"
-				],
-				"additionalProperties": false
 			}
 		},
 		{
@@ -2586,28 +2292,6 @@
 					"plane"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"sketch"
-				]
 			}
 		},
 		{
@@ -2635,32 +2319,6 @@
 					"face"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketch": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					},
-					"plane": {
-						"$ref": "#/types/Plane"
-					}
-				},
-				"required": [
-					"sketch",
-					"plane"
-				]
 			}
 		},
 		{
@@ -2780,58 +2438,6 @@
 						}
 					}
 				]
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"loops": {
-						"type": "array",
-						"description": "Vertex loops/chains. Each loop is an ordered list of 2D vertices in sketch coordinates. Multiple loops may be returned (e.g., disjoint regions or regions with holes).",
-						"items": {
-							"type": "object",
-							"properties": {
-								"vertices": {
-									"type": "array",
-									"items": {
-										"$ref": "#/types/Point2"
-									},
-									"minItems": 1
-								}
-							},
-							"required": [
-								"vertices"
-							],
-							"additionalProperties": false
-						}
-					},
-					"vertexCount": {
-						"type": "integer",
-						"description": "Total number of returned vertices across all loops."
-					},
-					"captured": {
-						"type": "object",
-						"description": "Information about created workspace captures (if 'name' was provided).",
-						"properties": {
-							"setName": {
-								"type": "string",
-								"description": "Workspace name of the captured vertex set (if created)."
-							},
-							"vertexNames": {
-								"type": "array",
-								"description": "Workspace names of individually captured vertices (if suffix=true).",
-								"items": {
-									"type": "string"
-								}
-							}
-						},
-						"additionalProperties": false
-					}
-				},
-				"required": [
-					"loops",
-					"vertexCount"
-				],
-				"additionalProperties": false
 			}
 		},
 		{
@@ -2937,38 +2543,6 @@
 					"distance"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"sketchGeometry": {
-						"type": "array",
-						"description": "Created/updated offset entities/regions. May contain multiple disjoint results (including regions with holes).",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					},
-					"createdCount": {
-						"type": "integer",
-						"description": "Number of resulting entities created/updated."
-					}
-				},
-				"required": [
-					"sketchGeometry",
-					"createdCount"
-				],
-				"additionalProperties": false
 			}
 		},
 		{
@@ -3039,7 +2613,7 @@
 						"type": "array",
 						"description": "Optional list of vertex indices (0-based) for entities that have an ordered vertex list (e.g., polycurve, rectangle, ngon).",
 						"items": {
-							"type": "integer",
+							"$ref": "#/types/ExpressionInteger",
 							"minimum": 0
 						},
 						"minItems": 1
@@ -3074,38 +2648,6 @@
 							]
 						}
 					}
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"affectedCount": {
-						"type": "integer",
-						"description": "Number of vertices that were successfully rounded."
-					},
-					"sketchGeometry": {
-						"type": "array",
-						"description": "Created/updated entities.",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"sketchGeometry",
-					"affectedCount"
 				],
 				"additionalProperties": false
 			}
@@ -3154,29 +2696,6 @@
 					"op",
 					"a",
 					"b"
-				],
-				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"solid": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"solid"
 				],
 				"additionalProperties": false
 			}
@@ -3330,7 +2849,7 @@
 		},
 		{
 			"name": "solid.extrude",
-			"description": "Extrudes a profile into a new solid body. direction defaults to profile/sketch normal. The extrusion spans from offset to offset+length along direction. If pitch is provided, performs a helical (screw-like) extrusion around the axis. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named sets. Note: profile is resolved via Selector (expected sketch geometry or sketch with closed loops).",
+			"description": "Extrudes a profile into a new solid body. direction defaults to profile/sketch normal. The extrusion spans from offset to offset+length along direction. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named sets. Note: profile is resolved via Selector (expected sketch geometry or sketch with closed loops).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -3344,18 +2863,13 @@
 						"$ref": "#/types/Vec3",
 						"description": "Optional. If omitted: profile normal."
 					},
-					"name": {
-						"type": "string"
-					},
 					"offset": {
 						"$ref": "#/types/ExpressionNumber",
 						"default": 0.0,
 						"description": "Start offset along extrusion direction (mm). Use negative offset for symmetric extrusion. Default 0."
 					},
-					"pitch": {
-						"$ref": "#/types/ExpressionNumber",
-						"default": 0.0,
-						"description": "Optional. If provided, performs a helical (screw-like) extrusion around the extrusion axis with this pitch (mm per revolution). Number of turns is length/pitch."
+					"name": {
+						"type": "string"
 					},
 					"capture": {
 						"type": "object",
@@ -3386,28 +2900,69 @@
 					"length"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
+			}
+		},
+		{
+			"name": "solid.helical_extrude",
+			"description": "Creates a new solid by helical extrusion of a planar profile around a given axis. The profile is rotated around the axis while simultaneously translated along it according to the specified pitch. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named topology sets. Note: profile is resolved via Selector and is expected to refer to closed sketch geometry or a sketch containing closed loops.",
+			"inputSchema": {
 				"type": "object",
 				"properties": {
-					"solid": {
+					"profile": {
+						"$ref": "#/types/Selector",
+						"description": "The profile to extrude. Expected to resolve to closed sketch geometry or a sketch containing closed loops."
+					},
+					"axis": {
+						"$ref": "#/types/Axis3",
+						"description": "Axis of the helical extrusion. The profile rotates around this axis and is translated along its direction."
+					},
+					"angle": {
+						"$ref": "#/types/Angle",
+						"description": "Total rotation angle of the helical extrusion. May be greater than 360° for multiple turns. The axial travel is pitch * angle / 360."
+					},
+					"offset": {
+						"$ref": "#/types/Angle",
+						"description": "Angular offset applied to the start of the helical extrusion. The profile is rotated around the axis by this angle before the helical motion begins. Useful for controlling the phase of the thread or creating multi-start threads."
+					},
+					"pitch": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Axial advance per full revolution. For example, if pitch is 5, the profile moves 5 model units along the axis for every 360° of rotation."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name of the resulting solid."
+					},
+					"capture": {
 						"type": "object",
+						"description": "Optional names for topology created by the operation.",
 						"properties": {
-							"id": {
-								"type": "string"
+							"startEdges": {
+								"type": "string",
+								"description": "Name of the set containing the edges corresponding to the profile at the start of the helical extrusion."
 							},
-							"name": {
-								"type": "string"
+							"endEdges": {
+								"type": "string",
+								"description": "Name of the set containing the edges corresponding to the profile at the end of the helical extrusion."
+							},
+							"startFace": {
+								"type": "string",
+								"description": "Name of the start cap face reference, if such a face exists."
+							},
+							"endFace": {
+								"type": "string",
+								"description": "Name of the end cap face reference, if such a face exists."
 							}
 						},
-						"required": [
-							"id"
-						]
+						"additionalProperties": false
 					}
 				},
 				"required": [
-					"solid"
-				]
+					"profile",
+					"axis",
+					"angle",
+					"pitch"
+				],
+				"additionalProperties": false
 			}
 		},
 		{
@@ -3417,7 +2972,8 @@
 				"type": "object",
 				"properties": {
 					"profile": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/Selector",
+						"description": "A profile or closed curve to be swept around the axis."
 					},
 					"axis": {
 						"$ref": "#/types/Axis3"
@@ -3458,28 +3014,6 @@
 					"angle"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"solid": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"solid"
-				]
 			}
 		},
 		{
@@ -3614,28 +3148,6 @@
 					"path"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"solid": {
-						"type": "object",
-						"properties": {
-							"id": {
-								"type": "string"
-							},
-							"name": {
-								"type": "string"
-							}
-						},
-						"required": [
-							"id"
-						]
-					}
-				},
-				"required": [
-					"solid"
-				]
 			}
 		},
 		{
@@ -3748,25 +3260,25 @@
 								"description": "Optional upper bound for sample spacing in v direction (mm). Smaller values produce more samples."
 							},
 							"minSamplesU": {
-								"type": "integer",
+								"$ref": "#/types/ExpressionInteger",
 								"minimum": 2,
 								"default": 6,
 								"description": "Minimum number of samples used in u direction."
 							},
 							"minSamplesV": {
-								"type": "integer",
+								"$ref": "#/types/ExpressionInteger",
 								"minimum": 2,
 								"default": 6,
 								"description": "Minimum number of samples used in v direction."
 							},
 							"maxSamplesU": {
-								"type": "integer",
+								"$ref": "#/types/ExpressionInteger",
 								"minimum": 2,
 								"default": 100,
 								"description": "Maximum number of samples in u direction. Acts as a safety limit."
 							},
 							"maxSamplesV": {
-								"type": "integer",
+								"$ref": "#/types/ExpressionInteger",
 								"minimum": 2,
 								"default": 100,
 								"description": "Maximum number of samples in v direction. Acts as a safety limit."
@@ -3787,79 +3299,6 @@
 					}
 				},
 				"required": [ "approximation" ],
-				"additionalProperties": false
-			}
-		},
-		{
-			"name": "surface.nurbs",
-			"description": "Creates a NURBS surface from control points, knot vectors and optional weights. The resulting surface can be used as an unbounded carrier surface for later operations such as solid splitting.",
-			"inputSchema": {
-				"type": "object",
-				"properties": {
-					"degreeU": {
-						"type": "integer",
-						"minimum": 1,
-						"maximum": 10,
-						"description": "Degree of the NURBS surface in u direction."
-					},
-					"degreeV": {
-						"type": "integer",
-						"minimum": 1,
-						"maximum": 10,
-						"description": "Degree of the NURBS surface in v direction."
-					},
-					"controlPoints": {
-						"type": "array",
-						"minItems": 2,
-						"description": "Two-dimensional array of NURBS control points. The outer array runs in v direction, the inner array runs in u direction.",
-						"items": {
-							"type": "array",
-							"minItems": 2,
-							"items": {
-								"$ref": "#/types/Point3"
-							}
-						}
-					},
-					"uKnots": {
-						"type": "array",
-						"description": "Knot vector in u direction.",
-						"items": {
-							"$ref": "#/types/ExpressionNumber"
-						}
-					},
-					"vKnots": {
-						"type": "array",
-						"description": "Knot vector in v direction.",
-						"items": {
-							"$ref": "#/types/ExpressionNumber"
-						}
-					},
-					"weights": {
-						"type": "array",
-						"description": "Optional two-dimensional array of weights matching the controlPoints layout. If omitted, all weights default to 1.",
-						"items": {
-							"type": "array",
-							"items": {
-								"$ref": "#/types/ExpressionNumber"
-							}
-						}
-					},
-					"uPeriodic": {
-						"type": "boolean",
-						"default": false,
-						"description": "If true, the surface is treated as periodic in u direction."
-					},
-					"vPeriodic": {
-						"type": "boolean",
-						"default": false,
-						"description": "If true, the surface is treated as periodic in v direction."
-					},
-					"name": {
-						"type": "string",
-						"description": "Optional name of the resulting surface."
-					}
-				},
-				"required": [ "degreeU", "degreeV", "controlPoints", "uKnots", "vKnots" ],
 				"additionalProperties": false
 			}
 		},
@@ -3927,31 +3366,6 @@
 					"delta"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"objects"
-				]
 			}
 		},
 		{
@@ -3989,31 +3403,6 @@
 					"objects"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"objects"
-				]
 			}
 		},
 		{
@@ -4047,31 +3436,6 @@
 					"angle"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"objects"
-				]
 			}
 		},
 		{
@@ -4125,31 +3489,6 @@
 					"origin"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"objects": {
-						"type": "array",
-						"items": {
-							"type": "object",
-							"properties": {
-								"id": {
-									"type": "string"
-								},
-								"name": {
-									"type": "string"
-								}
-							},
-							"required": [
-								"id"
-							]
-						}
-					}
-				},
-				"required": [
-					"objects"
-				]
 			}
 		},
 		{
@@ -4167,17 +3506,6 @@
 					"label"
 				],
 				"additionalProperties": false
-			},
-			"x-outputSchema": {
-				"type": "object",
-				"properties": {
-					"undoFrameId": {
-						"type": "string"
-					}
-				},
-				"required": [
-					"undoFrameId"
-				]
 			}
 		},
 		{
@@ -4261,23 +3589,146 @@
 						"description": "Optional user-friendly label for display in a parameter input form."
 					},
 					"input": {
-						"$ref": "#/types/ParameterInputSpec"
+						"$ref": "#/types/ParameterInputSpec",
+						"description": "Must be specified when a label is specified."
 					}
 				},
 				"required": [ "name", "value" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "inspect.summary",
+			"description": "Returns a concise summary of one or more workspace objects. The summary includes the object type and basic properties such as value, bounding box, or element counts when applicable.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"targets": {
+						"description": "Name or list of names of workspace objects to inspect.",
+						"oneOf": [
+							{ "type": "string" },
+							{
+								"type": "array",
+								"items": { "type": "string" },
+								"minItems": 1
+							}
+						]
+					}
+				},
+				"required": [ "targets" ],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
-					"name": {
-						"type": "string"
+					"objects": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"name": { "type": "string" },
+								"type": { "type": "string" },
+								"summary": { "type": "object" }
+							},
+							"required": [ "name", "type" ]
+						}
 					}
 				},
-				"required": [ "name" ]
+				"required": [ "objects" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "inspect.properties",
+			"description": "Returns selected properties of a workspace object. Property names follow the same naming conventions used in expressions (e.g. 'boundingBox', 'boundingBox.width', 'volume').",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"target": {
+						"type": "string",
+						"description": "Name of the workspace object."
+					},
+					"properties": {
+						"type": "array",
+						"items": { "type": "string" },
+						"minItems": 1,
+						"description": "List of property names to retrieve."
+					}
+				},
+				"required": [ "target", "properties" ],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"values": {
+						"type": "object",
+						"description": "Dictionary of property names and their values."
+					}
+				},
+				"required": [ "values" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "inspect.scene",
+			"description": "Returns a spatial description of multiple workspace objects so their relative positions can be analyzed. Optionally includes geometry representations such as bounding boxes or mesh data.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"targets": {
+						"type": "array",
+						"items": { "type": "string" },
+						"minItems": 1,
+						"description": "Workspace objects to include in the scene."
+					},
+					"includeBoundingBoxes": {
+						"type": "boolean",
+						"default": true,
+						"description": "Include bounding boxes of the objects."
+					},
+					"geometryFormat": {
+						"type": "string",
+						"enum": [ "none", "mesh", "wireframe" ],
+						"default": "none",
+						"description": "Optional geometric representation of the objects."
+					},
+					"includeImage": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, a rendered preview image may be included."
+					}
+				},
+				"required": [ "targets" ],
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"objects": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"name": { "type": "string" },
+								"boundingBox": { "type": "object" }
+							},
+							"required": [ "name" ]
+						}
+					},
+					"sceneBoundingBox": {
+						"type": "object",
+						"description": "Bounding box enclosing all returned objects."
+					},
+					"image": {
+						"type": "string",
+						"description": "Optional base64 encoded preview image."
+					}
+				},
+				"required": [ "objects" ],
+				"additionalProperties": false
 			}
 		}
-
 	],
 	"errors": [
 		{

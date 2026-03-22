@@ -29,7 +29,7 @@ namespace CADability
             uvposition = new Dictionary<Face, GeoPoint2D>();
             hashCode = hashCodeCounter++;
 #if DEBUG
-            if (392 == hashCode || 555 == hashCode) { }
+            if (212 == hashCode ) { }
 #endif
         }
         internal void AddEdge(Edge edge)

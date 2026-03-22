@@ -372,9 +372,21 @@ namespace CADability
                 }
                 if (type.IsArray)
                 {
-                    ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(int) }, null);
+                    int dim = type.GetArrayRank();
+                    Array sar = null;
                     Type eltp = type.GetElementType();
-                    Array sar = cie.Invoke(new object[] { (val as List<object>).Count }) as Array;
+                    // only one ore twodimensional arrays are currently supported
+                    // for more dimensions 
+                    if (dim == 1)
+                    {
+                        ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, [typeof(int)], null);
+                        sar = cie.Invoke(new object[] { (val as List<object>).Count }) as Array;
+                    }
+                    else if (dim == 2)
+                    {
+                        ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, [typeof(int), typeof(int)], null);
+                        sar = cie.Invoke(new object[] { (val as List<object>).Count, ((val as List<object>)[0] as List<object>).Count }) as Array;
+                    }
                     if (eltp.IsArray)
                     {
                         ConstructorInfo subci = eltp.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(int) }, null);
@@ -398,7 +410,18 @@ namespace CADability
                         List<object> kve = val as List<object>;
                         for (int i = 0; i < kve.Count; i++)
                         {
-                            sar.SetValue(cieltp.Invoke(new object[] { new JsonArray(kve[i] as List<object>, root) }), i);
+                            if (dim == 1)
+                            {
+                                sar.SetValue(cieltp.Invoke(new object[] { new JsonArray(kve[i] as List<object>, root) }), i);
+                            }
+                            else if (dim == 2)
+                            {
+                                var kk = kve[i] as List<object>;
+                                for (int j = 0; j < kk.Count; j++)
+                                {
+                                    sar.SetValue(cieltp.Invoke(new object[] { new JsonArray(kk[j] as List<object>, root) }), i, j);
+                                }
+                            }
                         }
                         return sar;
                     }
@@ -407,7 +430,20 @@ namespace CADability
                         List<object> kve = val as List<object>;
                         for (int i = 0; i < kve.Count; i++)
                         {
-                            sar.SetValue(kve[i], i);
+                            if (dim == 1)
+                            {
+                                if (eltp == typeof(int)) kve[i] = Convert.ChangeType(kve[i], eltp); // changeType: maybe double->int
+                                sar.SetValue(kve[i], i);
+                            }
+                            else if (dim == 2)
+                            {
+                                var kk = kve[i] as List<object>;
+                                for (int j = 0; j < kk.Count; j++)
+                                {
+                                    if (eltp == typeof(int)) kk[j] = Convert.ChangeType(kk[j], eltp); // changeType: maybe double->int
+                                    sar.SetValue(kk[j], i, j);
+                                }
+                            }
                         }
                         return sar;
                     }
@@ -1653,6 +1689,44 @@ namespace CADability
                     objectToIndex[value] = index;
                 }
                 WriteRefIndex(index);
+            }
+            else if (value is Array ar)
+            {
+                int dimensions = ar.Rank;
+                if (dimensions == 1)
+                {
+                    BeginArray();
+                    bool first = true;
+                    foreach (object sub in value as IEnumerable)
+                    {
+                        if (first) first = false;
+                        else Seperator();
+                        WriteValue(sub);
+                    }
+                    EndArray();
+                }
+                else if (dimensions == 2)
+                {
+                    BeginArray();
+                    bool first = true;
+                    Array arr = value as Array;
+                    for (int i = 0; i < arr.GetLength(0); i++)
+                    {
+                        if (first) first = false;
+                        else Seperator();
+                        bool innerfirst = true;
+                        BeginArray();
+                        for (int j = 0; j < arr.GetLength(1); j++)
+                        {
+                            if (innerfirst) innerfirst = false;
+                            else Seperator();
+                            WriteValue(arr.GetValue(i, j));
+                        }
+                        EndArray();
+                    }
+                    EndArray();
+                }
+                else throw new ApplicationException("more than two dimensions for array serialisation is not supproted");
             }
             else if (value is IEnumerable)
             {

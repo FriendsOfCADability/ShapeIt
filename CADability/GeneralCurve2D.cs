@@ -511,9 +511,11 @@ namespace CADability.Curve2D
             }
         }
 
+        static public int mtCount=0;
         protected void MakeTriangulation()
         {   // ACHTUNG: Probleme sind hier Singularitäten und doppelte Punkte. Das muss noch überprüft werden
             // am Besten mit bösartigen BSplines (mehrfach identische Pole)
+            ++mtCount;
             GeoPoint2D[] points;
             GeoVector2D[] directions;
             double[] parameters;

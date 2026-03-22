@@ -1677,7 +1677,14 @@ namespace CADability
         }
         public static ModOp Fit(GeoPoint srcLoc, GeoVector[] src, GeoPoint dstLoc, GeoVector[] dst)
         {
-            return Translate(dstLoc - GeoPoint.Origin) * Fit(src, dst) * Translate(GeoPoint.Origin - srcLoc);
+            if (src.Length == 1 && dst.Length == 1)
+            {
+                return Translate(dstLoc - srcLoc) * Rotate(srcLoc, src[0], dst[0]);
+            }
+            else
+            {
+                return Translate(dstLoc - GeoPoint.Origin) * Fit(src, dst) * Translate(GeoPoint.Origin - srcLoc);
+            }
         }
         internal static ModOp Fit(FreeCoordSys src, FreeCoordSys dst)
         {
@@ -1991,7 +1998,7 @@ namespace CADability
             if (m.mode == ModificationMode.Identity) return v;
             else if (m.mode == ModificationMode.Translation)
             {
-                return new Axis(m*v.Location,v.Direction);
+                return new Axis(m * v.Location, v.Direction);
             }
             else
             {

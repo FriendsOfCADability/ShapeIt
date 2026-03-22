@@ -369,7 +369,7 @@ namespace CADability.GeoObject
             InvalidateSecondaryData();
             Init(); // im Falle von Periodic stimmt die größe der Poles nicht
 #if DEBUG
-            GeoPoint dbg = PointAt(new GeoPoint2D(this.uKnots[0], this.vKnots[0]));
+            GeoPoint dbg = PointAt(new GeoPoint2D(this.uKnots[uKnots.Length-1], this.vKnots[0]));
 #endif
         }
         public NurbsSurface(Ellipse[] throughEllis, double[] knots = null)
@@ -850,7 +850,7 @@ namespace CADability.GeoObject
                     uknotslist.Add(uKnots[i]);
                 }
             }
-            if (uPeriodic)
+            if (false) // uPeriodic)
             {
                 double dknot = uKnots[uKnots.Length - 1] - uKnots[0];
                 // letztlich ist es komisch, dass zwei knoten vornedran müssen
@@ -942,7 +942,7 @@ namespace CADability.GeoObject
                         }
                     }
                 }
-                else if (uPeriodic)
+                else if (false) // uPeriodic)
                 {
                     //upoles = poles.GetLength(0) + 2 * uDegree - 2;
                     //vpoles = poles.GetLength(1);
@@ -1213,10 +1213,10 @@ namespace CADability.GeoObject
             if ((uIsLine || uIsCircle) && (vIsLine || vIsCircle))
             {   // we can try to create a plane, cylinder, cone, sphere or torus
                 for (int i = 0; i < 5; i++) for (int j = 0; j < 5; j++)
-                    {
-                        //if (i == 2 || j == 2) continue; // already calculated
-                        samples[i, j] = PointAt(new GeoPoint2D(upars[i], vpars[j]));
-                    }
+                {
+                    //if (i == 2 || j == 2) continue; // already calculated
+                    samples[i, j] = PointAt(new GeoPoint2D(upars[i], vpars[j]));
+                }
                 bool failed = false;
                 foreach (int i in new int[] { 0, 4 })
                 {
@@ -3486,12 +3486,12 @@ namespace CADability.GeoObject
             if (IsUPeriodic && UPeriod > 0)
             {
                 while (uv.x < uKnots[0]) uv.x += UPeriod;
-                while (uv.x > uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
+                while (uv.x >= uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
             }
             if (IsVPeriodic && VPeriod > 0)
             {
                 while (uv.y < vKnots[0]) uv.y += VPeriod;
-                while (uv.y > vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
+                while (uv.y >= vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
             }
             if (nubs != null)
             {
@@ -3515,12 +3515,12 @@ namespace CADability.GeoObject
             if (IsUPeriodic && UPeriod > 0)
             {
                 while (uv.x < uKnots[0]) uv.x += UPeriod;
-                while (uv.x > uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
+                while (uv.x >= uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
             }
             if (IsVPeriodic && VPeriod > 0)
             {
                 while (uv.y < vKnots[0]) uv.y += VPeriod;
-                while (uv.y > vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
+                while (uv.y >= vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
             }
             if (nubs != null)
             {
@@ -3571,12 +3571,12 @@ namespace CADability.GeoObject
             if (IsUPeriodic && UPeriod > 0)
             {
                 while (uv.x < uKnots[0]) uv.x += UPeriod;
-                while (uv.x > uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
+                while (uv.x >= uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
             }
             if (IsVPeriodic && VPeriod > 0)
             {
                 while (uv.y < vKnots[0]) uv.y += VPeriod;
-                while (uv.y > vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
+                while (uv.y >= vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
             }
             if (nubs != null)
             {
@@ -3607,12 +3607,12 @@ namespace CADability.GeoObject
             if (IsUPeriodic && UPeriod > 0)
             {
                 while (uv.x < uKnots[0]) uv.x += UPeriod;
-                while (uv.x > uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
+                while (uv.x >= uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
             }
             if (IsVPeriodic && VPeriod > 0)
             {
                 while (uv.y < vKnots[0]) uv.y += VPeriod;
-                while (uv.y > vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
+                while (uv.y >= vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
             }
             if (nubs != null)
             {
@@ -3638,12 +3638,12 @@ namespace CADability.GeoObject
             if (IsUPeriodic && UPeriod > 0)
             {
                 while (uv.x < uKnots[0]) uv.x += UPeriod;
-                while (uv.x > uKnots[uKnots.Length - 1]) uv.x -= UPeriod;
+                while (uv.x >= uKnots[uKnots.Length - 1]) uv.x -= UPeriod; // >= added because exact last knot returns 0
             }
             if (IsVPeriodic && VPeriod > 0)
             {
                 while (uv.y < vKnots[0]) uv.y += VPeriod;
-                while (uv.y > vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
+                while (uv.y >= vKnots[vKnots.Length - 1]) uv.y -= VPeriod;
             }
             if (nubs != null)
             {
@@ -3819,7 +3819,7 @@ namespace CADability.GeoObject
                     double xx = l2d.StartPoint.x;
                     if (IsUPeriodic)
                     {
-                        while (xx > uKnots[uKnots.Length - 1]) xx -= this.UPeriod;
+                        while (xx >= uKnots[uKnots.Length - 1]) xx -= this.UPeriod;
                         while (xx < uKnots[0]) xx += this.UPeriod;
                     }
                     if (nurbs != null)
@@ -3857,7 +3857,7 @@ namespace CADability.GeoObject
                             for (int i = 0; i < npoles; i++)
                             {
                                 double y = y0 + i * d;
-                                while (y > vKnots[vKnots.Length - 1]) y -= this.VPeriod;
+                                while (y >= vKnots[vKnots.Length - 1]) y -= this.VPeriod;
                                 while (y < vKnots[0]) y += this.VPeriod;
                                 tp[i] = this.PointAt(new GeoPoint2D(l2d.StartPoint.x, y));
                             }
@@ -3867,7 +3867,7 @@ namespace CADability.GeoObject
                         else
                         {   // force inside the valid area
                             double ym = (l2d.StartPoint.y + l2d.EndPoint.y) / 2.0;
-                            while (ym > vKnots[vKnots.Length - 1]) ym -= this.VPeriod;
+                            while (ym >= vKnots[vKnots.Length - 1]) ym -= this.VPeriod;
                             while (ym < vKnots[0]) ym += this.VPeriod;
                             double dy = ym - (l2d.StartPoint.y + l2d.EndPoint.y) / 2.0;
                             y0 = Math.Min(Math.Max(l2d.StartPoint.y + dy, vKnots[0]), vKnots[vKnots.Length - 1]);
@@ -5323,7 +5323,7 @@ namespace CADability.GeoObject
         public void GetObjectData(IJsonWriteData data)
         {
             data.AddProperty("Poles", poles);
-            data.AddProperty("Weights", weights);
+            if (weights != null) data.AddProperty("Weights", weights);
             data.AddProperty("UKnots", uKnots);
             data.AddProperty("VKnots", vKnots);
             data.AddProperty("UMults", uMults);
@@ -5339,16 +5339,17 @@ namespace CADability.GeoObject
         }
         public void SetObjectData(IJsonReadData data)
         {
-            poles = data.GetProperty<GeoPoint[,]>("Poles");       
-            weights = data.GetProperty<double[,]>("Weights");     
-            uKnots = data.GetProperty<double[]>("UKnots");      
-            vKnots = data.GetProperty<double[]>("VKnots");      
-            uMults = data.GetProperty<int[]>("UMults");      
-            vMults = data.GetProperty<int[]>("VMults");      
-            uDegree = data.GetProperty<int>("UDegree");     
-            vDegree = data.GetProperty<int>("VDegree");     
-            uPeriodic = data.GetProperty<bool>("UPeriodic");   
-            vPeriodic = data.GetProperty<bool>("VPeriodic");   
+            poles = data.GetProperty<GeoPoint[,]>("Poles");
+            if (data.HasProperty("Weights")) weights = data.GetProperty<double[,]>("Weights");
+            else weights = null;
+            uKnots = data.GetProperty<double[]>("UKnots");
+            vKnots = data.GetProperty<double[]>("VKnots");
+            uMults = data.GetProperty<int[]>("UMults");
+            vMults = data.GetProperty<int[]>("VMults");
+            uDegree = data.GetProperty<int>("UDegree");
+            vDegree = data.GetProperty<int>("VDegree");
+            uPeriodic = data.GetProperty<bool>("UPeriodic");
+            vPeriodic = data.GetProperty<bool>("VPeriodic");
             uMinRestrict = data.GetProperty<double>("UMinRestrict");
             uMaxRestrict = data.GetProperty<double>("UMaxRestrict");
             vMinRestrict = data.GetProperty<double>("VMinRestrict");

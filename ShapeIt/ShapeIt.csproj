@@ -11,10 +11,13 @@
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<IsPublishable>True</IsPublishable>
 		<DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+		<DebugType>portable</DebugType>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<IsPublishable>True</IsPublishable>
+		<DebugType>portable</DebugType>
+		<Optimize>False</Optimize>
 	</PropertyGroup>
 
 	<ItemGroup>

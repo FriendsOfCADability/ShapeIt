@@ -9,7 +9,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -27,9 +26,25 @@ namespace ShapeIt
         // Named workspace items and created objects.
         // Names are chosen by the caller (LLM/client). IDs are opaque strings returned by the server.
         private readonly Dictionary<string, object> namedItems = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, object> idItems = new(StringComparer.Ordinal);
-        private readonly Dictionary<string, string> nameToId = new(StringComparer.Ordinal);
-
+        private class NamedItemOverride : IDisposable
+        {
+            private object? oldNamedItem;
+            private string name;
+            Dictionary<string, object> namedItems;
+            public NamedItemOverride(Dictionary<string, object> namedItems, object temp, string name = "this")
+            {
+                this.namedItems = namedItems;
+                this.name = name;
+                if (!namedItems.TryGetValue(name, out oldNamedItem)) oldNamedItem = null;
+                object? wrappedItem = wrapForEvaluator(temp);
+                if (wrappedItem != null) namedItems[name] = wrappedItem;
+            }
+            public void Dispose()
+            {
+                if (oldNamedItem == null) namedItems.Remove(name);
+                else namedItems[name] = oldNamedItem;
+            }
+        }
         private int nextId = 1;
         private int nextUndo = 1;
         public MCPServer() { }
@@ -62,6 +77,76 @@ namespace ShapeIt
             throw new InvalidOperationException(
                 $"Name '{name}' is already bound to a value of type '{existing.GetType().FullName}', cannot add '{typeof(T).FullName}'.");
         }
+        private void Rebind(Shell oldShell, Shell newShell)
+        {
+            foreach (var item in namedItems)
+            {
+                if (item.Value is Edge edge && edge.Owner.Owner == oldShell)
+                {
+                    Edge? newEdge = newShell.FindSimilarEdge(edge);
+                    if (newEdge != null) namedItems[item.Key] = newEdge;
+                }
+                if (item.Value is List<Edge> ledge)
+                {
+                    List<Edge> newList = [];
+                    for (int i = 0; i < ledge.Count; i++)
+                    {
+                        if (ledge[i].Owner.Owner == oldShell)
+                        {
+                            Edge? newEdgel = newShell.FindSimilarEdge(ledge[i]);
+                            if (newEdgel != null) newList.Add(newEdgel);
+                            else newList.Add(ledge[i]);
+                        }
+                        else newList.Add(ledge[i]);
+                    }
+                    namedItems[item.Key] = newList;
+                }
+                if (item.Value is Face face && face.Owner == oldShell)
+                {
+                    Face? newFace = newShell.FindSimilarFace(face);
+                    if (newFace != null) namedItems[item.Key] = newFace;
+                }
+                if (item.Value is List<Face> lface)
+                {
+                    List<Face> newList = [];
+                    for (int i = 0; i < lface.Count; i++)
+                    {
+                        if (lface[i].Owner == oldShell)
+                        {
+                            Face? newFacel = newShell.FindSimilarFace(lface[i]);
+                            if (newFacel != null) newList.Add(newFacel);
+                            else newList.Add(lface[i]);
+                        }
+                        else newList.Add(lface[i]);
+                    }
+                    namedItems[item.Key] = newList;
+                }
+            }
+        }
+        private void Rebind(Solid oldSolid, Solid[] newSolids)
+        {
+            foreach (Solid solid in newSolids)
+            {
+                Rebind(oldSolid.Shell, solid.Shell);
+            }
+        }
+        private void Rebind(IEnumerable<Solid> oldSolids, IEnumerable<Solid> newSolids)
+        {
+            foreach (Solid solid1 in oldSolids)
+            {
+                foreach (Solid solid in newSolids)
+                {
+                    Rebind(solid1.Shell, solid.Shell);
+                }
+            }
+        }
+        private void Rebind(IEnumerable<Solid> oldSolids, Solid newSolid)
+        {
+            foreach (Solid solid1 in oldSolids)
+            {
+                Rebind(solid1.Shell, newSolid.Shell);
+            }
+        }
         private string? FindName(object entity)
         {
             foreach (var item in namedItems)
@@ -69,10 +154,6 @@ namespace ShapeIt
                 if (item.Value == entity) return item.Key;
             }
             return null;
-        }
-        private void StoreId(string id, object value)
-        {
-            idItems[id] = value;
         }
 
         private JsonNode DocumentGetStateImpl() => throw new NotImplementedException();
@@ -96,7 +177,7 @@ namespace ShapeIt
                     namedItems[name] = d;
                 }
             }
-            else if (value.ValueKind == JsonValueKind.String)
+            else if (value.ValueKind == JsonValueKind.String) // e.g. "v(1,2,3)" to define a vector
             {
                 namedItems[name] = Evaluator.Evaluate(value.GetString(), namedItems);
             }
@@ -106,26 +187,35 @@ namespace ShapeIt
             }
             else
             {
-                GeoVector v = GetOptionalVector3D(value, null, GeoVector.Invalid);
-                if (v.IsValid())
+                List<object> selected = IterateSelector<object>(value).ToList();
+                Type? t = selected.FirstOrDefault()?.GetType();
+
+                if (t != null && selected.All(x => x?.GetType() == t))
                 {
-                    namedItems[name] = v;
-                }
-                else
-                {
-                    List<Face> faces = IterateSelector<Face>(value).ToList();
-                    if (faces.Count > 0)
+                    if (t == typeof(Edge))
                     {
-                        namedItems[name] = faces;
-                        return;
+                        namedItems[name] = selected.Cast<Edge>().ToList();
                     }
-                    List<Solid> solids = IterateSelector<Solid>(value).ToList();
-                    if (solids.Count > 0)
+                    else if (t == typeof(Face))
                     {
-                        namedItems[name] = solids;
-                        return;
+                        namedItems[name] = selected.Cast<Face>().ToList();
                     }
-                    // and more iteators for different types 
+                    else if (t == typeof(Solid))
+                    {
+                        namedItems[name] = selected.Cast<Solid>().ToList();
+                    }
+                    else if (t == typeof(ICurve))
+                    {
+                        namedItems[name] = selected.Cast<ICurve>().ToList();
+                    }
+                    else if (t == typeof(ICurve2D))
+                    {
+                        namedItems[name] = selected.Cast<ICurve2D>().ToList();
+                    }
+                    else if (t == typeof(CompoundShape))
+                    {
+                        namedItems[name] = selected.Cast<CompoundShape>().ToList();
+                    }
                 }
             }
         }
@@ -333,7 +423,7 @@ namespace ShapeIt
 
         private void SketchAddRegularPolygonImpl(Sketch sketch, GeoPoint2D center, double innerRadius, double outerRadius, int sides, double rotationDeg, string name)
         {
-            if (outerRadius == 0.0) outerRadius = innerRadius / Math.Cos(Math.PI / sides);
+            if (double.IsNaN(outerRadius) || outerRadius == 0.0) outerRadius = innerRadius / Math.Cos(Math.PI / sides);
             ICurve2D curve = Polyline2D.MakeRegularPolygon(center, outerRadius, rotationDeg * Math.PI / 180.0, sides);
             sketch.Add(curve);
             if (name != null) namedItems[name] = curve;
@@ -353,7 +443,7 @@ namespace ShapeIt
         }
         private void SketchAddTextImpl(Sketch sketch, string text, GeoPoint2D location, double height, JsonElement font, JsonElement horizontalAlign, JsonElement verticalAlign, double characterSpacing, double wordSpacing, string name)
         {
-            string fontFamily =  RequireString(font, "family");
+            string fontFamily = RequireString(font, "family");
             bool bold = GetOptionalBool(font, "bold", false);
             bool italic = GetOptionalBool(font, "italic", false);
             bool underline = GetOptionalBool(font, "underline", false);
@@ -500,10 +590,10 @@ namespace ShapeIt
             if (name != null) namedItems[name] = inputshapes;
         }
 
-        private void SolidExtrudeImpl(JsonElement profile, double length, GeoVector direction, string? name, double offset, double pitch, JsonElement capture)
+        private List<SimpleShape> GetProfiles(JsonElement profile, out Sketch? sketch)
         {
             List<object> profiles = IterateSelector<object>(profile).ToList(); // should return a single sketch or a compoundShape or a closed curve
-            Sketch? sketch = null;
+            sketch = null;
             List<SimpleShape> simpleShapes = new List<SimpleShape>();
             foreach (object obj in profiles)
             {
@@ -536,6 +626,12 @@ namespace ShapeIt
                 }
                 else throw new JsonRpcException(-32602, "Profile must be a sketch shape.");
             }
+            return simpleShapes;
+        }
+        private void SolidExtrudeImpl(JsonElement profile, double length, GeoVector direction, double offset, string? name, JsonElement capture)
+        {
+            List<SimpleShape> simpleShapes = GetProfiles(profile, out Sketch? sketch);
+
             if (sketch != null)
             {
                 string? startEdges = GetOptionalString(capture, "startEdges");
@@ -590,6 +686,56 @@ namespace ShapeIt
                 if (name != null) namedItems[name] = solids;
             }
         }
+        private void SolidHelicalExtrudeImpl(JsonElement profile, Axis axis, double angle, double offset, double pitch, string name, JsonElement capture)
+        {
+            List<SimpleShape> simpleShapes = GetProfiles(profile, out Sketch? sketch);
+
+            if (sketch != null)
+            {
+                string? startEdges = GetOptionalString(capture, "startEdges");
+                string? endEdges = GetOptionalString(capture, "endEdges");
+                string? startFace = GetOptionalString(capture, "startFace");
+                string? endFace = GetOptionalString(capture, "endFace");
+                List<Solid> solids = new List<Solid>();
+                PlaneSurface ps = new PlaneSurface(sketch.Plane);
+                for (int i = 0; i < simpleShapes.Count; i++)
+                {
+                    Face face = Face.MakeFace(ps, simpleShapes[i]);
+                    if (face != null)
+                    {
+                        Shell shl = Make3D.MakeHelicalSolid(face, axis, pitch, pitch * angle / 360, 0.0, true);
+                        if (shl != null)
+                        {
+                            Solid sld = Solid.MakeSolid(shl);
+                            if (sld != null)
+                            {
+                                if (startEdges != null || startFace != null)
+                                {
+                                    GeoPoint2D point2dOnFace = face.Area.GetSomeInnerPoint();
+                                    GeoPoint point3dOnFace = face.Surface.PointAt(point2dOnFace);
+                                    Face startFaceOfExtrusion = sld.FindFace(point3dOnFace);
+                                    if (!string.IsNullOrEmpty(startFace))
+                                    {
+                                        namedItems[startFace] = startFaceOfExtrusion;
+                                    }
+                                    if (!string.IsNullOrEmpty(startEdges))
+                                    {
+                                        namedItems[startEdges] = new List<Edge>(startFaceOfExtrusion.Edges);
+                                    }
+                                }
+                                if (endEdges != null || endFace != null)
+                                {
+                                }
+                                solids.Add(sld);
+                            }
+                        }
+                    }
+                }
+                if (name != null) namedItems[name] = solids;
+            }
+        }
+
+
         private void SolidBoxImpl(GeoPoint origin, GeoVector axisX, GeoVector axisY, double sizeX, double sizeY, double sizeZ, string name)
         {
             GeoVector axisZ;
@@ -687,139 +833,42 @@ namespace ShapeIt
         }
         private void SurfaceParametricImpl(int degreeU, int degreeV, JsonElement approximation, string name)
         {
-            throw new NotImplementedException();
+            int minSamplesU = RequireInteger(approximation, "minSamplesU");
+            int minSamplesV = RequireInteger(approximation, "minSamplesV");
+
+            string uParameter = RequireString(approximation, "uParameter");
+            string vParameter = RequireString(approximation, "vParameter");
+            string xExpr = RequireString(approximation, "xExpr");
+            string yExpr = RequireString(approximation, "yExpr");
+            string zExpr = RequireString(approximation, "zExpr");
+            double uMin = RequireDouble(approximation, "uMin");
+            double uMax = RequireDouble(approximation, "uMax");
+            double vMin = RequireDouble(approximation, "vMin");
+            double vMax = RequireDouble(approximation, "vMax");
+            double tolerance = RequireDouble(approximation, "tolerance");
+            bool uPeriodic = RequireBool(approximation, "uPeriodic");
+            bool vPeriodic = RequireBool(approximation, "vPeriodic");
+
+            GeoPoint[,] throughPoints = new GeoPoint[minSamplesU, minSamplesV];
+            double du = (uMax - uMin) / (minSamplesU - 1);
+            double dv = (vMax - vMin) / (minSamplesV - 1);
+            for (int i = 0; i < minSamplesU; i++)
+            {
+                for (int j = 0; j < minSamplesV; ++j)
+                {
+                    using var uu = new NamedItemOverride(namedItems, uMin + i * du, uParameter);
+                    using var vv = new NamedItemOverride(namedItems, vMin + j * dv, vParameter);
+                    double x = (double)Evaluator.Evaluate(xExpr, namedItems);
+                    double y = (double)Evaluator.Evaluate(yExpr, namedItems);
+                    double z = (double)Evaluator.Evaluate(zExpr, namedItems);
+                    throughPoints[i, j] = new GeoPoint(x, y, z);
+                }
+            }
+            NurbsSurface ns = new NurbsSurface(throughPoints, degreeU, degreeV, uPeriodic, vPeriodic);
+            BoundingRect ext = new BoundingRect(ns.UKnots.First(), ns.VKnots.First(), ns.UKnots.Last(), ns.VKnots.Last());
+            ns.SetBounds(ext);
+            namedItems[name] = ns;
         }
-
-
-        private void SolidCreatePrimitiveImpl(string kind, JsonElement sparams, string name)
-        {
-            Solid? res = null;
-            switch (kind)
-            {
-                case "box":
-                    {
-                        GeoPoint origin = RequirePoint3D(sparams, "origin");
-                        GeoVector axisX = GetOptionalVector3D(sparams, "axisX", GeoVector.Invalid);
-                        GeoVector axisY = GetOptionalVector3D(sparams, "axisY", GeoVector.Invalid);
-                        GeoVector axisZ;
-                        if (axisX.IsValid() && axisY.IsValid())
-                        {
-                            axisZ = axisX ^ axisY;
-                            axisX.Norm();
-                            axisY.Norm();
-                            axisZ.Norm();
-                        }
-                        else
-                        {
-                            axisX = GeoVector.XAxis;
-                            axisY = GeoVector.YAxis;
-                            axisZ = GeoVector.ZAxis;
-                        }
-                        double sizeX = RequireDouble(sparams, "sizeX");
-                        double sizeY = RequireDouble(sparams, "sizeY");
-                        double sizeZ = RequireDouble(sparams, "sizeZ");
-                        res = Make3D.MakeBox(origin, sizeX * axisX, sizeY * axisY, sizeZ * axisZ);
-                    }
-                    break;
-                case "sphere":
-                    {
-                        GeoPoint center = RequirePoint3D(sparams, "center");
-                        double radius = RequireDouble(sparams, "radius");
-                        res = Make3D.MakeSphere(center, radius);
-                    }
-                    break;
-                case "cylinder":
-                    {
-                        GeoPoint start = RequirePoint3D(sparams, "start");
-                        GeoPoint end = RequirePoint3D(sparams, "end");
-                        double radius = RequireDouble(sparams, "radius");
-                        Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-                        GeoVector dirx = radius * pln.ToGlobal(GeoVector2D.XAxis);
-                        res = Make3D.MakeCylinder(start, dirx, end - start);
-                    }
-                    break;
-                case "cone":
-                    {
-                        GeoPoint start = RequirePoint3D(sparams, "start");
-                        GeoPoint end = RequirePoint3D(sparams, "end");
-                        double radiusStart = RequireDouble(sparams, "radiusStart");
-                        double radiusEnd = RequireDouble(sparams, "radiusEnd");
-                        Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-                        GeoVector dirx = pln.ToGlobal(GeoVector2D.XAxis);
-                        res = Make3D.MakeCone(start, dirx, end - start, radiusStart, radiusEnd);
-                    }
-                    break;
-                case "torus":
-                    {
-                        GeoPoint center = RequirePoint3D(sparams, "center");
-                        GeoVector axis = RequireVector3D(sparams, "axis");
-                        double majorRadius = RequireDouble(sparams, "majorRadius");
-                        double minorRadius = RequireDouble(sparams, "minorRadius");
-                        Plane pln = new Plane(center, axis); // to use the arbitrary axis algorithm
-                        res = Make3D.MakeTorus(center, axis, majorRadius, minorRadius);
-                    }
-                    break;
-                case "capsule":
-                    {
-                        GeoPoint start = RequirePoint3D(sparams, "start");
-                        GeoPoint end = RequirePoint3D(sparams, "end");
-                        double l = end | start; // the length of the capsule
-                        double radius = RequireDouble(sparams, "radius");
-                        Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-                        Plane profilePlane = new Plane(start, end - start, pln.DirectionX); // in this plane we construct a profile for rotation along the x-axis of the plane
-                        GeoVector dirx = radius * pln.ToGlobal(GeoVector2D.XAxis);
-                        Solid cylinder = Make3D.MakeCylinder(start, dirx, end - start);
-                        string cap = RequireString(sparams, "cap");
-                        double coneTipDistance = GetOptionalDouble(sparams, "coneTipDistance", double.MinValue);
-                        if (coneTipDistance == double.MinValue)
-                        {
-                            // sphericalTips
-                            Arc2D arcstart = new Arc2D(GeoPoint2D.Origin, radius, Angle.Deg(180), SweepAngle.Deg(90));
-                            Arc2D arcend = new Arc2D(new GeoPoint2D(l, 0), radius, Angle.Deg(270), SweepAngle.Deg(90));
-                            Line2D line1 = new Line2D(arcstart.EndPoint, arcend.StartPoint);
-                            Line2D line2 = new Line2D(arcend.EndPoint, arcstart.StartPoint);
-                            Path2D profile = new Path2D(new ICurve2D[] { arcstart, line1, arcend, line2 });
-                            Path? profile3D = profile.MakeGeoObject(profilePlane) as Path;
-                            var rotated = Make3D.Rotate(profile3D, new Axis(start, end), SweepAngle.Full, 0.0, null);
-                            if (rotated is Solid sld) res = sld;
-                        }
-                        else
-                        {
-                            Solid cone1 = Make3D.MakeCone(start, dirx, coneTipDistance * (start - end).Normalized, radius, 0.0);
-                            Solid cone2 = Make3D.MakeCone(end, dirx, coneTipDistance * (end - start).Normalized, radius, 0.0);
-                            res = BooleanOperation.Unite(cone1, cylinder);
-                            res = BooleanOperation.Unite(cone2, res);
-                        }
-                    }
-                    break;
-                case "pipe":
-                    {
-                        GeoPoint start = RequirePoint3D(sparams, "start");
-                        GeoPoint end = RequirePoint3D(sparams, "end");
-                        double outerRadius = RequireDouble(sparams, "outerRadius");
-                        double innerRadius = RequireDouble(sparams, "innerRadius");
-                        Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-                        GeoVector dirx = outerRadius * pln.ToGlobal(GeoVector2D.XAxis);
-                        Solid cylinder1 = Make3D.MakeCylinder(start, dirx, end - start);
-                        dirx = innerRadius * pln.ToGlobal(GeoVector2D.XAxis);
-                        Solid cylinder2 = Make3D.MakeCylinder(start, dirx, end - start);
-                        Solid[] diff = BooleanOperation.Subtract(cylinder1, cylinder2);
-                        if (diff != null && diff.Length == 1) res = diff[0];
-                    }
-                    break;
-                default: throw new JsonRpcException("E_INVALID_PARAMS", "Invalid 'kind' parameter.");
-
-            }
-            if (res != null)
-            {
-                if (name != null) namedItems[name] = res;
-            }
-            else
-            {
-                throw new JsonRpcException("E_OPERATION_FAILED", $"Failed to create primitive {kind}.");
-            }
-        }
-
 
         private void SystemGetInfoImpl()
         {
@@ -888,7 +937,7 @@ namespace ShapeIt
                     remainingCurves.Add(lc2[i]);
                 }
             }
-            if (remainingCurves.Count>0)
+            if (remainingCurves.Count > 0)
             {
                 Reduce2D r2d = new Reduce2D();
                 r2d.Add(remainingCurves.ToArray());
@@ -907,7 +956,79 @@ namespace ShapeIt
             }
             return lcs;
         }
-        private object SolidSweepImpl(object profile, object path, string? orientation, string? name, JsonElement capture) => throw new NotImplementedException();
+        List<ICurve> GetSketchCurves(JsonElement selector)
+        {
+            List<CompoundShape> lcs = IterateSelector<CompoundShape>(selector).ToList();
+            List<ICurve2D> lc2 = IterateSelector<ICurve2D>(selector).ToList();
+            List<ICurve> res = [];
+            if (lc2.Count > 0)
+            {
+                Sketch? sketch = lc2[0].UserData["MCPServer.Sketch"] as Sketch;
+                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "No sketch assoziated with curve.");
+
+                Reduce2D r2d = new Reduce2D();
+                r2d.Add(lc2.ToArray());
+                r2d.OutputMode = Reduce2D.Mode.Paths;
+                foreach (ICurve2D curve2D in r2d.Reduced)
+                {
+                    ICurve? toAdd = curve2D.MakeGeoObject(sketch.Plane) as ICurve;
+                    if (toAdd != null) res.Add(toAdd);
+                }
+            }
+            if (lcs.Count > 0)
+            {
+                Sketch? sketch = lcs[0].UserData["MCPServer.Sketch"] as Sketch;
+                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "No sketch assoziated with profile.");
+                foreach (CompoundShape cs in lcs)
+                {
+                    res.AddRange(cs.MakePaths(sketch.Plane));
+                }
+            }
+            return res;
+        }
+        private void SolidSweepImpl(JsonElement profile, JsonElement path, string? orientation, string? name, JsonElement capture)
+        {
+            List<CompoundShape> profiles = GetProfiles(profile);
+            List<ICurve> paths = GetSketchCurves(path);
+            if (profiles.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactely one profile.");
+            if (paths.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactely one path.");
+            Sketch? sketch = profiles[0].UserData["MCPServer.Sketch"] as Sketch;
+            if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "No sketch assoziated with profile.");
+
+            Face toSweep = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[0].SimpleShapes[0]); // the profile should not consist of multiple SimpleShapes
+            if (!(paths[0] is Path)) paths[0] = Path.FromSegments(paths)[0]; // there must be at least one!
+            Path? p = paths[0] as Path;
+            if (p != null)
+            {
+                IGeoObject sweptSolid = Make3D.MakePipe(toSweep, p, null);
+                if (sweptSolid is Solid sld)
+                {
+                    if (name != null) namedItems[name] = sld;
+                    if (capture.ValueKind != JsonValueKind.Undefined)
+                    {
+                        string? startEdgesName = GetOptionalString(capture, "startEdges");
+                        string? endEdgesName = GetOptionalString(capture, "endEdges");
+                        string? startFaceName = GetOptionalString(capture, "startFace");
+                        string? endFaceName = GetOptionalString(capture, "endFace");
+
+                        Face endFace = (toSweep.Clone() as Face)!;
+                        endFace.Modify(ModOp.Fit(p.StartPoint, [p.StartDirection], p.EndPoint, [p.EndDirection]));
+                        Face? startingFace = sld.Shell.FindSimilarFace(toSweep);
+                        Face? endingFace = sld.Shell.FindSimilarFace(endFace);
+                        if (startingFace != null)
+                        {
+                            if (startFaceName != null) namedItems[startFaceName] = startingFace; // there should only be one
+                            if (startEdgesName != null) namedItems[startEdgesName] = startingFace.AllEdges.ToList();
+                        }
+                        if (endingFace != null)
+                        {
+                            if (endFaceName != null) namedItems[endFaceName] = endingFace; // there should only be one
+                            if (endEdgesName != null) namedItems[endEdgesName] = endingFace.AllEdges.ToList();
+                        }
+                    }
+                }
+            }
+        }
         private void SolidRotateImpl(JsonElement profile, Axis axis, double angle, string? name, JsonElement capture)
         {
             List<CompoundShape> profiles = GetProfiles(profile);
@@ -915,7 +1036,7 @@ namespace ShapeIt
             for (int i = 0; i < profiles.Count; i++)
             {
                 Sketch? sketch = profiles[i].UserData["MCPServer.Sketch"] as Sketch;
-                if (sketch==null) throw new JsonRpcException("E_OPERATION_FAILED", "No suitable sketch found for profile");
+                if (sketch == null) throw new JsonRpcException("E_OPERATION_FAILED", "No suitable sketch found for profile");
                 for (int j = 0; j < profiles[i].SimpleShapes.Length; j++)
                 {
                     Face toRotate = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[i].SimpleShapes[j]);
@@ -1002,7 +1123,7 @@ namespace ShapeIt
 
         private void SketchRoundVerticesImpl(Sketch? sketch, JsonElement entity, double radius, JsonElement nearPoints, JsonElement indices, double tolerance, string name)
         {
-            if (nearPoints.ValueKind != JsonValueKind.Undefined || indices.ValueKind != JsonValueKind.Undefined)
+            if (nearPoints.ValueKind == JsonValueKind.Undefined || indices.ValueKind == JsonValueKind.Undefined)
             {
                 throw new NotImplementedException("Vertex selection for sketch.round_vertices not implemented.");
             }
@@ -1131,12 +1252,13 @@ namespace ShapeIt
         {
             List<Solid> slda = IterateSelector<Solid>(a).ToList();
             List<Solid> sldb = IterateSelector<Solid>(b).ToList();
-            if (slda == null || sldb.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "Boolean operations require at least one solid 'a' and at least one other solid 'b' to operate with.");
+            if (slda.Count == 0 || sldb.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "Boolean operations require at least one solid 'a' and at least one other solid 'b' to operate with.");
             if (name == null && slda[0] is IGeoObject go) name = go.UserData["CADablity.MCP.Name"] as string;
             object? res = null;
             Solid s1 = slda[0];
             List<Solid> s2 = [.. sldb, .. slda.Skip(1)];
             // if there are more than one solid in a, we also treat them as solids to operate with, so we add them to the list of b solids. This is a bit unintuitive but it allows for more complex operations without needing to call boolean multiple times. For example, if you want to unite 3 solids, you can just put them all in a and leave b empty.
+            var sw = Stopwatch.StartNew();
             switch (op.ToLower())
             {
                 case "union":
@@ -1158,11 +1280,24 @@ namespace ShapeIt
                     break;
                 default: throw new JsonRpcException("E_INVALID_PARAMS", $"'solid.boolean' unknown operator {op}");
             }
-
+            sw.Stop();
             if (res != null && name != null) namedItems[name] = res;
+            if (rebind)
+            {
+                if (res is Solid sres)
+                {
+                    Rebind(slda, sres);
+                    Rebind(sldb, sres);
+                }
+                else if (res is List<Solid> lres)
+                {
+                    Rebind(slda, lres);
+                    Rebind(sldb, lres);
+                }
+            }
         }
 
-        private void PatternCircularSolidsImpl(JsonElement objects, GeoPoint center, GeoVector axis, int count, double angle, bool copy, string name, bool suffix)
+        private void PatternCircularSolidsImpl(JsonElement objects, Axis axis, int count, double angle, bool copy, string name, bool suffix)
         {
 
             List<Solid> list = IterateObjectRefs<Solid>(objects).ToList(); // all objects assiziated via userdat by name
@@ -1172,7 +1307,7 @@ namespace ShapeIt
             List<Solid> current = new List<Solid>();
             foreach (Solid s in list) current.Add(s.Clone() as Solid);
             List<Solid> total = new List<Solid>(current);
-            ModOp rot = ModOp.Rotate(center, axis, SweepAngle.Deg(stepAngle));
+            ModOp rot = ModOp.Rotate(axis.Location, axis.Direction, SweepAngle.Deg(stepAngle));
             for (int i = 1; i < count; i++)
             {
                 List<Solid> next = new List<Solid>();
@@ -1389,19 +1524,110 @@ namespace ShapeIt
                     {
                         namedItems[resName] = new List<Solid>(res);
                     }
+                    if (capture.ValueKind != JsonValueKind.Undefined)
+                    {
+                        string? entryEdgesName = null, exitEdgesName = null, wallFacesName = null;
+                        if (capture.TryGetProperty("entryEdges", out var entryEl)) entryEdgesName = entryEl.GetString();
+                        if (capture.TryGetProperty("exitEdges", out var exitEl)) exitEdgesName = exitEl.GetString();
+                        if (capture.TryGetProperty("wallFaces", out var wallEl)) wallFacesName = wallEl.GetString();
+
+                        List<Face> cylindricalFaces = [];
+                        foreach (Face fc in cyl.Shells[0].Faces)
+                        {
+                            if (fc.Surface is ICylinder) cylindricalFaces.Add(fc);
+                        }
+                        if (entryEdgesName != null || exitEdgesName != null)
+                        {
+                            List<Edge> entryEdges = [];
+                            List<Edge> exitEdges = [];
+                            foreach (Edge edge in res[0].Edges)
+                            {
+                                foreach (Face fc in cylindricalFaces)
+                                {
+                                    if (Precision.IsNull(fc.Distance(edge.Vertex1.Position))
+                                        && Precision.IsNull(fc.Distance(edge.Vertex2.Position))
+                                        && fc.Surface.IsCurveOnSurface(edge.Curve3D))
+                                    {   // either entry or exit
+                                        if (Precision.IsNull(onFace.Distance(edge.Vertex1.Position))
+                                        && Precision.IsNull(onFace.Distance(edge.Vertex2.Position))
+                                        && onFace.Surface.IsCurveOnSurface(edge.Curve3D))
+                                            entryEdges.Add(edge);
+                                        else exitEdges.Add(edge);
+                                        break;
+                                    }
+                                }
+                            }
+                            if (entryEdgesName != null) namedItems[entryEdgesName] = entryEdges;
+                            if (exitEdgesName != null) namedItems[exitEdgesName] = exitEdges;
+                        }
+                        if (wallFacesName != null)
+                        {
+                            List<Face> wallFaces = [];
+                            foreach (Face fc in cylindricalFaces)
+                            {
+                                foreach (Face fc1 in res[0].Shells[0].Faces)
+                                {
+                                    if (fc.SameSurface(fc1)) wallFaces.Add(fc1);
+                                }
+                            }
+                            namedItems[wallFacesName] = wallFaces;
+                        }
+                    }
+                    if (rebind) Rebind(onSolid, res);
                 }
             }
-            // TODO: capture, rebind
         }
-        private void FeatureSplitImpl(JsonElement solid, Plane splitBy, string nameInner, string nameOuter, bool rebind, JsonElement rebindTargets)
+        private void FeatureSplitImpl(JsonElement solid, JsonElement splitBy, string nameInner, string nameOuter, bool rebind, JsonElement rebindTargets)
         {
             List<Solid> solids = IterateSelector<Solid>(solid).ToList(); // should only be one
+            Plane pln = Plane.Invalid;
+            Shell? shell = null;
+            if (splitBy.TryGetProperty("standard", out var _) || splitBy.TryGetProperty("origin", out var _))
+            {
+                pln = RequirePlane(splitBy);
+            }
+            else
+            {
+                List<ISurface> surfaces = IterateSelector<ISurface>(splitBy).ToList(); // should only be one
+                                                                                       // make a shell from this surface
+                List<Face> faces = [];
+                for (int i = 0; i < surfaces.Count; i++)
+                {
+                    BoundingRect ext = surfaces[i].GetBounds();
+                    // TODO: both u and v are periodic!
+                    if (surfaces[i].IsUPeriodic && ext.Width > surfaces[i].UPeriod * 0.9)
+                    {
+                        BoundingRect extl = new BoundingRect(ext);
+                        extl.Right = ext.Left + ext.Width / 2;
+                        BoundingRect extr = new BoundingRect(ext);
+                        extr.Left = ext.Left + ext.Width / 2;
+                        faces.Add(Face.MakeFace(surfaces[i].Clone(), extl));
+                        faces.Add(Face.MakeFace(surfaces[i].Clone(), extr));
+                    }
+                    else if (surfaces[i].IsVPeriodic && ext.Height > surfaces[i].VPeriod * 0.9)
+                    {
+                        BoundingRect extb = new BoundingRect(ext);
+                        extb.Top = ext.Bottom + ext.Height / 2;
+                        BoundingRect extt = new BoundingRect(ext);
+                        extt.Bottom = ext.Bottom + ext.Height / 2;
+                        faces.Add(Face.MakeFace(surfaces[i].Clone(), extb));
+                        faces.Add(Face.MakeFace(surfaces[i].Clone(), extt));
+                    }
+                    else
+                    {
+                        faces.Add(Face.MakeFace(surfaces[i].Clone(), ext));
+                    }
+                }
+                Shell[] shells = Make3D.SewFaces(faces.ToArray());
+                if (shells.Length > 0) shell = shells[0]; // should only be one
+            }
             if (nameOuter != null)
             {
                 List<Solid> res = [];
                 for (int i = 0; i < solids.Count; i++)
                 {
-                    res.AddRange(BooleanOperation.SplitSolidByPlane(solids[i], splitBy, true));
+                    if (pln.IsValid()) res.AddRange(BooleanOperation.SplitSolidByPlane(solids[i], pln, true));
+                    else if (shell != null) res.AddRange(BooleanOperation.SplitSolidByShell(solids[i], shell, true));
                 }
                 if (res.Count == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Splitting reveald no outer part.");
                 namedItems[nameOuter] = res;
@@ -1409,10 +1635,12 @@ namespace ShapeIt
             if (nameInner != null)
             {
                 List<Solid> res = [];
-                splitBy.Reverse();
+                if (pln.IsValid()) pln.Reverse();
+                else if (shell != null) shell.ReverseOrientation();
                 for (int i = 0; i < solids.Count; i++)
                 {
-                    res.AddRange(BooleanOperation.SplitSolidByPlane(solids[i], splitBy, true));
+                    if (pln.IsValid()) res.AddRange(BooleanOperation.SplitSolidByPlane(solids[i], pln, true));
+                    else if (shell != null) res.AddRange(BooleanOperation.SplitSolidByShell(solids[i], shell, true));
                 }
                 if (res.Count == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Splitting reveald no inner part.");
                 namedItems[nameInner] = res;
@@ -1421,12 +1649,31 @@ namespace ShapeIt
 
         private void FeatureChamferImpl(JsonElement solid, JsonElement edges, double distance, JsonElement primaryFace, double secondaryDistance, string name, bool rebind, JsonElement rebindTargets)
         {
-            throw new NotImplementedException();
+            List<Edge> edgesToRound = IterateSelector<Edge>(edges).ToList();
+            if (edgesToRound.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No edges found to fillet.");
+            Shell? shell = edgesToRound.First().Owner.Owner as Shell;
+            if (shell == null) throw new JsonRpcException("E_INVALID_PARAMS", "Edge is not part of a solid.");
+            if (double.IsNaN(secondaryDistance)) secondaryDistance = distance;
+            // maybe flip distances
+            ChamferEdges ce = new ChamferEdges(shell, edgesToRound, distance, secondaryDistance);
+            Shell? rounded = ce.Execute();
+            if (rounded == null) throw new JsonRpcException("E_OPERATION_FAILED", "Filletting failed.");
+            Solid sld = Solid.MakeSolid(rounded);
+            if (string.IsNullOrEmpty(name))
+            {
+                string? originalName = FindName(solid);
+                if (originalName != null) namedItems[originalName] = sld;
+            }
+            else
+            {
+                namedItems[name] = sld;
+            }
+            if (rebind) Rebind(shell, rounded);
         }
 
         private void FeatureFilletImpl(object solid, JsonElement edges, double radius, string? name, bool rebind, JsonElement rebindTargets)
         {
-            List<Edge> edgesToRound = EdgesFromEdgeSelector(edges);
+            List<Edge> edgesToRound = IterateSelector<Edge>(edges).ToList();
             if (edgesToRound.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No edges found to fillet.");
             Shell? shell = edgesToRound.First().Owner.Owner as Shell;
             if (shell == null) throw new JsonRpcException("E_INVALID_PARAMS", "Edge is not part of a solid.");
@@ -1443,17 +1690,33 @@ namespace ShapeIt
             {
                 namedItems[name] = sld;
             }
+            if (rebind) Rebind(shell, rounded);
         }
 
         private List<Edge> EdgesFromEdgeSelector(JsonElement edges)
         {
             List<Edge> res = [];
             // cases: name, id, query, op
-            if (edges.TryGetProperty("name", out JsonElement name))
+            string? expr = null;
+            if (edges.ValueKind == JsonValueKind.String)
+            {
+                expr = edges.GetString();
+            }
+            else if (edges.TryGetProperty("expr", out JsonElement exprEl))
+            {
+                expr = exprEl.GetString();
+            }
+            if (expr != null)
+            {
+                object evalRes = Evaluator.Evaluate(expr, namedItems);
+                if (evalRes is Edge e) res.Add(e);
+                if (evalRes is List<Edge> le) res.AddRange(le);
+            }
+            else if (edges.TryGetProperty("name", out JsonElement name))
             {
                 string? nname = null;
                 if (name.ValueKind == JsonValueKind.String) nname = name.GetString();
-                if (nname != null && namedItems.TryGetValue(nname, out object named))
+                if (nname != null && namedItems.TryGetValue(nname, out var named))
                 {
                     if (named is Edge e) res.Add(e);
                     if (named is List<Edge> le) res.AddRange(le);
@@ -1650,19 +1913,51 @@ namespace ShapeIt
                     return "other";
                 }
             }
-            public int EdgeCount
+            public int EdgeCount => face.AllEdges.Length;
+            public BoundingBox bounds => face.GetExtent(0.0);
+        }
+        private class EdgeWrapperForEvaluator
+        {
+            Edge edge;
+            public EdgeWrapperForEvaluator(Edge edge)
+            {
+                this.edge = edge;
+            }
+            public string CurveType
             {
                 get
                 {
-                    return face.AllEdges.Length;
+                    if (edge.Curve3D is Line) return "line";
+                    if (edge.Curve3D is Ellipse elli)
+                    {
+                        if (elli.IsCircle)
+                        {
+                            if (elli.IsClosed) return "circle";
+                            else return "arc";
+                        }
+                        else
+                        {
+                            if (elli.IsClosed) return "ellipse";
+                            else return "ellipse arc";
+                        }
+                    }
+                    return "other";
                 }
             }
+            public GeoPoint startPoint => edge.Curve3D.StartPoint;
+            public GeoPoint endPoint => edge.Curve3D.EndPoint;
+            public GeoPoint pointAt(double u) => edge.Curve3D.PointAt(u);
+            public GeoVector directionAt(double u) => edge.Curve3D.DirectionAt(u);
+            public GeoVector startDirection => edge.Curve3D.StartDirection;
+            public GeoVector endDirection => edge.Curve3D.EndDirection;
+            public BoundingBox bounds => edge.Curve3D.GetExtent();
         }
-        private object? wrapForEvaluator(object item)
+        private static object? wrapForEvaluator(object item)
         {
             if (item is Face fc) return new FaceWrapperForEvaluator(fc);
+            if (item is Edge edg) return new EdgeWrapperForEvaluator(edg);
             // TODO implement other wrappers
-            return null;
+            return item;
         }
 
         private void DocumentCommitObjectsImpl(JsonElement objects)
@@ -1776,6 +2071,22 @@ namespace ShapeIt
                 }
             }
             if (name != null) namedItems[name] = modified;
+        }
+
+
+        private void InspectPropertiesImpl(string target, JsonElement properties)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void InspectSceneImpl(JsonElement targets, bool includeBoundingBoxes, string geometryFormat, bool includeImage)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void InspectSummaryImpl(JsonElement targets)
+        {
+            throw new NotImplementedException();
         }
 
 

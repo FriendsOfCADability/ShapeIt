@@ -68,6 +68,7 @@ namespace CADability.GeoObject
         private GeoVector[] interdir; // Interpolation mit einer gewissen Genauigkeit
         private double[] interparam; // die Parameter zur Interpolation
         private BoundingBox extent;
+        private double length = double.MinValue; // cached length
         private TetraederHull tetraederHull;
         private GeoPoint[] approximation; // Interpolation mit der Genauigkeit der Auflösung
         private double approxPrecision; // Genauigkeit zu approximation
@@ -555,6 +556,7 @@ namespace CADability.GeoObject
                 interparam = null;
                 approximation = null;
                 extent = BoundingBox.EmptyBoundingBox;
+                length = double.MinValue;
                 tetraederHull = null;
                 extrema = null;
             }
@@ -1384,6 +1386,7 @@ namespace CADability.GeoObject
         }
         internal void FromNurbs(Nurbs<GeoPoint, GeoPointPole> nbs, double startParam, double endParam)
         {
+            this.InvalidateSecondaryData();
             nubs3d = nbs;
             FromNurbs(Plane.XYPlane);
             this.startParam = startParam;
@@ -1391,16 +1394,18 @@ namespace CADability.GeoObject
         }
         internal void FromNurbs(Nurbs<GeoPointH, GeoPointHPole> nbs, double startParam, double endParam)
         {
+            this.InvalidateSecondaryData();
             nurbs3d = nbs;
-            FromNurbs(Plane.XYPlane);
+            FromNurbs(Plane.Invalid);
             this.startParam = startParam;
             this.endParam = endParam;
         }
         private void FromNurbs(BSpline toCopy)
         {
+            this.InvalidateSecondaryData();
             if (toCopy.nubs3d != null) nubs3d = toCopy.nubs3d;
             if (toCopy.nurbs3d != null) nurbs3d = toCopy.nurbs3d;
-            FromNurbs(Plane.XYPlane);
+            FromNurbs(Plane.Invalid);
             startParam = toCopy.startParam; ;
             endParam = toCopy.endParam;
         }
@@ -2502,6 +2507,7 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (length > 0) return length; // cached value
                 if ((this as ICurve).GetPlanarState() == PlanarState.Planar)
                 {
                     Plane pl = (this as ICurve).GetPlane();
@@ -2511,10 +2517,12 @@ namespace CADability.GeoObject
                         c2d = (this as ICurve).GetProjectedCurve(pl);
                         return 0.0;
                     }
-                    return c2d.Length;
+                    length = c2d.Length;
+                    return length;
                 }
                 ICurve aprox = (this as ICurve).Approximate(true, Math.Max(GetBoundingCube().Size / 1000, Precision.eps));
-                return aprox.Length;
+                length = aprox.Length;
+                return length;
             }
         }
         private void MakeStartEndKnotsClean()

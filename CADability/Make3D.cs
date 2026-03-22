@@ -1009,10 +1009,8 @@ namespace CADability.GeoObject
                     }
                     if (pos >= 0.0)
                     {   // position the face at the beginning of the curve
-                        GeoVector normal = (along.StartDirection ^ along.EndDirection).Normalized;
                         GeoVector dir = along.DirectionAt(pos).Normalized;
-                        ModOp m = ModOp.Fit(along.PointAt(pos), new GeoVector[] { dir, normal, normal ^ dir },
-                            along.StartPoint, new GeoVector[] { along.StartDirection.Normalized, normal, normal ^ along.StartDirection.Normalized });
+                        ModOp m = ModOp.Fit(along.PointAt(pos), [dir], along.StartPoint, [along.StartDirection.Normalized]);
                         shell.Modify(m);
                     }
                 }

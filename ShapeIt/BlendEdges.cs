@@ -52,43 +52,88 @@ namespace ShapeIt
             if (dist == double.MaxValue) dist = 0.0; // means no outside intersection
             return dist;
         }
+        private Face MakeBigFace(ISurface surface)
+        {   // extent the bounds of the surface at least double the area when possible and make a face to split something else with
+            BoundingRect br = surface.GetBounds();
+            double left = br.Left;
+            double right = br.Right;
+            if (surface.IsUPeriodic)
+            {
+                left = (br.Left + br.Right) / 2 - surface.UPeriod * 0.49;
+                right = (br.Left + br.Right) / 2 + surface.UPeriod * 0.49;
+            }
+            else
+            {
+                left = br.Left - br.Width;
+                right = br.Right + br.Width;
+            }
+            double bottom = br.Bottom;
+            double top = br.Top;
+            if (surface.IsVPeriodic)
+            {
+                bottom = (br.Bottom + br.Top) / 2 - surface.VPeriod * 0.49;
+                top = (br.Bottom + br.Top) / 2 + surface.VPeriod * 0.49;
+            }
+            else
+            {
+                bottom = br.Bottom - br.Height;
+                top = br.Top + br.Height;
+            }
+            return Face.MakeFace(surface, new BoundingRect(left, bottom, right, top));
+
+        }
         protected HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge, double length)
-        {
+        {   // rounding end here at vertex vtx. vtx and edge is on the shell to be rounded
             if (edgeToCutter == null) return null;
             Shell cutter = edgeToCutter[edge];
             Face? endFace = cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
             if (endFace == null) return [cutter]; // should not happen
-            // the end face of the simple fillet has 3 edges and 3 vertices: the two edges, which are connected to vtx and the third edge, which is a circular arc
-            // and convex from the vtx position. We test the beam from the vertex vtx to the outside of the shell,  and the two beams from the arc to the outside.
-            // if the vertex beam is totally outside the shell and the two other beams leave the shell in a short distance (<2*radius), then we extend the fillet
+            Edge freeEdge = endFace.AllEdges.First(e => !Precision.IsEqual(e.Vertex1.Position,vtx.Position) && !Precision.IsEqual(e.Vertex2.Position, vtx.Position)); // the chamfer or rounding edge
+            if (freeEdge == null) return [cutter]; // should not happen
+
+            HashSet<Face> endingFaces = []; // faces on the shell to be rounded where the edge ends
+            // this is only one face in most cases. 
+            foreach (Edge edg in vtx.Edges)
+            {
+                endingFaces.Add(edg.PrimaryFace);
+                endingFaces.Add(edg.SecondaryFace);
+            }
+            endingFaces.Remove(edge.PrimaryFace);
+            endingFaces.Remove(edge.SecondaryFace);
+            // beamDirection: the direction where the fillet is pointing to
             GeoPoint2D uv = vtx.GetPositionOnFace(endFace);
             GeoVector beamDirection = endFace.Surface.GetNormal(uv).Normalized;
-            double vtxbeam = minBeamDist(vtx.Position, beamDirection);
-            Edge endArc = endFace.AllEdges.First(e => e.Vertex1 != vtx && e.Vertex2 != vtx);
-            if (endArc == null) return [cutter]; // should not happen
-            double startbeam = minBeamDist(endArc.Curve3D.PointAt(0.01), beamDirection); // not exactely endpoint, because it is tangential to a face
-            double endbeam = minBeamDist(endArc.Curve3D.PointAt(0.99), beamDirection);
-            double middlebeam = minBeamDist(endArc.Curve3D.PointAt(0.5), beamDirection);
-#if DEBUG
-            // to watch the position:
-            DebuggerContainer dcPos = new DebuggerContainer();
-            dcPos.Add(shell);
-            dcPos.Add(cutter);
-            dcPos.Add(Line.MakeLine(vtx.Position, vtx.Position + 3 * length * beamDirection), Color.Red);
-            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.01), endArc.Curve3D.PointAt(0.01) + 3 * length * beamDirection), Color.Green);
-            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.99), endArc.Curve3D.PointAt(0.99) + 3 * length * beamDirection), Color.Green);
-            dcPos.Add(Line.MakeLine(endArc.Curve3D.PointAt(0.5), endArc.Curve3D.PointAt(0.5) + 3 * length * beamDirection), Color.Green);
-#endif
-            if (vtxbeam == 0.0 && startbeam < 3 * length && endbeam < 3 * length && middlebeam < 3 * length)
-            {   // the beamm from the vertex is outside the shell, the other two beams leave the shell in a short distance or ar outside: make a short extension
-                Shell? extension = (Make3D.Extrude(endFace.Clone(), 3 * length * beamDirection, null) as Solid)?.Shells[0];
-                if (extension != null)
+            Shell? extension = (Make3D.Extrude(endFace.Clone(), 3 * length * beamDirection, null) as Solid)?.Shells[0];
+            bool useExtension = false;
+            // extension of the cutter, maybe we need part of it
+            foreach (Face fc in endingFaces)
+            {
+                ISurface surface = fc.Surface.Clone(); // with this surface we try to trim the cutter or the extension
+                GeoPoint2D ip1 = surface.PositionOf(vtx.Position); // vtx is on surface
+                if (surface.GetNormal(ip1) * beamDirection < 0) surface.ReverseOrientation(); // below is good, above is bad
+                GeoPoint2D ip2 = surface.GetLineIntersection(freeEdge.Curve3D.StartPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
+                GeoPoint2D ip3 = surface.GetLineIntersection(freeEdge.Curve3D.EndPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
+                if (ip2.IsValid && ip3.IsValid)
                 {
-                    extension.CopyAttributes(edge.PrimaryFace);
-                    return [cutter, extension];
+                    surface.SetBoundsTo(vtx.Position, surface.PointAt(ip2), surface.PointAt(ip3));
+                    Face splitWith = MakeBigFace(surface);
+                    (Shell[] upperPart, Shell[] lowerPart) = BooleanOperation.SplitByFace(cutter, splitWith);
+                    if (upperPart.Length > 0 && lowerPart.Length > 0)
+                    {   // the ending face did split the cutter
+                        cutter.UserData.Add("CADability.RepleceShellBy", lowerPart[0]);
+                        cutter = lowerPart[0];
+                        edgeToCutter[edge] = cutter; // overwrite existing
+                    }
+                    (upperPart, lowerPart) = BooleanOperation.SplitByFace(extension, splitWith);
+                    if (upperPart.Length > 0 && lowerPart.Length > 0)
+                    {   // the ending face did split the cutter
+                        extension = lowerPart[0];
+                        useExtension = true;
+                    }
                 }
             }
-            return [cutter];
+            if (useExtension) return [cutter, extension];
+            else return [cutter];
 
         }
         protected HashSet<Shell>? createExtensionTwoEdges(Vertex vtx, Edge edge1, Edge edge2, double length)
@@ -173,6 +218,20 @@ namespace ShapeIt
 
         protected void Combine(List<HashSet<Shell>> sets)
         {
+            // some cutter shells may have been splitted and we have the unsplitted part in the set, so replace it
+            for (int i = 0; i < sets.Count; i++)
+            {
+                foreach (Shell shell in sets[i].Clone())
+                {
+                    Shell? replaceWith = shell.UserData["CADability.RepleceShellBy"] as Shell;
+                    if (replaceWith != null)
+                    {
+                        sets[i].Remove(shell);
+                        sets[i].Add(replaceWith);
+                    }
+                }
+
+            }
             bool mergedSomething;
             do
             {
@@ -233,7 +292,7 @@ namespace ShapeIt
             return result;
         }
 
-        protected void AppendLookup(Dictionary<Face,Face> start, Dictionary<Face, Face> append)
+        protected void AppendLookup(Dictionary<Face, Face> start, Dictionary<Face, Face> append)
         {
             foreach (var kv in start.ToList()) // ToList(), weil wir d1 verändern
             {
@@ -269,7 +328,7 @@ namespace ShapeIt
                 if (lookup.TryGetValue(kv.Value.face, out Face? lookedup)) edgeToFace[kv.Key] = (lookedup, kv.Value.forward);
             }
         }
-        protected void Lookup(Dictionary<Edge, HashSet<Face> > edgeToFaces, Dictionary<Face, Face> lookup)
+        protected void Lookup(Dictionary<Edge, HashSet<Face>> edgeToFaces, Dictionary<Face, Face> lookup)
         {
             foreach (var kv in edgeToFaces.ToList())
             {

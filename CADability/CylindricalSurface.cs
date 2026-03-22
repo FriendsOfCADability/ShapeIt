@@ -2,6 +2,7 @@
 using CADability.Shapes;
 using CADability.Substitutes;
 using CADability.UserInterface;
+using MathNet.Numerics;
 using MathNet.Numerics.Optimization;
 using System;
 using System.Collections.Generic;
@@ -516,6 +517,26 @@ namespace CADability.GeoObject
                     ips[i] = PointAt(uvOnFaces[i]);
                 }
                 return;
+            }
+            if (curve is Ellipse elli && elli.IsCircle && this.IsRealCylinder)
+            {   // tangential intersections will be unprecise in the general case
+                if (Precision.IsEqual(Geometry.DistPL(elli.Center, Location, Axis), elli.Radius + this.RadiusX))
+                {   // a tangential intersection
+                    GeoPoint pa = Geometry.DropPL(elli.Center, Location, Axis);
+                    GeoPoint2D[] ip2d = GetLineIntersection(elli.Center, pa - elli.Center);
+                    for (int i = 0; i < ip2d.Length; i++)
+                    {
+                        GeoPoint ip = PointAt(ip2d[i]);
+                        if (Precision.IsEqual(ip | elli.Center, elli.Radius))
+                        {
+                            uvOnFaces = [ip2d[i]];
+                            uOnCurve3Ds = [elli.PositionOf(ip)];
+                            ips = [ip];
+                            return;
+                        }
+                    }
+
+                }
             }
             if (curve.GetPlanarState() == PlanarState.Planar)
             {
@@ -1085,116 +1106,116 @@ namespace CADability.GeoObject
                     else return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
                 }
                 else
-                if (cyl2.IsRealCylinder && this.IsRealCylinder && Geometry.DistLL(Location, ZAxis, cyl2.Location, cyl2.ZAxis, out par11, out par22) < Math.Abs(this.RadiusX - cyl2.RadiusX) + Precision.eps)
-                {   // the smaller of this two cylinders completely penetrates the wider cylinder
-                    // so we have two intersection curves (entering and leaving)
-                    CylindricalSurface cyl1 = this;
-                    BoundingRect bounds1;
-                    if (cyl2.RadiusX < cyl1.RadiusX)
-                    {
-                        cyl1 = cyl2;
-                        cyl2 = this;
-                        bounds1 = otherBounds;
-                    }
-                    else
-                    {
-                        bounds1 = thisBounds;
-                    }
-                    // cyl1 is the smaller one
-                    GeoVector nrm = (cyl1.Axis ^ cyl2.Axis).Normalized;
-                    GeoPoint2D upos1 = cyl1.PositionOf(cyl1.Location + cyl1.XAxis.Length * nrm);
-                    GeoPoint2D upos2 = cyl2.PositionOf(cyl2.Location + cyl2.XAxis.Length * nrm);
-                    int n = Math.Max(2, (int)((bounds1.Right - bounds1.Left) / Math.PI * 4.0));
-                    double step = (bounds1.Right - bounds1.Left) / n;
-                    double uAtExtreme = upos1.x;
-                    while (uAtExtreme < bounds1.Left) uAtExtreme += Math.PI; // yes PI, both sides are extreme values
-                    while (uAtExtreme > bounds1.Right) uAtExtreme -= Math.PI;
-                    List<GeoPoint> pnts1 = new List<GeoPoint>();
-                    List<GeoPoint> pnts2 = new List<GeoPoint>();
-                    List<double> usteps = new List<double>(n + 2);
-                    for (int i = 0; i <= n; i++) usteps.Add(bounds1.Left + i * step);
-                    for (int i = 1; i < usteps.Count; i++)
-                    {
-                        if (uAtExtreme > usteps[i - 1] + 0.01 && uAtExtreme < usteps[i] - 0.01)
+                    if (cyl2.IsRealCylinder && this.IsRealCylinder && Geometry.DistLL(Location, ZAxis, cyl2.Location, cyl2.ZAxis, out par11, out par22) < Math.Abs(this.RadiusX - cyl2.RadiusX) + Precision.eps)
+                    {   // the smaller of this two cylinders completely penetrates the wider cylinder
+                        // so we have two intersection curves (entering and leaving)
+                        CylindricalSurface cyl1 = this;
+                        BoundingRect bounds1;
+                        if (cyl2.RadiusX < cyl1.RadiusX)
                         {
-                            usteps.Insert(i, uAtExtreme);
-                            break;
+                            cyl1 = cyl2;
+                            cyl2 = this;
+                            bounds1 = otherBounds;
                         }
-                    }
-                    for (int i = 0; i < usteps.Count; i++)
-                    {
-                        double u = usteps[i];
-                        GeoPoint loc = cyl1.PointAt(new GeoPoint2D(u, bounds1.Bottom));
-                        GeoPoint2D[] ips = cyl2.GetLineIntersection(loc, cyl1.Axis);
-                        if (ips.Length == 2)
+                        else
                         {
-                            GeoPoint p0 = cyl2.PointAt(ips[0]);
-                            GeoPoint p1 = cyl2.PointAt(ips[1]);
-                            // The two intersection point belong to different curves. 
-                            // We must consider the y component of cyl1, not of cyl2, to sort them into the correct points list.
-                            if (cyl1.PositionOf(p0).y < cyl1.PositionOf(p1).y)
+                            bounds1 = thisBounds;
+                        }
+                        // cyl1 is the smaller one
+                        GeoVector nrm = (cyl1.Axis ^ cyl2.Axis).Normalized;
+                        GeoPoint2D upos1 = cyl1.PositionOf(cyl1.Location + cyl1.XAxis.Length * nrm);
+                        GeoPoint2D upos2 = cyl2.PositionOf(cyl2.Location + cyl2.XAxis.Length * nrm);
+                        int n = Math.Max(2, (int)((bounds1.Right - bounds1.Left) / Math.PI * 4.0));
+                        double step = (bounds1.Right - bounds1.Left) / n;
+                        double uAtExtreme = upos1.x;
+                        while (uAtExtreme < bounds1.Left) uAtExtreme += Math.PI; // yes PI, both sides are extreme values
+                        while (uAtExtreme > bounds1.Right) uAtExtreme -= Math.PI;
+                        List<GeoPoint> pnts1 = new List<GeoPoint>();
+                        List<GeoPoint> pnts2 = new List<GeoPoint>();
+                        List<double> usteps = new List<double>(n + 2);
+                        for (int i = 0; i <= n; i++) usteps.Add(bounds1.Left + i * step);
+                        for (int i = 1; i < usteps.Count; i++)
+                        {
+                            if (uAtExtreme > usteps[i - 1] + 0.01 && uAtExtreme < usteps[i] - 0.01)
                             {
-                                pnts1.Add(p0);
-                                pnts2.Add(p1);
-                            }
-                            else
-                            {
-                                pnts1.Add(p1);
-                                pnts2.Add(p0);
+                                usteps.Insert(i, uAtExtreme);
+                                break;
                             }
                         }
-                        else if (ips.Length == 1)
+                        for (int i = 0; i < usteps.Count; i++)
                         {
-                            pnts1.Add(cyl2.PointAt(ips[0]));
-                            pnts2.Add(cyl2.PointAt(ips[0]));
+                            double u = usteps[i];
+                            GeoPoint loc = cyl1.PointAt(new GeoPoint2D(u, bounds1.Bottom));
+                            GeoPoint2D[] ips = cyl2.GetLineIntersection(loc, cyl1.Axis);
+                            if (ips.Length == 2)
+                            {
+                                GeoPoint p0 = cyl2.PointAt(ips[0]);
+                                GeoPoint p1 = cyl2.PointAt(ips[1]);
+                                // The two intersection point belong to different curves. 
+                                // We must consider the y component of cyl1, not of cyl2, to sort them into the correct points list.
+                                if (cyl1.PositionOf(p0).y < cyl1.PositionOf(p1).y)
+                                {
+                                    pnts1.Add(p0);
+                                    pnts2.Add(p1);
+                                }
+                                else
+                                {
+                                    pnts1.Add(p1);
+                                    pnts2.Add(p0);
+                                }
+                            }
+                            else if (ips.Length == 1)
+                            {
+                                pnts1.Add(cyl2.PointAt(ips[0]));
+                                pnts2.Add(cyl2.PointAt(ips[0]));
+                            }
                         }
-                    }
-                    // the result is not good, we need more points or extra points at the extreme position
-                    return new IDualSurfaceCurve[] {
+                        // the result is not good, we need more points or extra points at the extreme position
+                        return new IDualSurfaceCurve[] {
                         new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts2.ToArray()),
                         new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts1.ToArray()) };
-                }
-                else if (cyl2.IsRealCylinder && this.IsRealCylinder && Geometry.DistLL(Location, ZAxis, cyl2.Location, cyl2.ZAxis, out par11, out par22) < Math.Abs(this.RadiusX + cyl2.RadiusX))
-                {
-                    // the two cylinders have a single closed intersection curve
-                    // the following computes too few points, when the cylinder axis are not perpendicular
-                    // it would be easy to find more points, but difficult to bring them into the right order.
-                    // the base implementation does a good job, so no need to do something here.
-#if DEBUG
-                    Face dbgc1 = Face.MakeFace(this, thisBounds);
-                    Face dbgc2 = Face.MakeFace(cyl2, otherBounds);
-                    DebuggerContainer dccyl = new DebuggerContainer();
-                    dccyl.Add(dbgc1);
-                    dccyl.Add(dbgc2);
-
-                    for (int i = 0; i < seeds.Count; i++) dccyl.Add(seeds[i], Color.Red, i);
-#endif
-                    for (int i = 0; i < seeds.Count; i++)
-                    {
-                        GeoPoint2D pc1 = this.PerpendicularFoot(seeds[i]).MinBy(p2d => this.PointAt(p2d) | seeds[i]);
-                        GeoPoint2D pc2 = cyl2.PerpendicularFoot(seeds[i]).MinBy(p2d => cyl2.PointAt(p2d) | seeds[i]);
-                        seeds[i] = new GeoPoint(this.PointAt(pc1), cyl2.PointAt(pc2));
                     }
-                    //GeoPoint m = new GeoPoint(Location + par11 * ZAxis, cyl2.Location + par22 * cyl2.ZAxis); // middle point between the two cylinders
-                    //GeoPoint c = toUnit * (Location + par11 * ZAxis);
-                    //double v1 = c.z;
-                    //c = cyl2.toUnit * (cyl2.Location + par22 * cyl2.ZAxis);
-                    //double v2 = c.z;
-                    //ICurve e1 = FixedV(v1, 0.0, Math.PI * 2.0);
-                    //ICurve e2 = cyl2.FixedV(v2, 0.0, Math.PI * 2.0);
-                    //this.Intersect(e2, BoundingRect.InfinitBoundingRect, out GeoPoint[] ips1, out GeoPoint2D[] uv1, out double[] u1);
-                    //cyl2.Intersect(e1, BoundingRect.InfinitBoundingRect, out GeoPoint[] ips2, out GeoPoint2D[] uv2, out double[] u2);
-                    //if (ips1.Length == 2 && ips2.Length == 2)
-                    //{
-                    //	GeoPoint[] pnts = new GeoPoint[5];
-                    //	pnts[0] = pnts[4] = ips1[0];
-                    //	pnts[1] = ips2[0];
-                    //	pnts[2] = ips1[1];
-                    //	pnts[3] = ips2[1];
-                    //	// doesn't work with Difference1.cdb
-                    //	// return new IDualSurfaceCurve[] { new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts) };
-                    //}
-                }
+                    else if (cyl2.IsRealCylinder && this.IsRealCylinder && Geometry.DistLL(Location, ZAxis, cyl2.Location, cyl2.ZAxis, out par11, out par22) < Math.Abs(this.RadiusX + cyl2.RadiusX))
+                    {
+                        // the two cylinders have a single closed intersection curve
+                        // the following computes too few points, when the cylinder axis are not perpendicular
+                        // it would be easy to find more points, but difficult to bring them into the right order.
+                        // the base implementation does a good job, so no need to do something here.
+#if DEBUG
+                        Face dbgc1 = Face.MakeFace(this, thisBounds);
+                        Face dbgc2 = Face.MakeFace(cyl2, otherBounds);
+                        DebuggerContainer dccyl = new DebuggerContainer();
+                        dccyl.Add(dbgc1);
+                        dccyl.Add(dbgc2);
+
+                        for (int i = 0; i < seeds.Count; i++) dccyl.Add(seeds[i], Color.Red, i);
+#endif
+                        for (int i = 0; i < seeds.Count; i++)
+                        {
+                            GeoPoint2D pc1 = this.PerpendicularFoot(seeds[i]).MinBy(p2d => this.PointAt(p2d) | seeds[i]);
+                            GeoPoint2D pc2 = cyl2.PerpendicularFoot(seeds[i]).MinBy(p2d => cyl2.PointAt(p2d) | seeds[i]);
+                            seeds[i] = new GeoPoint(this.PointAt(pc1), cyl2.PointAt(pc2));
+                        }
+                        //GeoPoint m = new GeoPoint(Location + par11 * ZAxis, cyl2.Location + par22 * cyl2.ZAxis); // middle point between the two cylinders
+                        //GeoPoint c = toUnit * (Location + par11 * ZAxis);
+                        //double v1 = c.z;
+                        //c = cyl2.toUnit * (cyl2.Location + par22 * cyl2.ZAxis);
+                        //double v2 = c.z;
+                        //ICurve e1 = FixedV(v1, 0.0, Math.PI * 2.0);
+                        //ICurve e2 = cyl2.FixedV(v2, 0.0, Math.PI * 2.0);
+                        //this.Intersect(e2, BoundingRect.InfinitBoundingRect, out GeoPoint[] ips1, out GeoPoint2D[] uv1, out double[] u1);
+                        //cyl2.Intersect(e1, BoundingRect.InfinitBoundingRect, out GeoPoint[] ips2, out GeoPoint2D[] uv2, out double[] u2);
+                        //if (ips1.Length == 2 && ips2.Length == 2)
+                        //{
+                        //	GeoPoint[] pnts = new GeoPoint[5];
+                        //	pnts[0] = pnts[4] = ips1[0];
+                        //	pnts[1] = ips2[0];
+                        //	pnts[2] = ips1[1];
+                        //	pnts[3] = ips2[1];
+                        //	// doesn't work with Difference1.cdb
+                        //	// return new IDualSurfaceCurve[] { new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts) };
+                        //}
+                    }
 
             }
             else if (other is SphericalSurface)

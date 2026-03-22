@@ -231,6 +231,7 @@ namespace CADability.GeoObject
                 return shells;
             }
         }
+        public Shell Shell => Shells[0];
         private void OnWillChange(IGeoObject Sender, GeoObjectChange Change)
         {
             if (isChanging == 0)

@@ -1979,6 +1979,34 @@ namespace CADability
             return (upper, lower);
 
         }
+        public static Solid[] SplitSolidByShell(Solid solidToSplit, Shell splitBy, bool onlyInnerParts=true)
+        {
+            Shell shellToSplit = solidToSplit.Shells[0];
+            List<Solid> res = [];
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(shellToSplit, splitBy, Operation.difference);
+            bo.SetClosedShells(true, false);
+            Shell[] upper = bo.Execute();
+            for (int i = 0; i < upper.Length; i++)
+            {
+                res.Add(Solid.MakeSolid(upper[i]));
+            }
+            if (!onlyInnerParts)
+            {
+                Shell reversed = splitBy.Clone() as Shell;
+                reversed.ReverseOrientation();
+                bo = new BooleanOperation();
+                bo.SetShells(shellToSplit, reversed, Operation.difference);
+                bo.SetClosedShells(true, false);
+                Shell[] lower = bo.Execute();
+                for (int i = 0; i < lower.Length; i++)
+                {
+                    res.Add(Solid.MakeSolid(lower[i]));
+                }
+            }
+            return res.ToArray();
+
+        }
         /// <summary>
         /// Chamfer or bevel the provided edges. the edges must be connected and only two edges may have a common vertex. The edges must build a path.
         /// We have two distances from the edge to make chamfers with different angles. All edges must belong to the <paramref name="primaryFace"/>. 

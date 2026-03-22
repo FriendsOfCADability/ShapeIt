@@ -7425,5 +7425,27 @@ namespace CADability.GeoObject
             GeoPoint cnt = original.Curve3D.PointAt(0.5);
             return commonEdges.MinBy(e => e.Curve3D.PointAt(0.5) | cnt);
         }
+
+        public Edge FindSimilarEdge(Edge edge)
+        {
+            foreach (Edge e in Edges)
+            {
+                if (Precision.IsEqual(e.Vertex1.Position,edge.Vertex1.Position) && Precision.IsEqual(e.Vertex2.Position, edge.Vertex2.Position))
+                {
+                    if (e.Curve3D != null && e.Curve3D.SameGeometry(edge.Curve3D, Precision.eps)) return e;
+                }
+            }
+            return null;
+        }
+
+        public Face FindSimilarFace(Face face)
+        {
+            GeoPoint p = face.Surface.PointAt(face.Area.GetSomeInnerPoint());
+            foreach (Face f in Faces)
+            {
+                if (f.Contains(p, false) && f.Surface.SameGeometry(f.Domain, face.Surface, face.Domain, Precision.eps, out var _)) return f;
+            }
+            return null;
+        }
     }
 }

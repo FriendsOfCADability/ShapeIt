@@ -538,22 +538,14 @@ namespace CADability.GeoObject
                 //base.Intersect(curve, out ipsdbg, out uvOnFacesdbg, out uOnCurve3Dsdbg);
 #endif
                 return;
+            } else if (curve is Ellipse elli && elli.IsCircle && Math.Abs(GetDistance(elli.Center)-elli.Radius)<Precision.eps)
+            {   // special case: a circle tangential to the plane (and perpendicular)
+                // this is more precise than the general case
+                ips = [Plane.FootPoint(elli.Center)];
+                uvOnFaces = [PositionOf(ips[0])];
+                uOnCurve3Ds = [curve.PositionOf(ips[0])];
+                return;
             }
-            //else if (curve is IExplicitPCurve3D)
-            //{
-            //    ExplicitPCurve3D epc3d = (curve as IExplicitPCurve3D).GetExplicitPCurve3D();
-            //    double [] res = epc3d.GetPlaneIntersection(Location, DirectionX, DirectionY);
-            //    for (int i = 0; i < res.Length; i++)
-            //    {
-            //        double d = Plane.Distance(epc3d.PointAt(res[i]));
-            //        if (i>0) d = Plane.Distance(epc3d.PointAt((res[i]+res[i-1])/2.0));
-            //    }
-            //    double dd = Plane.Distance(epc3d.PointAt(epc3d.knots[epc3d.knots.Length - 1]));
-            //    for (int i = 0; i < res.Length; i++)
-            //    {
-            //        res[i] = (res[i] - epc3d.knots[0]) / (epc3d.knots[epc3d.knots.Length - 1] - epc3d.knots[0]);
-            //    }
-            //}
             else
             {
                 if (curve.GetPlanarState() == PlanarState.Planar)

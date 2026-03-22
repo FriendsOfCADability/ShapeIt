@@ -210,7 +210,7 @@ namespace MCPDispatcherGenerator
             }
             else
             {
-                sb.AppendLine("        return new JsonObject();");
+                sb.AppendLine("        return default;");
             }
 
             sb.AppendLine("    }");
@@ -260,7 +260,7 @@ namespace MCPDispatcherGenerator
                 else sb.AppendLine($"        var {varName} = GetOptionalNumber(root, \"{propName}\", {def});");
                 return varName;
             }
-            if (type == "integer")
+            if (type == "integer" || (refStr != null && refStr.EndsWith("/ExpressionInteger")))
             {
                 int def = GetIntegerDefault(propSchema, "default");
                 if (isRequired) sb.AppendLine($"        var {varName} = RequireInteger(root, \"{propName}\");");

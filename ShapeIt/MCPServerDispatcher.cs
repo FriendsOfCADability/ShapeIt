@@ -13,6 +13,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using System.Xml.Linq;
 using static System.ComponentModel.Design.ObjectSelectorEditor;
 
@@ -39,6 +40,7 @@ namespace ShapeIt
 
             try
             {
+                System.Diagnostics.Trace.WriteLine($"RPC: {method}");
                 JsonNode result = DispatchGenerated(method, parameters);
 
                 response["result"] = result ?? new JsonObject();
@@ -103,12 +105,13 @@ namespace ShapeIt
         }
         private T RequireObjectRef<T>(JsonElement obj, string propName) where T : class
         {
-            var el = RequireProperty(obj, propName);          // liefert JsonElement des props
-            var objRef = el;                                  // oder RequireObject(...) je nach Format
-            var resolved = ResolveObjectRef(objRef);
+            JsonElement el;
+            if (propName != null) el = RequireProperty(obj, propName);
+            else el = obj;
+            var resolved = ResolveObjectRef(el);
             if (resolved is T t) return t;
 
-            throw new JsonRpcException(1001, $"Object is not a {typeof(T).Name}: {propName}={objRef}");
+            throw new JsonRpcException(1001, $"Object is not a {typeof(T).Name}: {propName}={el}");
         }
         private static JsonElement RequireProperty(JsonElement obj, string prop)
         {
@@ -187,17 +190,18 @@ namespace ShapeIt
             if (el.ValueKind != JsonValueKind.Number) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number");
             return el.GetDouble();
         }
-        private int RequireInteger(JsonElement obj, string prop)
+        private int RequireInteger(JsonElement obj, string? prop = null)
         {
             JsonElement el = obj;
             if (prop != null) el = RequireProperty(obj, prop);
             if (el.ValueKind == JsonValueKind.String)
             {
                 object res = Evaluator.Evaluate(el.GetString()!, namedItems);
-                if (res is double || res is int) return (int)(double)res;
+                if (res is double d) return (int)d;
+                if (res is int i) return i;
             }
             if (el.ValueKind == JsonValueKind.Number) return el.GetInt32();
-            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number");
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number or expression");
         }
 
         /// <summary>
@@ -243,13 +247,14 @@ namespace ShapeIt
             if (el.ValueKind != JsonValueKind.Number) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number");
             return el.GetDouble();
         }
-        private static int GetOptionalInteger(JsonElement obj, string prop, int def)
+        private int GetOptionalInteger(JsonElement obj, string prop, int def)
         {
             JsonElement el = obj;
             if (prop != null && !obj.TryGetProperty(prop, out el)) return def;
             if (el.ValueKind == JsonValueKind.Null) return def;
-            if (el.ValueKind != JsonValueKind.Number) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be integer");
-            return el.GetInt32();
+
+            if (el.ValueKind == JsonValueKind.Number || el.ValueKind == JsonValueKind.String) return RequireInteger(el);
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be integer");
         }
         private GeoVector GetOptionalVector3D(JsonElement obj, string? prop, GeoVector defaultValue)
         {
@@ -311,6 +316,8 @@ namespace ShapeIt
                     throw new JsonRpcException("E_InE_INVALID_PARAMS", $"Invalid params: '{prop}', error in expression '{expr}': {ex.Message}");
                 }
             }
+            if (angleEl.ValueKind == JsonValueKind.Number) return angleEl.GetDouble();
+
             throw new JsonRpcException("E_InE_INVALID_PARAMS", $"Invalid params: '{prop}' must be number, expression or named value");
         }
         private double GetOptionalAngle(JsonElement obj, string? prop, double def)
@@ -751,44 +758,25 @@ namespace ShapeIt
         }
 
         // ObjectRef: { "name": "..." } or { "id": "..." }
-        private (string Kind, string Value) ParseObjectRef(JsonElement objRef)
+        private string? ParseObjectRef(JsonElement objRef)
         {
-            if (objRef.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: ObjectRef must be an object");
-            if (objRef.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
-                return ("name", n.GetString()!);
-            throw new JsonRpcException(-32602, "Invalid params: ObjectRef must have 'id' or 'name'");
+            if (objRef.ValueKind == JsonValueKind.String) { return objRef.GetString(); }
+            if (objRef.ValueKind == JsonValueKind.Object && objRef.TryGetProperty("name", out var nameEl)) return nameEl.GetString();
+            throw new JsonRpcException(-32602, "Invalid params: ObjectRef must contain a string, or the property 'name'");
         }
 
         private object ResolveObjectRef(JsonElement objRef)
         {
-            var (kind, value) = ParseObjectRef(objRef);
-            if (kind == "name")
+            var name = ParseObjectRef(objRef);
+            if (name != null)
             {
-                if (namedItems.TryGetValue(value, out var o))
+                if (namedItems.TryGetValue(name, out var o))
                 {
-                    if (o is IGeoObject go) go.UserData.Add("CADablity.MCP.Name", value);
+                    if (o is IGeoObject go) go.UserData.Add("CADablity.MCP.Name", name);
                     return o;
                 }
-                throw new JsonRpcException(1001, $"Named object not found: {value}");
             }
-            else
-            {
-                if (idItems.TryGetValue(value, out var o))
-                {
-                    if (o is IGeoObject go) go.UserData.Add("CADablity.MCP.Name", value);
-                    return o;
-                }
-                throw new JsonRpcException(1001, $"Object id not found: {value}");
-            }
-        }
-
-
-        string GetNextId(string? name)
-        {
-            int id = nextId++;
-            string res = "id_" + id.ToString();
-            if (name != null) idItems[res] = name;
-            return res;
+            throw new JsonRpcException(1001, $"Named object not found: {name}");
         }
 
         private IEnumerable<object> ExpandResolved(JsonElement el)
@@ -857,33 +845,8 @@ namespace ShapeIt
             {   // array of ObjectRefs
                 foreach (var t in IterateObjectRefs<T>(je)) yield return t;
             }
-            else if (selector.TryGetProperty("items", out je) && je.ValueKind == JsonValueKind.Array)
-            {   // the same as names, sometimes AI calls it items although in the definition it should be called names
-                foreach (var t in IterateObjectRefs<T>(je)) yield return t;
-            }
-            else if (selector.TryGetProperty("query", out je))
-            {   // a query
-                string target = RequireString(je, "target");
-                switch (target)
-                {
-
-                    case "solids":
-                        foreach (Solid t in IterateQuery<Solid>(je)) if (t is T tt) yield return tt;
-                        break;
-                    case "faces":
-                        foreach (Face t in IterateQuery<Face>(je)) if (t is T tt) yield return tt;
-                        break;
-                    case "edges":
-                        foreach (Edge t in IterateQuery<Edge>(je)) if (t is T tt) yield return tt;
-                        break;
-                    case "sketch_geometry":
-                        foreach (ICurve2D t in IterateQuery<ICurve2D>(je)) if (t is T tt) yield return tt;
-                        foreach (CompoundShape t in IterateQuery<CompoundShape>(je)) if (t is T tt) yield return tt;
-                        break;
-                }
-            }
             else if (selector.TryGetProperty("op", out je))
-            {   // a boolean operation
+            {   // a boolean operation, test before "items", because it also contains "items"
                 string? op = null;
                 if (je.ValueKind == JsonValueKind.String) op = je.GetString();
                 if (op != null && selector.TryGetProperty("items", out var booleanItems) && booleanItems.ValueKind == JsonValueKind.Array)
@@ -919,6 +882,31 @@ namespace ShapeIt
                             break;
                     }
                     foreach (var item in result) yield return item;
+                }
+            }
+            else if (selector.TryGetProperty("items", out je) && je.ValueKind == JsonValueKind.Array)
+            {   // the same as names, sometimes AI calls it items although in the definition it should be called names
+                foreach (var t in IterateObjectRefs<T>(je)) yield return t;
+            }
+            else if (selector.TryGetProperty("query", out je))
+            {   // a query
+                string target = RequireString(je, "target");
+                switch (target)
+                {
+
+                    case "solids":
+                        foreach (Solid t in IterateQuery<Solid>(je)) if (t is T tt) yield return tt;
+                        break;
+                    case "faces":
+                        foreach (Face t in IterateQuery<Face>(je)) if (t is T tt) yield return tt;
+                        break;
+                    case "edges":
+                        foreach (Edge t in IterateQuery<Edge>(je)) if (t is T tt) yield return tt;
+                        break;
+                    case "sketch_geometry":
+                        foreach (ICurve2D t in IterateQuery<ICurve2D>(je)) if (t is T tt) yield return tt;
+                        foreach (CompoundShape t in IterateQuery<CompoundShape>(je)) if (t is T tt) yield return tt;
+                        break;
                 }
             }
         }
@@ -1101,6 +1089,22 @@ namespace ShapeIt
                                     case "spherical": if (!(face.Surface is SphericalSurface)) continue; break;
                                     case "toroidal": if (!(face.Surface is ToroidalSurface)) continue; break;
                                     case "freeform": break;
+                                }
+                            }
+                        }
+                        if (filter.TryGetProperty("condition", out je))
+                        {
+                            string? expr = null;
+                            if (je.ValueKind == JsonValueKind.String) expr = je.GetString();
+                            else if (je.ValueKind == JsonValueKind.Object && je.TryGetProperty("expr", out var exprEl) && exprEl.ValueKind == JsonValueKind.String) expr = exprEl.GetString();
+                            if (expr == null) throw new JsonRpcException("E_INVALID_PARAMETER", "condition not found");
+
+                            using (new NamedItemOverride(namedItems, toTest))
+                            {
+                                object evalRes = Evaluator.Evaluate(expr, namedItems);
+                                if (evalRes is bool b)
+                                {
+                                    if (!b) continue; // expression was false
                                 }
                             }
                         }

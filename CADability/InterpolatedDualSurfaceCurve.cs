@@ -2229,8 +2229,10 @@ namespace CADability
                     precision = normal.Length / 10000.0;
                 }
                 Polynom sec1, sec2;
-                if (surface1 is ISurfaceImpl s1 && surface2 is ISurfaceImpl s2)
-                {
+                if (false && surface1 is ISurfaceImpl s1 && surface2 is ISurfaceImpl s2)
+                { // temporaryly disabled to test speed performance of 
+                    // performance with cylinder and cone is worse than with SurfacesIntersectionLM (see below)
+                    // maybe when one of the surfaces is a plane, then we can reduce to line intersection which would be faster
                     Polynom ps1 = s1.GetImplicitPolynomial();
                     Polynom ps2 = s2.GetImplicitPolynomial();
                     if (ps1 != null && ps2 != null & ps1.Degree < 4 && ps2.Degree < 4)

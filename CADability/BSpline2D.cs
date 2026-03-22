@@ -61,6 +61,7 @@ namespace CADability.Curve2D
         private double parameterEpsilon; // ein epsilon, welches sich auf den Parameter bezieht. Abbruch für Iterationen
         private double distanceEpsilon; // ein epsilon, welches sich auf die Ausdehnung bezieht. Abbruch für Iterationen
         WeakReference<ExplicitPCurve2D> explicitPCurve2D;
+        private double length = double.MinValue;
 
         private void InvalidateCache()
         {
@@ -72,6 +73,7 @@ namespace CADability.Curve2D
             nubs = null;
             nurbs = null;
             explicitPCurve2D = null;
+            length = double.MinValue;
             Init();
         }
         private void MakeFlat()
@@ -821,15 +823,23 @@ namespace CADability.Curve2D
                     {
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint2D p = curve(mpos);
-                        double d = bsp.Distance(p);
-                        if (d==double.MaxValue)
+                        double d;
+                        if (bsp.TryFindFootPoint(p, lastPos, item.Key, out double ufoot))
+                        {
+                            d = p | bsp.PointAt(ufoot);
+                        }
+                        else
+                        {
+                            d = bsp.Distance(p);
+                        }
+                        if (d == double.MaxValue)
                         {
                             double pos = bsp.PositionOf(p);
                             GeoPoint2D onCurve = bsp.PointAt(pos);
                             d = p | onCurve;
                         }
                         if (d > precision)
-                            // if ((bsp.PointAt(mpos) | p) > precision) leads to too many points
+                        // if ((bsp.PointAt(mpos) | p) > precision) leads to too many points
                         {
                             toAdd.Add((mpos, p));
                         }
@@ -1802,17 +1812,12 @@ namespace CADability.Curve2D
         {
             get
             {
-                //				try
-                //				{
-                //					CndHlp2D.Entity2D hlp = MakeEntity2D();
-                //					return hlp.Length;
-                //				}
-                //				catch
-                //				{
+                if (length > 0) return length;
                 try
                 {
                     ICurve2D cv = this.Approximate(true, -poles.Length);
-                    return cv.Length;
+                    length = cv.Length;
+                    return length;
                 }
                 catch (Exception e)
                 {
@@ -2828,6 +2833,110 @@ namespace CADability.Curve2D
                 return epca;
             }
         }
+        /// <summary>
+        /// Find foot point between two parameters without triangulation
+        /// </summary>
+        /// <param name="p"></param>
+        /// <param name="uMin"></param>
+        /// <param name="uMax"></param>
+        /// <param name="uFoot"></param>
+        /// <param name="maxIter"></param>
+        /// <param name="tolU"></param>
+        /// <param name="tolG"></param>
+        /// <returns></returns>
+        public bool TryFindFootPoint(GeoPoint2D p, double uMin, double uMax, out double uFoot, int maxIter = 20, double tolU = 1e-12, double tolG = 1e-12)
+        {
+            double u = 0.5 * (uMin + uMax);
+
+            double Phi(double uu)
+            {
+                GeoPoint2D cp = PointAtParam(uu);
+                GeoVector2D r = cp - p;
+                return 0.5 * (r.x * r.x + r.y * r.y);
+            }
+
+            double Grad(double uu)
+            {
+                GeoVector2D d1;
+                GeoPoint2D cp;
+                if (nubs != null)
+                {
+                    GeoPoint2D pnt, dir;
+                    nubs.CurveDeriv1(uu, out pnt, out dir);
+                    d1 = dir.ToVector();
+                    cp = pnt;
+                }
+                else
+                {
+                    GeoPoint2DH pnth, dirh;
+                    nurbs.CurveDeriv1(uu, out pnth, out dirh);
+                    d1 = dirh;
+                    cp = pnth;
+                }
+                // PointDirAt2(uu, out GeoPoint2D cp, out GeoVector2D d1, out GeoVector2D d2);
+                GeoVector2D r = cp - p;
+                return r.x * d1.x + r.y * d1.y;
+            }
+
+            double Hess(double uu)
+            {
+                PointDirAt2(uu, out GeoPoint2D cp, out GeoVector2D d1, out GeoVector2D d2);
+                GeoVector2D r = cp - p;
+                return d1.x * d1.x + d1.y * d1.y + r.x * d2.x + r.y * d2.y;
+            }
+
+            for (int i = 0; i < maxIter; i++)
+            {
+                double g = Grad(u);
+                if (Math.Abs(g) < tolG)
+                {
+                    uFoot = u;
+                    return true;
+                }
+
+                double h = Hess(u);
+
+                double uNew;
+                if (Math.Abs(h) < 1e-18)
+                {
+                    // Hessian zu klein: Fallback auf Intervallmitte eines verkleinerten Bereichs
+                    uNew = 0.5 * (uMin + uMax);
+                }
+                else
+                {
+                    uNew = u - g / h;
+                }
+
+                // Intervallschutz: nicht aus dem bekannten Bereich hinauslaufen
+                if (uNew <= uMin || uNew >= uMax || double.IsNaN(uNew))
+                {
+                    uNew = 0.5 * (uMin + uMax);
+                }
+
+                // Intervall anhand des Vorzeichens von phi'(u) weiter einschränken
+                if (g > 0.0)
+                    uMax = u;
+                else
+                    uMin = u;
+
+                if (Math.Abs(uNew - u) < tolU)
+                {
+                    uFoot = uNew;
+                    return true;
+                }
+
+                // Optional: nur akzeptieren, wenn phi kleiner wird
+                if (Phi(uNew) > Phi(u))
+                {
+                    uNew = 0.5 * (uMin + uMax);
+                }
+
+                u = uNew;
+            }
+
+            uFoot = u;
+            return true;
+        }
         #endregion
         #region IQuadTreeInsertable Members
 
@@ -3096,9 +3205,9 @@ namespace CADability.Curve2D
                     if (a2d.Length > 2 * ((StartPoint | middlePoint) + (middlePoint | EndPoint))) ok = false; // der Kreisbogen kann nicht länger sein als 2* die Länge der Segmente (gilt auch bei Vollkreis)
                     if (Math.Abs(a2d.Sweep) < Math.PI / 10) ok = false; // ein Kreisbogen sollte größer als 10 Grad sein, sonst sind die ungenauigkeiten zu groß
                     if (ok) for (int i = 0; i < 10; i++)
-                        {
-                            if (a2d.Distance(PointAt(i / 10.0)) > precision) ok = false;
-                        }
+                    {
+                        if (a2d.Distance(PointAt(i / 10.0)) > precision) ok = false;
+                    }
                     if (ok)
                     {
                         simpleCurve = a2d;

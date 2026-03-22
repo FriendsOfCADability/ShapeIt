@@ -18,6 +18,28 @@ class MathStub
     public double PI => Math.PI;
     public double E => Math.E;
     public double Sqrt(double s) => Math.Sqrt(s);
+    public double Sign(double s) => Math.Sign(s);
+    public double Pow(double x, double y) => Math.Pow(x, y);
+    public double Abs(double x) => Math.Abs(x);
+    public double Cos(double x) => Math.Cos(x);
+    public double Acos(double x) => Math.Acos(x);
+    public double Cosh(double x) => Math.Cosh(x);
+    public double Sin(double x) => Math.Sin(x);
+    public double Sinh(double x) => Math.Sinh(x);
+    public double Asin(double x) => Math.Asin(x);
+    public double Tan(double x) => Math.Tan(x);
+    public double Tanh(double x) => Math.Tanh(x);
+    public double Atan(double x) => Math.Atan(x);
+    public double Atan2(double y, double x) => Math.Atan2(y, x);
+    public double Ceiling(double a) => Math.Ceiling(a);
+    public double Floor(double a) => Math.Floor(a);
+    public double Exp(double a) => Math.Exp(a);
+    public double Log(double a) => Math.Log(a);
+    public double Log10(double a) => Math.Log10(a);
+    public double Round(double a) => Math.Round(a);
+    public double Max(double a, double b) => Math.Max(a, b);
+    public double Min(double a, double b) => Math.Min(a, b);
+
 
 }
 public static class GeometryOps
@@ -427,7 +449,7 @@ public static class Parser
                                 ArgCount = 1, // sobald wir in Klammern sind, erwarten wir mindestens 1 Argument
                                 IsObjectMehtod = function.Value.IsProperty // there was a dot left of the name
                             });
-                            if (function.Value.IsProperty && opStack.Peek() is Token ptk && ptk.Type==TokenType.Dot) opStack.Pop(); // pop the dot operand, because it is not needed after the function call
+                            if (function.Value.IsProperty && opStack.Peek() is Token ptk && ptk.Type == TokenType.Dot) opStack.Pop(); // pop the dot operand, because it is not needed after the function call
                             paranIsFunc.Push(true);
                         }
                         else
@@ -807,12 +829,12 @@ public static class Evaluator
                             if (!(b is string bs))
                                 throw new Exception("Expected property name as string on the right side of '.' operator.");
                             object aa = a;
-                            if (a is IEnumerable<object> seq && seq.Count()==1)
+                            if (a is IEnumerable<object> seq && seq.Count() == 1)
                             {   // MCP Server makes no difference between a List<T> of a single object and
                                 // the object itself, when the list only contains a single object
                                 aa = seq.First();
                             }
-                            
+
                             PropertyInfo pi = aa.GetType().GetProperty(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
                             if (pi != null)
                             {
@@ -844,11 +866,12 @@ public static class Evaluator
                             // for List<T> we want to accept a few properties here
                             if (a is IEnumerable<object> seqa)
                             {
-                                if (bs.Equals("count",StringComparison.OrdinalIgnoreCase))
+                                if (bs.Equals("count", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    stack.Push(seqa.Count()); 
+                                    stack.Push(seqa.Count());
                                     break;
-                                } if (bs.Equals("bounds"))
+                                }
+                                if (bs.Equals("bounds"))
                                 {
                                     BoundingRect br = BoundingRect.EmptyBoundingRect;
                                     BoundingBox bc = BoundingBox.EmptyBoundingBox;
@@ -1008,6 +1031,14 @@ public static class Evaluator
                                     {
                                         stack.Push(obj);
                                     }
+                                    else if (marker.Name == "pi")
+                                    {
+                                        stack.Push(Math.PI);
+                                    }
+                                    else if (marker.Name == "e")
+                                    {
+                                        stack.Push(Math.E);
+                                    }
                                     else if (marker.Name == "Math")
                                     {
                                         stack.Push(new MathStub());
@@ -1136,6 +1167,14 @@ public static class Evaluator
                                     case "len":
                                         CheckArgCount(call, args, 1);
                                         fres = GeometryOps.FuncLen(args[0]);
+                                        break;
+                                    case "ceil":
+                                        CheckArgCount(call, args, 1);
+                                        fres = (int)Math.Ceiling(Convert.ToDouble(args[0]));
+                                        break;
+                                    case "floor":
+                                        CheckArgCount(call, args, 1);
+                                        fres = (int)Math.Floor(Convert.ToDouble(args[0]));
                                         break;
 
                                     // p(x,y,z) => GeoPoint or GeoPoint2D

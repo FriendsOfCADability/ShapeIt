@@ -688,7 +688,6 @@ namespace ShapeIt
                     };
                     subEntries.Add(showHiddenObjects);
                 }
-#if DEBUG
                 DirectMenuEntry AITest = new DirectMenuEntry("MenuId.AITestCase");
                 AITest.ExecuteMenu = (frame) =>
                 {
@@ -700,7 +699,6 @@ namespace ShapeIt
                 };
                 subEntries.Add(AITest);
 
-#endif
             }
 
             // show actions for all vertices, edges, faces and curves in 

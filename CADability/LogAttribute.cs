@@ -1,4 +1,5 @@
-﻿using MethodDecorator.Fody.Interfaces;
+﻿/*
+using MethodDecorator.Fody.Interfaces;
 using System;
 using System.Reflection;
 using CADability;
@@ -42,3 +43,5 @@ public class LogAttribute : Attribute, IMethodDecorator
     }
 }
 #endif
+
+*/

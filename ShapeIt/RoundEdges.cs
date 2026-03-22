@@ -112,8 +112,26 @@ namespace ShapeIt
                     BooleanOperation bo = new BooleanOperation();
                     bo.SetShells(toOperateOn, item, BooleanOperation.Operation.union);
 
+                    var edgeLiesInFace = item.UserData.GetData("CADability.Cutter.EdgeLiesInFace") as Dictionary<Edge, (Face face, bool forward)>;
+                    var edgeEndsInFace = item.UserData.GetData("CADability.Cutter.EdgeEndsInFace") as Dictionary<Edge, HashSet<Face>>;
+                    if (edgeLiesInFace != null && edgeEndsInFace != null)
+                    {
+                        if (originalToModified != null)
+                        {
+                            Lookup(edgeLiesInFace, originalToModified);
+                            Lookup(edgeEndsInFace, originalToModified);
+                        }
+                        bo.EdgeLiesInFace = edgeLiesInFace;
+                        bo.EdgeEndsInFace = edgeEndsInFace;
+                    }
                     Shell[] roundedShells = bo.Execute();
-                    if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
+                    if (roundedShells != null && roundedShells.Length == 1)
+                    {
+                        toOperateOn = roundedShells[0];
+                        if (originalToModified == null) originalToModified = bo.OriginalToClonedFaces;
+                        else AppendLookup(originalToModified, bo.OriginalToClonedFaces);
+                        AppendLookup(originalToModified, bo.SplittedFaces);
+                    }
                 }
             }
 
@@ -579,7 +597,7 @@ namespace ShapeIt
             //}
             //else return null;
             Arc2D arc2DOnRightPlane = new Arc2D(rightPlane.PositionOf(filletAxisRight), radius, rightPlane.PositionOf(rb), rightPlane.PositionOf(rt), false);
-            if (!convex) arc2DOnRightPlane.Complement();
+            if (Math.Abs(arc2DOnRightPlane.SweepAngle) > Math.PI) arc2DOnRightPlane.Complement();
             ICurve lid2crv3 = rightPlane.Make3dCurve(arc2DOnRightPlane);
             // start and endpoint should be correct. Setting them here might change the radius, which leads to even worse
             // numerical problems
@@ -602,7 +620,7 @@ namespace ShapeIt
             //}
             //else return null;
             Arc2D arc2DOnLeftPlane = new Arc2D(leftPlane.PositionOf(filletAxisLeft), radius, leftPlane.PositionOf(lt), leftPlane.PositionOf(lb), false);
-            if (!convex) arc2DOnLeftPlane.Complement();
+            if (Math.Abs(arc2DOnLeftPlane.SweepAngle) > Math.PI) arc2DOnLeftPlane.Complement();
             ICurve lid1crv3 = leftPlane.Make3dCurve(arc2DOnLeftPlane);
             // don't set start and enpoint. They are precise, and setting them might change the radius, which is bad numerically
             //lid1crv3.StartPoint = lt; // for better precision, should be almost equal
