@@ -381,7 +381,8 @@ namespace CADability
                             {
                                 // already an intersection edge
                                 if (alreadyCalculated == null) alreadyCalculated = [];
-                                if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
+                                if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision)))
+                                    alreadyCalculated.Add(e1.Curve3D.Clone());
                             }
                         }
                 }
@@ -396,7 +397,19 @@ namespace CADability
                         {
                             // already an intersection edge
                             if (alreadyCalculated == null) alreadyCalculated = [];
-                            if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision))) alreadyCalculated.Add(e1.Curve3D.Clone());
+                            if (!alreadyCalculated.Any(c => c.SameGeometry(e1.Curve3D, this.precision)))
+                            {
+                                alreadyCalculated.Add(e1.Curve3D.Clone());
+                                // now there might be a vertex of the other face on curve e1: we must use this vertex as an additional intersection vertex
+                                Face searchOnFace = fc1.Edges.Contains(e1) ? fc2 : fc1;
+                                {
+                                    foreach (Vertex vertex in searchOnFace.Vertices)
+                                    {
+                                        if (IsPointInsideCurve(vertex.Position, e1.Curve3D))
+                                            intersectionVertices.Add(vertex);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -784,6 +797,20 @@ namespace CADability
                 }
             }
         }
+
+        private bool IsPointInsideCurve(GeoPoint position, ICurve curve3D)
+        {
+            if (curve3D.DistanceTo(position) < Precision.eps)
+            {
+                if (!Precision.IsEqual(curve3D.StartPoint, position) && !Precision.IsEqual(curve3D.EndPoint, position))
+                {
+                    double pos = curve3D.PositionOf(position);
+                    if (pos > 0 && pos < 1) return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>
         /// Calculates the orrientation of the intersection curve. The curve is an intersection between face fc1 and fc2.
         /// uv1sp..uv2ep are uv parameters of the start- and endpoint of the curve on fc1 resp. fc2.
@@ -1589,7 +1616,7 @@ namespace CADability
             return null;
         }
 
-        public static Solid[] SplitSolidByPlane(Solid solidToSplit, Plane splitBy, bool onlyInnerParts=false)
+        public static Solid[] SplitSolidByPlane(Solid solidToSplit, Plane splitBy, bool onlyInnerParts = false)
         {
             Shell shellToSplit = solidToSplit.Shells[0];
             BoundingBox ext = shellToSplit.GetExtent(0.0);
@@ -1979,7 +2006,7 @@ namespace CADability
             return (upper, lower);
 
         }
-        public static Solid[] SplitSolidByShell(Solid solidToSplit, Shell splitBy, bool onlyInnerParts=true)
+        public static Solid[] SplitSolidByShell(Solid solidToSplit, Shell splitBy, bool onlyInnerParts = true)
         {
             Shell shellToSplit = solidToSplit.Shells[0];
             List<Solid> res = [];
@@ -2816,7 +2843,10 @@ namespace CADability
             public void AddUnique(List<Edge> loop, Face onThisFace)
             {
                 ICurve2D[] loop2d = onThisFace.Get2DCurves(loop);
-                AddUnique(Border.SignedArea(loop2d), (loop, loop2d));
+                double a = Border.SignedArea(loop2d);
+                // ignoring loos with no area. Maybe we ned a better test here
+                // there was a case with a line going forward and two lines exactely comming back
+                if (Math.Abs(a) > 1e-12) AddUnique(a, (loop, loop2d));
             }
         }
         /// <summary>
@@ -3905,6 +3935,12 @@ namespace CADability
                         break;
                     }
                     Edge nextEdge = node[(i + 1) % node.Count].edge; // the next edge to the left
+                    if (!node[(i + 1) % node.Count].outgoing && Math.Abs(node[(i + 1) % node.Count].angle - node[i].angle) < 1e-10
+                        && node.Count > 2)
+                    {   // exactely reversing edge, check the next one
+                        i += 1;
+                        nextEdge = node[(i + 1) % node.Count].edge;
+                    }
                     if (node[(i + 1) % node.Count].outgoing)
                     {   // outgoing: this is what we need
                         if (collecting[0] == nextEdge)

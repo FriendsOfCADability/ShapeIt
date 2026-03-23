@@ -3,12 +3,14 @@ using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
+using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
+using System.Reflection.Metadata.Ecma335;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -21,11 +23,13 @@ using Plane = CADability.Plane;
 
 namespace ShapeIt
 {
-    internal partial class MCPServer
+    public partial class MCPServer
     {
         // Named workspace items and created objects.
         // Names are chosen by the caller (LLM/client). IDs are opaque strings returned by the server.
-        private readonly Dictionary<string, object> namedItems = new(StringComparer.Ordinal);
+        private Dictionary<string, object> namedItems = new(StringComparer.Ordinal);
+        public Dictionary<string, List<JsonElement>> templates = [];
+
         private class NamedItemOverride : IDisposable
         {
             private object? oldNamedItem;
@@ -45,6 +49,25 @@ namespace ShapeIt
                 else namedItems[name] = oldNamedItem;
             }
         }
+        private class NamedItemClone : IDisposable
+        {
+            Dictionary<string, object> namedItems;
+            MCPServer server;
+            public NamedItemClone(MCPServer server)
+            {
+                this.server = server;
+                namedItems = server.namedItems;
+                server.namedItems = new Dictionary<string, object>(namedItems);
+                // this is a flat copy, so in theory we could change the values. But I cannot think of a way where values are changed
+                // typically they are overwritten (in the new dictionary) with new values, which is not a problem here
+            }
+
+            public void Dispose()
+            {
+                server.namedItems = namedItems;
+            }
+        }
+
         private int nextId = 1;
         private int nextUndo = 1;
         public MCPServer() { }
@@ -188,37 +211,46 @@ namespace ShapeIt
             else
             {
                 List<object> selected = IterateSelector<object>(value).ToList();
-                Type? t = selected.FirstOrDefault()?.GetType();
+                object? typedList = MakeTypedList(selected);
+                if (typedList != null) namedItems[name] = typedList;
 
-                if (t != null && selected.All(x => x?.GetType() == t))
-                {
-                    if (t == typeof(Edge))
-                    {
-                        namedItems[name] = selected.Cast<Edge>().ToList();
-                    }
-                    else if (t == typeof(Face))
-                    {
-                        namedItems[name] = selected.Cast<Face>().ToList();
-                    }
-                    else if (t == typeof(Solid))
-                    {
-                        namedItems[name] = selected.Cast<Solid>().ToList();
-                    }
-                    else if (t == typeof(ICurve))
-                    {
-                        namedItems[name] = selected.Cast<ICurve>().ToList();
-                    }
-                    else if (t == typeof(ICurve2D))
-                    {
-                        namedItems[name] = selected.Cast<ICurve2D>().ToList();
-                    }
-                    else if (t == typeof(CompoundShape))
-                    {
-                        namedItems[name] = selected.Cast<CompoundShape>().ToList();
-                    }
-                }
+
             }
         }
+
+        private object? MakeTypedList(List<object> selected)
+        {
+            Type? t = selected.FirstOrDefault()?.GetType();
+            if (t != null && selected.All(x => x?.GetType() == t))
+            {
+                if (t == typeof(Edge))
+                {
+                    return selected.Cast<Edge>().ToList();
+                }
+                else if (t == typeof(Face))
+                {
+                    return selected.Cast<Face>().ToList();
+                }
+                else if (t == typeof(Solid))
+                {
+                    return selected.Cast<Solid>().ToList();
+                }
+                else if (t == typeof(ICurve))
+                {
+                    return selected.Cast<ICurve>().ToList();
+                }
+                else if (t == typeof(ICurve2D))
+                {
+                    return selected.Cast<ICurve2D>().ToList();
+                }
+                else if (t == typeof(CompoundShape))
+                {
+                    return selected.Cast<CompoundShape>().ToList();
+                }
+            }
+            return null;
+        }
+
         private void WorkspaceDeleteImpl(JsonElement objects) => throw new NotImplementedException();
 
         private void SketchCreateImpl(Plane plane, string? name)
@@ -875,6 +907,54 @@ namespace ShapeIt
             throw new NotImplementedException();
         }
 
+        private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, bool allowDocumentCommit)
+        {
+            if (parameters.ValueKind != JsonValueKind.Array) { throw new JsonRpcException("E_INVALID_PARAMETER", $"'parameters must be an array'."); }
+            foreach (var item in parameters.EnumerateArray())
+            {
+                string parName = RequireString(item, "name");
+                if (!item.TryGetProperty("value", out JsonElement parValue)) { throw new JsonRpcException("E_INVALID_PARAMETER", $"No value found for {parName}."); }
+                string? parLabel = GetOptionalString(item, "label");
+                item.TryGetProperty("input", out var parInput);
+                WorkspaceSetImpl(parName, parValue, parLabel, parInput);
+            }
+        }
+
+        private object? TemplateCommitImpl(JsonElement result, string? resultKind, bool suffixInternalNames)
+        {
+            List<object> resultingObjects = IterateSelector<object>(result).ToList();
+            return MakeTypedList(resultingObjects);
+        }
+
+        private void TemplateInstantiateImpl(string template, JsonElement arguments, string transform, string name, bool explodeResult)
+        {
+            if (!templates.TryGetValue(template, out var jsons)) throw new JsonRpcException("E_INVALID_PARAMETER", $"Template '{template}' not found.");
+            foreach (var element in jsons)
+            {
+                string methodName = RequireString(element, "method");
+                if (methodName == "template.commit")
+                {
+                    if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
+                    JsonElement result = RequireProperty(parameters, "result");
+                    var resultKind = GetOptionalString(parameters, "resultKind");
+                    var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
+
+                    object? res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
+                    if (res != null) namedItems[name] = res;
+
+                }
+                else
+                {
+                    ProcessMethod(element, true);
+                    if (methodName == "template.begin")
+                    {   // here we overwrite the workspace values of the parameters
+
+                    }
+                }
+            }
+        }
+
+
         private void SolidRuledImpl(JsonElement profile1, JsonElement profile2, string synchronization, string alignment, JsonElement matchPoints1, JsonElement matchPoints2, string name)
         {
             Path? path1 = null, path2 = null;
@@ -1378,6 +1458,12 @@ namespace ShapeIt
             }
             if (name != null) AddNamed(name, total);
         }
+
+        private void PatternByFormulaSolidsImpl(JsonElement solids, string template, JsonElement variables, JsonElement formulas, JsonElement arguments, string transform, bool includeSource, bool copy, string name, bool suffix, string indexName, bool skipInvalidInstances)
+        {
+            throw new NotImplementedException();
+        }
+
         private void SketchOffsetImpl(Sketch sketch, JsonElement sketchGeometry, double distance, string joinType, double miterLimit, bool makeRegion, string capType, string name)
         {
             throw new NotImplementedException();
@@ -2129,86 +2215,244 @@ namespace ShapeIt
             ["E_REF_GONE"] = 1302,
             ["E_BOOLEAN_FAIL"] = 1401
         };
-    }
-
-
-    // Placeholder type for "profile" objects created from sketches.
-    // Replace with the real CADability/ShapeIt type when you wire it up.
-    internal sealed class Profile
-    {
-        public string? Name { get; set; }
-    }
-    internal class Sketch
-    {
-        Plane plane;
-        List<ICurve2D> curves = [];
-        List<CompoundShape> shapes = [];
-
-        public Sketch(Plane plane)
+        public struct ParameterInfo
         {
-            this.plane = plane;
-        }
-        public void Add(ICurve2D curve)
-        {
-            curve.UserData.Add("MCPServer.Sketch", this);
-            curves.Add(curve);
+            public string label;
+            public object? defaultValue;
+            public string? kind;
+            public string? description;
+            public string? group;
+            public int order;
         }
 
-        public void Add(CompoundShape shape)
+        internal string? GetTemplateLabel(string key)
         {
-            shape.UserData.Add("MCPServer.Sketch", this);
-            shapes.Add(shape);
-        }
-
-        internal CompoundShape? GetCompoundShape()
-        {
-            if (curves.Count == 0 && shapes.Count == 1) return shapes[0];
-            if (curves.Count == 0 && shapes.Count == 0) return null;
-            if (shapes.Count > 0)
-            {   // we must somhow combine the compound shapes 
-                CompoundShape? shape = shapes[0];
-                for (int i = 1; i < shapes.Count; i++)
-                {
-                    shape = CompoundShape.Union(shape, shapes[i]);
-                }
-                shape.UserData.Add("MCPServer.Sketch", this);
-                return shape;
-            }
-            if (curves.Count == 1 && curves[0].IsClosed && shapes.Count == 0) return new CompoundShape(new SimpleShape(new Border(curves[0])));
-            if (curves.Count > 1)
+            if (templates.TryGetValue(key, out var jsons))
             {
-                List<SimpleShape> simpleShapes = new List<SimpleShape>();
-                for (int i = 0; i < curves.Count; i++)
+                if (jsons.Count > 0 && jsons[0].ValueKind == JsonValueKind.Object)
                 {
-                    if (curves[i].IsClosed) simpleShapes.Add(new SimpleShape(new Border(curves[i])));
-                }
-                // we should check all SimpleShapes against each other.
-                // but for now, quick and dirty
-                simpleShapes.Sort((a, b) => b.Area.CompareTo(a.Area));
-                CompoundShape? res = null;
-                for (int i = 0; i < simpleShapes.Count; i++)
-                {
-                    if (simpleShapes[i] == null) continue;
-                    CompoundShape cs = new CompoundShape(simpleShapes[i]);
-                    for (int j = i + 1; j < simpleShapes.Count; j++)
+                    if (jsons[0].TryGetProperty("params", out var parameters) && parameters.ValueKind == JsonValueKind.Object)
                     {
-                        if (simpleShapes[j] == null) continue;
-                        if (SimpleShape.GetPosition(simpleShapes[i], simpleShapes[j]) == SimpleShape.Position.firstcontainscecond)
-                        {
-                            cs = CompoundShape.Difference(cs, new CompoundShape(simpleShapes[j]));
-                            simpleShapes[j] = null; // mark as used
-                        }
+                        if (parameters.TryGetProperty("label", out var label) && label.ValueKind == JsonValueKind.String)
+                            return label.GetString();
                     }
-                    if (res == null) res = cs;
-                    else res = CompoundShape.Union(res, cs);
                 }
-                res.UserData.Add("MCPServer.Sketch", this);
-                return res;
             }
             return null;
         }
-        public Plane Plane => plane;
-        public List<ICurve2D> Curves => curves;
-        public List<CompoundShape> Shapes => shapes;
+        internal string? GetTemplateDescription(string key)
+        {
+            if (templates.TryGetValue(key, out var jsons))
+            {
+                if (jsons.Count > 0 && jsons[0].ValueKind == JsonValueKind.Object)
+                {
+                    if (jsons[0].TryGetProperty("params", out var parameters) && parameters.ValueKind == JsonValueKind.Object)
+                    {
+                        if (parameters.TryGetProperty("description", out var description) && description.ValueKind == JsonValueKind.String)
+                            return description.GetString();
+                    }
+                }
+            }
+            return null;
+        }
+        public ParameterInfo GetTemplateParameterInfo(string templateName, string parameterName)
+        {
+            ParameterInfo res = new ParameterInfo();
+            if (templates.TryGetValue(templateName, out var jsons))
+            {
+                if (jsons.Count > 0 && jsons[0].ValueKind == JsonValueKind.Object)
+                {
+                    using (new NamedItemClone(this))
+                    {
+                        ProcessMethod(jsons[0], false); // now we should find the values of the parameters in the (temporary) namedItems
+                        if (jsons[0].TryGetProperty("params", out var prms) && prms.ValueKind == JsonValueKind.Object)
+                        {
+                            if (prms.TryGetProperty("parameters", out var parameters) && parameters.ValueKind == JsonValueKind.Array)
+                            {
+                                foreach (var item in parameters.EnumerateArray())
+                                {
+                                    if (item.ValueKind == JsonValueKind.Object)
+                                    {
+                                        if (item.TryGetProperty("name", out var propName) && propName.ValueKind == JsonValueKind.String)
+                                        {
+                                            if (propName.GetString() == parameterName)
+                                            {
+                                                if (item.TryGetProperty("label", out var label) && label.ValueKind == JsonValueKind.String)
+                                                    res.label = label.GetString()!;
+                                                namedItems.TryGetValue(parameterName, out res.defaultValue);
+                                                if (item.TryGetProperty("input", out var input) && input.ValueKind == JsonValueKind.Object)
+                                                {
+                                                    if (input.TryGetProperty("kind", out var kind) && kind.ValueKind == JsonValueKind.String)
+                                                        res.kind = kind.GetString();
+                                                    if (input.TryGetProperty("description", out var description) && description.ValueKind == JsonValueKind.String)
+                                                        res.description = description.GetString();
+                                                    if (input.TryGetProperty("group", out var group) && group.ValueKind == JsonValueKind.String)
+                                                        res.group = group.GetString();
+                                                    if (input.TryGetProperty("order", out var order) && order.ValueKind == JsonValueKind.Number)
+                                                        res.order = order.GetInt32();
+                                                }
+                                            }
+
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return res;
+        }
+        internal List<string> GetTemplateParameters(string templateName)
+        {
+            List<string> res = [];
+            if (templates.TryGetValue(templateName, out var jsons))
+            {
+                if (jsons.Count > 0 && jsons[0].ValueKind == JsonValueKind.Object)
+                {
+                    if (jsons[0].TryGetProperty("params", out var prms) && prms.ValueKind == JsonValueKind.Object)
+                    {
+                        if (prms.TryGetProperty("parameters", out var parameters) && parameters.ValueKind == JsonValueKind.Array)
+                        {
+                            foreach (var item in parameters.EnumerateArray())
+                            {
+                                if (item.ValueKind == JsonValueKind.Object)
+                                {
+                                    if (item.TryGetProperty("name", out var propName) && propName.ValueKind == JsonValueKind.String)
+                                    {
+                                        res.Add(propName.GetString()!);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return res;
+        }
+        public object? ExecuteTemplate(string template, Dictionary<string, object> parameterValues)
+        {
+            try
+            {
+                if (templates.TryGetValue(template, out var jsons))
+                {
+                    using (new NamedItemClone(this))
+                    {
+                        foreach (var element in jsons)
+                        {
+                            string methodName = RequireString(element, "method");
+                            if (methodName == "template.commit")
+                            {
+                                if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
+                                JsonElement result = RequireProperty(parameters, "result");
+                                var resultKind = GetOptionalString(parameters, "resultKind");
+                                var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
+
+                                object? res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
+                                return res;
+
+                            }
+                            else
+                            {
+                                ProcessMethod(element, true);
+                                if (methodName == "template.begin")
+                                {   // here we overwrite the workspace values of the parameters
+                                    foreach (var item in parameterValues)
+                                    {
+                                        namedItems[item.Key] = item.Value;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
+        }
+
+
+        // Placeholder type for "profile" objects created from sketches.
+        // Replace with the real CADability/ShapeIt type when you wire it up.
+        internal sealed class Profile
+        {
+            public string? Name { get; set; }
+        }
+        internal class Sketch
+        {
+            Plane plane;
+            List<ICurve2D> curves = [];
+            List<CompoundShape> shapes = [];
+
+            public Sketch(Plane plane)
+            {
+                this.plane = plane;
+            }
+            public void Add(ICurve2D curve)
+            {
+                curve.UserData.Add("MCPServer.Sketch", this);
+                curves.Add(curve);
+            }
+
+            public void Add(CompoundShape shape)
+            {
+                shape.UserData.Add("MCPServer.Sketch", this);
+                shapes.Add(shape);
+            }
+
+            internal CompoundShape? GetCompoundShape()
+            {
+                if (curves.Count == 0 && shapes.Count == 1) return shapes[0];
+                if (curves.Count == 0 && shapes.Count == 0) return null;
+                if (shapes.Count > 0)
+                {   // we must somhow combine the compound shapes 
+                    CompoundShape? shape = shapes[0];
+                    for (int i = 1; i < shapes.Count; i++)
+                    {
+                        shape = CompoundShape.Union(shape, shapes[i]);
+                    }
+                    shape.UserData.Add("MCPServer.Sketch", this);
+                    return shape;
+                }
+                if (curves.Count == 1 && curves[0].IsClosed && shapes.Count == 0) return new CompoundShape(new SimpleShape(new Border(curves[0])));
+                if (curves.Count > 1)
+                {
+                    List<SimpleShape> simpleShapes = new List<SimpleShape>();
+                    for (int i = 0; i < curves.Count; i++)
+                    {
+                        if (curves[i].IsClosed) simpleShapes.Add(new SimpleShape(new Border(curves[i])));
+                    }
+                    // we should check all SimpleShapes against each other.
+                    // but for now, quick and dirty
+                    simpleShapes.Sort((a, b) => b.Area.CompareTo(a.Area));
+                    CompoundShape? res = null;
+                    for (int i = 0; i < simpleShapes.Count; i++)
+                    {
+                        if (simpleShapes[i] == null) continue;
+                        CompoundShape cs = new CompoundShape(simpleShapes[i]);
+                        for (int j = i + 1; j < simpleShapes.Count; j++)
+                        {
+                            if (simpleShapes[j] == null) continue;
+                            if (SimpleShape.GetPosition(simpleShapes[i], simpleShapes[j]) == SimpleShape.Position.firstcontainscecond)
+                            {
+                                cs = CompoundShape.Difference(cs, new CompoundShape(simpleShapes[j]));
+                                simpleShapes[j] = null; // mark as used
+                            }
+                        }
+                        if (res == null) res = cs;
+                        else res = CompoundShape.Union(res, cs);
+                    }
+                    res.UserData.Add("MCPServer.Sketch", this);
+                    return res;
+                }
+                return null;
+            }
+            public Plane Plane => plane;
+            public List<ICurve2D> Curves => curves;
+            public List<CompoundShape> Shapes => shapes;
+        }
     }
 }

@@ -232,6 +232,22 @@ namespace CADability.UserInterface
             // kein Fallback auf unterem Level...
             if (Name == null) return "null!!!";
             string res = null;
+            if (Name.StartsWith("@"))
+            {   // this is an immediate string
+                string label, info;
+                int ind = Name.IndexOf("@", 1);
+                if (ind > 0)
+                {
+                    label = Name.Substring(1, ind - 1);
+                    info = Name.Substring(ind + 1);
+                } else 
+                {
+                    label = Name.Substring(1);
+                    info = "";
+                }
+                if (cat == Category.label) return label;
+                else return info;
+            }
             Dictionary<string, Strings> entry;
             if (allStrings.TryGetValue(Name, out entry))
             {
@@ -310,34 +326,6 @@ namespace CADability.UserInterface
             else if (Name.EndsWith(".ShortInfo")) return GetString(Name.Substring(0, Name.Length - 10), Category.tip);
             else if (Name.EndsWith(".DetailedInfo")) return GetString(Name.Substring(0, Name.Length - 13), Category.info);
             else return GetString(Name, Category.label);
-            //if (Name == null) return "null!!!";
-            //try
-            //{
-            //    Dictionary<string, string> entry = allStrings[Name]; // wirft ggf. KeyNotFoundException
-            //    try
-            //    {
-            //        return entry[activeLanguage];
-            //    }
-            //    catch (KeyNotFoundException)
-            //    {
-            //        try
-            //        {
-            //            return entry[defaultLanguage];
-            //        }
-            //        catch (KeyNotFoundException)
-            //        {
-            //            foreach (string val in entry.Values)
-            //            {
-            //                return val;
-            //            }
-            //            return "missing string: " + Name;
-            //        }
-            //    }
-            //}
-            //catch (KeyNotFoundException)
-            //{
-            //    return "missing string: " + Name;
-            //}
         }
         /// <summary>
 		/// Returns a formatted string. The string with the ID "Name" from the string resource

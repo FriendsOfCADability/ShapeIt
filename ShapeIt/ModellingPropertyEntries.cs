@@ -13,6 +13,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows.Forms.Design;
@@ -57,6 +58,7 @@ namespace ShapeIt
         private IHotSpot selectedHotspot;
         private IHotSpot hotspotUnderCursor;
         private IGeoObject selectedObjectUnderCursor;
+        MCPServer mcpServer = new MCPServer();
 
         public ModellingPropertyEntries(IFrame cadFrame) : base("Modelling.Properties")
         {
@@ -688,17 +690,6 @@ namespace ShapeIt
                     };
                     subEntries.Add(showHiddenObjects);
                 }
-                DirectMenuEntry AITest = new DirectMenuEntry("MenuId.AITestCase");
-                AITest.ExecuteMenu = (frame) =>
-                {
-                    using (var dlg = new TestMCP())
-                    {
-                        dlg.ShowDialog();
-                    }
-                    return true;
-                };
-                subEntries.Add(AITest);
-
             }
 
             // show actions for all vertices, edges, faces and curves in 
@@ -1258,7 +1249,7 @@ namespace ShapeIt
                 }
                 catch (Exception ex)
                 {   // sometimes throws an exception, because some curves cannot be modified (set startpoint) 
-                    
+
                 }
                 // if we have two paths which are flat but not in the same plane, we could make a ruled solid directly
                 // if we need more user control, e.g. specifying synchronous points on each path, we woould need a more
@@ -1358,7 +1349,7 @@ namespace ShapeIt
                             {
                                 cadFrame.ControlCenter.ShowPropertyPage("Action");
                                 Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
-                                if (fc== null) return false;
+                                if (fc == null) return false;
                                 cadFrame.SetAction(new HelicalExtrudeAction(fc));
                                 return true;
                             };
@@ -3693,9 +3684,149 @@ namespace ShapeIt
                     Frame.SetAction(new CopyCircularObjects(new GeoObjectList(selectedObjects)));
                     Clear();
                     return true;
-
+                case "MenuId.RPCDialog":
+                    using (var dlg = new TestMCP(mcpServer))
+                    {
+                        dlg.ShowDialog();
+                    }
+                    return true;
+                case "MenuId.RPCTemplate":
+                    Clear();
+                    SetRpcTemplateEntries();
+                    return true;
                 default: return false;
             }
+        }
+
+        private void SetRpcTemplateEntries()
+        {
+            subEntries.Clear(); // build a new list of modelling properties
+            activeHotspots.Clear(); // something in the selection of objects has changed. Remove all hotspots
+            feedback.hotSpots.Clear();
+            feedback.Refresh();
+
+            DirectMenuEntry loadTemplatesFromFile = new DirectMenuEntry("RpcTemplate.LoadFromFile");
+            loadTemplatesFromFile.ExecuteMenu = (frame) =>
+            {
+                int filterIndex = 1;
+                if (frame.UIService.ShowOpenFileDlg("Templates", StringTable.GetString("MCPServer.OpenTemplateFile"), StringTable.GetString("MCPServer.Template.Filter"), ref filterIndex, out string fileName) == DialogResult.OK)
+                {
+                    using FileStream fs = File.OpenRead(fileName);
+                    JsonDocument doc = JsonDocument.Parse(fs);
+                    if (doc.RootElement.TryGetProperty("templates", out var templatesEl) && templatesEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (JsonElement template in doc.RootElement.GetProperty("templates").EnumerateArray())
+                        {
+                            if (template.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
+                            {
+                                string? name = nameEl.GetString();
+                                if (name != null)
+                                {
+                                    var list = new List<JsonElement>();
+
+                                    foreach (JsonElement item in template.GetProperty("items").EnumerateArray())
+                                    {
+                                        list.Add(item.Clone());
+                                    }
+
+                                    mcpServer.templates[name] = list;
+                                }
+                            }
+                        }
+                        SetRpcTemplateEntries(); // to refresh with new templates in the list
+                    }
+                }
+                return true;
+            };
+            loadTemplatesFromFile.IsSelected = (selected, frame) =>
+            {
+                return true;
+            };
+            subEntries.Add(loadTemplatesFromFile);
+
+            if (mcpServer.templates.Count > 0)
+            {
+                DirectMenuEntry SaveTemplatesToFile = new DirectMenuEntry("RpcTemplate.SaveToFile");
+                SaveTemplatesToFile.ExecuteMenu = (frame) =>
+                {
+                    int filterIndex = 1;
+                    string fileName = "";
+                    if (frame.UIService.ShowSaveFileDlg("Templates", StringTable.GetString("MCPServer.SaveTemplateFile"), StringTable.GetString("MCPServer.Template.Filter"), ref filterIndex, ref fileName) == DialogResult.OK)
+                    {
+                        using var fileStream = File.Create(fileName);
+                        using var writer = new Utf8JsonWriter(fileStream, new JsonWriterOptions { Indented = true });
+
+                        writer.WriteStartObject();
+                        writer.WritePropertyName("templates");
+                        writer.WriteStartArray();
+                        foreach (var item in mcpServer.templates)
+                        {
+                            writer.WriteStartObject();
+
+                            writer.WriteString("name", item.Key);
+
+                            writer.WritePropertyName("items");
+                            writer.WriteStartArray();
+
+                            for (int i = 0; i < item.Value.Count; i++)
+                            {
+                                item.Value[i].WriteTo(writer);
+                            }
+
+                            writer.WriteEndArray();
+                            writer.WriteEndObject();
+                        }
+                        writer.WriteEndArray();
+                        writer.WriteEndObject();
+                    }
+                    return true;
+                }
+            ;
+                SaveTemplatesToFile.IsSelected = (selected, frame) =>
+                {
+                    return true;
+                };
+                subEntries.Add(SaveTemplatesToFile);
+
+                SelectEntry templates = new SelectEntry("MenuId.RPCTemplate", true);
+                subEntries.Add(templates);
+                foreach (var item in mcpServer.templates)
+                {
+                    string? templateLabel = mcpServer.GetTemplateLabel(item.Key);
+                    string? templateDescription = mcpServer.GetTemplateDescription(item.Key);
+                    string resourceId;
+                    if (templateDescription != null)
+                        resourceId = "@" + templateLabel + "@" + templateDescription;
+                    else resourceId = "@" + templateLabel;
+                    if (templateLabel != null)
+                    {
+                        DirectMenuEntry templateMenu = new DirectMenuEntry(resourceId);
+                        templateMenu.LabelText = templateLabel;
+                        templateMenu.ExecuteMenu = (frame) =>
+                        {
+                            cadFrame.ControlCenter.ShowPropertyPage("Action");
+                            frame.SetAction(new RpcTemplateAction(mcpServer, item.Key));
+                            return true;
+                        };
+                        templateMenu.IsSelected = (selected, frame) =>
+                        {
+                            return true;
+                        };
+                        templates.Add(templateMenu);
+                    }
+                }
+                templates.IsOpen = true;
+            }
+
+
+
+            IPropertyPage pp = propertyPage;
+            if (pp != null)
+            {
+                pp.Remove(this); // to reflect this newly composed entry
+                pp.Add(this, true);
+            }
+            //if (action.GetID() != "SelectObjects") cadFrame.ControlCenter.ShowPropertyPage("Action");
         }
 
         public bool OnUpdateCommand(string MenuId, CommandState CommandState)

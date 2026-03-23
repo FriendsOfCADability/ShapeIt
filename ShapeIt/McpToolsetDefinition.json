@@ -1001,6 +1001,78 @@
 				"family"
 			],
 			"additionalProperties": false
+		},
+
+		"TemplateParameterSpec": {
+			"type": "object",
+			"description": "Defines one editable template parameter including default value and optional UI metadata. Semantics intentionally mirror workspace.set.",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Parameter name used inside the template body."
+				},
+				"value": {
+					"$ref": "#/types/ExpressionAny",
+					"description": "Default value used when no explicit value is supplied during instantiation."
+				},
+				"label": {
+					"type": "string",
+					"description": "Optional user-facing label for interactive editing."
+				},
+				"input": {
+					"$ref": "#/types/ParameterInputSpec",
+					"description": "Optional UI/input metadata. Required when label is provided."
+				}
+			},
+			"required": [ "name", "value" ],
+			"additionalProperties": false
+		},
+		"TemplateArgumentSpec": {
+			"type": "object",
+			"description": "Assigns a concrete value to one template parameter during instantiation.",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Parameter name."
+				},
+				"value": {
+					"$ref": "#/types/ExpressionAny",
+					"description": "Concrete value or expression."
+				}
+			},
+			"required": [ "name", "value" ],
+			"additionalProperties": false
+		},
+		"PatternLoopVariableSpec": {
+			"type": "object",
+			"description": "Defines one loop variable for formula-based pattern generation.",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Loop variable name available in formulas and transform."
+				},
+				"start": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Start value of the loop variable."
+				},
+				"step": {
+					"$ref": "#/types/ExpressionNumber",
+					"description": "Increment per iteration."
+				},
+				"count": {
+					"$ref": "#/types/ExpressionInteger",
+					"description": "Number of iterations. Must evaluate to an integer >= 1."
+				}
+			},
+			"required": [ "name", "start", "step", "count" ],
+			"additionalProperties": false
+		},
+		"NamedExpressionMap": {
+			"type": "object",
+			"description": "Dictionary of named expressions evaluated in declaration order.",
+			"additionalProperties": {
+				"type": "string"
+			}
 		}
 	},
 	"tools": [
@@ -1597,6 +1669,82 @@
 			}
 		},
 		{
+			"name": "pattern.by_formula_solids",
+			"description": "Creates a formula-driven pattern of solid instances. The source can be existing solids or a parametric template. One or more loop variables are evaluated, optional helper formulas are computed, then a transform expression and optional template arguments are applied per instance.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"solids": {
+						"$ref": "#/types/Selector",
+						"description": "Source solids to copy and transform. Mutually exclusive with template."
+					},
+					"template": {
+						"type": "string",
+						"description": "Source template to instantiate per iteration. Mutually exclusive with solids."
+					},
+					"variables": {
+						"type": "array",
+						"minItems": 1,
+						"maxItems": 3,
+						"description": "Loop variables. They are iterated in the listed order, with the last variable changing fastest.",
+						"items": {
+							"$ref": "#/types/PatternLoopVariableSpec"
+						}
+					},
+					"formulas": {
+						"$ref": "#/types/NamedExpressionMap",
+						"description": "Optional helper expressions evaluated after loop variables are assigned and before transform/template arguments are evaluated."
+					},
+					"arguments": {
+						"$ref": "#/types/NamedExpressionMap",
+						"description": "Optional template argument expressions evaluated per instance. Only valid when template is used."
+					},
+					"transform": {
+						"type": "string",
+						"description": "Expression that evaluates to a transformation for the current instance."
+					},
+					"includeSource": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true and solids is used, the original source solids are included in the result in addition to the generated copies."
+					},
+					"copy": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true, creates copies. Reserved for consistency with other pattern methods."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional base name for the resulting set."
+					},
+					"suffix": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true, generated instances receive automatic index-based suffixes."
+					},
+					"indexName": {
+						"type": "string",
+						"description": "Optional variable name receiving the flattened zero-based instance index."
+					},
+					"skipInvalidInstances": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, instances that fail due to invalid formulas, transforms, or template instantiation are skipped instead of failing the whole call."
+					}
+				},
+				"required": [ "variables", "transform" ],
+				"additionalProperties": false,
+				"allOf": [
+					{
+						"oneOf": [
+							{ "required": [ "solids" ] },
+							{ "required": [ "template" ] }
+						]
+					}
+				]
+			}
+		},
+		{
 			"name": "sketch.add_arc",
 			"description": "Adds an arc entity to a sketch.",
 			"inputSchema": {
@@ -1794,7 +1942,7 @@
 						"type": "integer",
 						"minimum": 1,
 						"maximum": 10,
-						"default":  3,
+						"default": 3,
 						"description": "Degree of the resulting NURBS curve. When using 'parametric', this is the degree of the approximating NURBS."
 					},
 					"controlPoints": {
@@ -3594,6 +3742,113 @@
 					}
 				},
 				"required": [ "name", "value" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "template.begin",
+			"description": "Begins recording a parametric template. Subsequent RPC calls are recorded as the template construction body until template.commit is called. Template parameters become available as local workspace values during recording.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Unique internal template name."
+					},
+					"label": {
+						"type": "string",
+						"description": "Optional user-facing display name of the template."
+					},
+					"description": {
+						"type": "string",
+						"description": "Optional short help text describing the template."
+					},
+					"category": {
+						"type": "string",
+						"description": "Optional category for template libraries and UI grouping."
+					},
+					"tags": {
+						"type": "array",
+						"description": "Optional search/filter tags.",
+						"items": {
+							"type": "string"
+						}
+					},
+					"parameters": {
+						"type": "array",
+						"description": "Editable template parameters with default values and optional UI metadata.",
+						"items": {
+							"$ref": "#/types/TemplateParameterSpec"
+						}
+					},
+					"allowDocumentCommit": {
+						"type": "boolean",
+						"default": false,
+						"description": "If false, document.commit_objects inside the template recording scope is rejected. This prevents accidental persistence while defining a reusable template."
+					}
+				},
+				"required": [ "name", "parameters" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "template.commit",
+			"description": "Ends template recording and stores the recorded construction as a reusable parametric template.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"result": {
+						"$ref": "#/types/Selector",
+						"description": "Object or object set exported as the template result. Typically one or more solids."
+					},
+					"resultKind": {
+						"type": "string",
+						"enum": [ "solids", "sketch" ],
+						"default": "solids",
+						"description": "Kind of result exported by the template."
+					},
+					"suffixInternalNames": {
+						"type": "boolean",
+						"default": true,
+						"description": "Whether internal recorded names are automatically isolated/suffixed to prevent collisions across template instances."
+					}
+				},
+				"required": [ "result" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "template.instantiate",
+			"description": "Creates one instance of a previously defined template using explicit parameter values or template defaults.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"template": {
+						"type": "string",
+						"description": "Name of the template to instantiate."
+					},
+					"arguments": {
+						"type": "array",
+						"description": "Optional explicit parameter assignments. Parameters not listed here use their template default values.",
+						"items": {
+							"$ref": "#/types/TemplateArgumentSpec"
+						}
+					},
+					"transform": {
+						"type": "string",
+						"description": "Optional expression that evaluates to a transformation applied to the instantiated result."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional base name assigned to the instantiated result."
+					},
+					"explodeResult": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true and the template returns multiple objects, they are exposed individually. Otherwise they are returned as one named set."
+					}
+				},
+				"required": [ "template" ],
 				"additionalProperties": false
 			}
 		},

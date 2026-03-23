@@ -365,4 +365,21 @@
 		<label>Sphere</label>
 		<info>Create a sphere with the diameter and position of this circle.</info>
 	</data>
+  <data name="MenuId.RPCDialog">
+    <label>RPC Input</label>
+    <info>Dialog for inserting RPC</info>
+  </data>
+  <data name="MenuId.RPCTemplate">
+    <label>RPC Templates</label>
+    <info>Load and execute RPC Templates</info>
+  </data>
+  <data name="RpcTemplate.LoadFromFile">
+    <label>Load Templates</label>
+    <info>load templates from file</info>
+  </data>
+  <data name="RpcTemplate.SaveToFile">
+    <label>Save Templates</label>
+    <info>save templates in a file</info>
+  </data>
+
 </root>

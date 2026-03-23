@@ -456,5 +456,30 @@
     <label>Fläche schraubenförmig extrudieren</label>
     <info>Die ausgewählte Fläche schraubenförmig extrudieren</info>
   </data>
-
+  <data name="MenuId.RPCDialog">
+    <label>RPC Eingabe</label>
+    <info>Dialog für die Eingabe von RPC</info>
+  </data>
+  <data name="MenuId.RPCTemplate">
+    <label>RPC Templates</label>
+    <info>RPC Templates ausführen</info>
+  </data>
+  <data name="MCPServer.Template.Filter">
+    <label>Template Dateien|*.json;*.tmpl.json|Alle Dateien (*.*)|*.*</label>
+  </data>
+  
+  <data name="MCPServer.OpenTemplateFile">
+    <label>Vorlagen Datei (Templates) öffnen</label>
+  </data>
+  <data name="MCPServer.SaveTemplateFile">
+    <label>Vorlagen (Templates) speichern</label>
+  </data>
+  <data name="RpcTemplate.LoadFromFile">
+    <label>Templates laden</label>
+    <info>Vorlagen (Templates) aus Datei laden</info>
+  </data>
+  <data name="RpcTemplate.SaveToFile">
+    <label>Templates speichern</label>
+    <info>Vorlagen (Templates) in Datei speichern</info>
+  </data>
 </root>

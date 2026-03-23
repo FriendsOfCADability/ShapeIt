@@ -19,9 +19,10 @@ using static System.ComponentModel.Design.ObjectSelectorEditor;
 
 namespace ShapeIt
 {
-    internal partial class MCPServer
+    public partial class MCPServer
     {
-
+        private List<JsonElement>? recordingTemplate = null;
+        private string? currentTemplatName = null;
 
         /// <summary>
         /// Dispatches a JSON-RPC method call. The transport layer should parse JSON-RPC envelope and pass:
@@ -84,6 +85,50 @@ namespace ShapeIt
             return response.ToJsonString();
         }
 
+        public void ProcessMethod(JsonElement root, bool executeTemplate = false)
+        {
+            string? method = null;
+            int? id = null;
+            JsonElement @params = default;
+
+            if (root.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String)
+            {
+                method = m.GetString();
+            }
+            if (root.TryGetProperty("id", out var idEl))
+            {
+                if (idEl.ValueKind == JsonValueKind.Number) id = idEl.GetInt32();
+                else if (idEl.ValueKind == JsonValueKind.Null) id = null;
+            }
+
+            if (root.TryGetProperty("params", out var p))
+            {
+                @params = p;         // JsonElement ist ein struct, aber Achtung: doc muss leben!
+            }
+
+            if (method != null)
+            {
+                ProcessMethod(method, id ?? 0, @params);
+                if (method == "template.begin" && !executeTemplate)
+                {
+                    currentTemplatName = RequireString(@params, "name");
+                    recordingTemplate = [root.Clone()];
+                }
+                else if (method == "template.commit" && !executeTemplate)
+                {
+                    if (recordingTemplate == null || currentTemplatName == null) throw new JsonRpcException("E_INVALID_METHOD", "'template.commit' was called with no 'template.begin' beeing called before.");
+                    recordingTemplate.Add(root.Clone());
+                    templates[currentTemplatName] = recordingTemplate;
+                    recordingTemplate = null;
+                    currentTemplatName = null;
+                }
+                else if (recordingTemplate != null)
+                {
+                    recordingTemplate.Add(root.Clone());
+                }
+            }
+
+        }
         // -------------------------
         // JSON helpers
         // -------------------------
@@ -1133,6 +1178,12 @@ namespace ShapeIt
                             if (toTest is Solid sld && !sld.HitTest(ref bbox, 0.0)) continue;
                             if (toTest is Edge edge && edge.Curve3D is IGeoObject go && !go.HitTest(ref bbox, 0.0)) continue;
                         }
+                        if (filter.TryGetProperty("contains", out je))
+                        {
+                            GeoPoint innerPoint = RequirePoint3D(je, null);
+                            if (toTest is Solid sld && !sld.Shell.Contains(innerPoint)) continue;
+
+                        }
                         if (filter.TryGetProperty("boundingBox", out je))
                         {
                             if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'surfaceType' must be a string");
@@ -1239,6 +1290,7 @@ namespace ShapeIt
                         yield return t;
             }
         }
+
     }
 
     /// <summary>

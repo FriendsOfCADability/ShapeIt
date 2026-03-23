@@ -64,10 +64,10 @@ namespace ShapeIt
                 }
             }
         }
-        public TestMCP()
+        public TestMCP(MCPServer server)
         {
             InitializeComponents();
-            server = new MCPServer();
+            this.server = server;
         }
 
         private void InitializeComponents()
@@ -122,61 +122,18 @@ namespace ShapeIt
             }
         }
 
-        private void ProcessLine(string line)
-        {
-            bool ok = TryParseRpcBlock(line);
-        }
         bool TryParseRpcBlock(string json)
         {
-            string? method = null;
-            int? id = null;
-            JsonElement @params = default;
-            bool hasParams = false;
-            string? direction = null;
             if (string.IsNullOrWhiteSpace(json)) { return false; }
-            if (json.StartsWith('#')) return false;
-            if (json.StartsWith("<--")) return false;
-            if (json.StartsWith("-->"))
-            {
-                direction = "client->server";
-                json = json.Substring(3);
-            }
             try
             {
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
-
-                if (root.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String)
-                {
-                    method = m.GetString();
-                    if (direction == null) direction = "client->server";
-                }
-
-                if (root.TryGetProperty("direction", out var dir) && dir.ValueKind == JsonValueKind.String)
-                    direction = dir.GetString();
-
-                if (root.TryGetProperty("id", out var idEl))
-                {
-                    if (idEl.ValueKind == JsonValueKind.Number) id = idEl.GetInt32();
-                    else if (idEl.ValueKind == JsonValueKind.Null) id = null;
-                }
-
-                if (root.TryGetProperty("params", out var p))
-                {
-                    @params = p;         // JsonElement ist ein struct, aber Achtung: doc muss leben!
-                    hasParams = true;
-                }
-
-                if (direction == "client->server" && method != null) server.ProcessMethod(method, id ?? 0, @params);
-
-                return method != null;
+                server.ProcessMethod(root);
+                return true;
             }
             catch (Exception ex) { return false; }
         }
 
-        private void ProcessMethod(string? method, int? id, JsonElement parameters)
-        {
-            System.Diagnostics.Trace.WriteLine("MCP method: " + method);
-        }
     }
 }

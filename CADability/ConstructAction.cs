@@ -7598,7 +7598,8 @@ namespace CADability.Actions
             }
         }
         string IPropertyEntry.Value => null;
-        string IPropertyEntry.ResourceId => StringTable.GetString(TitleId);
+        // string IPropertyEntry.ResourceId => StringTable.GetString(TitleId);
+        string IPropertyEntry.ResourceId => TitleId; // changed from StringTable.GetString(TitleId) to enable template strings
         object IPropertyEntry.Parent { get; set; }
         int IPropertyEntry.Index { get; set; }
         int IPropertyEntry.IndentLevel { get; set; }

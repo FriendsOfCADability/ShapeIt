@@ -506,7 +506,7 @@ namespace CADability.Forms.NET8
                 string toDisplay = null;
                 if (entries[index].ResourceId != null)
                 {
-                    if (StringTable.IsStringDefined(entries[index].ResourceId))
+                    if (StringTable.IsStringDefined(entries[index].ResourceId) || entries[index].ResourceId.StartsWith("@"))
                     {
                         toDisplay = StringTable.GetString(entries[index].ResourceId, StringTable.Category.tip);
                         if (toDisplay == null) toDisplay = StringTable.GetString(entries[index].ResourceId, StringTable.Category.label);

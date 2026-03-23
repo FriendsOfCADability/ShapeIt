@@ -228,7 +228,9 @@
 			</Popup>
 		</Popup>
 		<Popup MenuId="MenuId.Extras" MergeType="Add" MergeOrder="4">
-			<MenuItem MenuId="MenuId.Colors"  IconNr="196" />
+      <MenuItem MenuId="MenuId.RPCDialog" />
+      <MenuItem MenuId="MenuId.RPCTemplate" />
+      <MenuItem MenuId="MenuId.Colors"  IconNr="196" />
 			<MenuItem MenuId="MenuId.Layer"  IconNr="197" />
 			<MenuItem MenuId="MenuId.LineWidth"  IconNr="198" />
 			<MenuItem MenuId="MenuId.LinePattern"  IconNr="199" />
