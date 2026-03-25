@@ -3196,7 +3196,27 @@ namespace CADability
         //    }
         //    return erg;
         //}
+        public static bool CircleFit(GeoPoint2D p1, GeoPoint2D p2, GeoPoint2D p3, out GeoPoint2D center, out double radius)
+        {
+            // Verschiebung relativ zu Punkt p1 (numerisch stabiler)
+            double ax = p2.x - p1.x, ay = p2.y - p1.y;
+            double bx = p3.x - p1.x, by = p3.y - p1.y;
 
+            double D = 2 * (ax * by - ay * bx);
+            if (Math.Abs(D) < 1e-10)
+            {
+                radius = 0.0;
+                center = GeoPoint2D.Invalid;
+                return false;
+            }
+
+            double ux = (by * (ax * ax + ay * ay) - ay * (bx * bx + by * by)) / D;
+            double uy = (ax * (bx * bx + by * by) - bx * (ax * ax + ay * ay)) / D;
+
+            center = new GeoPoint2D(p1.x + ux, p1.y + uy);
+            radius = p1 | center;
+            return true;
+        }
         /// <summary>
         /// tries to find a center and radius for a circle which best fits to the provided points
         /// </summary>

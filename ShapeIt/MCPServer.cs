@@ -11,6 +11,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Reflection.Metadata.Ecma335;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -306,6 +307,166 @@ namespace ShapeIt
             if (name != null) namedItems[name] = curve;
         }
 
+        private object? GetSketchPointOrGeometry(JsonElement item)
+        {
+            string? expr = null;
+            if (item.ValueKind == JsonValueKind.String) expr = item.GetString();
+            if (item.ValueKind == JsonValueKind.Object)
+            {
+                if (item.TryGetProperty("name", out var nameEl))
+                {
+                    if (nameEl.ValueKind == JsonValueKind.String) expr = nameEl.GetString();
+                }
+                if (item.TryGetProperty("expr", out var exprEl))
+                {
+                    if (exprEl.ValueKind == JsonValueKind.String) expr = exprEl.GetString();
+                }
+                if (expr != null) return Evaluator.Evaluate(expr, namedItems);
+                if (item.TryGetProperty("x", out var xEl) && item.TryGetProperty("y", out var yEl))
+                {
+                    return RequirePoint2D(item); // everything managed there
+                }
+            }
+            if (item.ValueKind == JsonValueKind.Array) return RequirePoint2D(item); // everything managed there
+            return null;
+        }
+        private void SketchAddCircleByConstraintsImpl(Sketch sketch, JsonElement constraints, double radius, GeoPoint2D center, GeoPoint2D preferredCenter, double tolerance, string name, JsonElement capture)
+        {
+            if (constraints.ValueKind != JsonValueKind.Array) throw new JsonRpcException("E_INVALID_PARAMETER", "constaints must be an array.");
+            List<object> constaintObjects = [];
+            foreach (var item in constraints.EnumerateArray())
+            {
+                object? constr = GetSketchPointOrGeometry(item);
+                if (constr == null) throw new JsonRpcException("E_INVALID_PARAMETER", "object constraints not recognized.");
+                constaintObjects.Add(constr);
+            }
+            Circle2D? circle = null;
+            if (constaintObjects.Count == 3)
+            {   // three tangents, may be curves or points
+                List<ICurve2D> lc = [];
+                List<GeoPoint2D> lp = [];
+                List<GeoPoint2D> touchpoints = [];
+                for (int i = 0; i < constaintObjects.Count; i++)
+                {
+                    if (constaintObjects[i] is ICurve2D c2d) lc.Add(c2d);
+                    if (constaintObjects[i] is GeoPoint2D p2d) lp.Add(p2d);
+                }
+                if (lc.Count == 1)
+                {
+                    lc.Add(new Circle2D(lp[0], 0.0));
+                    lc.Add(new Circle2D(lp[1], 0.0));
+                }
+                if (lc.Count == 2)
+                {
+                    lc.Add(new Circle2D(lp[0], 0.0));
+                }
+                if (lc.Count == 3)
+                {   // tangential to 3 curves
+                    GeoPoint2D[] circlePoints = Curves2D.TangentCircle(lc[0], lc[1], lc[2], GeoPoint2D.Invalid, GeoPoint2D.Invalid, GeoPoint2D.Invalid);
+                    // the result is quadruples: center, point on first curve ...
+                    int ind = -1;
+                    if (preferredCenter.IsValid)
+                    {
+                        double minDist = double.MaxValue;
+                        for (int j = 0; j < circlePoints.Length; j += 4)
+                        {
+                            double d = circlePoints[j] | preferredCenter;
+                            if (d < minDist)
+                            {
+                                minDist = d;
+                                ind = j;
+                            }
+                        }
+                    }
+                    else if (circlePoints.Length > 0) ind = 0;
+                    if (Geometry.CircleFit(circlePoints[ind + 1], circlePoints[ind + 2], circlePoints[ind + 3], out GeoPoint2D cnt, out double r))
+                    {
+                        circle = new Circle2D(cnt, r);
+                        touchpoints.AddRange([circlePoints[ind + 1], circlePoints[ind + 2], circlePoints[ind + 3]]);
+                    }
+                }
+                if (lp.Count == 3)
+                {
+                    if (Geometry.CircleFit(lp[0], lp[1], lp[2], out GeoPoint2D cnt, out double r))
+                    {
+                        circle = new Circle2D(cnt, r);
+                    }
+                    touchpoints.AddRange(lp); // 
+                }
+                if (circle == null) throw new JsonRpcException("E_OPERATION_FAILED", "could not construct circle from constraints.");
+                sketch.Add(circle);
+                if (name != null) namedItems[name] = circle;
+                string? centerName = GetOptionalString(capture, "center");
+                string? touch0Name = GetOptionalString(capture, "touch0");
+                string? touch1Name = GetOptionalString(capture, "touch1");
+                string? touch2Name = GetOptionalString(capture, "touch2");
+                if (centerName != null) namedItems[centerName] = circle.Center;
+                if (touch0Name != null) namedItems[touch0Name] = touchpoints[0];
+                if (touch1Name != null) namedItems[touch1Name] = touchpoints[1];
+                if (touch2Name != null) namedItems[touch2Name] = touchpoints[2];
+            }
+        }
+        private void SketchAddLineByConstraintsImpl(Sketch sketch, GeoPoint2D start, JsonElement target0, JsonElement target1, GeoPoint2D preferredStart, GeoPoint2D preferredEnd, double tolerance, string name)
+        {
+            throw new NotImplementedException();
+        }
+        private void SketchSetCurveEndpointsImpl(Sketch sketch, JsonElement curve, GeoPoint2D start, GeoPoint2D end, string direction, bool projectToCurve, bool copy, string name, JsonElement capture)
+        {
+            List<ICurve2D> ca = IterateSelector<ICurve2D>(curve).ToList(); // should only be one
+            if (ca.Count != 1) throw new JsonRpcException("E_INVALID_PARAMETER", "curve must contain exactely one curve.");
+            ICurve2D crv = ca[0];
+            if (copy || name != null) crv = crv.Clone();
+            if (crv is Line2D l)
+            {
+                if (projectToCurve)
+                {
+                    if (start.IsValid)
+                    {
+                        GeoPoint2D sp = Geometry.DropPL(start, l.StartPoint, l.EndPoint);
+                        l.StartPoint = sp;
+                    }
+                    if (end.IsValid)
+                    {
+                        GeoPoint2D ep = Geometry.DropPL(end, l.StartPoint, l.EndPoint);
+                        l.EndPoint = ep;
+                    }
+                }
+                else
+                {
+                    if (start.IsValid) l.StartPoint = start;
+                    if (end.IsValid) l.EndPoint = end;
+                }
+            }
+            if (crv is Circle2D c2d) // which is both circle and arc
+            {
+                if (!(c2d is Arc2D a2d))
+                {
+                    if (direction == null) direction = "shortest";
+                    if (!start.IsValid || !end.IsValid) throw new JsonRpcException("E_INVALID_PARAMETER", "bot start and end must be set to make an arc from a circle.");
+                    if ((direction == "ccw" && c2d.Sweep < 0) || (direction == "cw" && c2d.Sweep > 0)) c2d.Reverse();
+
+                    a2d = new Arc2D(c2d.Center, c2d.Radius, start, end, c2d.Sweep > 0);
+                }
+                else
+                {
+                    if (!start.IsValid) start = a2d.StartPoint;
+                    if (!end.IsValid) end = a2d.EndPoint;
+                    a2d = new Arc2D(c2d.Center, c2d.Radius, start, end, direction == "cw");
+                }
+                if (direction == "shortest")
+                {
+                    if (Math.Abs(a2d.SweepAngle) > Math.PI) a2d.Complement();
+                }
+                if (direction == "longest")
+                {
+                    if (Math.Abs(a2d.SweepAngle) < Math.PI) a2d.Complement();
+                }
+                crv = a2d;
+            }
+            if (!sketch.Curves.Contains(crv)) sketch.Add(crv);
+            if (name != null) namedItems[name] = crv;
+        }
+
         private void SketchAddEllipseImpl(Sketch sketch, GeoPoint2D center, double radiusMajor, double radiusMinor, double rotationDeg, string name)
         {
             double major = radiusMajor;
@@ -433,7 +594,7 @@ namespace ShapeIt
                     double h = c * (1 - b * b) / (4 * b);
                     GeoVector2D n = d.ToLeft();
                     GeoPoint2D center = new GeoPoint2D(pi, pn) + h / c * n;
-                    curves.Add(new Arc2D(center, r, pi, pn, h > 0));
+                    curves.Add(new Arc2D(center, r, pi, pn, h >= 0));
                 }
             }
             ICurve2D curve = new Path2D(curves.ToArray());

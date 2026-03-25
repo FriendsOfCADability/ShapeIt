@@ -213,6 +213,13 @@ namespace CADability
         {
             get
             {
+                double col1LenSq = Matrix00 * Matrix00 + Matrix10 * Matrix10;
+                double col2LenSq = Matrix01 * Matrix01 + Matrix11 * Matrix11;
+                double dot = Matrix00 * Matrix01 + Matrix10 * Matrix11;
+
+                return Math.Abs(col1LenSq - col2LenSq) < Precision.eps
+                    && Math.Abs(dot) < Precision.eps;
+                // old code:
                 if (!Precision.IsPerpendicular(new GeoVector2D(Matrix00, Matrix10), new GeoVector2D(Matrix01, Matrix11), false)) return false;
                 if (!Precision.IsPerpendicular(new GeoVector2D(Matrix00 + Matrix10, Matrix01 + Matrix11), new GeoVector2D(Matrix00 - Matrix10, -Matrix01 + Matrix11), false)) return false;
                 return true;

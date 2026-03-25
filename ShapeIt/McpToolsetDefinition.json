@@ -1073,7 +1073,18 @@
 			"additionalProperties": {
 				"type": "string"
 			}
-		}
+		},
+			"SketchPointOrGeometryRef": {
+				"description": "Either a 2D point or a reference to existing sketch geometry.",
+				"oneOf": [
+					{
+						"$ref": "#/types/Point2"
+					},
+					{
+						"$ref": "#/types/SketchGeometryRef"
+					}
+				]
+			}
 	},
 	"tools": [
 		{
@@ -1823,6 +1834,254 @@
 					"sketch"
 				],
 				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_circle_by_constraints",
+			"description": "Constructs a full circle in a sketch from geometric constraints. Supported modes are: TTT (three constraints), TTR (two constraints plus radius), and TC (one constraint plus explicit center). Each constraint can be either a 2D point, meaning the circle must pass through that point, or a reference to existing sketch geometry, meaning the circle must be tangent to that geometry. If multiple valid solutions exist, the solution whose center is closest to preferredCenter is chosen.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"constraints": {
+						"type": "array",
+						"description": "Construction constraints. Each entry is either a 2D point or a reference to existing sketch geometry.",
+						"items": {
+							"$ref": "#/types/SketchPointOrGeometryRef"
+						},
+						"minItems": 1,
+						"maxItems": 3
+					},
+					"radius": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Required for TTR mode. Must be omitted for TTT and TC."
+					},
+					"center": {
+						"$ref": "#/types/Point2",
+						"description": "Required for TC mode. Must be omitted for TTT and TTR."
+					},
+					"preferredCenter": {
+						"$ref": "#/types/Point2",
+						"description": "Optional hint used to resolve ambiguous solutions. The solution with center closest to this point is chosen."
+					},
+					"tolerance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional geometric tolerance."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					},
+					"capture": {
+						"type": "object",
+						"properties": {
+							"center": {
+								"type": "string",
+								"description": "Optional workspace variable name receiving the resulting center point."
+							},
+							"touch0": {
+								"type": "string",
+								"description": "Optional workspace variable name receiving the touch point associated with constraints[0], if applicable."
+							},
+							"touch1": {
+								"type": "string",
+								"description": "Optional workspace variable name receiving the touch point associated with constraints[1], if applicable."
+							},
+							"touch2": {
+								"type": "string",
+								"description": "Optional workspace variable name receiving the touch point associated with constraints[2], if applicable."
+							}
+						},
+						"additionalProperties": false
+					}
+				},
+				"required": [
+					"sketch",
+					"constraints"
+				],
+				"additionalProperties": false,
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"constraints": {
+									"minItems": 3,
+									"maxItems": 3
+								}
+							}
+						},
+						"then": {
+							"not": {
+								"anyOf": [
+									{ "required": [ "radius" ] },
+									{ "required": [ "center" ] }
+								]
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"constraints": {
+									"minItems": 2,
+									"maxItems": 2
+								}
+							}
+						},
+						"then": {
+							"required": [ "radius" ],
+							"not": {
+								"required": [ "center" ]
+							}
+						}
+					},
+					{
+						"if": {
+							"properties": {
+								"constraints": {
+									"minItems": 1,
+									"maxItems": 1
+								}
+							}
+						},
+						"then": {
+							"required": [ "center" ],
+							"not": {
+								"required": [ "radius" ]
+							}
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "sketch.set_curve_endpoints",
+			"description": "Sets the start point and/or end point of a line, circle, or arc in a sketch. For a full circle, setting endpoints converts it into an arc. For arcs, direction can be controlled explicitly so arcs greater than 180 degrees can be created. Optionally, the original radius can be preserved when adjusting circle or arc endpoints.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"curve": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "Target line, circle, or arc."
+					},
+					"start": {
+						"$ref": "#/types/Point2",
+						"description": "Optional new start point."
+					},
+					"end": {
+						"$ref": "#/types/Point2",
+						"description": "Optional new end point."
+					},
+					"direction": {
+						"type": "string",
+						"enum": [ "cw", "ccw", "shortest", "longest" ],
+						"default": "shortest",
+						"description": "Used for arcs and circles converted to arcs. 'cw' and 'ccw' enforce orientation. 'shortest' and 'longest' choose the minor or major arc between start and end."
+					},
+					"projectToCurve": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true: for lines: direction is preserved, points are projected orthogonally, for circles/arcs: radius is preserved, points are projected radially"
+					},
+					"copy": {
+						"type": "boolean",
+						"default": false,
+						"description": "If true, creates a modified copy and leaves the original unchanged."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional result name. Recommended when copy is true."
+					},
+					"capture": {
+						"type": "object",
+						"properties": {
+							"start": {
+								"type": "string",
+								"description": "Optional workspace variable name receiving the resulting start point."
+							},
+							"end": {
+								"type": "string",
+								"description": "Optional workspace variable name receiving the resulting end point."
+							}
+						},
+						"additionalProperties": false
+					}
+				},
+				"required": [
+					"sketch",
+					"curve"
+				],
+				"additionalProperties": false,
+				"anyOf": [
+					{ "required": [ "start" ] },
+					{ "required": [ "end" ] }
+				]
+			}
+		},
+		{
+			"name": "sketch.add_line_by_constraints",
+			"description": "Adds a line constructed from geometric constraints. Supported modes are: PT (start point plus tangency to one circle or arc) and TT (tangency to two circles or arcs). If multiple valid solutions exist, preferredStart and preferredEnd are used to choose the solution whose line endpoints are closest to those hints.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef"
+					},
+					"start": {
+						"$ref": "#/types/Point2",
+						"description": "Required for PT mode. Start point of the line."
+					},
+					"target0": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "First tangency target. Must reference a circle or arc."
+					},
+					"target1": {
+						"$ref": "#/types/SketchGeometryRef",
+						"description": "Second tangency target. Must reference a circle or arc. Required for TT mode."
+					},
+					"preferredStart": {
+						"$ref": "#/types/Point2",
+						"description": "Optional hint used to resolve ambiguous solutions in TT mode."
+					},
+					"preferredEnd": {
+						"$ref": "#/types/Point2",
+						"description": "Optional hint used to resolve ambiguous solutions in PT or TT mode."
+					},
+					"tolerance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Optional geometric tolerance."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional entity name."
+					}
+				},
+				"required": [
+					"sketch",
+					"target0"
+				],
+				"additionalProperties": false,
+				"oneOf": [
+					{
+						"description": "PT mode: start point plus tangency to one circle or arc.",
+						"required": [ "start", "target0" ],
+						"not": {
+							"required": [ "target1" ]
+						}
+					},
+					{
+						"description": "TT mode: tangency to two circles or arcs.",
+						"required": [ "target0", "target1" ],
+						"not": {
+							"required": [ "start" ]
+						}
+					}
+				]
 			}
 		},
 		{

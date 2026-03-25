@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MathNet.Numerics.Integration;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
@@ -97,37 +98,37 @@ namespace CADability.Curve2D
                                         }
                                         else if (!outerTangent && t.Length == 8)
                                         {
-	                                        // Use the inner (crossing) tangent lines from the circle solution.
-	                                        // t[4]-t[7] are the tangency points for the two crossing tangents.
-	                                        // Determine which pair is closer to the current curve points.
-	                                        double error1 = (t[4] | loc1) + (t[5] | loc2);
-	                                        double error2 = (t[6] | loc1) + (t[7] | loc2);
-	                                        if (error1 < error2)
-	                                        {
-		                                        // First inner tangent is closer
-		                                        par1 = first.PositionOf(t[4]);
-		                                        par2 = second.PositionOf(t[5]);
-	                                        }
-	                                        else
-	                                        {
-		                                        // Second inner tangent is closer
-		                                        par1 = first.PositionOf(t[6]);
-		                                        par2 = second.PositionOf(t[7]);
-	                                        }
-	                                        // Compute distance error for this choice
-	                                        double dd = (first.PointAt(par1) | t[(error1 < error2 ? 4 : 6)])
-	                                                    + (second.PointAt(par2) | t[(error1 < error2 ? 5 : 7)]);
-	                                        if (dd < mindist)
-	                                        {
-		                                        mindist = dd;
-		                                        // Continue refining in the while loop (next iteration will recompute new osculating circles)
-	                                        }
-	                                        else
-	                                        {
-		                                        break; // if no improvement, break out of refinement loop
-	                                        }
+                                            // Use the inner (crossing) tangent lines from the circle solution.
+                                            // t[4]-t[7] are the tangency points for the two crossing tangents.
+                                            // Determine which pair is closer to the current curve points.
+                                            double error1 = (t[4] | loc1) + (t[5] | loc2);
+                                            double error2 = (t[6] | loc1) + (t[7] | loc2);
+                                            if (error1 < error2)
+                                            {
+                                                // First inner tangent is closer
+                                                par1 = first.PositionOf(t[4]);
+                                                par2 = second.PositionOf(t[5]);
+                                            }
+                                            else
+                                            {
+                                                // Second inner tangent is closer
+                                                par1 = first.PositionOf(t[6]);
+                                                par2 = second.PositionOf(t[7]);
+                                            }
+                                            // Compute distance error for this choice
+                                            double dd = (first.PointAt(par1) | t[(error1 < error2 ? 4 : 6)])
+                                                        + (second.PointAt(par2) | t[(error1 < error2 ? 5 : 7)]);
+                                            if (dd < mindist)
+                                            {
+                                                mindist = dd;
+                                                // Continue refining in the while loop (next iteration will recompute new osculating circles)
+                                            }
+                                            else
+                                            {
+                                                break; // if no improvement, break out of refinement loop
+                                            }
                                         }
-										else break; // no solution
+                                        else break; // no solution
                                     }
                                     else break;
                                 }
@@ -299,21 +300,6 @@ namespace CADability.Curve2D
         public static GeoPoint2D[] TangentCircle(ICurve2D c1, ICurve2D c2, ICurve2D c3, GeoPoint2D p1, GeoPoint2D p2, GeoPoint2D p3)
         {
 
-            //List<ICurve2D> sortedCurves = new List<ICurve2D>();
-            //if (c1 is Line2D) sortedCurves.Insert(0, c1);
-            //else if (c1 is Circle2D) sortedCurves.Add(c1); // Arc2D ist abgeleitet von Circle2D
-            //if (c2 is Line2D) sortedCurves.Insert(0, c2);
-            //else if (c2 is Circle2D) sortedCurves.Add(c2); // Arc2D ist abgeleitet von Circle2D
-            //if (c3 is Line2D) sortedCurves.Insert(0, c3);
-            //else if (c3 is Circle2D) sortedCurves.Add(c3); // Arc2D ist abgeleitet von Circle2D
-            //if (sortedCurves.Count == 3)
-            //{
-            //    if (sortedCurves[2] is Line2D) return TangentCircleLLL(sortedCurves[0] as Line2D, sortedCurves[1] as Line2D, sortedCurves[2] as Line2D);
-            //    else if (sortedCurves[1] is Line2D) return TangentCircleLLC(sortedCurves[0] as Line2D, sortedCurves[1] as Line2D, sortedCurves[2] as Circle2D);
-            //    else if (sortedCurves[0] is Line2D) return TangentCircleLCC(sortedCurves[0] as Line2D, sortedCurves[1] as Circle2D, sortedCurves[2] as Circle2D);
-            //    else return TangentCircleCCC(sortedCurves[0] as Circle2D, sortedCurves[1] as Circle2D, sortedCurves[2] as Circle2D);
-            //}
-
             int so = 0;
             if (c1 is Circle2D) so = so + 1;
             else if (!(c1 is Line2D)) return null;
@@ -392,8 +378,8 @@ namespace CADability.Curve2D
                 }
                 else
                     if (pf.Length == 1)
-                    res[4 * i + 1] = pf[0];
-                else res[4 * i + 1] = new GeoPoint2D(c1.Center, c1.Radius, (Angle)0);
+                        res[4 * i + 1] = pf[0];
+                    else res[4 * i + 1] = new GeoPoint2D(c1.Center, c1.Radius, (Angle)0);
                 pf = c2.PerpendicularFoot(centers[i]);
                 if (pf.Length == 2)
                 {
@@ -408,8 +394,8 @@ namespace CADability.Curve2D
                 }
                 else
                     if (pf.Length == 1)
-                    res[4 * i + 2] = pf[0];
-                else res[4 * i + 2] = new GeoPoint2D(c2.Center, c2.Radius, (Angle)0);
+                        res[4 * i + 2] = pf[0];
+                    else res[4 * i + 2] = new GeoPoint2D(c2.Center, c2.Radius, (Angle)0);
                 pf = c3.PerpendicularFoot(centers[i]);
                 if (pf.Length == 2)
                 {
@@ -424,11 +410,126 @@ namespace CADability.Curve2D
                 }
                 else
                     if (pf.Length == 1)
-                    res[4 * i + 3] = pf[0];
-                else res[4 * i + 3] = new GeoPoint2D(c3.Center, c3.Radius, (Angle)0);
+                        res[4 * i + 3] = pf[0];
+                    else res[4 * i + 3] = new GeoPoint2D(c3.Center, c3.Radius, (Angle)0);
             }
             return res;
         }
+
+
+        private static List<(double x, double y, double r)> TangentCircleLCCSpecialCase(double y1, double x2, double y2, double r2)
+        {
+            var results = new List<(double x, double y, double r)>();
+
+            // Alle 4 Vorzeichenkombinationen: s1 ∈ {+1,-1}, s2 ∈ {+1,-1}
+            // s=+1: Außentangente, s=-1: Innentangente
+            foreach (int s1 in new[] { +1, -1 })
+                foreach (int s2 in new[] { +1, -1 })
+                {
+                    // y = (x² + y1² - 1) / (2*(y1 + s1))        [aus Kreis 1]
+                    // y = (x² - 2*x2*x + x2² + y2² - r2²) / (2*(y2 + s2*r2))  [aus Kreis 2]
+                    //
+                    // Gleichsetzen: A1*(x² + C1) = A2*(x² - 2*x2*x + C2)
+                    // mit A1 = 1/(2*(y1+s1)),  C1 = y1²-1
+                    //     A2 = 1/(2*(y2+s2*r2)), C2 = x2²+y2²-r2²
+
+                    double denom1 = 2.0 * (y1 + s1);
+                    double denom2 = 2.0 * (y2 + s2 * r2);
+
+                    if (Math.Abs(denom1) < 1e-12 || Math.Abs(denom2) < 1e-12)
+                        continue; // Entartet (Mittelpunkt liegt auf Linie)
+
+                    double C1 = y1 * y1 - 1.0;
+                    double C2 = x2 * x2 + y2 * y2 - r2 * r2;
+
+                    // A1*(x² + C1) = A2*(x² - 2*x2*x + C2)
+                    // (A1-A2)*x² + 2*A2*x2*x + (A1*C1 - A2*C2) = 0
+                    double A1 = 1.0 / denom1;
+                    double A2 = 1.0 / denom2;
+
+                    double a = A1 - A2;
+                    double b = 2.0 * A2 * x2;
+                    double c = A1 * C1 - A2 * C2;
+
+                    List<double> xSols;
+
+                    if (Math.Abs(a) < 1e-12)
+                    {
+                        // Linearer Fall: b*x + c = 0
+                        if (Math.Abs(b) < 1e-12) continue;
+                        xSols = new List<double> { -c / b };
+                    }
+                    else
+                    {
+                        // Quadratisch: a*x² + b*x + c = 0
+                        double disc = b * b - 4.0 * a * c;
+                        if (disc < 0) continue; // Keine reellen Lösungen
+                        double sqrtD = Math.Sqrt(disc);
+                        xSols = new List<double>
+                {
+                    (-b + sqrtD) / (2.0 * a),
+                    (-b - sqrtD) / (2.0 * a)
+                };
+                    }
+
+                    foreach (double x in xSols)
+                    {
+                        double y = (x * x + C1) / denom1;
+                        double r = y; // r = y (Abstand zur x-Achse)
+
+                        if (r < -1e-9) continue; // Kreis unterhalb der Linie → ungültig
+
+                        results.Add((x, y, r));
+                    }
+                }
+
+            return results;
+        }
+
+        private static GeoPoint2D[] TangentCircleLCCNew(Line2D line, Circle2D circ2, Circle2D circ3)
+        {
+            bool exchangeCircles = false;
+            if (circ2.Radius < circ3.Radius) // maybe one radius is 0, but not both
+            {
+                (circ2, circ3) = (circ3, circ2);
+                exchangeCircles = true;
+            }
+            double factor = 1 / circ2.Radius;
+            ModOp2D scale = ModOp2D.Scale(factor);
+            Line2D l1 = line.GetModified(scale) as Line2D;
+            Circle2D c2 = circ2.GetModified(scale) as Circle2D;
+            Circle2D c3 = circ3.GetModified(scale) as Circle2D;
+            ModOp2D move1 = ModOp2D.Translate(-l1.StartPoint.ToVector());
+            l1 = l1.GetModified(move1) as Line2D;
+            c2 = c2.GetModified(move1) as Circle2D;
+            c3 = c3.GetModified(move1) as Circle2D;
+            ModOp2D rotate = ModOp2D.Rotate(new SweepAngle(l1.StartDirection, GeoVector2D.XAxis));
+            l1 = l1.GetModified(rotate) as Line2D;
+            c2 = c2.GetModified(rotate) as Circle2D;
+            c3 = c3.GetModified(rotate) as Circle2D;
+            ModOp2D move2 = ModOp2D.Translate(-c2.Center.x, 0);
+            l1 = l1.GetModified(move2) as Line2D;
+            c2 = c2.GetModified(move2) as Circle2D;
+            c3 = c3.GetModified(move2) as Circle2D;
+            // this transforms the situation into a situation where the line is the xaxis, c2 has radius 1 and c2.Center.x==0
+            ModOp2D total = move2 * rotate * move1 * scale;
+            List<(double x, double y, double r)> sol = TangentCircleLCCSpecialCase(c2.Center.y, c3.Center.x, c3.Center.y, c3.Radius);
+            ModOp2D reverse = total.GetInverse();
+            List<GeoPoint2D> res = [];
+            for (int i = 0; i < sol.Count; i++)
+            {
+                if (exchangeCircles) (circ2, circ3) = (circ3, circ2);
+
+                GeoPoint2D c = reverse * new GeoPoint2D(sol[i].x, sol[i].y);
+                double r = sol[i].r / factor;
+                GeoPoint2D fp1 = line.PerpendicularFoot(c).MinBy(p => Math.Abs(r - (p | c)));
+                GeoPoint2D fp2 = circ2.PerpendicularFoot(c).MinBy(p => Math.Abs(r - (p | c)));
+                GeoPoint2D fp3 = circ3.PerpendicularFoot(c).MinBy(p => Math.Abs(r - (p | c)));
+                res.AddRange([c, fp1, fp2, fp3]);
+            }
+            return res.ToArray();
+        }
+
         private static GeoPoint2D[] TangentCircleLCC(Line2D l1, Circle2D c2, Circle2D c3)
         {
             GeoPoint2D[] centers;
@@ -453,8 +554,8 @@ namespace CADability.Curve2D
                 }
                 else
                     if (pf.Length == 1)
-                    res[4 * i + 2] = pf[0];
-                else res[4 * i + 2] = new GeoPoint2D(c2.Center, c2.Radius, (Angle)0);
+                        res[4 * i + 2] = pf[0];
+                    else res[4 * i + 2] = new GeoPoint2D(c2.Center, c2.Radius, (Angle)0);
                 pf = c3.PerpendicularFoot(centers[i]);
                 if (pf.Length == 2)
                 {
@@ -469,8 +570,8 @@ namespace CADability.Curve2D
                 }
                 else
                     if (pf.Length == 1)
-                    res[4 * i + 3] = pf[0];
-                else res[4 * i + 3] = new GeoPoint2D(c3.Center, c3.Radius, (Angle)0);
+                        res[4 * i + 3] = pf[0];
+                    else res[4 * i + 3] = new GeoPoint2D(c3.Center, c3.Radius, (Angle)0);
             }
             return res;
         }
@@ -499,8 +600,8 @@ namespace CADability.Curve2D
                 }
                 else
                     if (pf.Length == 1)
-                    res[4 * i + 3] = pf[0];
-                else res[4 * i + 3] = new GeoPoint2D(c3.Center, c3.Radius, (Angle)0);
+                        res[4 * i + 3] = pf[0];
+                    else res[4 * i + 3] = new GeoPoint2D(c3.Center, c3.Radius, (Angle)0);
             }
             return res;
         }

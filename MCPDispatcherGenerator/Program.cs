@@ -115,7 +115,7 @@ namespace MCPDispatcherGenerator
             sb.AppendLine();
             sb.AppendLine($"namespace {ns};");
             sb.AppendLine();
-            sb.AppendLine($"internal partial class {cls}");
+            sb.AppendLine($"public partial class {cls}");
             sb.AppendLine("{");
             sb.AppendLine("    // You are expected to provide these helpers somewhere in your server code:");
             sb.AppendLine("    // - JsonElement RequireObject(JsonElement root, string propName)");
