@@ -59,6 +59,7 @@ namespace ShapeIt
         private IHotSpot hotspotUnderCursor;
         private IGeoObject selectedObjectUnderCursor;
         MCPServer mcpServer = new MCPServer();
+        McpWorkspace mcpWorkspace = null;
 
         public ModellingPropertyEntries(IFrame cadFrame) : base("Modelling.Properties")
         {
@@ -3639,6 +3640,19 @@ namespace ShapeIt
                             }
                         if (l != null) ComposeModellingEntries(l, cadFrame.ActiveView, null);
                     }
+                    else
+                    {
+                        data = Frame.UIService.GetClipboardData(typeof(string));
+                        // check for RPC code
+                        if (data is string jsonrpc && jsonrpc.Contains("\"params\"") && jsonrpc.Contains("{") && jsonrpc.Contains("}")
+                            && jsonrpc.Contains("\"jsonrpc\"") && jsonrpc.Contains("\"id\"") && jsonrpc.Contains("\"method\""))
+                        {   // this is a strong indicator of a rpc code in the clipboard
+                            if (Frame.UIService.ShowMessageBox(StringTable.GetString("RpcCode.Execute"), "ShapeIt", MessageBoxButtons.YesNo) == DialogResult.Yes)
+                            {
+                                mcpServer.ProcessText(jsonrpc);
+                            }
+                        }
+                    }
                     return true;
                 case "MenuId.ShowHidden":
                     {
@@ -3693,6 +3707,20 @@ namespace ShapeIt
                 case "MenuId.RPCTemplate":
                     Clear();
                     SetRpcTemplateEntries();
+                    return true;
+                case "MenuId.RPCWorkspace":
+                    if (mcpWorkspace == null || mcpWorkspace.IsDisposed)
+                    {
+                        mcpWorkspace = new McpWorkspace(mcpServer);
+                        mcpWorkspace.FormClosed += (_, __) => mcpWorkspace = null;
+                        mcpWorkspace.Show();   // nicht modal, kein Owner
+                    }
+                    else
+                    {
+                        mcpWorkspace.Show();
+                        mcpWorkspace.Activate();
+                    }
+
                     return true;
                 default: return false;
             }

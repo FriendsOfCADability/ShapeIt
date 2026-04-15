@@ -3268,7 +3268,7 @@ namespace CADability
                 {
                     dcloops.Add(item.Item1, faceToSplit, arrowSize, Color.Blue, ++dbgc);
                 }
-                if (loops.Count == 0)
+                if (loops.Count == 0 && !commonOverlappingFaces.Contains(faceToSplit))
                 {
                     System.Diagnostics.Debug.Assert(false, "loops.Count should never be 0");
                 }
@@ -3433,6 +3433,11 @@ namespace CADability
                     }
                 }
             }
+            foreach (Face fce in trimmedFaces)
+            {
+                Face dbg = fce.Clone() as Face;
+                double d = dbg.Area.Area;
+            }
 #endif
             // find all faces in trimmedFaces, which are identical to trimmedOverlappingFaces
             // these faces are created multiple times and we only need one of them
@@ -3496,47 +3501,48 @@ namespace CADability
 
             foreach (Face fce in discardedFaces) fce.DisconnectAllEdges(); // to avoid connecting with discardedFaces
                                                                            // if we have two open edges in the trimmed faces which are identical, connect them
-            Dictionary<DoubleVertexKey, Edge> trimmedEdges = new Dictionary<DoubleVertexKey, Edge>();
-            foreach (Face fce in trimmedFaces)
-            {
-                foreach (Edge edg in fce.AllEdges)
-                {
-                    DoubleVertexKey dvk = new DoubleVertexKey(edg.Vertex1, edg.Vertex2);
-                    if (nonManifoldEdges.Contains(edg, precision)) // is empty in most cases
-                    {
-                        if (edg.SecondaryFace != null)
-                        {   // seperate nonManifold edges, they should not be used for collecting faces for the shell
-                            edg.SecondaryFace.SeperateEdge(edg);
-                        }
-                    }
-                    else if (edg.SecondaryFace == null || !trimmedFaces.Contains(edg.SecondaryFace) || !trimmedFaces.Contains(edg.PrimaryFace))
-                    {   // only those edges, which 
-                        if (trimmedEdges.TryGetValue(dvk, out Edge other))
-                        {
-                            if (other == edg) continue;
-                            if (SameEdge(edg, other, precision))
-                            {
-                                if (edg.SecondaryFace != null)
-                                {
-                                    if (!trimmedFaces.Contains(edg.SecondaryFace)) edg.RemoveFace(edg.SecondaryFace);
-                                    else if (!trimmedFaces.Contains(edg.PrimaryFace)) edg.RemoveFace(edg.PrimaryFace);
-                                }
-                                if (other.SecondaryFace != null)
-                                {
-                                    if (!trimmedFaces.Contains(other.SecondaryFace)) other.RemoveFace(other.SecondaryFace);
-                                    else if (!trimmedFaces.Contains(other.PrimaryFace)) other.RemoveFace(other.PrimaryFace);
-                                }
-                                other.PrimaryFace.ReplaceEdge(other, edg);
-                                trimmedEdges.Remove(dvk);
-                            }
-                        }
-                        else
-                        {
-                            trimmedEdges[dvk] = edg;
-                        }
-                    }
-                }
-            }
+                                                                           // commented out the following, because in UniteBug13.cdb.json it removes the face 86 from egde 1176, which it should not
+                                                                           //Dictionary<DoubleVertexKey, Edge> trimmedEdges = new Dictionary<DoubleVertexKey, Edge>();
+                                                                           //foreach (Face fce in trimmedFaces)
+                                                                           //{
+                                                                           //    foreach (Edge edg in fce.AllEdges)
+                                                                           //    {
+                                                                           //        DoubleVertexKey dvk = new DoubleVertexKey(edg.Vertex1, edg.Vertex2);
+                                                                           //        if (nonManifoldEdges.Contains(edg, precision)) // is empty in most cases
+                                                                           //        {
+                                                                           //            if (edg.SecondaryFace != null)
+                                                                           //            {   // seperate nonManifold edges, they should not be used for collecting faces for the shell
+                                                                           //                edg.SecondaryFace.SeperateEdge(edg);
+                                                                           //            }
+                                                                           //        }
+                                                                           //        else if (edg.SecondaryFace == null || !trimmedFaces.Contains(edg.SecondaryFace) || !trimmedFaces.Contains(edg.PrimaryFace))
+                                                                           //        {   // only those edges, which 
+                                                                           //            if (trimmedEdges.TryGetValue(dvk, out Edge other))
+                                                                           //            {
+                                                                           //                if (other == edg) continue;
+                                                                           //                if (SameEdge(edg, other, precision))
+                                                                           //                {
+                                                                           //                    if (edg.SecondaryFace != null)
+                                                                           //                    {
+                                                                           //                        if (!trimmedFaces.Contains(edg.SecondaryFace)) edg.RemoveFace(edg.SecondaryFace);
+                                                                           //                        else if (!trimmedFaces.Contains(edg.PrimaryFace)) edg.RemoveFace(edg.PrimaryFace);
+                                                                           //                    }
+                                                                           //                    if (other.SecondaryFace != null)
+                                                                           //                    {
+                                                                           //                        if (!trimmedFaces.Contains(other.SecondaryFace)) other.RemoveFace(other.SecondaryFace);
+                                                                           //                        else if (!trimmedFaces.Contains(other.PrimaryFace)) other.RemoveFace(other.PrimaryFace);
+                                                                           //                    }
+                                                                           //                    other.PrimaryFace.ReplaceEdge(other, edg);
+                                                                           //                    trimmedEdges.Remove(dvk);
+                                                                           //                }
+                                                                           //            }
+                                                                           //            else
+                                                                           //            {
+                                                                           //                trimmedEdges[dvk] = edg;
+                                                                           //            }
+                                                                           //        }
+                                                                           //    }
+                                                                           //}
 
 #if DEBUG
             openTrimmedEdges = new HashSet<Edge>();
@@ -3718,7 +3724,7 @@ namespace CADability
                 HashSet<Face> connected = extractConnectedFaces(allFaces, allFaces.First());
                 Shell shell = Shell.MakeShell(connected.ToArray());
 #if DEBUG
-                bool ok = shell.CheckConsistency();
+                System.Diagnostics.Debug.Assert(shell.CheckConsistency());
 #endif
                 // res should not have open edges! If so, something went wrong
                 if (!allowOpenEdges && shell.HasOpenEdgesExceptPoles())
@@ -3729,6 +3735,9 @@ namespace CADability
                 {
                     if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(); // two connected faces which have the same surface are merged into one face
                     if (operation == Operation.union || operation == Operation.connectMultiple) shell.ReverseOrientation(); // both had been reversed and the intersection had been calculated
+#if DEBUG
+                    System.Diagnostics.Debug.Assert(shell.CheckConsistency());
+#endif
                     res.Add(shell);
                 }
                 else
@@ -3825,7 +3834,25 @@ namespace CADability
                                         if (!refined.TryGetValue(ie2, out List<Edge> list)) refined[ie2] = list = new List<Edge>();
                                         list.AddRange(splitted);
                                         found = true;
+                                        // now this vertex may also be on an edge of faceToSplit, so we need to split this edge as well
+                                        // to get proper loops later on
+                                        Face otherFace = ie2.OtherFace(faceToSplit);
+                                        uv = vtx.GetPositionOnFace(otherFace);
+                                        foreach (Edge fe in otherFace.AllEdges.Clone() as Edge[])
+                                        {
+                                            ICurve2D fc2d = fe.Curve2D(otherFace);
+                                            double fpos = fc2d.PositionOf(uv);
+                                            if (fpos > 1e-6 && fpos < 1 - 1e-6 && Precision.IsEqual(uv, fc2d.PointAt(fpos)))
+                                            {   // we need to split fe
+                                                Edge[] fsplitted = fe.Split(fe.Curve3D.PositionOf(vtx.Position));
+                                                if (fsplitted != null && fsplitted.Length > 0)
+                                                {
+                                                    for (int i = 0; i < fsplitted.Length; i++) fsplitted[i].UseVertices(vtx);
+                                                }
+                                            }
+                                        }
                                         break;
+
                                     }
                                 }
                             }

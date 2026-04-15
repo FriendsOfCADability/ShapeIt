@@ -48,6 +48,8 @@ public static class GeometryOps
     {
         if (v is double d)
             return -d;
+        if (v is int i)
+            return -i;
         if (v is GeoVector vec)
             return new GeoVector(-vec.x, -vec.y, -vec.z);
         if (v is GeoVector2D vec2)
@@ -86,6 +88,8 @@ public static class GeometryOps
     }
     public static object Mul(object a, object b)
     {
+        if (a is Angle anga) a = anga.Radian;
+        if (b is Angle angb) b = angb.Radian;
         if (a is IConvertible && b is IConvertible)
             return Convert.ToDouble(a) * Convert.ToDouble(b);
         if (a is double da2 && b is GeoVector vb)
@@ -98,6 +102,8 @@ public static class GeometryOps
             return new GeoVector2D(db22 * va2.x, db22 * va2.y);
         if (a is GeoVector va3 && b is GeoVector vb3)
             return va3.x * vb3.x + va3.y * vb3.y + va3.z * vb3.z;
+        if (a is ModOp m1 && b is ModOp m2)
+            return m1 * m2;
         throw new InvalidOperationException($"Operator '*' is not defined for {a.GetType()} * {b.GetType()}.");
     }
     public static object Div(object a, object b)
@@ -269,7 +275,7 @@ public static class Lexer
                 {
                     i++;
                 }
-                string stringText = expr.Substring(start + 1, i - start);
+                string stringText = expr.Substring(start + 1, i - start - 1);
                 ++i;
                 tokens.Add(new Token(TokenType.String, stringText));
                 continue;
@@ -337,18 +343,18 @@ public static class Parser
     // + and -  : 1
     private static readonly Dictionary<TokenType, OpInfo> BinaryOps = new Dictionary<TokenType, OpInfo>
     {
-        { TokenType.Dot, new OpInfo { Prec = 4, Assoc = Assoc.Right, Symbol="." } },
-        { TokenType.Caret, new OpInfo { Prec = 3, Assoc = Assoc.Left, Symbol="^" } },
-        { TokenType.Star,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="*" } },
-        { TokenType.Slash,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="/" } },
-        { TokenType.Pipe,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="|" } },
-        { TokenType.Plus,  new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol="+" } },
-        { TokenType.Minus, new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol="-" } },
-        { TokenType.Equal, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol="==" } },
-        { TokenType.GreaterThan, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol=">" } },
-        { TokenType.GreaterThanOrEqual, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = ">=" } },
-        { TokenType.LessThan, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "<" } },
-        { TokenType.LessThanOrEqual,new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "<=" } },
+        { TokenType.Dot, new OpInfo { Prec = 5, Assoc = Assoc.Right, Symbol="." } },
+        { TokenType.Caret, new OpInfo { Prec = 4, Assoc = Assoc.Left, Symbol="^" } },
+        { TokenType.Star,  new OpInfo { Prec = 3, Assoc = Assoc.Left, Symbol="*" } },
+        { TokenType.Slash,  new OpInfo { Prec = 3, Assoc = Assoc.Left, Symbol="/" } },
+        { TokenType.Pipe,  new OpInfo { Prec = 3, Assoc = Assoc.Left, Symbol="|" } },
+        { TokenType.Plus,  new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="+" } },
+        { TokenType.Minus, new OpInfo { Prec = 2, Assoc = Assoc.Left, Symbol="-" } },
+        { TokenType.Equal, new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol="==" } },
+        { TokenType.GreaterThan, new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol=">" } },
+        { TokenType.GreaterThanOrEqual, new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol = ">=" } },
+        { TokenType.LessThan, new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol = "<" } },
+        { TokenType.LessThanOrEqual,new OpInfo { Prec = 1, Assoc = Assoc.Left, Symbol = "<=" } },
         { TokenType.And, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "&&" } },
         { TokenType.Or, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "||" } },
         { TokenType.Not, new OpInfo { Prec = 0, Assoc = Assoc.Left, Symbol = "!" } },
@@ -378,6 +384,11 @@ public static class Parser
             switch (t.Type)
             {
                 case TokenType.Number:
+                    output.Add(t);
+                    expectUnary = false;
+                    break;
+
+                case TokenType.String:
                     output.Add(t);
                     expectUnary = false;
                     break;
@@ -819,6 +830,11 @@ public static class Evaluator
                             stack.Push(d);
                             break;
                         }
+                    case Token t when t.Type == TokenType.String:
+                        {
+                            stack.Push(t.Text);
+                            break;
+                        }
                     case Token t when t.Type == TokenType.Dot:
                         {
                             if (stack.Count < 2)
@@ -935,30 +951,31 @@ public static class Evaluator
                                     res = GeometryOps.Distance(a, b);
                                     break;
                                 case TokenType.Equal:
-                                    res = a.Equals(b);
+                                    if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) == Convert.ToDouble(b);
+                                    else res = a.Equals(b);
                                     break;
                                 case TokenType.GreaterThan:
                                     {
                                         res = false;
-                                        if (a is double aa && b is double bb) res = aa > bb;
+                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) > Convert.ToDouble(b);
                                     }
                                     break;
                                 case TokenType.GreaterThanOrEqual:
                                     {
                                         res = false;
-                                        if (a is double aa && b is double bb) res = aa >= bb;
+                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) >= Convert.ToDouble(b);
                                     }
                                     break;
                                 case TokenType.LessThan:
                                     {
                                         res = false;
-                                        if (a is double aa && b is double bb) res = aa < bb;
+                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) < Convert.ToDouble(b);
                                     }
                                     break;
                                 case TokenType.LessThanOrEqual:
                                     {
                                         res = false;
-                                        if (a is double aa && b is double bb) res = aa <= bb;
+                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) <= Convert.ToDouble(b);
                                     }
                                     break;
                                 case TokenType.And:
@@ -1136,6 +1153,27 @@ public static class Evaluator
                                         fres = GeometryOps.FuncTan(args[0]);
                                         break;
 
+                                    case "sinh":
+                                        CheckArgCount(call, args, 1);
+                                        fres = Math.Sinh((double)args[0]);
+                                        break;
+                                    case "cosh":
+                                        CheckArgCount(call, args, 1);
+                                        fres = Math.Cosh((double)args[0]);
+                                        break;
+                                    case "tanh":
+                                        CheckArgCount(call, args, 1);
+                                        fres = Math.Tanh((double)args[0]);
+                                        break;
+                                    case "asin":
+                                        CheckArgCount(call, args, 1);
+                                        fres = Math.Asin((double)args[0]);
+                                        break;
+                                    case "acos":
+                                        CheckArgCount(call, args, 1);
+                                        fres = Math.Acos((double)args[0]);
+                                        break;
+
                                     case "atan":
                                         CheckArgCount(call, args, 1);
                                         fres = GeometryOps.FuncAtan(args[0]);
@@ -1186,6 +1224,29 @@ public static class Evaluator
                                     case "v":
                                         fres = MakeVector(args);
                                         break;
+                                    case "translate":
+                                    case "move":
+                                        {
+                                            if (args.Length == 3) fres = ModOp.Translate((double)args[0], (double)args[1], (double)args[2]);
+                                            else if (args.Length == 1 && args[0] is GeoVector v) fres = ModOp.Translate(v);
+                                            else throw new Exception($"Function {call.Name} expects a vector or thre double values as argument.");
+                                        }
+                                        break;
+                                    case "rotate":
+                                        {
+                                            if (args.Length == 3 && args[0] is GeoPoint p && args[1] is GeoVector v && args[2] is double d)
+                                                fres = ModOp.Rotate(p, v, new SweepAngle(d));
+                                            else throw new Exception($"Function {call.Name} expects a point (fixpoint), a vector (axis direction) and a double (rotation angle in radiants) as arguments.");
+                                        }
+                                        break;
+                                    case "scale":
+                                        {
+                                            if (args.Length == 3 && args[0] is double fx && args[1] is double fy && args[2] is double fz) fres = ModOp.Scale(fx, fy, fz);
+                                            else if (args.Length == 2 && args[0] is GeoPoint p && args[1] is double f) fres = ModOp.Scale(p, f);
+                                            // and more configurations
+                                            else throw new Exception($"Function {call.Name} expects a vector or thre double values as argument.");
+                                        }
+                                        break;
                                     case "distance":
                                         CheckArgCount(call, args, 2);
                                         fres = GeometryOps.Distance(args[0], args[1]);
@@ -1194,7 +1255,41 @@ public static class Evaluator
                                         CheckArgCount(call, args, 1);
                                         fres = GeometryOps.Normalize(args[0]);
                                         break;
-
+                                    case "min":
+                                        {
+                                            if (args.Length < 2) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
+                                            double min = double.MaxValue;
+                                            bool intResult = true;
+                                            for (int i = 0; i < args.Length; i++)
+                                            {
+                                                if ((double)args[i] < min) min = (double)args[i];
+                                                if (!(args[i] is int)) intResult = false;
+                                            }
+                                            if (intResult) fres = (int)min;
+                                            else fres = min;
+                                        }
+                                        break;
+                                    case "max":
+                                        {
+                                            if (args.Length < 2) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
+                                            double max = double.MinValue;
+                                            bool intResult = true;
+                                            for (int i = 0; i < args.Length; i++)
+                                            {
+                                                if ((double)args[i] > max) max = (double)args[i];
+                                                if (!(args[i] is int)) intResult = false;
+                                            }
+                                            if (intResult) fres = (int)max;
+                                            else fres = max;
+                                        }
+                                        break;
+                                    case "near":
+                                        {
+                                            if (args.Length < 2 || args.Length > 3) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
+                                            if (args.Length == 2) fres = Math.Abs(((double)args[0]) - ((double)args[1])) < 1e-6;
+                                            else if (args.Length == 3) fres = Math.Abs(((double)args[0]) - ((double)args[1])) < (double)args[2];
+                                        }
+                                        break;
                                     default:
                                         throw new Exception($"Unknown function '{call.Name}'.");
                                 }
@@ -1218,6 +1313,11 @@ public static class Evaluator
         {
             return ex.Message;
         }
+    }
+
+    private static bool IsNumeric(object b)
+    {
+        return b is byte or sbyte or short or ushort or int or uint or long or ulong or float or double or decimal;
     }
 
     private static void CheckArgCount(FunctionCallMarker call, object[] args, int expected)

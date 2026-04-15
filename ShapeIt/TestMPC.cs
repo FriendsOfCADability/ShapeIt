@@ -93,6 +93,7 @@ namespace ShapeIt
             textBox.ScrollBars = ScrollBars.Both;
             textBox.AcceptsReturn = true;
             textBox.AcceptsTab = true;
+            textBox.MaxLength = 1000000;
 
             // OK Button
             okButton = new Button();

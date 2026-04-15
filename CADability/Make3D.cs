@@ -998,19 +998,41 @@ namespace CADability.GeoObject
                 if (shell.Faces.Length == 1 && shell.Faces[0].Surface is PlaneSurface ps)
                 {
                     double[] pars = (along as ICurve).GetPlaneIntersection(ps.Plane);
+                    // if we have more than one intersection, we take the one closest to the face.
                     double pos = -1.0;
+                    double minDist = double.MaxValue;
+                    GeoPoint cnt = shell.Faces[0].GetExtent(0.0).GetCenter();
                     for (int i = 0; i < pars.Length; i++)
                     {
                         if (pars[i] >= 0.0 && pars[i] <= 1.0)
                         {
-                            pos = pars[i];
-                            break;
+                            double d = along.PointAt(pars[i]) | cnt;
+                            if (d < minDist)
+                            {
+                                minDist = d;
+                                pos = pars[i];
+                            }
                         }
                     }
                     if (pos >= 0.0)
                     {   // position the face at the beginning of the curve
                         GeoVector dir = along.DirectionAt(pos).Normalized;
-                        ModOp m = ModOp.Fit(along.PointAt(pos), [dir], along.StartPoint, [along.StartDirection.Normalized]);
+                        GeoVector normal;
+                        if (along.GetPlanarState() == PlanarState.Planar)
+                        {
+                            normal = along.GetPlane().Normal;
+                        }
+                        else if (along.GetPlanarState() == PlanarState.UnderDetermined)
+                        {
+                            Plane pln = new Plane(along.StartPoint, along.StartDirection);
+                            normal = pln.DirectionX; // arbitrary
+                        }
+                        else
+                        {
+                            normal = along.StartDirection.Normalized ^ dir;
+                            if (normal.IsNullVector()) throw new NotImplementedException("not implemented: pipe along a curve which is not planar or linear");
+                        }
+                        ModOp m = ModOp.Fit(along.PointAt(pos), [dir, normal, dir ^ normal], along.StartPoint, [along.StartDirection.Normalized, normal, along.StartDirection.Normalized ^ normal]);
                         shell.Modify(m);
                     }
                 }
@@ -1120,6 +1142,14 @@ namespace CADability.GeoObject
             else if (along is Ellipse && (along as Ellipse).IsCircle)
             {   // rotating around an axis, which is the axis of the circular arc
                 Ellipse arc = (along as Ellipse);
+                if (arc.SweepParameter < 0)
+                {
+                    // this is a clockwise arc. We construct an identical arc with the reflected plane and ccw orientation
+                    Ellipse earc = Ellipse.Construct();
+                    Plane rpln = new Plane(arc.Center, arc.MajorAxis, -arc.MinorAxis);
+                    earc.SetArcPlaneCenterStartEndPoint(rpln, GeoPoint2D.Origin, rpln.Project(arc.StartPoint), rpln.Project(arc.EndPoint), rpln, true);
+                    arc = earc;
+                }
                 if (toExtrude.GetPlanarState() == PlanarState.UnderDetermined) // a line 
                 {
                     if (Precision.SameDirection(toExtrude.StartDirection, arc.Plane.Normal, false))

@@ -4,6 +4,7 @@ using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.Substitutes;
+using CdlToCSharp;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -26,17 +27,54 @@ namespace ShapeIt
 {
     public partial class MCPServer
     {
+        public class NamedItemsDictionary
+        {
+            private readonly Dictionary<string, object> dict = new(StringComparer.Ordinal);
+            public NamedItemsDictionary() { }
+            public NamedItemsDictionary(NamedItemsDictionary other)
+            {
+                foreach (var item in other.dict)
+                {
+                    dict[item.Key] = item.Value;
+                }
+            }
+
+            public IEnumerable<string> Keys => dict.Keys;
+            public IEnumerable<object> Values => dict.Values;
+            public IEnumerable<KeyValuePair<string, object>> Items => dict;
+
+            public bool ContainsKey(string key) => dict.ContainsKey(key);
+            public IEnumerator<KeyValuePair<string, object>> GetEnumerator() => dict.GetEnumerator();
+
+            public Dictionary<string, object> Dict => dict;
+            public object this[string key]
+            {
+                get => dict[key];
+                set
+                {
+                    dict[key] = value;
+                    if (value is Solid sld) sld.Name = key;
+                }
+            }
+            public bool TryGetValue(string key, out object? value) => dict.TryGetValue(key, out value);
+
+            internal void Remove(string name)
+            {
+                dict.Remove(name);
+            }
+        }
+
         // Named workspace items and created objects.
-        // Names are chosen by the caller (LLM/client). IDs are opaque strings returned by the server.
-        private Dictionary<string, object> namedItems = new(StringComparer.Ordinal);
+        // Names are chosen by the caller (LLM/client). 
+        private NamedItemsDictionary namedItems = new();
         public Dictionary<string, List<JsonElement>> templates = [];
 
         private class NamedItemOverride : IDisposable
         {
             private object? oldNamedItem;
             private string name;
-            Dictionary<string, object> namedItems;
-            public NamedItemOverride(Dictionary<string, object> namedItems, object temp, string name = "this")
+            NamedItemsDictionary namedItems;
+            public NamedItemOverride(NamedItemsDictionary namedItems, object temp, string name = "this")
             {
                 this.namedItems = namedItems;
                 this.name = name;
@@ -52,13 +90,13 @@ namespace ShapeIt
         }
         private class NamedItemClone : IDisposable
         {
-            Dictionary<string, object> namedItems;
+            NamedItemsDictionary namedItems;
             MCPServer server;
             public NamedItemClone(MCPServer server)
             {
                 this.server = server;
                 namedItems = server.namedItems;
-                server.namedItems = new Dictionary<string, object>(namedItems);
+                server.namedItems = new NamedItemsDictionary(namedItems);
                 // this is a flat copy, so in theory we could change the values. But I cannot think of a way where values are changed
                 // typically they are overwritten (in the new dictionary) with new values, which is not a problem here
             }
@@ -68,6 +106,8 @@ namespace ShapeIt
                 server.namedItems = namedItems;
             }
         }
+
+        private Stack<NamedItemClone> namedItemClones = new();
 
         private int nextId = 1;
         private int nextUndo = 1;
@@ -203,11 +243,11 @@ namespace ShapeIt
             }
             else if (value.ValueKind == JsonValueKind.String) // e.g. "v(1,2,3)" to define a vector
             {
-                namedItems[name] = Evaluator.Evaluate(value.GetString(), namedItems);
+                namedItems[name] = Evaluator.Evaluate(value.GetString(), namedItems.Dict);
             }
             else if (value.ValueKind == JsonValueKind.Object && value.TryGetProperty("expr", out var JeExpr) && JeExpr.ValueKind == JsonValueKind.String)
             {
-                namedItems[name] = Evaluator.Evaluate(JeExpr.GetString(), namedItems);
+                namedItems[name] = Evaluator.Evaluate(JeExpr.GetString(), namedItems.Dict);
             }
             else
             {
@@ -299,9 +339,9 @@ namespace ShapeIt
 
         private void SketchAddCircleImpl(Sketch sketch, GeoPoint2D center, double radius, double diameter, string name)
         {
-            if (radius == double.MinValue && diameter == double.MinValue)
+            if (double.IsNaN(radius) && double.IsNaN(diameter))
                 throw new JsonRpcException(-32602, "Circle must have either radius or diameter.");
-            if (radius == double.MinValue) radius = diameter / 2.0;
+            if (double.IsNaN(radius)) radius = diameter / 2.0;
             ICurve2D curve = new Circle2D(center, radius);
             sketch.Add(curve);
             if (name != null) namedItems[name] = curve;
@@ -321,7 +361,7 @@ namespace ShapeIt
                 {
                     if (exprEl.ValueKind == JsonValueKind.String) expr = exprEl.GetString();
                 }
-                if (expr != null) return Evaluator.Evaluate(expr, namedItems);
+                if (expr != null) return Evaluator.Evaluate(expr, namedItems.Dict);
                 if (item.TryGetProperty("x", out var xEl) && item.TryGetProperty("y", out var yEl))
                 {
                     return RequirePoint2D(item); // everything managed there
@@ -379,11 +419,8 @@ namespace ShapeIt
                         }
                     }
                     else if (circlePoints.Length > 0) ind = 0;
-                    if (Geometry.CircleFit(circlePoints[ind + 1], circlePoints[ind + 2], circlePoints[ind + 3], out GeoPoint2D cnt, out double r))
-                    {
-                        circle = new Circle2D(cnt, r);
-                        touchpoints.AddRange([circlePoints[ind + 1], circlePoints[ind + 2], circlePoints[ind + 3]]);
-                    }
+                    circle = new Circle2D(circlePoints[ind], circlePoints[ind + 1] | circlePoints[ind]);
+                    touchpoints.AddRange([circlePoints[ind + 1], circlePoints[ind + 2], circlePoints[ind + 3]]);
                 }
                 if (lp.Count == 3)
                 {
@@ -526,8 +563,8 @@ namespace ShapeIt
                 Func<double, GeoPoint2D> crv = (d) =>
                 {
                     namedItems[parameter] = d;
-                    double x = (double)Evaluator.Evaluate(xExpr, namedItems);
-                    double y = (double)Evaluator.Evaluate(yExpr, namedItems);
+                    double x = (double)Evaluator.Evaluate(xExpr, namedItems.Dict);
+                    double y = (double)Evaluator.Evaluate(yExpr, namedItems.Dict);
                     return new GeoPoint2D(x, y);
                 };
                 curve = BSpline2D.Approximate(crv, tolerance, tMin, tMax, maxSamples);
@@ -957,7 +994,7 @@ namespace ShapeIt
             Plane profilePlane = new Plane(start, end - start, pln.DirectionX); // in this plane we construct a profile for rotation along the x-axis of the plane
             GeoVector dirx = radius * pln.ToGlobal(GeoVector2D.XAxis);
             Solid cylinder = Make3D.MakeCylinder(start, dirx, end - start);
-            if (coneTipDistance == double.MinValue)
+            if (double.IsNaN(coneTipDistance))
             {
                 // sphericalTips
                 Arc2D arcstart = new Arc2D(GeoPoint2D.Origin, radius, Angle.Deg(180), SweepAngle.Deg(90));
@@ -997,6 +1034,11 @@ namespace ShapeIt
 
         private void SolidPipeImpl(GeoPoint start, GeoPoint end, double outerRadius, double innerRadius, string name)
         {
+            if (innerRadius == 0)
+            {
+                SolidCylinderImpl(start, end, outerRadius, name);
+                return;
+            }
             Solid? res = null;
             Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
             GeoVector dirx = outerRadius * pln.ToGlobal(GeoVector2D.XAxis);
@@ -1051,9 +1093,9 @@ namespace ShapeIt
                 {
                     using var uu = new NamedItemOverride(namedItems, uMin + i * du, uParameter);
                     using var vv = new NamedItemOverride(namedItems, vMin + j * dv, vParameter);
-                    double x = (double)Evaluator.Evaluate(xExpr, namedItems);
-                    double y = (double)Evaluator.Evaluate(yExpr, namedItems);
-                    double z = (double)Evaluator.Evaluate(zExpr, namedItems);
+                    double x = (double)Evaluator.Evaluate(xExpr, namedItems.Dict);
+                    double y = (double)Evaluator.Evaluate(yExpr, namedItems.Dict);
+                    double z = (double)Evaluator.Evaluate(zExpr, namedItems.Dict);
                     throughPoints[i, j] = new GeoPoint(x, y, z);
                 }
             }
@@ -1070,6 +1112,7 @@ namespace ShapeIt
 
         private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, bool allowDocumentCommit)
         {
+            namedItemClones.Push(new NamedItemClone(this));
             if (parameters.ValueKind != JsonValueKind.Array) { throw new JsonRpcException("E_INVALID_PARAMETER", $"'parameters must be an array'."); }
             foreach (var item in parameters.EnumerateArray())
             {
@@ -1084,35 +1127,76 @@ namespace ShapeIt
         private object? TemplateCommitImpl(JsonElement result, string? resultKind, bool suffixInternalNames)
         {
             List<object> resultingObjects = IterateSelector<object>(result).ToList();
+            namedItemClones.Pop().Dispose();
             return MakeTypedList(resultingObjects);
         }
 
-        private void TemplateInstantiateImpl(string template, JsonElement arguments, string transform, string name, bool explodeResult)
+        private object? TemplateInstantiateImpl(string template, JsonElement arguments, string transform, string? name, bool explodeResult)
         {
+
             if (!templates.TryGetValue(template, out var jsons)) throw new JsonRpcException("E_INVALID_PARAMETER", $"Template '{template}' not found.");
-            foreach (var element in jsons)
-            {
-                string methodName = RequireString(element, "method");
-                if (methodName == "template.commit")
+            object? res = null; // the result
+            {   // use a clone of the named items dictionary during evaluation of the template
+                foreach (var element in jsons)
                 {
-                    if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
-                    JsonElement result = RequireProperty(parameters, "result");
-                    var resultKind = GetOptionalString(parameters, "resultKind");
-                    var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
+                    string methodName = RequireString(element, "method");
+                    if (methodName == "template.commit")
+                    {
+                        if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
+                        JsonElement result = RequireProperty(parameters, "result");
+                        var resultKind = GetOptionalString(parameters, "resultKind");
+                        var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
 
-                    object? res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
-                    if (res != null) namedItems[name] = res;
-
-                }
-                else
-                {
-                    ProcessMethod(element, true);
-                    if (methodName == "template.begin")
-                    {   // here we overwrite the workspace values of the parameters
-
+                        res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
+                        // template.commit restored the old named items
+                    }
+                    else
+                    {
+                        ProcessMethod(element, true);
+                        if (methodName == "template.begin")
+                        {   // here we overwrite the workspace values of the parameters
+                            // template.begin createt a new copy of the named items, so we can safely overwrite values here without affecting the outside
+                            if (arguments.ValueKind == JsonValueKind.Object)
+                            {
+                                foreach (var item in arguments.EnumerateObject())
+                                {
+                                    string parName = item.Name;
+                                    if (item.Value.ValueKind == JsonValueKind.Number) namedItems[parName] = item.Value.GetDouble();
+                                    else if (item.Value.ValueKind == JsonValueKind.String) namedItems[parName] = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
+                                }
+                            }
+                        }
                     }
                 }
             }
+            // now apply the transformation if there is one
+            // (here the named items contain the result of the template, so the transform can refer to it)
+            if (!string.IsNullOrEmpty(transform))
+            {
+                object m = Evaluator.Evaluate(transform, namedItems.Dict);
+                if (m is ModOp mop)
+                {
+                    if (res is List<Solid> solids)
+                    {
+                        foreach (Solid s in solids)
+                        {
+                            s.Modify(mop);
+                        }
+                    }
+                    else if (res is IGeoObject go)
+                    {
+                        go.Modify(mop);
+                    }
+                }
+                else
+                {
+                    throw new JsonRpcException("E_INVALID_PARAMETER", $"Transform expression did not evaluate to a transformation.");
+                }
+            }
+
+            // now save in the original named items dictionary
+            if (res != null && name != null) namedItems[name] = res;
+            return res;
         }
 
 
@@ -1421,7 +1505,7 @@ namespace ShapeIt
             }
 
         }
-        private Solid UniteWithMany(Solid a, List<Solid> b)
+        private Solid UniteWithMany(Solid a, List<Solid> b, out List<Solid> unused)
         {
             Solid accumulate = a;
             HashSet<Solid> bb = [.. b];
@@ -1440,13 +1524,14 @@ namespace ShapeIt
                 }
                 if (!united) break; // there is nothing we could unite with, so we are done
             }
+            unused = bb.ToList();
             return accumulate;
         }
 
-        private Solid[] SubtractMany(Solid toSubtractFrom, List<Solid> subtractItems)
+        private List<Solid> SubtractMany(List<Solid> toSubtractFrom, List<Solid> subtractItems)
         {
             List<Solid> fragments = new List<Solid>();
-            fragments.Add(toSubtractFrom);
+            fragments.AddRange(toSubtractFrom);
             foreach (Solid sld in subtractItems)
             {
                 List<Solid> newfragments = new List<Solid>();
@@ -1464,7 +1549,7 @@ namespace ShapeIt
                 }
                 fragments = newfragments;
             }
-            return fragments.ToArray();
+            return fragments;
         }
         Solid[] IntersectMany(Solid solid, List<Solid> other)
         {
@@ -1505,13 +1590,28 @@ namespace ShapeIt
                 case "union":
                 case "unite":
                     {
-                        res = UniteWithMany(s1, s2);
+                        Solid sld = UniteWithMany(s1, s2, out List<Solid> unused);
+                        if (sld != null && unused.Count > 0)
+                        {
+                            // we were not able to unite with all solids, so we return the result as a list of solids (the united one and the ones we could not unite with)
+                            List<Solid> resList = [sld];
+                            while (unused.Count > 1)
+                            {
+                                s1 = unused[0];
+                                s2 = [.. unused.Skip(1)];
+                                sld = UniteWithMany(s1, s2, out unused);
+                                resList.Add(sld);
+                            }
+                            resList.AddRange(unused);
+                            res = resList;
+                        }
+                        else res = sld;
                     }
                     break;
                 case "difference":
                 case "subtract":
                     {
-                        res = new List<Solid>(SubtractMany(s1, s2));
+                        res = SubtractMany(slda, sldb);
                     }
                     break;
                 case "intersect":
@@ -1620,14 +1720,188 @@ namespace ShapeIt
             if (name != null) AddNamed(name, total);
         }
 
-        private void PatternByFormulaSolidsImpl(JsonElement solids, string template, JsonElement variables, JsonElement formulas, JsonElement arguments, string transform, bool includeSource, bool copy, string name, bool suffix, string indexName, bool skipInvalidInstances)
+        private void PatternByFormulaSolidsImpl(JsonElement solids, string template, JsonElement variables, JsonElement formulas, string? condition, JsonElement arguments, string transform, bool includeSource, bool copy, string? name, bool suffix, string? indexName, bool skipInvalidInstances)
         {
-            throw new NotImplementedException();
+            List<Solid> solidsToInsert = [];
+            if (solids.ValueKind == JsonValueKind.Object) solidsToInsert = IterateSelector<Solid>(solids).ToList();
+            List<(string name, double start, double step, int count)> loopVariables = [];
+            if (variables.ValueKind != JsonValueKind.Array) throw new JsonRpcException("E_INVALID_PARAMS", "'variables' must be an array.");
+            foreach (var variable in variables.EnumerateArray())
+            {
+                if (!(variable.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String))
+                    throw new JsonRpcException("E_INVALID_PARAMS", "'variable' must have a 'name' proerty.");
+                string varname = nameEl.GetString()!;
+                if (!(variable.TryGetProperty("start", out var startEl)))
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"'variable' {name} must have a 'start' proerty.");
+                double start = double.NaN;
+                if (startEl.ValueKind == JsonValueKind.Number) start = startEl.GetDouble();
+                if (startEl.ValueKind == JsonValueKind.String) start = (double)Evaluator.Evaluate(startEl.GetString(), namedItems.Dict);
+                if (double.IsNaN(start)) throw new JsonRpcException("E_INVALID_PARAMS", $"could not evaluate start value of variable {name}.");
+                if (!(variable.TryGetProperty("step", out var stepEl)))
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"'variable' {name} must have a 'step' proerty.");
+                double step = double.NaN;
+                if (stepEl.ValueKind == JsonValueKind.Number) step = stepEl.GetDouble();
+                if (stepEl.ValueKind == JsonValueKind.String) step = (double)Evaluator.Evaluate(stepEl.GetString(), namedItems.Dict);
+                if (double.IsNaN(step)) throw new JsonRpcException("E_INVALID_PARAMS", $"could not evaluate step value of variable {name}.");
+                if (!(variable.TryGetProperty("count", out var countEl)))
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"'variable' {name} must have a 'count' proerty.");
+                int count = 0;
+                if (countEl.ValueKind == JsonValueKind.Number) count = countEl.GetInt32();
+                if (countEl.ValueKind == JsonValueKind.String)
+                {
+                    object eva = Evaluator.Evaluate(countEl.GetString(), namedItems.Dict);
+                    if (eva is double d) count = (int)d;
+                    if (eva is int i) count = i;
+                }
+                if (count <= 0) throw new JsonRpcException("E_INVALID_PARAMS", $"could not evaluate count value of variable {name}.");
+                loopVariables.Add((varname, start, step, count));
+            }
+            List<Solid> result = [];
+            IterateLoops(loopVariables, () =>
+            {
+                if (formulas.ValueKind == JsonValueKind.Object)
+                {
+                    foreach (var item in formulas.EnumerateObject())
+                    {
+                        if (item.Value.ValueKind == JsonValueKind.String)
+                        {
+                            namedItems[item.Name] = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
+                        }
+                    }
+                }
+                if (condition != null)
+                {
+                    if (Evaluator.Evaluate(condition, namedItems.Dict) is bool ok)
+                    {
+                        if (!ok) return;
+                    }
+                }
+                ModOp transforModOp = ModOp.Identity;
+                if (Evaluator.Evaluate(transform, namedItems.Dict) is ModOp t) transforModOp = t;
+                if (template != null)
+                {
+                    object? templInst = TemplateInstantiateImpl(template, arguments, transform, null, false);
+                    if (templInst is Solid sld)
+                    {
+                        sld.Modify(transforModOp);
+                        result.Add(sld);
+                    }
+                    else if (templInst is List<Solid> lsld)
+                    {
+                        foreach (Solid solid in lsld) solid.Modify(transforModOp);
+                        result.AddRange(lsld);
+
+                    }
+                }
+                else if (solidsToInsert.Count > 0)
+                {
+                    for (int i = 0; i < solidsToInsert.Count; i++)
+                    {
+                        var clone = solidsToInsert[i].Clone();
+                        clone.Modify(transforModOp);
+                        result.Add((clone as Solid)!);
+                    }
+                }
+            });
+            if (name != null) namedItems[name] = result;
+            if (suffix)
+            {
+                string? n = indexName != null ? indexName : name;
+                if (n != null)
+                {
+                    for (int i = 0; i < result.Count; i++)
+                    {
+                        namedItems[n + "_" + i.ToString()] = result[i];
+                    }
+                }
+            }
         }
 
+        void IterateLoops(List<(string name, double start, double step, int count)> loopVariables, Action body)
+        {
+            int n = loopVariables.Count;
+            int[] indices = new int[n];
+
+            while (true)
+            {
+                // Aktuelle Werte setzen
+                for (int i = 0; i < n; i++)
+                {
+                    var (name, start, step, count) = loopVariables[i];
+                    double val = start + indices[i] * step;
+                    namedItems[name] = val;
+                }
+
+                // Das eigentliche "Innere" der Schleife
+                body();
+
+                // "Zähler erhöhen" (wie bei verschachtelten Schleifen)
+                int k = n - 1;
+                while (k >= 0)
+                {
+                    indices[k]++;
+                    if (indices[k] < loopVariables[k].count)
+                        break;
+
+                    indices[k] = 0;
+                    k--;
+                }
+
+                // Wenn wir über die erste Schleife hinaus sind: fertig
+                if (k < 0)
+                    break;
+            }
+        }
         private void SketchOffsetImpl(Sketch sketch, JsonElement sketchGeometry, double distance, string joinType, double miterLimit, bool makeRegion, string capType, string name)
         {
-            throw new NotImplementedException();
+            object? pathOrShape = null;
+            if (sketchGeometry.ValueKind == JsonValueKind.Object)
+            {
+                List<CompoundShape> inputshapes = IterateSelector<CompoundShape>(sketchGeometry).ToList();
+                List<ICurve2D> inputcurves = IterateSelector<ICurve2D>(sketchGeometry).ToList();
+                if (inputshapes.Count > 0)
+                {
+                    pathOrShape = inputshapes[0];
+                }
+                else if (inputcurves.Count > 0) pathOrShape = inputcurves[0];
+            }
+            else
+            {   // from sketch
+                if (sketch.Shapes.Count > 0) { pathOrShape = sketch.Shapes[0]; }
+                else if (sketch.Curves.Count > 0)
+                {
+                    if (sketch.Curves.Count == 1) pathOrShape = sketch.Curves[0];
+                }
+                else if (sketch.Curves.Count > 1)
+                {
+                    // combine all curves to a path?
+                }
+            }
+            if (pathOrShape == null) throw new JsonRpcException("E_INVALID_PARAMS", "No input found to offset.");
+            if (double.IsNaN(miterLimit)) miterLimit = Math.PI;
+            object? result = null;
+            if (pathOrShape is ICurve2D c2d)
+            {
+                result = c2d.Parallel(distance, true, Precision.eps, miterLimit);
+                if (makeRegion && !c2d.IsClosed && result is ICurve2D rc2d)
+                {
+                    rc2d.Reverse();
+                    Border bdr = new Border([c2d, new Line2D(c2d.EndPoint, rc2d.StartPoint), rc2d, new Line2D(rc2d.EndPoint, c2d.StartPoint)], true, true);
+                    result = new CompoundShape(new SimpleShape(bdr));
+                }
+            }
+            else if (pathOrShape is CompoundShape cs)
+            {
+                if (distance > 0) result = cs.Expand(distance);
+                else result = cs.Shrink(distance);
+            }
+            if (result == null) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to calculate offset.");
+            if (name != null) namedItems[name] = result;
+            if (result != null)
+            {
+                if (result is ICurve2D ic2d) sketch.Add(ic2d);
+                if (result is CompoundShape cs) sketch.Add(cs);
+            }
         }
         private void SketchGetVerticesImpl(Sketch sketch, JsonElement sketchGeometry, string name, bool suffix, bool includeEndpoints, bool unique, double tolerance)
         {
@@ -1955,7 +2229,7 @@ namespace ShapeIt
             }
             if (expr != null)
             {
-                object evalRes = Evaluator.Evaluate(expr, namedItems);
+                object evalRes = Evaluator.Evaluate(expr, namedItems.Dict);
                 if (evalRes is Edge e) res.Add(e);
                 if (evalRes is List<Edge> le) res.AddRange(le);
             }
@@ -2129,13 +2403,21 @@ namespace ShapeIt
                         if (wrappedItem != null)
                         {
                             namedItems["this"] = wrappedItem;
-                            object evalRes = Evaluator.Evaluate(condition, namedItems);
+                            object evalRes = Evaluator.Evaluate(condition, namedItems.Dict);
                             if (evalRes is bool b)
                             {
                                 if (!b) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. {message}");
                             }
                         }
                         else throw new NotImplementedException("assert.check not yet fully implemented");
+                    }
+                    if (selected.Count == 0)
+                    {   // a condition without objects
+                        object evalRes = Evaluator.Evaluate(condition, namedItems.Dict);
+                        if (evalRes is bool b)
+                        {
+                            if (!b) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. {message}");
+                        }
                     }
                 }
                 finally
@@ -2286,7 +2568,13 @@ namespace ShapeIt
                 else clone = s;
                 if (clone != null)
                 {
+#if DEBUG
+                    clone.Shell.CheckConsistency();
+#endif
                     clone.Modify(rot);
+#if DEBUG
+                    clone.Shell.CheckConsistency();
+#endif
                     modified.Add(clone);
                     if (copy && !string.IsNullOrEmpty(copySuffix))
                     {

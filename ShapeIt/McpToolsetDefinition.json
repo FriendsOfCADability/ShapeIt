@@ -1074,17 +1074,17 @@
 				"type": "string"
 			}
 		},
-			"SketchPointOrGeometryRef": {
-				"description": "Either a 2D point or a reference to existing sketch geometry.",
-				"oneOf": [
-					{
-						"$ref": "#/types/Point2"
-					},
-					{
-						"$ref": "#/types/SketchGeometryRef"
-					}
-				]
-			}
+		"SketchPointOrGeometryRef": {
+			"description": "Either a 2D point or a reference to existing sketch geometry.",
+			"oneOf": [
+				{
+					"$ref": "#/types/Point2"
+				},
+				{
+					"$ref": "#/types/SketchGeometryRef"
+				}
+			]
+		}
 	},
 	"tools": [
 		{
@@ -1681,7 +1681,7 @@
 		},
 		{
 			"name": "pattern.by_formula_solids",
-			"description": "Creates a formula-driven pattern of solid instances. The source can be existing solids or a parametric template. One or more loop variables are evaluated, optional helper formulas are computed, then a transform expression and optional template arguments are applied per instance.",
+			"description": "Creates a formula-driven pattern of solid instances. The source can be existing solids or a parametric template. One or more loop variables are evaluated, optional helper formulas are computed, an optional condition is evaluated for the current iteration, then a transform expression and optional template arguments are applied per instance.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1704,7 +1704,12 @@
 					},
 					"formulas": {
 						"$ref": "#/types/NamedExpressionMap",
-						"description": "Optional helper expressions evaluated after loop variables are assigned and before transform/template arguments are evaluated."
+						"description": "Optional helper expressions evaluated after loop variables are assigned and before condition, transform, and template arguments are evaluated."
+					},
+					"condition": {
+						"type": "string",
+						"description": "Optional boolean expression evaluated for the current iteration. Only if it evaluates to true an instance is created.",
+						"comment": "we cannot use #/types/ExpressionBool here, because of the code generator, which evaluates the condition before the loop is running"
 					},
 					"arguments": {
 						"$ref": "#/types/NamedExpressionMap",
@@ -2355,7 +2360,7 @@
 								},
 								"b": {
 									"$ref": "#/types/ExpressionNumber",
-									"description": "Bulge for segment starting at this vertex (0 = straight line). Sign indicates arc direction."
+									"description": "Bulge for segment starting at this vertex (0 = straight line). For a circular arc, b = 2*s/L, where L is the chord length and s is the signed midpoint deviation from the chord. Negative values bend to the left (relative to segment direction)."
 								}
 							},
 							"required": [
@@ -2544,6 +2549,37 @@
 					"location",
 					"height",
 					"font"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_solid_section",
+			"description": "Intersects one or more solids with the plane of the specified sketch and adds the resulting section contours as closed profile geometry to that sketch. If the section produces multiple disconnected closed contours, all of them are added. If 'name' is provided, it refers to the whole resulting set of profiles.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Target sketch. Its plane defines the section plane."
+					},
+					"solid": {
+						"$ref": "#/types/Selector",
+						"description": "The solid or solids to intersect with the sketch plane. "
+					},
+					"merge": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true, connected section edges are combined into closed sketch profiles where possible."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the resulting profile set."
+					}
+				},
+				"required": [
+					"sketch",
+					"solid"
 				],
 				"additionalProperties": false
 			}
@@ -4087,11 +4123,8 @@
 						"description": "Name of the template to instantiate."
 					},
 					"arguments": {
-						"type": "array",
-						"description": "Optional explicit parameter assignments. Parameters not listed here use their template default values.",
-						"items": {
-							"$ref": "#/types/TemplateArgumentSpec"
-						}
+						"$ref": "#/types/NamedExpressionMap",
+						"description": "Optional explicit parameter assignments. Parameters not listed here use their template default values."
 					},
 					"transform": {
 						"type": "string",

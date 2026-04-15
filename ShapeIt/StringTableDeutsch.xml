@@ -482,4 +482,11 @@
     <label>Templates speichern</label>
     <info>Vorlagen (Templates) in Datei speichern</info>
   </data>
+  <data name="RpcCode.Execute">
+    <label>Sieht aus wie RPC Code: ausführen?</label>
+  </data>
+  <data name="MenuId.RPCWorkspace">
+    <label>RPC Workspace</label>
+    <info>RPC Workspace anzeigen</info>
+  </data>
 </root>

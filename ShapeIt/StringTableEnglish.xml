@@ -381,5 +381,12 @@
     <label>Save Templates</label>
     <info>save templates in a file</info>
   </data>
+  <data name="RpcCode.Execute">
+    <label>Looks like RPC code: execute it?</label>
+  </data>
+  <data name="MenuId.RPCWorkspace">
+    <label>RPC Workspace</label>
+    <info>Show RPC Workspace</info>
+  </data>
 
 </root>

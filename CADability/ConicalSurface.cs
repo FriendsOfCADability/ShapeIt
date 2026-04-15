@@ -173,7 +173,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
-            if (!Precision.IsNullVector(p - Location))
+            if (!Precision.IsNullVector(p - Location) && !Precision.IsPointOnAxis(p, new CADability.Axis(Location, Axis)))
             {
                 try
                 {

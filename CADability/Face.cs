@@ -9379,7 +9379,7 @@ namespace CADability.GeoObject
                             otherSurface = idsc.Surface2;
                             otherDomain = idsc.Domain2;
                         }
-                        edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, otherSurface, otherDomain, idsc.BasePoints,null,null,idsc.IsTangential);
+                        edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, otherSurface, otherDomain, idsc.BasePoints, null, null, idsc.IsTangential);
                         edg.PrimaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         if (!edg.Forward(edg.PrimaryFace)) edg.PrimaryCurve2D.Reverse();
                         edg.SecondaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
@@ -10034,8 +10034,8 @@ namespace CADability.GeoObject
             Face otherface = edg1.OtherFace(this);
             if (edg2.OtherFace(this) != otherface) return false; // the other face of both edges must be the same
             if (edg1.EndVertex(this) != edg2.StartVertex(this)) return false; // edg2 must be the follower of 
-            if (this.surface is SphericalSurface && otherface!=null && otherface.surface is SphericalSurface) return false; // problem result could go around a pole
-            if (otherface!=null)
+            if (this.surface is SphericalSurface && otherface != null && otherface.surface is SphericalSurface) return false; // problem result could go around a pole
+            if (otherface != null)
             {   // the two edges on otherface must be in the same outline or hole
                 // there are cases where two holes are connected with a single vertex. We cannot connect two edges
                 // in this case.
@@ -10357,8 +10357,8 @@ namespace CADability.GeoObject
                 replaceWith.SetSecondary(toReplace.PrimaryFace, toReplace.PrimaryCurve2D, fw);
             }
             else
-            if (replaceWith.PrimaryFace == toReplace.PrimaryFace)
-                replaceWith.SetPrimary(toReplace.PrimaryFace, toReplace.PrimaryCurve2D, fw);
+                if (replaceWith.PrimaryFace == toReplace.PrimaryFace)
+                    replaceWith.SetPrimary(toReplace.PrimaryFace, toReplace.PrimaryCurve2D, fw);
             if (sameDirection)
             {
                 replaceWith.Vertex1.MergeWith(toReplace.Vertex1);
@@ -10993,18 +10993,26 @@ namespace CADability.GeoObject
             // sind die 2d Kurven richtig orientiert?
             foreach (Edge edg in Edges)
             {
+                if ((edg.Curve3D.StartPoint | edg.Vertex1.Position) > 1e-4)
+                {
+                    return false;
+                }
+                if ((edg.Curve3D.EndPoint | edg.Vertex2.Position) > 1e-4)
+                {
+                    return false;
+                }
                 // die Richtung der 2d Kurve ist so, dass auf der rechten Seite das Innere liegt
                 ICurve2D c2d = edg.Curve2D(this);
                 GeoPoint sp, ep;
                 sp = surface.PointAt(c2d.StartPoint);
                 ep = surface.PointAt(c2d.EndPoint);
-                if ((sp | edg.StartVertex(this).Position) > 1e-5)
+                if ((sp | edg.StartVertex(this).Position) > 1e-4)
                 {
-                    // return false;
+                    return false;
                 }
-                if ((ep | edg.EndVertex(this).Position) > 1e-5)
+                if ((ep | edg.EndVertex(this).Position) > 1e-4)
                 {
-                    // return false;
+                    return false;
                 }
 
                 GeoPoint loc;

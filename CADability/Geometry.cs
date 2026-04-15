@@ -1253,9 +1253,9 @@ namespace CADability
             // l1s + p1*l1dir == l2s + p2*l2dir + p3*xdir; // xdir ist die senkrechte zu beiden
             // p1*l1dir -p2*l2dir - p3*xdir == l2s - l1s
             // ACHTUNG: par2 jetzt mit richtigem Vorzeichen
-            try
+            GeoVector xdir = l1Dir ^ l2Dir;
+            if (!xdir.IsNullVector())
             {
-                GeoVector xdir = l1Dir ^ l2Dir;
                 xdir.Norm();
                 Matrix m = DenseMatrix.OfRowArrays(l1Dir, l2Dir, xdir);
                 Vector b = new DenseVector(l2Start - l1Start);
@@ -1273,7 +1273,7 @@ namespace CADability
                     return Geometry.DistPL(l2Start, l1Start, l1Dir);
                 }
             }
-            catch (GeoVectorException)
+            else
             {
                 par1 = double.MaxValue;
                 par2 = double.MaxValue;

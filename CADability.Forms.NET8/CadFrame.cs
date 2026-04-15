@@ -352,6 +352,7 @@ namespace CADability.Forms.NET8
         {
             try
             {
+                if (typeOfdata == typeof(string)) return Clipboard.GetText();
                 // defensiv prüfen, ohne GetDataObject()
                 if (!Clipboard.ContainsData(ClipFormat))
                     return null;

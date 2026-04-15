@@ -1,4 +1,5 @@
-﻿using CADability;
+﻿using System;
+using CADability;
 using CADability.Actions;
 using CADability.Attribute;
 using CADability.GeoObject;
@@ -49,6 +50,7 @@ namespace ShapeIt
                 {
                     switch (parameterInfo.kind)
                     {
+                        case "number":
                         case "length":
                             {
                                 if (parameterInfo.defaultValue is double d)
@@ -57,9 +59,43 @@ namespace ShapeIt
                                     parameterValues[name] = d;
                                     LengthInput li = new LengthInput("@" + parameterInfo.label + "@" + parameterInfo.description, d);
                                     li.SetLengthEvent += l => { parameterValues[name] = l; return true; };
-                                    li.GetLengthEvent += () => (double)parameterValues[name];
+                                    li.GetLengthEvent += () => Convert.ToDouble(parameterValues[name]);
                                     li.Optional = true;
                                     inputs.Add(li);
+                                }
+                            }
+                            break;
+                        case "integer":
+                            {
+                                int intVal = int.MaxValue;
+                                if (parameterInfo.defaultValue is int ii) intVal = ii;
+                                if (parameterInfo.defaultValue is double dd) intVal = (int)dd;
+                                if (intVal != int.MaxValue)
+                                {
+                                    string name = parameterNames[i]; // capture
+                                    parameterValues[name] = intVal;
+                                    IntInput IntInput = new IntInput("@" + parameterInfo.label + "@" + parameterInfo.description, intVal);
+                                    IntInput.SetIntEvent += l => { parameterValues[name] = l; };
+                                    IntInput.GetIntEvent += () => Convert.ToInt32(parameterValues[name]);
+                                    IntInput.Optional = true;
+                                    inputs.Add(IntInput);
+                                }
+                            }
+                            break;
+                        case "angle":
+                            {
+                                int intVal = int.MaxValue;
+                                if (parameterInfo.defaultValue is int ii) intVal = ii;
+                                if (parameterInfo.defaultValue is double dd) intVal = (int)dd;
+                                if (intVal != int.MaxValue)
+                                {
+                                    string name = parameterNames[i]; // capture
+                                    parameterValues[name] = intVal;
+                                    AngleInput AngleInput = new AngleInput("@" + parameterInfo.label + "@" + parameterInfo.description, intVal);
+                                    AngleInput.SetAngleEvent += l => { parameterValues[name] = l.Degree; return true; };
+                                    AngleInput.GetAngleEvent += () => Angle.Deg(Convert.ToDouble(parameterValues[name]));
+                                    AngleInput.Optional = true;
+                                    inputs.Add(AngleInput);
                                 }
                             }
                             break;

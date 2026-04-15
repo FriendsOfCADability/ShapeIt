@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
@@ -189,7 +190,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(exprStr, namedItems);
+                    object res = Evaluator.Evaluate(exprStr, namedItems.Dict);
                     if (res is bool b) return b;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -218,7 +219,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(exprStr, namedItems);
+                    object res = Evaluator.Evaluate(exprStr, namedItems.Dict);
                     if (res is bool b) return b;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -241,7 +242,7 @@ namespace ShapeIt
             if (prop != null) el = RequireProperty(obj, prop);
             if (el.ValueKind == JsonValueKind.String)
             {
-                object res = Evaluator.Evaluate(el.GetString()!, namedItems);
+                object res = Evaluator.Evaluate(el.GetString()!, namedItems.Dict);
                 if (res is double d) return (int)d;
                 if (res is int i) return i;
             }
@@ -353,7 +354,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(expr, namedItems);
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
                     if (res is double) return (double)res;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -525,7 +526,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(expr, namedItems);
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
                     if (res is GeoPoint2D pres2) return pres2;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -581,7 +582,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(expr, namedItems);
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
                     if (res is GeoPoint pres3) return pres3;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -675,7 +676,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(expr, namedItems);
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
                     if (res is GeoVector pres3) return pres3;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -731,7 +732,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(expr, namedItems);
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
                     if (res is GeoVector2D pres3) return pres3;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -791,7 +792,7 @@ namespace ShapeIt
             {
                 try
                 {
-                    object res = Evaluator.Evaluate(expr, namedItems);
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
                     if (res is double) return (double)res;
                 }
                 catch (Exception ex) // exception of Evaluator could be more descriptive
@@ -858,6 +859,7 @@ namespace ShapeIt
         // Selector : { "target": "..." }, { "name": "..." }, { "id": "..." }, {names: ["name": "n1", "id": "id1"]} }, {"query": "..."}, {"op": "..." }
         private IEnumerable<T> IterateSelector<T>(JsonElement selector) where T : class
         {
+            if (selector.ValueKind == JsonValueKind.Undefined) yield break;
             if (selector.ValueKind == JsonValueKind.Array)
             {
                 foreach (var el in selector.EnumerateArray())
@@ -914,6 +916,7 @@ namespace ShapeIt
                             break;
                         case "difference":
                         case "subtract":
+                        case "except":
                             for (int i = 1; i < items.Count; i++)
                             {
                                 result.ExceptWith(items[i]);
@@ -1146,7 +1149,7 @@ namespace ShapeIt
 
                             using (new NamedItemOverride(namedItems, toTest))
                             {
-                                object evalRes = Evaluator.Evaluate(expr, namedItems);
+                                object evalRes = Evaluator.Evaluate(expr, namedItems.Dict);
                                 if (evalRes is bool b)
                                 {
                                     if (!b) continue; // expression was false
@@ -1291,30 +1294,100 @@ namespace ShapeIt
             }
         }
 
-    }
 
-    /// <summary>
-    /// Lightweight JSON-RPC exception used to return proper JSON-RPC error objects.
-    /// </summary>
-    internal sealed class JsonRpcException : Exception
-    {
-        public int Code { get; }
-        public string CodeString;
-        public JsonNode? Data { get; }
-
-        public JsonRpcException(int code, string message, JsonNode? data = null) : base(message)
+        private static IEnumerable<string> ReadJsonObjects(string text)
         {
-            Code = code;
-            CodeString = "E_UNKNOWN";
-            Data = data;
-        }
-        public JsonRpcException(string errorCode, string message, JsonNode? data = null) : base(message)
-        {
-            if (!MCPServer.ErrorNumbers.TryGetValue(errorCode, out int code)) code = 9999;
-            CodeString = errorCode;
-            Code = code;
-            Data = data;
-        }
-    }
+            var sb = new StringBuilder();
 
+            int braceDepth = 0;
+            bool inString = false;
+            bool escape = false;
+
+            foreach (char c in text)
+            {
+                sb.Append(c);
+
+                if (escape)
+                {
+                    escape = false;
+                    continue;
+                }
+
+                if (c == '\\')
+                {
+                    escape = true;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString)
+                {
+                    if (c == '{')
+                    {
+                        braceDepth++;
+                    }
+                    else if (c == '}')
+                    {
+                        braceDepth--;
+
+                        if (braceDepth == 0)
+                        {
+                            yield return sb.ToString();
+                            sb.Clear();
+                        }
+                    }
+                }
+            }
+        }
+        public void ProcessText(string text)
+        {
+            foreach (var jsonBlock in ReadJsonObjects(text))
+            {
+                TryParseRpcBlock(jsonBlock);
+            }
+        }
+
+        bool TryParseRpcBlock(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) { return false; }
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                ProcessMethod(root);
+                return true;
+            }
+            catch (Exception ex) { return false; } // TODO: this exception must be integrated in the error result
+        }
+
+        /// <summary>
+        /// Lightweight JSON-RPC exception used to return proper JSON-RPC error objects.
+        /// </summary>
+        internal sealed class JsonRpcException : Exception
+        {
+            public int Code { get; }
+            public string CodeString;
+            public JsonNode? Data { get; }
+
+            public JsonRpcException(int code, string message, JsonNode? data = null) : base(message)
+            {
+                Code = code;
+                CodeString = "E_UNKNOWN";
+                Data = data;
+            }
+            public JsonRpcException(string errorCode, string message, JsonNode? data = null) : base(message)
+            {
+                if (!MCPServer.ErrorNumbers.TryGetValue(errorCode, out int code)) code = 9999;
+                CodeString = errorCode;
+                Code = code;
+                Data = data;
+            }
+        }
+
+    }
 }

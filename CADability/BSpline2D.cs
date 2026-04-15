@@ -824,8 +824,10 @@ namespace CADability.Curve2D
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint2D p = curve(mpos);
                         double d;
-                        if (bsp.TryFindFootPoint(p, lastPos, item.Key, out double ufoot))
-                        {
+                        GeoPoint2D[] ftpts = bsp.PerpendicularFoot(p);
+                        if (ftpts.Length > 0) d = ftpts.Select(pp => pp | p).MinBy(d => d);
+                        else if (bsp.TryFindFootPoint(p, lastPos, item.Key, out double ufoot))
+                        {   // TryFindFootPoint seems not to work correctely
                             d = p | bsp.PointAt(ufoot);
                         }
                         else

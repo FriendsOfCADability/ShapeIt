@@ -1106,9 +1106,9 @@ namespace CADability.GeoObject
                     else return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
                 }
                 else
-                    if (cyl2.IsRealCylinder && this.IsRealCylinder && Geometry.DistLL(Location, ZAxis, cyl2.Location, cyl2.ZAxis, out par11, out par22) < Math.Abs(this.RadiusX - cyl2.RadiusX) + Precision.eps)
+                    if (cyl2.IsRealCylinder && this.IsRealCylinder && Geometry.DistLL(Location, ZAxis, cyl2.Location, cyl2.ZAxis, out par11, out par22) < Math.Abs(this.RadiusX - cyl2.RadiusX) + Precision.eps && seeds.Count == 2)
                     {   // the smaller of this two cylinders completely penetrates the wider cylinder
-                        // so we have two intersection curves (entering and leaving)
+                        // so we have two intersection curves (entering and leaving) But since we only handle seeds.count==2, we are only looking for a single curve
                         CylindricalSurface cyl1 = this;
                         BoundingRect bounds1;
                         if (cyl2.RadiusX < cyl1.RadiusX)
@@ -1122,58 +1122,101 @@ namespace CADability.GeoObject
                             bounds1 = thisBounds;
                         }
                         // cyl1 is the smaller one
-                        GeoVector nrm = (cyl1.Axis ^ cyl2.Axis).Normalized;
-                        GeoPoint2D upos1 = cyl1.PositionOf(cyl1.Location + cyl1.XAxis.Length * nrm);
-                        GeoPoint2D upos2 = cyl2.PositionOf(cyl2.Location + cyl2.XAxis.Length * nrm);
-                        int n = Math.Max(2, (int)((bounds1.Right - bounds1.Left) / Math.PI * 4.0));
-                        double step = (bounds1.Right - bounds1.Left) / n;
-                        double uAtExtreme = upos1.x;
-                        while (uAtExtreme < bounds1.Left) uAtExtreme += Math.PI; // yes PI, both sides are extreme values
-                        while (uAtExtreme > bounds1.Right) uAtExtreme -= Math.PI;
-                        List<GeoPoint> pnts1 = new List<GeoPoint>();
-                        List<GeoPoint> pnts2 = new List<GeoPoint>();
-                        List<double> usteps = new List<double>(n + 2);
-                        for (int i = 0; i <= n; i++) usteps.Add(bounds1.Left + i * step);
-                        for (int i = 1; i < usteps.Count; i++)
+                        GeoPoint2D uv0 = cyl1.PositionOf(seeds[0]);
+                        SurfaceHelper.AdjustPeriodic(cyl1, bounds1, ref uv0);
+                        GeoPoint2D uv1 = cyl1.PositionOf(seeds[1]);
+                        SurfaceHelper.AdjustPeriodic(cyl1, bounds1, ref uv1);
+                        bool reversedSeeds = false;
+                        if (uv0.x > uv1.x)
                         {
-                            if (uAtExtreme > usteps[i - 1] + 0.01 && uAtExtreme < usteps[i] - 0.01)
-                            {
-                                usteps.Insert(i, uAtExtreme);
-                                break;
-                            }
+                            (uv0, uv1) = (uv1, uv0);
+                            reversedSeeds = true;
+                            seeds.Reverse();
                         }
-                        for (int i = 0; i < usteps.Count; i++)
+                        GeoPoint2D[] ips0 = cyl2.GetLineIntersection(cyl1.PointAt(new GeoPoint2D(uv0.x, bounds1.Bottom)), cyl1.Axis);
+                        // we expect 2 intersection points. Which is closer to seeds[0]?
+                        if (ips0.Length == 2)
                         {
-                            double u = usteps[i];
-                            GeoPoint loc = cyl1.PointAt(new GeoPoint2D(u, bounds1.Bottom));
-                            GeoPoint2D[] ips = cyl2.GetLineIntersection(loc, cyl1.Axis);
-                            if (ips.Length == 2)
+                            bool firstip = false;
+                            GeoPoint ip0 = cyl2.PointAt(ips0[0]);
+                            GeoPoint ip1 = cyl2.PointAt(ips0[1]);
+                            if ((ip0 | seeds[0]) < (ip1 | seeds[0])) firstip = cyl1.PositionOf(ip0).y < cyl1.PositionOf(ip1).y;
+                            else firstip = cyl1.PositionOf(ip1).y < cyl1.PositionOf(ip0).y;
+                            double ustep = (uv1.x - uv0.x) / 9;
+                            List<GeoPoint> pnts = [seeds[0]];
+                            for (int i = 1; i < 9; i++)
                             {
-                                GeoPoint p0 = cyl2.PointAt(ips[0]);
-                                GeoPoint p1 = cyl2.PointAt(ips[1]);
-                                // The two intersection point belong to different curves. 
-                                // We must consider the y component of cyl1, not of cyl2, to sort them into the correct points list.
-                                if (cyl1.PositionOf(p0).y < cyl1.PositionOf(p1).y)
+                                ips0 = cyl2.GetLineIntersection(cyl1.PointAt(new GeoPoint2D(uv0.x + i * ustep, bounds1.Bottom)), cyl1.Axis);
+                                if (ips0.Length == 2)
                                 {
-                                    pnts1.Add(p0);
-                                    pnts2.Add(p1);
-                                }
-                                else
-                                {
-                                    pnts1.Add(p1);
-                                    pnts2.Add(p0);
+                                    ip0 = cyl2.PointAt(ips0[0]);
+                                    ip1 = cyl2.PointAt(ips0[1]);
+                                    if ((cyl1.PositionOf(ip0).y < cyl1.PositionOf(ip1).y) == firstip) pnts.Add(ip0);
+                                    else pnts.Add(ip1);
                                 }
                             }
-                            else if (ips.Length == 1)
+                            pnts.Add(seeds[1]);
+                            if (reversedSeeds)
                             {
-                                pnts1.Add(cyl2.PointAt(ips[0]));
-                                pnts2.Add(cyl2.PointAt(ips[0]));
+                                pnts.Reverse();
+                                seeds.Reverse(); // undo the above
                             }
+                            return new IDualSurfaceCurve[] {
+                                new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts.ToArray()) };
+
                         }
-                        // the result is not good, we need more points or extra points at the extreme position
-                        return new IDualSurfaceCurve[] {
-                        new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts2.ToArray()),
-                        new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts1.ToArray()) };
+                        //GeoVector nrm = (cyl1.Axis ^ cyl2.Axis).Normalized;
+                        //GeoPoint2D upos1 = cyl1.PositionOf(cyl1.Location + cyl1.XAxis.Length * nrm);
+                        //GeoPoint2D upos2 = cyl2.PositionOf(cyl2.Location + cyl2.XAxis.Length * nrm);
+                        //int n = Math.Max(2, (int)((bounds1.Right - bounds1.Left) / Math.PI * 4.0));
+                        //double step = (bounds1.Right - bounds1.Left) / n;
+                        //double uAtExtreme = upos1.x;
+                        //while (uAtExtreme < bounds1.Left) uAtExtreme += Math.PI; // yes PI, both sides are extreme values
+                        //while (uAtExtreme > bounds1.Right) uAtExtreme -= Math.PI;
+                        //List<GeoPoint> pnts1 = new List<GeoPoint>();
+                        //List<GeoPoint> pnts2 = new List<GeoPoint>();
+                        //List<double> usteps = new List<double>(n + 2);
+                        //for (int i = 0; i <= n; i++) usteps.Add(bounds1.Left + i * step);
+                        //for (int i = 1; i < usteps.Count; i++)
+                        //{
+                        //    if (uAtExtreme > usteps[i - 1] + 0.01 && uAtExtreme < usteps[i] - 0.01)
+                        //    {
+                        //        usteps.Insert(i, uAtExtreme);
+                        //        break;
+                        //    }
+                        //}
+                        //for (int i = 0; i < usteps.Count; i++)
+                        //{
+                        //    double u = usteps[i];
+                        //    GeoPoint loc = cyl1.PointAt(new GeoPoint2D(u, bounds1.Bottom));
+                        //    GeoPoint2D[] ips = cyl2.GetLineIntersection(loc, cyl1.Axis);
+                        //    if (ips.Length == 2)
+                        //    {
+                        //        GeoPoint p0 = cyl2.PointAt(ips[0]);
+                        //        GeoPoint p1 = cyl2.PointAt(ips[1]);
+                        //        // The two intersection point belong to different curves. 
+                        //        // We must consider the y component of cyl1, not of cyl2, to sort them into the correct points list.
+                        //        if (cyl1.PositionOf(p0).y < cyl1.PositionOf(p1).y)
+                        //        {
+                        //            pnts1.Add(p0);
+                        //            pnts2.Add(p1);
+                        //        }
+                        //        else
+                        //        {
+                        //            pnts1.Add(p1);
+                        //            pnts2.Add(p0);
+                        //        }
+                        //    }
+                        //    else if (ips.Length == 1)
+                        //    {
+                        //        pnts1.Add(cyl2.PointAt(ips[0]));
+                        //        pnts2.Add(cyl2.PointAt(ips[0]));
+                        //    }
+                        //}
+                        //// the result is not good, we need more points or extra points at the extreme position
+                        //return new IDualSurfaceCurve[] {
+                        //new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts2.ToArray()),
+                        //new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, pnts1.ToArray()) };
                     }
                     else if (cyl2.IsRealCylinder && this.IsRealCylinder && Geometry.DistLL(Location, ZAxis, cyl2.Location, cyl2.ZAxis, out par11, out par22) < Math.Abs(this.RadiusX + cyl2.RadiusX))
                     {
@@ -2361,16 +2404,19 @@ namespace CADability.GeoObject
                     }
                 case ConicalSurface cos:
                     {
-                        Geometry.DistLL(Location, ZAxis, cos.Location, cos.ZAxis, out double par1, out double par2);
                         extremePositions = new List<Tuple<double, double, double, double>>();
-                        GeoPoint cp = Location + par1 * ZAxis; // point on the cylinder axis closest to cone axis
-                        GeoPoint2D[] fpOnCone = cos.PerpendicularFoot(cp); // perpendicular from this point onto the cone
-                        for (int i = 0; i < fpOnCone.Length; i++)
+                        if (!Precision.SameDirection(ZAxis, cos.ZAxis, false))
                         {
-                            SurfaceHelper.AdjustPeriodic(cos, otherBounds, ref fpOnCone[i]);
-                            if (otherBounds.Contains(fpOnCone[i])) extremePositions.Add(new Tuple<double, double, double, double>(double.NaN, double.NaN, fpOnCone[i].x, fpOnCone[i].y));
+                            Geometry.DistLL(Location, ZAxis, cos.Location, cos.ZAxis, out double par1, out double par2);
+                            GeoPoint cp = Location + par1 * ZAxis; // point on the cylinder axis closest to cone axis
+                            GeoPoint2D[] fpOnCone = cos.PerpendicularFoot(cp); // perpendicular from this point onto the cone
+                            for (int i = 0; i < fpOnCone.Length; i++)
+                            {
+                                SurfaceHelper.AdjustPeriodic(cos, otherBounds, ref fpOnCone[i]);
+                                if (otherBounds.Contains(fpOnCone[i])) extremePositions.Add(new Tuple<double, double, double, double>(double.NaN, double.NaN, fpOnCone[i].x, fpOnCone[i].y));
+                            }
+                            if (par1 >= thisBounds.Bottom && par1 <= thisBounds.Top) extremePositions.Add(new Tuple<double, double, double, double>(double.NaN, par1, double.NaN, double.NaN));
                         }
-                        if (par1 >= thisBounds.Bottom && par1 <= thisBounds.Top) extremePositions.Add(new Tuple<double, double, double, double>(double.NaN, par1, double.NaN, double.NaN));
                         return extremePositions.Count;
                     }
                 case SphericalSurface ss:

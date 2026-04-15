@@ -605,13 +605,15 @@ namespace CADability.Curve2D
             List<ICurve2D> res = new List<ICurve2D>();
             //res.Add(par[0]);
             List<int> splitPositions = new List<int>(); // there is no connection between res[i].EndPoint and res[i+1].StartPoint
-            for (int i = 0; i < par.Length - 1; ++i)
+            for (int i = 0; i < par.Length; ++i)
             {
+                int nexti = (i + 1) % par.Length;
                 res.Add(par[i]); // maybe this curve will be shortened
-                if (!Precision.IsEqual(par[i].EndPoint, par[i + 1].StartPoint))
+                if (nexti == 0 && !IsClosed) continue; // insert an arcor trimm at the end only if path is closed
+                if (!Precision.IsEqual(par[i].EndPoint, par[nexti].StartPoint))
                 {	// not tangential
                     GeoVector2D endtan = subCurves[i].EndDirection;
-                    GeoVector2D starttan = subCurves[i + 1].StartDirection;
+                    GeoVector2D starttan = subCurves[nexti].StartDirection;
                     bool connected = false;
                     double b = GeoVector2D.Orientation(starttan, endtan);
                     if ((b > 0) != (Dist > 0))
@@ -622,27 +624,27 @@ namespace CADability.Curve2D
                         if (a >= roundAngle)
                         {   // make two lines, because the angle is obtuse
                             GeoPoint2D ip;
-                            if (Geometry.IntersectLL(par[i].EndPoint, endtan, par[i + 1].StartPoint, starttan, out ip))
+                            if (Geometry.IntersectLL(par[i].EndPoint, endtan, par[nexti].StartPoint, starttan, out ip))
                             {
                                 double pos1 = Geometry.LinePar(par[i].EndPoint, endtan, ip);
-                                double pos2 = Geometry.LinePar(par[i + 1].StartPoint, starttan, ip);
+                                double pos2 = Geometry.LinePar(par[nexti].StartPoint, starttan, ip);
                                 if (pos1 > 0 || pos2 < 0)
                                 {
                                     res.Add(new Line2D(par[i].EndPoint, ip));
-                                    res.Add(new Line2D(ip, par[i + 1].StartPoint));
+                                    res.Add(new Line2D(ip, par[nexti].StartPoint));
                                     connected = true;
                                 }
                             }
                         }
                         if (!connected)
                         {   // runde Ecken
-                            Arc2D a2d = new Arc2D(subCurves[i].EndPoint, Math.Abs(Dist), par[i].EndPoint, par[i + 1].StartPoint, Dist > 0.0);
+                            Arc2D a2d = new Arc2D(subCurves[i].EndPoint, Math.Abs(Dist), par[i].EndPoint, par[nexti].StartPoint, Dist > 0.0);
                             res.Add(a2d);
                         }
                     }
                     else
                     {   // it bends to the inside: either we can shorten the two segments i,i+1 or we have to leave the parallel path open at these ends and fix it later
-                        GeoPoint2DWithParameter[] ips = par[i].Intersect(par[i + 1]);
+                        GeoPoint2DWithParameter[] ips = par[i].Intersect(par[nexti]);
                         if (ips.Length > 0)
                         {
                             int ind = 0;
@@ -659,7 +661,7 @@ namespace CADability.Curve2D
                                 }
                             }
                             par[i].EndPoint = ips[ind].p;
-                            par[i + 1].StartPoint = ips[ind].p;
+                            par[nexti].StartPoint = ips[ind].p;
                         }
                         else
                         {
@@ -671,7 +673,7 @@ namespace CADability.Curve2D
                 {   // i,i+1 is a tangetnial connection, so the parallel curves are also connected
                 }
             }
-            res.Add(par[par.Length - 1]); // last segment
+            // res.Add(par[par.Length - 1]); // last segment
             if (splitPositions.Count > 0)
             {
                 // res contains several non connected paths
@@ -687,9 +689,10 @@ namespace CADability.Curve2D
                     res.CopyTo(si, subList, 0, ei - si);
                     nonconnected[i] = new Path2D(subList);
                 }
-                for (int i = 0; i < nonconnected.Length - 1; i++)
+                for (int i = 0; i < nonconnected.Length; i++)
                 {
-                    int j = i + 1;
+                    int j = (i + 1)% nonconnected.Length;
+                    if (j!=0 || IsClosed)
                     {
                         GeoPoint2DWithParameter[] ips = nonconnected[i].Intersect(nonconnected[j]);
                         if (ips.Length > 0)
@@ -1440,7 +1443,7 @@ namespace CADability.Curve2D
                 GeoVector2D diri = resCurves[i].EndDirection;
                 GeoVector2D dirn = resCurves[next].StartDirection;
                 double dd = radius;
-                double dir = (diri.x * dirn.y - diri.y * dirn.x)/ (resCurves[i].Length* resCurves[next].Length);
+                double dir = (diri.x * dirn.y - diri.y * dirn.x) / (resCurves[i].Length * resCurves[next].Length);
                 if (Math.Abs(dir) < 1e-3) continue;
                 if (dir > 0.0) dd = -dd;
                 ICurve2D p1 = resCurves[i].Parallel(dd, false, Precision.eps, 0.0);
@@ -1448,7 +1451,7 @@ namespace CADability.Curve2D
                 GeoPoint2DWithParameter[] ips = p1.Intersect(p2);
                 double minDist = double.MaxValue;
                 int found = -1;
-                for (int j = 0; j<ips.Length;++j)
+                for (int j = 0; j < ips.Length; ++j)
                 {
                     if (ips[j].par1 >= 0.0 && ips[j].par1 <= 1.0 && ips[j].par2 >= 0.0 && ips[j].par2 <= 1.0)
                     {
@@ -1460,7 +1463,7 @@ namespace CADability.Curve2D
                         }
                     }
                 }
-                if (found>=0)
+                if (found >= 0)
                 {
                     ICurve2D c1 = null, c2 = null;
                     c1 = resCurves[i].Trim(0.0, ips[found].par1);

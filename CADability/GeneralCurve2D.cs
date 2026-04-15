@@ -852,23 +852,24 @@ namespace CADability.Curve2D
                     }
                 }
             }
-            if (this is IExplicitPCurve2D explicitP)
-            {
-                ExplicitPCurve2D explicitPCurve2D = explicitP.GetExplicitPCurve2D();
-                if (explicitPCurve2D != null)
-                {
-                    if (ind >= 0)
-                    {
-                        double epos = explicitPCurve2D.PositionOf(p, out double dist, interparam[ind], interparam[ind + 1]);
-                        if (dist < double.MaxValue) return explicitPCurve2D.NormaliseParameter(epos);
-                    }
-                    else
-                    {
-                        double epos = explicitPCurve2D.PositionOf(p, out double dist);
-                        if (dist < double.MaxValue) return explicitPCurve2D.NormaliseParameter(epos);
-                    }
-                }
-            }
+            // better implementation needed: 
+            //if (this is IExplicitPCurve2D explicitP)
+            //{
+            //    ExplicitPCurve2D explicitPCurve2D = explicitP.GetExplicitPCurve2D();
+            //    if (explicitPCurve2D != null)
+            //    {
+            //        if (ind >= 0)
+            //        {
+            //            double epos = explicitPCurve2D.PositionOf(p, out double dist, interparam[ind], interparam[ind + 1]);
+            //            if (dist < double.MaxValue) return explicitPCurve2D.NormaliseParameter(epos);
+            //        }
+            //        else
+            //        {
+            //            double epos = explicitPCurve2D.PositionOf(p, out double dist);
+            //            if (dist < double.MaxValue) return explicitPCurve2D.NormaliseParameter(epos);
+            //        }
+            //    }
+            //}
             bool found = false;
             res = double.MinValue;
             if (ind >= 0)
