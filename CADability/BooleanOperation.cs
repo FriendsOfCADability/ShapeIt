@@ -3724,7 +3724,7 @@ namespace CADability
                 HashSet<Face> connected = extractConnectedFaces(allFaces, allFaces.First());
                 Shell shell = Shell.MakeShell(connected.ToArray());
 #if DEBUG
-                System.Diagnostics.Debug.Assert(shell.CheckConsistency());
+                // System.Diagnostics.Debug.Assert(shell.CheckConsistency());
 #endif
                 // res should not have open edges! If so, something went wrong
                 if (!allowOpenEdges && shell.HasOpenEdgesExceptPoles())

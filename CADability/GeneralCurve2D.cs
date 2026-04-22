@@ -1655,6 +1655,13 @@ namespace CADability.Curve2D
                 }
             }
             // ggf noch nachbessern wie in GeneralCurve2D
+            if (res.Count==0)
+            {
+                if (Precision.IsNull(curve2.Distance(curve1.StartPoint))) res.Add(new GeoPoint2DWithParameter(curve1.StartPoint, 0.0, curve2.PositionOf(curve1.StartPoint)));
+                if (Precision.IsNull(curve2.Distance(curve1.EndPoint))) res.Add(new GeoPoint2DWithParameter(curve1.EndPoint, 1.0, curve2.PositionOf(curve1.EndPoint)));
+                if (Precision.IsNull(curve1.Distance(curve2.StartPoint))) res.Add(new GeoPoint2DWithParameter(curve2.StartPoint, curve1.PositionOf(curve2.StartPoint), 0.0));
+                if (Precision.IsNull(curve1.Distance(curve2.EndPoint))) res.Add(new GeoPoint2DWithParameter(curve2.EndPoint, curve1.PositionOf(curve2.EndPoint), 1.0));
+            }
 
             return res.ToArray();
         }

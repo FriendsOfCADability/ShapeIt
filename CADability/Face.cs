@@ -10993,11 +10993,11 @@ namespace CADability.GeoObject
             // sind die 2d Kurven richtig orientiert?
             foreach (Edge edg in Edges)
             {
-                if ((edg.Curve3D.StartPoint | edg.Vertex1.Position) > 1e-4)
+                if (edg.Curve3D!=null && (edg.Curve3D.StartPoint | edg.Vertex1.Position) > 1e-4)
                 {
                     return false;
                 }
-                if ((edg.Curve3D.EndPoint | edg.Vertex2.Position) > 1e-4)
+                if (edg.Curve3D != null && (edg.Curve3D.EndPoint | edg.Vertex2.Position) > 1e-4)
                 {
                     return false;
                 }

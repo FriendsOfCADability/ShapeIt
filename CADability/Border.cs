@@ -882,7 +882,7 @@ namespace CADability.Shapes
                         pp[j] = (segment[i] as BSpline2D).PointAtParam(knots[j]);
                     }
                     Polyline2D p2d = new Polyline2D(pp);
-                    return p2d.GetArea();
+                    a += p2d.GetArea();
                 }
                 else
                 {

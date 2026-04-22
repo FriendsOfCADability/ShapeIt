@@ -91,12 +91,14 @@ namespace ShapeIt
 
         private bool Length1Changed(double length)
         {
+            if (length <= 0.0) return false;
             length1 = length;
             if (sameLengthInput.Value) length2 = length1;
             return Recalc();
         }
         private bool Length2Changed(double length)
         {
+            if (length <= 0.0) return false;
             length2 = length;
             return Recalc();
         }

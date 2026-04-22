@@ -2406,6 +2406,7 @@ namespace CADability.GeoObject
                 vmin = vmax;
                 vmax = tmp;
             }
+            List<Face> faces = new List<Face>();
             Face f1 = Face.MakeFace(cs, new SimpleShape(Border.MakeRectangle(0, Math.PI, vmin, vmax)));
             Face f2 = Face.MakeFace(cs, new SimpleShape(Border.MakeRectangle(Math.PI, Math.PI * 2, vmin, vmax)));
             Plane pln1 = new Plane(location, directionX, directionY);
@@ -2414,9 +2415,19 @@ namespace CADability.GeoObject
             Border bdr2 = Border.MakeCircle(GeoPoint2D.Origin, radius2);
             bdr1.SplitSingleCurve(); // makes two half circles, splitted at 180°
             bdr2.SplitSingleCurve();
-            Face f3 = Face.MakeFace(new PlaneSurface(pln1), new SimpleShape(bdr1));
-            Face f4 = Face.MakeFace(new PlaneSurface(pln2), new SimpleShape(bdr2));
-            Shell[] sh = SewFaces(new Face[] { f1, f2, f3, f4 });
+            faces.Add(f1);
+            faces.Add(f2);
+            if (radius1 > 0.0)
+            {
+                Face f3 = Face.MakeFace(new PlaneSurface(pln1), new SimpleShape(bdr1));
+                faces.Add(f3);
+            }
+            if (radius2 > 0.0)
+            {
+                Face f4 = Face.MakeFace(new PlaneSurface(pln2), new SimpleShape(bdr2));
+                faces.Add(f4);
+            }
+            Shell[] sh = SewFaces(faces.ToArray());
             if (sh.Length == 1) return Solid.MakeSolid(sh[0]);
             return null;
         }

@@ -567,7 +567,15 @@ namespace ShapeIt
                     double y = (double)Evaluator.Evaluate(yExpr, namedItems.Dict);
                     return new GeoPoint2D(x, y);
                 };
-                curve = BSpline2D.Approximate(crv, tolerance, tMin, tMax, maxSamples);
+                // curve = BSpline2D.Approximate(crv, tolerance, tMin, tMax, maxSamples);
+                // a problemhere: Approximate uses the parameters and the points. When crv has a different speed at the beginning and end
+                // the resulting curve has bad conditions. We need an approximate without parameter synchronisation
+                GeoPoint2D[] pnts = new GeoPoint2D[20];
+                for (int i = 0; i < pnts.Length; i++)
+                {
+                    pnts[i] = crv(tMin + i * (tMax - tMin) / (pnts.Length - 1));
+                }
+                curve = new BSpline2D(pnts, 3, isPeriodic);
                 if (oldValue == null) namedItems.Remove(parameter);
                 else namedItems[parameter] = oldValue;
             }
