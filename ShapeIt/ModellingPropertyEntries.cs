@@ -58,7 +58,7 @@ namespace ShapeIt
         private IHotSpot selectedHotspot;
         private IHotSpot hotspotUnderCursor;
         private IGeoObject selectedObjectUnderCursor;
-        MCPServer mcpServer = new MCPServer();
+        MCPServer mcpServer;
         McpWorkspace mcpWorkspace = null;
 
         public ModellingPropertyEntries(IFrame cadFrame) : base("Modelling.Properties")
@@ -86,6 +86,7 @@ namespace ShapeIt
             feedback.Attach(cadFrame.ActiveView);
             FeedbackArrow.SetNumberFormat(cadFrame);
             ViewsChanged(cadFrame); // first initialisation
+            mcpServer = new MCPServer(cadFrame);
         }
 
         private void OnProjectClosed(Project theProject, IFrame theFrame)

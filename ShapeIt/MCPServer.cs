@@ -27,6 +27,7 @@ namespace ShapeIt
 {
     public partial class MCPServer
     {
+        public IFrame frame;
         public class NamedItemsDictionary
         {
             private readonly Dictionary<string, object> dict = new(StringComparer.Ordinal);
@@ -111,7 +112,10 @@ namespace ShapeIt
 
         private int nextId = 1;
         private int nextUndo = 1;
-        public MCPServer() { }
+        public MCPServer(IFrame frame) 
+        { 
+            this.frame = frame;
+        }
 
         private void StoreNamed(string name, object value)
         {

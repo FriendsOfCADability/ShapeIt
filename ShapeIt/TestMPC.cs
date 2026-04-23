@@ -128,12 +128,17 @@ namespace ShapeIt
             if (string.IsNullOrWhiteSpace(json)) { return false; }
             try
             {
+                server.currentRpcString = json;
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
                 server.ProcessMethod(root);
                 return true;
             }
-            catch (Exception ex) { return false; }
+            catch (Exception ex)
+            {
+                server.ReportError(ex.Message);
+                return false;
+            }
         }
 
     }

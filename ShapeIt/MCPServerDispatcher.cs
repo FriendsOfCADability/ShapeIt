@@ -24,6 +24,7 @@ namespace ShapeIt
     {
         private List<JsonElement>? recordingTemplate = null;
         private string? currentTemplatName = null;
+        public string currentRpcString;
 
         /// <summary>
         /// Dispatches a JSON-RPC method call. The transport layer should parse JSON-RPC envelope and pass:
@@ -49,38 +50,16 @@ namespace ShapeIt
             }
             catch (JsonRpcException jre)
             {
-                response.Remove("result");
-                response["error"] = new JsonObject
-                {
-                    ["code"] = jre.Code,
-                    ["message"] = jre.Message,
-                    ["data"] = jre.Data,
-                    ["id"] = id
-                };
+                ReportError(jre.Message);
             }
-            catch (NotImplementedException)
+            catch (NotImplementedException nie)
             {
                 // Explicit marker that the dispatcher knows the method but implementation isn't done yet.
-                response.Remove("result");
-                response["error"] = new JsonObject
-                {
-                    ["code"] = 9901,
-                    ["message"] = "Not implemented"
-                };
+                ReportError(nie.Message);
             }
             catch (Exception ex)
             {
-                response.Remove("result");
-                response["error"] = new JsonObject
-                {
-                    ["code"] = 9999,
-                    ["message"] = "Internal error",
-                    ["data"] = new JsonObject
-                    {
-                        ["exceptionType"] = ex.GetType().FullName,
-                        ["exceptionMessage"] = ex.Message
-                    }
-                };
+                ReportError(ex.Message);
             }
 
             return response.ToJsonString();
@@ -91,6 +70,7 @@ namespace ShapeIt
             string? method = null;
             int? id = null;
             JsonElement @params = default;
+            currentRpcString = root.GetRawText(); // for error reporting, keep the original JSON string of the current method call
 
             if (root.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String)
             {
@@ -129,6 +109,11 @@ namespace ShapeIt
                 }
             }
 
+        }
+
+        public void ReportError(string message)
+        {
+            frame.UIService.ShowMessageBox(currentRpcString + "\n" + message, "Error in MCPServer", CADability.Substitutes.MessageBoxButtons.OK);
         }
         // -------------------------
         // JSON helpers
@@ -876,6 +861,7 @@ namespace ShapeIt
                     if (val is IEnumerable<T> seq) foreach (T item in seq) yield return item;
                     else if (val is T t) yield return t;
                 }
+                else throw new JsonRpcException(-32602, $"Named object not found: {target}");
                 yield break;
             }
             if (selector.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: Selector must be an object");
@@ -886,7 +872,7 @@ namespace ShapeIt
                 {   // check list first: when T is object, the whole list is returned as an item
                     if (val is IEnumerable<T> seq) foreach (T item in seq) yield return item;
                     else if (val is T t) yield return t;
-                }
+                } else throw new JsonRpcException(-32602, $"Named object not found: {je.GetString()}");
             }
             else if (selector.TryGetProperty("names", out je) && je.ValueKind == JsonValueKind.Array)
             {   // array of ObjectRefs
@@ -928,6 +914,8 @@ namespace ShapeIt
                                 result.IntersectWith(items[i]);
                             }
                             break;
+                        default:
+                            throw new JsonRpcException(-32602, $"Unknown boolean operator '{op}'"); 
                     }
                     foreach (var item in result) yield return item;
                 }
@@ -955,6 +943,7 @@ namespace ShapeIt
                         foreach (ICurve2D t in IterateQuery<ICurve2D>(je)) if (t is T tt) yield return tt;
                         foreach (CompoundShape t in IterateQuery<CompoundShape>(je)) if (t is T tt) yield return tt;
                         break;
+                    default: throw new JsonRpcException(-32602, $"Unknown query target '{target}'");
                 }
             }
         }
@@ -1137,6 +1126,7 @@ namespace ShapeIt
                                     case "spherical": if (!(face.Surface is SphericalSurface)) continue; break;
                                     case "toroidal": if (!(face.Surface is ToroidalSurface)) continue; break;
                                     case "freeform": break;
+                                    default: throw new JsonRpcException(-32602, $"Invalid params: 'surfaceType' = '{surfaceType}' must be one of planar, cylindrical, conical, spherical, toroidal or freeform");
                                 }
                             }
                         }
@@ -1158,7 +1148,7 @@ namespace ShapeIt
                         }
                         if (filter.TryGetProperty("closeTo", out je))
                         {
-                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'surfaceType' must be a string");
+                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'closeTo' must be an object");
                             GeoPoint p = RequirePoint3D(je, null);
                             BoundingBox pbox = new BoundingBox(p, Precision.eps);
                             if (toTest is Face face && Math.Abs(face.Distance(p)) > Precision.eps) continue;
@@ -1167,7 +1157,7 @@ namespace ShapeIt
                         }
                         if (filter.TryGetProperty("inside", out je))
                         {
-                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'inside' must be a string");
+                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'inside' must be an object");
                             BoundingBox bbox = RequireBoundingBox(je, null);
                             if (toTest is Face face && !bbox.Contains(face.GetExtent(0.0))) continue;
                             if (toTest is Solid sld && !bbox.Contains(sld.GetExtent(0.0))) continue;
@@ -1175,7 +1165,7 @@ namespace ShapeIt
                         }
                         if (filter.TryGetProperty("touchedBy", out je))
                         {
-                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'touchedBy' must be a string");
+                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'touchedBy' must be an object");
                             BoundingBox bbox = RequireBoundingBox(je, null);
                             if (toTest is Face face && !face.HitTest(ref bbox, 0.0)) continue;
                             if (toTest is Solid sld && !sld.HitTest(ref bbox, 0.0)) continue;
@@ -1189,7 +1179,7 @@ namespace ShapeIt
                         }
                         if (filter.TryGetProperty("boundingBox", out je))
                         {
-                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'surfaceType' must be a string");
+                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'boundingBox' must be an object");
                             double minValue = GetOptionalDouble(je, "minValue", double.MinValue);
                             double maxValue = GetOptionalDouble(je, "maxValue", double.MaxValue);
                             if (minValue != double.MinValue) minValue -= Precision.eps;

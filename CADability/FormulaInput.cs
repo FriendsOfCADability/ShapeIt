@@ -812,507 +812,500 @@ public static class Evaluator
     }
     public static object Evaluate(string expr, Dictionary<string, object> namedValues)
     {
-        try
+        var tokens = Lexer.Tokenize(expr);
+        var rpn = Parser.ToRpn(tokens);
+
+        var stack = new Stack<object>();
+
+        foreach (var item in rpn)
         {
-            var tokens = Lexer.Tokenize(expr);
-            var rpn = Parser.ToRpn(tokens);
-
-            var stack = new Stack<object>();
-
-            foreach (var item in rpn)
+            switch (item)
             {
-                switch (item)
-                {
-                    case Token t when t.Type == TokenType.Number:
+                case Token t when t.Type == TokenType.Number:
+                    {
+                        // double mit invariant culture
+                        double d = double.Parse(t.Text, CultureInfo.InvariantCulture);
+                        stack.Push(d);
+                        break;
+                    }
+                case Token t when t.Type == TokenType.String:
+                    {
+                        stack.Push(t.Text);
+                        break;
+                    }
+                case Token t when t.Type == TokenType.Dot:
+                    {
+                        if (stack.Count < 2)
+                            throw new Exception("Too few operands for binary operator.");
+
+                        object b = stack.Pop(); // the property name
+                        object a = stack.Pop(); // the object with the property
+                        if (!(b is string bs))
+                            throw new Exception("Expected property name as string on the right side of '.' operator.");
+                        object aa = a;
+                        if (a is IEnumerable<object> seq && seq.Count() == 1)
+                        {   // MCP Server makes no difference between a List<T> of a single object and
+                            // the object itself, when the list only contains a single object
+                            aa = seq.First();
+                        }
+
+                        PropertyInfo pi = aa.GetType().GetProperty(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                        if (pi != null)
                         {
-                            // double mit invariant culture
-                            double d = double.Parse(t.Text, CultureInfo.InvariantCulture);
-                            stack.Push(d);
+                            object propValue = pi.GetValue(aa);
+                            stack.Push(propValue);
                             break;
                         }
-                    case Token t when t.Type == TokenType.String:
+                        FieldInfo fi = aa.GetType().GetField(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                        if (fi != null)
                         {
-                            stack.Push(t.Text);
+                            object f = fi.GetValue(aa);
+                            stack.Push(f);
                             break;
                         }
-                    case Token t when t.Type == TokenType.Dot:
+                        // GetMethod must also be implemented, what about number and type of parameters?
+                        MethodInfo[] methods = aa.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                        bool found = false;
+                        for (int i = 0; i < methods.Length; i++)
                         {
-                            if (stack.Count < 2)
-                                throw new Exception("Too few operands for binary operator.");
-
-                            object b = stack.Pop(); // the property name
-                            object a = stack.Pop(); // the object with the property
-                            if (!(b is string bs))
-                                throw new Exception("Expected property name as string on the right side of '.' operator.");
-                            object aa = a;
-                            if (a is IEnumerable<object> seq && seq.Count() == 1)
-                            {   // MCP Server makes no difference between a List<T> of a single object and
-                                // the object itself, when the list only contains a single object
-                                aa = seq.First();
-                            }
-
-                            PropertyInfo pi = aa.GetType().GetProperty(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
-                            if (pi != null)
+                            if (methods[i].Name.Equals(bs, StringComparison.OrdinalIgnoreCase))
                             {
-                                object propValue = pi.GetValue(aa);
-                                stack.Push(propValue);
+                                stack.Push(new ObjectMethodPair(methods[i], aa)); // target object and method
+                                found = true;
                                 break;
                             }
-                            FieldInfo fi = aa.GetType().GetField(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
-                            if (fi != null)
+                        }
+                        if (found) break;
+
+                        // for List<T> we want to accept a few properties here
+                        if (a is IEnumerable<object> seqa)
+                        {
+                            if (bs.Equals("count", StringComparison.OrdinalIgnoreCase))
                             {
-                                object f = fi.GetValue(aa);
-                                stack.Push(f);
+                                stack.Push(seqa.Count());
                                 break;
                             }
-                            // GetMethod must also be implemented, what about number and type of parameters?
-                            MethodInfo[] methods = aa.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
-                            bool found = false;
-                            for (int i = 0; i < methods.Length; i++)
+                            if (bs.Equals("bounds"))
                             {
-                                if (methods[i].Name.Equals(bs, StringComparison.OrdinalIgnoreCase))
+                                BoundingRect br = BoundingRect.EmptyBoundingRect;
+                                BoundingBox bc = BoundingBox.EmptyBoundingBox;
+                                foreach (object obj in seqa)
                                 {
-                                    stack.Push(new ObjectMethodPair(methods[i], aa)); // target object and method
-                                    found = true;
-                                    break;
+                                    if (obj is CompoundShape cs) br.MinMax(cs.GetExtent());
+                                    else if (obj is ICurve2D c2) br.MinMax(c2.GetExtent());
+                                    else if (obj is IGeoObject go) bc.MinMax(go.GetExtent(0.0));
                                 }
+                                if (!br.IsEmpty()) { stack.Push(br); break; }
+                                else if (!bc.IsEmpty) { stack.Push(bc); break; }
                             }
-                            if (found) break;
+                        }
+                        // Property '{b}' not found on type {a.GetType()}.
+                        throw new Exception($"Property '{b}' not found on type {a.GetType()}.");
 
-                            // for List<T> we want to accept a few properties here
-                            if (a is IEnumerable<object> seqa)
+                    }
+                    break;
+
+                case Token t when t.Type == TokenType.Plus ||
+                                   t.Type == TokenType.Minus ||
+                                   t.Type == TokenType.Star ||
+                                   t.Type == TokenType.Slash ||
+                                   t.Type == TokenType.Caret ||
+                                   t.Type == TokenType.Pipe ||
+                                    t.Type == TokenType.Equal ||
+                                    t.Type == TokenType.GreaterThan ||
+                                    t.Type == TokenType.GreaterThanOrEqual ||
+                                    t.Type == TokenType.LessThan ||
+                                    t.Type == TokenType.LessThanOrEqual ||
+                                    t.Type == TokenType.And ||
+                                     t.Type == TokenType.Or ||
+                                    t.Type == TokenType.Not ||
+                                    t.Type == TokenType.NotEqual:
+                    {
+                        if (stack.Count < 2)
+                            throw new Exception("Too few operands for binary operator.");
+
+                        object b = stack.Pop();
+                        object a = stack.Pop();
+
+                        object res;
+                        switch (t.Type)
+                        {
+                            case TokenType.Plus:
+                                res = GeometryOps.Add(a, b);
+                                break;
+                            case TokenType.Minus:
+                                res = GeometryOps.Sub(a, b);
+                                break;
+                            case TokenType.Star:
+                                res = GeometryOps.Mul(a, b);
+                                break;
+                            case TokenType.Slash:
+                                res = GeometryOps.Div(a, b);
+                                break;
+                            case TokenType.Caret:
+                                res = GeometryOps.Cross(a, b);
+                                break;
+                            case TokenType.Pipe:
+                                res = GeometryOps.Distance(a, b);
+                                break;
+                            case TokenType.Equal:
+                                if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) == Convert.ToDouble(b);
+                                else res = a.Equals(b);
+                                break;
+                            case TokenType.GreaterThan:
+                                {
+                                    res = false;
+                                    if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) > Convert.ToDouble(b);
+                                }
+                                break;
+                            case TokenType.GreaterThanOrEqual:
+                                {
+                                    res = false;
+                                    if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) >= Convert.ToDouble(b);
+                                }
+                                break;
+                            case TokenType.LessThan:
+                                {
+                                    res = false;
+                                    if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) < Convert.ToDouble(b);
+                                }
+                                break;
+                            case TokenType.LessThanOrEqual:
+                                {
+                                    res = false;
+                                    if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) <= Convert.ToDouble(b);
+                                }
+                                break;
+                            case TokenType.And:
+                                {
+                                    res = false;
+                                    if (a is bool aa && b is bool bb) res = aa && bb;
+                                }
+                                break;
+                            case TokenType.Or:
+                                {
+                                    res = false;
+                                    if (a is bool aa && b is bool bb) res = aa || bb;
+                                }
+                                break;
+                            case TokenType.NotEqual:
+                                res = !a.Equals(b);
+                                break;
+                            default:
+                                throw new Exception("Unexpected operator.");
+                        }
+
+                        stack.Push(res);
+                        break;
+                    }
+
+                case UnaryMinusMarker _:
+                    {
+                        if (stack.Count < 1)
+                            throw new Exception("Too few operands for unary '-'.");
+                        var v = stack.Pop();
+                        stack.Push(GeometryOps.UnaryMinus(v));
+                        break;
+                    }
+                case UnaryPlusMarker _:
+                    {
+                        if (stack.Count < 1)
+                            throw new Exception("Too few operands for unary '-'.");
+                        // stack remains unchanged
+                        break;
+                    }
+                case UnaryNotMarker _:
+                    {
+                        if (stack.Count < 1)
+                            throw new Exception("Too few operands for unary '-'.");
+                        var v = stack.Pop();
+                        stack.Push(!(bool)(v));
+                        break;
+                    }
+                case FunctionOrVariableMarker marker:
+                    {
+                        if (marker.IsProperty)
+                        {
+                            stack.Push(marker.Name);
+                        }
+                        else
+                        {
+                            if (marker.IsFunction)
                             {
-                                if (bs.Equals("count", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    stack.Push(seqa.Count());
-                                    break;
-                                }
-                                if (bs.Equals("bounds"))
-                                {
-                                    BoundingRect br = BoundingRect.EmptyBoundingRect;
-                                    BoundingBox bc = BoundingBox.EmptyBoundingBox;
-                                    foreach (object obj in seqa)
-                                    {
-                                        if (obj is CompoundShape cs) br.MinMax(cs.GetExtent());
-                                        else if (obj is ICurve2D c2) br.MinMax(c2.GetExtent());
-                                        else if (obj is IGeoObject go) bc.MinMax(go.GetExtent(0.0));
-                                    }
-                                    if (!br.IsEmpty()) { stack.Push(br); break; }
-                                    else if (!bc.IsEmpty) { stack.Push(bc); break; }
-                                }
+                                // Funktionsaufruf wird nicht hier,
+                                // sondern durch FunctionCallMarker behandelt.
+                                // Hier machen wir NICHTS, denn der echte Call
+                                // kommt später.
+                                // ABER: für ein nacktes "sin" ohne () wäre das falsch,
+                                // aber so etwas wollen wir eh nicht erlauben.
                             }
-                            // Property '{b}' not found on type {a.GetType()}.
-                            throw new Exception($"Property '{b}' not found on type {a.GetType()}.");
+                            else
+                            {
+                                // Variable
+                                if (namedValues.TryGetValue(marker.Name, out object obj))
+                                {
+                                    stack.Push(obj);
+                                }
+                                else if (marker.Name == "pi")
+                                {
+                                    stack.Push(Math.PI);
+                                }
+                                else if (marker.Name == "e")
+                                {
+                                    stack.Push(Math.E);
+                                }
+                                else if (marker.Name == "Math")
+                                {
+                                    stack.Push(new MathStub());
+                                }
+                                else throw new Exception($"Unknown name '{marker.Name}'.");
 
+                            }
                         }
                         break;
+                    }
 
-                    case Token t when t.Type == TokenType.Plus ||
-                                       t.Type == TokenType.Minus ||
-                                       t.Type == TokenType.Star ||
-                                       t.Type == TokenType.Slash ||
-                                       t.Type == TokenType.Caret ||
-                                       t.Type == TokenType.Pipe ||
-                                        t.Type == TokenType.Equal ||
-                                        t.Type == TokenType.GreaterThan ||
-                                        t.Type == TokenType.GreaterThanOrEqual ||
-                                        t.Type == TokenType.LessThan ||
-                                        t.Type == TokenType.LessThanOrEqual ||
-                                        t.Type == TokenType.And ||
-                                         t.Type == TokenType.Or ||
-                                        t.Type == TokenType.Not ||
-                                        t.Type == TokenType.NotEqual:
+                case FunctionCallMarker call:
+                    {
+                        if (stack.Count < call.ArgCount)
+                            throw new Exception(
+                                $"Function {call.Name} expects {call.ArgCount} argument(s), but only {stack.Count} are present.");
+
+                        // Argumente rückwärts vom Stack holen
+                        var argsReversed = new List<object>();
+                        for (int k = 0; k < call.ArgCount; k++)
+                            argsReversed.Add(stack.Pop());
+
+                        // wieder in richtige Reihenfolge bringen (erstes Argument zuerst)
+                        argsReversed.Reverse();
+                        var args = argsReversed.ToArray();
+
+                        object fres = null;
+
+                        if (call.IsObjectMember)
                         {
-                            if (stack.Count < 2)
-                                throw new Exception("Too few operands for binary operator.");
-
-                            object b = stack.Pop();
-                            object a = stack.Pop();
-
-                            object res;
-                            switch (t.Type)
+                            object toCallWith = stack.Pop();
+                            MethodInfo? toCall = null;
+                            object target = null;
+                            if (toCallWith is ObjectMethodPair om)
                             {
-                                case TokenType.Plus:
-                                    res = GeometryOps.Add(a, b);
+                                toCall = om.method;
+                                target = om.obj;
+                            }
+                            else
+                            {
+                                MethodInfo[] methods = toCallWith.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                                for (int i = 0; i < methods.Length; i++)
+                                {
+                                    if (!string.Equals(methods[i].Name, call.Name, StringComparison.OrdinalIgnoreCase))
+                                        continue;
+
+                                    var parameters = methods[i].GetParameters();
+                                    if (parameters.Length != call.ArgCount)
+                                        continue;
+                                    toCall = methods[i];
+                                    target = toCallWith;
                                     break;
-                                case TokenType.Minus:
-                                    res = GeometryOps.Sub(a, b);
-                                    break;
-                                case TokenType.Star:
-                                    res = GeometryOps.Mul(a, b);
-                                    break;
-                                case TokenType.Slash:
-                                    res = GeometryOps.Div(a, b);
-                                    break;
-                                case TokenType.Caret:
-                                    res = GeometryOps.Cross(a, b);
-                                    break;
-                                case TokenType.Pipe:
-                                    res = GeometryOps.Distance(a, b);
-                                    break;
-                                case TokenType.Equal:
-                                    if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) == Convert.ToDouble(b);
-                                    else res = a.Equals(b);
-                                    break;
-                                case TokenType.GreaterThan:
+                                }
+                            }
+                            if (toCall != null)
+                            {
+                                var parameters = toCall.GetParameters();
+
+                                object?[] coercedArgs = new object?[parameters.Length];
+                                bool ok = true;
+
+                                for (int j = 0; j < parameters.Length; j++)
+                                {
+                                    if (!TryCoerceArg(args[j], parameters[j], out var c))
                                     {
-                                        res = false;
-                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) > Convert.ToDouble(b);
+                                        ok = false;
+                                        break;
+                                    }
+                                    coercedArgs[j] = c;
+                                }
+
+                                if (!ok) continue;
+
+                                fres = toCall.Invoke(target, coercedArgs);
+                            }
+                        }
+                        else
+                        {
+
+                            switch (call.Name)
+                            {
+                                // 1-Argument-Funktionen (wie vorher)
+                                case "sin":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.FuncSin(args[0]);
+                                    break;
+
+                                case "cos":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.FuncCos(args[0]);
+                                    break;
+
+                                case "tan":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.FuncTan(args[0]);
+                                    break;
+
+                                case "sinh":
+                                    CheckArgCount(call, args, 1);
+                                    fres = Math.Sinh((double)args[0]);
+                                    break;
+                                case "cosh":
+                                    CheckArgCount(call, args, 1);
+                                    fres = Math.Cosh((double)args[0]);
+                                    break;
+                                case "tanh":
+                                    CheckArgCount(call, args, 1);
+                                    fres = Math.Tanh((double)args[0]);
+                                    break;
+                                case "asin":
+                                    CheckArgCount(call, args, 1);
+                                    fres = Math.Asin((double)args[0]);
+                                    break;
+                                case "acos":
+                                    CheckArgCount(call, args, 1);
+                                    fres = Math.Acos((double)args[0]);
+                                    break;
+
+                                case "atan":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.FuncAtan(args[0]);
+                                    break;
+
+                                case "atan2":
+                                    CheckArgCount(call, args, 2);
+                                    fres = GeometryOps.FuncAtan2(args[0], args[1]);
+                                    break;
+
+                                case "sqrt":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.FuncSqrt(args[0]);
+                                    break;
+
+                                case "pow":
+                                    CheckArgCount(call, args, 2);
+                                    fres = GeometryOps.Pow(args[0], args[1]);
+                                    break;
+                                case "abs":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.FuncAbs(args[0]);
+                                    break;
+                                case "sign":
+                                    CheckArgCount(call, args, 1);
+                                    if (args[0] is IConvertible) fres = Math.Sign(Convert.ToDouble(args[0]));
+                                    else throw new InvalidOperationException("sign(x): x must be a scalar.");
+                                    break;
+                                case "len":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.FuncLen(args[0]);
+                                    break;
+                                case "ceil":
+                                    CheckArgCount(call, args, 1);
+                                    fres = (int)Math.Ceiling(Convert.ToDouble(args[0]));
+                                    break;
+                                case "floor":
+                                    CheckArgCount(call, args, 1);
+                                    fres = (int)Math.Floor(Convert.ToDouble(args[0]));
+                                    break;
+
+                                // p(x,y,z) => GeoPoint or GeoPoint2D
+                                case "p":
+                                    fres = MakePoint(args);
+                                    break;
+
+                                // v(x,y,z) => GeoVector or GeoVector2D
+                                case "v":
+                                    fres = MakeVector(args);
+                                    break;
+                                case "translate":
+                                case "move":
+                                    {
+                                        if (args.Length == 3) fres = ModOp.Translate((double)args[0], (double)args[1], (double)args[2]);
+                                        else if (args.Length == 1 && args[0] is GeoVector v) fres = ModOp.Translate(v);
+                                        else throw new Exception($"Function {call.Name} expects a vector or thre double values as argument.");
                                     }
                                     break;
-                                case TokenType.GreaterThanOrEqual:
+                                case "rotate":
                                     {
-                                        res = false;
-                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) >= Convert.ToDouble(b);
+                                        if (args.Length == 3 && args[0] is GeoPoint p && args[1] is GeoVector v && args[2] is double d)
+                                            fres = ModOp.Rotate(p, v, new SweepAngle(d));
+                                        else throw new Exception($"Function {call.Name} expects a point (fixpoint), a vector (axis direction) and a double (rotation angle in radiants) as arguments.");
                                     }
                                     break;
-                                case TokenType.LessThan:
+                                case "scale":
                                     {
-                                        res = false;
-                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) < Convert.ToDouble(b);
+                                        if (args.Length == 3 && args[0] is double fx && args[1] is double fy && args[2] is double fz) fres = ModOp.Scale(fx, fy, fz);
+                                        else if (args.Length == 2 && args[0] is GeoPoint p && args[1] is double f) fres = ModOp.Scale(p, f);
+                                        // and more configurations
+                                        else throw new Exception($"Function {call.Name} expects a vector or thre double values as argument.");
                                     }
                                     break;
-                                case TokenType.LessThanOrEqual:
+                                case "distance":
+                                    CheckArgCount(call, args, 2);
+                                    fres = GeometryOps.Distance(args[0], args[1]);
+                                    break;
+                                case "normalize":
+                                    CheckArgCount(call, args, 1);
+                                    fres = GeometryOps.Normalize(args[0]);
+                                    break;
+                                case "min":
                                     {
-                                        res = false;
-                                        if (IsNumeric(a) && IsNumeric(b)) res = Convert.ToDouble(a) <= Convert.ToDouble(b);
+                                        if (args.Length < 2) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
+                                        double min = double.MaxValue;
+                                        bool intResult = true;
+                                        for (int i = 0; i < args.Length; i++)
+                                        {
+                                            if ((double)args[i] < min) min = (double)args[i];
+                                            if (!(args[i] is int)) intResult = false;
+                                        }
+                                        if (intResult) fres = (int)min;
+                                        else fres = min;
                                     }
                                     break;
-                                case TokenType.And:
+                                case "max":
                                     {
-                                        res = false;
-                                        if (a is bool aa && b is bool bb) res = aa && bb;
+                                        if (args.Length < 2) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
+                                        double max = double.MinValue;
+                                        bool intResult = true;
+                                        for (int i = 0; i < args.Length; i++)
+                                        {
+                                            if ((double)args[i] > max) max = (double)args[i];
+                                            if (!(args[i] is int)) intResult = false;
+                                        }
+                                        if (intResult) fres = (int)max;
+                                        else fres = max;
                                     }
                                     break;
-                                case TokenType.Or:
+                                case "near":
                                     {
-                                        res = false;
-                                        if (a is bool aa && b is bool bb) res = aa || bb;
+                                        if (args.Length < 2 || args.Length > 3) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
+                                        if (args.Length == 2) fres = Math.Abs(((double)args[0]) - ((double)args[1])) < 1e-6;
+                                        else if (args.Length == 3) fres = Math.Abs(((double)args[0]) - ((double)args[1])) < (double)args[2];
                                     }
-                                    break;
-                                case TokenType.NotEqual:
-                                    res = !a.Equals(b);
                                     break;
                                 default:
-                                    throw new Exception("Unexpected operator.");
+                                    throw new Exception($"Unknown function '{call.Name}'.");
                             }
-
-                            stack.Push(res);
-                            break;
                         }
 
-                    case UnaryMinusMarker _:
-                        {
-                            if (stack.Count < 1)
-                                throw new Exception("Too few operands for unary '-'.");
-                            var v = stack.Pop();
-                            stack.Push(GeometryOps.UnaryMinus(v));
-                            break;
-                        }
-                    case UnaryPlusMarker _:
-                        {
-                            if (stack.Count < 1)
-                                throw new Exception("Too few operands for unary '-'.");
-                            // stack remains unchanged
-                            break;
-                        }
-                    case UnaryNotMarker _:
-                        {
-                            if (stack.Count < 1)
-                                throw new Exception("Too few operands for unary '-'.");
-                            var v = stack.Pop();
-                            stack.Push(!(bool)(v));
-                            break;
-                        }
-                    case FunctionOrVariableMarker marker:
-                        {
-                            if (marker.IsProperty)
-                            {
-                                stack.Push(marker.Name);
-                            }
-                            else
-                            {
-                                if (marker.IsFunction)
-                                {
-                                    // Funktionsaufruf wird nicht hier,
-                                    // sondern durch FunctionCallMarker behandelt.
-                                    // Hier machen wir NICHTS, denn der echte Call
-                                    // kommt später.
-                                    // ABER: für ein nacktes "sin" ohne () wäre das falsch,
-                                    // aber so etwas wollen wir eh nicht erlauben.
-                                }
-                                else
-                                {
-                                    // Variable
-                                    if (namedValues.TryGetValue(marker.Name, out object obj))
-                                    {
-                                        stack.Push(obj);
-                                    }
-                                    else if (marker.Name == "pi")
-                                    {
-                                        stack.Push(Math.PI);
-                                    }
-                                    else if (marker.Name == "e")
-                                    {
-                                        stack.Push(Math.E);
-                                    }
-                                    else if (marker.Name == "Math")
-                                    {
-                                        stack.Push(new MathStub());
-                                    }
-                                    else throw new Exception($"Unknown name '{marker.Name}'.");
+                        stack.Push(fres);
+                        break;
+                    }
 
-                                }
-                            }
-                            break;
-                        }
-
-                    case FunctionCallMarker call:
-                        {
-                            if (stack.Count < call.ArgCount)
-                                throw new Exception(
-                                    $"Function {call.Name} expects {call.ArgCount} argument(s), but only {stack.Count} are present.");
-
-                            // Argumente rückwärts vom Stack holen
-                            var argsReversed = new List<object>();
-                            for (int k = 0; k < call.ArgCount; k++)
-                                argsReversed.Add(stack.Pop());
-
-                            // wieder in richtige Reihenfolge bringen (erstes Argument zuerst)
-                            argsReversed.Reverse();
-                            var args = argsReversed.ToArray();
-
-                            object fres = null;
-
-                            if (call.IsObjectMember)
-                            {
-                                object toCallWith = stack.Pop();
-                                MethodInfo? toCall = null;
-                                object target = null;
-                                if (toCallWith is ObjectMethodPair om)
-                                {
-                                    toCall = om.method;
-                                    target = om.obj;
-                                }
-                                else
-                                {
-                                    MethodInfo[] methods = toCallWith.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                    for (int i = 0; i < methods.Length; i++)
-                                    {
-                                        if (!string.Equals(methods[i].Name, call.Name, StringComparison.OrdinalIgnoreCase))
-                                            continue;
-
-                                        var parameters = methods[i].GetParameters();
-                                        if (parameters.Length != call.ArgCount)
-                                            continue;
-                                        toCall = methods[i];
-                                        target = toCallWith;
-                                        break;
-                                    }
-                                }
-                                if (toCall != null)
-                                {
-                                    var parameters = toCall.GetParameters();
-
-                                    object?[] coercedArgs = new object?[parameters.Length];
-                                    bool ok = true;
-
-                                    for (int j = 0; j < parameters.Length; j++)
-                                    {
-                                        if (!TryCoerceArg(args[j], parameters[j], out var c))
-                                        {
-                                            ok = false;
-                                            break;
-                                        }
-                                        coercedArgs[j] = c;
-                                    }
-
-                                    if (!ok) continue;
-
-                                    fres = toCall.Invoke(target, coercedArgs);
-                                }
-                            }
-                            else
-                            {
-
-                                switch (call.Name)
-                                {
-                                    // 1-Argument-Funktionen (wie vorher)
-                                    case "sin":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.FuncSin(args[0]);
-                                        break;
-
-                                    case "cos":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.FuncCos(args[0]);
-                                        break;
-
-                                    case "tan":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.FuncTan(args[0]);
-                                        break;
-
-                                    case "sinh":
-                                        CheckArgCount(call, args, 1);
-                                        fres = Math.Sinh((double)args[0]);
-                                        break;
-                                    case "cosh":
-                                        CheckArgCount(call, args, 1);
-                                        fres = Math.Cosh((double)args[0]);
-                                        break;
-                                    case "tanh":
-                                        CheckArgCount(call, args, 1);
-                                        fres = Math.Tanh((double)args[0]);
-                                        break;
-                                    case "asin":
-                                        CheckArgCount(call, args, 1);
-                                        fres = Math.Asin((double)args[0]);
-                                        break;
-                                    case "acos":
-                                        CheckArgCount(call, args, 1);
-                                        fres = Math.Acos((double)args[0]);
-                                        break;
-
-                                    case "atan":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.FuncAtan(args[0]);
-                                        break;
-
-                                    case "atan2":
-                                        CheckArgCount(call, args, 2);
-                                        fres = GeometryOps.FuncAtan2(args[0], args[1]);
-                                        break;
-
-                                    case "sqrt":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.FuncSqrt(args[0]);
-                                        break;
-
-                                    case "pow":
-                                        CheckArgCount(call, args, 2);
-                                        fres = GeometryOps.Pow(args[0], args[1]);
-                                        break;
-                                    case "abs":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.FuncAbs(args[0]);
-                                        break;
-                                    case "sign":
-                                        CheckArgCount(call, args, 1);
-                                        if (args[0] is IConvertible) fres = Math.Sign(Convert.ToDouble(args[0]));
-                                        else throw new InvalidOperationException("sign(x): x must be a scalar.");
-                                        break;
-                                    case "len":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.FuncLen(args[0]);
-                                        break;
-                                    case "ceil":
-                                        CheckArgCount(call, args, 1);
-                                        fres = (int)Math.Ceiling(Convert.ToDouble(args[0]));
-                                        break;
-                                    case "floor":
-                                        CheckArgCount(call, args, 1);
-                                        fres = (int)Math.Floor(Convert.ToDouble(args[0]));
-                                        break;
-
-                                    // p(x,y,z) => GeoPoint or GeoPoint2D
-                                    case "p":
-                                        fres = MakePoint(args);
-                                        break;
-
-                                    // v(x,y,z) => GeoVector or GeoVector2D
-                                    case "v":
-                                        fres = MakeVector(args);
-                                        break;
-                                    case "translate":
-                                    case "move":
-                                        {
-                                            if (args.Length == 3) fres = ModOp.Translate((double)args[0], (double)args[1], (double)args[2]);
-                                            else if (args.Length == 1 && args[0] is GeoVector v) fres = ModOp.Translate(v);
-                                            else throw new Exception($"Function {call.Name} expects a vector or thre double values as argument.");
-                                        }
-                                        break;
-                                    case "rotate":
-                                        {
-                                            if (args.Length == 3 && args[0] is GeoPoint p && args[1] is GeoVector v && args[2] is double d)
-                                                fres = ModOp.Rotate(p, v, new SweepAngle(d));
-                                            else throw new Exception($"Function {call.Name} expects a point (fixpoint), a vector (axis direction) and a double (rotation angle in radiants) as arguments.");
-                                        }
-                                        break;
-                                    case "scale":
-                                        {
-                                            if (args.Length == 3 && args[0] is double fx && args[1] is double fy && args[2] is double fz) fres = ModOp.Scale(fx, fy, fz);
-                                            else if (args.Length == 2 && args[0] is GeoPoint p && args[1] is double f) fres = ModOp.Scale(p, f);
-                                            // and more configurations
-                                            else throw new Exception($"Function {call.Name} expects a vector or thre double values as argument.");
-                                        }
-                                        break;
-                                    case "distance":
-                                        CheckArgCount(call, args, 2);
-                                        fres = GeometryOps.Distance(args[0], args[1]);
-                                        break;
-                                    case "normalize":
-                                        CheckArgCount(call, args, 1);
-                                        fres = GeometryOps.Normalize(args[0]);
-                                        break;
-                                    case "min":
-                                        {
-                                            if (args.Length < 2) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
-                                            double min = double.MaxValue;
-                                            bool intResult = true;
-                                            for (int i = 0; i < args.Length; i++)
-                                            {
-                                                if ((double)args[i] < min) min = (double)args[i];
-                                                if (!(args[i] is int)) intResult = false;
-                                            }
-                                            if (intResult) fres = (int)min;
-                                            else fres = min;
-                                        }
-                                        break;
-                                    case "max":
-                                        {
-                                            if (args.Length < 2) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
-                                            double max = double.MinValue;
-                                            bool intResult = true;
-                                            for (int i = 0; i < args.Length; i++)
-                                            {
-                                                if ((double)args[i] > max) max = (double)args[i];
-                                                if (!(args[i] is int)) intResult = false;
-                                            }
-                                            if (intResult) fres = (int)max;
-                                            else fres = max;
-                                        }
-                                        break;
-                                    case "near":
-                                        {
-                                            if (args.Length < 2 || args.Length > 3) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
-                                            if (args.Length == 2) fres = Math.Abs(((double)args[0]) - ((double)args[1])) < 1e-6;
-                                            else if (args.Length == 3) fres = Math.Abs(((double)args[0]) - ((double)args[1])) < (double)args[2];
-                                        }
-                                        break;
-                                    default:
-                                        throw new Exception($"Unknown function '{call.Name}'.");
-                                }
-                            }
-
-                            stack.Push(fres);
-                            break;
-                        }
-
-                    default:
-                        throw new Exception($"Unexpected RPN element: {item}");
-                }
+                default:
+                    throw new Exception($"Unexpected RPN element: {item}");
             }
-
-            if (stack.Count != 1)
-                throw new Exception("Expression incomplete or overdetermined.");
-
-            return stack.Pop();
         }
-        catch (Exception ex)
-        {
-            return ex.Message;
-        }
+
+        if (stack.Count != 1)
+            throw new Exception("Expression incomplete or overdetermined.");
+
+        return stack.Pop();
     }
 
     private static bool IsNumeric(object b)
