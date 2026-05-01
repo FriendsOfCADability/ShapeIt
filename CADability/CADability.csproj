@@ -37,7 +37,7 @@
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>NET4X;xTESTNEWCONTEXTMENU</DefineConstants>
-    <Optimize>False</Optimize>
+    <Optimize>True</Optimize>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <DocumentationFile />
@@ -46,18 +46,18 @@
   <PropertyGroup Condition="'$(Configuration)'=='RelWithDoc'">
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>xPARALLEL, xTESTNEWCONTEXTMENU</DefineConstants>
-    <Optimize>false</Optimize>
+    <Optimize>False</Optimize>
     <DebugType>full</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <DocumentationFile />
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DebugType>full</DebugType>
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <DebugType>full</DebugType>
+    <DebugType>none</DebugType>
   </PropertyGroup>
   
   <ItemGroup>

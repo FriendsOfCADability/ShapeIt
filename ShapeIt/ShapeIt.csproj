@@ -7,17 +7,25 @@
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>disable</ImplicitUsings>
 	</PropertyGroup>
-
+	
+	<PropertyGroup>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<RuntimeIdentifier>win-x64</RuntimeIdentifier>
+		<SelfContained>true</SelfContained>
+		<PublishSingleFile>true</PublishSingleFile>
+	</PropertyGroup>
+	
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
 		<IsPublishable>True</IsPublishable>
 		<DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
-		<DebugType>portable</DebugType>
+		<DebugType>none</DebugType>
+		<Optimize>True</Optimize>
 	</PropertyGroup>
 
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<IsPublishable>True</IsPublishable>
-		<DebugType>portable</DebugType>
-		<Optimize>False</Optimize>
+		<DebugType>none</DebugType>
+		<Optimize>True</Optimize>
 	</PropertyGroup>
 
 	<ItemGroup>
