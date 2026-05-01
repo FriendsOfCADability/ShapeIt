@@ -2,12 +2,14 @@
 using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
+using CdlToCSharp;
 using MathNet.Numerics;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 
 #region Geometry helpers (type operations)
@@ -812,6 +814,12 @@ public static class Evaluator
     }
     public static object Evaluate(string expr, Dictionary<string, object> namedValues)
     {
+        if (string.IsNullOrWhiteSpace(expr)) return null;
+        if (Regex.IsMatch(expr, @"^\s*-?\d+(,\d*)?\s*$"))
+        {   // replace "," by "." when there is only numbers and a single comma
+            // this should not happen, but there might be some cases left, where while typing a string like "2," occures
+            expr = expr.Replace(',', '.');
+        }
         var tokens = Lexer.Tokenize(expr);
         var rpn = Parser.ToRpn(tokens);
 

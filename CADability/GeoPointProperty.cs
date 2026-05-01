@@ -239,12 +239,15 @@ namespace CADability.UserInterface
             }
             else
             {
-                object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
-                if (o is GeoPoint pp)
+                try
                 {
-                    val = pp;
-                    return true;
-                }
+                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                    if (o is GeoPoint pp)
+                    {
+                        val = pp;
+                        return true;
+                    }
+                } catch { }
             }
             return false;
         }

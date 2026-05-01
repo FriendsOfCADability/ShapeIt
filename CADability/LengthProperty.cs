@@ -1,4 +1,5 @@
-﻿using System;
+﻿using CdlToCSharp;
+using System;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
@@ -140,10 +141,10 @@ namespace CADability.UserInterface
             bool success = false;
 
             Match m = Match.Empty;
-            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d+)?\s*$");
-                // text = text.Replace(",", ".");
+            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d*)?\s*$");
+            // text = text.Replace(",", ".");
 
-            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d+)?\s*$");
+            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d*)?\s*$");
             // text = text.Replace(".", ",");
             if (m.Success)
             {   // this seems to be a valid double literal
@@ -168,20 +169,21 @@ namespace CADability.UserInterface
             }
             else
             {
-                object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
-                if (o is double dd)
+                try
                 {
-                    val = dd;
-                    return true;
+                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                    if (o is double dd)
+                    {
+                        val = dd;
+                        return true;
+                    }
                 }
-                else
-                {
-                    val = 0.0;
-                    return false;
-                }
+                catch { }
+                val = 0.0;
+                return false;
             }
         }
-        
+
         protected override string ValueToText(double val)
         {
             return val.ToString("f", numberFormatInfo);

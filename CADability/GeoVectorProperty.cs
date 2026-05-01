@@ -320,8 +320,8 @@ namespace CADability.UserInterface
                     pl = Frame.ActiveView.Projection.DrawingPlane;
                 }
                 Match m = Match.Empty;
-                if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d+)?\s*$");
-                if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d+)?\s*$");
+                if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d*)?\s*$");
+                if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d*)?\s*$");
                 if (m.Success)
                 {   // this seems to be a valid double literal
                     //Remove duplicate NumberDecimalSeparator from end to start.
@@ -344,14 +344,17 @@ namespace CADability.UserInterface
                 }
                 else
                 {
-                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
-                    if (o is double dd)
+                    try
                     {
-                        Angle a = new Angle();
-                        a.Degree = dd;
-                        val = pl.ToGlobal(new GeoVector2D(a));
-                        return true;
-                    }
+                        object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                        if (o is double dd)
+                        {
+                            Angle a = new Angle();
+                            a.Degree = dd;
+                            val = pl.ToGlobal(new GeoVector2D(a));
+                            return true;
+                        }
+                    } catch { }
                 }
             }
             else

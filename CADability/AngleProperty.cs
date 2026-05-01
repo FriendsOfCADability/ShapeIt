@@ -133,10 +133,10 @@ namespace CADability.UserInterface
             double l = 0.0;
 
             Match m = Match.Empty;
-            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d+)?\s*$");
+            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d*)?\s*$");
             // text = text.Replace(",", ".");
 
-            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d+)?\s*$");
+            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d*)?\s*$");
             // text = text.Replace(".", ",");
             if (m.Success)
             {

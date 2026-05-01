@@ -112,8 +112,8 @@ namespace ShapeIt
 
         private int nextId = 1;
         private int nextUndo = 1;
-        public MCPServer(IFrame frame) 
-        { 
+        public MCPServer(IFrame frame)
+        {
             this.frame = frame;
         }
 
@@ -1379,6 +1379,23 @@ namespace ShapeIt
                     Face toRotate = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[i].SimpleShapes[j]);
                     IGeoObject go = Make3D.Rotate(toRotate, axis, SweepAngle.Deg(angle), 0, null);
                     if (go is Solid sld) res.Add(sld);
+                }
+            }
+            if (profiles.Count == 0)
+            {
+                List<ICurve> crvs = GetSketchCurves(profile);
+                for (int i = 0; i < crvs.Count; i++)
+                {
+                    // crvs[i] is not closed here, otherwise it would have been a profile in profiles
+                    Line l1 = Line.TwoPoints(crvs[i].EndPoint, Geometry.DropPL(crvs[i].EndPoint, axis.Location, axis.Direction));
+                    Line l3 = Line.TwoPoints(Geometry.DropPL(crvs[i].StartPoint, axis.Location, axis.Direction), crvs[i].StartPoint);
+                    Line l2 = Line.TwoPoints(l1.EndPoint, l3.StartPoint);
+                    Face toRotate = Face.MakeFace(new GeoObjectList(crvs[i] as IGeoObject, l1, l2, l3));
+                    if (toRotate != null)
+                    {
+                        IGeoObject go = Make3D.Rotate(toRotate, axis, SweepAngle.Deg(angle), 0, null);
+                        if (go is Solid sld) res.Add(sld);
+                    }
                 }
             }
             if (name != null) namedItems[name] = res;

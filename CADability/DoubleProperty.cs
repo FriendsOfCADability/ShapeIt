@@ -138,10 +138,10 @@ namespace CADability.UserInterface
             bool success = false;
 
             Match m = Match.Empty;
-            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d+)?\s*$");
+            if (numberFormatInfo.NumberDecimalSeparator == ".") m = Regex.Match(text, @"^\s*-?\d+(\.\d*)?\s*$");
             // text = text.Replace(",", ".");
 
-            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d+)?\s*$");
+            if (numberFormatInfo.NumberDecimalSeparator == ",") m = Regex.Match(text, @"^\s*-?\d+(,\d*)?\s*$");
             // text = text.Replace(".", ",");
             if (m.Success)
             {   // this seems to be a valid double literal

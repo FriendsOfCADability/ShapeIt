@@ -10,7 +10,52 @@ namespace ShapeIt
 {
     public class TestMCP : Form
     {
-        private TextBox textBox;
+        public class JsonFilteringTextBox : RichTextBox
+        {
+            protected override void OnKeyDown(KeyEventArgs e)
+            {
+                if (e.Control && e.KeyCode == Keys.V)
+                {
+                    e.SuppressKeyPress = true;
+
+                    string text = Clipboard.GetText();
+
+                    var fragments = ExtractBracedFragments(text);
+
+                    string filtered = string.Join(
+                        Environment.NewLine + Environment.NewLine,
+                        fragments);
+
+                    SelectedText = filtered;
+                    return;
+                }
+
+                base.OnKeyDown(e);
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                const int WM_PASTE = 0x0302;
+
+                if (m.Msg == WM_PASTE)
+                {
+                    string text = Clipboard.GetText();
+
+                    var fragments = ExtractBracedFragments(text);
+
+                    string filtered = string.Join(
+                        Environment.NewLine + Environment.NewLine,
+                        fragments);
+
+                    SelectedText = filtered;
+                    return;
+                }
+
+                base.WndProc(ref m);
+            }
+        }
+
+        private JsonFilteringTextBox textBox;
         private Button okButton;
         private MCPServer server;
 
@@ -87,11 +132,11 @@ namespace ShapeIt
             this.MaximizeBox = true;
 
             // TextBox
-            textBox = new TextBox();
+            textBox = new JsonFilteringTextBox();
             textBox.Multiline = true;
             textBox.Dock = DockStyle.Fill;
-            textBox.ScrollBars = ScrollBars.Both;
-            textBox.AcceptsReturn = true;
+            textBox.ScrollBars = RichTextBoxScrollBars.Both;
+            // textBox.AcceptsReturn = true;
             textBox.AcceptsTab = true;
             textBox.MaxLength = 1000000;
 
@@ -139,6 +184,67 @@ namespace ShapeIt
                 server.ReportError(ex.Message);
                 return false;
             }
+        }
+
+        public static List<string> ExtractBracedFragments(string text)
+        {
+            var result = new List<string>();
+
+            int depth = 0;
+            int start = -1;
+            bool inString = false;
+            bool escape = false;
+
+            for (int i = 0; i < text.Length; i++)
+            {
+                char ch = text[i];
+
+                if (inString)
+                {
+                    if (escape)
+                    {
+                        escape = false;
+                    }
+                    else if (ch == '\\')
+                    {
+                        escape = true;
+                    }
+                    else if (ch == '"')
+                    {
+                        inString = false;
+                    }
+
+                    continue;
+                }
+
+                // außerhalb eines String-Literals
+                if (ch == '"')
+                {
+                    inString = true;
+                }
+                else if (ch == '{')
+                {
+                    if (depth == 0)
+                        start = i;
+
+                    depth++;
+                }
+                else if (ch == '}')
+                {
+                    if (depth > 0)
+                    {
+                        depth--;
+
+                        if (depth == 0 && start >= 0)
+                        {
+                            result.Add(text.Substring(start, i - start + 1));
+                            start = -1;
+                        }
+                    }
+                }
+            }
+
+            return result;
         }
 
     }
