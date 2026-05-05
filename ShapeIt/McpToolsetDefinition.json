@@ -714,6 +714,34 @@
 				"touchedBy": {
 					"$ref": "#/types/ExpressionBBox",
 					"description": "Optional bounding box that must intersect/touch the solid."
+				},
+				"extreme": {
+					"type": "object",
+					"description": "Select a solid at an extreme position along a global axis (e.g., top-most solid).",
+					"properties": {
+						"axis": {
+							"type": "string",
+							"enum": [
+								"x",
+								"y",
+								"z"
+							],
+							"description": "Global axis."
+						},
+						"which": {
+							"type": "string",
+							"enum": [
+								"min",
+								"max"
+							],
+							"description": "Choose minimum or maximum along the axis."
+						}
+					},
+					"required": [
+						"axis",
+						"which"
+					],
+					"additionalProperties": false
 				}
 			},
 			"additionalProperties": false
@@ -737,19 +765,8 @@
 					]
 				},
 				"from": {
-					"description": "One object reference or a list of references used as the query scope.",
-					"oneOf": [
-						{
-							"$ref": "#/types/ObjectRef"
-						},
-						{
-							"type": "array",
-							"minItems": 1,
-							"items": {
-								"$ref": "#/types/ObjectRef"
-							}
-						}
-					]
+					"description": "One or more object references used as the query scope.",
+					"$ref": "#/types/Selector"
 				},
 				"filter": {
 					"description": "Target-specific filter schema depends on target.",
@@ -1162,6 +1179,28 @@
 					"objects"
 				],
 				"additionalProperties": false
+			}
+		},
+		{
+			"name": "document.update_objects",
+			"description": "Updates the document model by removing existing committed objects and adding new workspace objects in a single operation. Both 'remove' and 'add' accept selectors and may reference one or many objects. This operation is typically used in iterative modeling workflows where a previously committed result is replaced by an improved version.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"remove": {
+						"$ref": "#/types/Selector",
+						"description": "Selector identifying one or more existing objects in the document to be removed."
+					},
+					"add": {
+						"$ref": "#/types/Selector",
+						"description": "Selector identifying one or more workspace objects to be committed to the document."
+					}
+				},
+				"additionalProperties": false,
+				"anyOf": [
+					{ "required": [ "remove" ] },
+					{ "required": [ "add" ] }
+				]
 			}
 		},
 		{

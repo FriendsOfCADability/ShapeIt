@@ -1220,13 +1220,13 @@ public static class Evaluator
                                     CheckArgCount(call, args, 1);
                                     fres = (int)Math.Floor(Convert.ToDouble(args[0]));
                                     break;
-
-                                // p(x,y,z) => GeoPoint or GeoPoint2D
+                                case "round":
+                                    CheckArgCount(call, args, 1);
+                                    fres = (int)Math.Round(Convert.ToDouble(args[0]));
+                                    break;
                                 case "p":
                                     fres = MakePoint(args);
                                     break;
-
-                                // v(x,y,z) => GeoVector or GeoVector2D
                                 case "v":
                                     fres = MakeVector(args);
                                     break;
@@ -1250,7 +1250,15 @@ public static class Evaluator
                                         if (args.Length == 3 && args[0] is double fx && args[1] is double fy && args[2] is double fz) fres = ModOp.Scale(fx, fy, fz);
                                         else if (args.Length == 2 && args[0] is GeoPoint p && args[1] is double f) fres = ModOp.Scale(p, f);
                                         // and more configurations
-                                        else throw new Exception($"Function {call.Name} expects a vector or thre double values as argument.");
+                                        else throw new Exception($"Function {call.Name} expects a vector or three double values as argument.");
+                                    }
+                                    break;
+                                case "reflect":
+                                    {
+                                        if (args.Length == 2 && args[0] is GeoPoint origin && args[1] is GeoVector normal) 
+                                            fres = ModOp.ReflectPlane(new Plane(origin,normal));
+                                        // and more configurations
+                                        else throw new Exception($"Function {call.Name} expects a point and a vector as argument.");
                                     }
                                     break;
                                 case "distance":

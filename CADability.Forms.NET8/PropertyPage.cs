@@ -597,6 +597,13 @@ namespace CADability.Forms.NET8
         }
         private void Delay_Tick(object sender, EventArgs e)
         {
+            if (IsDisposed)
+            {
+                delay.Stop();
+                delay.Tick -= Delay_Tick;
+                delay = null;
+                return;
+            }
             object[] oa = (sender as Timer).Tag as object[];
             string toDisplay = oa[0] as string;
             Point mp = (Point)oa[1];
@@ -1055,7 +1062,7 @@ namespace CADability.Forms.NET8
         }
         public IPropertyEntry GetCurrentSelection()
         {
-            if (selected >= 0 && entries.Length>selected) return entries[selected];
+            if (selected >= 0 && entries.Length > selected) return entries[selected];
             return null;
         }
         public void SelectEntry(IPropertyEntry toSelect)
@@ -1151,9 +1158,12 @@ namespace CADability.Forms.NET8
 
         protected override void Dispose(bool disposing)
         {
-            for (int i = 0; i < entries.Length; i++)
+            if (entries != null)
             {
-                entries[i].Removed(this);
+                for (int i = 0; i < entries.Length; i++)
+                {
+                    entries[i].Removed(this);
+                }
             }
             base.Dispose(disposing);
         }

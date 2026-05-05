@@ -465,9 +465,15 @@ namespace CADability
 
                 return val;
             }
+            bool IsList(Type t)
+            {
+                return t.IsGenericType &&
+                       t.GetGenericTypeDefinition() == typeof(List<>);
+            }
             T IJsonReadData.GetProperty<T>(string name)
             {
                 if (!ContainsKey(name)) return default(T);
+                if (IsList(typeof(T))) { }
                 return (T)(this as IJsonReadData).GetProperty(name, typeof(T));
             }
             bool IJsonReadData.TryGetProperty<T>(string name, out T val)
@@ -1894,6 +1900,14 @@ namespace CADability
             }
             data.AddProperty("$Entries", asList.ToArray());
         }
+
+        static Type? FindType(string fullName)
+        {
+            return AppDomain.CurrentDomain
+                .GetAssemblies()
+                .Select(a => a.GetType(fullName, false, false))
+                .FirstOrDefault(t => t != null);
+        }
         public void SetObjectData(IJsonReadData data)
         {
             Type keyType = null, valType = null;
@@ -1908,7 +1922,10 @@ namespace CADability
                 object key = kv[0];
                 if (key == null) continue;
                 Type vt;
-                if (valTypes != null) vt = Type.GetType(valTypes[i]);
+                if (valTypes != null)
+                {
+                    vt = Type.GetType(valTypes[i]) ?? FindType(valTypes[i]);
+                }
                 else vt = valType;
                 object val = kv[1];
                 if (!key.GetType().IsSubclassOf(keyType)) key = Convert.ChangeType(key, keyType);

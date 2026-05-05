@@ -59,7 +59,7 @@ namespace ShapeIt
         private IHotSpot hotspotUnderCursor;
         private IGeoObject selectedObjectUnderCursor;
         MCPServer mcpServer;
-        McpWorkspace mcpWorkspace = null;
+        MCPServerForm? mcpServerForm = null;
 
         public ModellingPropertyEntries(IFrame cadFrame) : base("Modelling.Properties")
         {
@@ -86,7 +86,8 @@ namespace ShapeIt
             feedback.Attach(cadFrame.ActiveView);
             FeedbackArrow.SetNumberFormat(cadFrame);
             ViewsChanged(cadFrame); // first initialisation
-            mcpServer = new MCPServer(cadFrame);
+            
+            mcpServer = new MCPServer(cadFrame, cadFrame.Project);
         }
 
         private void OnProjectClosed(Project theProject, IFrame theFrame)
@@ -97,6 +98,7 @@ namespace ShapeIt
         private void OnProjectOpened(Project theProject, IFrame theFrame)
         {
             theProject.GetModel(0).RemovingGeoObjectEvent += OnObjectRemoved;
+            mcpServer = new MCPServer(theFrame, theProject);
         }
 
         private void OnObjectRemoved(IGeoObject go, ref bool cancel)
@@ -3700,28 +3702,21 @@ namespace ShapeIt
                     Clear();
                     return true;
                 case "MenuId.RPCDialog":
-                    using (var dlg = new TestMCP(mcpServer))
+                    if (mcpServerForm == null || mcpServerForm.IsDisposed)
                     {
-                        dlg.ShowDialog();
+                        mcpServerForm = new MCPServerForm(mcpServer);
+                        mcpServerForm.FormClosed += (_, __) => mcpServerForm = null;
+                        mcpServerForm.Show();   // nicht modal, kein Owner
+                    }
+                    else
+                    {
+                        mcpServerForm.Show();
+                        mcpServerForm.Activate();
                     }
                     return true;
                 case "MenuId.RPCTemplate":
                     Clear();
                     SetRpcTemplateEntries();
-                    return true;
-                case "MenuId.RPCWorkspace":
-                    if (mcpWorkspace == null || mcpWorkspace.IsDisposed)
-                    {
-                        mcpWorkspace = new McpWorkspace(mcpServer);
-                        mcpWorkspace.FormClosed += (_, __) => mcpWorkspace = null;
-                        mcpWorkspace.Show();   // nicht modal, kein Owner
-                    }
-                    else
-                    {
-                        mcpWorkspace.Show();
-                        mcpWorkspace.Activate();
-                    }
-
                     return true;
                 default: return false;
             }

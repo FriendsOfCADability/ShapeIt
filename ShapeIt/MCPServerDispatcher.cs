@@ -6,6 +6,7 @@ using CADability;
 using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
 using System.DirectoryServices.ActiveDirectory;
@@ -25,6 +26,7 @@ namespace ShapeIt
         private List<JsonElement>? recordingTemplate = null;
         private string? currentTemplatName = null;
         public string currentRpcString;
+        public bool stopExecution = false;
 
         /// <summary>
         /// Dispatches a JSON-RPC method call. The transport layer should parse JSON-RPC envelope and pass:
@@ -50,16 +52,16 @@ namespace ShapeIt
             }
             catch (JsonRpcException jre)
             {
-                ReportError(jre.Message);
+                if (!ReportError(jre.Message)) stopExecution = true; 
             }
             catch (NotImplementedException nie)
             {
                 // Explicit marker that the dispatcher knows the method but implementation isn't done yet.
-                ReportError(nie.Message);
+                if (!ReportError(nie.Message)) stopExecution = true; 
             }
             catch (Exception ex)
             {
-                ReportError(ex.Message);
+                if (!ReportError(ex.Message)) stopExecution = true; 
             }
 
             return response.ToJsonString();
@@ -110,10 +112,14 @@ namespace ShapeIt
             }
 
         }
-
-        public void ReportError(string message)
+        /// <summary>
+        /// Return false, when further processing of RPC code should be canceled
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        public bool ReportError(string message)
         {
-            frame.UIService.ShowMessageBox(currentRpcString + "\n" + message, "Error in MCPServer", CADability.Substitutes.MessageBoxButtons.OK);
+            return frame.UIService.ShowMessageBox(currentRpcString + "\n" + message, "Error in MCPServer", CADability.Substitutes.MessageBoxButtons.OKCancel) == CADability.Substitutes.DialogResult.OK;
         }
         // -------------------------
         // JSON helpers
@@ -872,7 +878,8 @@ namespace ShapeIt
                 {   // check list first: when T is object, the whole list is returned as an item
                     if (val is IEnumerable<T> seq) foreach (T item in seq) yield return item;
                     else if (val is T t) yield return t;
-                } else throw new JsonRpcException(-32602, $"Named object not found: {je.GetString()}");
+                }
+                else throw new JsonRpcException(-32602, $"Named object not found: {je.GetString()}");
             }
             else if (selector.TryGetProperty("names", out je) && je.ValueKind == JsonValueKind.Array)
             {   // array of ObjectRefs
@@ -915,7 +922,7 @@ namespace ShapeIt
                             }
                             break;
                         default:
-                            throw new JsonRpcException(-32602, $"Unknown boolean operator '{op}'"); 
+                            throw new JsonRpcException(-32602, $"Unknown boolean operator '{op}'");
                     }
                     foreach (var item in result) yield return item;
                 }
@@ -1148,11 +1155,10 @@ namespace ShapeIt
                         }
                         if (filter.TryGetProperty("closeTo", out je))
                         {
-                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'closeTo' must be an object");
                             GeoPoint p = RequirePoint3D(je, null);
                             BoundingBox pbox = new BoundingBox(p, Precision.eps);
                             if (toTest is Face face && Math.Abs(face.Distance(p)) > Precision.eps) continue;
-                            if (toTest is Solid solid && solid.HitTest(ref pbox, Precision.eps)) continue;
+                            if (toTest is Solid solid && !solid.HitTest(ref pbox, Precision.eps) && !solid.Shell.Contains(p)) continue;
                             if (toTest is Edge edge && edge.Curve3D is IGeoObject go && !go.HitTest(ref pbox, Precision.eps)) continue;
                         }
                         if (filter.TryGetProperty("inside", out je))
@@ -1338,7 +1344,7 @@ namespace ShapeIt
         {
             foreach (var jsonBlock in ReadJsonObjects(text))
             {
-                TryParseRpcBlock(jsonBlock);
+                if (!TryParseRpcBlock(jsonBlock)) break;
             }
         }
 
@@ -1350,7 +1356,7 @@ namespace ShapeIt
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
                 ProcessMethod(root);
-                return true;
+                return !stopExecution;
             }
             catch (Exception ex) { return false; } // TODO: this exception must be integrated in the error result
         }

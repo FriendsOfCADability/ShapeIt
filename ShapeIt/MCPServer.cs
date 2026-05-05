@@ -28,7 +28,9 @@ namespace ShapeIt
     public partial class MCPServer
     {
         public IFrame frame;
-        public class NamedItemsDictionary
+        public readonly Project project;
+
+        public class NamedItemsDictionary: IJsonSerialize
         {
             private readonly Dictionary<string, object> dict = new(StringComparer.Ordinal);
             public NamedItemsDictionary() { }
@@ -63,11 +65,29 @@ namespace ShapeIt
             {
                 dict.Remove(name);
             }
+
+            public void GetObjectData(IJsonWriteData data)
+            {
+                foreach (var item in dict) // it is currently not possible to save a List<Solid> as part of a dictionary, so we save the items expicitely
+                {
+                    data.AddProperty(item.Key, item.Value);
+                }
+            }
+            public void SetObjectData(IJsonReadData data)
+            {
+                foreach (var item in data)
+                {
+                    if (item.Key.StartsWith("$") || item.Key.StartsWith("§")) continue; // skip internal properties
+                    object val = item.Value; // convert to the correct typed List<>
+                    if (val is List<object> lo) dict[item.Key] = MCPServer.MakeTypedList(lo);
+                    else dict[item.Key] = item.Value;
+                }
+            }
         }
 
         // Named workspace items and created objects.
         // Names are chosen by the caller (LLM/client). 
-        private NamedItemsDictionary namedItems = new();
+        public NamedItemsDictionary namedItems = new();
         public Dictionary<string, List<JsonElement>> templates = [];
 
         private class NamedItemOverride : IDisposable
@@ -112,9 +132,21 @@ namespace ShapeIt
 
         private int nextId = 1;
         private int nextUndo = 1;
-        public MCPServer(IFrame frame)
+        public MCPServer(IFrame frame, Project project)
         {
             this.frame = frame;
+            this.project = project;
+            // we store the named items in the project user data, so we can save the session and proceed with executing RPC Code, which relies on the existing named items.
+            // CADability has no concept of MCPServer
+            if (project.UserData.ContainsData("MCPServer.NamedItems"))
+            {
+                namedItems = (NamedItemsDictionary)project.UserData.GetData("MCPServer.NamedItems")!;
+            }
+            else
+            {
+                namedItems = new NamedItemsDictionary();
+                project.UserData.Add("MCPServer.NamedItems", namedItems);
+            }
         }
 
         private void StoreNamed(string name, object value)
@@ -263,7 +295,7 @@ namespace ShapeIt
             }
         }
 
-        private object? MakeTypedList(List<object> selected)
+        static private object? MakeTypedList(List<object> selected)
         {
             Type? t = selected.FirstOrDefault()?.GetType();
             if (t != null && selected.All(x => x?.GetType() == t))
@@ -683,6 +715,20 @@ namespace ShapeIt
             sketch.Add(curve);
             if (name != null) namedItems[name] = curve;
         }
+
+        private void SketchAddSolidSectionImpl(Sketch sketch, JsonElement solid, bool merge, string name)
+        {
+            List<Solid> solids = IterateSelector<Solid>(solid).ToList(); // should only be one
+            List<ICurve> curves = [];
+            foreach (Solid s in solids)
+            {
+                curves.AddRange(s.Shell.GetPlaneIntersection(new PlaneSurface(sketch.Plane)));
+            }
+            List<ICurve2D> curves2d = curves.Select(c => c.GetProjectedCurve(sketch.Plane)).ToList();
+            CompoundShape cs = CompoundShape.CreateFromList(curves2d.ToArray(), Precision.eps, true, out _);
+            sketch.Add(cs);
+            if (name != null) namedItems[name] = cs;
+        }
         private void SketchAddTextImpl(Sketch sketch, string text, GeoPoint2D location, double height, JsonElement font, JsonElement horizontalAlign, JsonElement verticalAlign, double characterSpacing, double wordSpacing, string name)
         {
             string fontFamily = RequireString(font, "family");
@@ -783,7 +829,104 @@ namespace ShapeIt
 
         }
 
+        private ICurve2D ConnectToSinglePath(HashSet<ICurve2D> curves, double eps = 1e-8)
+        {
+            if (curves == null) throw new ArgumentNullException(nameof(curves));
+            if (curves.Count == 0) throw new ArgumentException("Keine Kurven vorhanden.", nameof(curves));
 
+            // Nicht direkt im HashSet arbeiten, falls Reverse() den Hash beeinflusst
+            List<ICurve2D> work = curves.ToList();
+            curves.Clear();
+
+            while (work.Count > 1)
+            {
+                double bestDist = double.MaxValue;
+                int bestI = -1;
+                int bestJ = -1;
+                int bestMode = -1;
+
+                for (int i = 0; i < work.Count; i++)
+                {
+                    for (int j = i + 1; j < work.Count; j++)
+                    {
+                        ICurve2D a = work[i];
+                        ICurve2D b = work[j];
+
+                        Check(a.EndPoint, b.StartPoint, 0); // a -> b
+                        Check(a.EndPoint, b.EndPoint, 1); // a -> reverse(b)
+                        Check(a.StartPoint, b.StartPoint, 2); // reverse(a) -> b
+                        Check(a.StartPoint, b.EndPoint, 3); // reverse(a) -> reverse(b)
+
+                        void Check(GeoPoint2D p1, GeoPoint2D p2, int mode)
+                        {
+                            double d = p1 | p2;
+                            if (d < bestDist)
+                            {
+                                bestDist = d;
+                                bestI = i;
+                                bestJ = j;
+                                bestMode = mode;
+                            }
+                        }
+                    }
+                }
+
+                ICurve2D first = work[bestI];
+                ICurve2D second = work[bestJ];
+
+                switch (bestMode)
+                {
+                    case 0:
+                        // first.End -> second.Start
+                        break;
+
+                    case 1:
+                        // first.End -> second.End
+                        second.Reverse();
+                        break;
+
+                    case 2:
+                        // first.Start -> second.Start
+                        first.Reverse();
+                        break;
+
+                    case 3:
+                        // first.Start -> second.End
+                        first.Reverse();
+                        second.Reverse();
+                        break;
+                }
+
+                List<ICurve2D> parts = new List<ICurve2D>();
+                parts.Add(first);
+
+                if ((first.EndPoint | second.StartPoint) > eps)
+                {
+                    parts.Add(new Line2D(first.EndPoint, second.StartPoint));
+                }
+
+                parts.Add(second);
+
+                ICurve2D combined = new Path2D(parts.ToArray());
+
+                // Wichtig: höheren Index zuerst entfernen
+                if (bestI > bestJ)
+                {
+                    work.RemoveAt(bestI);
+                    work.RemoveAt(bestJ);
+                }
+                else
+                {
+                    work.RemoveAt(bestJ);
+                    work.RemoveAt(bestI);
+                }
+
+                work.Add(combined);
+            }
+
+            curves.Add(work[0]);
+            return work[0];
+        }
         private void SketchConnectImpl(Sketch sketch, JsonElement entities, double precision, bool closeGaps, string name)
         {
             List<ICurve2D> toConnect = IterateSelector<ICurve2D>(entities).ToList();
@@ -792,6 +935,15 @@ namespace ShapeIt
             r2d.OutputMode = Reduce2D.Mode.Paths;
             r2d.Add(toConnect.ToArray());
             ICurve2D[] reduced = r2d.Reduced;
+            if (closeGaps)
+            {
+                ICurve2D c2d = ConnectToSinglePath(new HashSet<ICurve2D>(reduced), precision);
+                if (!c2d.IsClosed)
+                {
+                    c2d = new Path2D(new ICurve2D[] { c2d, new Line2D(c2d.EndPoint, c2d.StartPoint) });
+                }
+                reduced = new ICurve2D[] { c2d };
+            }
             if (name != null) namedItems[name] = reduced.ToList();
             if (sketch != null)
             {
@@ -800,7 +952,6 @@ namespace ShapeIt
                     sketch.Add(c);
                 }
             }
-            ;
         }
         private void ProfileFromRegionsImpl(JsonElement regions, string? name)
         {   // regins are for extracting. There is no difference between CompoundShapes from a sketch and a region.
@@ -1165,6 +1316,7 @@ namespace ShapeIt
                     else
                     {
                         ProcessMethod(element, true);
+                        if (stopExecution) return null;
                         if (methodName == "template.begin")
                         {   // here we overwrite the workspace values of the parameters
                             // template.begin createt a new copy of the named items, so we can safely overwrite values here without affecting the outside
@@ -1752,7 +1904,8 @@ namespace ShapeIt
         private void PatternByFormulaSolidsImpl(JsonElement solids, string template, JsonElement variables, JsonElement formulas, string? condition, JsonElement arguments, string transform, bool includeSource, bool copy, string? name, bool suffix, string? indexName, bool skipInvalidInstances)
         {
             List<Solid> solidsToInsert = [];
-            if (solids.ValueKind == JsonValueKind.Object) solidsToInsert = IterateSelector<Solid>(solids).ToList();
+            solidsToInsert = IterateSelector<Solid>(solids).ToList();
+            if (solidsToInsert.Count==0) throw new JsonRpcException("E_INVALID_PARAMS", "No solids for the pattern found.");
             List<(string name, double start, double step, int count)> loopVariables = [];
             if (variables.ValueKind != JsonValueKind.Array) throw new JsonRpcException("E_INVALID_PARAMS", "'variables' must be an array.");
             foreach (var variable in variables.EnumerateArray())
@@ -2531,6 +2684,38 @@ namespace ShapeIt
                 }
             }
         }
+
+        private void DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
+        {
+            Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
+            if (project==null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
+            Model model = project.GetActiveModel();
+            Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
+            foreach (Solid sld in IterateSelector<Solid>(remove))
+            {
+                if (sld.Owner == model) model.Remove(sld);
+                else
+                {
+                    foreach (IGeoObject go in model.AllObjects)
+                    {
+                        if (go is Solid sld2)
+                        {
+                            if (sld2.Name == sld.Name)
+                            {
+                                model.Remove(sld2);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            foreach (Solid sld in IterateSelector<Solid>(add))
+            {
+                if (style != null) { sld.Style = style; }
+                model.Add(sld);
+            }
+        }
+
         private void TransformScaleImpl(JsonElement objectsEl, GeoPoint center, double factor, JsonElement factorsEl, string name, string copySuffix)
         {
             throw new NotImplementedException();
@@ -2743,6 +2928,7 @@ namespace ShapeIt
                     using (new NamedItemClone(this))
                     {
                         ProcessMethod(jsons[0], false); // now we should find the values of the parameters in the (temporary) namedItems
+                        if (stopExecution) return res;
                         if (jsons[0].TryGetProperty("params", out var prms) && prms.ValueKind == JsonValueKind.Object)
                         {
                             if (prms.TryGetProperty("parameters", out var parameters) && parameters.ValueKind == JsonValueKind.Array)
@@ -2833,6 +3019,7 @@ namespace ShapeIt
                             else
                             {
                                 ProcessMethod(element, true);
+                                if (stopExecution) return null;
                                 if (methodName == "template.begin")
                                 {   // here we overwrite the workspace values of the parameters
                                     foreach (var item in parameterValues)
@@ -2859,7 +3046,7 @@ namespace ShapeIt
         {
             public string? Name { get; set; }
         }
-        internal class Sketch
+        public class Sketch: IJsonSerialize
         {
             Plane plane;
             List<ICurve2D> curves = [];
@@ -2928,6 +3115,22 @@ namespace ShapeIt
                 }
                 return null;
             }
+
+            protected Sketch() { } // for IJsonSerialize
+            public void GetObjectData(IJsonWriteData data)
+            {
+                data.AddProperty("Plane", plane);
+                data.AddProperty("Curves", curves);
+                data.AddProperty("Shapes", shapes);
+            }
+
+            public void SetObjectData(IJsonReadData data)
+            {
+                plane = data.GetProperty<Plane>("Plane");
+                curves = data.GetProperty<List<ICurve2D>>("Curves");
+                shapes = data.GetProperty<List<CompoundShape>>("Shapes");
+            }
+
             public Plane Plane => plane;
             public List<ICurve2D> Curves => curves;
             public List<CompoundShape> Shapes => shapes;

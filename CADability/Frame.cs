@@ -178,11 +178,11 @@ namespace CADability
         /// </summary>
         Settings GlobalSettings { get; set; }
         /// <summary>
-                                                    /// Gets the <see cref="Settings"/> for the provided <paramref name="Name"/>. First the <see cref="Project"/>s settings are 
-                                                    /// checked, if it is not defined there, the global settings will be queried.
-                                                    /// </summary>
-                                                    /// <param name="Name"></param>
-                                                    /// <returns></returns>
+        /// Gets the <see cref="Settings"/> for the provided <paramref name="Name"/>. First the <see cref="Project"/>s settings are 
+        /// checked, if it is not defined there, the global settings will be queried.
+        /// </summary>
+        /// <param name="Name"></param>
+        /// <returns></returns>
         object GetSetting(string Name);
         /// <summary>
         /// Gets the boolen setting for the <paramref name="Name"/>. If not found <paramref name="Default"/> will be returned.
@@ -286,10 +286,10 @@ namespace CADability
             }
         }
         private ICanvas canvas;
-        public static IFrame MainFrame; // there is usually only one frame and sometimes we need services like the active view or the UIServices that we can get from here
+        public static IFrame MainFrame = null; // there is usually only one frame and sometimes we need services like the active view or the UIServices that we can get from here
         public FrameImpl()
         {
-            MainFrame = this;
+            if (MainFrame == null) MainFrame = this;
             actionStack = new ActionStack(this);
             modelViews = new Dictionary<string, ModelView>();
 #if !WEBASSEMBLY
@@ -615,7 +615,7 @@ namespace CADability
             }
         }
         private void OnSettingChanged(string Name, object NewValue)
-        {	
+        {
             object o = this.GetSetting(Name);
             SettingChangedEvent?.Invoke(Name, NewValue);
             // }
@@ -891,7 +891,7 @@ namespace CADability
             return ControlCenter?.GetPropertyPage(Name);
         }
 
-#region handling menu commands
+        #region handling menu commands
         public virtual bool OnCommand(string MenuId)
         {
             CurrentMenuId = MenuId; // ist das hier die richtige Stelle?
@@ -2119,7 +2119,7 @@ namespace CADability
             return false; // could not handle this command
         }
         void ICommandHandler.OnSelected(MenuWithHandler selectedMenuItem, bool selected) { }
-#endregion
+        #endregion
 
         private void OnProjectViewChanged(Project sender, IView viewWhichChanged)
         {
@@ -2349,7 +2349,7 @@ namespace CADability
                     StringTable.GetString("File.Dxf.Filter") + "|" +
                     StringTable.GetString("File.Dwg.Filter") + "|" +
                     StringTable.GetString("File.STEP.Filter");
-                    StringTable.GetString("File.STL.Filter");
+                StringTable.GetString("File.STL.Filter");
                 int filterIndex = lastFileType;
                 if (UIService.ShowOpenFileDlg("MenuId.File.Open", StringTable.GetString("MenuId.File.Open"), filter, ref filterIndex, out fileName) == Substitutes.DialogResult.OK)
                 {
@@ -2527,7 +2527,7 @@ namespace CADability
                         {
                             ImportSVG importSvg = new ImportSVG();
                             GeoObjectList svgImport = importSvg.Import(fileName);
-                            if (svgImport!=null)
+                            if (svgImport != null)
                             {
                                 newproject = CADability.Project.CreateSimpleProject();
                                 Model model = newproject.GetModel(0);
@@ -2539,7 +2539,7 @@ namespace CADability
                         {
                             ImportSTL importSTL = new ImportSTL();
                             Shell[] shells = importSTL.Read(fileName);
-                            if (shells!=null)
+                            if (shells != null)
                             {
                                 newproject = CADability.Project.CreateSimpleProject();
                                 Model model = newproject.GetModel(0);
@@ -2596,7 +2596,7 @@ namespace CADability
             }
         }
 
-#region SnapModes implementation
+        #region SnapModes implementation
         private SnapPointFinder.SnapModes snapMode;
         /// <summary>
         /// The snapping mode for mouse movements when interactively constructing objects
@@ -2656,7 +2656,7 @@ namespace CADability
             Settings.GlobalSettings.SetValue("KeepState.SnapMode", (int)snapMode);
         }
 
-#endregion
+        #endregion
 
 
         public delegate bool DragDropDelegate(DragEventArgs e);

@@ -167,20 +167,6 @@ namespace CADability.Actions
                     {
                         IGeoObject cl = go.Clone();
                         cl.Modify(reflectModOp);
-                        if (reflectModOp.Determinant < 0)
-                        {
-                            if (cl is Solid sld)
-                            {
-                                for (int i = 0; i < sld.Shells.Length; i++)
-                                {
-                                    sld.Shells[i].ReverseOrientation();
-                                }
-                            }
-                            else if (cl is Shell sh)
-                            {
-                                sh.ReverseOrientation();
-                            }
-                        }
                         cloned.Add(cl);
                     }
                     base.Frame.Project.GetActiveModel().Add(cloned);

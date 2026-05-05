@@ -385,9 +385,16 @@ namespace CADability.GeoObject
             // so würden die Kanten oder Faces mehrfach modifiziert, was natürlich falsch wäre
             using (new Changing(this, "ModifyInverse", m))
             {
+                // When m reverses the orientation, we reverse it back again. In contrast to Shell, were you can reverse the orientation
+                // with Modify(), you cannot reverse the orientation of a solid with Modify(). Shells may be open or may describe holes in a Solid,
+                // Solids are always considered to be finite, the outer shell is outward oiented.
                 for (int i = 0; i < shells.Length; ++i)
                 {
                     shells[i].Modify(m);
+                    if (m.Determinant < 0)
+                    {
+                        shells[i].ReverseOrientation();
+                    }
                 }
             }
         }
