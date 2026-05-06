@@ -21,6 +21,11 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+	  <Compile Remove="MCPServer.Old.cs" />
+	  <Compile Remove="MCPServerDispatcher.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<None Remove="McpToolsetDefinition.json" />
 		<None Remove="MenuResource.xml" />
 		<None Remove="Resources\Icon.ico" />

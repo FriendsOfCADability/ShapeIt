@@ -404,6 +404,7 @@ namespace ShapeIt
             foreach (var jsonBlock in ReadJsonObjects(text))
             {
                 TryParseRpcBlock(jsonBlock);
+                if (server.stopExecution) break;
             }
         }
 

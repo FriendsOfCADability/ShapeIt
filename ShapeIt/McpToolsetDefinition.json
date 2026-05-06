@@ -2458,7 +2458,7 @@
 					}
 				},
 				"required": [
-					"sketch"
+					"sketch", "width", "height", "center"
 				],
 				"additionalProperties": false
 			}

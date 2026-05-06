@@ -1,4 +1,5 @@
-﻿using CADability;
+﻿// Combined from MCPServer.cs and MCPServerDispatcher.cs.
+using CADability;
 using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
@@ -22,12 +23,18 @@ using System.Xml.Linq;
 using static ShapeIt.ShellExtensions;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using Plane = CADability.Plane;
+using MathNet.Numerics.LinearAlgebra.Factorization;
+using System.DirectoryServices.ActiveDirectory;
+using static System.ComponentModel.Design.ObjectSelectorEditor;
 
 namespace ShapeIt
 {
     public partial class MCPServer
     {
+        #region State, construction and named-item storage
+
         public IFrame frame;
+
         public readonly Project project;
 
         public class NamedItemsDictionary: IJsonSerialize
@@ -88,6 +95,7 @@ namespace ShapeIt
         // Named workspace items and created objects.
         // Names are chosen by the caller (LLM/client). 
         public NamedItemsDictionary namedItems = new();
+
         public Dictionary<string, List<JsonElement>> templates = [];
 
         private class NamedItemOverride : IDisposable
@@ -109,6 +117,7 @@ namespace ShapeIt
                 else namedItems[name] = oldNamedItem;
             }
         }
+
         private class NamedItemClone : IDisposable
         {
             NamedItemsDictionary namedItems;
@@ -131,7 +140,9 @@ namespace ShapeIt
         private Stack<NamedItemClone> namedItemClones = new();
 
         private int nextId = 1;
+
         private int nextUndo = 1;
+
         public MCPServer(IFrame frame, Project project)
         {
             this.frame = frame;
@@ -148,6 +159,1413 @@ namespace ShapeIt
                 project.UserData.Add("MCPServer.NamedItems", namedItems);
             }
         }
+
+        #endregion
+
+        #region RPC processing and errors
+
+        private List<JsonElement>? recordingTemplate = null;
+
+        private string? currentTemplatName = null;
+
+        public string currentRpcString;
+
+        public bool stopExecution = false;
+
+        /// <summary>
+        /// Dispatches a JSON-RPC method call. The transport layer should parse JSON-RPC envelope and pass:
+        /// - method: the method name
+        /// - id: JSON-RPC id (already parsed)
+        /// - parameters: the "params" object as JsonElement (may be undefined / null in the JSON)
+        /// The return value is a JSON-RPC response string.
+        /// </summary>
+        public string ProcessMethod(string method, int id, JsonElement parameters)
+        {
+            var response = new JsonObject
+            {
+                ["jsonrpc"] = "2.0",
+                ["id"] = id
+            };
+
+            try
+            {
+                System.Diagnostics.Trace.WriteLine($"RPC: {method}");
+                JsonNode result = DispatchGenerated(method, parameters);
+
+                response["result"] = result ?? new JsonObject();
+            }
+            catch (JsonRpcException jre)
+            {
+                if (!ReportError(jre.Message)) stopExecution = true; 
+            }
+            catch (NotImplementedException nie)
+            {
+                // Explicit marker that the dispatcher knows the method but implementation isn't done yet.
+                if (!ReportError(nie.Message)) stopExecution = true; 
+            }
+            catch (Exception ex)
+            {
+                if (!ReportError(ex.Message)) stopExecution = true; 
+            }
+
+            return response.ToJsonString();
+        }
+
+        public void ProcessMethod(JsonElement root, bool executeTemplate = false)
+        {
+            string? method = null;
+            int? id = null;
+            JsonElement @params = default;
+            currentRpcString = root.GetRawText(); // for error reporting, keep the original JSON string of the current method call
+
+            if (root.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String)
+            {
+                method = m.GetString();
+            }
+            if (root.TryGetProperty("id", out var idEl))
+            {
+                if (idEl.ValueKind == JsonValueKind.Number) id = idEl.GetInt32();
+                else if (idEl.ValueKind == JsonValueKind.Null) id = null;
+            }
+
+            if (root.TryGetProperty("params", out var p))
+            {
+                @params = p;         // JsonElement ist ein struct, aber Achtung: doc muss leben!
+            }
+
+            if (method != null)
+            {
+                ProcessMethod(method, id ?? 0, @params);
+                if (method == "template.begin" && !executeTemplate)
+                {
+                    currentTemplatName = RequireString(@params, "name");
+                    recordingTemplate = [root.Clone()];
+                }
+                else if (method == "template.commit" && !executeTemplate)
+                {
+                    if (recordingTemplate == null || currentTemplatName == null) throw new JsonRpcException("E_INVALID_METHOD", "'template.commit' was called with no 'template.begin' beeing called before.");
+                    recordingTemplate.Add(root.Clone());
+                    templates[currentTemplatName] = recordingTemplate;
+                    recordingTemplate = null;
+                    currentTemplatName = null;
+                }
+                else if (recordingTemplate != null)
+                {
+                    recordingTemplate.Add(root.Clone());
+                }
+            }
+
+        }
+
+        /// <summary>
+        /// Return false, when further processing of RPC code should be canceled
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        public bool ReportError(string message)
+        {
+            return frame.UIService.ShowMessageBox(currentRpcString + "\n" + message, "Error in MCPServer", CADability.Substitutes.MessageBoxButtons.OKCancel) == CADability.Substitutes.DialogResult.OK;
+        }
+
+        // ObjectRef: { "name": "..." } or { "id": "..." }
+
+        // Selector : { "target": "..." }, { "name": "..." }, { "id": "..." }, {names: ["name": "n1", "id": "id1"]} }, {"query": "..."}, {"op": "..." }
+
+        private static IEnumerable<string> ReadJsonObjects(string text)
+        {
+            var sb = new StringBuilder();
+
+            int braceDepth = 0;
+            bool inString = false;
+            bool escape = false;
+
+            foreach (char c in text)
+            {
+                sb.Append(c);
+
+                if (escape)
+                {
+                    escape = false;
+                    continue;
+                }
+
+                if (c == '\\')
+                {
+                    escape = true;
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inString = !inString;
+                    continue;
+                }
+
+                if (!inString)
+                {
+                    if (c == '{')
+                    {
+                        braceDepth++;
+                    }
+                    else if (c == '}')
+                    {
+                        braceDepth--;
+
+                        if (braceDepth == 0)
+                        {
+                            yield return sb.ToString();
+                            sb.Clear();
+                        }
+                    }
+                }
+            }
+        }
+
+        public void ProcessText(string text)
+        {
+            foreach (var jsonBlock in ReadJsonObjects(text))
+            {
+                if (!TryParseRpcBlock(jsonBlock)) break;
+            }
+        }
+
+        bool TryParseRpcBlock(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json)) { return false; }
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                ProcessMethod(root);
+                return !stopExecution;
+            }
+            catch (Exception ex) { return false; } // TODO: this exception must be integrated in the error result
+        }
+
+        /// <summary>
+        /// Lightweight JSON-RPC exception used to return proper JSON-RPC error objects.
+        /// </summary>
+        internal sealed class JsonRpcException : Exception
+        {
+            public int Code { get; }
+            public string CodeString;
+            public JsonNode? Data { get; }
+
+            public JsonRpcException(int code, string message, JsonNode? data = null) : base(message)
+            {
+                Code = code;
+                CodeString = "E_UNKNOWN";
+                Data = data;
+            }
+            public JsonRpcException(string errorCode, string message, JsonNode? data = null) : base(message)
+            {
+                if (!MCPServer.ErrorNumbers.TryGetValue(errorCode, out int code)) code = 9999;
+                CodeString = errorCode;
+                Code = code;
+                Data = data;
+            }
+        }
+
+        #endregion
+
+        #region JSON parameter parsing
+
+        // -------------------------
+        // JSON helpers
+        // -------------------------
+
+        private BoundingBox ReadBoundingBox(JsonElement pointEl)
+        {
+            double xmin = RequireDouble(pointEl, "xmin");
+            double ymin = RequireDouble(pointEl, "ymin");
+            double zmin = RequireDouble(pointEl, "zmin");
+            double xmax = RequireDouble(pointEl, "xmax");
+            double ymax = RequireDouble(pointEl, "ymax");
+            double zmax = RequireDouble(pointEl, "zmax");
+            return new BoundingBox(xmin, xmax, ymin, ymax, zmin, zmax);
+        }
+
+        private static void AssertIsObject(JsonElement root)
+        {
+            if (root.ValueKind != JsonValueKind.Object)
+                throw new JsonRpcException(-32602, $"Object expected");
+        }
+
+        private T RequireObjectRef<T>(JsonElement obj, string propName) where T : class
+        {
+            JsonElement el;
+            if (propName != null) el = RequireProperty(obj, propName);
+            else el = obj;
+            var resolved = ResolveObjectRef(el);
+            if (resolved is T t) return t;
+
+            throw new JsonRpcException(1001, $"Object is not a {typeof(T).Name}: {propName}={el}");
+        }
+
+        private static JsonElement RequireProperty(JsonElement obj, string prop)
+        {
+            if (!obj.TryGetProperty(prop, out var el))
+                throw new JsonRpcException(-32602, $"Invalid params: missing '{prop}'");
+            return el;
+        }
+
+        private static string RequireString(JsonElement obj, string prop)
+        {
+            JsonElement el = obj;
+            if (prop != null) el = RequireProperty(obj, prop);
+            if (el.ValueKind != JsonValueKind.String) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be string");
+            return el.GetString() ?? throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be string");
+        }
+
+        private bool GetOptionalBool(JsonElement obj, string? prop, bool defaultValue)
+        {
+            JsonElement el = obj;
+            if (prop != null) if (!obj.TryGetProperty(prop, out el)) return defaultValue;
+            if (el.ValueKind == JsonValueKind.True) return true;
+            if (el.ValueKind == JsonValueKind.False) return false;
+            string? exprStr = null;
+            if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("expr", out JsonElement expr) && expr.ValueKind == JsonValueKind.String)
+            {
+                exprStr = expr.GetString();
+            }
+            if (el.ValueKind == JsonValueKind.String) exprStr = el.GetString();
+            if (exprStr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(exprStr, namedItems.Dict);
+                    if (res is bool b) return b;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException(-32602, $"Invalid params: '{prop}', error in expression '{exprStr}': {ex.Message}");
+                }
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be boolean");
+        }
+
+        private bool RequireBool(JsonElement obj, string prop)
+        {
+            JsonElement el = obj;
+            if (prop != null) if (!obj.TryGetProperty(prop, out el)) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be boolean");
+            if (el.ValueKind == JsonValueKind.True) return true;
+            if (el.ValueKind == JsonValueKind.False) return false;
+            string? exprStr = null;
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                exprStr = el.GetString();
+            }
+            if (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("expr", out JsonElement expr) && expr.ValueKind == JsonValueKind.String)
+            {
+                exprStr = expr.GetString();
+            }
+            if (exprStr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(exprStr, namedItems.Dict);
+                    if (res is bool b) return b;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException(-32602, $"Invalid params: '{prop}', error in expression '{exprStr}': {ex.Message}");
+                }
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be boolean");
+        }
+
+        private static double RequireNumber(JsonElement obj, string prop)
+        {
+            var el = RequireProperty(obj, prop);
+            if (el.ValueKind != JsonValueKind.Number) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number");
+            return el.GetDouble();
+        }
+
+        private int RequireInteger(JsonElement obj, string? prop = null)
+        {
+            JsonElement el = obj;
+            if (prop != null) el = RequireProperty(obj, prop);
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                object res = Evaluator.Evaluate(el.GetString()!, namedItems.Dict);
+                if (res is double d) return (int)d;
+                if (res is int i) return i;
+            }
+            if (el.ValueKind == JsonValueKind.Number) return el.GetInt32();
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number or expression");
+        }
+
+        /// <summary>
+        /// Try to get an optional property, return default (undefined) if not found. 
+        /// try with different property names to match AI variations
+        /// </summary>
+        /// <param name="obj"></param>
+        /// <param name="prop"></param>
+        /// <returns></returns>
+        private static JsonElement GetOptional(JsonElement obj, params string[] prop)
+        {
+            for (int i = 0; i < prop.Length; i++)
+            {
+                if (obj.TryGetProperty(prop[i], out var el)) return el;
+            }
+            return default; // which is JsonElement undefined
+        }
+
+        private static string? GetOptionalString(JsonElement obj, string prop)
+        {
+            if (obj.ValueKind == JsonValueKind.Null || obj.ValueKind == JsonValueKind.Undefined) return null;
+            JsonElement el = obj;
+            if (prop != null && !obj.TryGetProperty(prop, out el)) return null;
+            if (el.ValueKind == JsonValueKind.Null) return null;
+            if (el.ValueKind != JsonValueKind.String) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be string");
+            return el.GetString();
+        }
+
+        private object? GetOptionalObjectRef(JsonElement obj, string propName)
+        {
+            if (!obj.TryGetProperty(propName, out var el)) return null;
+            if (el.ValueKind == JsonValueKind.Null) return null;
+            if (el.ValueKind == JsonValueKind.Undefined) return null;
+            var objRef = el;                                  // oder RequireObject(...) je nach Format
+            return ResolveObjectRef(objRef);
+        }
+
+        private static double GetOptionalNumber(JsonElement obj, string prop, double def)
+        {
+            JsonElement el = obj;
+            if (prop != null && !obj.TryGetProperty(prop, out el)) return def;
+            if (el.ValueKind == JsonValueKind.Undefined) return def;
+            if (el.ValueKind == JsonValueKind.Null) return def;
+            if (el.ValueKind != JsonValueKind.Number) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number");
+            return el.GetDouble();
+        }
+
+        private int GetOptionalInteger(JsonElement obj, string prop, int def)
+        {
+            JsonElement el = obj;
+            if (prop != null && !obj.TryGetProperty(prop, out el)) return def;
+            if (el.ValueKind == JsonValueKind.Null) return def;
+
+            if (el.ValueKind == JsonValueKind.Number || el.ValueKind == JsonValueKind.String) return RequireInteger(el);
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be integer");
+        }
+
+        private GeoVector GetOptionalVector3D(JsonElement obj, string? prop, GeoVector defaultValue)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = GetOptional(obj, prop);
+            if (el.ValueKind == JsonValueKind.Undefined || el.ValueKind == JsonValueKind.Null) return defaultValue;
+            try
+            {
+                return RequireVector3D(el, null);
+            }
+            catch (JsonRpcException)
+            {
+                return defaultValue;
+            }
+        }
+
+        private GeoVector2D GetOptionalVector2D(JsonElement obj, string? prop, GeoVector2D defaultValue)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = GetOptional(obj, prop);
+            if (el.ValueKind == JsonValueKind.Undefined || el.ValueKind == JsonValueKind.Null) return defaultValue;
+            try
+            {
+                return RequireVector2D(el, null);
+            }
+            catch (JsonRpcException)
+            {
+                return defaultValue;
+            }
+        }
+
+        private double RequireAngle(JsonElement obj, string? prop = null)
+        {
+            JsonElement angleEl = obj;
+            if (prop != null) angleEl = RequireProperty(obj, prop);
+            string? expr = null;
+            if (angleEl.ValueKind == JsonValueKind.Object)
+            {   // either "expr" or "full"
+                if (angleEl.TryGetProperty("expr", out JsonElement exprEl))
+                {
+                    expr = exprEl.GetString();
+                }
+                else if (angleEl.TryGetProperty("full", out JsonElement fullEl) && fullEl.ValueKind == JsonValueKind.True)
+                {
+                    return 360;
+                }
+            }
+            if (angleEl.ValueKind == JsonValueKind.String) expr = angleEl.GetString();
+            if (expr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
+                    if (res is double) return (double)res;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException("E_InE_INVALID_PARAMS", $"Invalid params: '{prop}', error in expression '{expr}': {ex.Message}");
+                }
+            }
+            if (angleEl.ValueKind == JsonValueKind.Number) return angleEl.GetDouble();
+
+            throw new JsonRpcException("E_InE_INVALID_PARAMS", $"Invalid params: '{prop}' must be number, expression or named value");
+        }
+
+        private double GetOptionalAngle(JsonElement obj, string? prop, double def)
+        {
+            JsonElement axisEl = obj;
+            if (prop != null && !obj.TryGetProperty(prop, out axisEl)) return def;
+            if (axisEl.ValueKind != JsonValueKind.Undefined) return def; // maybe undefined obj
+            return RequireAngle(obj, prop);
+        }
+
+        private Axis RequireAxis3D(JsonElement obj, string? prop = null)
+        {
+            JsonElement axisEl = obj;
+            if (prop != null) axisEl = RequireProperty(obj, prop);
+            GeoPoint org = RequirePoint3D(axisEl, "origin");
+            GeoVector dir = RequireVector3D(axisEl, "direction");
+            if (dir.IsNullVector()) throw new JsonRpcException("E_INVALID_PARAMS", "Axis direction cannot be null vector.");
+            return new Axis(org, dir);
+        }
+
+        private Axis GetOptionalAxis3D(JsonElement obj, string? prop, Axis def)
+        {
+            JsonElement axisEl = obj;
+            if (prop != null && !obj.TryGetProperty(prop, out axisEl)) return def;
+            if (axisEl.ValueKind != JsonValueKind.Undefined) return def; // maybe undefined obj
+            return RequireAxis3D(obj, prop);
+        }
+
+        private Axis2D RequireAxis2D(JsonElement obj, string? prop = null)
+        {
+            JsonElement axisEl = obj;
+            if (prop != null) axisEl = RequireProperty(obj, prop);
+            GeoPoint2D org = RequirePoint2D(axisEl, "origin");
+            GeoVector2D dir = RequireVector2D(axisEl, "direction");
+            if (dir.IsNullVector()) throw new JsonRpcException("E_INVALID_PARAMS", "Axis direction cannot be null vector.");
+            return new Axis2D(org, dir);
+        }
+
+        private Axis2D GetOptionalAxis2D(JsonElement obj, string? prop, Axis2D def)
+        {
+            JsonElement axisEl = obj;
+            if (prop != null && !obj.TryGetProperty(prop, out axisEl)) return def;
+            if (axisEl.ValueKind == JsonValueKind.Undefined) return def; // maybe undefined obj
+            return RequireAxis2D(obj, prop);
+        }
+
+        private Plane GetOptionalPlane(JsonElement obj, string? prop, Plane def)
+        {
+            JsonElement planeEl = obj;
+            if (prop != null && !obj.TryGetProperty(prop, out planeEl)) return def;
+            if (planeEl.ValueKind != JsonValueKind.Undefined) return def; // maybe undefined obj
+            return RequirePlane(obj, prop);
+        }
+
+        private Plane RequirePlane(JsonElement obj, string? prop = null)
+        {
+            JsonElement planeEl = obj;
+            if (prop != null) planeEl = RequireProperty(obj, prop);
+            // PlaneRef can be either {standard:"XY"|"YZ"|"XZ"} or {origin:{x,y,z}, normal:{x,y,z}, xAxis?:{x,y,z}}
+            if (planeEl.TryGetProperty("standard", out JsonElement stdEl) && stdEl.ValueKind == JsonValueKind.String)
+            {
+                string std = stdEl.GetString()?.ToUpper() ?? "XY";
+                return std switch
+                {
+                    "XY" => Plane.XYPlane,
+                    "YZ" => Plane.YZPlane,
+                    "XZ" => Plane.XZPlane,
+                    _ => throw new JsonRpcException("E_INVALID_PARAMS", "Unknown standard plane.")
+                };
+            }
+
+            if (planeEl.TryGetProperty("origin", out JsonElement orgEl) && planeEl.TryGetProperty("xAxis", out JsonElement xEl))
+            {
+                GeoPoint org = RequirePoint3D(orgEl);
+                GeoVector dirx = RequireVector3D(xEl);
+                //if (dirx == null) throw new JsonRpcException("E_INVALID_PARAMS", "Invalid plane xAxis.");
+                GeoVector diry = GeoVector.Invalid;
+                if (planeEl.TryGetProperty("yAxis", out JsonElement yEl))
+                {
+                    diry = RequireVector3D(yEl);
+                }
+                else if (planeEl.TryGetProperty("normal", out JsonElement nEl))
+                {
+                    GeoVector normal = RequireVector3D(nEl);
+                    diry = normal ^ dirx;
+                    dirx = diry ^ normal;
+                }
+                try
+                {
+                    return new Plane(org, dirx, diry);
+                }
+                catch (PlaneException ex)
+                {
+                    throw new JsonRpcException("E_INVALID_PARAMS", "Invalid plane: " + ex.Message);
+                }
+            }
+            if (planeEl.TryGetProperty("origin", out orgEl) && planeEl.TryGetProperty("normal", out JsonElement normalEl))
+            {
+                GeoPoint org = RequirePoint3D(orgEl);
+                GeoVector normal = RequireVector3D(normalEl);
+                return new Plane(org, normal);
+            }
+            throw new JsonRpcException("E_INVALID_PARAMS", "Invalid plane.");
+        }
+
+        private GeoPoint2D GetOptionalPoint2D(JsonElement obj, string? prop, GeoPoint2D defaultValue)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = GetOptional(obj, prop);
+            if (el.ValueKind == JsonValueKind.Undefined || el.ValueKind == JsonValueKind.Null) return defaultValue;
+            try
+            {
+                return RequirePoint2D(el, null);
+            }
+            catch (JsonRpcException)
+            {
+                return defaultValue;
+            }
+        }
+
+        private GeoPoint2D RequirePoint2D(JsonElement obj, string? prop = null)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = RequireProperty(obj, prop);
+            string? expr = null;
+
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                List<double> coords = new List<double>();
+                foreach (var a in el.EnumerateArray())
+                {
+                    coords.Add(RequireDouble(a, null));
+                }
+                if (coords.Count == 2) return new GeoPoint2D(coords[0], coords[1]);
+            }
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                expr = el.GetString();
+            }
+            else if (el.ValueKind == JsonValueKind.Object)
+            {
+                if (el.TryGetProperty("name", out var pname))
+                {
+                    if (pname.ValueKind == JsonValueKind.String)
+                    {
+                        string? name = pname.GetString();
+                        if (name != null && namedItems.TryGetValue(name, out object? o) && o is GeoPoint2D res) return res;
+                    }
+                }
+                else if (el.TryGetProperty("expr", out var pexpr))
+                {
+                    if (pexpr.ValueKind == JsonValueKind.String)
+                    {
+                        expr = pexpr.GetString();
+                    }
+                }
+                else if (el.TryGetProperty("x", out _) && el.TryGetProperty("y", out _))
+                {
+                    return new GeoPoint2D(RequireDouble(el, "x"), RequireDouble(el, "y"));
+                }
+            }
+            if (expr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
+                    if (res is GeoPoint2D pres2) return pres2;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException(-32602, $"Invalid params: '{prop}', error in expression '{expr}': {ex.Message}");
+                }
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be a 2d point");
+        }
+
+        private GeoPoint RequirePoint3D(JsonElement obj, string? prop = null)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = RequireProperty(obj, prop);
+            string? expr = null;
+
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                List<double> coords = new List<double>();
+                foreach (var a in el.EnumerateArray())
+                {
+                    coords.Add(RequireDouble(a, null));
+                }
+                if (coords.Count == 3) return new GeoPoint(coords[0], coords[1], coords[2]);
+            }
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                expr = el.GetString();
+            }
+            else if (el.ValueKind == JsonValueKind.Object)
+            {
+                if (el.TryGetProperty("name", out var pname))
+                {
+                    if (pname.ValueKind == JsonValueKind.String)
+                    {
+                        string? name = pname.GetString();
+                        if (name != null && namedItems.TryGetValue(name, out object? o) && o is GeoPoint res) return res;
+                    }
+                }
+                else if (el.TryGetProperty("expr", out var pexpr))
+                {
+                    if (pexpr.ValueKind == JsonValueKind.String)
+                    {
+                        expr = pexpr.GetString();
+                    }
+                }
+                else if (el.TryGetProperty("x", out _) && el.TryGetProperty("y", out _) && el.TryGetProperty("z", out _))
+                {
+                    return new GeoPoint(RequireDouble(el, "x"), RequireDouble(el, "y"), RequireDouble(el, "z"));
+                }
+            }
+            if (expr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
+                    if (res is GeoPoint pres3) return pres3;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException(-32602, $"Invalid params: '{prop}', error in expression '{expr}': {ex.Message}");
+                }
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be a 3d point");
+        }
+
+        private GeoPoint GetOptionalPoint3D(JsonElement obj, string? prop, GeoPoint defaultValue)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = GetOptional(obj, prop);
+            if (el.ValueKind == JsonValueKind.Undefined || el.ValueKind == JsonValueKind.Null) return defaultValue;
+            try
+            {
+                return RequirePoint3D(el, null);
+            }
+            catch (JsonRpcException)
+            {
+                return defaultValue;
+            }
+        }
+
+        private BoundingBox RequireBoundingBox(JsonElement obj, string? prop)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = RequireProperty(obj, prop);
+            if (el.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be object");
+            if (el.TryGetProperty("name", out var pname))
+            {
+                if (pname.ValueKind == JsonValueKind.String)
+                {
+                    string? name = pname.GetString();
+                    if (name != null && namedItems.TryGetValue(name, out object? o) && o is BoundingBox res) return res;
+                }
+            }
+            else if (el.TryGetProperty("xmin", out _) && el.TryGetProperty("ymin", out _) && el.TryGetProperty("zmin", out _)
+                && el.TryGetProperty("xmax", out _) && el.TryGetProperty("ymax", out _) && el.TryGetProperty("zmax", out _))
+            {
+                return ReadBoundingBox(el);
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be a bounding box");
+        }
+
+        private GeoVector RequireVector3D(JsonElement obj, string? prop = null)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = RequireProperty(obj, prop);
+            string? expr = null;
+
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                List<double> coords = new List<double>();
+                foreach (var a in el.EnumerateArray())
+                {
+                    coords.Add(RequireDouble(a, null));
+                }
+                if (coords.Count == 3) return new GeoVector(coords[0], coords[1], coords[2]);
+            }
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                expr = el.GetString();
+            }
+            else if (el.ValueKind == JsonValueKind.Object)
+            {
+                if (el.TryGetProperty("name", out var pname))
+                {
+                    if (pname.ValueKind == JsonValueKind.String)
+                    {
+                        string? name = pname.GetString();
+                        if (name != null && namedItems.TryGetValue(name, out object? o) && o is GeoVector res) return res;
+                    }
+                }
+                else if (el.TryGetProperty("expr", out var pexpr))
+                {
+                    if (pexpr.ValueKind == JsonValueKind.String)
+                    {
+                        expr = pexpr.GetString();
+                    }
+                }
+                else if (el.TryGetProperty("x", out _) && el.TryGetProperty("y", out _) && el.TryGetProperty("z", out _))
+                {
+                    return new GeoVector(RequireDouble(el, "x"), RequireDouble(el, "y"), RequireDouble(el, "z"));
+                }
+            }
+            if (expr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
+                    if (res is GeoVector pres3) return pres3;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException(-32602, $"Invalid params: '{prop}', error in expression '{expr}': {ex.Message}");
+                }
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be a 3d vector");
+        }
+
+        private GeoVector2D RequireVector2D(JsonElement obj, string? prop = null)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = RequireProperty(obj, prop);
+            string? expr = null;
+
+            if (el.ValueKind == JsonValueKind.Array)
+            {
+                List<double> coords = new List<double>();
+                foreach (var a in el.EnumerateArray())
+                {
+                    coords.Add(RequireDouble(a, null));
+                }
+                if (coords.Count == 2) return new GeoVector2D(coords[0], coords[1]);
+            }
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                expr = el.GetString();
+            }
+            else if (el.ValueKind == JsonValueKind.Object)
+            {
+                if (el.TryGetProperty("name", out var pname))
+                {
+                    if (pname.ValueKind == JsonValueKind.String)
+                    {
+                        string? name = pname.GetString();
+                        if (name != null && namedItems.TryGetValue(name, out object? o) && o is GeoVector2D res) return res;
+                    }
+                }
+                else if (el.TryGetProperty("expr", out var pexpr))
+                {
+                    if (pexpr.ValueKind == JsonValueKind.String)
+                    {
+                        expr = pexpr.GetString();
+                    }
+                }
+                else if (el.TryGetProperty("x", out _) && el.TryGetProperty("y", out _))
+                {
+                    return new GeoVector2D(RequireDouble(el, "x"), RequireDouble(el, "y"));
+                }
+            }
+            if (expr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
+                    if (res is GeoVector2D pres3) return pres3;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException(-32602, $"Invalid params: '{prop}', error in expression '{expr}': {ex.Message}");
+                }
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be a 2d vector");
+        }
+
+        private double GetOptionalDouble(JsonElement obj, string? prop, double defaultValue)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else if (!obj.TryGetProperty(prop, out el)) return defaultValue;
+            if (el.ValueKind == JsonValueKind.Undefined) return defaultValue;
+            if (el.ValueKind == JsonValueKind.Number || el.ValueKind == JsonValueKind.String || (el.ValueKind == JsonValueKind.Object && el.TryGetProperty("expr", out var _)))
+            {
+                return RequireDouble(el, null);
+            }
+            else
+            {
+                return defaultValue;
+            }
+        }
+
+        private double RequireDouble(JsonElement obj, string? prop)
+        {
+            JsonElement el;
+            if (string.IsNullOrEmpty(prop)) el = obj; // the element is already resolved
+            else el = RequireProperty(obj, prop);
+            string? expr = null;
+            if (el.ValueKind == JsonValueKind.Number) { return el.GetDouble(); }
+            if (el.ValueKind == JsonValueKind.Object)
+            {
+                if (el.TryGetProperty("name", out var pname))
+                {
+                    if (pname.ValueKind == JsonValueKind.String)
+                    {
+                        string? name = pname.GetString();
+                        if (name != null && namedItems.TryGetValue(name, out object? o) && o is double res) return res;
+                    }
+                }
+                else if (el.TryGetProperty("expr", out var pexpr))
+                {
+                    if (pexpr.ValueKind == JsonValueKind.String)
+                    {
+                        expr = pexpr.GetString();
+                    }
+
+                }
+            }
+            else if (el.ValueKind == JsonValueKind.String)
+            {
+                expr = el.GetString();
+            }
+            if (expr != null)
+            {
+                try
+                {
+                    object res = Evaluator.Evaluate(expr, namedItems.Dict);
+                    if (res is double) return (double)res;
+                }
+                catch (Exception ex) // exception of Evaluator could be more descriptive
+                {
+                    throw new JsonRpcException(-32602, $"Invalid params: '{prop}', error in expression '{expr}': {ex.Message}");
+                }
+            }
+            throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be number, expression or named value");
+        }
+
+        #endregion
+
+        #region Object references and selectors
+
+        private string? ParseObjectRef(JsonElement objRef)
+        {
+            if (objRef.ValueKind == JsonValueKind.String) { return objRef.GetString(); }
+            if (objRef.ValueKind == JsonValueKind.Object && objRef.TryGetProperty("name", out var nameEl)) return nameEl.GetString();
+            throw new JsonRpcException(-32602, "Invalid params: ObjectRef must contain a string, or the property 'name'");
+        }
+
+        private object ResolveObjectRef(JsonElement objRef)
+        {
+            var name = ParseObjectRef(objRef);
+            if (name != null)
+            {
+                if (namedItems.TryGetValue(name, out var o))
+                {
+                    if (o is IGeoObject go) go.UserData.Add("CADablity.MCP.Name", name);
+                    return o;
+                }
+            }
+            throw new JsonRpcException(1001, $"Named object not found: {name}");
+        }
+
+        private IEnumerable<object> ExpandResolved(JsonElement el)
+        {
+            var resolved = ResolveObjectRef(el);
+
+            if (resolved is System.Collections.IEnumerable enumerable
+                && resolved is not string)
+            {
+                foreach (var item in enumerable)
+                    yield return item;
+            }
+            else
+            {
+                yield return resolved;
+            }
+        }
+
+        private IEnumerable<object> IterateObjectRefs(JsonElement a)
+        {
+            if (a.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in a.EnumerateArray())
+                {
+                    foreach (var resolved in ExpandResolved(el))
+                        yield return resolved;
+                }
+            }
+            else
+            {
+                foreach (var resolved in ExpandResolved(a))
+                    yield return resolved;
+            }
+        }
+
+        private IEnumerable<T> IterateSelector<T>(JsonElement selector) where T : class
+        {
+            if (selector.ValueKind == JsonValueKind.Undefined) yield break;
+            if (selector.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in selector.EnumerateArray())
+                {
+                    foreach (var t in IterateSelector<T>(el)) yield return t;
+                }
+                yield break;
+            }
+            if (selector.ValueKind == JsonValueKind.String)
+            {
+                string target = selector.GetString()!;
+                if (namedItems.TryGetValue(target, out object? val))
+                {
+                    if (val is IEnumerable<T> seq) foreach (T item in seq) yield return item;
+                    else if (val is T t) yield return t;
+                }
+                else throw new JsonRpcException(-32602, $"Named object not found: {target}");
+                yield break;
+            }
+            if (selector.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: Selector must be an object");
+            JsonElement je;
+            if (selector.TryGetProperty("name", out je) && je.ValueKind == JsonValueKind.String)
+            {
+                if (namedItems.TryGetValue(je.GetString()!, out object? val))
+                {   // check list first: when T is object, the whole list is returned as an item
+                    if (val is IEnumerable<T> seq) foreach (T item in seq) yield return item;
+                    else if (val is T t) yield return t;
+                }
+                else throw new JsonRpcException(-32602, $"Named object not found: {je.GetString()}");
+            }
+            else if (selector.TryGetProperty("names", out je) && je.ValueKind == JsonValueKind.Array)
+            {   // array of ObjectRefs
+                foreach (var t in IterateObjectRefs<T>(je)) yield return t;
+            }
+            else if (selector.TryGetProperty("op", out je))
+            {   // a boolean operation, test before "items", because it also contains "items"
+                string? op = null;
+                if (je.ValueKind == JsonValueKind.String) op = je.GetString();
+                if (op != null && selector.TryGetProperty("items", out var booleanItems) && booleanItems.ValueKind == JsonValueKind.Array)
+                {
+                    List<List<T>> items = new List<List<T>>();
+                    foreach (var el in booleanItems.EnumerateArray())
+                    {
+                        List<T> item = IterateSelector<T>(el).ToList();
+                        items.Add(item);
+                    }
+                    HashSet<T> result = [.. items[0]];
+                    switch (op)
+                    {
+                        case "union":
+                        case "unite":
+                            for (int i = 1; i < items.Count; i++)
+                            {
+                                result.UnionWith(items[i]);
+                            }
+                            break;
+                        case "difference":
+                        case "subtract":
+                        case "except":
+                            for (int i = 1; i < items.Count; i++)
+                            {
+                                result.ExceptWith(items[i]);
+                            }
+                            break;
+                        case "intersect":
+                            for (int i = 1; i < items.Count; i++)
+                            {
+                                result.IntersectWith(items[i]);
+                            }
+                            break;
+                        default:
+                            throw new JsonRpcException(-32602, $"Unknown boolean operator '{op}'");
+                    }
+                    foreach (var item in result) yield return item;
+                }
+            }
+            else if (selector.TryGetProperty("items", out je) && je.ValueKind == JsonValueKind.Array)
+            {   // the same as names, sometimes AI calls it items although in the definition it should be called names
+                foreach (var t in IterateObjectRefs<T>(je)) yield return t;
+            }
+            else if (selector.TryGetProperty("query", out je))
+            {   // a query
+                string target = RequireString(je, "target");
+                switch (target)
+                {
+
+                    case "solids":
+                        foreach (Solid t in IterateQuery<Solid>(je)) if (t is T tt) yield return tt;
+                        break;
+                    case "faces":
+                        foreach (Face t in IterateQuery<Face>(je)) if (t is T tt) yield return tt;
+                        break;
+                    case "edges":
+                        foreach (Edge t in IterateQuery<Edge>(je)) if (t is T tt) yield return tt;
+                        break;
+                    case "sketch_geometry":
+                        foreach (ICurve2D t in IterateQuery<ICurve2D>(je)) if (t is T tt) yield return tt;
+                        foreach (CompoundShape t in IterateQuery<CompoundShape>(je)) if (t is T tt) yield return tt;
+                        break;
+                    default: throw new JsonRpcException(-32602, $"Unknown query target '{target}'");
+                }
+            }
+        }
+
+        private IEnumerable<T> IterateQuery<T>(JsonElement query) where T : class
+        {
+            // from, filter
+            if (query.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: Query must be an object");
+            JsonElement from = RequireProperty(query, "from");
+            List<object> froms = IterateObjectRefs(from).ToList();
+            List<T> fromsT = ExpandToType<T>(froms);
+            JsonElement filter;
+            if (!query.TryGetProperty("filter", out filter))
+            {
+                foreach (object obj in fromsT)
+                {
+                    if (obj is T t) yield return t;
+                }
+            }
+            else
+            {
+                if (filter.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: Filter must be an object");
+                // there are different kinds of filters: edge, face, solid sketch geometry
+                // we filter al properties and ignore those, which don't belong to type T
+                JsonElement je;
+                if (filter.TryGetProperty("extreme", out je))
+                {   // here we are looking for the object with extreme coordinates. We must check all objects before
+                    // yielding candidates
+                    string axis = RequireString(je, "axis"); // x, y or z
+                    string which = RequireString(je, "which"); // min or max
+                    bool checkMin = which == "min";
+                    double currentExtreme, currentMiddle = double.NaN;
+                    if (checkMin) currentExtreme = double.MaxValue;
+                    else currentExtreme = double.MinValue;
+                    T? extremeObject = null;
+                    foreach (T toTest in fromsT)
+                    {
+                        BoundingBox bb = BoundingBox.EmptyBoundingBox;
+                        if (toTest is Face face) bb = face.GetBoundingCube();
+                        if (toTest is Solid sld) bb = sld.GetBoundingCube();
+                        if (toTest is Edge edge && edge.Curve3D is IGeoObject go) bb = go.GetBoundingCube();
+                        switch (axis)
+                        {
+                            case "x":
+                                if (checkMin)
+                                {
+                                    if (bb.Xmin < currentExtreme)
+                                    {
+                                        currentExtreme = bb.Xmin;
+                                        currentMiddle = (bb.Xmin + bb.Xmax) / 2;
+                                        extremeObject = toTest;
+                                    }
+                                    else if (bb.Xmin == currentExtreme)
+                                    {
+                                        double m = (bb.Xmin + bb.Xmax) / 2;
+                                        if (double.IsNaN(currentMiddle) || m < currentMiddle)
+                                        {
+                                            currentMiddle = m;
+                                            extremeObject = toTest;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (bb.Xmax > currentExtreme)
+                                    {
+                                        currentExtreme = bb.Xmax;
+                                        currentMiddle = (bb.Xmin + bb.Xmax) / 2;
+                                        extremeObject = toTest;
+                                    }
+                                    else if (bb.Xmax == currentExtreme)
+                                    {
+                                        double m = (bb.Xmin + bb.Xmax) / 2;
+                                        if (double.IsNaN(currentMiddle) || m > currentMiddle)
+                                        {
+                                            currentMiddle = m;
+                                            extremeObject = toTest;
+                                        }
+                                    }
+                                }
+                                break;
+                            case "y":
+                                if (checkMin)
+                                {
+                                    if (bb.Ymin < currentExtreme)
+                                    {
+                                        currentExtreme = bb.Ymin;
+                                        currentMiddle = (bb.Ymin + bb.Ymax) / 2;
+                                        extremeObject = toTest;
+                                    }
+                                    else if (bb.Ymin == currentExtreme)
+                                    {
+                                        double m = (bb.Ymin + bb.Ymax) / 2;
+                                        if (double.IsNaN(currentMiddle) || m < currentMiddle)
+                                        {
+                                            currentMiddle = m;
+                                            extremeObject = toTest;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (bb.Ymax > currentExtreme)
+                                    {
+                                        currentExtreme = bb.Ymax;
+                                        currentMiddle = (bb.Ymin + bb.Ymax) / 2;
+                                        extremeObject = toTest;
+                                    }
+                                    else if (bb.Ymax == currentExtreme)
+                                    {
+                                        double m = (bb.Ymin + bb.Ymax) / 2;
+                                        if (double.IsNaN(currentMiddle) || m > currentMiddle)
+                                        {
+                                            currentMiddle = m;
+                                            extremeObject = toTest;
+                                        }
+                                    }
+                                }
+                                break;
+
+                            case "z":
+                                if (checkMin)
+                                {
+                                    if (bb.Zmin < currentExtreme)
+                                    {
+                                        currentExtreme = bb.Zmin;
+                                        currentMiddle = (bb.Zmin + bb.Zmax) / 2;
+                                        extremeObject = toTest;
+                                    }
+                                    else if (bb.Zmin == currentExtreme)
+                                    {
+                                        double m = (bb.Zmin + bb.Zmax) / 2;
+                                        if (double.IsNaN(currentMiddle) || m < currentMiddle)
+                                        {
+                                            currentMiddle = m;
+                                            extremeObject = toTest;
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    if (bb.Zmax > currentExtreme)
+                                    {
+                                        currentExtreme = bb.Zmax;
+                                        currentMiddle = (bb.Zmin + bb.Zmax) / 2;
+                                        extremeObject = toTest;
+                                    }
+                                    else if (bb.Zmax == currentExtreme)
+                                    {
+                                        double m = (bb.Zmin + bb.Zmax) / 2;
+                                        if (double.IsNaN(currentMiddle) || m > currentMiddle)
+                                        {
+                                            currentMiddle = m;
+                                            extremeObject = toTest;
+                                        }
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                    if (extremeObject != null) yield return extremeObject;
+                }
+                else
+                {
+
+                    foreach (T toTest in fromsT)
+                    {
+                        if (toTest == null) continue;
+                        if (filter.TryGetProperty("surfaceType", out je) && typeof(T) == typeof(Face))
+                        {
+                            if (je.ValueKind != JsonValueKind.String) throw new JsonRpcException(-32602, "Invalid params: SurfaceType must be a string");
+                            if (!(toTest is Face face)) continue;
+                            string? surfaceType = je.GetString();
+                            {
+                                switch (surfaceType!)
+                                {
+                                    case "planar": if (!(face.Surface is PlaneSurface)) continue; break;
+                                    case "cylindrical": if (!(face.Surface is CylindricalSurface)) continue; break;
+                                    case "conical": if (!(face.Surface is ConicalSurface)) continue; break;
+                                    case "spherical": if (!(face.Surface is SphericalSurface)) continue; break;
+                                    case "toroidal": if (!(face.Surface is ToroidalSurface)) continue; break;
+                                    case "freeform": break;
+                                    default: throw new JsonRpcException(-32602, $"Invalid params: 'surfaceType' = '{surfaceType}' must be one of planar, cylindrical, conical, spherical, toroidal or freeform");
+                                }
+                            }
+                        }
+                        if (filter.TryGetProperty("condition", out je))
+                        {
+                            string? expr = null;
+                            if (je.ValueKind == JsonValueKind.String) expr = je.GetString();
+                            else if (je.ValueKind == JsonValueKind.Object && je.TryGetProperty("expr", out var exprEl) && exprEl.ValueKind == JsonValueKind.String) expr = exprEl.GetString();
+                            if (expr == null) throw new JsonRpcException("E_INVALID_PARAMETER", "condition not found");
+
+                            using (new NamedItemOverride(namedItems, toTest))
+                            {
+                                object evalRes = Evaluator.Evaluate(expr, namedItems.Dict);
+                                if (evalRes is bool b)
+                                {
+                                    if (!b) continue; // expression was false
+                                }
+                            }
+                        }
+                        if (filter.TryGetProperty("closeTo", out je))
+                        {
+                            GeoPoint p = RequirePoint3D(je, null);
+                            BoundingBox pbox = new BoundingBox(p, Precision.eps);
+                            if (toTest is Face face && Math.Abs(face.Distance(p)) > Precision.eps) continue;
+                            if (toTest is Solid solid && !solid.HitTest(ref pbox, Precision.eps) && !solid.Shell.Contains(p)) continue;
+                            if (toTest is Edge edge && edge.Curve3D is IGeoObject go && !go.HitTest(ref pbox, Precision.eps)) continue;
+                        }
+                        if (filter.TryGetProperty("inside", out je))
+                        {
+                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'inside' must be an object");
+                            BoundingBox bbox = RequireBoundingBox(je, null);
+                            if (toTest is Face face && !bbox.Contains(face.GetExtent(0.0))) continue;
+                            if (toTest is Solid sld && !bbox.Contains(sld.GetExtent(0.0))) continue;
+                            if (toTest is Edge edge && edge.Curve3D is IGeoObject go && !bbox.Contains(go.GetExtent(0.0))) continue;
+                        }
+                        if (filter.TryGetProperty("touchedBy", out je))
+                        {
+                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'touchedBy' must be an object");
+                            BoundingBox bbox = RequireBoundingBox(je, null);
+                            if (toTest is Face face && !face.HitTest(ref bbox, 0.0)) continue;
+                            if (toTest is Solid sld && !sld.HitTest(ref bbox, 0.0)) continue;
+                            if (toTest is Edge edge && edge.Curve3D is IGeoObject go && !go.HitTest(ref bbox, 0.0)) continue;
+                        }
+                        if (filter.TryGetProperty("contains", out je))
+                        {
+                            GeoPoint innerPoint = RequirePoint3D(je, null);
+                            if (toTest is Solid sld && !sld.Shell.Contains(innerPoint)) continue;
+
+                        }
+                        if (filter.TryGetProperty("boundingBox", out je))
+                        {
+                            if (je.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'boundingBox' must be an object");
+                            double minValue = GetOptionalDouble(je, "minValue", double.MinValue);
+                            double maxValue = GetOptionalDouble(je, "maxValue", double.MaxValue);
+                            if (minValue != double.MinValue) minValue -= Precision.eps;
+                            if (maxValue != double.MaxValue) maxValue += Precision.eps;
+                            BoundingBox bb = BoundingBox.EmptyBoundingBox;
+                            if (toTest is Face face) bb = face.GetBoundingCube();
+                            if (toTest is Solid sld) bb = sld.GetBoundingCube();
+                            if (toTest is Edge edge && edge.Curve3D is IGeoObject go) bb = go.GetBoundingCube();
+                            string component = RequireString(je, "component");
+                            switch (component.ToLower())
+                            {
+                                case "left": if (bb.Xmin < minValue || bb.Xmin > maxValue) continue; break;
+                                case "right": if (bb.Xmax < minValue || bb.Xmax > maxValue) continue; break;
+                                case "bottom": if (bb.Zmin < minValue || bb.Zmin > maxValue) continue; break;
+                                case "top": if (bb.Zmax < minValue || bb.Zmax > maxValue) continue; break;
+                                case "front": if (bb.Ymin < minValue || bb.Ymin > maxValue) continue; break;
+                                case "back": if (bb.Ymax < minValue || bb.Ymax > maxValue) continue; break;
+                                case "centerx": if (bb.GetCenter().x < minValue || bb.GetCenter().x > maxValue) continue; break;
+                                case "centery": if (bb.GetCenter().y < minValue || bb.GetCenter().y > maxValue) continue; break;
+                                case "centerz": if (bb.GetCenter().z < minValue || bb.GetCenter().z > maxValue) continue; break;
+                                default: throw new JsonRpcException(-32602, $"Invalid params: 'component' = '{component}' must be one of left,right,bottom,top,front,back,centerX,centerY,centerZ");
+                            }
+                        }
+
+                        // when we arrive here, all conditions have been fullfilled
+                        yield return toTest!;
+                    }
+                }
+            }
+        }
+
+        private List<T> ExpandToType<T>(List<object> froms) where T : class
+        {
+            List<T> result = [];
+            if (typeof(T) == typeof(Solid))
+            {
+                foreach (object obj in froms) if (obj is T t) { result.Add(t); }
+                ;
+            }
+            else if (typeof(T) == typeof(Face))
+            {
+                foreach (object obj in froms)
+                {
+                    if (obj is T t) result.Add(t);
+                    else if (obj is Solid sld) foreach (Face face in sld.Shells[0].Faces) result.Add(face as T);
+                }
+            }
+            else if (typeof(T) == typeof(Edge))
+            {
+                foreach (object obj in froms)
+                {
+                    if (obj is T t) result.Add(t);
+                    else if (obj is Solid sld)
+                    {
+                        foreach (Edge edge in sld.Shells[0].Edges) result.Add(edge as T);
+                    }
+                    else if (obj is Face face)
+                    {
+                        foreach (Edge edge in face.Edges) result.Add(edge as T);
+                    }
+                }
+            }
+            else
+            {
+                foreach (object obj in froms)
+                {
+                    if (obj is T t) result.Add(t);
+                }
+            }
+            return result;
+        }
+
+        private IEnumerable<Face> FacesOf(List<object> objects)
+        {
+            foreach (object obj in objects)
+            {
+                if (obj is Face face) yield return face;
+                if (obj is Solid sld)
+                {
+                    foreach (Face fc in sld.Shells[0].Faces) yield return fc;
+                }
+                if (obj is Shell shell)
+                {
+                    foreach (Face fc in shell.Faces) yield return fc;
+                }
+            }
+        }
+
+        private IEnumerable<T> IterateObjectRefs<T>(JsonElement a)
+        {
+            if (a.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in a.EnumerateArray())
+                    foreach (var resolved in ExpandResolved(el))
+                        if (resolved is T t)
+                            yield return t;
+            }
+            else
+            {
+                foreach (var resolved in ExpandResolved(a))
+                    if (resolved is T t)
+                        yield return t;
+            }
+        }
+
+        #endregion
+
+        #region Named-item binding and evaluator support
 
         private void StoreNamed(string name, object value)
         {
@@ -177,6 +1595,7 @@ namespace ShapeIt
             throw new InvalidOperationException(
                 $"Name '{name}' is already bound to a value of type '{existing.GetType().FullName}', cannot add '{typeof(T).FullName}'.");
         }
+
         private void Rebind(Shell oldShell, Shell newShell)
         {
             foreach (var item in namedItems)
@@ -223,6 +1642,7 @@ namespace ShapeIt
                 }
             }
         }
+
         private void Rebind(Solid oldSolid, Solid[] newSolids)
         {
             foreach (Solid solid in newSolids)
@@ -230,6 +1650,7 @@ namespace ShapeIt
                 Rebind(oldSolid.Shell, solid.Shell);
             }
         }
+
         private void Rebind(IEnumerable<Solid> oldSolids, IEnumerable<Solid> newSolids)
         {
             foreach (Solid solid1 in oldSolids)
@@ -240,6 +1661,7 @@ namespace ShapeIt
                 }
             }
         }
+
         private void Rebind(IEnumerable<Solid> oldSolids, Solid newSolid)
         {
             foreach (Solid solid1 in oldSolids)
@@ -247,6 +1669,7 @@ namespace ShapeIt
                 Rebind(solid1.Shell, newSolid.Shell);
             }
         }
+
         private string? FindName(object entity)
         {
             foreach (var item in namedItems)
@@ -256,15 +1679,86 @@ namespace ShapeIt
             return null;
         }
 
+        private class FaceWrapperForEvaluator
+        {
+            Face face;
+            public FaceWrapperForEvaluator(Face face)
+            {
+                this.face = face;
+            }
+            public string SurfaceType
+            {
+                get
+                {
+                    if (face.Surface is PlaneSurface) return "planar";
+                    return "other";
+                }
+            }
+            public int EdgeCount => face.AllEdges.Length;
+            public BoundingBox bounds => face.GetExtent(0.0);
+        }
+
+        private class EdgeWrapperForEvaluator
+        {
+            Edge edge;
+            public EdgeWrapperForEvaluator(Edge edge)
+            {
+                this.edge = edge;
+            }
+            public string CurveType
+            {
+                get
+                {
+                    if (edge.Curve3D is Line) return "line";
+                    if (edge.Curve3D is Ellipse elli)
+                    {
+                        if (elli.IsCircle)
+                        {
+                            if (elli.IsClosed) return "circle";
+                            else return "arc";
+                        }
+                        else
+                        {
+                            if (elli.IsClosed) return "ellipse";
+                            else return "ellipse arc";
+                        }
+                    }
+                    return "other";
+                }
+            }
+            public GeoPoint startPoint => edge.Curve3D.StartPoint;
+            public GeoPoint endPoint => edge.Curve3D.EndPoint;
+            public GeoPoint pointAt(double u) => edge.Curve3D.PointAt(u);
+            public GeoVector directionAt(double u) => edge.Curve3D.DirectionAt(u);
+            public GeoVector startDirection => edge.Curve3D.StartDirection;
+            public GeoVector endDirection => edge.Curve3D.EndDirection;
+            public BoundingBox bounds => edge.Curve3D.GetExtent();
+        }
+
+        private static object? wrapForEvaluator(object item)
+        {
+            if (item is Face fc) return new FaceWrapperForEvaluator(fc);
+            if (item is Edge edg) return new EdgeWrapperForEvaluator(edg);
+            // TODO implement other wrappers
+            return item;
+        }
+
+        #endregion
+
+        #region Document, undo and workspace operations
+
         private JsonNode DocumentGetStateImpl() => throw new NotImplementedException();
+
         private void UndoBeginImpl(string label)
         {
 
         }
+
         private void UndoEndImpl(string undoFrameId)
         {
 
         }
+
         private JsonNode UndoCancelImpl(string undoFrameId) => throw new NotImplementedException();
 
         private void WorkspaceSetImpl(string name, JsonElement value, string? label, JsonElement input)
@@ -295,46 +1789,63 @@ namespace ShapeIt
             }
         }
 
-        static private object? MakeTypedList(List<object> selected)
+        private void WorkspaceDeleteImpl(JsonElement objects) => throw new NotImplementedException();
+
+        private void DocumentCommitObjectsImpl(JsonElement objects)
         {
-            Type? t = selected.FirstOrDefault()?.GetType();
-            if (t != null && selected.All(x => x?.GetType() == t))
+            foreach (Solid sld in IterateSelector<Solid>(objects))
             {
-                if (t == typeof(Edge))
+                Project? project = FrameImpl.MainFrame?.Project;
+                if (project != null)
                 {
-                    return selected.Cast<Edge>().ToList();
-                }
-                else if (t == typeof(Face))
-                {
-                    return selected.Cast<Face>().ToList();
-                }
-                else if (t == typeof(Solid))
-                {
-                    return selected.Cast<Solid>().ToList();
-                }
-                else if (t == typeof(ICurve))
-                {
-                    return selected.Cast<ICurve>().ToList();
-                }
-                else if (t == typeof(ICurve2D))
-                {
-                    return selected.Cast<ICurve2D>().ToList();
-                }
-                else if (t == typeof(CompoundShape))
-                {
-                    return selected.Cast<CompoundShape>().ToList();
+                    Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
+                    if (style != null) { sld.Style = style; }
+                    FrameImpl.MainFrame?.Project?.GetActiveModel()?.Add(sld);
                 }
             }
-            return null;
         }
 
-        private void WorkspaceDeleteImpl(JsonElement objects) => throw new NotImplementedException();
+        private void DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
+        {
+            Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
+            if (project==null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
+            Model model = project.GetActiveModel();
+            Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
+            foreach (Solid sld in IterateSelector<Solid>(remove))
+            {
+                if (sld.Owner == model) model.Remove(sld);
+                else
+                {
+                    foreach (IGeoObject go in model.AllObjects)
+                    {
+                        if (go is Solid sld2)
+                        {
+                            if (sld2.Name == sld.Name)
+                            {
+                                model.Remove(sld2);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            foreach (Solid sld in IterateSelector<Solid>(add))
+            {
+                if (style != null) { sld.Style = style; }
+                model.Add(sld);
+            }
+        }
+
+        #endregion
+
+        #region Sketch and profile operations
 
         private void SketchCreateImpl(Plane plane, string? name)
         {
             Sketch sketch = new Sketch(plane);
             if (name != null) namedItems[name] = sketch;
         }
+
         private void SketchCreateOnFaceImpl(JsonElement face, GeoPoint origin, GeoVector xAxis, string? name)
         {
             List<Face> lf = IterateSelector<Face>(face).ToList();
@@ -346,6 +1857,7 @@ namespace ShapeIt
             Sketch? sketch = new Sketch(new Plane(origin, xdir, ydir));
             if (name != null) namedItems[name] = sketch;
         }
+
         private void SketchAddArcImpl(Sketch sketch, GeoPoint2D center, double radius, double startAngleDeg, double sweepAngleDeg, GeoPoint2D start, GeoPoint2D end, GeoPoint2D middle, bool ccw, string name)
         {
             ICurve2D? curve = null;
@@ -406,6 +1918,7 @@ namespace ShapeIt
             if (item.ValueKind == JsonValueKind.Array) return RequirePoint2D(item); // everything managed there
             return null;
         }
+
         private void SketchAddCircleByConstraintsImpl(Sketch sketch, JsonElement constraints, double radius, GeoPoint2D center, GeoPoint2D preferredCenter, double tolerance, string name, JsonElement capture)
         {
             if (constraints.ValueKind != JsonValueKind.Array) throw new JsonRpcException("E_INVALID_PARAMETER", "constaints must be an array.");
@@ -479,10 +1992,12 @@ namespace ShapeIt
                 if (touch2Name != null) namedItems[touch2Name] = touchpoints[2];
             }
         }
+
         private void SketchAddLineByConstraintsImpl(Sketch sketch, GeoPoint2D start, JsonElement target0, JsonElement target1, GeoPoint2D preferredStart, GeoPoint2D preferredEnd, double tolerance, string name)
         {
             throw new NotImplementedException();
         }
+
         private void SketchSetCurveEndpointsImpl(Sketch sketch, JsonElement curve, GeoPoint2D start, GeoPoint2D end, string direction, bool projectToCurve, bool copy, string name, JsonElement capture)
         {
             List<ICurve2D> ca = IterateSelector<ICurve2D>(curve).ToList(); // should only be one
@@ -694,7 +2209,6 @@ namespace ShapeIt
             if (name != null) namedItems[name] = curve;
         }
 
-
         private void SketchAddRegularPolygonImpl(Sketch sketch, GeoPoint2D center, double innerRadius, double outerRadius, int sides, double rotationDeg, string name)
         {
             if (double.IsNaN(outerRadius) || outerRadius == 0.0) outerRadius = innerRadius / Math.Cos(Math.PI / sides);
@@ -729,6 +2243,7 @@ namespace ShapeIt
             sketch.Add(cs);
             if (name != null) namedItems[name] = cs;
         }
+
         private void SketchAddTextImpl(Sketch sketch, string text, GeoPoint2D location, double height, JsonElement font, JsonElement horizontalAlign, JsonElement verticalAlign, double characterSpacing, double wordSpacing, string name)
         {
             string fontFamily = RequireString(font, "family");
@@ -927,6 +2442,7 @@ namespace ShapeIt
             curves.Add(work[0]);
             return work[0];
         }
+
         private void SketchConnectImpl(Sketch sketch, JsonElement entities, double precision, bool closeGaps, string name)
         {
             List<ICurve2D> toConnect = IterateSelector<ICurve2D>(entities).ToList();
@@ -953,6 +2469,7 @@ namespace ShapeIt
                 }
             }
         }
+
         private void ProfileFromRegionsImpl(JsonElement regions, string? name)
         {   // regins are for extracting. There is no difference between CompoundShapes from a sketch and a region.
             // Maybe we should connect open curves.
@@ -1021,430 +2538,7 @@ namespace ShapeIt
             }
             return simpleShapes;
         }
-        private void SolidExtrudeImpl(JsonElement profile, double length, GeoVector direction, double offset, string? name, JsonElement capture)
-        {
-            List<SimpleShape> simpleShapes = GetProfiles(profile, out Sketch? sketch);
 
-            if (sketch != null)
-            {
-                string? startEdges = GetOptionalString(capture, "startEdges");
-                string? endEdges = GetOptionalString(capture, "endEdges");
-                string? startFace = GetOptionalString(capture, "startFace");
-                string? endFace = GetOptionalString(capture, "endFace");
-                List<Solid> solids = new List<Solid>();
-                PlaneSurface ps = new PlaneSurface(sketch.Plane);
-                GeoVector dir = direction.IsValid() ? direction : ps.Normal.Normalized;
-                dir.Length = length;
-                for (int i = 0; i < simpleShapes.Count; i++)
-                {
-                    Face face = Face.MakeFace(ps, simpleShapes[i]);
-                    if (face != null)
-                    {
-                        if (offset != 0.0) face.Modify(ModOp.Translate(offset * dir.Normalized));
-                        Solid? sld = Make3D.Extrude(face, dir, null) as Solid;
-                        if (sld != null)
-                        {
-                            if (startEdges != null || startFace != null)
-                            {
-                                GeoPoint2D point2dOnFace = face.Area.GetSomeInnerPoint();
-                                GeoPoint point3dOnFace = face.Surface.PointAt(point2dOnFace);
-                                Face startFaceOfExtrusion = sld.FindFace(point3dOnFace);
-                                if (!string.IsNullOrEmpty(startFace))
-                                {
-                                    namedItems[startFace] = startFaceOfExtrusion;
-                                }
-                                if (!string.IsNullOrEmpty(startEdges))
-                                {
-                                    namedItems[startEdges] = new List<Edge>(startFaceOfExtrusion.Edges); ;
-                                }
-                            }
-                            if (endEdges != null || endFace != null)
-                            {
-                                GeoPoint2D point2dOnFace = face.Area.GetSomeInnerPoint();
-                                GeoPoint point3dOnFace = face.Surface.PointAt(point2dOnFace) + dir;
-                                Face endFaceOfExtrusion = sld.FindFace(point3dOnFace);
-                                if (!string.IsNullOrEmpty(endFace))
-                                {
-                                    namedItems[endFace] = endFaceOfExtrusion;
-                                }
-                                if (!string.IsNullOrEmpty(endEdges))
-                                {
-                                    namedItems[endEdges] = new List<Edge>(endFaceOfExtrusion.Edges); ;
-                                }
-                            }
-                            solids.Add(sld);
-                        }
-                    }
-                }
-                if (name != null) namedItems[name] = solids;
-            }
-        }
-        private void SolidHelicalExtrudeImpl(JsonElement profile, Axis axis, double angle, double offset, double pitch, string name, JsonElement capture)
-        {
-            List<SimpleShape> simpleShapes = GetProfiles(profile, out Sketch? sketch);
-
-            if (sketch != null)
-            {
-                string? startEdges = GetOptionalString(capture, "startEdges");
-                string? endEdges = GetOptionalString(capture, "endEdges");
-                string? startFace = GetOptionalString(capture, "startFace");
-                string? endFace = GetOptionalString(capture, "endFace");
-                List<Solid> solids = new List<Solid>();
-                PlaneSurface ps = new PlaneSurface(sketch.Plane);
-                for (int i = 0; i < simpleShapes.Count; i++)
-                {
-                    Face face = Face.MakeFace(ps, simpleShapes[i]);
-                    if (face != null)
-                    {
-                        Shell shl = Make3D.MakeHelicalSolid(face, axis, pitch, pitch * angle / 360, 0.0, true);
-                        if (shl != null)
-                        {
-                            Solid sld = Solid.MakeSolid(shl);
-                            if (sld != null)
-                            {
-                                if (startEdges != null || startFace != null)
-                                {
-                                    GeoPoint2D point2dOnFace = face.Area.GetSomeInnerPoint();
-                                    GeoPoint point3dOnFace = face.Surface.PointAt(point2dOnFace);
-                                    Face startFaceOfExtrusion = sld.FindFace(point3dOnFace);
-                                    if (!string.IsNullOrEmpty(startFace))
-                                    {
-                                        namedItems[startFace] = startFaceOfExtrusion;
-                                    }
-                                    if (!string.IsNullOrEmpty(startEdges))
-                                    {
-                                        namedItems[startEdges] = new List<Edge>(startFaceOfExtrusion.Edges);
-                                    }
-                                }
-                                if (endEdges != null || endFace != null)
-                                {
-                                }
-                                solids.Add(sld);
-                            }
-                        }
-                    }
-                }
-                if (name != null) namedItems[name] = solids;
-            }
-        }
-
-
-        private void SolidBoxImpl(GeoPoint origin, GeoVector axisX, GeoVector axisY, double sizeX, double sizeY, double sizeZ, string name)
-        {
-            GeoVector axisZ;
-            if (axisX.IsValid() && axisY.IsValid())
-            {
-                axisZ = axisX ^ axisY;
-                axisX.Norm();
-                axisY.Norm();
-                axisZ.Norm();
-            }
-            else
-            {
-                axisX = GeoVector.XAxis;
-                axisY = GeoVector.YAxis;
-                axisZ = GeoVector.ZAxis;
-            }
-            Solid res = Make3D.MakeBox(origin, sizeX * axisX, sizeY * axisY, sizeZ * axisZ);
-            if (name != null) namedItems[name] = res;
-        }
-
-        private void SolidCapsuleImpl(GeoPoint start, GeoPoint end, double radius, string cap, double coneTipDistance, string name)
-        {
-            Solid? res = null;
-            double l = end | start; // the length of the capsule
-            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-            Plane profilePlane = new Plane(start, end - start, pln.DirectionX); // in this plane we construct a profile for rotation along the x-axis of the plane
-            GeoVector dirx = radius * pln.ToGlobal(GeoVector2D.XAxis);
-            Solid cylinder = Make3D.MakeCylinder(start, dirx, end - start);
-            if (double.IsNaN(coneTipDistance))
-            {
-                // sphericalTips
-                Arc2D arcstart = new Arc2D(GeoPoint2D.Origin, radius, Angle.Deg(180), SweepAngle.Deg(90));
-                Arc2D arcend = new Arc2D(new GeoPoint2D(l, 0), radius, Angle.Deg(270), SweepAngle.Deg(90));
-                Line2D line1 = new Line2D(arcstart.EndPoint, arcend.StartPoint);
-                Line2D line2 = new Line2D(arcend.EndPoint, arcstart.StartPoint);
-                Path2D profile = new Path2D(new ICurve2D[] { arcstart, line1, arcend, line2 });
-                Path? profile3D = profile.MakeGeoObject(profilePlane) as Path;
-                var rotated = Make3D.Rotate(profile3D, new Axis(start, end), SweepAngle.Full, 0.0, null);
-                if (rotated is Solid sld) res = sld;
-            }
-            else
-            {
-                Solid cone1 = Make3D.MakeCone(start, dirx, coneTipDistance * (start - end).Normalized, radius, 0.0);
-                Solid cone2 = Make3D.MakeCone(end, dirx, coneTipDistance * (end - start).Normalized, radius, 0.0);
-                res = BooleanOperation.Unite(cone1, cylinder);
-                res = BooleanOperation.Unite(cone2, res);
-            }
-            if (res != null && name != null) namedItems[name] = res;
-        }
-        private void SolidConeImpl(GeoPoint start, GeoPoint end, double radiusStart, double radiusEnd, string name)
-        {
-            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-            GeoVector dirx = pln.ToGlobal(GeoVector2D.XAxis);
-            Solid res = Make3D.MakeCone(start, dirx, end - start, radiusStart, radiusEnd);
-            if (res != null && name != null) namedItems[name] = res;
-        }
-
-        private void SolidCylinderImpl(GeoPoint start, GeoPoint end, double radius, string name)
-        {
-            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-            GeoVector dirx = radius * pln.ToGlobal(GeoVector2D.XAxis);
-            Solid res = Make3D.MakeCylinder(start, dirx, end - start);
-            if (res != null && name != null) namedItems[name] = res;
-        }
-
-
-        private void SolidPipeImpl(GeoPoint start, GeoPoint end, double outerRadius, double innerRadius, string name)
-        {
-            if (innerRadius == 0)
-            {
-                SolidCylinderImpl(start, end, outerRadius, name);
-                return;
-            }
-            Solid? res = null;
-            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
-            GeoVector dirx = outerRadius * pln.ToGlobal(GeoVector2D.XAxis);
-            Solid cylinder1 = Make3D.MakeCylinder(start, dirx, end - start);
-            dirx = innerRadius * pln.ToGlobal(GeoVector2D.XAxis);
-            Solid cylinder2 = Make3D.MakeCylinder(start, dirx, end - start);
-            Solid[] diff = BooleanOperation.Subtract(cylinder1, cylinder2);
-            if (diff != null && diff.Length == 1) res = diff[0];
-            if (res != null && name != null) namedItems[name] = res;
-        }
-
-        private void SolidSphereImpl(GeoPoint center, double radius, JsonElement points, string name)
-        {
-            Solid? res = Make3D.MakeSphere(center, radius);
-            if (res != null && name != null) namedItems[name] = res;
-        }
-        private void SolidTorusImpl(GeoPoint center, GeoVector axis, double majorRadius, double minorRadius, string name)
-        {
-            Plane pln = new Plane(center, axis); // to use the arbitrary axis algorithm
-            Solid? res = Make3D.MakeTorus(center, axis, majorRadius, minorRadius);
-            if (res != null && name != null) namedItems[name] = res;
-        }
-
-        private void SurfaceNurbsImpl(int degreeU, int degreeV, JsonElement controlPoints, JsonElement uKnots, JsonElement vKnots, JsonElement weights, bool uPeriodic, bool vPeriodic, string name)
-        {
-            throw new NotImplementedException();
-        }
-        private void SurfaceParametricImpl(int degreeU, int degreeV, JsonElement approximation, string name)
-        {
-            int minSamplesU = RequireInteger(approximation, "minSamplesU");
-            int minSamplesV = RequireInteger(approximation, "minSamplesV");
-
-            string uParameter = RequireString(approximation, "uParameter");
-            string vParameter = RequireString(approximation, "vParameter");
-            string xExpr = RequireString(approximation, "xExpr");
-            string yExpr = RequireString(approximation, "yExpr");
-            string zExpr = RequireString(approximation, "zExpr");
-            double uMin = RequireDouble(approximation, "uMin");
-            double uMax = RequireDouble(approximation, "uMax");
-            double vMin = RequireDouble(approximation, "vMin");
-            double vMax = RequireDouble(approximation, "vMax");
-            double tolerance = RequireDouble(approximation, "tolerance");
-            bool uPeriodic = RequireBool(approximation, "uPeriodic");
-            bool vPeriodic = RequireBool(approximation, "vPeriodic");
-
-            GeoPoint[,] throughPoints = new GeoPoint[minSamplesU, minSamplesV];
-            double du = (uMax - uMin) / (minSamplesU - 1);
-            double dv = (vMax - vMin) / (minSamplesV - 1);
-            for (int i = 0; i < minSamplesU; i++)
-            {
-                for (int j = 0; j < minSamplesV; ++j)
-                {
-                    using var uu = new NamedItemOverride(namedItems, uMin + i * du, uParameter);
-                    using var vv = new NamedItemOverride(namedItems, vMin + j * dv, vParameter);
-                    double x = (double)Evaluator.Evaluate(xExpr, namedItems.Dict);
-                    double y = (double)Evaluator.Evaluate(yExpr, namedItems.Dict);
-                    double z = (double)Evaluator.Evaluate(zExpr, namedItems.Dict);
-                    throughPoints[i, j] = new GeoPoint(x, y, z);
-                }
-            }
-            NurbsSurface ns = new NurbsSurface(throughPoints, degreeU, degreeV, uPeriodic, vPeriodic);
-            BoundingRect ext = new BoundingRect(ns.UKnots.First(), ns.VKnots.First(), ns.UKnots.Last(), ns.VKnots.Last());
-            ns.SetBounds(ext);
-            namedItems[name] = ns;
-        }
-
-        private void SystemGetInfoImpl()
-        {
-            throw new NotImplementedException();
-        }
-
-        private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, bool allowDocumentCommit)
-        {
-            namedItemClones.Push(new NamedItemClone(this));
-            if (parameters.ValueKind != JsonValueKind.Array) { throw new JsonRpcException("E_INVALID_PARAMETER", $"'parameters must be an array'."); }
-            foreach (var item in parameters.EnumerateArray())
-            {
-                string parName = RequireString(item, "name");
-                if (!item.TryGetProperty("value", out JsonElement parValue)) { throw new JsonRpcException("E_INVALID_PARAMETER", $"No value found for {parName}."); }
-                string? parLabel = GetOptionalString(item, "label");
-                item.TryGetProperty("input", out var parInput);
-                WorkspaceSetImpl(parName, parValue, parLabel, parInput);
-            }
-        }
-
-        private object? TemplateCommitImpl(JsonElement result, string? resultKind, bool suffixInternalNames)
-        {
-            List<object> resultingObjects = IterateSelector<object>(result).ToList();
-            namedItemClones.Pop().Dispose();
-            return MakeTypedList(resultingObjects);
-        }
-
-        private object? TemplateInstantiateImpl(string template, JsonElement arguments, string transform, string? name, bool explodeResult)
-        {
-
-            if (!templates.TryGetValue(template, out var jsons)) throw new JsonRpcException("E_INVALID_PARAMETER", $"Template '{template}' not found.");
-            object? res = null; // the result
-            {   // use a clone of the named items dictionary during evaluation of the template
-                foreach (var element in jsons)
-                {
-                    string methodName = RequireString(element, "method");
-                    if (methodName == "template.commit")
-                    {
-                        if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
-                        JsonElement result = RequireProperty(parameters, "result");
-                        var resultKind = GetOptionalString(parameters, "resultKind");
-                        var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
-
-                        res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
-                        // template.commit restored the old named items
-                    }
-                    else
-                    {
-                        ProcessMethod(element, true);
-                        if (stopExecution) return null;
-                        if (methodName == "template.begin")
-                        {   // here we overwrite the workspace values of the parameters
-                            // template.begin createt a new copy of the named items, so we can safely overwrite values here without affecting the outside
-                            if (arguments.ValueKind == JsonValueKind.Object)
-                            {
-                                foreach (var item in arguments.EnumerateObject())
-                                {
-                                    string parName = item.Name;
-                                    if (item.Value.ValueKind == JsonValueKind.Number) namedItems[parName] = item.Value.GetDouble();
-                                    else if (item.Value.ValueKind == JsonValueKind.String) namedItems[parName] = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            // now apply the transformation if there is one
-            // (here the named items contain the result of the template, so the transform can refer to it)
-            if (!string.IsNullOrEmpty(transform))
-            {
-                object m = Evaluator.Evaluate(transform, namedItems.Dict);
-                if (m is ModOp mop)
-                {
-                    if (res is List<Solid> solids)
-                    {
-                        foreach (Solid s in solids)
-                        {
-                            s.Modify(mop);
-                        }
-                    }
-                    else if (res is IGeoObject go)
-                    {
-                        go.Modify(mop);
-                    }
-                }
-                else
-                {
-                    throw new JsonRpcException("E_INVALID_PARAMETER", $"Transform expression did not evaluate to a transformation.");
-                }
-            }
-
-            // now save in the original named items dictionary
-            if (res != null && name != null) namedItems[name] = res;
-            return res;
-        }
-
-
-        private void SolidRuledImpl(JsonElement profile1, JsonElement profile2, string synchronization, string alignment, JsonElement matchPoints1, JsonElement matchPoints2, string name)
-        {
-            Path? path1 = null, path2 = null;
-            List<ICurve2D> curves1 = IterateSelector<ICurve2D>(profile1).ToList();
-            if (curves1.Count > 0)
-            {
-                if (curves1.Count > 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"we need exactely one closed profile in profile1.");
-                Sketch? sketch = curves1[0].UserData.GetData("MCPServer.Sketch") as Sketch;
-                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Sketch not found for profile1.");
-                IGeoObject go = curves1[0].MakeGeoObject(sketch.Plane);
-                if (go is Path p) path1 = p;
-                else if (go is ICurve crv)
-                {
-                    path1 = Path.FromSegments(new ICurve[] { crv }, true);
-                    path1.Flatten();
-                }
-                else throw new JsonRpcException("E_INVALID_PARAMETER", $"profile1 must be closed.");
-            }
-            List<ICurve2D> curves2 = IterateSelector<ICurve2D>(profile2).ToList();
-            if (curves2.Count > 0)
-            {
-                if (curves2.Count > 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"we need exactely one closed profile in profile2.");
-                Sketch? sketch = curves2[0].UserData.GetData("MCPServer.Sketch") as Sketch;
-                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Sketch not found for profile2.");
-                IGeoObject go = curves2[0].MakeGeoObject(sketch.Plane);
-                if (go is Path p) path2 = p;
-                else if (go is ICurve crv)
-                {
-                    path2 = Path.FromSegments(new ICurve[] { crv }, true);
-                }
-                else throw new JsonRpcException("E_INVALID_PARAMETER", $"profile2 must be closed.");
-            }
-            if (path1 != null && path2 != null)
-            {
-                Solid sld = Make3D.MakeRuledSolid(path1, path2, null);
-                if (sld != null)
-                {
-                    if (name != null) namedItems[name] = sld;
-                }
-                else throw new JsonRpcException("E_OPERATION_FAILED", "Could not create ruled solid.");
-            }
-        }
-
-        List<CompoundShape> GetProfiles(JsonElement selector)
-        {
-            List<CompoundShape> lcs = IterateSelector<CompoundShape>(selector).ToList();
-            List<ICurve2D> lc2 = IterateSelector<ICurve2D>(selector).ToList();
-            List<ICurve2D> remainingCurves = [];
-            for (int i = 0; i < lc2.Count; i++)
-            {
-                if (lc2[i].IsClosed || Precision.IsEqual(lc2[i].StartPoint, lc2[i].EndPoint))
-                {
-                    Border bdr = new Border(lc2[i]);
-                    CompoundShape cs = new CompoundShape(new SimpleShape(bdr));
-                    lcs.Add(cs);
-                    cs.UserData.Add("MCPServer.Sketch", lc2[i].UserData["MCPServer.Sketch"]);
-                }
-                else
-                {
-                    remainingCurves.Add(lc2[i]);
-                }
-            }
-            if (remainingCurves.Count > 0)
-            {
-                Reduce2D r2d = new Reduce2D();
-                r2d.Add(remainingCurves.ToArray());
-                r2d.OutputMode = Reduce2D.Mode.Paths;
-                ICurve2D[] r = r2d.Reduced;
-                for (int j = 0; j < r.Length; j++)
-                {
-                    if (r[j].IsClosed || Precision.IsEqual(r[j].StartPoint, r[j].EndPoint))
-                    {
-                        Border bdr = new Border(r[j]);
-                        CompoundShape cs = new CompoundShape(new SimpleShape(bdr));
-                        lcs.Add(cs);
-                        cs.UserData.Add("MCPServer.Sketch", remainingCurves[0].UserData["MCPServer.Sketch"]);
-                    }
-                }
-            }
-            return lcs;
-        }
         List<ICurve> GetSketchCurves(JsonElement selector)
         {
             List<CompoundShape> lcs = IterateSelector<CompoundShape>(selector).ToList();
@@ -1475,83 +2569,7 @@ namespace ShapeIt
             }
             return res;
         }
-        private void SolidSweepImpl(JsonElement profile, JsonElement path, string? orientation, string? name, JsonElement capture)
-        {
-            List<CompoundShape> profiles = GetProfiles(profile);
-            List<ICurve> paths = GetSketchCurves(path);
-            if (profiles.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactely one profile.");
-            if (paths.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactely one path.");
-            Sketch? sketch = profiles[0].UserData["MCPServer.Sketch"] as Sketch;
-            if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "No sketch assoziated with profile.");
 
-            Face toSweep = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[0].SimpleShapes[0]); // the profile should not consist of multiple SimpleShapes
-            if (!(paths[0] is Path)) paths[0] = Path.FromSegments(paths)[0]; // there must be at least one!
-            Path? p = paths[0] as Path;
-            if (p != null)
-            {
-                IGeoObject sweptSolid = Make3D.MakePipe(toSweep, p, null);
-                if (sweptSolid is Solid sld)
-                {
-                    if (name != null) namedItems[name] = sld;
-                    if (capture.ValueKind != JsonValueKind.Undefined)
-                    {
-                        string? startEdgesName = GetOptionalString(capture, "startEdges");
-                        string? endEdgesName = GetOptionalString(capture, "endEdges");
-                        string? startFaceName = GetOptionalString(capture, "startFace");
-                        string? endFaceName = GetOptionalString(capture, "endFace");
-
-                        Face endFace = (toSweep.Clone() as Face)!;
-                        endFace.Modify(ModOp.Fit(p.StartPoint, [p.StartDirection], p.EndPoint, [p.EndDirection]));
-                        Face? startingFace = sld.Shell.FindSimilarFace(toSweep);
-                        Face? endingFace = sld.Shell.FindSimilarFace(endFace);
-                        if (startingFace != null)
-                        {
-                            if (startFaceName != null) namedItems[startFaceName] = startingFace; // there should only be one
-                            if (startEdgesName != null) namedItems[startEdgesName] = startingFace.AllEdges.ToList();
-                        }
-                        if (endingFace != null)
-                        {
-                            if (endFaceName != null) namedItems[endFaceName] = endingFace; // there should only be one
-                            if (endEdgesName != null) namedItems[endEdgesName] = endingFace.AllEdges.ToList();
-                        }
-                    }
-                }
-            }
-        }
-        private void SolidRotateImpl(JsonElement profile, Axis axis, double angle, string? name, JsonElement capture)
-        {
-            List<CompoundShape> profiles = GetProfiles(profile);
-            List<Solid> res = [];
-            for (int i = 0; i < profiles.Count; i++)
-            {
-                Sketch? sketch = profiles[i].UserData["MCPServer.Sketch"] as Sketch;
-                if (sketch == null) throw new JsonRpcException("E_OPERATION_FAILED", "No suitable sketch found for profile");
-                for (int j = 0; j < profiles[i].SimpleShapes.Length; j++)
-                {
-                    Face toRotate = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[i].SimpleShapes[j]);
-                    IGeoObject go = Make3D.Rotate(toRotate, axis, SweepAngle.Deg(angle), 0, null);
-                    if (go is Solid sld) res.Add(sld);
-                }
-            }
-            if (profiles.Count == 0)
-            {
-                List<ICurve> crvs = GetSketchCurves(profile);
-                for (int i = 0; i < crvs.Count; i++)
-                {
-                    // crvs[i] is not closed here, otherwise it would have been a profile in profiles
-                    Line l1 = Line.TwoPoints(crvs[i].EndPoint, Geometry.DropPL(crvs[i].EndPoint, axis.Location, axis.Direction));
-                    Line l3 = Line.TwoPoints(Geometry.DropPL(crvs[i].StartPoint, axis.Location, axis.Direction), crvs[i].StartPoint);
-                    Line l2 = Line.TwoPoints(l1.EndPoint, l3.StartPoint);
-                    Face toRotate = Face.MakeFace(new GeoObjectList(crvs[i] as IGeoObject, l1, l2, l3));
-                    if (toRotate != null)
-                    {
-                        IGeoObject go = Make3D.Rotate(toRotate, axis, SweepAngle.Deg(angle), 0, null);
-                        if (go is Solid sld) res.Add(sld);
-                    }
-                }
-            }
-            if (name != null) namedItems[name] = res;
-        }
         private void PatternCircularSketchImpl(Sketch sketch, JsonElement entities, GeoPoint2D center, int count, double angle, bool merge, string name, bool nameWithSuffix)
         {
             // only implemented for closed shapes for now, which we convert to CompoundShape for easier boolean operations. We can add support for open curves later if needed.
@@ -1615,18 +2633,6 @@ namespace ShapeIt
             }
         }
 
-        private IEnumerable<object> IterateListOrSingleObject(object obj)
-        {
-            if (obj is IEnumerable<object> list)
-            {
-                foreach (var item in list) yield return item;
-            }
-            else
-            {
-                yield return obj;
-            }
-        }
-
         private void SketchRoundVerticesImpl(Sketch? sketch, JsonElement entity, double radius, JsonElement nearPoints, JsonElement indices, double tolerance, string name)
         {
             if (nearPoints.ValueKind == JsonValueKind.Undefined || indices.ValueKind == JsonValueKind.Undefined)
@@ -1686,6 +2692,635 @@ namespace ShapeIt
             }
 
         }
+
+        private void PatternGridSketchImpl(Sketch sketch, JsonElement entities, int countX, int countY, JsonElement stepX, JsonElement stepY, bool merge, string name, bool nameWithSuffix)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void SketchOffsetImpl(Sketch sketch, JsonElement sketchGeometry, double distance, string joinType, double miterLimit, bool makeRegion, string capType, string name)
+        {
+            object? pathOrShape = null;
+            if (sketchGeometry.ValueKind == JsonValueKind.Object)
+            {
+                List<CompoundShape> inputshapes = IterateSelector<CompoundShape>(sketchGeometry).ToList();
+                List<ICurve2D> inputcurves = IterateSelector<ICurve2D>(sketchGeometry).ToList();
+                if (inputshapes.Count > 0)
+                {
+                    pathOrShape = inputshapes[0];
+                }
+                else if (inputcurves.Count > 0) pathOrShape = inputcurves[0];
+            }
+            else
+            {   // from sketch
+                if (sketch.Shapes.Count > 0) { pathOrShape = sketch.Shapes[0]; }
+                else if (sketch.Curves.Count > 0)
+                {
+                    if (sketch.Curves.Count == 1) pathOrShape = sketch.Curves[0];
+                }
+                else if (sketch.Curves.Count > 1)
+                {
+                    // combine all curves to a path?
+                }
+            }
+            if (pathOrShape == null) throw new JsonRpcException("E_INVALID_PARAMS", "No input found to offset.");
+            if (double.IsNaN(miterLimit)) miterLimit = Math.PI;
+            object? result = null;
+            if (pathOrShape is ICurve2D c2d)
+            {
+                result = c2d.Parallel(distance, true, Precision.eps, miterLimit);
+                if (makeRegion && !c2d.IsClosed && result is ICurve2D rc2d)
+                {
+                    rc2d.Reverse();
+                    Border bdr = new Border([c2d, new Line2D(c2d.EndPoint, rc2d.StartPoint), rc2d, new Line2D(rc2d.EndPoint, c2d.StartPoint)], true, true);
+                    result = new CompoundShape(new SimpleShape(bdr));
+                }
+            }
+            else if (pathOrShape is CompoundShape cs)
+            {
+                if (distance > 0) result = cs.Expand(distance);
+                else result = cs.Shrink(distance);
+            }
+            if (result == null) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to calculate offset.");
+            if (name != null) namedItems[name] = result;
+            if (result != null)
+            {
+                if (result is ICurve2D ic2d) sketch.Add(ic2d);
+                if (result is CompoundShape cs) sketch.Add(cs);
+            }
+        }
+
+        private void SketchGetVerticesImpl(Sketch sketch, JsonElement sketchGeometry, string name, bool suffix, bool includeEndpoints, bool unique, double tolerance)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void SketchPerpendicularThroughImpl(Sketch sketch, JsonElement curve, GeoPoint2D point, double length, string name)
+        {
+            List<ICurve2D> curves = IterateSelector<ICurve2D>(curve).ToList(); // should only be one
+            if (curves.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactly one curve in 'curve'.");
+            GeoPoint2D[] ftpts = curves[0].PerpendicularFoot(point);
+            if (ftpts.Length == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to find foot point.");
+            GeoPoint2D ftpt = ftpts.MinBy(f => f | point); // in case there are multiple foot points, we take the one closest to the given point);
+            GeoVector2D dir = ftpt - point;
+            if (dir.IsNullVector()) dir = curves[0].DirectionAt(curves[0].PositionOf(ftpt)).Normalized.ToLeft();
+            Line2D nl = new Line2D(ftpt, ftpt + length * dir.Normalized);
+            sketch.Add(nl);
+            if (name != null) namedItems[name] = nl;
+        }
+
+        private void SketchFootPointOnCurveImpl(Sketch sketch, GeoPoint2D point, JsonElement curve, string mode, bool clamp, string name, JsonElement captured)
+        {
+            List<ICurve2D> c = IterateSelector<ICurve2D>(curve).ToList(); // should only be one
+            if (c.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactly one curve in 'curve'.");
+            GeoPoint2D[] ftpts = c[0].PerpendicularFoot(point);
+            if (ftpts.Length == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to find foot point.");
+            GeoPoint2D ftpt = ftpts.MinBy(f => f | point); // in case there are multiple foot points, we take the one closest to the given point);
+            if (name != null) namedItems[name] = ftpt;
+        }
+
+        private void SketchIntersectionsImpl(Sketch sketch, JsonElement a, JsonElement b, string mode, double tolerance, string name, bool suffix)
+        {
+            List<ICurve2D> ca = IterateSelector<ICurve2D>(a).ToList(); // should only be one
+            List<ICurve2D> cb = IterateSelector<ICurve2D>(b).ToList(); // should only be one
+            if (ca.Count != 1 || cb.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactly one curve in 'a' and one curve in 'b'.");
+            GeoPoint2DWithParameter[] ips = ca[0].Intersect(cb[0]);
+            if (ips == null || ips.Length == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to find intersection points.");
+            List<GeoPoint2D> points = ips.Select(ip => ip.p).ToList();
+            if (name != null)
+            {
+                if (points.Count == 1)
+                {
+                    namedItems[name] = points[0];
+                }
+                else
+                {
+                    if (suffix)
+                    {
+                        for (int i = 0; i < points.Count; i++)
+                        {
+                            AddNamed($"{name}_{i}", points[i]);
+                        }
+                    }
+                    namedItems[name] = points;
+                }
+            }
+        }
+
+        private void SketchAngleBisectorImpl(Sketch sketch, JsonElement a, JsonElement b, string which, GeoPoint2D at, double length, string name)
+        {
+            List<Line2D> linea = IterateSelector<Line2D>(a).ToList(); // should only be one
+            List<Line2D> lineb = IterateSelector<Line2D>(b).ToList(); // should only be one
+            if (linea.Count != 1 || lineb.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be one line in a and one line in b.");
+            if (!Geometry.IntersectLL(linea[0].StartPoint, linea[0].StartDirection, lineb[0].StartPoint, lineb[0].StartDirection, out GeoPoint2D intersectionPoint)) throw new JsonRpcException("E_INVALID_PARAMS", "The lines don't intersect.");
+
+            GeoVector2D dir1 = linea[0].StartDirection.Normalized + lineb[0].StartDirection.Normalized;
+            GeoVector2D dir2 = linea[0].StartDirection.Normalized - lineb[0].StartDirection.Normalized;
+            GeoVector2D dir = GeoVector2D.NullVector;
+            if (which != null)
+            {
+                switch (which)
+                {
+                    case "acute":
+                    case "inner":
+                        dir = dir1.Length < dir2.Length ? dir2.Normalized : dir1.Normalized;
+                        break;
+                    case "obtuse":
+                    case "outer":
+                        dir = dir1.Length > dir2.Length ? dir2.Normalized : dir1.Normalized;
+                        break;
+                    case "ccw":
+                        dir = GeoVector2D.Orientation(dir, dir2) > 0 ? dir1.Normalized : dir2.Normalized;
+                        break;
+                    case "cw":
+                        dir = GeoVector2D.Orientation(dir, dir2) < 0 ? dir1.Normalized : dir2.Normalized;
+                        break;
+                }
+            }
+
+            Line2D res = new Line2D(intersectionPoint, intersectionPoint + length * dir);
+            sketch.Add(res);
+            if (name != null) namedItems[name] = res;
+
+        }
+
+        public class Sketch: IJsonSerialize
+        {
+            Plane plane;
+            List<ICurve2D> curves = [];
+            List<CompoundShape> shapes = [];
+
+            public Sketch(Plane plane)
+            {
+                this.plane = plane;
+            }
+            public void Add(ICurve2D curve)
+            {
+                curve.UserData.Add("MCPServer.Sketch", this);
+                curves.Add(curve);
+            }
+
+            public void Add(CompoundShape shape)
+            {
+                shape.UserData.Add("MCPServer.Sketch", this);
+                shapes.Add(shape);
+            }
+
+            internal CompoundShape? GetCompoundShape()
+            {
+                if (curves.Count == 0 && shapes.Count == 1) return shapes[0];
+                if (curves.Count == 0 && shapes.Count == 0) return null;
+                if (shapes.Count > 0)
+                {   // we must somhow combine the compound shapes 
+                    CompoundShape? shape = shapes[0];
+                    for (int i = 1; i < shapes.Count; i++)
+                    {
+                        shape = CompoundShape.Union(shape, shapes[i]);
+                    }
+                    shape.UserData.Add("MCPServer.Sketch", this);
+                    return shape;
+                }
+                if (curves.Count == 1 && curves[0].IsClosed && shapes.Count == 0) return new CompoundShape(new SimpleShape(new Border(curves[0])));
+                if (curves.Count > 1)
+                {
+                    List<SimpleShape> simpleShapes = new List<SimpleShape>();
+                    for (int i = 0; i < curves.Count; i++)
+                    {
+                        if (curves[i].IsClosed) simpleShapes.Add(new SimpleShape(new Border(curves[i])));
+                    }
+                    // we should check all SimpleShapes against each other.
+                    // but for now, quick and dirty
+                    simpleShapes.Sort((a, b) => b.Area.CompareTo(a.Area));
+                    CompoundShape? res = null;
+                    for (int i = 0; i < simpleShapes.Count; i++)
+                    {
+                        if (simpleShapes[i] == null) continue;
+                        CompoundShape cs = new CompoundShape(simpleShapes[i]);
+                        for (int j = i + 1; j < simpleShapes.Count; j++)
+                        {
+                            if (simpleShapes[j] == null) continue;
+                            if (SimpleShape.GetPosition(simpleShapes[i], simpleShapes[j]) == SimpleShape.Position.firstcontainscecond)
+                            {
+                                cs = CompoundShape.Difference(cs, new CompoundShape(simpleShapes[j]));
+                                simpleShapes[j] = null; // mark as used
+                            }
+                        }
+                        if (res == null) res = cs;
+                        else res = CompoundShape.Union(res, cs);
+                    }
+                    res.UserData.Add("MCPServer.Sketch", this);
+                    return res;
+                }
+                return null;
+            }
+
+            protected Sketch() { } // for IJsonSerialize
+            public void GetObjectData(IJsonWriteData data)
+            {
+                data.AddProperty("Plane", plane);
+                data.AddProperty("Curves", curves);
+                data.AddProperty("Shapes", shapes);
+            }
+
+            public void SetObjectData(IJsonReadData data)
+            {
+                plane = data.GetProperty<Plane>("Plane");
+                curves = data.GetProperty<List<ICurve2D>>("Curves");
+                shapes = data.GetProperty<List<CompoundShape>>("Shapes");
+            }
+
+            public Plane Plane => plane;
+            public List<ICurve2D> Curves => curves;
+            public List<CompoundShape> Shapes => shapes;
+        }
+
+        #endregion
+
+        #region Solid, surface and feature operations
+
+        private void SolidExtrudeImpl(JsonElement profile, double length, GeoVector direction, double offset, string? name, JsonElement capture)
+        {
+            List<SimpleShape> simpleShapes = GetProfiles(profile, out Sketch? sketch);
+
+            if (sketch != null)
+            {
+                string? startEdges = GetOptionalString(capture, "startEdges");
+                string? endEdges = GetOptionalString(capture, "endEdges");
+                string? startFace = GetOptionalString(capture, "startFace");
+                string? endFace = GetOptionalString(capture, "endFace");
+                List<Solid> solids = new List<Solid>();
+                PlaneSurface ps = new PlaneSurface(sketch.Plane);
+                GeoVector dir = direction.IsValid() ? direction : ps.Normal.Normalized;
+                dir.Length = length;
+                for (int i = 0; i < simpleShapes.Count; i++)
+                {
+                    Face face = Face.MakeFace(ps, simpleShapes[i]);
+                    if (face != null)
+                    {
+                        if (offset != 0.0) face.Modify(ModOp.Translate(offset * dir.Normalized));
+                        Solid? sld = Make3D.Extrude(face, dir, null) as Solid;
+                        if (sld != null)
+                        {
+                            if (startEdges != null || startFace != null)
+                            {
+                                GeoPoint2D point2dOnFace = face.Area.GetSomeInnerPoint();
+                                GeoPoint point3dOnFace = face.Surface.PointAt(point2dOnFace);
+                                Face startFaceOfExtrusion = sld.FindFace(point3dOnFace);
+                                if (!string.IsNullOrEmpty(startFace))
+                                {
+                                    namedItems[startFace] = startFaceOfExtrusion;
+                                }
+                                if (!string.IsNullOrEmpty(startEdges))
+                                {
+                                    namedItems[startEdges] = new List<Edge>(startFaceOfExtrusion.Edges); ;
+                                }
+                            }
+                            if (endEdges != null || endFace != null)
+                            {
+                                GeoPoint2D point2dOnFace = face.Area.GetSomeInnerPoint();
+                                GeoPoint point3dOnFace = face.Surface.PointAt(point2dOnFace) + dir;
+                                Face endFaceOfExtrusion = sld.FindFace(point3dOnFace);
+                                if (!string.IsNullOrEmpty(endFace))
+                                {
+                                    namedItems[endFace] = endFaceOfExtrusion;
+                                }
+                                if (!string.IsNullOrEmpty(endEdges))
+                                {
+                                    namedItems[endEdges] = new List<Edge>(endFaceOfExtrusion.Edges); ;
+                                }
+                            }
+                            solids.Add(sld);
+                        }
+                    }
+                }
+                if (name != null) namedItems[name] = solids;
+            }
+        }
+
+        private void SolidHelicalExtrudeImpl(JsonElement profile, Axis axis, double angle, double offset, double pitch, string name, JsonElement capture)
+        {
+            List<SimpleShape> simpleShapes = GetProfiles(profile, out Sketch? sketch);
+
+            if (sketch != null)
+            {
+                string? startEdges = GetOptionalString(capture, "startEdges");
+                string? endEdges = GetOptionalString(capture, "endEdges");
+                string? startFace = GetOptionalString(capture, "startFace");
+                string? endFace = GetOptionalString(capture, "endFace");
+                List<Solid> solids = new List<Solid>();
+                PlaneSurface ps = new PlaneSurface(sketch.Plane);
+                for (int i = 0; i < simpleShapes.Count; i++)
+                {
+                    Face face = Face.MakeFace(ps, simpleShapes[i]);
+                    if (face != null)
+                    {
+                        Shell shl = Make3D.MakeHelicalSolid(face, axis, pitch, pitch * angle / 360, 0.0, true);
+                        if (shl != null)
+                        {
+                            Solid sld = Solid.MakeSolid(shl);
+                            if (sld != null)
+                            {
+                                if (startEdges != null || startFace != null)
+                                {
+                                    GeoPoint2D point2dOnFace = face.Area.GetSomeInnerPoint();
+                                    GeoPoint point3dOnFace = face.Surface.PointAt(point2dOnFace);
+                                    Face startFaceOfExtrusion = sld.FindFace(point3dOnFace);
+                                    if (!string.IsNullOrEmpty(startFace))
+                                    {
+                                        namedItems[startFace] = startFaceOfExtrusion;
+                                    }
+                                    if (!string.IsNullOrEmpty(startEdges))
+                                    {
+                                        namedItems[startEdges] = new List<Edge>(startFaceOfExtrusion.Edges);
+                                    }
+                                }
+                                if (endEdges != null || endFace != null)
+                                {
+                                }
+                                solids.Add(sld);
+                            }
+                        }
+                    }
+                }
+                if (name != null) namedItems[name] = solids;
+            }
+        }
+
+        private void SolidBoxImpl(GeoPoint origin, GeoVector axisX, GeoVector axisY, double sizeX, double sizeY, double sizeZ, string name)
+        {
+            GeoVector axisZ;
+            if (axisX.IsValid() && axisY.IsValid())
+            {
+                axisZ = axisX ^ axisY;
+                axisX.Norm();
+                axisY.Norm();
+                axisZ.Norm();
+            }
+            else
+            {
+                axisX = GeoVector.XAxis;
+                axisY = GeoVector.YAxis;
+                axisZ = GeoVector.ZAxis;
+            }
+            Solid res = Make3D.MakeBox(origin, sizeX * axisX, sizeY * axisY, sizeZ * axisZ);
+            if (name != null) namedItems[name] = res;
+        }
+
+        private void SolidCapsuleImpl(GeoPoint start, GeoPoint end, double radius, string cap, double coneTipDistance, string name)
+        {
+            Solid? res = null;
+            double l = end | start; // the length of the capsule
+            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
+            Plane profilePlane = new Plane(start, end - start, pln.DirectionX); // in this plane we construct a profile for rotation along the x-axis of the plane
+            GeoVector dirx = radius * pln.ToGlobal(GeoVector2D.XAxis);
+            Solid cylinder = Make3D.MakeCylinder(start, dirx, end - start);
+            if (double.IsNaN(coneTipDistance))
+            {
+                // sphericalTips
+                Arc2D arcstart = new Arc2D(GeoPoint2D.Origin, radius, Angle.Deg(180), SweepAngle.Deg(90));
+                Arc2D arcend = new Arc2D(new GeoPoint2D(l, 0), radius, Angle.Deg(270), SweepAngle.Deg(90));
+                Line2D line1 = new Line2D(arcstart.EndPoint, arcend.StartPoint);
+                Line2D line2 = new Line2D(arcend.EndPoint, arcstart.StartPoint);
+                Path2D profile = new Path2D(new ICurve2D[] { arcstart, line1, arcend, line2 });
+                Path? profile3D = profile.MakeGeoObject(profilePlane) as Path;
+                var rotated = Make3D.Rotate(profile3D, new Axis(start, end), SweepAngle.Full, 0.0, null);
+                if (rotated is Solid sld) res = sld;
+            }
+            else
+            {
+                Solid cone1 = Make3D.MakeCone(start, dirx, coneTipDistance * (start - end).Normalized, radius, 0.0);
+                Solid cone2 = Make3D.MakeCone(end, dirx, coneTipDistance * (end - start).Normalized, radius, 0.0);
+                res = BooleanOperation.Unite(cone1, cylinder);
+                res = BooleanOperation.Unite(cone2, res);
+            }
+            if (res != null && name != null) namedItems[name] = res;
+        }
+
+        private void SolidConeImpl(GeoPoint start, GeoPoint end, double radiusStart, double radiusEnd, string name)
+        {
+            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
+            GeoVector dirx = pln.ToGlobal(GeoVector2D.XAxis);
+            Solid res = Make3D.MakeCone(start, dirx, end - start, radiusStart, radiusEnd);
+            if (res != null && name != null) namedItems[name] = res;
+        }
+
+        private void SolidCylinderImpl(GeoPoint start, GeoPoint end, double radius, string name)
+        {
+            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
+            GeoVector dirx = radius * pln.ToGlobal(GeoVector2D.XAxis);
+            Solid res = Make3D.MakeCylinder(start, dirx, end - start);
+            if (res != null && name != null) namedItems[name] = res;
+        }
+
+        private void SolidPipeImpl(GeoPoint start, GeoPoint end, double outerRadius, double innerRadius, string name)
+        {
+            if (innerRadius == 0)
+            {
+                SolidCylinderImpl(start, end, outerRadius, name);
+                return;
+            }
+            Solid? res = null;
+            Plane pln = new Plane(start, end - start); // to use the arbitrary axis algorithm
+            GeoVector dirx = outerRadius * pln.ToGlobal(GeoVector2D.XAxis);
+            Solid cylinder1 = Make3D.MakeCylinder(start, dirx, end - start);
+            dirx = innerRadius * pln.ToGlobal(GeoVector2D.XAxis);
+            Solid cylinder2 = Make3D.MakeCylinder(start, dirx, end - start);
+            Solid[] diff = BooleanOperation.Subtract(cylinder1, cylinder2);
+            if (diff != null && diff.Length == 1) res = diff[0];
+            if (res != null && name != null) namedItems[name] = res;
+        }
+
+        private void SolidSphereImpl(GeoPoint center, double radius, JsonElement points, string name)
+        {
+            Solid? res = Make3D.MakeSphere(center, radius);
+            if (res != null && name != null) namedItems[name] = res;
+        }
+
+        private void SolidTorusImpl(GeoPoint center, GeoVector axis, double majorRadius, double minorRadius, string name)
+        {
+            Plane pln = new Plane(center, axis); // to use the arbitrary axis algorithm
+            Solid? res = Make3D.MakeTorus(center, axis, majorRadius, minorRadius);
+            if (res != null && name != null) namedItems[name] = res;
+        }
+
+        private void SurfaceNurbsImpl(int degreeU, int degreeV, JsonElement controlPoints, JsonElement uKnots, JsonElement vKnots, JsonElement weights, bool uPeriodic, bool vPeriodic, string name)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void SurfaceParametricImpl(int degreeU, int degreeV, JsonElement approximation, string name)
+        {
+            int minSamplesU = RequireInteger(approximation, "minSamplesU");
+            int minSamplesV = RequireInteger(approximation, "minSamplesV");
+
+            string uParameter = RequireString(approximation, "uParameter");
+            string vParameter = RequireString(approximation, "vParameter");
+            string xExpr = RequireString(approximation, "xExpr");
+            string yExpr = RequireString(approximation, "yExpr");
+            string zExpr = RequireString(approximation, "zExpr");
+            double uMin = RequireDouble(approximation, "uMin");
+            double uMax = RequireDouble(approximation, "uMax");
+            double vMin = RequireDouble(approximation, "vMin");
+            double vMax = RequireDouble(approximation, "vMax");
+            double tolerance = RequireDouble(approximation, "tolerance");
+            bool uPeriodic = RequireBool(approximation, "uPeriodic");
+            bool vPeriodic = RequireBool(approximation, "vPeriodic");
+
+            GeoPoint[,] throughPoints = new GeoPoint[minSamplesU, minSamplesV];
+            double du = (uMax - uMin) / (minSamplesU - 1);
+            double dv = (vMax - vMin) / (minSamplesV - 1);
+            for (int i = 0; i < minSamplesU; i++)
+            {
+                for (int j = 0; j < minSamplesV; ++j)
+                {
+                    using var uu = new NamedItemOverride(namedItems, uMin + i * du, uParameter);
+                    using var vv = new NamedItemOverride(namedItems, vMin + j * dv, vParameter);
+                    double x = (double)Evaluator.Evaluate(xExpr, namedItems.Dict);
+                    double y = (double)Evaluator.Evaluate(yExpr, namedItems.Dict);
+                    double z = (double)Evaluator.Evaluate(zExpr, namedItems.Dict);
+                    throughPoints[i, j] = new GeoPoint(x, y, z);
+                }
+            }
+            NurbsSurface ns = new NurbsSurface(throughPoints, degreeU, degreeV, uPeriodic, vPeriodic);
+            BoundingRect ext = new BoundingRect(ns.UKnots.First(), ns.VKnots.First(), ns.UKnots.Last(), ns.VKnots.Last());
+            ns.SetBounds(ext);
+            namedItems[name] = ns;
+        }
+
+        private void SolidRuledImpl(JsonElement profile1, JsonElement profile2, string synchronization, string alignment, JsonElement matchPoints1, JsonElement matchPoints2, string name)
+        {
+            Path? path1 = null, path2 = null;
+            List<ICurve2D> curves1 = IterateSelector<ICurve2D>(profile1).ToList();
+            if (curves1.Count > 0)
+            {
+                if (curves1.Count > 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"we need exactely one closed profile in profile1.");
+                Sketch? sketch = curves1[0].UserData.GetData("MCPServer.Sketch") as Sketch;
+                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Sketch not found for profile1.");
+                IGeoObject go = curves1[0].MakeGeoObject(sketch.Plane);
+                if (go is Path p) path1 = p;
+                else if (go is ICurve crv)
+                {
+                    path1 = Path.FromSegments(new ICurve[] { crv }, true);
+                    path1.Flatten();
+                }
+                else throw new JsonRpcException("E_INVALID_PARAMETER", $"profile1 must be closed.");
+            }
+            List<ICurve2D> curves2 = IterateSelector<ICurve2D>(profile2).ToList();
+            if (curves2.Count > 0)
+            {
+                if (curves2.Count > 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"we need exactely one closed profile in profile2.");
+                Sketch? sketch = curves2[0].UserData.GetData("MCPServer.Sketch") as Sketch;
+                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Sketch not found for profile2.");
+                IGeoObject go = curves2[0].MakeGeoObject(sketch.Plane);
+                if (go is Path p) path2 = p;
+                else if (go is ICurve crv)
+                {
+                    path2 = Path.FromSegments(new ICurve[] { crv }, true);
+                }
+                else throw new JsonRpcException("E_INVALID_PARAMETER", $"profile2 must be closed.");
+            }
+            if (path1 != null && path2 != null)
+            {
+                Solid sld = Make3D.MakeRuledSolid(path1, path2, null);
+                if (sld != null)
+                {
+                    if (name != null) namedItems[name] = sld;
+                }
+                else throw new JsonRpcException("E_OPERATION_FAILED", "Could not create ruled solid.");
+            }
+        }
+
+        private void SolidSweepImpl(JsonElement profile, JsonElement path, string? orientation, string? name, JsonElement capture)
+        {
+            List<CompoundShape> profiles = GetProfiles(profile);
+            List<ICurve> paths = GetSketchCurves(path);
+            if (profiles.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactely one profile.");
+            if (paths.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactely one path.");
+            Sketch? sketch = profiles[0].UserData["MCPServer.Sketch"] as Sketch;
+            if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "No sketch assoziated with profile.");
+
+            Face toSweep = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[0].SimpleShapes[0]); // the profile should not consist of multiple SimpleShapes
+            if (!(paths[0] is Path)) paths[0] = Path.FromSegments(paths)[0]; // there must be at least one!
+            Path? p = paths[0] as Path;
+            if (p != null)
+            {
+                IGeoObject sweptSolid = Make3D.MakePipe(toSweep, p, null);
+                if (sweptSolid is Solid sld)
+                {
+                    if (name != null) namedItems[name] = sld;
+                    if (capture.ValueKind != JsonValueKind.Undefined)
+                    {
+                        string? startEdgesName = GetOptionalString(capture, "startEdges");
+                        string? endEdgesName = GetOptionalString(capture, "endEdges");
+                        string? startFaceName = GetOptionalString(capture, "startFace");
+                        string? endFaceName = GetOptionalString(capture, "endFace");
+
+                        Face endFace = (toSweep.Clone() as Face)!;
+                        endFace.Modify(ModOp.Fit(p.StartPoint, [p.StartDirection], p.EndPoint, [p.EndDirection]));
+                        Face? startingFace = sld.Shell.FindSimilarFace(toSweep);
+                        Face? endingFace = sld.Shell.FindSimilarFace(endFace);
+                        if (startingFace != null)
+                        {
+                            if (startFaceName != null) namedItems[startFaceName] = startingFace; // there should only be one
+                            if (startEdgesName != null) namedItems[startEdgesName] = startingFace.AllEdges.ToList();
+                        }
+                        if (endingFace != null)
+                        {
+                            if (endFaceName != null) namedItems[endFaceName] = endingFace; // there should only be one
+                            if (endEdgesName != null) namedItems[endEdgesName] = endingFace.AllEdges.ToList();
+                        }
+                    }
+                }
+            }
+        }
+
+        private void SolidRotateImpl(JsonElement profile, Axis axis, double angle, string? name, JsonElement capture)
+        {
+            List<CompoundShape> profiles = GetProfiles(profile);
+            List<Solid> res = [];
+            for (int i = 0; i < profiles.Count; i++)
+            {
+                Sketch? sketch = profiles[i].UserData["MCPServer.Sketch"] as Sketch;
+                if (sketch == null) throw new JsonRpcException("E_OPERATION_FAILED", "No suitable sketch found for profile");
+                for (int j = 0; j < profiles[i].SimpleShapes.Length; j++)
+                {
+                    Face toRotate = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[i].SimpleShapes[j]);
+                    IGeoObject go = Make3D.Rotate(toRotate, axis, SweepAngle.Deg(angle), 0, null);
+                    if (go is Solid sld) res.Add(sld);
+                }
+            }
+            if (profiles.Count == 0)
+            {
+                List<ICurve> crvs = GetSketchCurves(profile);
+                for (int i = 0; i < crvs.Count; i++)
+                {
+                    // crvs[i] is not closed here, otherwise it would have been a profile in profiles
+                    Line l1 = Line.TwoPoints(crvs[i].EndPoint, Geometry.DropPL(crvs[i].EndPoint, axis.Location, axis.Direction));
+                    Line l3 = Line.TwoPoints(Geometry.DropPL(crvs[i].StartPoint, axis.Location, axis.Direction), crvs[i].StartPoint);
+                    Line l2 = Line.TwoPoints(l1.EndPoint, l3.StartPoint);
+                    Face toRotate = Face.MakeFace(new GeoObjectList(crvs[i] as IGeoObject, l1, l2, l3));
+                    if (toRotate != null)
+                    {
+                        IGeoObject go = Make3D.Rotate(toRotate, axis, SweepAngle.Deg(angle), 0, null);
+                        if (go is Solid sld) res.Add(sld);
+                    }
+                }
+            }
+            if (name != null) namedItems[name] = res;
+        }
+
+        private IEnumerable<object> IterateListOrSingleObject(object obj)
+        {
+            if (obj is IEnumerable<object> list)
+            {
+                foreach (var item in list) yield return item;
+            }
+            else
+            {
+                yield return obj;
+            }
+        }
+
         private Solid UniteWithMany(Solid a, List<Solid> b, out List<Solid> unused)
         {
             Solid accumulate = a;
@@ -1732,6 +3367,7 @@ namespace ShapeIt
             }
             return fragments;
         }
+
         Solid[] IntersectMany(Solid solid, List<Solid> other)
         {
             List<Solid> fragments = new List<Solid>();
@@ -1755,6 +3391,7 @@ namespace ShapeIt
             }
             return fragments.ToArray();
         }
+
         private void SolidBooleanImpl(string op, JsonElement a, JsonElement b, string? name, bool rebind, JsonElement rebindTargets)
         {
             List<Solid> slda = IterateSelector<Solid>(a).ToList();
@@ -1855,11 +3492,6 @@ namespace ShapeIt
                 current = next;
             }
             if (name != null) namedItems[name] = total;
-        }
-
-        private void PatternGridSketchImpl(Sketch sketch, JsonElement entities, int countX, int countY, JsonElement stepX, JsonElement stepY, bool merge, string name, bool nameWithSuffix)
-        {
-            throw new NotImplementedException();
         }
 
         private void PatternGridSolidsImpl(JsonElement objects, int countX, int countY, int countXNegative, int countYNegative, GeoVector stepX, GeoVector stepY, bool copy, string? name, bool suffix)
@@ -1999,185 +3631,6 @@ namespace ShapeIt
             }
         }
 
-        void IterateLoops(List<(string name, double start, double step, int count)> loopVariables, Action body)
-        {
-            int n = loopVariables.Count;
-            int[] indices = new int[n];
-
-            while (true)
-            {
-                // Aktuelle Werte setzen
-                for (int i = 0; i < n; i++)
-                {
-                    var (name, start, step, count) = loopVariables[i];
-                    double val = start + indices[i] * step;
-                    namedItems[name] = val;
-                }
-
-                // Das eigentliche "Innere" der Schleife
-                body();
-
-                // "Zähler erhöhen" (wie bei verschachtelten Schleifen)
-                int k = n - 1;
-                while (k >= 0)
-                {
-                    indices[k]++;
-                    if (indices[k] < loopVariables[k].count)
-                        break;
-
-                    indices[k] = 0;
-                    k--;
-                }
-
-                // Wenn wir über die erste Schleife hinaus sind: fertig
-                if (k < 0)
-                    break;
-            }
-        }
-        private void SketchOffsetImpl(Sketch sketch, JsonElement sketchGeometry, double distance, string joinType, double miterLimit, bool makeRegion, string capType, string name)
-        {
-            object? pathOrShape = null;
-            if (sketchGeometry.ValueKind == JsonValueKind.Object)
-            {
-                List<CompoundShape> inputshapes = IterateSelector<CompoundShape>(sketchGeometry).ToList();
-                List<ICurve2D> inputcurves = IterateSelector<ICurve2D>(sketchGeometry).ToList();
-                if (inputshapes.Count > 0)
-                {
-                    pathOrShape = inputshapes[0];
-                }
-                else if (inputcurves.Count > 0) pathOrShape = inputcurves[0];
-            }
-            else
-            {   // from sketch
-                if (sketch.Shapes.Count > 0) { pathOrShape = sketch.Shapes[0]; }
-                else if (sketch.Curves.Count > 0)
-                {
-                    if (sketch.Curves.Count == 1) pathOrShape = sketch.Curves[0];
-                }
-                else if (sketch.Curves.Count > 1)
-                {
-                    // combine all curves to a path?
-                }
-            }
-            if (pathOrShape == null) throw new JsonRpcException("E_INVALID_PARAMS", "No input found to offset.");
-            if (double.IsNaN(miterLimit)) miterLimit = Math.PI;
-            object? result = null;
-            if (pathOrShape is ICurve2D c2d)
-            {
-                result = c2d.Parallel(distance, true, Precision.eps, miterLimit);
-                if (makeRegion && !c2d.IsClosed && result is ICurve2D rc2d)
-                {
-                    rc2d.Reverse();
-                    Border bdr = new Border([c2d, new Line2D(c2d.EndPoint, rc2d.StartPoint), rc2d, new Line2D(rc2d.EndPoint, c2d.StartPoint)], true, true);
-                    result = new CompoundShape(new SimpleShape(bdr));
-                }
-            }
-            else if (pathOrShape is CompoundShape cs)
-            {
-                if (distance > 0) result = cs.Expand(distance);
-                else result = cs.Shrink(distance);
-            }
-            if (result == null) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to calculate offset.");
-            if (name != null) namedItems[name] = result;
-            if (result != null)
-            {
-                if (result is ICurve2D ic2d) sketch.Add(ic2d);
-                if (result is CompoundShape cs) sketch.Add(cs);
-            }
-        }
-        private void SketchGetVerticesImpl(Sketch sketch, JsonElement sketchGeometry, string name, bool suffix, bool includeEndpoints, bool unique, double tolerance)
-        {
-            throw new NotImplementedException();
-        }
-        private void SketchPerpendicularThroughImpl(Sketch sketch, JsonElement curve, GeoPoint2D point, double length, string name)
-        {
-            List<ICurve2D> curves = IterateSelector<ICurve2D>(curve).ToList(); // should only be one
-            if (curves.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactly one curve in 'curve'.");
-            GeoPoint2D[] ftpts = curves[0].PerpendicularFoot(point);
-            if (ftpts.Length == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to find foot point.");
-            GeoPoint2D ftpt = ftpts.MinBy(f => f | point); // in case there are multiple foot points, we take the one closest to the given point);
-            GeoVector2D dir = ftpt - point;
-            if (dir.IsNullVector()) dir = curves[0].DirectionAt(curves[0].PositionOf(ftpt)).Normalized.ToLeft();
-            Line2D nl = new Line2D(ftpt, ftpt + length * dir.Normalized);
-            sketch.Add(nl);
-            if (name != null) namedItems[name] = nl;
-        }
-        private void SketchFootPointOnCurveImpl(Sketch sketch, GeoPoint2D point, JsonElement curve, string mode, bool clamp, string name, JsonElement captured)
-        {
-            List<ICurve2D> c = IterateSelector<ICurve2D>(curve).ToList(); // should only be one
-            if (c.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactly one curve in 'curve'.");
-            GeoPoint2D[] ftpts = c[0].PerpendicularFoot(point);
-            if (ftpts.Length == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to find foot point.");
-            GeoPoint2D ftpt = ftpts.MinBy(f => f | point); // in case there are multiple foot points, we take the one closest to the given point);
-            if (name != null) namedItems[name] = ftpt;
-        }
-        private void SketchIntersectionsImpl(Sketch sketch, JsonElement a, JsonElement b, string mode, double tolerance, string name, bool suffix)
-        {
-            List<ICurve2D> ca = IterateSelector<ICurve2D>(a).ToList(); // should only be one
-            List<ICurve2D> cb = IterateSelector<ICurve2D>(b).ToList(); // should only be one
-            if (ca.Count != 1 || cb.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactly one curve in 'a' and one curve in 'b'.");
-            GeoPoint2DWithParameter[] ips = ca[0].Intersect(cb[0]);
-            if (ips == null || ips.Length == 0) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to find intersection points.");
-            List<GeoPoint2D> points = ips.Select(ip => ip.p).ToList();
-            if (name != null)
-            {
-                if (points.Count == 1)
-                {
-                    namedItems[name] = points[0];
-                }
-                else
-                {
-                    if (suffix)
-                    {
-                        for (int i = 0; i < points.Count; i++)
-                        {
-                            AddNamed($"{name}_{i}", points[i]);
-                        }
-                    }
-                    namedItems[name] = points;
-                }
-            }
-        }
-
-
-        private void SketchAngleBisectorImpl(Sketch sketch, JsonElement a, JsonElement b, string which, GeoPoint2D at, double length, string name)
-        {
-            List<Line2D> linea = IterateSelector<Line2D>(a).ToList(); // should only be one
-            List<Line2D> lineb = IterateSelector<Line2D>(b).ToList(); // should only be one
-            if (linea.Count != 1 || lineb.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be one line in a and one line in b.");
-            if (!Geometry.IntersectLL(linea[0].StartPoint, linea[0].StartDirection, lineb[0].StartPoint, lineb[0].StartDirection, out GeoPoint2D intersectionPoint)) throw new JsonRpcException("E_INVALID_PARAMS", "The lines don't intersect.");
-
-            GeoVector2D dir1 = linea[0].StartDirection.Normalized + lineb[0].StartDirection.Normalized;
-            GeoVector2D dir2 = linea[0].StartDirection.Normalized - lineb[0].StartDirection.Normalized;
-            GeoVector2D dir = GeoVector2D.NullVector;
-            if (which != null)
-            {
-                switch (which)
-                {
-                    case "acute":
-                    case "inner":
-                        dir = dir1.Length < dir2.Length ? dir2.Normalized : dir1.Normalized;
-                        break;
-                    case "obtuse":
-                    case "outer":
-                        dir = dir1.Length > dir2.Length ? dir2.Normalized : dir1.Normalized;
-                        break;
-                    case "ccw":
-                        dir = GeoVector2D.Orientation(dir, dir2) > 0 ? dir1.Normalized : dir2.Normalized;
-                        break;
-                    case "cw":
-                        dir = GeoVector2D.Orientation(dir, dir2) < 0 ? dir1.Normalized : dir2.Normalized;
-                        break;
-                }
-            }
-
-            Line2D res = new Line2D(intersectionPoint, intersectionPoint + length * dir);
-            sketch.Add(res);
-            if (name != null) namedItems[name] = res;
-
-        }
-
-
         private void FeatureHoleImpl(JsonElement solid, JsonElement face, JsonElement centerOnFace, GeoPoint center, double diameter, bool through, double depth, string? name, JsonElement capture, bool rebind, JsonElement rebindTargets)
         {
             List<Solid> solids = IterateSelector<Solid>(solid).ToList(); // should only be one
@@ -2280,6 +3733,7 @@ namespace ShapeIt
                 }
             }
         }
+
         private void FeatureSplitImpl(JsonElement solid, JsonElement splitBy, string nameInner, string nameOuter, bool rebind, JsonElement rebindTargets)
         {
             List<Solid> solids = IterateSelector<Solid>(solid).ToList(); // should only be one
@@ -2561,165 +4015,16 @@ namespace ShapeIt
             }
             return res;
         }
-        private void AssertCheckImpl(JsonElement objects, string? condition, int minCount, int maxCount, string message, string name)
-        {
-            List<object> selected = IterateSelector<object>(objects).ToList();
-            // "this.", FaceWrapperForEval with properties
-            if (minCount >= 0) // default: -1
-            {
-                if (selected.Count < minCount) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. Count={selected.Count}. {message}");
-            }
-            if (maxCount >= 0)
-            {
-                if (selected.Count > maxCount) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. Count={selected.Count}. {message}");
-            }
-            if (condition != null)
-            {
-                object? oldValue = null;
-                try
-                {
-                    namedItems.TryGetValue("this", out oldValue);
-                    foreach (var item in selected)
-                    {
-                        object? wrappedItem = wrapForEvaluator(item);
-                        if (wrappedItem != null)
-                        {
-                            namedItems["this"] = wrappedItem;
-                            object evalRes = Evaluator.Evaluate(condition, namedItems.Dict);
-                            if (evalRes is bool b)
-                            {
-                                if (!b) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. {message}");
-                            }
-                        }
-                        else throw new NotImplementedException("assert.check not yet fully implemented");
-                    }
-                    if (selected.Count == 0)
-                    {   // a condition without objects
-                        object evalRes = Evaluator.Evaluate(condition, namedItems.Dict);
-                        if (evalRes is bool b)
-                        {
-                            if (!b) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. {message}");
-                        }
-                    }
-                }
-                finally
-                {
-                    if (oldValue != null) namedItems["this"] = oldValue;
-                    else namedItems.Remove("this");
-                }
-            }
-        }
-        private class FaceWrapperForEvaluator
-        {
-            Face face;
-            public FaceWrapperForEvaluator(Face face)
-            {
-                this.face = face;
-            }
-            public string SurfaceType
-            {
-                get
-                {
-                    if (face.Surface is PlaneSurface) return "planar";
-                    return "other";
-                }
-            }
-            public int EdgeCount => face.AllEdges.Length;
-            public BoundingBox bounds => face.GetExtent(0.0);
-        }
-        private class EdgeWrapperForEvaluator
-        {
-            Edge edge;
-            public EdgeWrapperForEvaluator(Edge edge)
-            {
-                this.edge = edge;
-            }
-            public string CurveType
-            {
-                get
-                {
-                    if (edge.Curve3D is Line) return "line";
-                    if (edge.Curve3D is Ellipse elli)
-                    {
-                        if (elli.IsCircle)
-                        {
-                            if (elli.IsClosed) return "circle";
-                            else return "arc";
-                        }
-                        else
-                        {
-                            if (elli.IsClosed) return "ellipse";
-                            else return "ellipse arc";
-                        }
-                    }
-                    return "other";
-                }
-            }
-            public GeoPoint startPoint => edge.Curve3D.StartPoint;
-            public GeoPoint endPoint => edge.Curve3D.EndPoint;
-            public GeoPoint pointAt(double u) => edge.Curve3D.PointAt(u);
-            public GeoVector directionAt(double u) => edge.Curve3D.DirectionAt(u);
-            public GeoVector startDirection => edge.Curve3D.StartDirection;
-            public GeoVector endDirection => edge.Curve3D.EndDirection;
-            public BoundingBox bounds => edge.Curve3D.GetExtent();
-        }
-        private static object? wrapForEvaluator(object item)
-        {
-            if (item is Face fc) return new FaceWrapperForEvaluator(fc);
-            if (item is Edge edg) return new EdgeWrapperForEvaluator(edg);
-            // TODO implement other wrappers
-            return item;
-        }
 
-        private void DocumentCommitObjectsImpl(JsonElement objects)
-        {
-            foreach (Solid sld in IterateSelector<Solid>(objects))
-            {
-                Project? project = FrameImpl.MainFrame?.Project;
-                if (project != null)
-                {
-                    Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
-                    if (style != null) { sld.Style = style; }
-                    FrameImpl.MainFrame?.Project?.GetActiveModel()?.Add(sld);
-                }
-            }
-        }
+        #endregion
 
-        private void DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
-        {
-            Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
-            if (project==null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
-            Model model = project.GetActiveModel();
-            Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
-            foreach (Solid sld in IterateSelector<Solid>(remove))
-            {
-                if (sld.Owner == model) model.Remove(sld);
-                else
-                {
-                    foreach (IGeoObject go in model.AllObjects)
-                    {
-                        if (go is Solid sld2)
-                        {
-                            if (sld2.Name == sld.Name)
-                            {
-                                model.Remove(sld2);
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-            foreach (Solid sld in IterateSelector<Solid>(add))
-            {
-                if (style != null) { sld.Style = style; }
-                model.Add(sld);
-            }
-        }
+        #region Transform operations
 
         private void TransformScaleImpl(JsonElement objectsEl, GeoPoint center, double factor, JsonElement factorsEl, string name, string copySuffix)
         {
             throw new NotImplementedException();
         }
+
         private void TransformReflectImpl(JsonElement objectsEl, Plane plane, Axis axis3d, Axis2D axis2d, string name, string copySuffix)
         {
             List<object> objects = IterateObjectRefs<object>(objectsEl).ToList();
@@ -2799,6 +4104,7 @@ namespace ShapeIt
             }
             if (copy) namedItems[name] = modified;
         }
+
         private void TransformMoveImpl(JsonElement objects, GeoVector delta, string name, string copySuffix)
         {
             List<Solid> toMove = IterateSelector<Solid>(objects).ToList();
@@ -2822,6 +4128,58 @@ namespace ShapeIt
             if (name != null) namedItems[name] = modified;
         }
 
+        #endregion
+
+        #region Inspection and assertions
+
+        private void AssertCheckImpl(JsonElement objects, string? condition, int minCount, int maxCount, string message, string name)
+        {
+            List<object> selected = IterateSelector<object>(objects).ToList();
+            // "this.", FaceWrapperForEval with properties
+            if (minCount >= 0) // default: -1
+            {
+                if (selected.Count < minCount) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. Count={selected.Count}. {message}");
+            }
+            if (maxCount >= 0)
+            {
+                if (selected.Count > maxCount) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. Count={selected.Count}. {message}");
+            }
+            if (condition != null)
+            {
+                object? oldValue = null;
+                try
+                {
+                    namedItems.TryGetValue("this", out oldValue);
+                    foreach (var item in selected)
+                    {
+                        object? wrappedItem = wrapForEvaluator(item);
+                        if (wrappedItem != null)
+                        {
+                            namedItems["this"] = wrappedItem;
+                            object evalRes = Evaluator.Evaluate(condition, namedItems.Dict);
+                            if (evalRes is bool b)
+                            {
+                                if (!b) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. {message}");
+                            }
+                        }
+                        else throw new NotImplementedException("assert.check not yet fully implemented");
+                    }
+                    if (selected.Count == 0)
+                    {   // a condition without objects
+                        object evalRes = Evaluator.Evaluate(condition, namedItems.Dict);
+                        if (evalRes is bool b)
+                        {
+                            if (!b) throw new JsonRpcException("E_ASSERTION_FAILED", $"Assertion failed. {message}");
+                        }
+                    }
+                }
+                finally
+                {
+                    if (oldValue != null) namedItems["this"] = oldValue;
+                    else namedItems.Remove("this");
+                }
+            }
+        }
 
         private void InspectPropertiesImpl(string target, JsonElement properties)
         {
@@ -2838,35 +4196,103 @@ namespace ShapeIt
             throw new NotImplementedException();
         }
 
+        #endregion
 
-        private Axis AxisFromJson(JsonElement axisRef)
+        #region Templates and system metadata
+
+        private void SystemGetInfoImpl()
         {
-            // AxisRef can be either {standard:"X"|"Y"|"Z"} or {origin:{x,y,z}, direction:{x,y,z}}
-            if (axisRef.TryGetProperty("standard", out JsonElement stdEl) && stdEl.ValueKind == JsonValueKind.String)
+            throw new NotImplementedException();
+        }
+
+        private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, bool allowDocumentCommit)
+        {
+            namedItemClones.Push(new NamedItemClone(this));
+            if (parameters.ValueKind != JsonValueKind.Array) { throw new JsonRpcException("E_INVALID_PARAMETER", $"'parameters must be an array'."); }
+            foreach (var item in parameters.EnumerateArray())
             {
-                string std = stdEl.GetString()?.ToUpper() ?? "Z";
-                return std switch
-                {
-                    "X" => new Axis(GeoPoint.Origin, GeoVector.XAxis),
-                    "Y" => new Axis(GeoPoint.Origin, GeoVector.YAxis),
-                    "Z" => new Axis(GeoPoint.Origin, GeoVector.ZAxis),
-                    _ => throw new JsonRpcException("E_INVALID_PARAMS", "Unknown standard axis.")
-                };
+                string parName = RequireString(item, "name");
+                if (!item.TryGetProperty("value", out JsonElement parValue)) { throw new JsonRpcException("E_INVALID_PARAMETER", $"No value found for {parName}."); }
+                string? parLabel = GetOptionalString(item, "label");
+                item.TryGetProperty("input", out var parInput);
+                WorkspaceSetImpl(parName, parValue, parLabel, parInput);
             }
-            if (axisRef.TryGetProperty("origin", out JsonElement orgEl) && axisRef.TryGetProperty("direction", out JsonElement dirEl))
+        }
+
+        private object? TemplateCommitImpl(JsonElement result, string? resultKind, bool suffixInternalNames)
+        {
+            List<object> resultingObjects = IterateSelector<object>(result).ToList();
+            namedItemClones.Pop().Dispose();
+            return MakeTypedList(resultingObjects);
+        }
+
+        private object? TemplateInstantiateImpl(string template, JsonElement arguments, string transform, string? name, bool explodeResult)
+        {
+
+            if (!templates.TryGetValue(template, out var jsons)) throw new JsonRpcException("E_INVALID_PARAMETER", $"Template '{template}' not found.");
+            object? res = null; // the result
+            {   // use a clone of the named items dictionary during evaluation of the template
+                foreach (var element in jsons)
+                {
+                    string methodName = RequireString(element, "method");
+                    if (methodName == "template.commit")
+                    {
+                        if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
+                        JsonElement result = RequireProperty(parameters, "result");
+                        var resultKind = GetOptionalString(parameters, "resultKind");
+                        var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
+
+                        res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
+                        // template.commit restored the old named items
+                    }
+                    else
+                    {
+                        ProcessMethod(element, true);
+                        if (stopExecution) return null;
+                        if (methodName == "template.begin")
+                        {   // here we overwrite the workspace values of the parameters
+                            // template.begin createt a new copy of the named items, so we can safely overwrite values here without affecting the outside
+                            if (arguments.ValueKind == JsonValueKind.Object)
+                            {
+                                foreach (var item in arguments.EnumerateObject())
+                                {
+                                    string parName = item.Name;
+                                    if (item.Value.ValueKind == JsonValueKind.Number) namedItems[parName] = item.Value.GetDouble();
+                                    else if (item.Value.ValueKind == JsonValueKind.String) namedItems[parName] = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            // now apply the transformation if there is one
+            // (here the named items contain the result of the template, so the transform can refer to it)
+            if (!string.IsNullOrEmpty(transform))
             {
-                GeoPoint org = RequirePoint3D(orgEl, null);
-                GeoVector dir = RequireVector3D(dirEl);
-                try
+                object m = Evaluator.Evaluate(transform, namedItems.Dict);
+                if (m is ModOp mop)
                 {
-                    return new Axis(org, dir);
+                    if (res is List<Solid> solids)
+                    {
+                        foreach (Solid s in solids)
+                        {
+                            s.Modify(mop);
+                        }
+                    }
+                    else if (res is IGeoObject go)
+                    {
+                        go.Modify(mop);
+                    }
                 }
-                catch (ArgumentException ex)
+                else
                 {
-                    throw new JsonRpcException("E_INVALID_PARAMS", "Invalid axis: " + ex.Message);
+                    throw new JsonRpcException("E_INVALID_PARAMETER", $"Transform expression did not evaluate to a transformation.");
                 }
             }
-            throw new JsonRpcException("E_INVALID_PARAMS", "Invalid AxisRef.");
+
+            // now save in the original named items dictionary
+            if (res != null && name != null) namedItems[name] = res;
+            return res;
         }
 
         public static readonly Dictionary<string, int> ErrorNumbers = new()
@@ -2878,6 +4304,7 @@ namespace ShapeIt
             ["E_REF_GONE"] = 1302,
             ["E_BOOLEAN_FAIL"] = 1401
         };
+
         public struct ParameterInfo
         {
             public string label;
@@ -2903,6 +4330,7 @@ namespace ShapeIt
             }
             return null;
         }
+
         internal string? GetTemplateDescription(string key)
         {
             if (templates.TryGetValue(key, out var jsons))
@@ -2918,6 +4346,7 @@ namespace ShapeIt
             }
             return null;
         }
+
         public ParameterInfo GetTemplateParameterInfo(string templateName, string parameterName)
         {
             ParameterInfo res = new ParameterInfo();
@@ -2967,6 +4396,7 @@ namespace ShapeIt
             }
             return res;
         }
+
         internal List<string> GetTemplateParameters(string templateName)
         {
             List<string> res = [];
@@ -2994,6 +4424,7 @@ namespace ShapeIt
             }
             return res;
         }
+
         public object? ExecuteTemplate(string template, Dictionary<string, object> parameterValues)
         {
             try
@@ -3039,6 +4470,82 @@ namespace ShapeIt
             }
         }
 
+        #endregion
+
+        #region Geometry utility methods
+
+        private Axis AxisFromJson(JsonElement axisRef)
+        {
+            // AxisRef can be either {standard:"X"|"Y"|"Z"} or {origin:{x,y,z}, direction:{x,y,z}}
+            if (axisRef.TryGetProperty("standard", out JsonElement stdEl) && stdEl.ValueKind == JsonValueKind.String)
+            {
+                string std = stdEl.GetString()?.ToUpper() ?? "Z";
+                return std switch
+                {
+                    "X" => new Axis(GeoPoint.Origin, GeoVector.XAxis),
+                    "Y" => new Axis(GeoPoint.Origin, GeoVector.YAxis),
+                    "Z" => new Axis(GeoPoint.Origin, GeoVector.ZAxis),
+                    _ => throw new JsonRpcException("E_INVALID_PARAMS", "Unknown standard axis.")
+                };
+            }
+            if (axisRef.TryGetProperty("origin", out JsonElement orgEl) && axisRef.TryGetProperty("direction", out JsonElement dirEl))
+            {
+                GeoPoint org = RequirePoint3D(orgEl, null);
+                GeoVector dir = RequireVector3D(dirEl);
+                try
+                {
+                    return new Axis(org, dir);
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new JsonRpcException("E_INVALID_PARAMS", "Invalid axis: " + ex.Message);
+                }
+            }
+            throw new JsonRpcException("E_INVALID_PARAMS", "Invalid AxisRef.");
+        }
+
+        #endregion
+
+        #region Nested model types
+
+        List<CompoundShape> GetProfiles(JsonElement selector)
+        {
+            List<CompoundShape> lcs = IterateSelector<CompoundShape>(selector).ToList();
+            List<ICurve2D> lc2 = IterateSelector<ICurve2D>(selector).ToList();
+            List<ICurve2D> remainingCurves = [];
+            for (int i = 0; i < lc2.Count; i++)
+            {
+                if (lc2[i].IsClosed || Precision.IsEqual(lc2[i].StartPoint, lc2[i].EndPoint))
+                {
+                    Border bdr = new Border(lc2[i]);
+                    CompoundShape cs = new CompoundShape(new SimpleShape(bdr));
+                    lcs.Add(cs);
+                    cs.UserData.Add("MCPServer.Sketch", lc2[i].UserData["MCPServer.Sketch"]);
+                }
+                else
+                {
+                    remainingCurves.Add(lc2[i]);
+                }
+            }
+            if (remainingCurves.Count > 0)
+            {
+                Reduce2D r2d = new Reduce2D();
+                r2d.Add(remainingCurves.ToArray());
+                r2d.OutputMode = Reduce2D.Mode.Paths;
+                ICurve2D[] r = r2d.Reduced;
+                for (int j = 0; j < r.Length; j++)
+                {
+                    if (r[j].IsClosed || Precision.IsEqual(r[j].StartPoint, r[j].EndPoint))
+                    {
+                        Border bdr = new Border(r[j]);
+                        CompoundShape cs = new CompoundShape(new SimpleShape(bdr));
+                        lcs.Add(cs);
+                        cs.UserData.Add("MCPServer.Sketch", remainingCurves[0].UserData["MCPServer.Sketch"]);
+                    }
+                }
+            }
+            return lcs;
+        }
 
         // Placeholder type for "profile" objects created from sketches.
         // Replace with the real CADability/ShapeIt type when you wire it up.
@@ -3046,94 +4553,81 @@ namespace ShapeIt
         {
             public string? Name { get; set; }
         }
-        public class Sketch: IJsonSerialize
+
+        #endregion
+
+        #region Miscellaneous implementation helpers
+
+        static private object? MakeTypedList(List<object> selected)
         {
-            Plane plane;
-            List<ICurve2D> curves = [];
-            List<CompoundShape> shapes = [];
-
-            public Sketch(Plane plane)
+            Type? t = selected.FirstOrDefault()?.GetType();
+            if (t != null && selected.All(x => x?.GetType() == t))
             {
-                this.plane = plane;
-            }
-            public void Add(ICurve2D curve)
-            {
-                curve.UserData.Add("MCPServer.Sketch", this);
-                curves.Add(curve);
-            }
-
-            public void Add(CompoundShape shape)
-            {
-                shape.UserData.Add("MCPServer.Sketch", this);
-                shapes.Add(shape);
-            }
-
-            internal CompoundShape? GetCompoundShape()
-            {
-                if (curves.Count == 0 && shapes.Count == 1) return shapes[0];
-                if (curves.Count == 0 && shapes.Count == 0) return null;
-                if (shapes.Count > 0)
-                {   // we must somhow combine the compound shapes 
-                    CompoundShape? shape = shapes[0];
-                    for (int i = 1; i < shapes.Count; i++)
-                    {
-                        shape = CompoundShape.Union(shape, shapes[i]);
-                    }
-                    shape.UserData.Add("MCPServer.Sketch", this);
-                    return shape;
-                }
-                if (curves.Count == 1 && curves[0].IsClosed && shapes.Count == 0) return new CompoundShape(new SimpleShape(new Border(curves[0])));
-                if (curves.Count > 1)
+                if (t == typeof(Edge))
                 {
-                    List<SimpleShape> simpleShapes = new List<SimpleShape>();
-                    for (int i = 0; i < curves.Count; i++)
-                    {
-                        if (curves[i].IsClosed) simpleShapes.Add(new SimpleShape(new Border(curves[i])));
-                    }
-                    // we should check all SimpleShapes against each other.
-                    // but for now, quick and dirty
-                    simpleShapes.Sort((a, b) => b.Area.CompareTo(a.Area));
-                    CompoundShape? res = null;
-                    for (int i = 0; i < simpleShapes.Count; i++)
-                    {
-                        if (simpleShapes[i] == null) continue;
-                        CompoundShape cs = new CompoundShape(simpleShapes[i]);
-                        for (int j = i + 1; j < simpleShapes.Count; j++)
-                        {
-                            if (simpleShapes[j] == null) continue;
-                            if (SimpleShape.GetPosition(simpleShapes[i], simpleShapes[j]) == SimpleShape.Position.firstcontainscecond)
-                            {
-                                cs = CompoundShape.Difference(cs, new CompoundShape(simpleShapes[j]));
-                                simpleShapes[j] = null; // mark as used
-                            }
-                        }
-                        if (res == null) res = cs;
-                        else res = CompoundShape.Union(res, cs);
-                    }
-                    res.UserData.Add("MCPServer.Sketch", this);
-                    return res;
+                    return selected.Cast<Edge>().ToList();
                 }
-                return null;
+                else if (t == typeof(Face))
+                {
+                    return selected.Cast<Face>().ToList();
+                }
+                else if (t == typeof(Solid))
+                {
+                    return selected.Cast<Solid>().ToList();
+                }
+                else if (t == typeof(ICurve))
+                {
+                    return selected.Cast<ICurve>().ToList();
+                }
+                else if (t == typeof(ICurve2D))
+                {
+                    return selected.Cast<ICurve2D>().ToList();
+                }
+                else if (t == typeof(CompoundShape))
+                {
+                    return selected.Cast<CompoundShape>().ToList();
+                }
             }
-
-            protected Sketch() { } // for IJsonSerialize
-            public void GetObjectData(IJsonWriteData data)
-            {
-                data.AddProperty("Plane", plane);
-                data.AddProperty("Curves", curves);
-                data.AddProperty("Shapes", shapes);
-            }
-
-            public void SetObjectData(IJsonReadData data)
-            {
-                plane = data.GetProperty<Plane>("Plane");
-                curves = data.GetProperty<List<ICurve2D>>("Curves");
-                shapes = data.GetProperty<List<CompoundShape>>("Shapes");
-            }
-
-            public Plane Plane => plane;
-            public List<ICurve2D> Curves => curves;
-            public List<CompoundShape> Shapes => shapes;
+            return null;
         }
+
+        void IterateLoops(List<(string name, double start, double step, int count)> loopVariables, Action body)
+        {
+            int n = loopVariables.Count;
+            int[] indices = new int[n];
+
+            while (true)
+            {
+                // Aktuelle Werte setzen
+                for (int i = 0; i < n; i++)
+                {
+                    var (name, start, step, count) = loopVariables[i];
+                    double val = start + indices[i] * step;
+                    namedItems[name] = val;
+                }
+
+                // Das eigentliche "Innere" der Schleife
+                body();
+
+                // "Zähler erhöhen" (wie bei verschachtelten Schleifen)
+                int k = n - 1;
+                while (k >= 0)
+                {
+                    indices[k]++;
+                    if (indices[k] < loopVariables[k].count)
+                        break;
+
+                    indices[k] = 0;
+                    k--;
+                }
+
+                // Wenn wir über die erste Schleife hinaus sind: fertig
+                if (k < 0)
+                    break;
+            }
+        }
+
+        #endregion
+
     }
 }
