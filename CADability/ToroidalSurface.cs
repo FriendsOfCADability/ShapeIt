@@ -2768,8 +2768,9 @@ namespace CADability.GeoObject
 
         public void SetObjectData(IJsonReadData data)
         {
-            toTorus=data.GetProperty<ModOp>("ToTorus");
-            minorRadius=data.GetProperty<double>("MinorRadius");
+            toTorus = data.GetProperty<ModOp>("ToTorus");
+            minorRadius = data.GetProperty<double>("MinorRadius");
+            toUnit = toTorus.GetInverse();
         }
 
         public override IPropertyEntry GetPropertyEntry(IFrame frame)

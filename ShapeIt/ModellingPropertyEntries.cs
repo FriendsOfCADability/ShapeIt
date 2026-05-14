@@ -2356,6 +2356,11 @@ namespace ShapeIt
             {
                 List<Face> faces = new List<Face>();
                 Shell shl = sld.Shells[0];
+                if (!shl.CheckConsistency())
+                {
+
+                }
+                return true;
                 BoundingBox bc = shl.GetExtent(0.0);
                 foreach (Face fc in shl.Faces)
                 {

@@ -782,6 +782,8 @@ namespace CADability
             BSpline toUpdateBasepoints = ApproxBSpline;
 #if DEBUG
             CheckSurfaceParameters();
+            ICurve crv = Approximate(true, 1e-3);
+            DebuggerContainer dc = (this as IGeoObjectImpl).Debug;
 #endif
         }
         private void Init()
@@ -2101,13 +2103,20 @@ namespace CADability
                 // setting approxBSpline changes the "speed" of the parameter, makes it more even
                 approxBSpline = bsp;
                 hashedPositions.Clear(); // don't use hased positions, they are no more correct
+                //for (int i = 0; i < BasePoints.Length; i++)
+                //{
+                //    double pos = bsp.PositionOfThroughPoint(i);
+                //    GeoPoint pp = bsp.PointAtParam(pos);
+                //    GeoPoint po = (bsp as ICurve).PointAt(pos);
+                //    hashedPositions[pos] = basePoints[i];
+                //}
                 Func<double, GeoPoint> curve = (pos) => // input parameter for BSpline.Approximate
                 {
                     ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
                     return p;
                 };
                 approxBSpline = BSpline.Approximate(curve);
-                hashedPositions.Clear(); // don't use hased positions, they are no more correct
+                hashedPositions.Clear(); // don't use hashed positions, they are no more correct
                 return approxBSpline;
 
                 approxBSpline = BSpline.Construct();
@@ -3198,7 +3207,7 @@ namespace CADability
         }
         public override void Trim(double StartPos, double EndPos)
         {
-            if (StartPos <= Precision.eps && EndPos >= 1-Precision.eps) return; // trim from start to end, nothing to do
+            if (StartPos <= Precision.eps && EndPos >= 1 - Precision.eps) return; // trim from start to end, nothing to do
             List<SurfacePoint> spl = new List<SurfacePoint>();
             GeoPoint2D uv1, uv2;
             GeoPoint p;

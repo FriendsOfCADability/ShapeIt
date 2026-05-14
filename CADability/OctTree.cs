@@ -1130,7 +1130,7 @@ namespace CADability
 #if DEBUG
             if (!ext.IsValid || !node.cube.GetCenter().IsValid)
             {
-
+                return;
             }
 #endif
             if (node.cube.Contains(ext))

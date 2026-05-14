@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -337,6 +338,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Silk.NET.OpenGL" Version="2.22.0" />
     <PackageReference Include="Svg" Version="3.4.7" />
   </ItemGroup>
 

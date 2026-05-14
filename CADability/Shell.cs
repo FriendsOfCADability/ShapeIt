@@ -6904,6 +6904,7 @@ namespace CADability.GeoObject
                             SurfaceHelper.AdjustPeriodic(surfaceList[j].Key, extj, ref uv);
                             extj.MinMax(uv);
                             // find domains for the intersection which include the two points
+                            if (exti.Width==0 || exti.Height==0 || extj.Width==0 || extj.Height==0) continue; // GetDualSurfaceCurves cannot handle this case
                             IDualSurfaceCurve[] dscs = surfaceList[i].Key.GetDualSurfaceCurves(exti, surfaceList[j].Key, extj, new List<GeoPoint> { sp, ep }, null);
                             if (dscs != null && dscs.Length == 1)
                             {

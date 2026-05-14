@@ -374,11 +374,17 @@ namespace CADability.UserInterface
                 }
                 else
                 {
-                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
-                    if (o is GeoVector pp)
+                    try
                     {
-                        val = pp;
-                        return true;
+                        object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                        if (o is GeoVector pp)
+                        {
+                            val = pp;
+                            return true;
+                        }
+                    }
+                    catch
+                    {
                     }
                 }
             }
