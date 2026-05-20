@@ -206,7 +206,7 @@ namespace CADability.Forms.NET8
                         this.SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
                         this.SetStyle(ControlStyles.OptimizedDoubleBuffer, false);
                         this.DoubleBuffered = false;
-                        // PaintToOpenGL paintToOpenGL = new PaintToOpenGL(1e-6);
+                        //PaintToOpenGL paintToOpenGL = new PaintToOpenGL(1e-6);
                         PaintToOpenGLModern paintToOpenGL = new PaintToOpenGLModern(1e-6);
                         paintToOpenGL.Init(this);
                         paintTo3D = paintToOpenGL;

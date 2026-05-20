@@ -8971,8 +8971,13 @@ namespace CADability.GeoObject
                 for (int i = 0; i < ips.Length; i++)
                 {
                     GeoPoint tmp = ips[i];
-                    bool ok = Surfaces.IntersectThreeSurfaces(dsc.Surface1, dsc.GetBoundingRect(true), dsc.Surface2, dsc.GetBoundingRect(false),
-                        Surface, Domain, ref ips[i], out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3);
+                    GeoPoint2D uv1 = dsc.Surface1.PositionOf(tmp);
+                    GeoPoint2D uv2 = dsc.Surface2.PositionOf(tmp);
+                    GeoPoint2D uv3 = Surface.PositionOf(tmp);
+                    bool ok = BoxedSurfaceExtension.SurfacesIntersectionLM(dsc.Surface1, dsc.Surface2, Surface, ref uv1, ref uv2, ref uv3, ref ips[i]);
+                    // SurfacesIntersectionLM is better than the old IntersectThreeSurfaces at lest with DifferenceBug13 where the old method fails
+                    //bool ok = Surfaces.IntersectThreeSurfaces(dsc.Surface1, dsc.GetBoundingRect(true), dsc.Surface2, dsc.GetBoundingRect(false),
+                    //        Surface, Domain, ref ips[i], out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3);
                     if (ok)
                     {
                         uOnCurve3Ds[i] = edg.Curve3D.PositionOf(ips[i]);
@@ -10993,7 +10998,7 @@ namespace CADability.GeoObject
             // sind die 2d Kurven richtig orientiert?
             foreach (Edge edg in Edges)
             {
-                if (edg.Curve3D!=null && (edg.Curve3D.StartPoint | edg.Vertex1.Position) > 1e-4)
+                if (edg.Curve3D != null && (edg.Curve3D.StartPoint | edg.Vertex1.Position) > 1e-4)
                 {
                     return false;
                 }
@@ -11040,9 +11045,9 @@ namespace CADability.GeoObject
                         }
                         //edg.Orient();
                         d = forward3d * forward;
+                        if (d < 0) return false;
                     }
                 }
-                //if (d < 0) return false;
             }
             return true;
         }

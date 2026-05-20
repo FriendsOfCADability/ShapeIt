@@ -2555,23 +2555,19 @@ namespace CADability.GeoObject
         /// <param name="StartPos"></param>
         /// <param name="EndPos"></param>
         public void Trim(double StartPos, double EndPos)
-        {
+        {   // there are two different assumptions: when startPos < endPos, then the result is the part between start and end. When startPos > endPos, then the result is the part outside of start and end (when trimming) or the circle is reversed and the result goes from EndPos to StartPos (e.g. when rounding edges)
             if (StartPos == 0 && EndPos == 1) return; // kommt oft vor
-            bool reversed = false;
-            //if (StartPos > EndPos)
-            //{   // without this we could end up with the complimentary arc
-            //    (StartPos, EndPos) = (EndPos, StartPos);
-            //    reversed = true;
-            //}
+            GeoPoint middlePoint = PointAt((StartPos + EndPos) / 2.0); // the result must contain this point
             Angle newStartAngle = startParameter + StartPos * sweepParameter;
             Angle newEndAngle = startParameter + EndPos * sweepParameter;
-            SweepAngle newSweepAngle = new SweepAngle(newStartAngle, newEndAngle, sweepParameter > 0.0);
+            SweepAngle newSweepAngle = new SweepAngle(newStartAngle, newEndAngle, (sweepParameter > 0.0)==((StartPos < EndPos)));
             using (new Changing(this, "CopyGeometry", Clone()))
             {
                 startParameter = newStartAngle.Radian;
                 sweepParameter = newSweepAngle.Radian;
+                double pm = PositionOf(middlePoint);
+                if (pm < 0 || pm > 1) this.Complement();
             }
-            if (reversed) (this as ICurve).Reverse();
         }
 
         ICurve ICurve.Clone()

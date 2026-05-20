@@ -291,7 +291,16 @@ namespace CADability.Actions
 
                         if (iCurve.IsClosed) // geschlosene Kurve, also z.B. Kreis
                         {
-                            iCurve.Trim(param2, param1); // an zwei Parametern geschnitten
+                            // iCurve.Trim(param2, param1); // the outer part
+                            // trimm has been change to reverse the curve when param1 > param2
+                            ICurve[] splitted = iCurve.Split(param1, param2);
+                            if (splitted.Length==2)
+                            {
+                                IGeoObject go = iCurve as IGeoObject;
+                                owner.Remove(go); 
+                                (splitted[1] as IGeoObject).CopyAttributes(go);
+                                owner.Add(splitted[1] as IGeoObject); 
+                            }
                         }
                         else
                         {

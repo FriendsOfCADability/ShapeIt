@@ -4065,8 +4065,25 @@ namespace CADability
                 double c = unitLineLocation.y;
                 double e = unitLineLocation.z;
                 double d = unitLineDirection.z;
-                Polynom quartic = new Polynom(1, "u4", -2 * d * e, "u3", -1 + d * d * e * e + c * c * (1 + d * d) * (1 + d * d), "u2", 2 * d * e, "u", -d * d * e * e, "");
-                double[] roots = quartic.Roots();
+                double b3 = -2 * d * e;
+                double b2 = -1 + d * d * e * e + c * c * (1 + d * d) * (1 + d * d);
+                double b1 = 2 * d * e;
+                double b0 = -d * d * e * e;
+                Polynom quartic = new Polynom(1, "u4", b3, "u3", b2, "u2", b1, "u", b0, "");
+                double[] roots;
+                const double degEps = 1e-10;
+                if (Math.Abs(b3) < degEps && Math.Abs(b2) < degEps &&
+                    Math.Abs(b1) < degEps && Math.Abs(b0) < degEps)
+                {
+                    // Polynomial degenerates to u^4 = 0: the line is tangent to the circumscribed
+                    // cylinder of the circle (de=0 and c*(1+d²)=±1). Jenkins-Traub cannot handle
+                    // this; the unique critical point is cos θ = 0, i.e., θ = ±π/2.
+                    roots = new double[] { 0.0 };
+                }
+                else
+                {
+                    roots = quartic.Roots();
+                }
 
                 double lastRoot = double.MaxValue / 2.0;
                 for (int i = 0; i < roots.Length; i++)
@@ -4085,8 +4102,10 @@ namespace CADability
                         double perpToCircle = circleToLine * tangentToCircle; // is it really perpendicular to the circle
                         double perpToLine = circleToLine * unitLineDirection; // is it really perpendicular to the circle
                         // the quartic polynom yields more results than necessary, some of them are wrong, because the equation has been squared
-                        if (Math.Abs(perpToCircle / (circleToLine.Length * tangentToCircle.Length)) < 1e-5 &&
-                            Math.Abs(perpToLine / (circleToLine.Length * unitLineDirection.Length)) < 1e-5)
+                        double cl = circleToLine.Length;
+                        if (cl < 1e-10 || // zero distance: line touches the circle at this point
+                            (Math.Abs(perpToCircle / (cl * tangentToCircle.Length)) < 1e-5 &&
+                             Math.Abs(perpToLine   / (cl * unitLineDirection.Length)) < 1e-5))
                         {
                             res.Add(toWorld * onCircle);
                             res.Add(toWorld * onLine);
@@ -4099,8 +4118,10 @@ namespace CADability
                         perpToCircle = circleToLine * tangentToCircle; // is it really perpendicular to the circle
                         perpToLine = circleToLine * unitLineDirection; // is it really perpendicular to the circle
                         // the quartic polynom yields more results than necessary, some of them are wrong, because the equation has been squared
-                        if (Math.Abs(perpToCircle / (circleToLine.Length * tangentToCircle.Length)) < 1e-5 &&
-                            Math.Abs(perpToLine / (circleToLine.Length * unitLineDirection.Length)) < 1e-5)
+                        cl = circleToLine.Length;
+                        if (cl < 1e-10 || // zero distance: line touches the circle at this point
+                            (Math.Abs(perpToCircle / (cl * tangentToCircle.Length)) < 1e-5 &&
+                             Math.Abs(perpToLine   / (cl * unitLineDirection.Length)) < 1e-5))
                         {
                             res.Add(toWorld * onCircle);
                             res.Add(toWorld * onLine);

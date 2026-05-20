@@ -3875,7 +3875,7 @@ namespace CADability
         /// <returns></returns>
         private List<List<Edge>> FindLoops(Face onThisFace, HashSet<Edge> intersectionEdges, HashSet<Edge> originalEdges)
         {
-            const double eps = 1e-3;
+            const double eps = 1e-2; // for similar angles
             List<List<Edge>> found = new List<List<Edge>>();
             HashSet<Edge> availableEdges = new HashSet<Edge>(intersectionEdges.Union(originalEdges));
             // we need a position in the cyle 0..2pi where we can make a cut while not beeing close to any angles of the egdes
@@ -3911,33 +3911,57 @@ namespace CADability
                 {
                     double aa = (a.angle + cutCycle) % (Math.PI * 2); // avoids the 0..2pi mess
                     double bb = (b.angle + cutCycle) % (Math.PI * 2);
-                    if (aa < bb - eps) return 1;
-                    if (aa > bb + eps) return -1;
-                    // tangential position: tha angles are too close to decide
-                    // find the opposite points of the two edges
-                    GeoPoint2D aend = a.outgoing ? a.edge.Curve2D(onThisFace).EndPoint : a.edge.Curve2D(onThisFace).StartPoint;
-                    GeoPoint2D bend = b.outgoing ? b.edge.Curve2D(onThisFace).EndPoint : b.edge.Curve2D(onThisFace).StartPoint;
-                    // take half of the distance as the radius to make a circle
-                    GeoPoint2D center = node.Key.GetPositionOnFace(onThisFace);
-                    double radius = Math.Min((aend | center), (bend | center)) / 10.0; // a small circle
-                    Circle2D probe = new Circle2D(center, radius);
-                    // now the circle around the common vertex must intersect each curve at least one time
-                    GeoPoint2DWithParameter[] ipa = a.edge.Curve2D(onThisFace).Intersect(probe);
-                    GeoPoint2DWithParameter[] ipb = b.edge.Curve2D(onThisFace).Intersect(probe);
-                    if (ipa == null || ipa.Length == 0 || ipb == null || ipb.Length == 0) return 0; // should never happen
-                    GeoPoint2DWithParameter pa = a.outgoing ? ipa.Where(x => x.par1 > 0).OrderBy(x => x.par1).FirstOrDefault() :
-                                                              ipa.Where(x => x.par1 < 1).OrderByDescending(x => x.par1).FirstOrDefault();
-                    GeoPoint2DWithParameter pb = b.outgoing ? ipb.Where(x => x.par1 > 0).OrderBy(x => x.par1).FirstOrDefault() :
-                                                              ipb.Where(x => x.par1 < 1).OrderByDescending(x => x.par1).FirstOrDefault();
-                    SurfaceHelper.AdjustPeriodic(onThisFace.Surface, onThisFace.Domain, ref pa.p);
-                    SurfaceHelper.AdjustPeriodic(onThisFace.Surface, onThisFace.Domain, ref pb.p);
-                    SweepAngle sw = new SweepAngle((pa.p - center), (pb.p - center));
-                    // there could be an issue, when one of the curve spirals around so the intersection point is more than 180° away from its original direction. Hard to imagine such a case.
-                    // we could compare (pa.p - center).Angle and (pb.p - center).Angle to a.angle (==b.angle) and check, whether it deviates more than 90°. If so, make the radius smaller.
-                    if (sw > 0) return 1;
-                    else return -1;
+                    return bb.CompareTo(aa);
                 }
                 );
+                bool needToCheck = false;
+                if (node.Value.Count > 1)
+                {
+                    double lastAngle = node.Value.Last().angle;
+                    foreach ((Edge edge, double angle, bool outgoing) in node.Value)
+                    {
+                        if (angle > lastAngle) lastAngle += Math.PI * 2;
+                        if (lastAngle - angle < eps)
+                        {
+                            needToCheck = true;
+                            break;
+                        }
+                        lastAngle = angle;
+                    }
+                }
+                if (needToCheck) // there are two or more edges with similar angles, we need to check the order by a small probe circle around the node, because the angle is not sufficient to decide the order
+                {
+                    double radius = double.MaxValue;
+                    GeoPoint2D center = node.Key.GetPositionOnFace(onThisFace);
+                    foreach ((Edge edge, double angle, bool outgoing) in node.Value)
+                    {
+                        GeoPoint2D end = outgoing ? edge.Curve2D(onThisFace).EndPoint : edge.Curve2D(onThisFace).StartPoint;
+                        double r = (end | center);
+                        if (r < radius) radius = r;
+                    }
+                    radius /= 5;
+                    Circle2D probe = new Circle2D(center, radius);
+                    for (int i = 0; i < node.Value.Count; i++)
+                    {
+                        (Edge edge, double angle, bool outgoing) = node.Value[i];
+                        GeoPoint2DWithParameter[] ipa = edge.Curve2D(onThisFace).Intersect(probe);
+                        if (ipa != null && ipa.Length > 0)
+                        {
+                            GeoPoint2DWithParameter pa = outgoing ? ipa.Where(x => x.par1 > 0).OrderBy(x => x.par1).FirstOrDefault() :
+                                                                    ipa.Where(x => x.par1 < 1).OrderByDescending(x => x.par1).FirstOrDefault();
+                            SurfaceHelper.AdjustPeriodic(onThisFace.Surface, onThisFace.Domain, ref pa.p);
+                            double a = (pa.p - center).Angle;
+                            node.Value[i] = (edge, a, outgoing);
+                        }
+                    }
+                    node.Value.Sort((a, b) =>
+                    {
+                        double aa = (a.angle + cutCycle) % (Math.PI * 2); // avoids the 0..2pi mess
+                        double bb = (b.angle + cutCycle) % (Math.PI * 2);
+                        return bb.CompareTo(aa);
+                    });
+
+                }
             }
 #if DEBUG
             DebuggerContainer dcv = new DebuggerContainer();

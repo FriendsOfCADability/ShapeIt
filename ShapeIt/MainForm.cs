@@ -331,7 +331,7 @@ namespace ShapeIt
         private void AutoDebug()
         {
             return;
-            string? filename = null;  // @"C:\Users\gerha\Documents\Zeichnungen\DifferenceBug9.cdb.json";
+            string? filename = @"C:\Users\gerha\Documents\Zeichnungen\LampenArm06.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
@@ -386,7 +386,7 @@ namespace ShapeIt
                 //        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
                 //    }
                 //}
-                if (command.StartsWith("Difference", StringComparison.OrdinalIgnoreCase))
+                if (command.StartsWith("Difference", StringComparison.OrdinalIgnoreCase) || command.Equals("Subtract", StringComparison.OrdinalIgnoreCase))
                 {
                     Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
                 }

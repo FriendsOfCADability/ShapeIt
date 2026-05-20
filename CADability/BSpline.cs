@@ -515,7 +515,10 @@ namespace CADability.GeoObject
                     {
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint p = curve(mpos);
-                        if (((bsp as ICurve).DistanceTo(p) > precision))
+                        double d;
+                        if (GeneralCurve.PositionOf(bsp, p, ref mpos)) d = (bsp as ICurve).PointAt(mpos) | p;
+                        else d = (bsp as ICurve).DistanceTo(p);
+                        if (d > precision)
                         // if (((bsp as ICurve).PointAt(mpos) | p) > precision)
                         {
                             toAdd.Add((mpos, p));
@@ -2075,7 +2078,7 @@ namespace CADability.GeoObject
             if (throughPoints3d != null)
             {
                 data.AddProperty("ThroughPoints3d", throughPoints3d);
-                data.AddProperty("Direction3D", direction3D);
+                if (direction3D != null) data.AddProperty("Direction3D", direction3D);
                 data.AddProperty("ThroughPointsParam", throughPointsParam);
             }
             if (colorDef != null) data.AddProperty("ColorDef", colorDef);
@@ -2100,7 +2103,8 @@ namespace CADability.GeoObject
             if (data.HasProperty("ThroughPoints3d"))
             {
                 throughPoints3d = data.GetProperty<GeoPoint[]>("ThroughPoints3d");
-                direction3D = data.GetProperty<GeoVector[]>("Direction3D");
+                if (data.HasProperty("Direction3D")) direction3D = data.GetProperty<GeoVector[]>("Direction3D");
+                else direction3D = null;
                 throughPointsParam = data.GetProperty<double[]>("ThroughPointsParam");
             }
 

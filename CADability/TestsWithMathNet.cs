@@ -399,10 +399,21 @@ namespace CADability
             try
             {
                 MinimizationResult mres = nm.FindMinimum(iof, new DenseVector(new double[] { uvOnSurface.x, uvOnSurface.y, uOnCurve }));
-                uvOnSurface = new GeoPoint2D(mres.MinimizingPoint[0], mres.MinimizingPoint[1]);
-                uOnCurve = mres.MinimizingPoint[2];
-                ip = lastIp;
-                return true;
+                if (mres.ReasonForExit == ExitCondition.Converged ||
+                    mres.ReasonForExit == ExitCondition.RelativeGradient ||
+                    mres.ReasonForExit == ExitCondition.RelativePoints ||
+                    mres.ReasonForExit == ExitCondition.BoundTolerance)
+                {
+                    uvOnSurface = new GeoPoint2D(mres.MinimizingPoint[0], mres.MinimizingPoint[1]);
+                    uOnCurve = mres.MinimizingPoint[2];
+                    ip = lastIp;
+                    return true;
+                }
+                else
+                {
+                    ip = GeoPoint.Origin;
+                    return false;
+                }
             }
             catch (Exception)
             {

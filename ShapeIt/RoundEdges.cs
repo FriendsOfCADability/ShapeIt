@@ -704,6 +704,9 @@ namespace ShapeIt
             Face topFace = Face.MakeFace(topSurface, [topRight, topCurve, topLeft, leadingEdge]);
 
             IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [lid2crv3.EndPoint, leadingEdge.EndPoint], null);
+#if DEBUG
+            Face rightPlaneFace = Face.MakeFace(rightPlane, plnBounds);
+#endif
             bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(lid2crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
             bottomRight?.Trim(bottomRight.PositionOf(lid2crv3.EndPoint), bottomRight.PositionOf(leadingEdge.EndPoint));
             IDualSurfaceCurve[] dscbl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [leadingEdge.StartPoint, lid1crv3.StartPoint], null);

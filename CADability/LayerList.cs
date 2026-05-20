@@ -16,7 +16,7 @@ namespace CADability.Attribute
     /// </summary>
     [Serializable]
     public class LayerList : PropertyEntryImpl, INotifyModification, ISerializable,
-        ICollection, IAttributeList, ICommandHandler, IDeserializationCallback
+        ICollection, IAttributeList, ICommandHandler, IDeserializationCallback, IJsonSerialize, IJsonSerializeDone
     {
         private Layer[] unsortedEntries;
         private SortedList entries;
@@ -277,6 +277,37 @@ namespace CADability.Attribute
                 {
                     l.Parent = this;
                 }
+            }
+        }
+        #endregion
+        #region IJsonSerialize Members
+        public void GetObjectData(IJsonWriteData data)
+        {
+            Layer[] layerArray = new Layer[entries.Count];
+            for (int i = 0; i < entries.Count; i++)
+                layerArray[i] = (Layer)entries.GetByIndex(i);
+            data.AddProperty("Entries", layerArray);
+            data.AddProperty("Current", current);
+        }
+        public void SetObjectData(IJsonReadData data)
+        {
+            unsortedEntries = data.GetProperty<Layer[]>("Entries");
+            current = data.GetPropertyOrDefault<Layer>("Current");
+            data.RegisterForSerializationDoneCallback(this);
+        }
+        #endregion
+        #region IJsonSerializeDone Members
+        public void SerializationDone(JsonSerialize jsonSerialize)
+        {
+            entries = new SortedList();
+            if (unsortedEntries != null)
+            {
+                for (int i = 0; i < unsortedEntries.Length; i++)
+                {
+                    entries.Add(unsortedEntries[i].Name, unsortedEntries[i]);
+                    unsortedEntries[i].Parent = this;
+                }
+                unsortedEntries = null;
             }
         }
         #endregion

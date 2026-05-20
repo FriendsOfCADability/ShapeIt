@@ -264,7 +264,14 @@ namespace CADability
         }
         static Settings()
         {
-            Reload();
+            try
+            {
+                Reload();
+            }
+            catch (TypeInitializationException ex)
+            {
+                FrameImpl.MainFrame.UIService.ShowMessageBox(ex.InnerException.Message, "TypeInitializationException", MessageBoxButtons.OK);
+            }
         }
         internal static void Reload()
         {

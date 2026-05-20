@@ -83,7 +83,7 @@ namespace ShapeIt
 
         }
         protected HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge, double length)
-        {   // rounding end here at vertex vtx. vtx and edge is on the shell to be rounded
+        {   // rounding ends here at vertex vtx. vtx and edge is on the shell to be rounded
             if (edgeToCutter == null) return null;
             Shell cutter = edgeToCutter[edge];
             Face? endFace = cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
@@ -120,7 +120,7 @@ namespace ShapeIt
                     (Shell[] upperPart, Shell[] lowerPart) = BooleanOperation.SplitByFace(cutter, splitWith);
                     if (upperPart.Length > 0 && lowerPart.Length > 0)
                     {   // the ending face did split the cutter
-                        cutter.UserData.Add("CADability.RepleceShellBy", lowerPart[0]);
+                        cutter.UserData.Add("CADability.ReplaceShellBy", lowerPart[0]);
                         cutter = lowerPart[0];
                         edgeToCutter[edge] = cutter; // overwrite existing
                     }
@@ -223,7 +223,7 @@ namespace ShapeIt
             {
                 foreach (Shell shell in sets[i].Clone())
                 {
-                    Shell? replaceWith = shell.UserData["CADability.RepleceShellBy"] as Shell;
+                    Shell? replaceWith = shell.UserData["CADability.ReplaceShellBy"] as Shell;
                     if (replaceWith != null)
                     {
                         sets[i].Remove(shell);

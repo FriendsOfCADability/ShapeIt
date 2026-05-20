@@ -296,11 +296,13 @@ namespace CADability.GeoObject
         {   // at a pole, the udirection may be 0, which results in a nullvector here, but there is actually a normal vector
             // We calculate the normal as the point on the surface - point on the (circular) axis for the provided value of u.
             // I think the normal should always be normalized per definition
-            GeoPoint paxis = toTorus * new GeoPoint(Math.Cos(uv.x), Math.Sin(uv.x), 0.0);
-            GeoPoint psurface = PointAt(uv);
-            if (toTorus.Determinant < 0) return (paxis - psurface).Normalized; // reverse oriented
-            else return (psurface - paxis).Normalized; // normal orientation
-            // return UDirection(uv) ^ VDirection(uv);
+            return (UDirection(uv) ^ VDirection(uv)).Normalized;
+            // the idea of having a normal at the pole seems plausible, but the sign of the result is sometimes wrong
+            // and I don't know how to fix it.
+            //GeoPoint paxis = toTorus * new GeoPoint(Math.Cos(uv.x), Math.Sin(uv.x), 0.0);
+            //GeoPoint psurface = PointAt(uv);
+            //if (toTorus.Determinant < 0) return (psurface - paxis).Normalized; // reverse oriented
+            //else return (psurface - paxis).Normalized; // normal orientation
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Make3dCurve (ICurve2D)"/>

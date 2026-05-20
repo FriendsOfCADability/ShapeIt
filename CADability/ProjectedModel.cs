@@ -1154,6 +1154,7 @@ namespace CADability
                     ICurve cv = go as ICurve;
                     if (cv != null)
                     {
+                        if (go.Owner is Edge edg && !IsLayerVisible(edg.PrimaryFace.Layer)) continue; // no edges od invisible faces
                         Plane pl;
                         if (Curves.GetCommonPlane(Curve, cv, out pl))
                         {
