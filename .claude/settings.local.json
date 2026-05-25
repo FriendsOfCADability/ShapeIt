@@ -1,7 +1,40 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(dotnet build *)"
+      "PowerShell(dotnet build *)",
+      "Bash(dotnet build *)",
+      "Bash(dir \"%APPDATA%\\\\Claude\")",
+      "Bash(dir \"%LOCALAPPDATA%\\\\Claude\")",
+      "Bash(dir \"%LOCALAPPDATA%\\\\AnthropicClaude\")",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{},\"clientInfo\":{\"name\":\"Claude\",\"version\":\"1.0\"}}}')",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\ShapeIt\\\\Docs\")",
+      "Bash(Out-Null)",
+      "Bash(Copy-Item 'C:\\\\Users\\\\gerha\\\\Documents\\\\MCPDoku\\\\chapter_1_introduction.md' 'C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\ShapeIt\\\\Docs\" *)",
+      "Bash(Copy-Item 'C:\\\\Users\\\\gerha\\\\Documents\\\\MCPDoku\\\\chapter_3_modeling_workflow_v2.md' 'C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\ShapeIt\\\\Docs\" *)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\ShapeIt\\\\Docs\\\\\")",
+      "Bash(grep -rn \"public.*GetIntValue\\\\|public.*GetBoolValue\\\\|public.*GetDoubleValue\\\\|public.*GetStringValue\\\\|public.*SetValue\" \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\CADability\\\\CADability\\\\Settings.cs\" 2>/dev/null | head -20)",
+      "PowerShell($content = Get-Content \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\ShapeIt\\\\McpToolsetDefinition.json\" -Raw; $lines = $content -split \"`n\"; $total = $lines.Count; Write-Host \"Total lines: $total\"; $lines[\\($total-25\\)..\\($total-1\\)] | ForEach-Object { $_ })",
+      "PowerShell(netstat -ano)",
+      "Bash(python3 -c ' *)",
+      "Bash(Select-String -Path \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\CADability.Forms.NET8\\\\PaintToOpenGLModern.cs\" -Pattern \"WglContext|class Wgl|SwapBuffers|ReadPixels|glReadPixels|Framebuffer|FBO|ChoosePixelFormat|SetPixelFormat|CreateContext|PIXELFORMAT\")",
+      "Bash(Select-Object -First 40)",
+      "Bash(Format-Table LineNumber, Line -Wrap)",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/list\\\\\",\\\\\"id\\\\\":1}\")",
+      "Bash(python -c \"import sys,json; tools=json.load\\(sys.stdin\\)['result']['tools']; [print\\(t['name']\\) for t in tools]\")",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"id\\\\\":2,\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"solid.box\\\\\",\\\\\"arguments\\\\\":{\\\\\"name\\\\\":\\\\\"wuerfel\\\\\",\\\\\"dx\\\\\":10,\\\\\"dy\\\\\":10,\\\\\"dz\\\\\":10}}}\")",
+      "Bash(python -m json.tool)",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"id\\\\\":3,\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"solid.box\\\\\",\\\\\"arguments\\\\\":{\\\\\"name\\\\\":\\\\\"wuerfel\\\\\",\\\\\"origin\\\\\":[0,0,0],\\\\\"dx\\\\\":10,\\\\\"dy\\\\\":10,\\\\\"dz\\\\\":10}}}\")",
+      "Bash(python -c ' *)",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"id\\\\\":4,\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"solid.box\\\\\",\\\\\"arguments\\\\\":{\\\\\"name\\\\\":\\\\\"wuerfel\\\\\",\\\\\"origin\\\\\":[0,0,0],\\\\\"sizeX\\\\\":10,\\\\\"sizeY\\\\\":10,\\\\\"sizeZ\\\\\":10}}}\")",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"id\\\\\":5,\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"inspect.scene\\\\\",\\\\\"arguments\\\\\":{}}}\")",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"id\\\\\":6,\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"inspect.scene\\\\\",\\\\\"arguments\\\\\":{\\\\\"targets\\\\\":[\\\\\"wuerfel\\\\\"],\\\\\"includeImage\\\\\":true,\\\\\"viewDirection\\\\\":\\\\\"isometric\\\\\",\\\\\"geometryFormat\\\\\":\\\\\"wireframe\\\\\"}}}\")",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"id\\\\\":10,\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"solid.box\\\\\",\\\\\"arguments\\\\\":{\\\\\"name\\\\\":\\\\\"wuerfel\\\\\",\\\\\"origin\\\\\":[0,0,0],\\\\\"sizeX\\\\\":10,\\\\\"sizeY\\\\\":10,\\\\\"sizeZ\\\\\":10}}}\")",
+      "Bash(curl -s -X POST http://localhost:3001/ -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"id\\\\\":11,\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"inspect.scene\\\\\",\\\\\"arguments\\\\\":{\\\\\"targets\\\\\":[\\\\\"wuerfel\\\\\"],\\\\\"includeImage\\\\\":true,\\\\\"viewDirection\\\\\":\\\\\"isometric\\\\\"}}}\")",
+      "Bash(python -c \"import sys,json; r=json.load\\(sys.stdin\\); print\\('isError:', r['result']['isError']\\); d=json.loads\\(r['result']['content'][0]['text']\\); print\\('BoundingBox:', d['sceneBoundingBox']\\)\")",
+      "Bash(curl -s -X POST http://localhost:3001 -H \"Content-Type: application/json\" -d \"{\\\\\"jsonrpc\\\\\":\\\\\"2.0\\\\\",\\\\\"id\\\\\":1,\\\\\"method\\\\\":\\\\\"tools/call\\\\\",\\\\\"params\\\\\":{\\\\\"name\\\\\":\\\\\"inspect.scene\\\\\",\\\\\"arguments\\\\\":{\\\\\"targets\\\\\":[\\\\\"result\\\\\",\\\\\"cylinder\\\\\"],\\\\\"viewDirection\\\\\":\\\\\"isometric\\\\\",\\\\\"imageWidth\\\\\":512,\\\\\"imageHeight\\\\\":512}}}\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); c=d.get\\('result',{}\\).get\\('content',[]\\); img=[x for x in c if x.get\\('type'\\)=='image']; txt=[x for x in c if x.get\\('type'\\)=='text']; print\\(txt[0]['text'] if txt else ''\\); open\\('C:/Users/gerha/Desktop/inspect_scene.png','wb'\\).write\\(__import__\\('base64'\\).b64decode\\(img[0]['data']\\)\\) if img else print\\('NO IMAGE'\\)\")",
+      "Read(//mnt/c/Users/**)",
+      "Bash(python3 -c \"import os; print\\(os.path.expanduser\\('~'\\)\\)\")"
     ]
   }
 }

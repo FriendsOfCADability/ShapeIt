@@ -248,6 +248,14 @@ namespace ShapeIt
             if (server.namedItems != null && server.namedItems.Dict != null) InitWorkspace();
         }
 
+        public void AppendRpcCall(string rpcJson)
+        {
+            if (textBox.TextLength > 0)
+                textBox.AppendText(Environment.NewLine + Environment.NewLine);
+            textBox.AppendText(rpcJson);
+            textBox.ScrollToCaret();
+        }
+
         private void OkButton_Click(object? sender, EventArgs e)
         {
             ProcessText(textBox.Text);

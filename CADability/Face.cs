@@ -8793,6 +8793,25 @@ namespace CADability.GeoObject
             }
             return res.ToArray();
         }
+        public List<(double, bool)> GetOrientedLineIntersection(GeoPoint sp, GeoVector direction, out bool isBoundaryCase)
+        {
+            isBoundaryCase = false;
+            GeoPoint2D[] all = this.surface.GetLineIntersection(sp, direction);
+            List<(double, bool)> res = new List<(double, bool)>();
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (Contains(ref all[i], true)) // also tests for periodic cases and moves the point into the correct periodic domain
+                {
+                    isBoundaryCase |= Area.IsPointOnBorder(all[i], Precision.eps);
+                    GeoPoint p = surface.PointAt(all[i]);
+                    double par = Geometry.LinePar(sp, direction, p);
+                    double dir = surface.GetNormal(all[i]).Normalized * direction;
+                    isBoundaryCase |= Math.Abs(dir) < 1e-4;
+                    res.Add((par, dir > 0));
+                }
+            }
+            return res;
+        }
         internal void GetZMinMax(Projection p, out double zMin, out double zMax)
         {
             zMin = double.MaxValue;

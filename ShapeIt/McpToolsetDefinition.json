@@ -4283,6 +4283,41 @@
 						"type": "boolean",
 						"default": false,
 						"description": "If true, a rendered preview image may be included."
+					},
+					"imageSize": {
+						"type": "object",
+						"description": "Size of the rendered image in pixels. Only used when includeImage is true. Defaults to 512x512.",
+						"properties": {
+							"width": {
+								"type": "integer",
+								"minimum": 64,
+								"maximum": 4096,
+								"default": 512,
+								"description": "Image width in pixels."
+							},
+							"height": {
+								"type": "integer",
+								"minimum": 64,
+								"maximum": 4096,
+								"default": 512,
+								"description": "Image height in pixels."
+							}
+						},
+						"additionalProperties": false
+					},
+					"viewDirection": {
+						"description": "Direction from which the scene is viewed. Either a named standard direction or a custom direction vector [x, y, z]. The vector points from the camera towards the scene. Only used when includeImage is true. Default: isometric.",
+						"oneOf": [
+							{
+								"type": "string",
+								"enum": [ "top", "bottom", "front", "back", "left", "right", "isometric" ],
+								"description": "Named standard view direction. top=looking down (-Z), bottom=looking up (+Z), front=looking from front (+Y), back=looking from back (-Y), left=looking from left (+X), right=looking from right (-X), isometric=diagonal view."
+							},
+							{
+								"$ref": "#/types/Vec3",
+								"description": "Custom view direction vector pointing from the camera towards the scene."
+							}
+						]
 					}
 				},
 				"required": [ "targets" ],
@@ -4296,10 +4331,13 @@
 						"items": {
 							"type": "object",
 							"properties": {
-								"name": { "type": "string" },
+								"name":        { "type": "string" },
+								"type":        { "type": "string" },
+								"color":       { "type": "string", "description": "Hex color (#RRGGBB) used to render this object in the image." },
+								"count":       { "type": "integer", "description": "Number of elements; only present when the item is a list with more than one element." },
 								"boundingBox": { "type": "object" }
 							},
-							"required": [ "name" ]
+							"required": [ "name", "type", "color" ]
 						}
 					},
 					"sceneBoundingBox": {
@@ -4314,8 +4352,48 @@
 				"required": [ "objects" ],
 				"additionalProperties": false
 			}
+		},
+		{
+			"name": "rpc.batch",
+			"description": "Execute a sequence of RPC calls as one block. Use this whenever a task requires multiple operations (e.g. create sketch → add curves → extrude → boolean → commit). All calls run sequentially on the UI thread; execution stops on the first error. Prefer this over individual tool calls for any multi-step workflow.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"calls": {
+						"type": "array",
+						"description": "Ordered list of JSON-RPC 2.0 request objects.",
+						"minItems": 1,
+						"items": {
+							"type": "object",
+							"properties": {
+								"jsonrpc": {
+									"type": "string",
+									"enum": [ "2.0" ]
+								},
+								"id": {
+									"type": "integer",
+									"description": "Request ID. Use sequential integers starting at 1."
+								},
+								"method": {
+									"type": "string",
+									"description": "RPC method name, e.g. \"solid.box\" or \"sketch.create\"."
+								},
+								"params": {
+									"type": "object",
+									"description": "Method parameters as defined in the individual tool schemas."
+								}
+							},
+							"required": [ "jsonrpc", "id", "method", "params" ],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": [ "calls" ],
+				"additionalProperties": false
+			}
 		}
 	],
+
 	"errors": [
 		{
 			"code": "E_NOT_FOUND",

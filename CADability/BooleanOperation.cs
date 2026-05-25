@@ -3499,50 +3499,7 @@ namespace CADability
             }
             // to avoid oppositeCommonFaces to be connected with the trimmedFaces, we destroy these faces
 
-            foreach (Face fce in discardedFaces) fce.DisconnectAllEdges(); // to avoid connecting with discardedFaces
-                                                                           // if we have two open edges in the trimmed faces which are identical, connect them
-                                                                           // commented out the following, because in UniteBug13.cdb.json it removes the face 86 from egde 1176, which it should not
-                                                                           //Dictionary<DoubleVertexKey, Edge> trimmedEdges = new Dictionary<DoubleVertexKey, Edge>();
-                                                                           //foreach (Face fce in trimmedFaces)
-                                                                           //{
-                                                                           //    foreach (Edge edg in fce.AllEdges)
-                                                                           //    {
-                                                                           //        DoubleVertexKey dvk = new DoubleVertexKey(edg.Vertex1, edg.Vertex2);
-                                                                           //        if (nonManifoldEdges.Contains(edg, precision)) // is empty in most cases
-                                                                           //        {
-                                                                           //            if (edg.SecondaryFace != null)
-                                                                           //            {   // seperate nonManifold edges, they should not be used for collecting faces for the shell
-                                                                           //                edg.SecondaryFace.SeperateEdge(edg);
-                                                                           //            }
-                                                                           //        }
-                                                                           //        else if (edg.SecondaryFace == null || !trimmedFaces.Contains(edg.SecondaryFace) || !trimmedFaces.Contains(edg.PrimaryFace))
-                                                                           //        {   // only those edges, which 
-                                                                           //            if (trimmedEdges.TryGetValue(dvk, out Edge other))
-                                                                           //            {
-                                                                           //                if (other == edg) continue;
-                                                                           //                if (SameEdge(edg, other, precision))
-                                                                           //                {
-                                                                           //                    if (edg.SecondaryFace != null)
-                                                                           //                    {
-                                                                           //                        if (!trimmedFaces.Contains(edg.SecondaryFace)) edg.RemoveFace(edg.SecondaryFace);
-                                                                           //                        else if (!trimmedFaces.Contains(edg.PrimaryFace)) edg.RemoveFace(edg.PrimaryFace);
-                                                                           //                    }
-                                                                           //                    if (other.SecondaryFace != null)
-                                                                           //                    {
-                                                                           //                        if (!trimmedFaces.Contains(other.SecondaryFace)) other.RemoveFace(other.SecondaryFace);
-                                                                           //                        else if (!trimmedFaces.Contains(other.PrimaryFace)) other.RemoveFace(other.PrimaryFace);
-                                                                           //                    }
-                                                                           //                    other.PrimaryFace.ReplaceEdge(other, edg);
-                                                                           //                    trimmedEdges.Remove(dvk);
-                                                                           //                }
-                                                                           //            }
-                                                                           //            else
-                                                                           //            {
-                                                                           //                trimmedEdges[dvk] = edg;
-                                                                           //            }
-                                                                           //        }
-                                                                           //    }
-                                                                           //}
+            foreach (Face fce in discardedFaces) fce.DisconnectAllEdges();
 
 #if DEBUG
             openTrimmedEdges = new HashSet<Edge>();
@@ -3602,6 +3559,10 @@ namespace CADability
                                 foreach (Edge ce in connecting)
                                 {
                                     if (!SameEdge(ce, edg, precision)) toRemove.Add(ce);
+                                    else if (ce.SecondaryFace == null && discardedFaces.Contains(ce.PrimaryFace))
+                                    {   // added on 21.05.26: problem with Erdspieß1.cdb.json
+                                        toRemove.Add(ce);
+                                    }
                                 }
                                 connecting.ExceptWith(toRemove);
                                 foreach (Edge ce in connecting)
@@ -3763,6 +3724,32 @@ namespace CADability
             if (multipleFaces != null)
             {
                 unusedFaces = new List<Face>(multipleFaces.Except(discardedFaces));
+            }
+            // combine shells and holes: when a shell is completely inside another shell and is not outward oriented,
+            // it is a hole and has to be added to the outer shell
+            if (res.Count > 1)
+            {
+                List<Shell> combinedShells = new List<Shell>(); // outward oriented shells
+                List<Shell> holes = new List<Shell>(); // inward oriented shells, i.e. holes
+                foreach (Shell sh in res) if (sh.IsOutwardOriented()) combinedShells.Add(sh); else holes.Add(sh);
+                // if there is an outward oriented part of the result which resides in a hole, we use it as a seperate result
+                holes.Sort((s1, s2) => s2.GetExtent(0.0).Volume.CompareTo(s1.GetExtent(0.0).Volume)); // sort holes by extent, biggest extent first
+                combinedShells.Sort((s1, s2) => s1.GetExtent(0.0).Volume.CompareTo(s2.GetExtent(0.0).Volume)); // sort combined shells by extent, smallest extent first
+                foreach (Shell hole in holes)
+                {
+                    bool isHole = false;
+                    foreach (Shell sh in combinedShells)
+                    {
+                        if (sh.Contains(hole.Vertices[0].Position))
+                        {
+                            sh.AddInnerHole(hole.Faces);
+                            isHole = true;
+                            break;
+                        }
+                    }
+                    if (!isHole) System.Diagnostics.Debug.Assert(false); // this should not happen
+                }
+                res = combinedShells;
             }
             return res.ToArray();
         }

@@ -26,6 +26,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<None Remove="Docs\*.md" />
 		<None Remove="McpToolsetDefinition.json" />
 		<None Remove="MenuResource.xml" />
 		<None Remove="Resources\Icon.ico" />
@@ -38,6 +39,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<EmbeddedResource Include="Docs\*.md" />
 		<EmbeddedResource Include="McpToolsetDefinition.json" />
 		<EmbeddedResource Include="MenuResource.xml" />
 		<EmbeddedResource Include="Resources\Icon.ico" />

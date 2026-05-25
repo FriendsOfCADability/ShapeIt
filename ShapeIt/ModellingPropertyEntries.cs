@@ -15,7 +15,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using System.Net;
+using System.Net.Sockets;
+using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
+using IOPath = System.IO.Path;
 using System.Windows.Forms.Design;
 using System.Windows.Forms.VisualStyles;
 using System.Xml.Linq;
@@ -60,6 +65,8 @@ namespace ShapeIt
         private IGeoObject selectedObjectUnderCursor;
         MCPServer mcpServer;
         MCPServerForm? mcpServerForm = null;
+        MCPHttpServer? mcpHttpServer;
+        SynchronizationContext uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
         public ModellingPropertyEntries(IFrame cadFrame) : base("Modelling.Properties")
         {
@@ -88,6 +95,187 @@ namespace ShapeIt
             ViewsChanged(cadFrame); // first initialisation
             
             mcpServer = new MCPServer(cadFrame, cadFrame.Project);
+            uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
+
+            // Defer startup dialog and server launch until after the main window is visible.
+            // Application.Idle fires once all pending startup messages have been processed.
+            System.Windows.Forms.Application.Idle += OnFirstIdle;
+        }
+
+        private void OnFirstIdle(object? sender, EventArgs e)
+        {
+            System.Windows.Forms.Application.Idle -= OnFirstIdle;
+            StartMcpHttpServer();
+        }
+
+        private void StartMcpHttpServer()
+        {
+            mcpHttpServer?.Dispose();
+            mcpHttpServer = null;
+
+            if (!GetOrInitializeMcpEnabled())
+                return;
+
+            int preferredPort = Settings.GlobalSettings.GetIntValue("ShapeIt.ClaudeCode.Port", 3001);
+            try
+            {
+                int port = FindFreePort(preferredPort);
+                if (port != preferredPort)
+                    Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Port", port);
+
+                mcpHttpServer = new MCPHttpServer(mcpServer, uiContext, port);
+                mcpHttpServer.RpcCallLogger = rpcJson =>
+                {
+                    var form = mcpServerForm;
+                    if (form != null && !form.IsDisposed)
+                        form.AppendRpcCall(rpcJson);
+                };
+                mcpHttpServer.Start();
+
+                RegisterInClaudeCode(port);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[MCPHttpServer] Could not start: {ex.Message}");
+                mcpHttpServer = null;
+            }
+        }
+
+        // Returns true when the MCP HTTP server should be started.
+        // On the very first run, checks whether Claude Code is present and asks the user.
+        private bool GetOrInitializeMcpEnabled()
+        {
+            if (Settings.GlobalSettings.GetBoolValue("ShapeIt.ClaudeCode.Asked", false))
+                return Settings.GlobalSettings.GetBoolValue("ShapeIt.ClaudeCode.Enabled", false);
+
+            // First run: only ask if Claude Code is actually installed
+            if (!IsClaudeCodeInstalled())
+            {
+                Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Asked", true);
+                Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Enabled", false);
+                return false;
+            }
+
+            var answer = cadFrame.UIService.ShowMessageBox(
+                "Claude Code was found on this computer.\n\n" +
+                "Do you want ShapeIt to be available as an MCP server for Claude Code? " +
+                "This lets Claude Code create and edit 3D models directly in ShapeIt.",
+                "ShapeIt & Claude Code",
+                CADability.Substitutes.MessageBoxButtons.YesNo);
+
+            bool enabled = answer == CADability.Substitutes.DialogResult.Yes;
+            Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Asked", true);
+            Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Enabled", enabled);
+            return enabled;
+        }
+
+        // Detects Claude Code by looking for its well-known files and the CLI on PATH.
+        private static bool IsClaudeCodeInstalled()
+        {
+            string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (File.Exists(IOPath.Combine(home, ".claude.json"))) return true;
+            if (File.Exists(IOPath.Combine(home, ".claude", "settings.json"))) return true;
+
+            string? pathVar = Environment.GetEnvironmentVariable("PATH");
+            if (pathVar != null)
+                foreach (string dir in pathVar.Split(IOPath.PathSeparator))
+                    if (File.Exists(IOPath.Combine(dir, "claude.exe")) ||
+                        File.Exists(IOPath.Combine(dir, "claude")))
+                        return true;
+
+            return false;
+        }
+
+        // Returns the lowest available TCP port starting from preferred.
+        // Falls back to an OS-assigned port if the search range is exhausted.
+        private static int FindFreePort(int preferred)
+        {
+            for (int port = preferred; port < preferred + 20; port++)
+            {
+                try
+                {
+                    var probe = new TcpListener(IPAddress.Loopback, port);
+                    probe.Start();
+                    probe.Stop();
+                    return port;
+                }
+                catch (SocketException) { }
+            }
+            // Let the OS assign any free ephemeral port
+            var fallback = new TcpListener(IPAddress.Loopback, 0);
+            fallback.Start();
+            int assigned = ((IPEndPoint)fallback.LocalEndpoint).Port;
+            fallback.Stop();
+            return assigned;
+        }
+
+        // Writes the ShapeIt MCP server entry into both Claude Code config files.
+        private static void RegisterInClaudeCode(int port)
+        {
+            try
+            {
+                string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                string url  = $"http://localhost:{port}/";
+
+                RegisterInSettingsJson(IOPath.Combine(home, ".claude", "settings.json"), url);
+                RegisterInClaudeJson(IOPath.Combine(home, ".claude.json"), home, url);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"[MCPHttpServer] Could not update Claude Code config: {ex.Message}");
+            }
+        }
+
+        // Updates ~/.claude/settings.json (used by the Claude Code CLI).
+        private static void RegisterInSettingsJson(string path, string url)
+        {
+            JsonObject root;
+            if (File.Exists(path))
+                root = JsonNode.Parse(File.ReadAllText(path))?.AsObject() ?? new JsonObject();
+            else
+            {
+                Directory.CreateDirectory(IOPath.GetDirectoryName(path)!);
+                root = new JsonObject();
+            }
+
+            if (root["mcpServers"] is not JsonObject servers)
+            {
+                servers = new JsonObject();
+                root["mcpServers"] = servers;
+            }
+
+            servers["shapeit"] = new JsonObject { ["type"] = "http", ["url"] = url };
+
+            File.WriteAllText(path, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        // Updates ~/.claude.json (used by Claude Code Desktop).
+        // The home-directory entry uses forward slashes as key, matching the format written by `claude mcp add`.
+        private static void RegisterInClaudeJson(string path, string home, string url)
+        {
+            if (!File.Exists(path)) return;
+
+            var root = JsonNode.Parse(File.ReadAllText(path))?.AsObject();
+            if (root == null) return;
+
+            // The key may exist with either slash style depending on how it was originally created
+            string keyFwd  = home.Replace('\\', '/');
+            string keyBack = home.Replace('/', '\\');
+            JsonObject? entryFwd  = root[keyFwd]?.AsObject();
+            JsonObject? entryBack = root[keyBack]?.AsObject();
+            JsonObject  entry     = entryFwd ?? entryBack ?? new JsonObject();
+            if (entryFwd == null && entryBack == null)
+                root[keyFwd] = entry;
+
+            if (entry["mcpServers"] is not JsonObject servers)
+            {
+                servers = new JsonObject();
+                entry["mcpServers"] = servers;
+            }
+
+            servers["shapeit"] = new JsonObject { ["type"] = "http", ["url"] = url };
+
+            File.WriteAllText(path, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
         }
 
         private void OnProjectClosed(Project theProject, IFrame theFrame)
@@ -99,6 +287,8 @@ namespace ShapeIt
         {
             theProject.GetModel(0).RemovingGeoObjectEvent += OnObjectRemoved;
             mcpServer = new MCPServer(theFrame, theProject);
+            if (mcpHttpServer != null)
+                mcpHttpServer.Server = mcpServer;
         }
 
         private void OnObjectRemoved(IGeoObject go, ref bool cancel)
@@ -3710,6 +3900,7 @@ namespace ShapeIt
                     if (mcpServerForm == null || mcpServerForm.IsDisposed)
                     {
                         mcpServerForm = new MCPServerForm(mcpServer);
+                        mcpServerForm.Text = $"MCP Server — localhost:{mcpHttpServer?.Port ?? 0}";
                         mcpServerForm.FormClosed += (_, __) => mcpServerForm = null;
                         mcpServerForm.Show();   // nicht modal, kein Owner
                     }

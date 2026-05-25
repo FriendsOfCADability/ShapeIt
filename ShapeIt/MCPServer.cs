@@ -37,7 +37,7 @@ namespace ShapeIt
 
         public readonly Project project;
 
-        public class NamedItemsDictionary: IJsonSerialize
+        public class NamedItemsDictionary : IJsonSerialize
         {
             private readonly Dictionary<string, object> dict = new(StringComparer.Ordinal);
             public NamedItemsDictionary() { }
@@ -196,16 +196,19 @@ namespace ShapeIt
             }
             catch (JsonRpcException jre)
             {
-                if (!ReportError(jre.Message)) stopExecution = true; 
+                response["error"] = new JsonObject { ["code"] = jre.Code, ["message"] = jre.Message };
+                if (!ReportError(jre.Message)) stopExecution = true;
             }
             catch (NotImplementedException nie)
             {
                 // Explicit marker that the dispatcher knows the method but implementation isn't done yet.
-                if (!ReportError(nie.Message)) stopExecution = true; 
+                response["error"] = new JsonObject { ["code"] = -32601, ["message"] = nie.Message };
+                if (!ReportError(nie.Message)) stopExecution = true;
             }
             catch (Exception ex)
             {
-                if (!ReportError(ex.Message)) stopExecution = true; 
+                response["error"] = new JsonObject { ["code"] = -32603, ["message"] = ex.Message };
+                if (!ReportError(ex.Message)) stopExecution = true;
             }
 
             return response.ToJsonString();
@@ -262,8 +265,13 @@ namespace ShapeIt
         /// </summary>
         /// <param name="message"></param>
         /// <returns></returns>
+        // When true (set by MCPHttpServer during HTTP calls), errors are returned in the
+        // JSON-RPC response instead of showing a modal dialog.
+        public bool SuppressDialogs { get; set; } = false;
+
         public bool ReportError(string message)
         {
+            if (SuppressDialogs) return true;
             return frame.UIService.ShowMessageBox(currentRpcString + "\n" + message, "Error in MCPServer", CADability.Substitutes.MessageBoxButtons.OKCancel) == CADability.Substitutes.DialogResult.OK;
         }
 
@@ -564,6 +572,28 @@ namespace ShapeIt
             {
                 return defaultValue;
             }
+        }
+
+        private GeoVector GetOptionalViewDirection(JsonElement obj, string prop)
+        {
+            GeoVector defaultDir = new GeoVector(1, 1, 2); // CADability isometric: xdir(-1,1,0) ^ ydir(-1,-1,1)
+            if (!obj.TryGetProperty(prop, out var el)) return defaultDir;
+            if (el.ValueKind == JsonValueKind.Undefined || el.ValueKind == JsonValueKind.Null) return defaultDir;
+            if (el.ValueKind == JsonValueKind.String)
+            {
+                return el.GetString() switch
+                {
+                    "top"       => new GeoVector(0,  0, -1),
+                    "bottom"    => new GeoVector(0,  0,  1),
+                    "front"     => new GeoVector(0,  1,  0),
+                    "back"      => new GeoVector(0, -1,  0),
+                    "left"      => new GeoVector(1,  0,  0),
+                    "right"     => new GeoVector(-1, 0,  0),
+                    "isometric" => new GeoVector(1,  1,  2),
+                    _           => defaultDir
+                };
+            }
+            return RequireVector3D(el, null);
         }
 
         private GeoVector2D GetOptionalVector2D(JsonElement obj, string? prop, GeoVector2D defaultValue)
@@ -1808,7 +1838,7 @@ namespace ShapeIt
         private void DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
         {
             Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
-            if (project==null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
+            if (project == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
             Model model = project.GetActiveModel();
             Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
             foreach (Solid sld in IterateSelector<Solid>(remove))
@@ -2844,7 +2874,7 @@ namespace ShapeIt
 
         }
 
-        public class Sketch: IJsonSerialize
+        public class Sketch : IJsonSerialize
         {
             Plane plane;
             List<ICurve2D> curves = [];
@@ -3537,7 +3567,7 @@ namespace ShapeIt
         {
             List<Solid> solidsToInsert = [];
             solidsToInsert = IterateSelector<Solid>(solids).ToList();
-            if (solidsToInsert.Count==0) throw new JsonRpcException("E_INVALID_PARAMS", "No solids for the pattern found.");
+            if (solidsToInsert.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No solids for the pattern found.");
             List<(string name, double start, double step, int count)> loopVariables = [];
             if (variables.ValueKind != JsonValueKind.Array) throw new JsonRpcException("E_INVALID_PARAMS", "'variables' must be an array.");
             foreach (var variable in variables.EnumerateArray())
@@ -4186,14 +4216,286 @@ namespace ShapeIt
             throw new NotImplementedException();
         }
 
-        private void InspectSceneImpl(JsonElement targets, bool includeBoundingBoxes, string geometryFormat, bool includeImage)
+        // Visually distinct colours for up to 8 named targets.
+        // Cycles when there are more than 8 targets.
+        private static readonly Color[] ScenePalette =
+        [
+            Color.FromArgb(204,  60,  60),  // red
+            Color.FromArgb( 60, 100, 200),  // blue
+            Color.FromArgb( 50, 160,  50),  // green
+            Color.FromArgb(210, 130,  20),  // orange
+            Color.FromArgb(130,  60, 200),  // purple
+            Color.FromArgb( 20, 170, 170),  // cyan
+            Color.FromArgb(180, 180,  20),  // yellow
+            Color.FromArgb(200,  60, 160),  // pink
+        ];
+
+        private static string ColorToHex(Color c)
+            => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
+
+        private JsonNode InspectSceneImpl(JsonElement targets, bool includeBoundingBoxes, string? geometryFormat, bool includeImage, int imageWidth, int imageHeight, GeoVector viewDirection)
         {
-            throw new NotImplementedException();
+            var names = new List<string>();
+            if (targets.ValueKind == JsonValueKind.String)
+                names.Add(targets.GetString()!);
+            else if (targets.ValueKind == JsonValueKind.Array)
+                foreach (var el in targets.EnumerateArray())
+                    if (el.ValueKind == JsonValueKind.String && el.GetString() is string s)
+                        names.Add(s);
+
+            var objects  = new JsonArray();
+            var geoObjs  = new List<(IGeoObject obj, Color color)>();
+            var sceneBB  = BoundingBox.EmptyBoundingBox;
+            int colorIdx = 0;
+
+            foreach (string name in names)
+            {
+                if (!namedItems.TryGetValue(name, out object? item) || item == null)
+                    throw new JsonRpcException("E_NOT_FOUND", $"Workspace item '{name}' not found.");
+
+                // Unwrap only singleton lists so multi-element lists keep their type.
+                object unwrapped = UnwrapSingletonList(item);
+
+                Color color = ScenePalette[colorIdx++ % ScenePalette.Length];
+
+                var entry = new JsonObject { ["name"] = name };
+                entry["type"]  = GetItemTypeName(unwrapped);
+                entry["color"] = ColorToHex(color);
+
+                var itemGeos = ItemToRenderableGeoObjects(unwrapped).ToList();
+                if (itemGeos.Count > 1)
+                    entry["count"] = itemGeos.Count;
+
+                foreach (var (go, col) in itemGeos.Select(g => (g, color)))
+                    geoObjs.Add((go, col));
+
+                var itemBB = BoundingBox.EmptyBoundingBox;
+                foreach (var (go, _) in geoObjs.TakeLast(itemGeos.Count))
+                    itemBB.MinMax(go.GetBoundingCube());
+                if (!itemBB.IsEmpty)
+                {
+                    entry["boundingBox"] = BoundingBoxToJson(itemBB);
+                    sceneBB.MinMax(itemBB);
+                }
+
+                objects.Add(entry);
+            }
+
+            string? imageBase64 = geoObjs.Count > 0
+                ? WorkspaceRenderer.RenderToPngBase64(frame, geoObjs, viewDirection, imageWidth, imageHeight)
+                : null;
+
+            var result = new JsonObject();
+            result["objects"]          = objects;
+            result["sceneBoundingBox"] = sceneBB.IsEmpty ? null : BoundingBoxToJson(sceneBB);
+            result["image"]            = imageBase64;
+            return result;
         }
 
-        private void InspectSummaryImpl(JsonElement targets)
+        private static IEnumerable<IGeoObject> ItemToRenderableGeoObjects(object item) => item switch
         {
-            throw new NotImplementedException();
+            IGeoObject go => new[] { go },
+            List<Solid> sl => sl.Cast<IGeoObject>(),
+            List<Face> fl => fl.Cast<IGeoObject>(),
+            List<Edge> el => el.Select(e => e.Curve3D as IGeoObject).OfType<IGeoObject>(),
+            List<ICurve> cl => cl.OfType<IGeoObject>(),
+            Sketch sk => SketchToGeoObjects(sk),
+            ICurve2D c2d => Curve2DToGeoObject(c2d) is IGeoObject go2 ? new[] { go2 } : Array.Empty<IGeoObject>(),
+            List<ICurve2D> cl2 => cl2.Select(Curve2DToGeoObject).OfType<IGeoObject>(),
+            CompoundShape cs => ShapeToGeoObjects(cs),
+            List<CompoundShape> csl => csl.SelectMany(ShapeToGeoObjects),
+            _ => Enumerable.Empty<IGeoObject>()
+        };
+
+        private static IEnumerable<IGeoObject> SketchToGeoObjects(Sketch sk)
+        {
+            var result = new List<IGeoObject>();
+            if (sk.Curves != null)
+                result.AddRange(sk.Curves.Select(c => c.MakeGeoObject(sk.Plane)).OfType<IGeoObject>());
+            if (sk.Shapes != null)
+                result.AddRange(sk.Shapes.SelectMany(sh => sh.MakePaths(sk.Plane)));
+            return result;
+        }
+
+        private static IGeoObject? Curve2DToGeoObject(ICurve2D c2d)
+        {
+            Sketch? sk = c2d.UserData["MCPServer.Sketch"] as Sketch;
+            return c2d.MakeGeoObject(sk?.Plane ?? Plane.XYPlane);
+        }
+
+        private static IEnumerable<IGeoObject> ShapeToGeoObjects(CompoundShape cs)
+        {
+            Sketch? sk = cs.UserData["MCPServer.Sketch"] as Sketch;
+            return cs.MakePaths(sk?.Plane ?? Plane.XYPlane);
+        }
+
+        private JsonArray InspectSummaryImpl(JsonElement targets)
+        {
+            var names = new List<string>();
+            if (targets.ValueKind == JsonValueKind.String)
+                names.Add(targets.GetString()!);
+            else if (targets.ValueKind == JsonValueKind.Array)
+                foreach (var el in targets.EnumerateArray())
+                    if (el.ValueKind == JsonValueKind.String && el.GetString() is string s)
+                        names.Add(s);
+
+            var objects = new JsonArray();
+            foreach (string name in names)
+            {
+                if (!namedItems.TryGetValue(name, out object? item) || item == null)
+                    throw new JsonRpcException("E_NOT_FOUND", $"Workspace item '{name}' not found.");
+
+                item = UnwrapSingletonList(item);
+
+                var entry = new JsonObject { ["name"] = name };
+                entry["type"] = GetItemTypeName(item);
+                entry["summary"] = GetItemSummary(item);
+                objects.Add(entry);
+            }
+            return objects;
+        }
+
+        private static object UnwrapSingletonList(object item) => item switch
+        {
+            List<Solid> sl when sl.Count == 1 => sl[0],
+            List<Face> fl when fl.Count == 1 => fl[0],
+            List<Edge> el when el.Count == 1 => el[0],
+            List<ICurve> cl when cl.Count == 1 => cl[0],
+            List<ICurve2D> cl2 when cl2.Count == 1 => cl2[0],
+            List<CompoundShape> csl when csl.Count == 1 => csl[0],
+            _ => item
+        };
+
+        private static string GetItemTypeName(object item) => item switch
+        {
+            double => "number",
+            int => "integer",
+            GeoPoint => "point3",
+            GeoVector => "vector3",
+            GeoPoint2D => "point2",
+            GeoVector2D => "vector2",
+            Solid => "solid",
+            Sketch => "sketch",
+            Face => "face",
+            Edge => "edge",
+            ICurve => "curve",
+            ICurve2D => "curve2d",
+            CompoundShape => "shape",
+            List<Solid> => "solid[]",
+            List<Face> => "face[]",
+            List<Edge> => "edge[]",
+            List<ICurve> => "curve[]",
+            List<ICurve2D> => "curve2d[]",
+            List<CompoundShape> => "shape[]",
+            _ => throw new JsonRpcException("E_NOT_FOUND", $"Unsupported workspace item type: {item.GetType().Name}")
+        };
+
+        private static JsonObject GetItemSummary(object item)
+        {
+            var s = new JsonObject();
+            switch (item)
+            {
+                case double d:
+                    s["value"] = d;
+                    break;
+                case int i:
+                    s["value"] = i;
+                    break;
+                case GeoPoint p:
+                    s["x"] = p.x; s["y"] = p.y; s["z"] = p.z;
+                    break;
+                case GeoVector v:
+                    s["x"] = v.x; s["y"] = v.y; s["z"] = v.z;
+                    s["length"] = v.Length;
+                    break;
+                case GeoPoint2D p2:
+                    s["x"] = p2.x; s["y"] = p2.y;
+                    break;
+                case GeoVector2D v2:
+                    s["x"] = v2.x; s["y"] = v2.y;
+                    s["length"] = v2.Length;
+                    break;
+                case Solid sld:
+                    Shell shell = sld.Shells[0];
+                    s["faceCount"] = shell.Faces.Length;
+                    s["edgeCount"] = shell.Edges.Length;
+                    s["boundingBox"] = BoundingBoxToJson(sld.GetBoundingCube());
+                    break;
+                case Sketch sk:
+                    s["curveCount"] = sk.Curves.Count;
+                    s["shapeCount"] = sk.Shapes.Count;
+                    break;
+                case Face fc:
+                    s["boundingBox"] = BoundingBoxToJson(fc.GetBoundingCube());
+                    break;
+                case List<Solid> sl:
+                    s["count"] = sl.Count;
+                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(sl, x => x.GetBoundingCube()));
+                    break;
+                case List<Face> fl:
+                    s["count"] = fl.Count;
+                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(fl, x => x.GetBoundingCube()));
+                    break;
+                case List<Edge> el:
+                    s["count"] = el.Count;
+                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(el, x =>
+                        x.Curve3D is IGeoObject go ? go.GetBoundingCube() : BoundingBox.EmptyBoundingBox));
+                    break;
+                case List<ICurve> cl:
+                    s["count"] = cl.Count;
+                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(cl, x =>
+                        x is IGeoObject go ? go.GetBoundingCube() : BoundingBox.EmptyBoundingBox));
+                    break;
+                case List<ICurve2D> cl2:
+                    s["count"] = cl2.Count;
+                    s["boundingRect"] = BoundingRectToJson(CombineBoundingRects(cl2, x => x.GetExtent()));
+                    break;
+                case List<CompoundShape> csl:
+                    s["count"] = csl.Count;
+                    s["boundingRect"] = BoundingRectToJson(CombineBoundingRects(csl,
+                        x => CombineBoundingRects(x.SimpleShapes, ss => ss.GetExtent())));
+                    break;
+            }
+            return s;
+        }
+
+        private static JsonObject BoundingBoxToJson(BoundingBox bb) => new JsonObject
+        {
+            ["minX"] = bb.Xmin,
+            ["minY"] = bb.Ymin,
+            ["minZ"] = bb.Zmin,
+            ["maxX"] = bb.Xmax,
+            ["maxY"] = bb.Ymax,
+            ["maxZ"] = bb.Zmax,
+            ["sizeX"] = bb.Xmax - bb.Xmin,
+            ["sizeY"] = bb.Ymax - bb.Ymin,
+            ["sizeZ"] = bb.Zmax - bb.Zmin
+        };
+
+        private static JsonObject BoundingRectToJson(BoundingRect r) => new JsonObject
+        {
+            ["left"] = r.Left,
+            ["bottom"] = r.Bottom,
+            ["right"] = r.Right,
+            ["top"] = r.Top,
+            ["width"] = r.Width,
+            ["height"] = r.Height
+        };
+
+        private static BoundingBox CombineBoundingBoxes<T>(IEnumerable<T> items, Func<T, BoundingBox> getBB)
+        {
+            var bb = BoundingBox.EmptyBoundingBox;
+            foreach (var item in items)
+                bb.MinMax(getBB(item));
+            return bb;
+        }
+
+        private static BoundingRect CombineBoundingRects<T>(IEnumerable<T> items, Func<T, BoundingRect> getRect)
+        {
+            var rect = BoundingRect.EmptyBoundingRect;
+            foreach (var item in items)
+                rect.MinMax(getRect(item));
+            return rect;
         }
 
         #endregion
@@ -4625,6 +4927,82 @@ namespace ShapeIt
                 if (k < 0)
                     break;
             }
+        }
+
+        #endregion
+
+        #region rpc.batch
+
+        private JsonNode RpcBatchImpl(JsonElement calls)
+        {
+            if (calls.ValueKind != JsonValueKind.Array || calls.GetArrayLength() == 0)
+                throw new JsonRpcException(-32602, "Missing or empty 'calls' array");
+
+            var callsArr = calls.EnumerateArray().ToArray();
+            int total = callsArr.Length;
+            var results = new JsonArray();
+            bool hasError = false;
+
+            for (int i = 0; i < total; i++)
+            {
+                var callEl = callsArr[i];
+
+                if (!callEl.TryGetProperty("method", out var methodEl) || methodEl.ValueKind != JsonValueKind.String)
+                {
+                    results.Add(new JsonObject
+                    {
+                        ["index"] = i,
+                        ["method"] = "(unknown)",
+                        ["error"] = "Missing 'method' field"
+                    });
+                    hasError = true;
+                    break;
+                }
+
+                string method = methodEl.GetString()!;
+                int callId = callEl.TryGetProperty("id", out var idEl) && idEl.TryGetInt32(out int idInt) ? idInt : i;
+                JsonElement paramsEl = callEl.TryGetProperty("params", out var p) ? p : default;
+
+                string rpcResponse = ProcessMethod(method, callId, paramsEl);
+
+                JsonNode? rpcDoc = null;
+                try { rpcDoc = JsonNode.Parse(rpcResponse); } catch { }
+
+                if (rpcDoc?["error"] is JsonNode errNode)
+                {
+                    results.Add(new JsonObject
+                    {
+                        ["index"] = i,
+                        ["method"] = method,
+                        ["error"] = errNode["message"]?.GetValue<string>() ?? "Unknown error"
+                    });
+                    hasError = true;
+                    break;
+                }
+
+                results.Add(new JsonObject
+                {
+                    ["index"] = i,
+                    ["method"] = method,
+                    ["result"] = rpcDoc?["result"]?.DeepClone() ?? new JsonObject()
+                });
+            }
+
+            int executed = results.Count;
+            string summary = hasError
+                ? $"Stopped at call {executed - 1} of {total} " +
+                  $"({results[executed - 1]!["method"]?.GetValue<string>()}): " +
+                  $"{results[executed - 1]!["error"]?.GetValue<string>()}"
+                : $"Completed all {executed} of {total} calls successfully.";
+
+            if (hasError)
+                throw new JsonRpcException(-32000, summary + " Results: " + results.ToJsonString());
+
+            return new JsonObject
+            {
+                ["summary"] = summary,
+                ["results"] = results
+            };
         }
 
         #endregion

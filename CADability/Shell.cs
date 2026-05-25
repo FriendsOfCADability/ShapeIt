@@ -10,6 +10,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using Wintellect.PowerCollections;
 using CADability.Substitutes;
+using MathNet.Numerics.Integration;
 
 namespace CADability.GeoObject
 {
@@ -172,7 +173,8 @@ namespace CADability.GeoObject
         {
             NonPeriodicFaces = 0x1,
             FacesCombined = 0x2,
-            EdgesCombined = 0x4
+            EdgesCombined = 0x4,
+            HasHoles = 0x8,
         }
         public ShellFlags State;
         private GeoObjectList featureAxis;
@@ -843,6 +845,18 @@ namespace CADability.GeoObject
             }
             return res.ToArray();
         }
+        public List<(double, bool)> GetOrientedLineIntersection(GeoPoint location, GeoVector direction, out bool isBoundaryCase)
+        {
+            isBoundaryCase = false;
+            List<(double, bool)> res = new List<(double, bool)>();
+            foreach (Face fc in faces)
+            {
+                List<(double, bool)> faceIntersections = fc.GetOrientedLineIntersection(location, direction, out bool bc);
+                res.AddRange(faceIntersections);
+                isBoundaryCase |= bc;
+            }
+            return res;
+        }
         /// <summary>
         /// Sets the faces of a shell. The faces must all be connected to form a single shell, they may have free edges.
         /// This is not checked. This method does not accumulate the faces.
@@ -857,6 +871,48 @@ namespace CADability.GeoObject
                 faces[i].InvalidateSecondaryData();
             }
             edges = null;
+        }
+        public void AddInnerHole(Face[] faces)
+        {
+            Face[] newFaces = new Face[this.faces.Length + faces.Length];
+            this.faces.CopyTo(newFaces, 0);
+            faces.CopyTo(newFaces, this.faces.Length);
+            SetFaces(newFaces);
+            State |= ShellFlags.HasHoles;
+        }
+        /// <summary>
+        /// Returns the outer hull and the holes of this shell as lists of faces. The first entry in the list is always the hull, 
+        /// the following entries are holes. If there are no holes, the list contains only one entry with all faces.
+        /// </summary>
+        /// <returns></returns>
+        public List<IEnumerable<Face>> GetHullAndHoles()
+        {
+            List<IEnumerable<Face>> res = new List<IEnumerable<Face>>();
+            // the first face always belongs to the hull
+            HashSet<Face> availableFaces = faces.ToHashSet();
+            HashSet<Face> currentSet = new HashSet<Face>();
+            Queue<Face> toCheck = new Queue<Face>();
+            toCheck.Enqueue(faces[0]); // we start with the first face to get the outer hull as the first entry in the list
+            while (availableFaces.Any() && toCheck.Any())
+            {
+                while (toCheck.Any())
+                {
+                    Face fc = toCheck.Dequeue();
+                    if (!currentSet.Contains(fc))
+                    {
+                        currentSet.Add(fc);
+                        availableFaces.Remove(fc);
+                        foreach (Edge ed in fc.Edges)
+                        {
+                            if (!currentSet.Contains(ed.PrimaryFace)) toCheck.Enqueue(ed.PrimaryFace);
+                            if (ed.SecondaryFace != null && !currentSet.Contains(ed.SecondaryFace)) toCheck.Enqueue(ed.SecondaryFace);
+                        }
+                    }
+                }
+                res.Add(currentSet);
+                if (availableFaces.Any()) toCheck.Enqueue(availableFaces.First());
+            }
+            return res;
         }
         public void CopyAll(Shell toCopyFrom)
         {   // nur wg. undo
@@ -1674,8 +1730,8 @@ namespace CADability.GeoObject
             Dictionary<Edge, Edge> newEdges = new Dictionary<Edge, Edge>();
             List<Face> res = new List<Face>();
             OctTree<VectorInOctTree> normals = new OctTree<VectorInOctTree>(new BoundingBox(new GeoPoint(1e-5, 1e-5, 1e-5), 1.1), 1e-6); // octtree around the unit cube, 
-                                                                                                                                          // to collect the normals of all faces. This help to classify the faces
-                                                                                                                                          // a little bit excentric to collect vetors close to the unit (axis, e.g.: (0,0,1)) in a single OctTree box.
+                                                                                                                                         // to collect the normals of all faces. This help to classify the faces
+                                                                                                                                         // a little bit excentric to collect vetors close to the unit (axis, e.g.: (0,0,1)) in a single OctTree box.
             List<GeoPoint> ndirs = new List<GeoPoint>(); // all normals (on the unit sphere) to check, whether there is a cylinder or cone
             BoundingBox next = BoundingBox.EmptyBoundingBox;
             foreach (Face fc in subsetForTest)
@@ -2888,7 +2944,7 @@ namespace CADability.GeoObject
                     foreach (Face face in Faces)
                     {
                         if (usedFaces.Contains(face)) continue; // already used
-                        // more general implementation needed
+                                                                // more general implementation needed
                         HashSet<Face> other = face.GetPeriodicalConnected();
                         if (other.Any())
                         {
@@ -3328,6 +3384,29 @@ namespace CADability.GeoObject
             // if nothing works: "ear clipping" and adding ruled surfaces
             return null;
         }
+
+        public bool IsOutwardOriented()
+        {
+            int boundaryCaseResult = 0; // in case all faces are tangential or through an edge, we return true, because this is the most common case for shells
+            foreach (Face fc in faces)
+            {
+                SimpleShape ss = fc.Area;
+                GeoPoint2D c = ss.GetSomeInnerPoint();
+                GeoPoint pc = fc.Surface.PointAt(c);
+                GeoVector nc = fc.Surface.GetNormal(c).Normalized;
+                List<(double par, bool outward)> ip = GetOrientedLineIntersection(pc, nc, out bool isBoundaryCase);
+                ip.Sort((a, b) => a.par.CompareTo(b.par));
+                if (ip.Last().outward) boundaryCaseResult++; else boundaryCaseResult--; // if there are only boundary cases, we use this result
+                // the orientation of the intersections must alternate between inward and outward. if there are two subsequent intersections
+                // with the same orientation, then we are in a boundary case
+                for (int i = 1; i < ip.Count; i++) if (ip[i - 1].outward == ip[i].outward) isBoundaryCase = true;
+                if (isBoundaryCase) continue; // tangential or through edge
+                if (ip.Count == 0) continue; // there should always be an intersection at the point pc itself
+                // the orientation of the last intersection is the orientation of the shell
+                return ip.Last().outward;
+            }
+            return boundaryCaseResult > 0;
+        }
         public void ReverseOrientation()
         {
             foreach (Face fc in faces)
@@ -3353,11 +3432,11 @@ namespace CADability.GeoObject
             }
 #endif
             Vertex[] vertices = Vertices; // damit sie bestimmt werden und die Orientierung stimmt
-            // MakeTopologicalOrientation is very old code. It destroys ProjectedCurves and should neither be necessary nor be called here!
-            //foreach (Face fc in faces)
-            //{
-            //    fc.MakeTopologicalOrientation();
-            //}
+                                          // MakeTopologicalOrientation is very old code. It destroys ProjectedCurves and should neither be necessary nor be called here!
+                                          //foreach (Face fc in faces)
+                                          //{
+                                          //    fc.MakeTopologicalOrientation();
+                                          //}
             Face correctOriented = null;
             foreach (Edge e in Edges)
             {
@@ -5426,7 +5505,7 @@ namespace CADability.GeoObject
                 remainingFaces.Remove(face);
                 faces = remainingFaces.ToArray();
                 Edge[] edgesToRemove = face.AllEdges;
-                foreach (Edge edg in edgesToRemove) edg.RemoveFace(face); 
+                foreach (Edge edg in edgesToRemove) edg.RemoveFace(face);
                 edges = null; // to force recalculation
             }
         }
@@ -6732,9 +6811,9 @@ namespace CADability.GeoObject
             HashSet<Face> allFaces = new HashSet<Face>(Faces);
             allFaces.ExceptWith(featureFaces);
             if (allFaces.Count() < featureFaces.Count()) featureFaces = allFaces; // the feature part is the one with less faces. We could also use the smaller surface area.
-            // Now we have to create new Faces, which seperate the feature from the remainning shell. The remaining shell and the feature are both open shells.
-            // For each loop there will be a shell (often only a single face), which can be used to close the remaining (big) shell and
-            // the feature.
+                                                                                  // Now we have to create new Faces, which seperate the feature from the remainning shell. The remaining shell and the feature are both open shells.
+                                                                                  // For each loop there will be a shell (often only a single face), which can be used to close the remaining (big) shell and
+                                                                                  // the feature.
             isGap = false;
             connection = new List<Face>();
             foreach (Edge[] loop in loops)
@@ -6755,7 +6834,7 @@ namespace CADability.GeoObject
                                 GeoVector n1 = f1.Surface.GetNormal(f1.Domain.GetCenter());
                                 GeoVector n2 = f2.Surface.GetNormal(f2.PositionOf(p1));
                                 if (Precision.SameNotOppositeDirection(n1, -n2)) return false; // two faces are reverse with geometric identical surfaces
-                                // this happens, when a plane as the only start face is closed by the same plane
+                                                                                               // this happens, when a plane as the only start face is closed by the same plane
                             }
                         }
                     }
@@ -6904,7 +6983,7 @@ namespace CADability.GeoObject
                             SurfaceHelper.AdjustPeriodic(surfaceList[j].Key, extj, ref uv);
                             extj.MinMax(uv);
                             // find domains for the intersection which include the two points
-                            if (exti.Width==0 || exti.Height==0 || extj.Width==0 || extj.Height==0) continue; // GetDualSurfaceCurves cannot handle this case
+                            if (exti.Width == 0 || exti.Height == 0 || extj.Width == 0 || extj.Height == 0) continue; // GetDualSurfaceCurves cannot handle this case
                             IDualSurfaceCurve[] dscs = surfaceList[i].Key.GetDualSurfaceCurves(exti, surfaceList[j].Key, extj, new List<GeoPoint> { sp, ep }, null);
                             if (dscs != null && dscs.Length == 1)
                             {
@@ -7431,7 +7510,7 @@ namespace CADability.GeoObject
         {
             foreach (Edge e in Edges)
             {
-                if (Precision.IsEqual(e.Vertex1.Position,edge.Vertex1.Position) && Precision.IsEqual(e.Vertex2.Position, edge.Vertex2.Position))
+                if (Precision.IsEqual(e.Vertex1.Position, edge.Vertex1.Position) && Precision.IsEqual(e.Vertex2.Position, edge.Vertex2.Position))
                 {
                     if (e.Curve3D != null && e.Curve3D.SameGeometry(edge.Curve3D, Precision.eps)) return e;
                 }

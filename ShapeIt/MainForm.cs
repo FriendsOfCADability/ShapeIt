@@ -331,7 +331,7 @@ namespace ShapeIt
         private void AutoDebug()
         {
             return;
-            string? filename = @"C:\Users\gerha\Documents\Zeichnungen\LampenArm06.cdb.json";
+            string? filename = null; // @"C:\Users\gerha\Documents\Zeichnungen\LampenArm06.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))

@@ -96,6 +96,7 @@ public partial class MCPServer
             "undo.end" => UndoEnd(parameters),
             "workspace.delete" => WorkspaceDelete(parameters),
             "workspace.set" => WorkspaceSet(parameters),
+            "rpc.batch" => RpcBatch(parameters),
             _ => throw new JsonRpcException(-32601, $"Method not found: {method}")
         };
     }
@@ -267,14 +268,12 @@ public partial class MCPServer
         var includeBoundingBoxes = GetOptionalBool(root, "includeBoundingBoxes", true);
         var geometryFormat = GetOptionalString(root, "geometryFormat");
         var includeImage = GetOptionalBool(root, "includeImage", false);
+        var imageSizeEl = GetOptional(root, "imageSize");
+        int imageWidth = imageSizeEl.ValueKind == JsonValueKind.Object ? GetOptionalInteger(imageSizeEl, "width", 512) : 512;
+        int imageHeight = imageSizeEl.ValueKind == JsonValueKind.Object ? GetOptionalInteger(imageSizeEl, "height", 512) : 512;
+        var viewDirection = GetOptionalViewDirection(root, "viewDirection");
 
-        InspectSceneImpl(targets, includeBoundingBoxes, geometryFormat, includeImage);
-
-        var result = new JsonObject();
-        result["objects"] = new JsonArray();
-        result["sceneBoundingBox"] = new JsonObject();
-        result["image"] = null; // TODO
-        return result;
+        return InspectSceneImpl(targets, includeBoundingBoxes, geometryFormat, includeImage, imageWidth, imageHeight, viewDirection);
     }
 
     /// <summary>
@@ -285,10 +284,8 @@ public partial class MCPServer
         AssertIsObject(root);
         var targets = RequireProperty(root, "targets");
 
-        InspectSummaryImpl(targets);
-
         var result = new JsonObject();
-        result["objects"] = new JsonArray();
+        result["objects"] = InspectSummaryImpl(targets);
         return result;
     }
 
@@ -1328,6 +1325,17 @@ public partial class MCPServer
         WorkspaceSetImpl(name, value, label, input);
 
         return default;
+    }
+
+    /// <summary>
+    /// Execute a sequence of RPC calls as one block. All calls run sequentially; execution stops on the first error.
+    /// </summary>
+    private JsonNode RpcBatch(JsonElement root)
+    {
+        AssertIsObject(root);
+        var calls = RequireProperty(root, "calls");
+
+        return RpcBatchImpl(calls);
     }
 
 }

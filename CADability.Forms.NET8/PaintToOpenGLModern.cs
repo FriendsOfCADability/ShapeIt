@@ -120,6 +120,11 @@ namespace CADability.Forms.NET8
         // Small Z offset applied to faces so they don't z-fight with edges
         private bool _faceOffset = false;
 
+        // ── Offscreen FBO ──────────────────────────────────────────────────
+        private bool _renderingOffscreen;
+        private uint _fboId, _fboColorRb, _fboDepthRb;
+        private int  _savedWidth, _savedHeight;
+
         // ─────────────────────────────────────────────────────────────────
         //  Initialisation  (matches old PaintToOpenGL.Init() signatures)
         // ─────────────────────────────────────────────────────────────────
@@ -898,8 +903,114 @@ namespace CADability.Forms.NET8
         {
             _gl.Flush();
             _gl.Finish();
-            // SwapBuffers is a GDI call – delegate to WglContext
-            _context?.SwapBuffers();
+            if (!_renderingOffscreen)
+                _context?.SwapBuffers();
+        }
+
+        // ─────────────────────────────────────────────────────────────────
+        //  Offscreen FBO rendering
+        // ─────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Binds an FBO so subsequent rendering goes to GPU memory instead of the
+        /// screen. Call <see cref="EndOffscreenAsBitmap"/> to read back the result.
+        /// Must be called on the UI thread that owns the GL context.
+        /// </summary>
+        public void BeginOffscreen(int width, int height)
+        {
+            _savedWidth  = _width;
+            _savedHeight = _height;
+            _width  = width;
+            _height = height;
+            _renderingOffscreen = true;
+
+            _fboId      = _gl.GenFramebuffer();
+            _fboColorRb = _gl.GenRenderbuffer();
+            _fboDepthRb = _gl.GenRenderbuffer();
+
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, _fboId);
+
+            _gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _fboColorRb);
+            _gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer,
+                InternalFormat.Rgba8, (uint)width, (uint)height);
+            _gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0,
+                RenderbufferTarget.Renderbuffer, _fboColorRb);
+
+            _gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, _fboDepthRb);
+            _gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer,
+                InternalFormat.DepthComponent24, (uint)width, (uint)height);
+            _gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.DepthAttachment,
+                RenderbufferTarget.Renderbuffer, _fboDepthRb);
+
+            _gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, 0);
+
+            var status = _gl.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != GLEnum.FramebufferComplete)
+                throw new InvalidOperationException($"Offscreen FBO incomplete: {status}");
+        }
+
+        /// <summary>
+        /// Reads back the FBO, deletes GPU resources, restores the default framebuffer,
+        /// and returns a <see cref="System.Drawing.Bitmap"/> (BGRA, 32 bpp).
+        /// OpenGL's Y=0-at-bottom convention is flipped so the bitmap is top-down.
+        /// </summary>
+        public System.Drawing.Bitmap EndOffscreenAsBitmap()
+        {
+            _gl.Flush();
+            _gl.Finish();
+
+            int width  = _width;
+            int height = _height;
+            var pixels = new byte[width * height * 4];
+
+            unsafe
+            {
+                fixed (byte* p = pixels)
+                    _gl.ReadPixels(0, 0, (uint)width, (uint)height,
+                        Silk.NET.OpenGL.PixelFormat.Rgba, PixelType.UnsignedByte, p);
+            }
+
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            _gl.DeleteFramebuffer(_fboId);
+            _gl.DeleteRenderbuffer(_fboColorRb);
+            _gl.DeleteRenderbuffer(_fboDepthRb);
+            _fboId = _fboColorRb = _fboDepthRb = 0;
+
+            _renderingOffscreen = false;
+            _width  = _savedWidth;
+            _height = _savedHeight;
+
+            var bmp = new System.Drawing.Bitmap(width, height,
+                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            var bmpData = bmp.LockBits(
+                new System.Drawing.Rectangle(0, 0, width, height),
+                System.Drawing.Imaging.ImageLockMode.WriteOnly,
+                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+
+            unsafe
+            {
+                byte* dst = (byte*)bmpData.Scan0;
+                for (int y = 0; y < height; y++)
+                {
+                    int srcRow  = height - 1 - y;   // flip OpenGL Y
+                    int srcBase = srcRow * width * 4;
+                    int dstBase = y * bmpData.Stride;
+                    for (int x = 0; x < width; x++)
+                    {
+                        int si = srcBase + x * 4;
+                        int di = dstBase + x * 4;
+                        dst[di + 0] = pixels[si + 2]; // R→B  (RGBA→BGRA)
+                        dst[di + 1] = pixels[si + 1]; // G→G
+                        dst[di + 2] = pixels[si + 0]; // B→R
+                        dst[di + 3] = pixels[si + 3]; // A→A
+                    }
+                }
+            }
+
+            bmp.UnlockBits(bmpData);
+            return bmp;
         }
 
         // ─────────────────────────────────────────────────────────────────
