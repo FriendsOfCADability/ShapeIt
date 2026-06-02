@@ -1,0 +1,90 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <!-- Ausgabename der Anwendung: "ShapeIt" (nicht "ShapeIt.Avalonia").
+         Damit heisst die ausfuehrbare Datei auf Windows ShapeIt.exe und auf
+         Linux ShapeIt - einheitlich ueber beide Plattformen. -->
+    <AssemblyName>ShapeIt</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Gleicher Root-Namespace wie ShapeIt: geteilter Code erwartet "ShapeIt.*"-Ressourcennamen -->
+    <RootNamespace>ShapeIt</RootNamespace>
+    <!-- AVALONIA aktiviert alle #if AVALONIA-Zweige in gemeinsam genutzten Quellen -->
+    <DefineConstants>$(DefineConstants);AVALONIA</DefineConstants>
+    <!-- Datei-Icon der ausführbaren Datei (z. B. auf dem Desktop / im Explorer) -->
+    <ApplicationIcon>Logo.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'">
+    <DefineConstants>$(DefineConstants);DEBUG</DefineConstants>
+  </PropertyGroup>
+
+  <!-- Gemeinsame ShapeIt-Quellen: alles außer WinForms-spezifischen Dateien -->
+  <ItemGroup>
+    <Compile Include="..\ShapeIt\**\*.cs"
+             Exclude="..\ShapeIt\obj\**;
+                      ..\ShapeIt\MainForm.cs;
+                      ..\ShapeIt\MainForm.Designer.cs;
+                      ..\ShapeIt\MCPServerForm.cs;
+                      ..\ShapeIt\Program.cs;
+                      ..\ShapeIt\WorkspaceRenderer.cs;
+                      ..\ShapeIt\MCPServer.Old.cs;
+                      ..\ShapeIt\MCPServerDispatcher.cs;
+                      ..\ShapeIt\Properties\Settings.Designer.cs">
+      <Link>Shared\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+  <!-- Eingebettete Ressourcen aus ShapeIt übernehmen.
+       <Link>     → Darstellung in Solution Explorer (unter Shared\)
+       <LogicalName> → exakter Laufzeit-Name im Assembly-Manifest;
+                       muss "ShapeIt.*" sein, da MCPHttpServer.cs den Namen hartcodiert. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\ShapeIt\McpToolsetDefinition.json">
+      <Link>Shared\McpToolsetDefinition.json</Link>
+      <LogicalName>ShapeIt.McpToolsetDefinition.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\ShapeIt\MenuResource.xml">
+      <Link>Shared\MenuResource.xml</Link>
+      <LogicalName>ShapeIt.MenuResource.xml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\ShapeIt\StringTableDeutsch.xml">
+      <Link>Shared\StringTableDeutsch.xml</Link>
+      <LogicalName>ShapeIt.StringTableDeutsch.xml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\ShapeIt\StringTableEnglish.xml">
+      <Link>Shared\StringTableEnglish.xml</Link>
+      <LogicalName>ShapeIt.StringTableEnglish.xml</LogicalName>
+    </EmbeddedResource>
+    <!-- Versionsnummer als "App.Version" einbetten, damit das Hilfe-Fenster sie
+         anzeigen kann. Quelle ist die manuell gepflegte version.txt im Repo-Root –
+         dieselbe Datei, die das Linux-Packaging (scripts/linux-packaging/1-build.ps1)
+         verwendet. So stimmen angezeigte Version und Paketversion überein. -->
+    <EmbeddedResource Include="..\version.txt">
+      <Link>version.txt</Link>
+      <LogicalName>App.Version</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Logo als Avalonia-Ressource: für das Fenster-Icon (Titelzeile + Taskleiste) -->
+  <ItemGroup>
+    <AvaloniaResource Include="Logo.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CADability\CADability.csproj" />
+    <ProjectReference Include="..\CADability.Avalonia\CADability.Avalonia.csproj" />
+  </ItemGroup>
+
+</Project>

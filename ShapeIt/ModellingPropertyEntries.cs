@@ -21,8 +21,6 @@ using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using IOPath = System.IO.Path;
-using System.Windows.Forms.Design;
-using System.Windows.Forms.VisualStyles;
 using System.Xml.Linq;
 using Wintellect.PowerCollections;
 using static CADability.Projection;
@@ -64,7 +62,11 @@ namespace ShapeIt
         private IHotSpot hotspotUnderCursor;
         private IGeoObject selectedObjectUnderCursor;
         MCPServer mcpServer;
+#if !AVALONIA
         MCPServerForm? mcpServerForm = null;
+#else
+        MCPServerWindow? mcpServerWindow = null;
+#endif
         MCPHttpServer? mcpHttpServer;
         SynchronizationContext uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
@@ -97,16 +99,25 @@ namespace ShapeIt
             mcpServer = new MCPServer(cadFrame, cadFrame.Project);
             uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
-            // Defer startup dialog and server launch until after the main window is visible.
+#if AVALONIA
+            // In Avalonia, post at Background priority so the main window is fully shown first.
+            Avalonia.Threading.Dispatcher.UIThread.Post(
+                StartMcpHttpServer,
+                Avalonia.Threading.DispatcherPriority.Background);
+#else
+            // Defer startup until after the main window is visible.
             // Application.Idle fires once all pending startup messages have been processed.
             System.Windows.Forms.Application.Idle += OnFirstIdle;
+#endif
         }
 
+#if !AVALONIA
         private void OnFirstIdle(object? sender, EventArgs e)
         {
             System.Windows.Forms.Application.Idle -= OnFirstIdle;
             StartMcpHttpServer();
         }
+#endif
 
         private void StartMcpHttpServer()
         {
@@ -126,9 +137,14 @@ namespace ShapeIt
                 mcpHttpServer = new MCPHttpServer(mcpServer, uiContext, port);
                 mcpHttpServer.RpcCallLogger = rpcJson =>
                 {
+#if !AVALONIA
                     var form = mcpServerForm;
                     if (form != null && !form.IsDisposed)
                         form.AppendRpcCall(rpcJson);
+#else
+                    // RpcCallLogger is already posted to the UI thread via uiContext (see MCPHttpServer).
+                    mcpServerWindow?.AppendRpcCall(rpcJson);
+#endif
                 };
                 mcpHttpServer.Start();
 
@@ -2546,10 +2562,12 @@ namespace ShapeIt
             {
                 List<Face> faces = new List<Face>();
                 Shell shl = sld.Shells[0];
+#if DEBUG
                 if (!shl.CheckConsistency())
                 {
 
                 }
+#endif
                 return true;
                 BoundingBox bc = shl.GetExtent(0.0);
                 foreach (Face fc in shl.Faces)
@@ -3897,18 +3915,33 @@ namespace ShapeIt
                     Clear();
                     return true;
                 case "MenuId.RPCDialog":
+#if !AVALONIA
                     if (mcpServerForm == null || mcpServerForm.IsDisposed)
                     {
                         mcpServerForm = new MCPServerForm(mcpServer);
                         mcpServerForm.Text = $"MCP Server — localhost:{mcpHttpServer?.Port ?? 0}";
                         mcpServerForm.FormClosed += (_, __) => mcpServerForm = null;
-                        mcpServerForm.Show();   // nicht modal, kein Owner
+                        mcpServerForm.Show();
                     }
                     else
                     {
                         mcpServerForm.Show();
                         mcpServerForm.Activate();
                     }
+#else
+                    if (mcpServerWindow == null)
+                    {
+                        mcpServerWindow = new MCPServerWindow(mcpServer);
+                        mcpServerWindow.Title = $"MCP Server — localhost:{mcpHttpServer?.Port ?? 0}";
+                        mcpServerWindow.Closed += (_, __) => mcpServerWindow = null;
+                        mcpServerWindow.Show();
+                    }
+                    else
+                    {
+                        mcpServerWindow.Show();
+                        mcpServerWindow.Activate();
+                    }
+#endif
                     return true;
                 case "MenuId.RPCTemplate":
                     Clear();

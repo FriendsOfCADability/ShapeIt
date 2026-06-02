@@ -1,0 +1,61 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <!-- Enable compiled AXAML bindings and AXAML source generator -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.7" />
+    <PackageReference Include="Silk.NET.OpenGL" Version="2.22.0" />
+    <PackageReference Include="Svg.Skia" Version="1.0.0.18" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CADability\CADability.csproj" />
+  </ItemGroup>
+
+  <!-- Toolbar/menu icons live physically in CADability.Forms.NET8\Icons.
+       Embed them here so SvgBitmapHelper (this assembly) can resolve them by
+       the logical name "Icons.<file>.svg" (suffix-matched in TryOpenResourceStream). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\CADability.Forms.NET8\Icons\*.svg">
+      <Link>Icons\%(Filename)%(Extension)</Link>
+      <LogicalName>Icons.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Cursor resources live physically in CADability.Forms.NET8\Cursors.
+       SVGs are rendered via SkiaSharp; *.cur files (a WinForms format) are parsed
+       by CurCursorHelper as the fallback for cursors that have no SVG variant. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\CADability.Forms.NET8\Cursors\*.svg">
+      <Link>Cursors\%(Filename)%(Extension)</Link>
+      <LogicalName>Cursors.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\CADability.Forms.NET8\Cursors\*.cur">
+      <Link>Cursors\%(Filename)%(Extension)</Link>
+      <LogicalName>Cursors.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Raster button-image strips (Buttons1..5.bmp), each an 800x15 strip of
+       fifty 16x15 tiles. Used by ButtonImagesHelper as the raster fallback for
+       toolbar/menu entries that have no SVG icon (mirrors ButtonImages in
+       CADability.Forms.NET8). The pixel at (0,0) is the transparency key. -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\CADability.Forms.NET8\Bitmaps\Buttons*.bmp">
+      <Link>Bitmaps\%(Filename)%(Extension)</Link>
+      <LogicalName>Bitmaps.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

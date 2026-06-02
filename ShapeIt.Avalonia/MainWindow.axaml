@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:cad="using:CADability.Avalonia"
+        x:Class="ShapeIt.MainWindow"
+        Title="ShapeIt"
+        Icon="avares://ShapeIt/Logo.png"
+        Width="1000" Height="600">
+
+  <DockPanel>
+    <!-- Menu bar populated from MenuResource in code-behind -->
+    <Menu x:Name="mainMenu" DockPanel.Dock="Top" />
+
+    <!-- Toolbars populated in code-behind (ToolBars.AddStandardToolBars).
+         WrapPanel lets the strips flow onto a second row when the window is narrow. -->
+    <WrapPanel x:Name="toolbarPanel" DockPanel.Dock="Top" Orientation="Horizontal" />
+
+    <!-- Progress bar – shown only while a long operation is running -->
+    <Border x:Name="progressPanel" DockPanel.Dock="Bottom" IsVisible="False"
+            Background="#CC1a1a1a" Padding="6 4">
+      <StackPanel>
+        <TextBlock x:Name="progressLabel" HorizontalAlignment="Center"
+                   Foreground="White" FontSize="12" Margin="0 0 0 4"/>
+        <ProgressBar x:Name="progressBar" Minimum="0" Maximum="100" Height="14"/>
+      </StackPanel>
+    </Border>
+
+    <!-- CadControl hosts CadCanvas (left) + PropertiesExplorer (right) -->
+    <cad:CadControl x:Name="cadControl" />
+  </DockPanel>
+
+</Window>

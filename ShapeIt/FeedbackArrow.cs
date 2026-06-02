@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading.Tasks;
 using static CADability.Projection;
 using System.Globalization;
-using CADability.Forms;
 using CADability.Attribute;
 using CADability.Substitutes;
 

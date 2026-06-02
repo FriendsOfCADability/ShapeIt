@@ -18,14 +18,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 using System.Xml.Linq;
 using static ShapeIt.ShellExtensions;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using Plane = CADability.Plane;
 using MathNet.Numerics.LinearAlgebra.Factorization;
-using System.DirectoryServices.ActiveDirectory;
-using static System.ComponentModel.Design.ObjectSelectorEditor;
 
 namespace ShapeIt
 {
@@ -149,14 +146,14 @@ namespace ShapeIt
             this.project = project;
             // we store the named items in the project user data, so we can save the session and proceed with executing RPC Code, which relies on the existing named items.
             // CADability has no concept of MCPServer
-            if (project.UserData.ContainsData("MCPServer.NamedItems"))
+            if (false) // saving a string:object dictionary is not working yet //if (project.UserData.ContainsData("MCPServer.NamedItems"))
             {
-                namedItems = (NamedItemsDictionary)project.UserData.GetData("MCPServer.NamedItems")!;
+                namedItems = new NamedItemsDictionary();
             }
             else
             {
                 namedItems = new NamedItemsDictionary();
-                project.UserData.Add("MCPServer.NamedItems", namedItems);
+                project.UserData.Add("MCPServer.NamedItems", namedItems.Dict);
             }
         }
 

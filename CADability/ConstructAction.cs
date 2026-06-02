@@ -118,7 +118,7 @@ namespace CADability.Actions
             /// </summary>
             public DefaultLength()
             {
-                length = 0.0;
+                length = 1.0;
                 isDefined = false;
                 startValue = StartValue.ViewWidth6;
                 activeAction = null;
@@ -130,7 +130,7 @@ namespace CADability.Actions
             /// <param name="sw">how to initilize</param>
             public DefaultLength(StartValue sw)
             {
-                length = 0.0;
+                length = 1.0;
                 isDefined = false;
                 startValue = sw;
                 activeAction = null;

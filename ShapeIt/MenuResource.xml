@@ -95,6 +95,7 @@
 				<MenuItem MenuId="MenuId.Projection.Direction.Orthogonal" />
 				<MenuItem MenuId="MenuId.Projection.Direction.Perspective" />
 			</Popup>
+			<Popup MenuId="MenuId.View.Toolbars" />
 		</Popup>
 		<Popup MenuId="MenuId.Construct" MergeType="Add" MergeOrder="3">
 			<MenuItem MenuId="MenuId.Select" IconNr="11" />

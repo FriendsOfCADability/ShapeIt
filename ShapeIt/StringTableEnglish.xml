@@ -1,6 +1,44 @@
 ﻿<?xml version='1.0' encoding='utf-8'?>
 <root>
 	<language id="english">english</language>
+	<data name="MenuId.View.Toolbars">
+		<label>Toolbars</label>
+		<info>Show or hide the toolbars</info>
+	</data>
+	<data name="Toolbar.Hide">
+		<label>Hide</label>
+		<info>Hide this toolbar (re-enable it via View &gt; Toolbars)</info>
+	</data>
+	<data name="Toolbar.MoveForward">
+		<label>Move forward</label>
+		<info>Move this toolbar forward (to the left) in the order</info>
+	</data>
+	<data name="Toolbar.MoveBackward">
+		<label>Move backward</label>
+		<info>Move this toolbar backward (to the right) in the order</info>
+	</data>
+	<data name="Toolbar.LargeIcons">
+		<label>Large icons</label>
+		<info>Show toolbars with larger icons (for high-resolution displays)</info>
+	</data>
+	<data name="Toolbar.Name.File">
+		<label>File</label>
+	</data>
+	<data name="Toolbar.Name.Edit">
+		<label>Edit</label>
+	</data>
+	<data name="Toolbar.Name.Zoom">
+		<label>Zoom</label>
+	</data>
+	<data name="Toolbar.Name.Object">
+		<label>Object</label>
+	</data>
+	<data name="Toolbar.Name.Snap">
+		<label>Snap</label>
+	</data>
+	<data name="Toolbar.Name.Construct">
+		<label>Construct</label>
+	</data>
 	<data name="Modelling.Properties">
 		<label>Modelling Mode</label>
 		<info>In the modelling mode you can change dimensions or features of objects</info>

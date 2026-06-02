@@ -13,10 +13,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
+using Wintellect.PowerCollections;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows.Forms.VisualStyles;
-using Wintellect.PowerCollections;
 
 namespace ShapeIt
 {

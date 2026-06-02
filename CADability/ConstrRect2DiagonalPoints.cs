@@ -44,6 +44,8 @@ namespace CADability.Actions
 
         public override void OnSetAction()
         {
+            if (ConstrDefaults.DefaultRectWidth <= 0.0) ConstrDefaults.DefaultRectWidth.Length = 1.0;
+            if (ConstrDefaults.DefaultRectHeight <= 0.0) ConstrDefaults.DefaultRectHeight.Length = 1.0;
             line = Polyline.Construct();
             line.SetRectangle(ConstrDefaults.DefaultStartPoint, ConstrDefaults.DefaultRectWidth * base.ActiveDrawingPlane.DirectionX, ConstrDefaults.DefaultRectHeight * base.ActiveDrawingPlane.DirectionY);
 

@@ -1,6 +1,44 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <language id="deutsch" default="true">deutsch</language>
+  <data name="MenuId.View.Toolbars">
+    <label>Symbolleisten</label>
+    <info>Sichtbarkeit der Symbolleisten ein- oder ausschalten</info>
+  </data>
+  <data name="Toolbar.Hide">
+    <label>Ausblenden</label>
+    <info>Diese Symbolleiste ausblenden (über Ansicht &gt; Symbolleisten wieder einblendbar)</info>
+  </data>
+  <data name="Toolbar.MoveForward">
+    <label>Nach vorne</label>
+    <info>Diese Symbolleiste in der Reihenfolge nach vorne (links) verschieben</info>
+  </data>
+  <data name="Toolbar.MoveBackward">
+    <label>Nach hinten</label>
+    <info>Diese Symbolleiste in der Reihenfolge nach hinten (rechts) verschieben</info>
+  </data>
+  <data name="Toolbar.LargeIcons">
+    <label>Große Symbole</label>
+    <info>Symbolleisten mit größeren Symbolen anzeigen (für hochauflösende Bildschirme)</info>
+  </data>
+  <data name="Toolbar.Name.File">
+    <label>Datei</label>
+  </data>
+  <data name="Toolbar.Name.Edit">
+    <label>Bearbeiten</label>
+  </data>
+  <data name="Toolbar.Name.Zoom">
+    <label>Zoom</label>
+  </data>
+  <data name="Toolbar.Name.Object">
+    <label>Objekt</label>
+  </data>
+  <data name="Toolbar.Name.Snap">
+    <label>Fang</label>
+  </data>
+  <data name="Toolbar.Name.Construct">
+    <label>Konstruieren</label>
+  </data>
   <data name="Modelling.Properties">
     <label>Modellier Modus</label>
     <info>Modelliermodus: ändere geometrische EIgenschaften der Objekte </info>

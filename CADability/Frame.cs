@@ -999,10 +999,7 @@ namespace CADability
                     UpdateMRUMenu(MRUFiles.GetMRUFiles());
                     return true;
                 case "MenuId.File.Save.As":
-                    project.WriteToFile(null);
-                    FileNameChangedEvent?.Invoke(project.FileName);
-                    if (project.FileName != null) MRUFiles.AddPath(project.FileName, "cdb");
-                    UpdateMRUMenu(MRUFiles.GetMRUFiles());
+                    OnFileSaveAs();
                     return true;
                 case "MenuId.Zoom.Detail":
                     SetAction(new ZoomAction());
@@ -2301,6 +2298,8 @@ namespace CADability
         }
         public delegate void FileNameChangedDelegate(string NewProjectName);
         public event FileNameChangedDelegate FileNameChangedEvent;
+        /// <summary>Raises <see cref="FileNameChangedEvent"/>. Call from subclasses instead of invoking the event directly.</summary>
+        protected void RaiseFileNameChanged(string? fileName) => FileNameChangedEvent?.Invoke(fileName);
         /// <summary>
         /// Find a View with the provided name.
         /// </summary>
@@ -2341,7 +2340,7 @@ namespace CADability
             return null;
         }
         private static int lastFileType = 1;
-        private void OnFileOpen(string fileName)
+        void OnFileOpen(string? fileName)
         {
             if (fileName == null)
             {
@@ -2441,6 +2440,16 @@ namespace CADability
             System.GC.WaitForPendingFinalizers();
         }
         /// <summary>
+        /// Shows the Save-As dialog and writes the project to the chosen file.
+        /// </summary>
+        protected virtual void OnFileSaveAs()
+        {
+            Project.WriteToFile(null);          // null → UIService.ShowSaveFileDlg inside
+            FileNameChangedEvent?.Invoke(Project.FileName);
+            if (Project.FileName != null) MRUFiles.AddPath(Project.FileName, "cdb");
+            UpdateMRUMenu(MRUFiles.GetMRUFiles());
+        }
+        /// <summary>
         /// Generates a new project, saves the current project if necessary and sets the
         /// new project as the current project.
         /// </summary>
@@ -2481,7 +2490,7 @@ namespace CADability
             //about.Show();
 
         }
-        private void Export()
+        protected virtual void Export()
         {
             string filter =
                 StringTable.GetString("File.Dxf.Filter") + "|" +
@@ -2502,7 +2511,7 @@ namespace CADability
                 Project.Export(filename, ext);
             }
         }
-        private void OnFileImport()
+        protected virtual void OnFileImport()
         {
 
             string filter = StringTable.GetString("File.CADability.Filter") + "|" +

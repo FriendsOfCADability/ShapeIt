@@ -863,19 +863,25 @@ namespace CADability
             if (newSize.Width > 0 && newSize.Height > 0)
             {
                 if (canvas.PaintTo3D != null) canvas.PaintTo3D.Resize(newSize.Width, newSize.Height);
-                Rectangle clr = canvas.ClientRectangle;
-                BoundingRect oldVisibleRect = this.Projection.BoundingRectWorld2d(oldRectangle.Left, oldRectangle.Right, oldRectangle.Bottom, oldRectangle.Top); // aus GetVisibleBoundingRect()
-                if (newSize.Height > 0 && oldVisibleRect.Height > 0.0)
+                // Beim ersten Sizing ist oldRectangle leer (z.B. (0,0,0,0)): es gibt keinen
+                // vorherigen sichtbaren Bereich zu erhalten. Ohne diesen Guard liefert
+                // BoundingRectWorld2d einen entarteten Rect (Breite/Höhe 0) und SetPlacement
+                // teilt durch 0 -> placementFactor wird Infinity.
+                if (oldRectangle.Width > 0 && oldRectangle.Height > 0)
                 {
-                    if (oldVisibleRect.Width / oldVisibleRect.Height != newSize.Width / (double)newSize.Height)
+                    BoundingRect oldVisibleRect = this.Projection.BoundingRectWorld2d(oldRectangle.Left, oldRectangle.Right, oldRectangle.Bottom, oldRectangle.Top); // aus GetVisibleBoundingRect()
+                    if (newSize.Height > 0 && oldVisibleRect.Height > 0.0)
                     {
-                        double w = newSize.Width / (double)newSize.Height * oldVisibleRect.Height;
-                        double center = oldVisibleRect.GetCenter().x;
-                        oldVisibleRect.Left = center - w / 2.0;
-                        oldVisibleRect.Right = center + w / 2.0;
+                        if (oldVisibleRect.Width / oldVisibleRect.Height != newSize.Width / (double)newSize.Height)
+                        {
+                            double w = newSize.Width / (double)newSize.Height * oldVisibleRect.Height;
+                            double center = oldVisibleRect.GetCenter().x;
+                            oldVisibleRect.Left = center - w / 2.0;
+                            oldVisibleRect.Right = center + w / 2.0;
+                        }
                     }
+                    ZoomToRect(oldVisibleRect);
                 }
-                ZoomToRect(oldVisibleRect);
             }
 
         }

@@ -1149,6 +1149,7 @@ namespace CADability
                     WriteToStream(stream);
                 }
                 stream.Close();
+                isModified = false; // the JSON path (js.ToStream) does not reset the flag, only WriteToStream does
             }
             return true;
         }

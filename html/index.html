@@ -1,0 +1,701 @@
+﻿<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ShapeIt with CADability</title>
+    <meta name="description" content="ShapeIt – Open-source 3D modelling project (BRep-focused). Download, GitHub, and ways to contribute." />
+
+    <style>
+        :root {
+            --bg: #0b1220;
+            --card: rgba(255,255,255,.06);
+            --card2: rgba(255,255,255,.08);
+            --text: rgba(255,255,255,.92);
+            --muted: rgba(255,255,255,.70);
+            --faint: rgba(255,255,255,.55);
+            --border: rgba(255,255,255,.14);
+            --accent: #7cc7ff;
+            --accent2: #8bffbf;
+            --shadow: 0 10px 30px rgba(0,0,0,.35);
+            --radius: 18px;
+            --max: 1040px;
+            --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            font-family: var(--sans);
+            color: var(--text);
+            background: radial-gradient(1200px 700px at 15% 10%, rgba(124,199,255,.18), transparent 50%), radial-gradient(900px 500px at 85% 20%, rgba(139,255,191,.12), transparent 50%), radial-gradient(800px 600px at 50% 100%, rgba(124,199,255,.10), transparent 55%), var(--bg);
+            line-height: 1.45;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none
+        }
+
+            a:hover {
+                text-decoration: underline
+            }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: blur(10px);
+            background: rgba(11,18,32,.70);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .nav {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 240px;
+        }
+
+        .brand-badge {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(124,199,255,.35), rgba(139,255,191,.25));
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+        }
+
+        .brand h1 {
+            font-size: 15px;
+            margin: 0;
+            letter-spacing: .2px;
+            font-weight: 650;
+        }
+
+        .brand p {
+            margin: 0;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .navlinks {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+            .navlinks a {
+                color: var(--muted);
+                font-size: 13px;
+                padding: 6px 8px;
+                border-radius: 10px;
+            }
+
+                .navlinks a:hover {
+                    color: var(--text);
+                    background: rgba(255,255,255,.06);
+                    text-decoration: none;
+                }
+
+        .lang {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 6px;
+        }
+
+            .lang button {
+                border: 1px solid var(--border);
+                background: rgba(255,255,255,.06);
+                color: var(--text);
+                padding: 6px 10px;
+                border-radius: 999px;
+                cursor: pointer;
+                font-size: 12px;
+                letter-spacing: .2px;
+            }
+
+                .lang button[aria-pressed="true"] {
+                    border-color: rgba(124,199,255,.45);
+                    background: rgba(124,199,255,.14);
+                }
+
+        main {
+            max-width: var(--max);
+            margin: 0 auto;
+            padding: 28px 18px 48px;
+        }
+
+        .hero {
+            display: grid;
+            grid-template-columns: 1.15fr .85fr;
+            gap: 18px;
+            align-items: stretch;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 900px) {
+            .hero {
+                grid-template-columns: 1fr
+            }
+
+            .brand {
+                min-width: auto
+            }
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 18px;
+        }
+
+        .hero h2 {
+            margin: 2px 0 8px;
+            font-size: 34px;
+            line-height: 1.08;
+            letter-spacing: -0.4px;
+        }
+
+        .hero p {
+            margin: 0 0 14px;
+            color: var(--muted);
+            font-size: 16px;
+        }
+
+        .cta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,.06);
+            color: var(--text);
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+        }
+
+            .btn:hover {
+                text-decoration: none;
+                background: rgba(255,255,255,.10);
+            }
+
+            .btn.primary {
+                border-color: rgba(124,199,255,.55);
+                background: rgba(124,199,255,.18);
+            }
+
+            .btn.secondary {
+                border-color: rgba(139,255,191,.45);
+                background: rgba(139,255,191,.12);
+            }
+
+        .meta {
+            margin-top: 12px;
+            color: var(--faint);
+            font-size: 13px;
+        }
+
+            .meta code {
+                font-family: var(--mono);
+                font-size: 12px;
+                padding: 2px 6px;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                background: rgba(255,255,255,.05);
+                color: rgba(255,255,255,.80);
+            }
+
+        .splash {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+        }
+
+            .splash img {
+                width: 100%;
+                max-width: 360px;
+                border-radius: 16px;
+                border: 1px solid var(--border);
+                box-shadow: var(--shadow);
+                background: rgba(255,255,255,.02);
+            }
+
+            .splash small {
+                color: var(--faint);
+            }
+
+        section {
+            margin-top: 18px;
+        }
+
+            section h3 {
+                margin: 0 0 10px;
+                font-size: 18px;
+                letter-spacing: .1px;
+            }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        @media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr
+            }
+        }
+
+        .tile {
+            background: var(--card2);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 14px;
+        }
+
+            .tile h4 {
+                margin: 0 0 6px;
+                font-size: 15px;
+            }
+
+            .tile p {
+                margin: 0;
+                color: var(--muted);
+                font-size: 14px;
+            }
+
+        .list {
+            margin: 10px 0 0;
+            padding-left: 18px;
+            color: var(--muted);
+        }
+
+            .list li {
+                margin: 6px 0;
+            }
+
+        .footer {
+            margin-top: 22px;
+            color: var(--faint);
+            font-size: 13px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .kbd {
+            font-family: var(--mono);
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(255,255,255,.05);
+            color: rgba(255,255,255,.80);
+        }
+        .copy-btn {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+            font-size: 1.2em;
+            color: #cccccc;
+        }
+
+        /* Language switching */
+        [data-lang] {
+            display: none;
+        }
+
+        html[lang="de"] [data-lang="de"] {
+            display: block;
+        }
+
+        html[lang="en"] [data-lang="en"] {
+            display: block;
+        }
+
+        /* Anchor offset for sticky header */
+        .anchor {
+            scroll-margin-top: 84px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="nav">
+            <div class="brand" aria-label="ShapeIt header">
+                <div class="brand-badge" aria-hidden="true"></div>
+                <div>
+                    <h1>ShapeIt <span style="color:var(--muted); font-weight:600;">with CADability</span></h1>
+                    <p data-lang="de">Open-Source 3D-Modelling • BRep-Fokus • Mitmachen erwünscht</p>
+                    <p data-lang="en">Open-source 3D modelling • BRep-focused • Contributors welcome</p>
+                </div>
+            </div>
+
+            <nav class="navlinks" aria-label="Primary">
+                <a href="#about" class="anchor" data-lang="de">Überblick</a>
+                <a href="#about" class="anchor" data-lang="en">Overview</a>
+
+                <a href="#contribute" class="anchor" data-lang="de">Mitmachen</a>
+                <a href="#contribute" class="anchor" data-lang="en">Contribute</a>
+
+                <a href="#focus" class="anchor" data-lang="de">Schwerpunkte</a>
+                <a href="#focus" class="anchor" data-lang="en">Focus areas</a>
+
+                <a href="#contact" class="anchor" data-lang="de">Kontakt</a>
+                <a href="#contact" class="anchor" data-lang="en">Contact</a>
+
+                <div class="lang" aria-label="Language switch">
+                    <button id="btnDe" type="button" aria-pressed="true">DE</button>
+                    <button id="btnEn" type="button" aria-pressed="false">EN</button>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        <div class="hero">
+            <div class="card" id="about">
+                <div data-lang="de">
+                    <h2>ShapeIt – gemeinsam besser machen</h2>
+                    <p>
+                        ShapeIt ist ein Open-Source-Projekt für 3D-Modellierung mit <strong>direkter, geometriebasierter Parametrik</strong>.
+                        Statt Konstruktionshistorie oder vorab definierter Constraints lassen sich Maße und Features direkt an bestehenden
+                        Körpern ändern – auch bei importierten STEP-Modellen.<br />
+                        Für die nächsten Schritte suche ich Leute, die Lust haben, sich einzubringen –
+                        egal ob durch Code, Tests, Tutorials oder UX-Feedback.
+                    </p>
+                </div>
+
+                <div data-lang="en">
+                    <h2>ShapeIt – build it together</h2>
+                    <p>
+                        ShapeIt is an open-source 3D modelling project focused on <strong>direct geometry-based parametrization</strong>.
+                        Instead of relying on construction history or predefined constraints, dimensions and features can be changed
+                        directly on existing solids — even on imported STEP models.<br />
+                        I’m looking for people who want to get involved—coding, testing, tutorials, or UX feedback.
+                    </p>
+                </div>
+
+                <div class="cta">
+                    <a class="btn primary" href="https://www.cadability.de/ShapeIt/Publish.html" target="_blank" rel="noopener">
+                        <span aria-hidden="true">⬇️</span>
+                        <span data-lang="de">Download (Windows)</span>
+                        <span data-lang="en">Download (Windows)</span>
+                    </a>
+
+                    <a class="btn primary" href="https://www.cadability.de/ShapeIt/win-install.html" target="_blank" rel="noopener">
+                        <span aria-hidden="true">⬇️</span>
+                        <span data-lang="de">Download (Windows-Avalonia)</span>
+                        <span data-lang="en">Download (Windows-Avalonia)</span>
+                    </a>
+
+                    <div data-lang="de">
+                        <h3>Linux Installation</h3>
+                        <p>
+                            Zur Installation unter Linux gib in der Konsole folgenden Befehl ein:<br />
+                            <code id="cmd1">curl -fsSL https://cadability.de/ShapeIt/apt/install-shapeit.sh | bash</code>
+                            <button class="copy-btn" id="copybtn1" onclick="copyCommand('cmd1', 'copybtn1')">⧉</button>
+                        </p>
+                    </div>
+
+                    <div data-lang="en">
+                        <h3>Linux Installation</h3>
+                        <p>
+                            To install ShapeIt on Linux, run the following command in the terminal:<br />
+                            <code id="cmd2">curl -fsSL https://cadability.de/ShapeIt/apt/install-shapeit.sh | bash</code>
+                            <button class="copy-btn"id="copybtn2" onclick="copyCommand('cmd2', 'copybtn2')">⧉</button>
+                        </p>
+                    </div>
+
+                    <a class="btn secondary" href="https://github.com/FriendsOfCADability/ShapeIt" target="_blank" rel="noopener">
+                        <span aria-hidden="true">🐙</span>
+                        <span data-lang="de">GitHub Repository</span>
+                        <span data-lang="en">GitHub repository</span>
+                    </a>
+
+                    <a class="btn" href="mailto:shapeit@cadability.de">
+                        <span aria-hidden="true">✉️</span>
+                        <span data-lang="de">Kontakt</span>
+                        <span data-lang="en">Contact</span>
+                    </a>
+                </div>
+
+                <div class="meta" data-lang="de">
+                    Tipp: Wenn du nur „reinschnuppern“ willst, schick mir einfach eine Mail mit 2–3 Sätzen:
+                    <code>Was interessiert dich?</code> und <code>Wie viel Zeit?</code>
+                </div>
+                <div class="meta" data-lang="en">
+                    Tip: If you just want to “take a look”, send a short mail with:
+                    <code>what interests you?</code> and <code>how much time?</code>
+                </div>
+            </div>
+
+            <div class="card splash" aria-label="ShapeIt splash image">
+                <img src="ShapeIt2.jpg" alt="ShapeIt splash screen image" />
+                <small data-lang="de">SplashScreen (vorläufig) – ein richtiges Logo steht noch aus.</small>
+                <small data-lang="en">Current splash screen — a proper logo is still on the wishlist.</small>
+            </div>
+        </div>
+
+        <section id="contribute" class="card anchor" style="margin-top:18px;">
+            <h3 data-lang="de">Wobei du helfen kannst</h3>
+            <h3 data-lang="en">How you can help</h3>
+
+            <div class="grid">
+                <div class="tile">
+                    <h4 data-lang="de">Programmieren (C# / .NET)</h4>
+                    <h4 data-lang="en">Coding (C# / .NET)</h4>
+                    <p data-lang="de">Features, Bugs, Architektur, Rendering/Geometrie.</p>
+                    <p data-lang="en">Features, bugs, architecture, rendering/geometry.</p>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">Testen & Feedback</h4>
+                    <h4 data-lang="en">Testing & feedback</h4>
+                    <p data-lang="de">Testfälle, Repro-Schritte, Robustheit, „Edge cases“.</p>
+                    <p data-lang="en">Test cases, repro steps, robustness, edge cases.</p>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">(Video-)Tutorials & Doku</h4>
+                    <h4 data-lang="en">(Video) tutorials & docs</h4>
+                    <p data-lang="de">Kurze Workflows, How-Tos, Einsteiger-Videos, FAQ.</p>
+                    <p data-lang="en">Workflows, how-tos, beginner videos, FAQ.</p>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">UX / Benutzerführung</h4>
+                    <h4 data-lang="en">UX / user guidance</h4>
+                    <p data-lang="de">Menüs, Begriffe, Bedienlogik, „was erwartet man wo?“</p>
+                    <p data-lang="en">Menus, terminology, interaction flow, expectations.</p>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">AddOns / Extensions</h4>
+                    <h4 data-lang="en">Add-ons / extensions</h4>
+                    <p data-lang="de">Mitdenken, wie eine Plugin-Schnittstelle sauber & stabil wird.</p>
+                    <p data-lang="en">Help design a clean, stable plugin/extension interface.</p>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">Design / Logo</h4>
+                    <h4 data-lang="en">Design / logo</h4>
+                    <p data-lang="de">Ein Logo/Signet, das auch als App-Icon funktioniert.</p>
+                    <p data-lang="en">A logo/mark that also works as an app icon.</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="focus" class="card anchor">
+            <h3 data-lang="de">Aktuelle Schwerpunkte</h3>
+            <h3 data-lang="en">Current focus areas</h3>
+
+            <div class="grid">
+                <div class="tile">
+                    <h4 data-lang="de">STL → BRep (Reverse Engineering)</h4>
+                    <h4 data-lang="en">STL → BRep (reverse engineering)</h4>
+                    <p data-lang="de">Aus Mesh-Daten robuste, „echte“ BRep-Geometrie ableiten.</p>
+                    <p data-lang="en">Derive robust “real” BRep geometry from mesh data.</p>
+                    <ul class="list">
+                        <li data-lang="de">STL Import</li>
+                        <li data-lang="en">STL import</li>
+                        <li data-lang="de">Flächen/Features erkennen</li>
+                        <li data-lang="en">Detect surfaces/features</li>
+                        <li data-lang="de">Saubere BRep-Erzeugung</li>
+                        <li data-lang="en">Clean BRep generation</li>
+                    </ul>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">„Plastische“ Modifikationen</h4>
+                    <h4 data-lang="en">“Plastic” modifications</h4>
+                    <p data-lang="de">Verformen, Verbiegen, Verdrehen – intuitiv und reproduzierbar.</p>
+                    <p data-lang="en">Deform, bend, twist — intuitive and reproducible.</p>
+                    <ul class="list">
+                        <li data-lang="de">Deformer-Operatoren</li>
+                        <li data-lang="en">Deformer operators</li>
+                        <li data-lang="de">Undo/Redo & Parametrik</li>
+                        <li data-lang="en">Undo/redo & parametrization</li>
+                    </ul>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">SVG Import</h4>
+                    <h4 data-lang="en">SVG import</h4>
+                    <p data-lang="de">2D-Konturen als Basis für Skizzen und 3D-Operationen.</p>
+                    <p data-lang="en">2D contours as input for sketches and 3D operations.</p>
+                    <ul class="list">
+                        <li data-lang="de">Profiles, Extrude, etc.</li>
+                        <li data-lang="en">Profiles, extrude, etc.</li>
+                    </ul>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">AddOn-Schnittstelle</h4>
+                    <h4 data-lang="en">Add-on interface</h4>
+                    <p data-lang="de">Erweiterungen als DLLs, klare Contracts, gute Beispiele.</p>
+                    <p data-lang="en">Extensions as DLLs, clear contracts, good examples.</p>
+                    <ul class="list">
+                        <li data-lang="de">API-Design & Versionierung</li>
+                        <li data-lang="en">API design & versioning</li>
+                        <li data-lang="de">Beispiel-AddOn</li>
+                        <li data-lang="en">Example add-on</li>
+                    </ul>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">Avalonia & Plattformunabhängigkeit</h4>
+                    <h4 data-lang="en">Avalonia & cross-platform</h4>
+                    <p data-lang="de">UI modernisieren, Windows/Linux/macOS im Blick.</p>
+                    <p data-lang="en">Modernize UI, aiming for Windows/Linux/macOS.</p>
+                    <ul class="list">
+                        <li data-lang="de">Rendering-Backend (OpenGL ES)</li>
+                        <li data-lang="en">Rendering backend (OpenGL ES)</li>
+                        <li data-lang="de">UI/UX Konsistenz</li>
+                        <li data-lang="en">UI/UX consistency</li>
+                    </ul>
+                </div>
+
+                <div class="tile">
+                    <h4 data-lang="de">Nächster sinnvoller Schritt</h4>
+                    <h4 data-lang="en">A good next step</h4>
+                    <p data-lang="de">
+                        Wenn du unsicher bist, wo du starten sollst: Melde dich – wir finden schnell ein
+                        kleines, klares Einstiegsthema.
+                    </p>
+                    <p data-lang="en">
+                        Not sure where to start? Just ping me — we’ll quickly find a small, well-defined entry task.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <section id="contact" class="card anchor">
+            <h3 data-lang="de">Kontakt</h3>
+            <h3 data-lang="en">Contact</h3>
+
+            <p data-lang="de" style="color:var(--muted); margin:0;">
+                Schreib mir am besten per Mail:
+                <a href="mailto:shapeit@cadability.de">shapeit@cadability.de</a>
+                <br />
+                Oder schau direkt ins Repo:
+                <a href="https://github.com/FriendsOfCADability/ShapeIt" target="_blank" rel="noopener">GitHub (FriendsOfCADability/ShapeIt)</a>
+            </p>
+
+            <p data-lang="en" style="color:var(--muted); margin:0;">
+                Best way: email me at
+                <a href="mailto:shapeit@cadability.de">shapeit@cadability.de</a>
+                <br />
+                Or jump straight into the repo:
+                <a href="https://github.com/FriendsOfCADability/ShapeIt" target="_blank" rel="noopener">GitHub (FriendsOfCADability/ShapeIt)</a>
+            </p>
+
+            <div class="footer">
+                <div>
+                    <span data-lang="de">Tastatur:</span>
+                    <span data-lang="en">Keyboard:</span>
+                    <span class="kbd">Alt+L</span>
+                    <span data-lang="de">zum Umschalten der Sprache</span>
+                    <span data-lang="en">to toggle language</span>
+                </div>
+                <div>© <span id="year"></span> ShapeIt</div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        (function ()
+        {
+            const btnDe = document.getElementById('btnDe');
+            const btnEn = document.getElementById('btnEn');
+            const year = document.getElementById('year');
+            year.textContent = String(new Date().getFullYear());
+
+            function setLang(lang)
+            {
+                document.documentElement.setAttribute('lang', lang);
+                btnDe.setAttribute('aria-pressed', lang === 'de' ? 'true' : 'false');
+                btnEn.setAttribute('aria-pressed', lang === 'en' ? 'true' : 'false');
+                try { localStorage.setItem('shapeit_lang', lang); } catch { }
+            }
+
+            btnDe.addEventListener('click', () => setLang('de'));
+            btnEn.addEventListener('click', () => setLang('en'));
+
+            // Load saved language or infer from browser
+            let initial = 'de';
+            try
+            {
+                const saved = localStorage.getItem('shapeit_lang');
+                if (saved === 'de' || saved === 'en') initial = saved;
+                else
+                {
+                    const nav = (navigator.language || '').toLowerCase();
+                    if (nav.startsWith('en')) initial = 'en';
+                }
+            } catch { }
+            setLang(initial);
+
+            // Keyboard: Alt+L toggles language
+            window.addEventListener('keydown', (e) =>
+            {
+                if (e.altKey && (e.key === 'l' || e.key === 'L'))
+                {
+                    e.preventDefault();
+                    setLang(document.documentElement.lang === 'de' ? 'en' : 'de');
+                }
+            });
+        })();
+    </script>
+    <script>
+        async function copyCommand(id, btnId)
+        {
+            const text = document.getElementById(id).innerText;
+            await navigator.clipboard.writeText(text);
+
+            const btn = document.getElementById(btnId);
+            const old = btn.innerHTML;
+            btn.innerHTML = "✓";
+            setTimeout(() => btn.innerHTML = old, 1500);
+        }
+    </script>
+</body>
+</html>

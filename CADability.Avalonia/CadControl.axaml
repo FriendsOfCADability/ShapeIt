@@ -1,0 +1,30 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:CADability.Avalonia"
+             x:Class="CADability.Avalonia.CadControl">
+
+  <!--
+    Mirrors the WinForms SplitContainer layout from CadControl.Designer.cs:
+      Panel1 (left,  larger) = CadCanvas
+      Panel2 (right, narrow) = PropertiesExplorer
+    Column widths use * / fixed values so the splitter can be dragged.
+  -->
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <!-- CadCanvas: takes all remaining space -->
+      <ColumnDefinition Width="*" MinWidth="200" />
+      <!-- Drag handle -->
+      <ColumnDefinition Width="4" />
+      <!-- PropertiesExplorer: fixed default width, user can resize -->
+      <ColumnDefinition Width="280" MinWidth="120" MaxWidth="600" />
+    </Grid.ColumnDefinitions>
+
+    <local:CadCanvas        x:Name="cadCanvas"        Grid.Column="0" Focusable="True" />
+    <GridSplitter                                      Grid.Column="1"
+                            HorizontalAlignment="Stretch"
+                            ResizeDirection="Columns"
+                            Background="#40808080" />
+    <local:PropertiesExplorer x:Name="propertiesExplorer" Grid.Column="2" />
+  </Grid>
+
+</UserControl>

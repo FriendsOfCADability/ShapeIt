@@ -787,12 +787,15 @@
 		<info>Size of the handles (hotspots)</info>
 	</data>
 	<data name="ActionTabPage">
+		<label>Action</label>
 		<info>Properties and input fields for the active action</info>
 	</data>
 	<data name="ProjectTabPage">
+		<label>Project</label>
 		<info>Properties or settings for this project</info>
 	</data>
 	<data name="GlobalTabPage">
+		<label>Settings</label>
 		<info>Global properties and settings</info>
 	</data>
 	<data name="ViewTabPage">
@@ -802,6 +805,7 @@
 		<info>Symbols available for use in the project</info>
 	</data>
 	<data name="ModellingTabPage">
+		<label>Modelling</label>
 		<info>Modelling mode where you can change the geometry of a solid body</info>
 	</data>
 	<data name="Line.Length">

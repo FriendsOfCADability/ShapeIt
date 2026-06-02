@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShapeIt installieren für Windows / Install ShapeIt for Windows</title>
+  <style>
+    :root {
+      --bg: #f5f8fc;
+      --panel: #ffffff;
+      --ink: #1f2937;
+      --muted: #64748b;
+      --blue: #1d4ed8;
+      --blue-dark: #1e3a8a;
+      --blue-soft: #dbeafe;
+      --line: #dbe3ee;
+      --shadow: 0 16px 40px rgba(15, 23, 42, .10);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(59,130,246,.18), transparent 36rem),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 20px 20px 44px;
+    }
+
+    .language-switch {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+
+    .language-switch button {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.86);
+      color: var(--blue-dark);
+      border-radius: 999px;
+      padding: .45rem .85rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(15, 23, 42, .06);
+    }
+
+    .language-switch button.active {
+      background: var(--blue);
+      color: white;
+      border-color: var(--blue);
+    }
+
+    header {
+      padding: 46px 28px 34px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, #163b78 0%, #2563eb 58%, #60a5fa 100%);
+      color: white;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    header::after {
+      content: "";
+      position: absolute;
+      width: 280px;
+      height: 280px;
+      right: -80px;
+      top: -90px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.13);
+    }
+
+    .brand {
+      font-size: .95rem;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      opacity: .86;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      line-height: 1.08;
+      margin: 0 0 14px;
+      max-width: 760px;
+    }
+
+    .subtitle {
+      font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+      margin: 0;
+      color: rgba(255,255,255,.88);
+      max-width: 760px;
+    }
+
+    nav {
+      margin: 18px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    nav a, .button {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      border-radius: 999px;
+      padding: .72rem 1rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    nav a {
+      background: rgba(255,255,255,.16);
+      color: white;
+      border: 1px solid rgba(255,255,255,.25);
+    }
+
+    main { margin-top: 26px; }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin: 18px 0;
+    }
+
+    h2 {
+      font-size: 1.55rem;
+      margin: 0 0 12px;
+      color: var(--blue-dark);
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1.15rem;
+      color: #0f172a;
+    }
+
+    .lead {
+      font-size: 1.08rem;
+      color: #334155;
+      margin: 0;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+      margin-top: 18px;
+    }
+
+    .option {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+    }
+
+    .tag {
+      display: inline-block;
+      margin-bottom: 12px;
+      padding: .25rem .65rem;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+      font-size: .82rem;
+      font-weight: 700;
+    }
+
+    ol, ul { padding-left: 1.3rem; }
+    li + li { margin-top: .35rem; }
+
+    .button {
+      margin-top: 10px;
+      background: var(--blue);
+      color: white;
+      box-shadow: 0 8px 20px rgba(37, 99, 235, .22);
+    }
+
+    .button:hover {
+      background: var(--blue-dark);
+      text-decoration: none;
+    }
+
+    .button.secondary { background: #0f172a; }
+
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #eff6ff;
+      padding: 14px 16px;
+      border-radius: 12px;
+      color: #334155;
+      margin-top: 16px;
+    }
+
+    code {
+      background: #eef2f7;
+      border-radius: 6px;
+      padding: .12rem .35rem;
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+    }
+
+    footer {
+      color: var(--muted);
+      font-size: .92rem;
+      text-align: center;
+      margin-top: 28px;
+    }
+
+    [data-lang] { display: none; }
+    body.lang-de [data-lang="de"] { display: initial; }
+    body.lang-en [data-lang="en"] { display: initial; }
+    body.lang-de section[data-lang="de"], body.lang-en section[data-lang="en"],
+    body.lang-de article[data-lang="de"], body.lang-en article[data-lang="en"],
+    body.lang-de div[data-lang="de"], body.lang-en div[data-lang="en"],
+    body.lang-de p[data-lang="de"], body.lang-en p[data-lang="en"],
+    body.lang-de nav[data-lang="de"], body.lang-en nav[data-lang="en"] { display: block; }
+    body.lang-de .options[data-lang="de"], body.lang-en .options[data-lang="en"] { display: grid; }
+    body.lang-de a[data-lang="de"], body.lang-en a[data-lang="en"],
+    body.lang-de span[data-lang="de"], body.lang-en span[data-lang="en"] { display: inline-flex; }
+
+    @media (max-width: 760px) {
+      header { padding: 34px 20px 28px; }
+      .options { grid-template-columns: 1fr; }
+      .card { padding: 20px; }
+    }
+  </style>
+</head>
+<body class="lang-de">
+  <div class="wrap">
+    <div class="language-switch" aria-label="Language selection">
+      <button type="button" id="btn-de" class="active" onclick="setLanguage('de')">DE</button>
+      <button type="button" id="btn-en" onclick="setLanguage('en')">EN</button>
+    </div>
+
+    <header>
+      <div class="brand">ShapeIt with CADability</div>
+
+      <h1 data-lang="de">ShapeIt installieren für Windows</h1>
+      <h1 data-lang="en">Install ShapeIt for Windows</h1>
+
+      <p class="subtitle" data-lang="de">Zwei einfache Wege, ShapeIt unter Windows auszuprobieren: als ZIP-Datei ohne Installer oder als klassische Setup-Installation.</p>
+      <p class="subtitle" data-lang="en">Two simple ways to try ShapeIt on Windows: as a ZIP file without an installer, or as a classic setup installation.</p>
+
+      <nav data-lang="de" aria-label="Navigation Deutsch">
+        <a href="#zip">Download als ZIP</a>
+        <a href="#setup">Setup starten</a>
+        <a href="https://www.cadability.de/ShapeIt/index.html">Zur ShapeIt-Seite</a>
+      </nav>
+      <nav data-lang="en" aria-label="Navigation English">
+        <a href="#zip">Download ZIP</a>
+        <a href="#setup">Start setup</a>
+        <a href="https://www.cadability.de/ShapeIt/index.html">Back to ShapeIt page</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="card" data-lang="de">
+        <h2>Welche Variante soll ich nehmen?</h2>
+        <p class="lead">Wenn du ShapeIt nur testen möchtest oder nichts installieren willst, ist die ZIP-Datei meist die beste Wahl. Wenn du lieber eine normale Windows-Installation mit Startmenü-Eintrag möchtest, nimm das Setup.</p>
+      </section>
+
+      <section class="card" data-lang="en">
+        <h2>Which option should I choose?</h2>
+        <p class="lead">If you only want to try ShapeIt, or if you do not want to install anything, the ZIP file is usually the best choice. If you prefer a normal Windows installation with a Start menu entry, choose the setup installer.</p>
+      </section>
+
+      <section class="options" data-lang="de" aria-label="Download-Optionen">
+        <article id="zip" class="option">
+          <span class="tag">Option 1 · ohne Installation</span>
+          <h3>ZIP-Datei herunterladen</h3>
+          <p>Lade das Archiv herunter, entpacke es in ein Verzeichnis deiner Wahl und starte anschließend <code>ShapeIt.exe</code>.</p>
+          <ol>
+            <li>ZIP-Datei herunterladen.</li>
+            <li>In einen Ordner entpacken, zum Beispiel unter <code>Dokumente\ShapeIt</code>.</li>
+            <li><code>ShapeIt.exe</code> starten.</li>
+          </ol>
+          <a class="button" href="https://www.cadability.de/ShapeIt/shapeit-win-x64.zip">⬇️ shapeit-win-x64.zip herunterladen</a>
+        </article>
+
+        <article id="setup" class="option">
+          <span class="tag">Option 2 · Windows-Setup</span>
+          <h3>Installation starten</h3>
+          <p>Starte das Setup-Programm und folge den Anweisungen des Installers.</p>
+          <ol>
+            <li>Setup-Datei herunterladen oder direkt starten.</li>
+            <li>Windows-Sicherheitsabfrage bestätigen, falls sie erscheint.</li>
+            <li>Nach der Installation ShapeIt über das Startmenü oder die Verknüpfung starten.</li>
+          </ol>
+          <a class="button secondary" href="https://www.cadability.de/ShapeIt/shapeit-setup.exe">▶️ shapeit-setup.exe starten</a>
+        </article>
+      </section>
+
+      <section class="options" data-lang="en" aria-label="Download options">
+        <article class="option">
+          <span class="tag">Option 1 · no installation</span>
+          <h3>Download ZIP file</h3>
+          <p>Download the archive, unpack it into a folder of your choice, and then start <code>ShapeIt.exe</code>.</p>
+          <ol>
+            <li>Download the ZIP file.</li>
+            <li>Unpack it into a folder, for example <code>Documents\ShapeIt</code>.</li>
+            <li>Start <code>ShapeIt.exe</code>.</li>
+          </ol>
+          <a class="button" href="https://www.cadability.de/ShapeIt/shapeit-win-x64.zip">⬇️ Download shapeit-win-x64.zip</a>
+        </article>
+
+        <article class="option">
+          <span class="tag">Option 2 · Windows setup</span>
+          <h3>Start installation</h3>
+          <p>Start the setup program and follow the installer instructions.</p>
+          <ol>
+            <li>Download or start the setup file.</li>
+            <li>Confirm the Windows security prompt if it appears.</li>
+            <li>After installation, start ShapeIt from the Start menu or the desktop shortcut.</li>
+          </ol>
+          <a class="button secondary" href="https://www.cadability.de/ShapeIt/shapeit-setup.exe">▶️ Start shapeit-setup.exe</a>
+        </article>
+      </section>
+
+      <section class="card" data-lang="de">
+        <h2>Hinweis</h2>
+        <div class="note">
+          Beim ersten Start kann Windows eine Sicherheitswarnung anzeigen, weil ShapeIt ein Open-Source-Projekt ist und die Datei möglicherweise noch nicht allgemein bekannt ist. Klicke dann auf "Weitere Informationen" und dann "Trotzdem ausführen".
+        </div>
+      </section>
+
+      <section class="card" data-lang="en">
+        <h2>Note</h2>
+        <div class="note">
+          On first start, Windows may show a security warning because ShapeIt is an open-source project and the file may not yet be widely recognized. In that case, click "More information" and then "Run anyway".
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span data-lang="de">Tastatur: Alt+L zum Umschalten der Sprache · </span>
+      <span data-lang="en">Keyboard: Alt+L to toggle language · </span>
+      © ShapeIt · Open-Source 3D-Modelling · Windows x64
+    </footer>
+  </div>
+
+  <script>
+    function setLanguage(lang) {
+      document.body.classList.toggle('lang-de', lang === 'de');
+      document.body.classList.toggle('lang-en', lang === 'en');
+      document.documentElement.lang = lang;
+      document.getElementById('btn-de').classList.toggle('active', lang === 'de');
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      try { localStorage.setItem('shapeit-install-lang', lang); } catch (e) {}
+    }
+
+    document.addEventListener('keydown', function (event) {
+      if (event.altKey && event.key.toLowerCase() === 'l') {
+        setLanguage(document.body.classList.contains('lang-de') ? 'en' : 'de');
+      }
+    });
+
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem('shapeit-install-lang'); } catch (e) {}
+      if (saved === 'en' || saved === 'de') setLanguage(saved);
+    }());
+  </script>
+</body>
+</html>
