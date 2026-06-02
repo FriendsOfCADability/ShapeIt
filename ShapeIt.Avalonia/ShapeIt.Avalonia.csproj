@@ -73,6 +73,13 @@
   <!-- Logo als Avalonia-Ressource: für das Fenster-Icon (Titelzeile + Taskleiste) -->
   <ItemGroup>
     <AvaloniaResource Include="Logo.png" />
+    <!-- Zusätzlich als Datei in den Build-Output kopieren, damit das Linux-Packaging
+         (2-package.sh) das Icon als shapeit.png in den freedesktop-Icon-Pfad legen kann.
+         Ohne diese Datei findet das Anwendungsmenü das in der .desktop-Datei referenzierte
+         Icon nicht (Logo.png ist sonst nur in die Assembly eingebettet). -->
+    <None Include="Logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>

@@ -83,6 +83,25 @@ exec /opt/shapeit/ShapeIt "$@"
 EOF
 chmod +x "$BIN_DIR/shapeit"
 
+# Icon installieren: in den freedesktop-Icon-Pfad legen, damit das Anwendungsmenü
+# und (unter Wayland) Titel-/Taskleiste das in der .desktop-Datei referenzierte
+# "Icon=shapeit" auflösen können. Quelle ist Logo.png aus dem Publish-Output
+# (per <None CopyToOutputDirectory> in ShapeIt.Avalonia.csproj mitkopiert).
+ICON_SRC="$UNZIP_DIR/Logo.png"
+if [[ -f "$ICON_SRC" ]]; then
+    # hicolor/256x256: bevorzugter, skalierbarer Pfad für Icon-Themes
+    ICON_DIR="$DEB_STAGE/usr/share/icons/hicolor/256x256/apps"
+    mkdir -p "$ICON_DIR"
+    cp "$ICON_SRC" "$ICON_DIR/shapeit.png"
+    # pixmaps: einfacher Fallback-Pfad (von praktisch allen Desktops unterstützt)
+    PIXMAP_DIR="$DEB_STAGE/usr/share/pixmaps"
+    mkdir -p "$PIXMAP_DIR"
+    cp "$ICON_SRC" "$PIXMAP_DIR/shapeit.png"
+else
+    echo "        WARNUNG: Logo.png nicht im Publish-Output gefunden – Icon wird nicht installiert."
+    echo "                 (ShapeIt.Avalonia.csproj muss Logo.png in den Output kopieren.)"
+fi
+
 # Desktop-Eintrag: erscheint im Anwendungsmenü von Linux Mint
 DESKTOP_DIR="$DEB_STAGE/usr/share/applications"
 mkdir -p "$DESKTOP_DIR"
@@ -95,6 +114,7 @@ Icon=shapeit
 Terminal=false
 Type=Application
 Categories=Graphics;3DGraphics;Engineering;
+StartupWMClass=ShapeIt
 EOF
 
 # DEBIAN/control  –  Paket-Metadaten
@@ -124,6 +144,8 @@ chmod +x /opt/shapeit/ShapeIt
 chmod +x /usr/local/bin/shapeit
 # Desktop-Datenbank aktualisieren (damit ShapeIt im Menü erscheint)
 update-desktop-database /usr/share/applications 2>/dev/null || true
+# Icon-Cache aktualisieren (damit das Icon sofort im Menü angezeigt wird)
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 EOF
 chmod 755 "$DEBIAN_DIR/postinst"
 
@@ -131,6 +153,7 @@ chmod 755 "$DEBIAN_DIR/postinst"
 cat > "$DEBIAN_DIR/prerm" << 'EOF'
 #!/bin/bash
 update-desktop-database /usr/share/applications 2>/dev/null || true
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 EOF
 chmod 755 "$DEBIAN_DIR/prerm"
 
