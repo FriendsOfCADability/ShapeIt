@@ -324,6 +324,30 @@
   <data name="ShapeIt.RestoreAfterCrash">
     <label>Datei "{0}" wiederherstellen?</label>
   </data>
+  <data name="ShapeIt.LayerProperties">
+    <label>Ebenen</label>
+    <info>Sichtbarkeit und Selektierbarkeit der Ebenen des Projekts</info>
+  </data>
+  <data name="ShapeIt.LayerProperties.Entry">
+    <label>Ebene</label>
+    <info>Eigenschaften dieser Ebene</info>
+  </data>
+  <data name="ShapeIt.LayerProperties.Visible">
+    <label>sichtbar</label>
+    <info>Alle Objekte dieser Ebene in der aktuellen Ansicht ein- oder ausblenden</info>
+  </data>
+  <data name="ShapeIt.LayerProperties.Selectable">
+    <label>selektierbar</label>
+    <info>Objekte dieser Ebene auswählbar machen oder gegen Auswahl sperren</info>
+  </data>
+  <data name="MenuId.ShapeIt.LayerProperties.AllVisible">
+    <label>Alle Ebenen sichtbar</label>
+    <info>Alle Ebenen in der aktuellen Ansicht sichtbar machen</info>
+  </data>
+  <data name="MenuId.ShapeIt.LayerProperties.AllSelectable">
+    <label>Alle Ebenen selektierbar</label>
+    <info>Objekte aller Ebenen auswählbar machen</info>
+  </data>
   <data name="MultipleEdges.Properties">
     <label>{0} Kanten</label>
     <info>Aktionen für mehrere Kanten</info>

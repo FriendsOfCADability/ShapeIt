@@ -99,6 +99,8 @@ namespace ShapeIt
             mcpServer = new MCPServer(cadFrame, cadFrame.Project);
             uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
+            LayerProperties.EnsureExists(cadFrame.Project); // for the project that is already open at startup
+
 #if AVALONIA
             // In Avalonia, post at Background priority so the main window is fully shown first.
             Avalonia.Threading.Dispatcher.UIThread.Post(
@@ -301,6 +303,7 @@ namespace ShapeIt
 
         private void OnProjectOpened(Project theProject, IFrame theFrame)
         {
+            LayerProperties.EnsureExists(theProject);
             theProject.GetModel(0).RemovingGeoObjectEvent += OnObjectRemoved;
             mcpServer = new MCPServer(theFrame, theProject);
             if (mcpHttpServer != null)

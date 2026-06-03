@@ -324,6 +324,30 @@
 	<data name="ShapeIt.RestoreAfterCrash">
 		<label>Restore file "{0}" ?</label>
 	</data>
+	<data name="ShapeIt.LayerProperties">
+		<label>Layers</label>
+		<info>Visibility and selectability of the project's layers</info>
+	</data>
+	<data name="ShapeIt.LayerProperties.Entry">
+		<label>Layer</label>
+		<info>Properties of this layer</info>
+	</data>
+	<data name="ShapeIt.LayerProperties.Visible">
+		<label>visible</label>
+		<info>Show or hide all objects on this layer in the current view</info>
+	</data>
+	<data name="ShapeIt.LayerProperties.Selectable">
+		<label>selectable</label>
+		<info>Allow or prevent selecting objects on this layer</info>
+	</data>
+	<data name="MenuId.ShapeIt.LayerProperties.AllVisible">
+		<label>All layers visible</label>
+		<info>Make all layers visible in the current view</info>
+	</data>
+	<data name="MenuId.ShapeIt.LayerProperties.AllSelectable">
+		<label>All layers selectable</label>
+		<info>Make objects on all layers selectable</info>
+	</data>
 	<data name="MultipleEdges.Properties">
 		<label>{0} edges</label>
 		<info>Actions for multiple edges.</info>
