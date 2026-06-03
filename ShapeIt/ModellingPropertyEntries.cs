@@ -126,9 +126,6 @@ namespace ShapeIt
             mcpHttpServer?.Dispose();
             mcpHttpServer = null;
 
-            if (!GetOrInitializeMcpEnabled())
-                return;
-
             int preferredPort = Settings.GlobalSettings.GetIntValue("ShapeIt.ClaudeCode.Port", 3001);
             try
             {
@@ -150,41 +147,16 @@ namespace ShapeIt
                 };
                 mcpHttpServer.Start();
 
-                RegisterInClaudeCode(port);
+                // The MCP server always runs so that any AI client can connect. Only when Claude
+                // Code is installed do we additionally register ShapeIt in its configuration.
+                if (IsClaudeCodeInstalled())
+                    RegisterInClaudeCode(port);
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Trace.WriteLine($"[MCPHttpServer] Could not start: {ex.Message}");
                 mcpHttpServer = null;
             }
-        }
-
-        // Returns true when the MCP HTTP server should be started.
-        // On the very first run, checks whether Claude Code is present and asks the user.
-        private bool GetOrInitializeMcpEnabled()
-        {
-            if (Settings.GlobalSettings.GetBoolValue("ShapeIt.ClaudeCode.Asked", false))
-                return Settings.GlobalSettings.GetBoolValue("ShapeIt.ClaudeCode.Enabled", false);
-
-            // First run: only ask if Claude Code is actually installed
-            if (!IsClaudeCodeInstalled())
-            {
-                Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Asked", true);
-                Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Enabled", false);
-                return false;
-            }
-
-            var answer = cadFrame.UIService.ShowMessageBox(
-                "Claude Code was found on this computer.\n\n" +
-                "Do you want ShapeIt to be available as an MCP server for Claude Code? " +
-                "This lets Claude Code create and edit 3D models directly in ShapeIt.",
-                "ShapeIt & Claude Code",
-                CADability.Substitutes.MessageBoxButtons.YesNo);
-
-            bool enabled = answer == CADability.Substitutes.DialogResult.Yes;
-            Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Asked", true);
-            Settings.GlobalSettings.SetValue("ShapeIt.ClaudeCode.Enabled", enabled);
-            return enabled;
         }
 
         // Detects Claude Code by looking for its well-known files and the CLI on PATH.
