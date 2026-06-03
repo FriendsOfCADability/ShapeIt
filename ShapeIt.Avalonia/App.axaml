@@ -13,6 +13,14 @@
     <SolidColorBrush x:Key="ToolbarBtnBackgroundChecked"            Color="#BBDEFB" />
     <SolidColorBrush x:Key="ToolbarBtnBackgroundCheckedPointerOver" Color="#64B5F6" />
     <SolidColorBrush x:Key="ToolbarBtnBackgroundCheckedPressed"     Color="#42A5F5" />
+
+    <!-- Force the submenu chevron black in every state (template binds these via
+         DynamicResource; overriding here reliably recolours the ▶ triangle). -->
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevron"               Color="Black" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPointerOver"    Color="Black" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPressed"        Color="Black" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronDisabled"       Color="Gray" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronSubMenuOpened"  Color="Black" />
   </Application.Resources>
 
   <Application.Styles>
@@ -37,6 +45,11 @@
       <Setter Property="MinHeight" Value="0" />
       <Setter Property="FontSize" Value="12" />
     </Style>
+    <!-- The submenu indicator's shape/size is set directly in the Fluent MenuItem
+         template, which outranks application "/template/" styles; the filled black
+         triangle is therefore applied as a local value in TriangleMenuItem
+         (CADability.Avalonia/MenuManager.cs). The chevron colour overrides live in
+         Application.Resources above (bound via DynamicResource). -->
 
     <!-- Toolbar simple buttons -->
     <Style Selector="ToggleButton.toolbar">

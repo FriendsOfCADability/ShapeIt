@@ -2,8 +2,11 @@
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Threading;
 using CADability.UserInterface;
 using System;
@@ -206,11 +209,53 @@ namespace CADability.Avalonia
     }
 
     /// <summary>
+    /// MenuItem that replaces the Fluent submenu indicator (an outline "&gt;" chevron)
+    /// with a small filled black right-pointing triangle, matching the "▶" glyph the
+    /// PropertyEntries DirectMenu buttons use.
+    ///
+    /// The chevron's shape and size are set directly inside the Fluent MenuItem template
+    /// (Data/Width/Height as plain attributes). Such template-direct values outrank any
+    /// application-level "/template/" style, so the only way to change them is a local
+    /// value on the element itself — applied here once the template is in place.
+    /// </summary>
+    public class TriangleMenuItem : MenuItem
+    {
+        // Use the stock MenuItem theme/template (otherwise Avalonia would look for a
+        // "TriangleMenuItem" theme that does not exist and render nothing).
+        protected override Type StyleKeyOverride => typeof(MenuItem);
+
+        private static readonly global::Avalonia.Media.Geometry TriangleData =
+            StreamGeometry.Parse("M0,0 L6,4.5 L0,9 Z");
+
+        protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
+        {
+            base.OnApplyTemplate(e);
+            if (e.NameScope.Find<global::Avalonia.Controls.Shapes.Path>("PART_ChevronPath") is { } chevron)
+            {
+                chevron.Data = TriangleData;
+                chevron.Width = 6;
+                chevron.Height = 9;
+                chevron.Stretch = Stretch.Uniform;
+                chevron.Fill = Brushes.Black;
+            }
+        }
+    }
+
+    /// <summary>
     /// Adapter from CADability.MenuWithHandler[] to Avalonia Menu/ContextMenu.
     /// Mirrors MenuManager from CADability.Forms.NET8.
     /// </summary>
     public static class MenuManager
     {
+        /// <summary>
+        /// Loads the icon associated with a menu command ID as an Avalonia bitmap,
+        /// or null if no icon resource exists. Lets callers that build menus from
+        /// plain Avalonia MenuItems (e.g. the ShapeIt main menu) attach the same
+        /// icons the toolbar dropdowns and context menus use.
+        /// </summary>
+        public static global::Avalonia.Media.Imaging.Bitmap? LoadMenuIcon(string menuId, int pixelSize = 16)
+            => SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(menuId, pixelSize, Assembly.GetExecutingAssembly());
+
         /// <summary>
         /// Creates an Avalonia Menu (main menu bar) from MenuWithHandler definitions.
         /// Add the result to the window layout and set it as the main menu.

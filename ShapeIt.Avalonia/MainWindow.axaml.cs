@@ -288,7 +288,13 @@ public partial class MainWindow : Window, ICommandHandler
                 continue;
             }
 
-            var item = new MenuItem { Header = mwh.Text ?? mwh.ID, Tag = mwh };
+            var item = new TriangleMenuItem { Header = mwh.Text ?? mwh.ID, Tag = mwh };
+
+            // Attach the command's icon (same source as the toolbar dropdowns and
+            // context menus). LoadMenuIcon returns null when no icon exists.
+            var icon = MenuManager.LoadMenuIcon(mwh.ID);
+            if (icon != null)
+                item.Icon = new Image { Source = icon, Width = 16, Height = 16 };
 
             if (mwh.SubMenus is { Length: > 0 })
             {
