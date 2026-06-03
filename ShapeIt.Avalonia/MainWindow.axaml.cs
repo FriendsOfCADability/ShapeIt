@@ -132,6 +132,10 @@ public partial class MainWindow : Window, ICommandHandler
         // 10. Leichtgewichtige Update-Pruefung (nur Windows; nicht blockierend, best-effort).
         //     Liest latest.txt vom Server und bietet bei neuer Version die Download-Seite an.
         UpdateChecker.CheckInBackground(cadFrame);
+
+        // 11. Aufbau abgeschlossen: Start-Logo ausblenden, damit Menü, Toolbars und
+        //     PropertiesExplorer sichtbar werden.
+        splashOverlay.IsVisible = false;
     }
 
     // ── String / menu helpers ──────────────────────────────────────────────

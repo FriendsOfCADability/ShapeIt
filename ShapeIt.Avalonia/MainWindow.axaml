@@ -6,26 +6,50 @@
         Icon="avares://ShapeIt/Logo.png"
         Width="1000" Height="600">
 
-  <DockPanel>
-    <!-- Menu bar populated from MenuResource in code-behind -->
-    <Menu x:Name="mainMenu" DockPanel.Dock="Top" />
+  <Grid>
+    <DockPanel>
+      <!-- Menu bar populated from MenuResource in code-behind -->
+      <Menu x:Name="mainMenu" DockPanel.Dock="Top" />
 
-    <!-- Toolbars populated in code-behind (ToolBars.AddStandardToolBars).
-         WrapPanel lets the strips flow onto a second row when the window is narrow. -->
-    <WrapPanel x:Name="toolbarPanel" DockPanel.Dock="Top" Orientation="Horizontal" />
+      <!-- Toolbars populated in code-behind (ToolBars.AddStandardToolBars).
+           WrapPanel lets the strips flow onto a second row when the window is narrow. -->
+      <WrapPanel x:Name="toolbarPanel" DockPanel.Dock="Top" Orientation="Horizontal" />
 
-    <!-- Progress bar – shown only while a long operation is running -->
-    <Border x:Name="progressPanel" DockPanel.Dock="Bottom" IsVisible="False"
-            Background="#CC1a1a1a" Padding="6 4">
-      <StackPanel>
-        <TextBlock x:Name="progressLabel" HorizontalAlignment="Center"
-                   Foreground="White" FontSize="12" Margin="0 0 0 4"/>
-        <ProgressBar x:Name="progressBar" Minimum="0" Maximum="100" Height="14"/>
+      <!-- Progress bar – shown only while a long operation is running -->
+      <Border x:Name="progressPanel" DockPanel.Dock="Bottom" IsVisible="False"
+              Background="#CC1a1a1a" Padding="6 4">
+        <StackPanel>
+          <TextBlock x:Name="progressLabel" HorizontalAlignment="Center"
+                     Foreground="White" FontSize="12" Margin="0 0 0 4"/>
+          <ProgressBar x:Name="progressBar" Minimum="0" Maximum="100" Height="14"/>
+        </StackPanel>
+      </Border>
+
+      <!-- CadControl hosts CadCanvas (left) + PropertiesExplorer (right) -->
+      <cad:CadControl x:Name="cadControl" />
+    </DockPanel>
+
+    <!-- Splash overlay: part of the initial visual tree, so it is painted
+         immediately when the (otherwise empty) window first appears. It covers
+         everything while Initialize() builds the menu, toolbars and properties
+         explorer, then is hidden at the end of Initialize(). -->
+    <Border x:Name="splashOverlay" Background="White">
+      <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Width="256">
+        <Image Source="avares://ShapeIt/Logo.png"
+               MaxWidth="256" MaxHeight="256" Stretch="Uniform"/>
+        <!-- Both lines stretched to the logo width via Viewbox: "ShapeIt" fills
+             the width, and the longer "with CADability" ends up the same width
+             with a correspondingly smaller font. -->
+        <Viewbox Width="256" Margin="0 8 0 0">
+          <TextBlock Text="ShapeIt" FontFamily="Times New Roman"
+                     Foreground="#103A87"/>
+        </Viewbox>
+        <Viewbox Width="256" Margin="0 2 0 0">
+          <TextBlock Text="with CADability" FontFamily="Times New Roman"
+                     Foreground="#103A87"/>
+        </Viewbox>
       </StackPanel>
     </Border>
-
-    <!-- CadControl hosts CadCanvas (left) + PropertiesExplorer (right) -->
-    <cad:CadControl x:Name="cadControl" />
-  </DockPanel>
+  </Grid>
 
 </Window>
