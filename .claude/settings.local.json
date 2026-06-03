@@ -100,7 +100,16 @@
       "PowerShell(powershell -ExecutionPolicy Bypass -File \"scripts/windows-packaging/1-build.ps1\" -SkipBuild)",
       "PowerShell($w = Get-Command winget -ErrorAction SilentlyContinue; if \\($w\\) { \"winget vorhanden: \" + $w.Source } else { \"winget NICHT vorhanden\" })",
       "PowerShell(\"GUID: {{\" + \\([guid]::NewGuid\\(\\).ToString\\(\\).ToUpper\\(\\)\\) + \"}}\"; \"Repo-Root publish vorhanden: \" + \\(Test-Path \"publish/win-x64/ShapeIt.exe\"\\))",
-      "PowerShell(winget install --id JRSoftware.InnoSetup -e --silent --accept-package-agreements --accept-source-agreements 2>&1)"
+      "PowerShell(winget install --id JRSoftware.InnoSetup -e --silent --accept-package-agreements --accept-source-agreements 2>&1)",
+      "Bash(git -C \"C:/Users/gerha/source/repos/ShapeIt\" status)",
+      "Bash(git -C \"C:/Users/gerha/source/repos/ShapeIt\" diff)",
+      "Bash(git -C \"C:/Users/gerha/source/repos/ShapeIt\" log --oneline -5)",
+      "Bash(git -C \"C:/Users/gerha/source/repos/ShapeIt\" add ShapeIt.Avalonia/ShapeIt.Avalonia.csproj scripts/linux-packaging/2-package.sh)",
+      "Bash(git -C C:/Users/gerha/source/repos/ShapeIt commit -m ' *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(Select-String -Pattern \"error|Build succeeded|warning CS\")",
+      "PowerShell(dotnet build ShapeIt.Avalonia/ShapeIt.Avalonia.csproj -c Debug --nologo; \"EXIT=$LASTEXITCODE\")"
     ]
   }
 }
