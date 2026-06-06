@@ -10,6 +10,9 @@ using CADability;
 using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using Point = CADability.Substitutes.Point;
 using Rectangle = CADability.Substitutes.Rectangle;
 using DragDropEffects = CADability.Substitutes.DragDropEffects;
@@ -178,9 +181,45 @@ public class CadCanvas : OpenGlControlBase, ICanvas
     }
 
     public DragDropEffects DoDragDrop(GeoObjectList dragList, DragDropEffects all)
-        => throw new NotImplementedException("Drag initiation not yet implemented for Avalonia.");
+    {
+        // A drag is always triggered from a pointer move with the button down; that event
+        // was cached in OnPointerMoved and is required by Avalonia as the drag trigger.
+        if (_lastPointerArgs == null || dragList == null || dragList.Count == 0)
+            return DragDropEffects.None;
 
-    // Last pointer event — reserved for a future DoDragDrop implementation.
+        var data = new global::Avalonia.Input.DataObject();
+        // In-process: carry the live object so there is no (potentially lossy) round-trip.
+        data.Set(CadFrame.DragObjectFormat, dragList);
+        // Cross-process fallback: the same JSON format the clipboard uses.
+        try
+        {
+            using var ms = new MemoryStream();
+            new JsonSerialize().ToStream(ms, dragList, closeStream: false);
+            data.Set(CadFrame.ClipFormat, ms.ToArray());
+        }
+        catch { /* serialization is best-effort; the in-process reference still works */ }
+
+        // CADability.Substitutes.DragDropEffects.All carries WinForms-only bits (Scroll);
+        // mask to the flags Avalonia understands (Copy=1 | Move=2 | Link=4).
+        var allowed = (global::Avalonia.Input.DragDropEffects)((int)all & 0x7);
+        var task = global::Avalonia.Input.DragDrop.DoDragDrop(_lastPointerArgs, data, allowed);
+
+        // The CADability core calls this synchronously and expects the resulting effect back.
+        // On the Windows backend the drag runs a modal loop and the task is already complete
+        // on return; on the managed backends we pump a nested dispatcher loop until the drag
+        // finishes (same async→sync bridging rationale as CadFrame.RunDialogSync).
+        if (!task.IsCompleted)
+        {
+            var cts = new CancellationTokenSource();
+            task.ContinueWith(_ => cts.Cancel(), TaskScheduler.Default);
+            try { Dispatcher.UIThread.MainLoop(cts.Token); }
+            catch (OperationCanceledException) { }
+        }
+
+        return (DragDropEffects)(int)task.GetAwaiter().GetResult();
+    }
+
+    // Last pointer event — used as the trigger for DoDragDrop.
     private PointerEventArgs? _lastPointerArgs;
 
     // Letzte bekannte Modifier-Tasten und Screen-Position aus Pointer-Events.
@@ -470,11 +509,23 @@ public class CadCanvas : OpenGlControlBase, ICanvas
         var args = new Substitutes.DragEventArgs
         {
             Data          = e.Data,
+            KeyState      = MapKeyState(e.KeyModifiers),
             X             = x,
             Y             = y,
             AllowedEffect = allowed,
             Effect        = allowed
         };
         return args;
+    }
+
+    // WinForms-style drag key-state bits the CADability core inspects (e.g. Ctrl → copy
+    // instead of move): MK_SHIFT=4, MK_CONTROL=8, MK_ALT=32. Mouse-button bits aren't used here.
+    private static int MapKeyState(KeyModifiers mods)
+    {
+        int state = 0;
+        if ((mods & KeyModifiers.Shift)   != 0) state |= 4;
+        if ((mods & KeyModifiers.Control) != 0) state |= 8;
+        if ((mods & KeyModifiers.Alt)     != 0) state |= 32;
+        return state;
     }
 }

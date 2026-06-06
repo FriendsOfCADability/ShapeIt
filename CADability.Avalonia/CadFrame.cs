@@ -27,7 +27,10 @@ public class CadFrame : FrameImpl, IUIService
     private event EventHandler? _applicationIdle;
     private Av.DispatcherTimer? _idleTimer;
 
-    private const string ClipFormat = "CADability.GeoObjectList.Json";
+    // Serialized JSON payload — used by the clipboard and as a cross-process drag fallback.
+    internal const string ClipFormat = "CADability.GeoObjectList.Json";
+    // In-process drag payload: the live GeoObjectList travels by reference (no round-trip).
+    internal const string DragObjectFormat = "CADability.GeoObjectList.Object";
     private static readonly Dictionary<string, string> _directories = new();
 
     public Action<bool, double, string>? ProgressAction { get; set; }
@@ -101,7 +104,22 @@ public class CadFrame : FrameImpl, IUIService
 
     // ── IUIService ─────────────────────────────────────────────────────────
 
-    GeoObjectList IUIService.GetDataPresent(object data) => null;
+    GeoObjectList IUIService.GetDataPresent(object data)
+    {
+        // During a drop, CADability passes us the Avalonia IDataObject from the DragEventArgs.
+        if (data is not IDataObject ido) return null;
+
+        // In-process drag (same application): the live object is available by reference.
+        if (ido.Get(DragObjectFormat) is GeoObjectList live) return live;
+
+        // Cross-process drag (another instance / app): fall back to the JSON payload.
+        return ido.Get(ClipFormat) switch
+        {
+            byte[] bytes => DeserializeGeoObjectList(new MemoryStream(bytes)) as GeoObjectList,
+            Stream s     => DeserializeGeoObjectList(s) as GeoObjectList,
+            _            => null,
+        };
+    }
 
     Substitutes.Keys IUIService.ModifierKeys
     {
