@@ -67,6 +67,14 @@ namespace CADability
         // true, solange CreatePath die Segmente einer Pfad-Definition einsammelt: dann muss Add die
         // Mittellinie liefern (fuer die Pfad-Assemblierung), nicht direkt Stroke-Faces erzeugen.
         private bool _collectingPath = false;
+        /// <summary>
+        /// Wenn true, wird die SVG-Paint-Order beruecksichtigt: spaeter gezeichnete Flaechen werden von
+        /// frueheren abgezogen, sodass disjunkte, koplanare Faces entstehen (kein Z-Fighting, keine
+        /// Reihenfolge mehr noetig). Flaechen werden dann erst am Ende von Import() erzeugt.
+        /// </summary>
+        public bool RespectPaintOrder = false;
+        private struct PaintEntry { public CompoundShape Shape; public ColorDef Color; }
+        private readonly List<PaintEntry> _paintList = new List<PaintEntry>();
         public ImportSVG()
         {
             _transformStack = new Stack<ModOp2D>();
@@ -75,6 +83,9 @@ namespace CADability
             listStack.Push(new GeoObjectList());
             // Basis-Style (root)
             _styleStack.Push(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase));
+            // Vorgaben aus den globalen Einstellungen (koennen vom Aufrufer ueberschrieben werden)
+            StrokeToFaces = Settings.GlobalSettings.GetBoolValue("SvgImport.StrokeToFaces", true);
+            RespectPaintOrder = Settings.GlobalSettings.GetBoolValue("SvgImport.RespectPaintOrder", true);
         }
 
         /// <summary>
@@ -103,6 +114,7 @@ namespace CADability
                     }
                 }
                 GeoObjectList result = listStack.Pop();
+                if (RespectPaintOrder) ResolvePaintOrder(result); // gesammelte Flaechen gemaess Paint-Order verschneiden
                 BoundingBox ext = result.GetExtent();
                 ModOp reflect = ModOp.ReflectPlane(new Plane(new GeoPoint(0, (ext.Ymax + ext.Ymin) / 2.0, 0), GeoVector.YAxis));
                 result.Modify(reflect);
@@ -269,12 +281,34 @@ namespace CADability
         #region Stub-Methoden zum Überschreiben
         private void Add(ICurve2D curve, ModOp2D transform)
         {
-            if (!_collectingPath && StrokeToFaces && CurrentHasStroke())
-            {   // einfache Form (Linie, Kreis, Ellipse, Rechteck, Polylinie) mit Stroke -> Flaeche
-                AddStrokeFaces(curve, transform);
+            if (_collectingPath)
+            {   // waehrend der Pfad-Assemblierung nur die Mittellinie sammeln
+                listStack.Peek().Add(curve.GetModified(transform).MakeGeoObject(Plane.XYPlane));
                 return;
             }
-            listStack.Peek().Add(curve.GetModified(transform).MakeGeoObject(Plane.XYPlane));
+
+            bool didSomething = false;
+
+            // Fuellung: geschlossene Form mit fill -> gefuellte Flaeche (unabhaengig von StrokeToFaces,
+            // genau wie bei <path>). Damit werden <circle>/<ellipse>/<rect>/<polygon> gefuellt.
+            if (curve.IsClosed && TryGetFillColorDef(out ColorDef fillCd))
+            {
+                CompoundShape cs = new CompoundShape(new SimpleShape(new Border(curve.GetModified(transform))));
+                EmitShape(cs, fillCd);
+                didSomething = true;
+            }
+
+            // Strich: als Flaeche (StrokeToFaces) oder als Mittellinie.
+            if (CurrentHasStroke())
+            {
+                if (StrokeToFaces) AddStrokeFaces(curve, transform);
+                else listStack.Peek().Add(curve.GetModified(transform).MakeGeoObject(Plane.XYPlane));
+                didSomething = true;
+            }
+
+            // weder Fill noch Stroke verwertet -> Kurve wie bisher ablegen
+            if (!didSomething)
+                listStack.Peek().Add(curve.GetModified(transform).MakeGeoObject(Plane.XYPlane));
         }
 
         protected virtual void CreateLine(float x1, float y1, float x2, float y2, ModOp2D transform)
@@ -603,28 +637,11 @@ namespace CADability
             GeoObjectList list = listStack.Pop();
             if (list.Count > 0) subPaths.Add(list);
             var fillRule = GetEffectiveFillRule(styles);
-            ColorDef cd = ColorDef.CDfromParent;
-            bool fill = false;
-            if (styles.TryGetValue("fill", out string color) && !color.Trim().Equals("none", StringComparison.OrdinalIgnoreCase))
-            {
-                Color clr = ParseSvgColor(color);
-                if (!clr.IsEmpty)
-                {
-                    fill = true;
-                    // Hex-Farben tragen keinen Namen (clr.Name == ""), daher als eindeutigen
-                    // Schlüssel den ARGB-Wert verwenden - sonst landen alle Farben unter "SVG+"
-                    // und alle Flächen bekommen die zuerst erzeugte ColorDef.
-                    string key = "SVG+" + clr.ToArgb().ToString("X8");
-                    if (!FillStyles.TryGetValue(key, out cd))
-                    {
-                        cd = new ColorDef(key, clr);
-                        FillStyles[key] = cd;
-                    }
-                }
-            }
+            bool fill = TryGetFillColorDef(out ColorDef cd);
             // Alle 2D-Segmente der (beim Füllen implizit geschlossenen) Subpfade sammeln.
             // CADability bestimmt daraus selbst die Flächen-Hierarchie (Inseln/Löcher).
             List<ICurve2D> fillSegments = new List<ICurve2D>();
+            List<ICurve2D> strokeCenterlines = new List<ICurve2D>(); // lokale Mittellinien fuer StrokeToFaces
             double maxGap = 0.0;
             for (int j = 0; j < subPaths.Count; j++)
             {
@@ -666,37 +683,97 @@ namespace CADability
                     && !strokeVal.Trim().Equals("none", StringComparison.OrdinalIgnoreCase);
                 if (StrokeToFaces && hasStroke)
                 {
-                    // Strich-Kontur als Flaeche erzeugen. Dazu in lokale (untransformierte)
-                    // Koordinaten zurueckrechnen, damit die Strichbreite korrekt mitskaliert wird.
+                    // Strich-Mittellinie in lokale (untransformierte) Koordinaten zurueckrechnen,
+                    // damit die Strichbreite korrekt mitskaliert wird. Ausgabe erst nach dem Fill,
+                    // damit die Paint-Order (fill vor stroke) stimmt.
                     ICurve2D centerline2d = path.GetProjectedCurve(Plane.XYPlane);
-                    if (centerline2d != null) AddStrokeFaces(centerline2d.GetModified(transform.GetInverse()), transform);
+                    if (centerline2d != null) strokeCenterlines.Add(centerline2d.GetModified(transform.GetInverse()));
                 }
                 else if (!fill || hasStroke)
                 {
                     listStack.Peek().Add(path);
                 }
             }
-            // Aus allen gesammelten Segmenten eine CompoundShape bauen. CreateFromList ermittelt
-            // die Verschachtelung selbst (partInPart=true => Inseln werden zu Löchern); jede
-            // resultierende SimpleShape wird zu einer eigenen Face.
+            // Fuellung: aus allen gesammelten Segmenten eine CompoundShape bauen. CreateFromList
+            // ermittelt die Verschachtelung selbst (partInPart=true => Inseln werden zu Löchern).
             if (fill && fillSegments.Count > 0)
             {
                 CompoundShape cs = CompoundShape.CreateFromList(fillSegments.ToArray(), maxGap, true, out GeoObjectList dead);
-                if (cs != null)
-                {
-                    foreach (SimpleShape ss in cs.SimpleShapes)
-                    {
-                        Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), ss);
-                        fc.ColorDef = cd;
-                        listStack.Peek().Add(fc);
-                    }
-                }
+                EmitShape(cs, cd);
             }
+            // danach die Strich-Konturen (liegen in der Paint-Order ueber der Fuellung)
+            foreach (ICurve2D sc in strokeCenterlines) AddStrokeFaces(sc, transform);
         }
 
         #endregion
 
         #region Stroke-zu-Flaeche (StrokeToFaces)
+
+        // Zentrale Ausgabe einer Flaeche: bei RespectPaintOrder zunaechst nur sammeln (in Paint-Order),
+        // sonst sofort als Face(s) ablegen.
+        private void EmitShape(CompoundShape cs, ColorDef cd)
+        {
+            if (cs == null) return;
+            if (RespectPaintOrder)
+            {
+                _paintList.Add(new PaintEntry { Shape = cs, Color = cd });
+                return;
+            }
+            foreach (SimpleShape ss in cs.SimpleShapes)
+            {
+                Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), ss);
+                fc.ColorDef = cd;
+                listStack.Peek().Add(fc);
+            }
+        }
+
+        // Loest die gesammelten Flaechen gemaess Paint-Order auf: jede Flaeche minus alle spaeter
+        // gezeichneten (Painter's-Algorithmus per Differenz). Ergebnis sind disjunkte Faces.
+        private void ResolvePaintOrder(GeoObjectList result)
+        {
+            int n = _paintList.Count;
+            if (n == 0) return;
+            BoundingRect[] ext = new BoundingRect[n];
+            for (int i = 0; i < n; i++) ext[i] = _paintList[i].Shape.GetExtent();
+            for (int i = 0; i < n; i++)
+            {
+                CompoundShape cur = _paintList[i].Shape;
+                for (int j = i + 1; j < n && cur != null && !cur.Empty; j++)
+                {
+                    // bbox-Schnelltest: ext[i] ist Obermenge von cur -> sicher (verwirft nie faelschlich)
+                    if (!ext[i].Interferes(ref ext[j])) continue;
+                    try { cur = cur - _paintList[j].Shape; }
+                    catch (Exception) { /* Verschneidung fehlgeschlagen -> Flaeche unveraendert lassen */ }
+                }
+                if (cur == null || cur.Empty) continue; // vollstaendig verdeckt
+                foreach (SimpleShape ss in cur.SimpleShapes)
+                {
+                    Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), ss);
+                    fc.ColorDef = _paintList[i].Color;
+                    result.Add(fc);
+                }
+            }
+        }
+
+        // Liefert true und die ColorDef, wenn das aktuelle Element eine echte Fuellung hat
+        // (fill gesetzt, nicht "none", Farbe parsebar). Schluessel ist der ARGB-Wert.
+        private bool TryGetFillColorDef(out ColorDef cd)
+        {
+            cd = ColorDef.CDfromParent;
+            if (styles == null) return false;
+            if (!styles.TryGetValue("fill", out string color) || string.IsNullOrWhiteSpace(color)) return false;
+            color = color.Trim();
+            if (color.Equals("none", StringComparison.OrdinalIgnoreCase)) return false;
+            Color clr = ParseSvgColor(color);
+            if (clr.IsEmpty) return false;
+            string key = "SVG+" + clr.ToArgb().ToString("X8");
+            if (!FillStyles.TryGetValue(key, out cd))
+            {
+                cd = new ColorDef(key, clr);
+                FillStyles[key] = cd;
+            }
+            return true;
+        }
 
         private bool CurrentHasStroke()
         {
@@ -757,13 +834,10 @@ namespace CADability
             if (localCurve == null) return;
             if (!TryGetStrokeStyle(out ColorDef cd, out double width, out SvgLineCap cap, out SvgLineJoin join, out double miterLimit, out double[] dashes)) return;
             List<SimpleShape> shapes = BuildStrokeShapes(localCurve, width, cap, join, dashes);
-            foreach (SimpleShape ss in shapes)
-            {
-                SimpleShape tss = ss.GetModified(transform);
-                Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), tss);
-                fc.ColorDef = cd;
-                listStack.Peek().Add(fc);
-            }
+            if (shapes.Count == 0) return;
+            SimpleShape[] tshapes = new SimpleShape[shapes.Count];
+            for (int k = 0; k < shapes.Count; k++) tshapes[k] = shapes[k].GetModified(transform);
+            EmitShape(new CompoundShape(tshapes), cd);
         }
 
         private List<SimpleShape> BuildStrokeShapes(ICurve2D curve, double width, SvgLineCap cap, SvgLineJoin join, double[] dashes)

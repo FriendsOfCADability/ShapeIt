@@ -5926,6 +5926,18 @@
 		<label>Prefer non-periodic surfaces</label>
 		<info>Prefer non-periodic surfaces when importing faces</info>
 	</data>
+	<data name="SvgImport">
+		<label>SVG file import</label>
+		<info>Settings for SVG file import</info>
+	</data>
+	<data name="SvgImport.StrokeToFaces">
+		<label>Strokes as faces</label>
+		<info>Create stroke outlines (line width, caps, joins, dash pattern) as faces instead of just the center line</info>
+	</data>
+	<data name="SvgImport.RespectPaintOrder">
+		<label>Respect paint order</label>
+		<info>Subtract later faces from earlier ones (SVG paint order) to produce disjoint, non-overlapping faces</info>
+	</data>
 	<data name="Experimental">
 		<label>Experimental settings</label>
 		<info>Settings for experimental implementations</info>

@@ -2534,8 +2534,7 @@ namespace CADability
                     case 4: newproject = CADability.Project.ReadFromFile(fileName, "stp"); break;
                     case 5:
                         {
-                            ImportSVG importSvg = new ImportSVG();
-                            importSvg.StrokeToFaces = true;
+                            ImportSVG importSvg = new ImportSVG(); // StrokeToFaces/RespectPaintOrder aus GlobalSettings (SvgImport.*)
                             GeoObjectList svgImport = importSvg.Import(fileName);
                             if (svgImport != null)
                             {

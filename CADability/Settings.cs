@@ -619,6 +619,19 @@ namespace CADability
                 preferNonPeriodic.BooleanValue = false;
                 StepImportSetting.AddSetting("PreferNonPeriodic", preferNonPeriodic);
             }
+            if (!GlobalSettings.ContainsSetting("SvgImport"))
+            {
+                Settings SvgImportSetting = new Settings();
+                SvgImportSetting.resourceIdInternal = "SvgImport";
+                SvgImportSetting.myName = "SvgImport";
+                GlobalSettings.AddSetting("SvgImport", SvgImportSetting);
+                BooleanProperty strokeToFaces = new BooleanProperty("SvgImport.StrokeToFaces", "YesNo.Values", "StrokeToFaces");
+                strokeToFaces.BooleanValue = true;
+                SvgImportSetting.AddSetting("StrokeToFaces", strokeToFaces);
+                BooleanProperty respectPaintOrder = new BooleanProperty("SvgImport.RespectPaintOrder", "YesNo.Values", "RespectPaintOrder");
+                respectPaintOrder.BooleanValue = true;
+                SvgImportSetting.AddSetting("RespectPaintOrder", respectPaintOrder);
+            }
             if (!GlobalSettings.ContainsSetting("Grid"))
             {
                 Settings GridSetting = new Settings();

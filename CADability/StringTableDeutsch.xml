@@ -5897,6 +5897,18 @@
 		<label>nicht-periodische Flächen</label>
 		<info>Möglichst nicht-periodische Flächen beim Import verwenden</info>
 	</data>
+	<data name="SvgImport">
+		<label>SVG Datei import</label>
+		<info>Einstellungen für den Import von SVG Dateien</info>
+	</data>
+	<data name="SvgImport.StrokeToFaces">
+		<label>Striche als Flächen</label>
+		<info>Strich-Konturen (Linienbreite, Enden, Ecken, Strichmuster) als Flächen erzeugen statt nur die Mittellinie</info>
+	</data>
+	<data name="SvgImport.RespectPaintOrder">
+		<label>Zeichenreihenfolge berücksichtigen</label>
+		<info>Spätere Flächen von früheren abziehen (SVG-Paint-Order), sodass disjunkte, überlappungsfreie Flächen entstehen</info>
+	</data>
 	<data name="ToolsExpand2Curves.Object1">
 		<label>1. Objekt</label>
 		<info>1. Objekt, das verbunden werden soll</info>
