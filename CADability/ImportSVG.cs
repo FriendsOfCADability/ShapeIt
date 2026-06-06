@@ -55,6 +55,18 @@ namespace CADability
         Dictionary<string, ColorDef> FillStyles = new Dictionary<string, ColorDef>();
         private readonly Stack<Dictionary<string, string>> _styleStack = new Stack<Dictionary<string, string>>();
         public enum SvgFillRule { NonZero, EvenOdd }
+        public enum SvgLineCap { Butt, Round, Square }
+        public enum SvgLineJoin { Miter, Round, Bevel }
+        /// <summary>
+        /// Wenn true, werden Strich-Konturen (stroke) als Flächen (Faces) erzeugt, welche die in SVG
+        /// angegebene Linienbreite (stroke-width), Enden (stroke-linecap), Ecken (stroke-linejoin) und
+        /// Strichmuster (stroke-dasharray) nachbilden - statt nur die Mittellinie als Kurve zu importieren.
+        /// Betrifft Linien, Rechtecke, Kreise, Ellipsen, Polylinien, Pfade und Splines.
+        /// </summary>
+        public bool StrokeToFaces = false;
+        // true, solange CreatePath die Segmente einer Pfad-Definition einsammelt: dann muss Add die
+        // Mittellinie liefern (fuer die Pfad-Assemblierung), nicht direkt Stroke-Faces erzeugen.
+        private bool _collectingPath = false;
         public ImportSVG()
         {
             _transformStack = new Stack<ModOp2D>();
@@ -115,7 +127,9 @@ namespace CADability
             {
                 ModOp2D t = ParseTransform(transformAttr);
                 ModOp2D current = _transformStack.Peek();
-                _transformStack.Push(t * current);
+                // SVG: Bildschirm = Eltern(außen) · Element(innen) · p
+                // Die Eltern-Transformation steht links, die eigene rechts.
+                _transformStack.Push(current * t);
             }
             var computed = ComputeElementStyles(reader);  // geerbte + Präsentationsattribute + inline style
             styles = new Dictionary<string, string>(computed, StringComparer.OrdinalIgnoreCase); // falls du 'styles' später brauchst (z.B. für fill)
@@ -255,6 +269,11 @@ namespace CADability
         #region Stub-Methoden zum Überschreiben
         private void Add(ICurve2D curve, ModOp2D transform)
         {
+            if (!_collectingPath && StrokeToFaces && CurrentHasStroke())
+            {   // einfache Form (Linie, Kreis, Ellipse, Rechteck, Polylinie) mit Stroke -> Flaeche
+                AddStrokeFaces(curve, transform);
+                return;
+            }
             listStack.Peek().Add(curve.GetModified(transform).MakeGeoObject(Plane.XYPlane));
         }
 
@@ -418,7 +437,7 @@ namespace CADability
             Vector2 startPoint = new Vector2();
             Vector2 lastCp = new Vector2();
 
-
+            _collectingPath = true; // Segmente einsammeln: Add liefert Mittellinien, keine Stroke-Faces
             while (i < tokens.Count)
             {
                 string token = tokens[i++];
@@ -580,37 +599,47 @@ namespace CADability
                 prevCmd = cmd;
             }
 
+            _collectingPath = false;
             GeoObjectList list = listStack.Pop();
             if (list.Count > 0) subPaths.Add(list);
             var fillRule = GetEffectiveFillRule(styles);
             ColorDef cd = ColorDef.CDfromParent;
             bool fill = false;
-            if (styles.TryGetValue("fill", out string color))
+            if (styles.TryGetValue("fill", out string color) && !color.Trim().Equals("none", StringComparison.OrdinalIgnoreCase))
             {
-                fill = true;
                 Color clr = ParseSvgColor(color);
                 if (!clr.IsEmpty)
                 {
-                    if (!FillStyles.TryGetValue("SVG+" + clr.Name, out cd))
+                    fill = true;
+                    // Hex-Farben tragen keinen Namen (clr.Name == ""), daher als eindeutigen
+                    // Schlüssel den ARGB-Wert verwenden - sonst landen alle Farben unter "SVG+"
+                    // und alle Flächen bekommen die zuerst erzeugte ColorDef.
+                    string key = "SVG+" + clr.ToArgb().ToString("X8");
+                    if (!FillStyles.TryGetValue(key, out cd))
                     {
-                        cd = new ColorDef("SVG+" + clr.Name, clr);
-                        FillStyles["SVG+" + clr.Name] = cd;
+                        cd = new ColorDef(key, clr);
+                        FillStyles[key] = cd;
                     }
                 }
             }
-            // wir müssen die Paths der Größe nach sortieren und überprüfen, welches Inseln sind und entsprechende SimpleShapes erzeugen
-            List<Path2D> oriented2DPaths = new List<Path2D>();
+            // Alle 2D-Segmente der (beim Füllen implizit geschlossenen) Subpfade sammeln.
+            // CADability bestimmt daraus selbst die Flächen-Hierarchie (Inseln/Löcher).
+            List<ICurve2D> fillSegments = new List<ICurve2D>();
+            double maxGap = 0.0;
             for (int j = 0; j < subPaths.Count; j++)
             {
                 List<ICurve> lgo = new List<ICurve>(subPaths[j].OfType<ICurve>());
                 Path path = Path.FromSegments(lgo, true);
-                bool wasClosed = path.IsClosed;
+                if (path == null) continue;
                 double prec = path.GetExtent(0.0).Size * 0.002;
+                maxGap = Math.Max(maxGap, prec);
                 path.RemoveShortSegments(prec);
-                if (!path.IsClosed && wasClosed)
+                // SVG schließt gefüllte Subpfade implizit (gerade Linie vom End- zum Startpunkt).
+                // Daher hier jeden noch offenen Subpfad schließen, nicht nur die vorher geschlossenen.
+                if (fill && !path.IsClosed)
                 {
                     if ((path.EndPoint | path.StartPoint) < prec)
-                    {   // this fixes some paths which have a small intersection at the end
+                    {   // kleiner Versatz am Ende: Start- und Endpunkt zusammenziehen
                         GeoPoint mp = new GeoPoint(path.EndPoint, path.StartPoint);
                         path.StartPoint = mp;
                         path.EndPoint = mp;
@@ -622,113 +651,40 @@ namespace CADability
                         path = Path.FromSegments(curves, true);
                     }
                 }
-                if (!path.IsClosed) { }
-                bool added = false;
                 if (fill)
                 {
-                    Path2D p2d = path.GetProjectedCurve(Plane.XYPlane) as Path2D;
-                    if (p2d != null) oriented2DPaths.Add(p2d);
-                    added = true;
-                    //Color clr = ParseSvgColor(color);
-                    //if (!clr.IsEmpty)
-                    //{
-                    //    if (!FillStyles.TryGetValue("SVG+" + clr.Name, out ColorDef cd))
-                    //    {
-                    //        cd = new ColorDef("SVG+" + clr.Name, clr);
-                    //        FillStyles["SVG+" + clr.Name] = cd;
-                    //    }
-                    //    List<ICurve2D> segments = new List<ICurve2D>();
-                    //    for (int k = 0; k < lgo.Count; k++)
-                    //    {
-                    //        ICurve2D c2d = lgo[k].GetProjectedCurve(Plane.XYPlane);
-                    //        if (c2d.Length > 1e-3) segments.Add(c2d);
-                    //    }
-                    //    Shapes.Border bdr = Shapes.Border.FromUnorientedList(segments.ToArray(), true);
-                    //    if (bdr != null)
-                    //    {
-                    //        Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), new Shapes.SimpleShape(bdr));
-                    //        fc.ColorDef = cd;
-                    //        listStack.Peek().Add(fc);
-                    //    }
-                    //    added = true;
-                    //}
-                }
-                if (!added || styles.ContainsKey("stroke")) listStack.Peek().Add(path);
-            }
-            // sort the 2d paths in a hierarchy
-            if (fillRule == SvgFillRule.NonZero)
-            {
-                oriented2DPaths.Sort((p1, p2) => -p1.GetArea().CompareTo(p2.GetArea())); // biggest area first, holes have negative area
-                HashSet<Path2D> alreadyUsed = new HashSet<Path2D>();
-                for (int j = 0; j < oriented2DPaths.Count; j++)
-                {
-                    if (alreadyUsed.Contains(oriented2DPaths[j])) continue;
-                    if (oriented2DPaths[j].GetArea() < 0) break; // dont use holes as a shape
-                    SimpleShape ss = new SimpleShape(new Border(oriented2DPaths[j]));
-                    for (int k = j + 1; k < oriented2DPaths.Count; k++)
+                    foreach (ICurve c in path.Curves)
                     {
-                        if (alreadyUsed.Contains(oriented2DPaths[k])) continue;
-                        SimpleShape ssk = new SimpleShape(new Border(oriented2DPaths[k]));
-                        if (oriented2DPaths[k].GetArea() > 0)
-                        {
-                            switch (SimpleShape.GetPosition(ss, ssk))
-                            {
-                                case SimpleShape.Position.disjunct:
-                                    break; // this shape is independant
-                                case SimpleShape.Position.firstcontainscecond:
-                                    // in nonzero mode this makes no sense
-                                    break;
-                                case SimpleShape.Position.intersecting:
-                                    {
-                                        CompoundShape cs = SimpleShape.Intersect(ss, ssk);
-                                        if (cs != null && cs.SimpleShapes.Length == 1)
-                                        {
-                                            ss = cs.SimpleShapes[0];
-                                            alreadyUsed.Add(oriented2DPaths[k]);
-                                        }
-                                        // multiple results not implemented
-                                    }
-                                    break;
-                                case SimpleShape.Position.secondcontainsfirst:
-                                    // this cannot happen because of descending order
-                                    break;
-                            }
-                        }
-                        else
-                        {
-                            switch (SimpleShape.GetPosition(ss, ssk))
-                            {
-                                case SimpleShape.Position.disjunct:
-                                    break; // this shape is independant
-                                case SimpleShape.Position.firstcontainscecond:
-                                    {
-                                        CompoundShape cs = SimpleShape.Subtract(ss, ssk);
-                                        if (cs != null && cs.SimpleShapes.Length == 1)
-                                        {
-                                            ss = cs.SimpleShapes[0];
-                                            alreadyUsed.Add(oriented2DPaths[k]);
-                                        }
-                                    }
-                                    break;
-                                case SimpleShape.Position.intersecting:
-                                    {
-                                        CompoundShape cs = SimpleShape.Subtract(ss, ssk);
-                                        if (cs != null && cs.SimpleShapes.Length == 1)
-                                        {
-                                            ss = cs.SimpleShapes[0];
-                                            alreadyUsed.Add(oriented2DPaths[k]);
-                                        }
-                                        // multiple results not implemented
-                                    }
-                                    break;
-                                case SimpleShape.Position.secondcontainsfirst:
-                                    // this cannot happen because of descending order
-                                    break;
-                            }
-                        }
+                        ICurve2D c2d = c.GetProjectedCurve(Plane.XYPlane);
+                        if (c2d != null && c2d.Length > prec) fillSegments.Add(c2d);
                     }
-
-                    if (ss != null)
+                }
+                // Stroke nur, wenn tatsächlich gezeichnet wird (nicht "none"/leer). Sonst
+                // entstehen schwarze Outline-Pfade, die die gefüllten Flächen überlagern.
+                bool hasStroke = styles.TryGetValue("stroke", out string strokeVal)
+                    && !string.IsNullOrWhiteSpace(strokeVal)
+                    && !strokeVal.Trim().Equals("none", StringComparison.OrdinalIgnoreCase);
+                if (StrokeToFaces && hasStroke)
+                {
+                    // Strich-Kontur als Flaeche erzeugen. Dazu in lokale (untransformierte)
+                    // Koordinaten zurueckrechnen, damit die Strichbreite korrekt mitskaliert wird.
+                    ICurve2D centerline2d = path.GetProjectedCurve(Plane.XYPlane);
+                    if (centerline2d != null) AddStrokeFaces(centerline2d.GetModified(transform.GetInverse()), transform);
+                }
+                else if (!fill || hasStroke)
+                {
+                    listStack.Peek().Add(path);
+                }
+            }
+            // Aus allen gesammelten Segmenten eine CompoundShape bauen. CreateFromList ermittelt
+            // die Verschachtelung selbst (partInPart=true => Inseln werden zu Löchern); jede
+            // resultierende SimpleShape wird zu einer eigenen Face.
+            if (fill && fillSegments.Count > 0)
+            {
+                CompoundShape cs = CompoundShape.CreateFromList(fillSegments.ToArray(), maxGap, true, out GeoObjectList dead);
+                if (cs != null)
+                {
+                    foreach (SimpleShape ss in cs.SimpleShapes)
                     {
                         Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), ss);
                         fc.ColorDef = cd;
@@ -736,6 +692,244 @@ namespace CADability
                     }
                 }
             }
+        }
+
+        #endregion
+
+        #region Stroke-zu-Flaeche (StrokeToFaces)
+
+        private bool CurrentHasStroke()
+        {
+            if (styles == null) return false;
+            if (!styles.TryGetValue("stroke", out string stroke) || string.IsNullOrWhiteSpace(stroke)) return false;
+            return !stroke.Trim().Equals("none", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool TryGetStrokeStyle(out ColorDef cd, out double width, out SvgLineCap cap, out SvgLineJoin join, out double miterLimit, out double[] dashes)
+        {
+            cd = ColorDef.CDfromParent;
+            width = 1.0;                 // SVG-Default
+            cap = SvgLineCap.Butt;       // SVG-Default
+            join = SvgLineJoin.Miter;    // SVG-Default
+            miterLimit = 4.0;            // SVG-Default
+            dashes = null;
+            if (!CurrentHasStroke()) return false;
+
+            string stroke = styles["stroke"].Trim();
+            Color clr = ParseSvgColor(stroke);
+            if (clr.IsEmpty) clr = Color.FromArgb(0, 0, 0);
+            string key = "SVG+" + clr.ToArgb().ToString("X8");
+            if (!FillStyles.TryGetValue(key, out cd))
+            {
+                cd = new ColorDef(key, clr);
+                FillStyles[key] = cd;
+            }
+            if (styles.TryGetValue("stroke-width", out string sw))
+            {
+                double w = ParseLength(sw);
+                if (w > 0) width = w;
+            }
+            if (styles.TryGetValue("stroke-linecap", out string lc))
+            {
+                lc = lc.Trim();
+                if (lc.Equals("round", StringComparison.OrdinalIgnoreCase)) cap = SvgLineCap.Round;
+                else if (lc.Equals("square", StringComparison.OrdinalIgnoreCase)) cap = SvgLineCap.Square;
+            }
+            if (styles.TryGetValue("stroke-linejoin", out string lj))
+            {
+                lj = lj.Trim();
+                if (lj.Equals("round", StringComparison.OrdinalIgnoreCase)) join = SvgLineJoin.Round;
+                else if (lj.Equals("bevel", StringComparison.OrdinalIgnoreCase)) join = SvgLineJoin.Bevel;
+            }
+            if (styles.TryGetValue("stroke-miterlimit", out string ml))
+            {
+                double m = ParseLength(ml);
+                if (m > 0) miterLimit = m;
+            }
+            if (styles.TryGetValue("stroke-dasharray", out string da)) dashes = ParseDashArray(da);
+            return true;
+        }
+
+        // Erzeugt aus einer (lokalen, untransformierten) Mittellinie die Stroke-Flaeche(n),
+        // transformiert sie und legt sie als Faces ab.
+        private void AddStrokeFaces(ICurve2D localCurve, ModOp2D transform)
+        {
+            if (localCurve == null) return;
+            if (!TryGetStrokeStyle(out ColorDef cd, out double width, out SvgLineCap cap, out SvgLineJoin join, out double miterLimit, out double[] dashes)) return;
+            List<SimpleShape> shapes = BuildStrokeShapes(localCurve, width, cap, join, dashes);
+            foreach (SimpleShape ss in shapes)
+            {
+                SimpleShape tss = ss.GetModified(transform);
+                Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), tss);
+                fc.ColorDef = cd;
+                listStack.Peek().Add(fc);
+            }
+        }
+
+        private List<SimpleShape> BuildStrokeShapes(ICurve2D curve, double width, SvgLineCap cap, SvgLineJoin join, double[] dashes)
+        {
+            List<SimpleShape> result = new List<SimpleShape>();
+            if (curve == null || width <= 0) return result;
+            double d = width / 2.0;
+            IEnumerable<ICurve2D> pieces;
+            if (dashes != null && dashes.Length > 0 && !curve.IsClosed)
+                pieces = SplitIntoDashes(curve, dashes);
+            else
+                pieces = new ICurve2D[] { curve };
+            foreach (ICurve2D piece in pieces)
+            {
+                SimpleShape ss = StrokePiece(piece, d, cap, join);
+                if (ss != null) result.Add(ss);
+            }
+            return result;
+        }
+
+        // Erzeugt die Kontur-Flaeche eines einzelnen (offenen oder geschlossenen) Kurvenstuecks.
+        private SimpleShape StrokePiece(ICurve2D curve, double d, SvgLineCap cap, SvgLineJoin join)
+        {
+            if (curve == null || curve.Length < d * 1e-4) return null;
+            double prec = d * 0.001;
+            double roundAngle;
+            switch (join)
+            {
+                case SvgLineJoin.Round: roundAngle = Math.PI; break; // immer runde Aussenecken
+                case SvgLineJoin.Bevel: roundAngle = Math.PI; break; // vereinfacht wie 'round'
+                default: roundAngle = 0.0; break;                    // Miter: spitze Ecke (zwei Linien)
+            }
+            try
+            {
+                if (curve.IsClosed)
+                {   // geschlossen: zwei parallele Raender -> Ring (aeusserer Rand mit Loch)
+                    ICurve2D off1 = curve.Parallel(d, false, prec, roundAngle);
+                    ICurve2D off2 = curve.Parallel(-d, false, prec, roundAngle);
+                    if (off1 == null || off2 == null) return null;
+                    Border b1 = new Border(AsSegments(off1), true);
+                    Border b2 = new Border(AsSegments(off2), true);
+                    if (Math.Abs(b1.Area) >= Math.Abs(b2.Area)) return new SimpleShape(b1, b2);
+                    return new SimpleShape(b2, b1);
+                }
+                else
+                {   // offen: rechter Versatz vor, Endkappe, linker Versatz zurueck, Startkappe
+                    ICurve2D right = curve.Parallel(d, false, prec, roundAngle);
+                    ICurve2D left = curve.Parallel(-d, false, prec, roundAngle);
+                    if (right == null || left == null) return null;
+                    List<ICurve2D> loop = new List<ICurve2D>();
+                    loop.AddRange(AsSegments(left));
+                    AddCap(loop, cap, curve.EndPoint, curve.EndDirection, left.EndPoint, right.EndPoint, d);
+                    ICurve2D rightRev = right.Clone();
+                    rightRev.Reverse();
+                    loop.AddRange(AsSegments(rightRev));
+                    GeoVector2D startOut = curve.StartDirection;
+                    AddCap(loop, cap, curve.StartPoint, new GeoVector2D(-startOut.x, -startOut.y), right.StartPoint, left.StartPoint, d);
+                    Border b = new Border(loop.ToArray(), true);
+                    return new SimpleShape(b);
+                }
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        // Haengt die Endkappe (von 'from' nach 'to', Mittelpunkt 'center', nach aussen 'outward') an.
+        private static void AddCap(List<ICurve2D> loop, SvgLineCap cap, GeoPoint2D center, GeoVector2D outward, GeoPoint2D from, GeoPoint2D to, double d)
+        {
+            double olen = Math.Sqrt(outward.x * outward.x + outward.y * outward.y);
+            switch (cap)
+            {
+                case SvgLineCap.Square:
+                    if (olen < 1e-12) { loop.Add(new Line2D(from, to)); break; }
+                    {
+                        double ux = outward.x / olen * d, uy = outward.y / olen * d;
+                        GeoPoint2D p1 = new GeoPoint2D(from.x + ux, from.y + uy);
+                        GeoPoint2D p2 = new GeoPoint2D(to.x + ux, to.y + uy);
+                        loop.Add(new Line2D(from, p1));
+                        loop.Add(new Line2D(p1, p2));
+                        loop.Add(new Line2D(p2, to));
+                    }
+                    break;
+                case SvgLineCap.Round:
+                    {
+                        double dx = from.x - to.x, dy = from.y - to.y;
+                        if (dx * dx + dy * dy < 1e-18) break;
+                        Arc2D arc = new Arc2D(center, d, from, to, true);
+                        GeoPoint2D mid = arc.PointAt(0.5);
+                        double dot = (mid.x - center.x) * outward.x + (mid.y - center.y) * outward.y;
+                        if (dot < 0) arc = new Arc2D(center, d, from, to, false); // Bogen nach aussen woelben
+                        loop.Add(arc);
+                    }
+                    break;
+                default: // Butt
+                    loop.Add(new Line2D(from, to));
+                    break;
+            }
+        }
+
+        private static ICurve2D[] AsSegments(ICurve2D c)
+        {
+            if (c is Path2D p) return p.SubCurves;
+            return new ICurve2D[] { c };
+        }
+
+        // Zerlegt eine offene Kurve gemaess Strichmuster in die "an"-Stuecke.
+        private static IEnumerable<ICurve2D> SplitIntoDashes(ICurve2D curve, double[] dashes)
+        {
+            List<ICurve2D> res = new List<ICurve2D>();
+            double total = curve.Length;
+            if (total <= 1e-9) return res;
+            int di = 0;
+            double pos = 0.0;
+            bool on = true;
+            int guard = 0;
+            while (pos < total - 1e-9 && guard++ < 1000000)
+            {
+                double dash = dashes[di % dashes.Length];
+                double next = Math.Min(pos + dash, total);
+                if (on && dash > 1e-9 && next > pos)
+                {
+                    double t0 = curve.PositionAtLength(pos);
+                    double t1 = curve.PositionAtLength(next);
+                    try
+                    {
+                        ICurve2D piece = curve.Trim(t0, t1);
+                        if (piece != null && piece.Length > 1e-9) res.Add(piece);
+                    }
+                    catch (Exception) { }
+                }
+                pos = next;
+                di++;
+                on = !on;
+            }
+            return res;
+        }
+
+        // Parst eine Laengenangabe (ignoriert Einheiten-Suffixe wie px).
+        private static double ParseLength(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return 0.0;
+            s = s.Trim();
+            int n = 0;
+            while (n < s.Length && (char.IsDigit(s[n]) || s[n] == '.' || s[n] == '-' || s[n] == '+' || s[n] == 'e' || s[n] == 'E')) n++;
+            string num = s.Substring(0, n);
+            return double.TryParse(num, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double v) ? v : 0.0;
+        }
+
+        private static double[] ParseDashArray(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s) || s.Trim().Equals("none", StringComparison.OrdinalIgnoreCase)) return null;
+            var parts = Regex.Split(s.Trim(), "[,\\s]+");
+            List<double> vals = new List<double>();
+            foreach (var p in parts)
+            {
+                if (string.IsNullOrWhiteSpace(p)) continue;
+                double v = ParseLength(p);
+                vals.Add(v < 0 ? 0 : v);
+            }
+            if (vals.Count == 0) return null;
+            if (vals.Count % 2 == 1) { int c = vals.Count; for (int k = 0; k < c; k++) vals.Add(vals[k]); } // ungerade -> verdoppeln
+            double sum = 0; foreach (var v in vals) sum += v;
+            if (sum <= 1e-9) return null;
+            return vals.ToArray();
         }
 
         #endregion

@@ -2535,10 +2535,12 @@ namespace CADability
                     case 5:
                         {
                             ImportSVG importSvg = new ImportSVG();
+                            importSvg.StrokeToFaces = true;
                             GeoObjectList svgImport = importSvg.Import(fileName);
                             if (svgImport != null)
                             {
                                 newproject = CADability.Project.CreateSimpleProject();
+                                foreach (IGeoObject go in svgImport) go.UpdateAttributes(newproject);
                                 Model model = newproject.GetModel(0);
                                 model.Add(svgImport);
                             }
