@@ -1041,7 +1041,6 @@ namespace CADability
                     }
                     return true;
                 case "MenuId.Projection.Direction.FromTop":
-                    // (ActiveView as ModelView).ProjectedModel.SetViewDirection(-GeoVector.ZAxis, false);
                     if (Settings.GlobalSettings.GetBoolValue("ModelView.AnimateViewChange", true))
                     {
                         ActiveView.Projection.SetDirectionAnimated(-GeoVector.ZAxis, GeoVector.YAxis, ActiveView.Model, Settings.GlobalSettings.GetBoolValue("ModelView.AutoZoomTotal", false),
