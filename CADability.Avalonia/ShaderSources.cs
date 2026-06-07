@@ -51,8 +51,13 @@ void main()
     vec3  diffuse = diff * uLightColor;
 
     vec3  viewDir  = vec3(0.0, 0.0, 1.0);
-    vec3  halfDir  = normalize(normalize(uLightDir) + viewDir);
-    float spec     = pow(max(abs(dot(n, halfDir)), 0.0), 16.0);
+    // For an exact top view uLightDir == -viewDir, so the sum is the zero vector
+    // and normalize() would yield NaN, turning every face black.
+    vec3  halfSum  = normalize(uLightDir) + viewDir;
+    float halfLen  = length(halfSum);
+    float spec     = (halfLen > 1e-4)
+                     ? pow(max(abs(dot(n, halfSum / halfLen)), 0.0), 16.0)
+                     : 0.0;
     vec3  specular = spec * uLightColor * 0.3;
 
     vec3 result = (uAmbient + diffuse + specular) * baseColor.rgb;

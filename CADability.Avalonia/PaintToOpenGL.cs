@@ -21,7 +21,7 @@ namespace CADability.Avalonia
     {
         // ── OpenGL state ───────────────────────────────────────────────────
         private GL _gl = null!;
-        private ShaderProgram _litShader   = null!;
+        private ShaderProgram _litShader = null!;
         private ShaderProgram _unlitShader = null!;
 
         // ── Point sprite rendering ─────────────────────────────────────────
@@ -42,31 +42,31 @@ namespace CADability.Avalonia
         // ── Viewport / projection ──────────────────────────────────────────
         private int _width, _height;
         private Matrix4x4 _projection = Matrix4x4.Identity;
-        private Matrix4x4 _view       = Matrix4x4.Identity;
-        private Matrix4x4 _model      = Matrix4x4.Identity;
+        private Matrix4x4 _view = Matrix4x4.Identity;
+        private Matrix4x4 _model = Matrix4x4.Identity;
         private readonly Stack<Matrix4x4> _modelStack = new();
         private Vector3 _lightDir = Vector3.Normalize(new Vector3(1, 1, 2));
 
         // ── IPaintTo3D state ───────────────────────────────────────────────
-        private bool _paintSurfaces     = true;
-        private bool _paintEdges        = true;
+        private bool _paintSurfaces = true;
+        private bool _paintEdges = true;
         private bool _paintSurfaceEdges = true;
-        private bool _useLineWidth      = false;
-        private double _precision       = 1e-6;
-        private double _pixelToWorld    = 1.0;
-        private bool _selectMode        = false;
-        private Substitutes.Color _selectColor     = Substitutes.Color.Yellow;
+        private bool _useLineWidth = false;
+        private double _precision = 1e-6;
+        private double _pixelToWorld = 1.0;
+        private bool _selectMode = false;
+        private Substitutes.Color _selectColor = Substitutes.Color.Yellow;
         private Substitutes.Color _backgroundColor = Substitutes.Color.Black;
-        private Substitutes.Color _currentColor    = Substitutes.Color.White;
-        private bool _colorOverride     = false;
+        private Substitutes.Color _currentColor = Substitutes.Color.White;
+        private bool _colorOverride = false;
         private Substitutes.Color _overrideColor;
-        private bool _delayText         = false;
-        private bool _delayAll          = false;
-        private bool _triangulateText   = true;
-        private bool _dontRecalcTriang  = false;
-        private bool _isBitmap          = false;
-        private bool _useZBuffer        = true;
-        private bool _blending          = false;
+        private bool _delayText = false;
+        private bool _delayAll = false;
+        private bool _triangulateText = true;
+        private bool _dontRecalcTriang = false;
+        private bool _isBitmap = false;
+        private bool _useZBuffer = true;
+        private bool _blending = false;
 
         private readonly record struct GlState(bool UseZBuffer, bool Blending);
         private readonly Stack<GlState> _stateStack = new();
@@ -77,7 +77,7 @@ namespace CADability.Avalonia
         // ── Offscreen FBO ──────────────────────────────────────────────────
         private bool _renderingOffscreen;
         private uint _fboId, _fboColorRb, _fboDepthRb;
-        private int  _savedWidth, _savedHeight;
+        private int _savedWidth, _savedHeight;
         // Framebuffer to restore after offscreen rendering (Avalonia may use non-zero fb)
         private uint _defaultFramebuffer = 0;
 
@@ -98,8 +98,8 @@ namespace CADability.Avalonia
         public void Init(GlInterface glInterface, int width, int height)
         {
             _isBitmap = false;
-            _width    = width;
-            _height   = height;
+            _width = width;
+            _height = height;
             _gl = GL.GetApi(name => glInterface.GetProcAddress(name));
             // glInterface.Version is the GL_VERSION string, e.g. "OpenGL ES 3.0 (ANGLE ...)"
             _isGles = (glInterface.Version ?? "").Contains("OpenGL ES", StringComparison.OrdinalIgnoreCase);
@@ -125,20 +125,20 @@ namespace CADability.Avalonia
 
         private void FinishInit()
         {
-            string vert  = AdaptShader(ShaderSources.VertexShader,      isFragment: false);
-            string lit   = AdaptShader(ShaderSources.LitFragmentShader, isFragment: true);
+            string vert = AdaptShader(ShaderSources.VertexShader, isFragment: false);
+            string lit = AdaptShader(ShaderSources.LitFragmentShader, isFragment: true);
             string unlit = AdaptShader(ShaderSources.UnlitFragmentShader, isFragment: true);
-            string ptVert = AdaptShader(ShaderSources.PointVertexShader,  isFragment: false);
+            string ptVert = AdaptShader(ShaderSources.PointVertexShader, isFragment: false);
             string ptFrag = AdaptShader(ShaderSources.PointFragmentShader, isFragment: true);
-            string txVert = AdaptShader(ShaderSources.TextVertexShader,   isFragment: false);
+            string txVert = AdaptShader(ShaderSources.TextVertexShader, isFragment: false);
             string txFrag = AdaptShader(ShaderSources.TextFragmentShader, isFragment: true);
-            string texVert = AdaptShader(ShaderSources.TextureVertexShader,   isFragment: false);
+            string texVert = AdaptShader(ShaderSources.TextureVertexShader, isFragment: false);
             string texFrag = AdaptShader(ShaderSources.TextureFragmentShader, isFragment: true);
 
-            _litShader   = new ShaderProgram(_gl, vert,   lit);
-            _unlitShader = new ShaderProgram(_gl, vert,   unlit);
+            _litShader = new ShaderProgram(_gl, vert, lit);
+            _unlitShader = new ShaderProgram(_gl, vert, unlit);
             _pointShader = new ShaderProgram(_gl, ptVert, ptFrag);
-            _textShader  = new ShaderProgram(_gl, txVert, txFrag);
+            _textShader = new ShaderProgram(_gl, txVert, txFrag);
             _textureShader = new ShaderProgram(_gl, texVert, texFrag);
 
             _gl.Enable(EnableCap.DepthTest);
@@ -190,19 +190,19 @@ namespace CADability.Avalonia
         //  IPaintTo3D properties
         // ─────────────────────────────────────────────────────────────────
 
-        bool IPaintTo3D.PaintSurfaces        => _paintSurfaces;
-        bool IPaintTo3D.PaintEdges           => _paintEdges;
-        bool IPaintTo3D.PaintSurfaceEdges    { get => _paintSurfaceEdges; set => _paintSurfaceEdges = value; }
-        bool IPaintTo3D.UseLineWidth         { get => _useLineWidth;      set => _useLineWidth = value; }
-        double IPaintTo3D.Precision          { get => _precision;         set => _precision = value; }
-        double IPaintTo3D.PixelToWorld       => _pixelToWorld;
-        bool IPaintTo3D.SelectMode           { get => _selectMode;        set => _selectMode = value; }
-        Substitutes.Color IPaintTo3D.SelectColor { get => _selectColor;   set => _selectColor = value; }
-        bool IPaintTo3D.DelayText            { get => _delayText;         set => _delayText = value; }
-        bool IPaintTo3D.DelayAll             { get => _delayAll;          set => _delayAll = value; }
-        bool IPaintTo3D.TriangulateText      { get => _triangulateText;   set => _triangulateText = value; }
+        bool IPaintTo3D.PaintSurfaces => _paintSurfaces;
+        bool IPaintTo3D.PaintEdges => _paintEdges;
+        bool IPaintTo3D.PaintSurfaceEdges { get => _paintSurfaceEdges; set => _paintSurfaceEdges = value; }
+        bool IPaintTo3D.UseLineWidth { get => _useLineWidth; set => _useLineWidth = value; }
+        double IPaintTo3D.Precision { get => _precision; set => _precision = value; }
+        double IPaintTo3D.PixelToWorld => _pixelToWorld;
+        bool IPaintTo3D.SelectMode { get => _selectMode; set => _selectMode = value; }
+        Substitutes.Color IPaintTo3D.SelectColor { get => _selectColor; set => _selectColor = value; }
+        bool IPaintTo3D.DelayText { get => _delayText; set => _delayText = value; }
+        bool IPaintTo3D.DelayAll { get => _delayAll; set => _delayAll = value; }
+        bool IPaintTo3D.TriangulateText { get => _triangulateText; set => _triangulateText = value; }
         bool IPaintTo3D.DontRecalcTriangulation { get => _dontRecalcTriang; set => _dontRecalcTriang = value; }
-        bool IPaintTo3D.IsBitmap             => _isBitmap;
+        bool IPaintTo3D.IsBitmap => _isBitmap;
         PaintCapabilities IPaintTo3D.Capabilities =>
             PaintCapabilities.Standard | PaintCapabilities.ZoomIndependentDisplayList;
 
@@ -215,7 +215,7 @@ namespace CADability.Avalonia
 
         void IPaintTo3D.Resize(int width, int height)
         {
-            _width  = width;
+            _width = width;
             _height = height;
         }
 
@@ -261,12 +261,12 @@ namespace CADability.Avalonia
                 0, _width, 0, _height, boundingCube);
 
             _projection = new Matrix4x4(
-                (float)m[0,0], (float)m[1,0], (float)m[2,0], (float)m[3,0],
-                (float)m[0,1], (float)m[1,1], (float)m[2,1], (float)m[3,1],
-                (float)m[0,2], (float)m[1,2], (float)m[2,2], (float)m[3,2],
-                (float)m[0,3], (float)m[1,3], (float)m[2,3], (float)m[3,3]);
+                (float)m[0, 0], (float)m[1, 0], (float)m[2, 0], (float)m[3, 0],
+                (float)m[0, 1], (float)m[1, 1], (float)m[2, 1], (float)m[3, 1],
+                (float)m[0, 2], (float)m[1, 2], (float)m[2, 2], (float)m[3, 2],
+                (float)m[0, 3], (float)m[1, 3], (float)m[2, 3], (float)m[3, 3]);
 
-            _view  = Matrix4x4.Identity;
+            _view = Matrix4x4.Identity;
             _model = Matrix4x4.Identity;
 
             if (Matrix4x4.Invert(_projection, out var inv))
@@ -275,12 +275,18 @@ namespace CADability.Avalonia
                 var p1 = Vector4.Transform(new Vector4(-1f + 2f / _width, -1f, 0f, 1f), inv);
                 if (p0.W != 0 && p1.W != 0)
                     _pixelToWorld = (double)(Vector3.Distance(
-                        new Vector3(p0.X/p0.W, p0.Y/p0.W, p0.Z/p0.W),
-                        new Vector3(p1.X/p1.W, p1.Y/p1.W, p1.Z/p1.W)));
+                        new Vector3(p0.X / p0.W, p0.Y / p0.W, p0.Z / p0.W),
+                        new Vector3(p1.X / p1.W, p1.Y / p1.W, p1.Z / p1.W)));
             }
 
             GeoVector vd = projection.Direction;
-            _lightDir = Vector3.Normalize(new Vector3((float)vd.x, (float)vd.y, (float)vd.z));
+            var ld = new Vector3((float)vd.x, (float)vd.y, (float)vd.z);
+            // For axis-aligned views (e.g. exactly from the top) projection.Direction can
+            // return a zero or NaN vector. Vector3.Normalize would then yield NaN, which
+            // poisons the lit shader and renders every face black. Guard against that.
+            _lightDir = (ld.LengthSquared() > 1e-12f)
+                        ? Vector3.Normalize(ld)
+                        : new Vector3(0, 0, 1);
 
             _gl.Enable(EnableCap.DepthTest);
             _gl.DepthFunc(DepthFunction.Lequal);
@@ -307,8 +313,8 @@ namespace CADability.Avalonia
                 _currentColor = color;
             }
 
-            if (lockColor == 1)        { _colorOverride = true;  _overrideColor = color; }
-            else if (lockColor == -1)    _colorOverride = false;
+            if (lockColor == 1) { _colorOverride = true; _overrideColor = color; }
+            else if (lockColor == -1) _colorOverride = false;
 
             if (_recordingList != null)
                 _recordingList.CurrentColor = ColorToVec4(_currentColor);
@@ -351,8 +357,8 @@ namespace CADability.Avalonia
             for (int i = 1; i < points.Length - 1; i++)
             {
                 AppendUnlitVertex(tris, v0, color);
-                AppendUnlitVertex(tris, ToVec3(points[i]),   color);
-                AppendUnlitVertex(tris, ToVec3(points[i+1]), color);
+                AppendUnlitVertex(tris, ToVec3(points[i]), color);
+                AppendUnlitVertex(tris, ToVec3(points[i + 1]), color);
             }
             DrawImmediateTriangles(tris, lit: false);
         }
@@ -370,8 +376,8 @@ namespace CADability.Avalonia
         void IPaintTo3D.Triangle(GeoPoint[] vertex, GeoVector[] normals, int[] indextriples)
         {
             if (indextriples.Length == 0) return;
-            var verts   = GeoPointsToVec3(vertex);
-            var norms   = GeoVectorsToVec3(normals);
+            var verts = GeoPointsToVec3(vertex);
+            var norms = GeoVectorsToVec3(normals);
             var indices = FixNormalOrientation(verts, norms, indextriples);
             if (_recordingList != null)
                 _recordingList.RecordTriangles(verts, norms, indices);
@@ -477,7 +483,7 @@ namespace CADability.Avalonia
             var ortho = Matrix4x4.CreateOrthographicOffCenter(0, _width, _height, 0, -1, 1);
             var savedProj = _projection;
             _projection = ortho;
-            _model       = Matrix4x4.Identity;
+            _model = Matrix4x4.Identity;
             DrawImmediateLines(new[] { new Vector3(sx, sy, 0), new Vector3(ex, ey, 0) });
             _projection = savedProj;
         }
@@ -490,7 +496,7 @@ namespace CADability.Avalonia
             var ortho = Matrix4x4.CreateOrthographicOffCenter(0, _width, _height, 0, -1, 1);
             var savedProj = _projection;
             _projection = ortho;
-            _model       = Matrix4x4.Identity;
+            _model = Matrix4x4.Identity;
 
             var color = ColorToVec4(_currentColor);
             var tris = new List<float>();
@@ -517,7 +523,8 @@ namespace CADability.Avalonia
                               GeoPoint location, string fontName, string textString,
                               object fontStyle,
                               CADability.GeoObject.Text.AlignMode alignment,
-                              CADability.GeoObject.Text.LineAlignMode lineAlignment) { }
+                              CADability.GeoObject.Text.LineAlignMode lineAlignment)
+        { }
 
         // ─────────────────────────────────────────────────────────────────
         //  Misc stubs
@@ -573,7 +580,7 @@ namespace CADability.Avalonia
         void IPaintTo3D.DisplayBitmap(GeoPoint p, object bitmap) { }
         void IPaintTo3D.Nurbs(GeoPoint[] poles, double[] weights, double[] knots, int degree) { }
 
-        void IPaintTo3D.OpenPath()  => throw new NotSupportedException();
+        void IPaintTo3D.OpenPath() => throw new NotSupportedException();
         void IPaintTo3D.ClosePath(Substitutes.Color color) => throw new NotSupportedException();
         void IPaintTo3D.CloseFigure() => throw new NotSupportedException();
         void IPaintTo3D.Arc(GeoPoint center, GeoVector majorAxis, GeoVector minorAxis,
@@ -590,7 +597,7 @@ namespace CADability.Avalonia
         {
             _useZBuffer = use;
             if (use) _gl.Enable(EnableCap.DepthTest);
-            else     _gl.Disable(EnableCap.DepthTest);
+            else _gl.Disable(EnableCap.DepthTest);
         }
 
         void IPaintTo3D.Blending(bool on)
@@ -645,15 +652,15 @@ namespace CADability.Avalonia
                     _model = Matrix4x4.CreateTranslation(
                         _lightDir * (float)(2.0 * _pixelToWorld));
                     _paintSurfaces = true;
-                    _paintEdges    = false;
+                    _paintEdges = false;
                     break;
                 case PaintTo3D.PaintMode.CurvesOnly:
                     _paintSurfaces = false;
-                    _paintEdges    = true;
+                    _paintEdges = true;
                     break;
                 default:
                     _paintSurfaces = true;
-                    _paintEdges    = true;
+                    _paintEdges = true;
                     break;
             }
         }
@@ -699,7 +706,7 @@ namespace CADability.Avalonia
                 _gl.ColorMask(false, false, false, false);
 
                 (this as IPaintTo3D).FillRect2D(
-                    new Substitutes.PointF((float)clipRectangle.Left,  (float)clipRectangle.Bottom),
+                    new Substitutes.PointF((float)clipRectangle.Left, (float)clipRectangle.Bottom),
                     new Substitutes.PointF((float)clipRectangle.Right, (float)clipRectangle.Top));
 
                 _gl.StencilFunc(StencilFunction.Equal, 1, 1);
@@ -730,13 +737,13 @@ namespace CADability.Avalonia
         /// </summary>
         public void BeginOffscreen(int width, int height)
         {
-            _savedWidth  = _width;
+            _savedWidth = _width;
             _savedHeight = _height;
-            _width  = width;
+            _width = width;
             _height = height;
             _renderingOffscreen = true;
 
-            _fboId      = _gl.GenFramebuffer();
+            _fboId = _gl.GenFramebuffer();
             _fboColorRb = _gl.GenRenderbuffer();
             _fboDepthRb = _gl.GenRenderbuffer();
 
@@ -772,7 +779,7 @@ namespace CADability.Avalonia
             _gl.Flush();
             _gl.Finish();
 
-            int width  = _width;
+            int width = _width;
             int height = _height;
             var pixels = new byte[width * height * 4];
 
@@ -790,7 +797,7 @@ namespace CADability.Avalonia
             _fboId = _fboColorRb = _fboDepthRb = 0;
 
             _renderingOffscreen = false;
-            _width  = _savedWidth;
+            _width = _savedWidth;
             _height = _savedHeight;
 
             var bitmap = new global::Avalonia.Media.Imaging.WriteableBitmap(
@@ -806,7 +813,7 @@ namespace CADability.Avalonia
                 int stride = locked.RowBytes;
                 for (int y = 0; y < height; y++)
                 {
-                    int srcRow  = height - 1 - y;   // flip OpenGL Y
+                    int srcRow = height - 1 - y;   // flip OpenGL Y
                     int srcBase = srcRow * width * 4;
                     int dstBase = y * stride;
                     for (int x = 0; x < width; x++)
@@ -831,18 +838,18 @@ namespace CADability.Avalonia
         private void SetupLitShader(Vector4? overrideColor)
         {
             _litShader.Use();
-            _litShader.SetMatrix4("uMVP",   _model * _view * _projection);
+            _litShader.SetMatrix4("uMVP", _model * _view * _projection);
             _litShader.SetMatrix4("uModel", _model);
-            _litShader.SetVec3("uLightDir",   _lightDir);
+            _litShader.SetVec3("uLightDir", _lightDir);
             _litShader.SetVec3("uLightColor", new Vector3(1f, 1f, 1f));
-            _litShader.SetVec3("uAmbient",    new Vector3(0.2f, 0.2f, 0.2f));
+            _litShader.SetVec3("uAmbient", new Vector3(0.2f, 0.2f, 0.2f));
             _litShader.SetVec4("uColorOverride", overrideColor ?? new Vector4(0, 0, 0, 0));
         }
 
         private void SetupUnlitShader(Vector4? overrideColor)
         {
             _unlitShader.Use();
-            _unlitShader.SetMatrix4("uMVP",   _model * _view * _projection);
+            _unlitShader.SetMatrix4("uMVP", _model * _view * _projection);
             _unlitShader.SetMatrix4("uModel", _model);
             _unlitShader.SetVec4("uColorOverride", overrideColor ?? new Vector4(0, 0, 0, 0));
         }
@@ -852,8 +859,8 @@ namespace CADability.Avalonia
             _pointShader!.Use();
             _pointShader.SetMatrix4("uMVP", _model * _view * _projection);
             _pointShader.SetVec4("uColorOverride", overrideColor ?? new Vector4(0, 0, 0, 0));
-            _pointShader.SetFloat("uPointSize",  PointSpritePixels);
-            _pointShader.SetInt("uPointSymbol",  (int)symbol);
+            _pointShader.SetFloat("uPointSize", PointSpritePixels);
+            _pointShader.SetInt("uPointSymbol", (int)symbol);
         }
 
         private void DrawBufferList(GlBufferList gbl, Vector4? overrideColor)
@@ -921,19 +928,19 @@ namespace CADability.Avalonia
 
         private void DrawImmediateLines(ReadOnlySpan<Vector3> points)
         {
-            var data  = new List<float>(points.Length * 2 * GlBufferList.FloatsPerVertex);
+            var data = new List<float>(points.Length * 2 * GlBufferList.FloatsPerVertex);
             var color = ColorToVec4(_currentColor);
             for (int i = 0; i < points.Length - 1; i++)
             {
-                AppendUnlitVertex(data, points[i],   color);
-                AppendUnlitVertex(data, points[i+1], color);
+                AppendUnlitVertex(data, points[i], color);
+                AppendUnlitVertex(data, points[i + 1], color);
             }
             DrawImmediate(data, PrimitiveType.Lines, lit: false);
         }
 
         private void DrawImmediatePoints(ReadOnlySpan<Vector3> points, PointSymbol symbol)
         {
-            var data  = new List<float>(points.Length * GlBufferList.FloatsPerVertex);
+            var data = new List<float>(points.Length * GlBufferList.FloatsPerVertex);
             var color = ColorToVec4(_currentColor);
             foreach (var p in points) AppendUnlitVertex(data, p, color);
             DrawImmediate(data, PrimitiveType.Points, lit: false, symbol);
@@ -945,10 +952,10 @@ namespace CADability.Avalonia
         private void DrawImmediateIndexedTriangles(
             ReadOnlySpan<Vector3> verts,
             ReadOnlySpan<Vector3> norms,
-            ReadOnlySpan<int>     indices)
+            ReadOnlySpan<int> indices)
         {
             var color = ColorToVec4(_currentColor);
-            var data  = new List<float>(indices.Length * GlBufferList.FloatsPerVertex);
+            var data = new List<float>(indices.Length * GlBufferList.FloatsPerVertex);
             foreach (int idx in indices)
             {
                 var v = verts[idx];
@@ -1073,16 +1080,16 @@ namespace CADability.Avalonia
             var result = new int[indices.Length];
             for (int i = 0; i < indices.Length; i += 3)
             {
-                int i0 = indices[i], i1 = indices[i+1], i2 = indices[i+2];
+                int i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
                 Vector3 v1 = verts[i0], v2 = verts[i1], v3 = verts[i2];
                 Vector3 faceNormal = Vector3.Cross(v1 - v2, v3 - v2);
                 if (Vector3.Dot(faceNormal, norms[i0]) < 0)
                 {
-                    result[i] = i0; result[i+1] = i2; result[i+2] = i1;
+                    result[i] = i0; result[i + 1] = i2; result[i + 2] = i1;
                 }
                 else
                 {
-                    result[i] = i0; result[i+1] = i1; result[i+2] = i2;
+                    result[i] = i0; result[i + 1] = i1; result[i + 2] = i2;
                 }
             }
             return result;
@@ -1091,10 +1098,10 @@ namespace CADability.Avalonia
         private static Matrix4x4 ModOpToMatrix4x4(ModOp m)
         {
             return new Matrix4x4(
-                (float)m[0,0], (float)m[1,0], (float)m[2,0], 0,
-                (float)m[0,1], (float)m[1,1], (float)m[2,1], 0,
-                (float)m[0,2], (float)m[1,2], (float)m[2,2], 0,
-                (float)m[0,3], (float)m[1,3], (float)m[2,3], 1);
+                (float)m[0, 0], (float)m[1, 0], (float)m[2, 0], 0,
+                (float)m[0, 1], (float)m[1, 1], (float)m[2, 1], 0,
+                (float)m[0, 2], (float)m[1, 2], (float)m[2, 2], 0,
+                (float)m[0, 3], (float)m[1, 3], (float)m[2, 3], 1);
         }
     }
 }
