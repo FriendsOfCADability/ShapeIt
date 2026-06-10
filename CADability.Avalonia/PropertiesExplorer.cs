@@ -122,13 +122,44 @@ public class PropertiesExplorer : UserControl, IControlCenter
 
         // Safety net: if the entry currently being edited is removed (e.g. a ConstructAction
         // finished via Enter and tore down its property entries) hide the dangling TextBox.
+        //
+        // IMPORTANT: some pages REBUILD all their entries on every change — the ShapeIt
+        // modelling page recomposes after each value keystroke, replacing every entry with a
+        // NEW instance while an equivalent row (same ResourceId) is still shown. Killing the
+        // edit on the instance check alone closed the value editor after a single keystroke
+        // (couldn't type a second digit into Breite/Höhe of a finished drawing). So the
+        // decision is deferred until the rebuild settled; then the running edit is RE-BOUND
+        // to the equivalent new entry (text, caret and focus stay), and only an entry that
+        // is truly gone ends the edit.
         page.Changed += () =>
         {
             if (_editingEntry == null || _activeTabId != titleId) return;
             if (page.ContainsEntry(_editingEntry)) return;
-            if (_tabs.TryGetValue(titleId, out var t) && t.FloatingTextBox.IsVisible)
-                t.FloatingTextBox.IsVisible = false;
-            _editingEntry = null;
+            string editingId = _editingEntry.ResourceId;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (_editingEntry == null || _activeTabId != titleId) return;
+                if (page.ContainsEntry(_editingEntry)) return;
+                if (!_tabs.TryGetValue(titleId, out var t)) return;
+                var replacement = t.FloatingTextBox.IsVisible ? t.Control.FindShownEntry(editingId) : null;
+                if (replacement != null)
+                {
+                    _editingEntry = replacement;
+                    if (t.Control.TryGetValueRect(replacement, out var r))
+                    {
+                        t.FloatingTextBox.Margin = new Thickness(r.Left, r.Top, 0, 0);
+                        t.FloatingTextBox.Width  = r.Width;
+                        t.FloatingTextBox.Height = r.Height;
+                    }
+                    if (!t.FloatingTextBox.IsFocused) t.FloatingTextBox.Focus();
+                }
+                else
+                {
+                    if (t.FloatingTextBox.IsVisible) t.FloatingTextBox.IsVisible = false;
+                    t.Control.SetEditing(false);
+                    _editingEntry = null;
+                }
+            }, DispatcherPriority.Background);
         };
 
         // ── Custom-drawn entry list ────────────────────────────────────────
@@ -196,6 +227,7 @@ public class PropertiesExplorer : UserControl, IControlCenter
             floatingTb.IsVisible  = true;
             floatingTb.Focus();
             floatingTb.SelectAll();
+            control.SetEditing(true);   // suppress focus-stealing relayout while typing a value
         };
         control.RequestHideTextBox = () => HideTextBox(titleId, aborted: false);
 
@@ -451,6 +483,7 @@ public class PropertiesExplorer : UserControl, IControlCenter
         if (!tb.IsVisible) return;    // guard re-entrance
 
         tb.IsVisible = false;
+        te.Control.SetEditing(false);   // editing finished → allow normal relayout again
 
         if (_editingEntry == null) return;
         var entry = _editingEntry;

@@ -157,6 +157,31 @@ public class PropertyPageControl : Control
         RequestShowTextBox?.Invoke(rect, text, entry);
     }
 
+    /// <summary>First shown entry with the given ResourceId, or null — used to re-bind a
+    /// running edit after a page rebuild replaced all entry instances.</summary>
+    public IPropertyEntry? FindShownEntry(string resourceId)
+    {
+        foreach (var e in _entries)
+            if (e.ResourceId == resourceId) return e;
+        return null;
+    }
+
+    /// <summary>Value-cell rectangle of a shown entry (for repositioning the floating editor).</summary>
+    public bool TryGetValueRect(IPropertyEntry entry, out Rect rect)
+    {
+        for (int i = 0; i < _entries.Count; i++)
+            if (_entries[i] == entry) { rect = ValueRect(i); return true; }
+        rect = default;
+        return false;
+    }
+
+    // True while a value/label is being edited via the floating TextBox. During an edit the
+    // per-keystroke live-preview fires PropertyPage.Changed; rewriting Height here forces an
+    // Avalonia layout pass that steals keyboard focus from the sibling overlay TextBox, which
+    // then commits the edit after a single keystroke (you couldn't type "44"). Set by the explorer.
+    private bool _editing;
+    public void SetEditing(bool v) => _editing = v;
+
     private void OnPageChanged()
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -164,6 +189,7 @@ public class PropertyPageControl : Control
             Dispatcher.UIThread.Post(OnPageChanged, DispatcherPriority.Normal);
             return;
         }
+        int oldCount = _entries.Count;
         _entries = _page?.FlattenVisible() ?? Array.Empty<IPropertyEntry>();
         _labelExtensionIdx = -1;
         _hoverLabelIdx = -1;
@@ -171,8 +197,15 @@ public class PropertyPageControl : Control
         _currentToolTip = null;
         HideToolTip();
         RecomputeMetrics();
-        Height = _entries.Count * _lineHeight;
-        InvalidateVisual();
+        // While editing, only rewrite Height when the entry set actually changed (a Height write
+        // triggers the focus-stealing relayout). Mid-keystroke the entry set is unchanged → repaint only.
+        if (_editing && _entries.Count == oldCount)
+            InvalidateVisual();
+        else
+        {
+            Height = _entries.Count * _lineHeight;
+            InvalidateVisual();
+        }
     }
 
     private void RecomputeMetrics()
@@ -381,8 +414,7 @@ public class PropertyPageControl : Control
             double btnLeft = w - (hasCtx ? _buttonWidth : 0) - _buttonWidth;
             var ddRect = new Rect(btnLeft + 0.5, y + 0.5, _buttonWidth - 1, _lineHeight - 1);
             ctx.DrawRectangle(BrushIndent, PenMiddle, ddRect);
-            PutText(ctx, "▼", false, false,
-                new Rect(btnLeft, y, _buttonWidth, _lineHeight), center: true);
+            DrawTriangle(ctx, new Rect(btnLeft, y, _buttonWidth, _lineHeight), pointRight: false);
         }
 
         // Context-menu ⋮ button — drawn as three filled dots so it stays markant
@@ -403,8 +435,7 @@ public class PropertyPageControl : Control
         {
             var dmRect = new Rect(w - _buttonWidth + 0.5, y + 0.5, _buttonWidth - 1, _lineHeight - 1);
             ctx.DrawRectangle(BrushIndent, PenMiddle, dmRect);
-            PutText(ctx, "▶", false, false,
-                new Rect(w - _buttonWidth, y, _buttonWidth, _lineHeight), center: true);
+            DrawTriangle(ctx, new Rect(w - _buttonWidth, y, _buttonWidth, _lineHeight), pointRight: true);
         }
 
         // ✖ Cancel button — rightmost, width = _lineHeight (mirrors WinForms area.Height)
@@ -412,7 +443,7 @@ public class PropertyPageControl : Control
         {
             var btnRect = new Rect(w - _lineHeight, y, _lineHeight, _lineHeight);
             ctx.DrawRectangle(BrushIndent, PenMiddle, btnRect.Deflate(0.5));
-            PutText(ctx, "✖", false, false, btnRect, center: true);
+            DrawCross(ctx, btnRect);
         }
 
         // ✔ OK button — one position left of Cancel (or at rightmost when no Cancel button)
@@ -421,8 +452,55 @@ public class PropertyPageControl : Control
             double left = w - (hasCancelBtn ? 2 : 1) * _lineHeight;
             var btnRect = new Rect(left, y, _lineHeight, _lineHeight);
             ctx.DrawRectangle(BrushIndent, PenMiddle, btnRect.Deflate(0.5));
-            PutText(ctx, "✔", false, false, btnRect, center: true);
+            DrawCheck(ctx, btnRect);
         }
+    }
+
+    // ── Geometric button symbols ────────────────────────────────────────────
+    // The browser/WASM font set lacks the ▼ ▶ ✔ ✖ glyphs (they render as the
+    // missing-glyph box), so the buttons draw their symbols as plain geometry —
+    // the same approach as the main menu's submenu triangle and the ⋮ dots above.
+
+    private static void DrawTriangle(DrawingContext ctx, Rect r, bool pointRight)
+    {
+        double cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
+        double s = Math.Min(r.Width, r.Height) * 0.28;
+        var g = new StreamGeometry();
+        using (var gc = g.Open())
+        {
+            if (pointRight)
+            {
+                gc.BeginFigure(new Point(cx - s * 0.7, cy - s), true);
+                gc.LineTo(new Point(cx + s, cy));
+                gc.LineTo(new Point(cx - s * 0.7, cy + s));
+            }
+            else
+            {
+                gc.BeginFigure(new Point(cx - s, cy - s * 0.7), true);
+                gc.LineTo(new Point(cx + s, cy - s * 0.7));
+                gc.LineTo(new Point(cx, cy + s));
+            }
+            gc.EndFigure(true);
+        }
+        ctx.DrawGeometry(BrushText, null, g);
+    }
+
+    private static void DrawCross(DrawingContext ctx, Rect r)
+    {
+        double cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
+        double s = Math.Min(r.Width, r.Height) * 0.22;
+        var pen = new Pen(BrushText, 1.6);
+        ctx.DrawLine(pen, new Point(cx - s, cy - s), new Point(cx + s, cy + s));
+        ctx.DrawLine(pen, new Point(cx - s, cy + s), new Point(cx + s, cy - s));
+    }
+
+    private static void DrawCheck(DrawingContext ctx, Rect r)
+    {
+        double cx = r.X + r.Width / 2, cy = r.Y + r.Height / 2;
+        double s = Math.Min(r.Width, r.Height) * 0.26;
+        var pen = new Pen(BrushText, 1.6);
+        ctx.DrawLine(pen, new Point(cx - s, cy + s * 0.1), new Point(cx - s * 0.25, cy + s * 0.8));
+        ctx.DrawLine(pen, new Point(cx - s * 0.25, cy + s * 0.8), new Point(cx + s, cy - s * 0.7));
     }
 
     // ── Shortcut helpers (ported from WinForms PropertyPage) ──────────────
