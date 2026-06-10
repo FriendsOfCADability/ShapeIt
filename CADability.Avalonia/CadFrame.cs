@@ -137,7 +137,7 @@ public class CadFrame : FrameImpl, IUIService
                 return mods;
             }
             // Nicht-Windows: letzten bekannten Zustand aus Pointer-Events lesen
-            if (_icanvas is CadCanvas canvas)
+            if (_icanvas is IModifierKeyProvider canvas)
             {
                 var km   = canvas.LastKeyModifiers;
                 var mods = Substitutes.Keys.None;
@@ -161,7 +161,7 @@ public class CadFrame : FrameImpl, IUIService
                 return default;
             }
             // Nicht-Windows: zuletzt gespeicherte Screen-Position aus dem Canvas
-            if (_icanvas is CadCanvas canvas)
+            if (_icanvas is IModifierKeyProvider canvas)
             {
                 var sp = canvas.LastScreenPosition;
                 return new Substitutes.Point(sp.X, sp.Y);

@@ -25,7 +25,7 @@ namespace CADability.Avalonia;
 /// Replaces the Windows-Forms-based CadCanvas from CADability.Forms.NET8.
 /// The OpenGL context is managed by Avalonia (IGlContext), not by WglContext.
 /// </summary>
-public class CadCanvas : OpenGlControlBase, ICanvas
+public class CadCanvas : OpenGlControlBase, ICanvas, IModifierKeyProvider
 {
     public CadCanvas()
     {
@@ -224,9 +224,9 @@ public class CadCanvas : OpenGlControlBase, ICanvas
 
     // Letzte bekannte Modifier-Tasten und Screen-Position aus Pointer-Events.
     // Werden von CadFrame.ModifierKeys / CurrentMousePosition auf nicht-Windows-Plattformen genutzt.
-    internal KeyModifiers LastKeyModifiers => _lastPointerArgs?.KeyModifiers ?? KeyModifiers.None;
+    public KeyModifiers LastKeyModifiers => _lastPointerArgs?.KeyModifiers ?? KeyModifiers.None;
     private global::Avalonia.PixelPoint _lastScreenPos;
-    internal global::Avalonia.PixelPoint LastScreenPosition => _lastScreenPos;
+    public global::Avalonia.PixelPoint LastScreenPosition => _lastScreenPos;
 
     // ── Mouse / pointer events ─────────────────────────────────────────────
 

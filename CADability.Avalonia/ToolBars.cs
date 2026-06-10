@@ -251,10 +251,14 @@ namespace CADability.Avalonia
             var backward = new MenuItem { Header = StringTable.GetString("Toolbar.MoveBackward") };
             backward.Click += (s, e) => MoveBackward(name);
 
-            grip.Flyout = new MenuFlyout
-            {
-                ItemsSource = new List<Control> { hide, forward, backward }
-            };
+            // Use the Items collection (not ItemsSource): the Avalonia browser backend
+            // only realises the first element when a MenuFlyout's ItemsSource is a list
+            // of already-constructed controls.
+            var gripFlyout = new MenuFlyout();
+            gripFlyout.Items.Add(hide);
+            gripFlyout.Items.Add(forward);
+            gripFlyout.Items.Add(backward);
+            grip.Flyout = gripFlyout;
             return grip;
         }
 
@@ -310,7 +314,10 @@ namespace CADability.Avalonia
                     ToolTip.SetTip(split, StringTable.GetString(id));
                 });
 
-            var flyout = new MenuFlyout { ItemsSource = items };
+            // Items collection, not ItemsSource (browser backend only shows the first
+            // item when ItemsSource holds constructed controls).
+            var flyout = new MenuFlyout();
+            foreach (var c in items) flyout.Items.Add(c);
             split.Flyout = flyout;
 
             split.Click += (s, e) =>
@@ -348,7 +355,7 @@ namespace CADability.Avalonia
                 var subItems = new List<Control>();
                 foreach (var sub in def.SubMenus)
                     AddFlyoutItem(subItems, sub, onLeafSelected);
-                item.ItemsSource = subItems;
+                foreach (var c in subItems) item.Items.Add(c);
             }
             else
             {
