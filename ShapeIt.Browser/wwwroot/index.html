@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>ShapeIt</title>
+    <meta charset="UTF-8">
+    <!-- user-scalable=no / maximum-scale=1 stops iOS Safari from pinch-zooming or
+         double-tap-zooming the whole PAGE, so those gestures reach the app instead. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <link rel="stylesheet" href="./app.css" />
+    <!-- PWA -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#103A87" />
+    <link rel="icon" type="image/png" href="./icon-192.png" />
+    <link rel="apple-touch-icon" href="./icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="ShapeIt" />
+    <style>
+        html, body { margin: 0; height: 100%; overflow: hidden; position: relative; background: #eef3fb;
+                     touch-action: none; -webkit-user-select: none; user-select: none; }
+        /* touch-action:none stops the browser from hijacking touch gestures (page
+           scroll/zoom, double-tap zoom) on the Avalonia canvas — otherwise it cancels the
+           pointer stream mid-gesture, so taps never reach the app (no pick) and drags get
+           interrupted. Essential for the in-app touch navigation to behave like a mouse. */
+        #out { position: absolute; inset: 0; touch-action: none; }
+        #out canvas { touch-action: none; }
+        /* Offscreen WebGL render target: the 3-D scene is rendered here, read back by C#
+           and drawn as an Avalonia bitmap inside the viewport control (so Avalonia popups
+           render on top of the 3-D). Not displayed directly. */
+        #gl  { position: absolute; left: 0; top: 0; width: 1px; height: 1px;
+               visibility: hidden; pointer-events: none; }
+    </style>
+</head>
+
+<body>
+    <div id="out"></div>
+    <canvas id="gl"></canvas>
+    <script type='module' src="./main.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,17 @@
+/* HTML splash shown until the Avalonia surface takes over. */
+html, body { margin: 0; height: 100%; }
+#out { height: 100%; }
+
+.avalonia-splash {
+    position: absolute;
+    height: 100%;
+    width: 100%;
+    background: white;
+    font-family: sans-serif;
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    pointer-events: none;
+}
+
+.avalonia-splash h2 { font-weight: 400; color: #103A87; }

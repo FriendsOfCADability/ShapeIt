@@ -1,0 +1,102 @@
+<Project Sdk="Microsoft.NET.Sdk.WebAssembly">
+
+  <!-- ============================================================
+       ShapeIt.Browser  –  WebAssembly/PWA feasibility-spike head.
+       Reuses the CADability kernel (netstandard2.0) and the Avalonia
+       OpenGL control layer (CADability.Avalonia) unchanged. The desktop
+       app (ShapeIt.Avalonia) and the develop branch are NOT touched.
+       ============================================================ -->
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-browser</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <RootNamespace>ShapeIt.Browser</RootNamespace>
+    <!-- Enables the #if AVALONIA branches in the shared CADability.Avalonia sources -->
+    <DefineConstants>$(DefineConstants);AVALONIA</DefineConstants>
+    <!-- AOT-compile the WASM on publish: the CAD kernel (booleans, tessellation, import)
+         is compute-heavy and runs several times faster than under the IL interpreter,
+         especially on weak devices. Only affects 'dotnet publish'; Debug/dev runs stay
+         interpreted (fast inner loop). Trade-off: longer publish + larger download.
+         AOT REQUIRES IL trimming. CADability's JSON save/load is reflection-based, so
+         trimming the app assemblies would break it — TrimMode=partial trims ONLY the
+         opted-in framework assemblies, and the app assemblies below are rooted whole.
+         The save/load round trip is part of the publish verification. -->
+    <RunAOTCompilation>true</RunAOTCompilation>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <SuppressTrimAnalysisWarnings>true</SuppressTrimAnalysisWarnings>
+    <!-- The mono AOT compiler 9.0.16 hits "Assertion: should not be reached
+         (aot-compiler.c:4287)" on CADability.dll when the generic-dedup pass is active
+         (dedup-skip). Disabling dedup avoids the crash at the cost of some duplicated
+         generic instantiations (larger .wasm). -->
+    <WasmDedup>false</WasmDedup>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <TrimmerRootAssembly Include="CADability" />
+    <TrimmerRootAssembly Include="CADability.Avalonia" />
+    <TrimmerRootAssembly Include="ShapeIt.Browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Browser" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.2.7" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.2.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CADability\CADability.csproj" />
+    <ProjectReference Include="..\CADability.Avalonia\CADability.Avalonia.csproj" />
+  </ItemGroup>
+
+  <!-- Shared ShapeIt sources (modelling actions, ModellingPropertyEntries, …) — same set
+       the desktop Avalonia head compiles, minus WinForms-only / entry-point files. -->
+  <ItemGroup>
+    <Compile Include="..\ShapeIt\**\*.cs"
+             Exclude="..\ShapeIt\obj\**;
+                      ..\ShapeIt\MainForm.cs;
+                      ..\ShapeIt\MainForm.Designer.cs;
+                      ..\ShapeIt\MCPServerForm.cs;
+                      ..\ShapeIt\Program.cs;
+                      ..\ShapeIt\WorkspaceRenderer.cs;
+                      ..\ShapeIt\MCPServer.Old.cs;
+                      ..\ShapeIt\MCPServerDispatcher.cs;
+                      ..\ShapeIt\Properties\Settings.Designer.cs">
+      <Link>Shared\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+  <!-- ShapeIt menu + string-table resources (same LogicalNames the desktop head uses,
+       so MenuResource/StringTable load them by "ShapeIt.*"). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\ShapeIt\McpToolsetDefinition.json">
+      <Link>Shared\McpToolsetDefinition.json</Link>
+      <LogicalName>ShapeIt.McpToolsetDefinition.json</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\ShapeIt\MenuResource.xml">
+      <Link>Shared\MenuResource.xml</Link>
+      <LogicalName>ShapeIt.MenuResource.xml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\ShapeIt\StringTableDeutsch.xml">
+      <Link>Shared\StringTableDeutsch.xml</Link>
+      <LogicalName>ShapeIt.StringTableDeutsch.xml</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\ShapeIt\StringTableEnglish.xml">
+      <Link>Shared\StringTableEnglish.xml</Link>
+      <LogicalName>ShapeIt.StringTableEnglish.xml</LogicalName>
+    </EmbeddedResource>
+    <!-- Versionsnummer als "App.Version" einbetten, damit das About-Panel sie
+         anzeigen kann (gleiche Quelle und gleicher LogicalName wie der Desktop-Head,
+         siehe ShapeIt.Avalonia.csproj). -->
+    <EmbeddedResource Include="..\version.txt">
+      <Link>version.txt</Link>
+      <LogicalName>App.Version</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,143 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:cad="using:CADability.Avalonia"
+             xmlns:local="using:ShapeIt.Browser"
+             x:Class="ShapeIt.Browser.MainView"
+             Background="{DynamicResource SystemRegionBrush}">
+  <!-- Root grid so progress + about overlays can be layered above the app chrome
+       (the browser single-view lifetime has no Window for dialogs). -->
+  <Grid>
+    <DockPanel>
+      <Menu x:Name="mainMenu" DockPanel.Dock="Top" Background="#FAFAFA" />
+      <WrapPanel x:Name="toolbarPanel" DockPanel.Dock="Top" Orientation="Horizontal" Background="#F0F0F0" />
+
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*" MinWidth="200" />
+          <ColumnDefinition Width="4" />
+          <ColumnDefinition Width="280" MinWidth="120" MaxWidth="600" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Transparent placeholder: the WebGL canvas (behind) shows through here -->
+        <local:Gl3DViewport x:Name="viewport" Grid.Column="0" Focusable="True" />
+
+        <!-- Touch helper bar: shown automatically on touch devices. Navigation itself is by
+             gesture (1 finger rotate, 2 finger pan, pinch zoom, tap select, long-press menu);
+             these buttons just add quick zoom / fit / a gesture legend. -->
+        <Border x:Name="touchBar" Grid.Column="0" IsVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,16"
+                Background="#E6FFFFFF" BorderBrush="#C0C0C0" BorderThickness="1"
+                CornerRadius="24" Padding="6" BoxShadow="0 2 10 0 #40000000">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ToggleButton x:Name="touchMultiButton" Content="Multi" MinWidth="52" Height="46" FontSize="13"
+                    ToolTip.Tip="Mehrfachauswahl: Tippen fügt zur Auswahl hinzu / entfernt wieder"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+            <ToggleButton x:Name="touchSolidButton" Content="Körper" MinWidth="56" Height="46" FontSize="13"
+                    ToolTip.Tip="Ganzes Objekt auswählen statt Fläche/Kante"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+            <Border Width="1" Height="34" Background="#C8C8C8" VerticalAlignment="Center" />
+            <Button x:Name="touchZoomInButton"  Content="+" Width="46" Height="46" FontSize="22"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+            <Button x:Name="touchZoomOutButton" Content="−" Width="46" Height="46" FontSize="22"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+            <Button x:Name="touchZoomAllButton" Content="Fit" Width="46" Height="46" FontSize="15"
+                    ToolTip.Tip="Alles zeigen"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+            <Button x:Name="touchHelpButton"    Content="?" Width="46" Height="46" FontSize="20"
+                    HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
+          </StackPanel>
+        </Border>
+
+        <GridSplitter Grid.Column="1" HorizontalAlignment="Stretch"
+                      ResizeDirection="Columns" Background="#C0C0C0" />
+        <Border Grid.Column="2" Background="#FFFFFF">
+          <cad:PropertiesExplorer x:Name="propertiesExplorer" />
+        </Border>
+      </Grid>
+    </DockPanel>
+
+    <!-- Progress overlay (mirrors MainWindow.progressPanel). Centered card, shown
+         while ProgressAction is called with show==true. -->
+    <Border x:Name="progressPanel" IsVisible="False"
+            HorizontalAlignment="Center" VerticalAlignment="Center"
+            Background="#FFFFFF" BorderBrush="#C0C0C0" BorderThickness="1"
+            CornerRadius="6" Padding="20" MinWidth="320"
+            BoxShadow="0 2 12 0 #40000000">
+      <StackPanel Spacing="10">
+        <TextBlock x:Name="progressLabel" Text="" FontWeight="SemiBold" />
+        <ProgressBar x:Name="progressBar" Minimum="0" Maximum="100" Value="0" Height="18" />
+      </StackPanel>
+    </Border>
+
+    <!-- About overlay (replaces the desktop AboutWindow; no Window in single-view).
+         A dimmed full-surface backdrop hosts a centered card. -->
+    <Border x:Name="aboutOverlay" IsVisible="False" Background="#80000000">
+      <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="#FFFFFF" BorderBrush="#C0C0C0" BorderThickness="1"
+              CornerRadius="8" Padding="24" MaxWidth="460"
+              BoxShadow="0 4 20 0 #50000000">
+        <StackPanel Spacing="12">
+          <TextBlock Text="ShapeIt (Web)" FontSize="22" FontWeight="Bold" />
+          <TextBlock x:Name="aboutVersionText" Text="Version" Foreground="#444444" />
+          <TextBlock x:Name="aboutBasedOnText" TextWrapping="Wrap" Foreground="#444444" />
+          <Button x:Name="aboutCloseButton" HorizontalAlignment="Right"
+                  Content="OK" MinWidth="80" />
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- Export format picker. The desktop save-format dialog has no cross-browser
+         equivalent (SaveFilePickerAsync is Chromium-only), so the user picks the format
+         here and the result is written via a Blob download (see BrowserFileService.ExportAsync). -->
+    <Border x:Name="exportOverlay" IsVisible="False" Background="#80000000">
+      <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="#FFFFFF" BorderBrush="#C0C0C0" BorderThickness="1"
+              CornerRadius="8" Padding="24" MinWidth="300"
+              BoxShadow="0 4 20 0 #50000000">
+        <StackPanel Spacing="10">
+          <TextBlock x:Name="exportTitle" Text="Export as…" FontSize="18" FontWeight="Bold" />
+          <Button x:Name="exportStlButton" Content="STL (.stl)" HorizontalAlignment="Stretch" />
+          <Button x:Name="exportDxfButton" Content="DXF (.dxf)" HorizontalAlignment="Stretch" />
+          <Button x:Name="exportStepButton" Content="STEP (.stp)" HorizontalAlignment="Stretch" />
+          <Button x:Name="exportCancelButton" Content="Cancel" HorizontalAlignment="Right" MinWidth="80" />
+        </StackPanel>
+      </Border>
+    </Border>
+
+    <!-- Touch gesture legend (opened from the touch bar's "?" button). -->
+    <Border x:Name="touchHelpOverlay" IsVisible="False" Background="#80000000">
+      <Border HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="#FFFFFF" BorderBrush="#C0C0C0" BorderThickness="1"
+              CornerRadius="8" Padding="24" MaxWidth="420"
+              BoxShadow="0 4 20 0 #50000000">
+        <StackPanel Spacing="10">
+          <TextBlock x:Name="touchHelpTitle" Text="Touch-Steuerung" FontSize="20" FontWeight="Bold" />
+          <Grid ColumnDefinitions="Auto,16,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" >
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="1 Finger ziehen" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="Drehen" />
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="2 Finger ziehen" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="Verschieben" />
+            <TextBlock Grid.Row="2" Grid.Column="0" Text="2 Finger auf/zu" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="2" Grid.Column="2" Text="Zoomen" />
+            <TextBlock Grid.Row="3" Grid.Column="0" Text="Tippen" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="3" Grid.Column="2" Text="Auswählen" />
+            <TextBlock Grid.Row="4" Grid.Column="0" Text="Lang drücken" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="4" Grid.Column="2" Text="Kontextmenü" />
+            <TextBlock Grid.Row="5" Grid.Column="0" Text="Multi" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="5" Grid.Column="2" Text="Mehrfachauswahl: Tippen fügt hinzu / entfernt" />
+            <TextBlock Grid.Row="6" Grid.Column="0" Text="Körper" FontWeight="SemiBold" />
+            <TextBlock Grid.Row="6" Grid.Column="2" Text="Ganzes Objekt auswählen" />
+          </Grid>
+          <Border BorderBrush="#E0E0E0" BorderThickness="0,1,0,0" Padding="0,8,0,0">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Diagnose (letzte Touch-Ereignisse):" FontSize="11" Foreground="#888" />
+              <TextBlock x:Name="touchDebugText" Text="(noch nichts)" FontFamily="monospace"
+                         FontSize="11" Foreground="#555" TextWrapping="Wrap" MaxWidth="380" />
+            </StackPanel>
+          </Border>
+          <Button x:Name="touchHelpCloseButton" Content="OK" HorizontalAlignment="Right" MinWidth="80" />
+        </StackPanel>
+      </Border>
+    </Border>
+  </Grid>
+</UserControl>

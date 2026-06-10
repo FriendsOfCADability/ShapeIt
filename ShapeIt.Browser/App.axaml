@@ -1,0 +1,104 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ShapeIt.Browser.App"
+             RequestedThemeVariant="Light">
+
+  <!-- Toolbar button colours (copied from the desktop ShapeIt.Avalonia App). -->
+  <Application.Resources>
+    <SolidColorBrush x:Key="ToolbarBtnBackground"            Color="#ECECEC" />
+    <SolidColorBrush x:Key="ToolbarBtnBackgroundPointerOver" Color="#C8C8C8" />
+    <SolidColorBrush x:Key="ToolbarBtnBackgroundPressed"     Color="#B0B0B0" />
+    <SolidColorBrush x:Key="ToolbarBtnBackgroundChecked"            Color="#BBDEFB" />
+    <SolidColorBrush x:Key="ToolbarBtnBackgroundCheckedPointerOver" Color="#64B5F6" />
+    <SolidColorBrush x:Key="ToolbarBtnBackgroundCheckedPressed"     Color="#42A5F5" />
+
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevron"               Color="Black" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPointerOver"    Color="Black" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronPressed"        Color="Black" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronDisabled"       Color="Gray" />
+    <SolidColorBrush x:Key="MenuFlyoutSubItemChevronSubMenuOpened"  Color="Black" />
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme />
+
+    <!-- ── Compact UI overrides (match the desktop CADability.Forms look) ── -->
+    <Style Selector="Menu">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Menu > MenuItem">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Padding" Value="8 3" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="MenuItem">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <Style Selector="ToggleButton.toolbar">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="2" />
+      <Setter Property="Margin" Value="1 0" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackground}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackgroundPointerOver}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackgroundPressed}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackgroundChecked}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackgroundCheckedPointerOver}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackgroundCheckedPressed}" />
+    </Style>
+
+    <Style Selector="SplitButton.toolbar">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="1 0" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="SplitButton.toolbar /template/ Button#PART_PrimaryButton">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="2" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="SplitButton.toolbar /template/ Button#PART_SecondaryButton">
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="0 0 2 0" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="SplitButton.toolbar /template/ Border#SeparatorBorder">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="SplitButton.toolbar /template/ PathIcon">
+      <Setter Property="Width" Value="7" />
+      <Setter Property="Height" Value="5" />
+      <Setter Property="Data" Value="M0,0 L8,0 L4,5 Z" />
+    </Style>
+    <Style Selector="SplitButton.toolbar /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackground}" />
+    </Style>
+    <Style Selector="SplitButton.toolbar /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackgroundPointerOver}" />
+    </Style>
+    <Style Selector="SplitButton.toolbar /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource ToolbarBtnBackgroundPressed}" />
+    </Style>
+  </Application.Styles>
+
+</Application>
