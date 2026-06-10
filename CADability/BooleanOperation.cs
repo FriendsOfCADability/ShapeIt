@@ -5,7 +5,6 @@ using CADability.Shapes;
 using CADability.Substitutes;
 using Point = CADability.GeoObject.Point;
 using MathNet.Numerics;
-using Microsoft.VisualStudio.DebuggerVisualizers;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;

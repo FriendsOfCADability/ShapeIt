@@ -130,6 +130,13 @@ namespace CADability
 		internal OctTree<IGeoObject> octTree; // erstmal internal, mal sehen...
 		private HashSet<string> runningThreads; //List with the IDs (go.UniqueID+precision) of the geo objects being recomputed in the background.
 		private EventWaitHandle recalcDone;
+		// WebAssembly/browser runs single-threaded: starting a background thread (and
+		// EventWaitHandle.WaitOne / Thread.Join on the UI thread) is unsupported and would
+		// hang or throw. The synchronous display-list build below is sufficient there;
+		// progressive precision refinement (the background path) is simply skipped.
+		private static readonly bool IsBrowser =
+			System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(
+				System.Runtime.InteropServices.OSPlatform.Create("BROWSER"));
 		Thread manageBackgroundRecalc; //Background thread that queue the computation of the display list in the thread pool.
 		double backgroundRecalcPrecision; //Precision used by the background thread to compute the display lists.
 		CancellationTokenSource cancellationTokenSource = null; //To cancel the background threads used to compute the display lists of the geo objects.
@@ -325,7 +332,7 @@ namespace CADability
 		internal void RecalcDisplayLists(IPaintTo3D paintTo3D)
 		{   // wird vom Paint in ProjectedModel aufgerufen, wenn dieser "dirty" ist
 			// kann aber nacheinander von mehreren ProjectedModels aufgerufen werden und soll nur einmal berechnet werden
-			if (paintTo3D.Precision < displayListPrecision && !paintTo3D.DontRecalcTriangulation)
+			if (!IsBrowser && paintTo3D.Precision < displayListPrecision && !paintTo3D.DontRecalcTriangulation)
 			{
 				double recalcPrecision = paintTo3D.Precision / 2.0; // /2.0, damit es nicht sooft drankommt
 				if (manageBackgroundRecalc != null)
