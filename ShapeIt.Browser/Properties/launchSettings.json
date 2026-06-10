@@ -7,6 +7,14 @@
                 "ASPNETCORE_ENVIRONMENT": "Development"
             },
             "applicationUrl": "http://localhost:5235"
+        },
+        "ShapeIt.Browser (Browser öffnen)": {
+            "commandName": "Project",
+            "launchBrowser": true,
+            "environmentVariables": {
+                "ASPNETCORE_ENVIRONMENT": "Development"
+            },
+            "applicationUrl": "http://localhost:5235"
         }
     }
 }
