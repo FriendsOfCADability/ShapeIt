@@ -15,6 +15,12 @@
                 "ASPNETCORE_ENVIRONMENT": "Development"
             },
             "applicationUrl": "http://localhost:5235"
+        },
+        "ShapeIt.Browser (dotnet run)": {
+            "commandName": "Executable",
+            "executablePath": "dotnet",
+            "commandLineArgs": "run",
+            "workingDirectory": "$(ProjectDir)"
         }
     }
 }
