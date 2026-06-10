@@ -23,6 +23,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CADability.Avalonia", "..\C
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShapeIt.Avalonia", "..\ShapeIt.Avalonia\ShapeIt.Avalonia.csproj", "{BCB784BD-D35C-4CE9-9C07-013DE4B97F19}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShapeIt.Browser", "..\ShapeIt.Browser\ShapeIt.Browser.csproj", "{FDF02564-C71B-47FE-B1C8-54DA9B826498}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -153,6 +155,12 @@ Global
 		{BCB784BD-D35C-4CE9-9C07-013DE4B97F19}.Release|x64.Build.0 = Release|Any CPU
 		{BCB784BD-D35C-4CE9-9C07-013DE4B97F19}.Release|x86.ActiveCfg = Release|Any CPU
 		{BCB784BD-D35C-4CE9-9C07-013DE4B97F19}.Release|x86.Build.0 = Release|Any CPU
+		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Release|x64.ActiveCfg = Release|Any CPU
+		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Release|x86.ActiveCfg = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
