@@ -32,7 +32,7 @@ namespace ShapeIt
     /// <summary>
     /// Class to enable Edges to reside in an <see cref="OctTree{T}"/>
     /// </summary>
-    internal class ModellingPropertyEntries : PropertyEntryImpl, ICommandHandler
+    internal partial class ModellingPropertyEntries : PropertyEntryImpl, ICommandHandler
     {
         private List<IPropertyEntry> subEntries = new List<IPropertyEntry>(); // the list of property entries in this property page
         private IFrame cadFrame; // the frame (root object of cadability)
@@ -53,6 +53,13 @@ namespace ShapeIt
         private bool downOnSelectedObjects;
         private ModOp accumulatedMovement; // when dragging objects this is the accumulation movement in respect to the original objects
         private HashSet<IGeoObject> currentlySelected = new HashSet<IGeoObject>(); // all curves, edges, faces which are currently shown in the subentries
+
+        /// <summary>True while modelling mode is on (every click is handled by this page).</summary>
+        public bool IsModellingActive => modelligIsActive;
+        /// <summary>True when the modelling pick currently has something selected (curves/edges/faces shown as sub-entries).
+        /// Lets the browser touch head tell a successful modelling pick from a miss (the action's own
+        /// SelectedObjects list is always empty in modelling mode).</summary>
+        public bool HasModellingSelection => currentlySelected.Count > 0;
         private Dictionary<IGeoObject, IGeoObject> selectedSameSurfaceBudies = new Dictionary<IGeoObject, IGeoObject>();
 
         private GeoObjectList selectedChildObjects = new GeoObjectList(); // when a face or feature is selected, it is listed here to maybe move it later
@@ -762,9 +769,12 @@ namespace ShapeIt
         }
 
         private string resourceIdOfLastSelectedCategory = String.Empty; // what was selected last time? edge, face, solid etc.
-        private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea? pickArea, bool alsoParent = true, bool addRemove = false)
-        {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by 
+        private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea? pickArea, bool alsoParent = true, bool addRemove = false, bool preferMostSpecific = false)
+        {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by
             // the object(s) under the mouse cursor
+            // preferMostSpecific (touch picking): pre-select strictly by the edge->curve->face->solid
+            // priority instead of sticking to the last selected category — a finger that lands near an
+            // edge means the edge, even if a face was selected before.
             // what to focus after the selection changed?
             IPropertyEntry pe = propertyPage.GetCurrentSelection();
             while (pe != null && FindParent(this, pe) != this)
@@ -1122,7 +1132,9 @@ namespace ShapeIt
                 }
                 bool found = false;
                 // first try with resourceIdOfEntryToSelect, which was the last selected category, if not possible then try with possibleSelectionId, which is the edge->face->solid priority
-                foreach (String resIdToSearchFor in new string[] { resourceIdOfLastSelectedCategory, possibleSelectionId })
+                foreach (String resIdToSearchFor in preferMostSpecific
+                    ? new string[] { possibleSelectionId }
+                    : new string[] { resourceIdOfLastSelectedCategory, possibleSelectionId })
                 {
                     for (int i = 0; i < subEntries.Count; i++)
                     {
