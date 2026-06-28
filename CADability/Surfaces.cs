@@ -1242,6 +1242,7 @@ namespace CADability.GeoObject
                                 }
                             }
                         }
+                        candidates = tmp.ToArray();
                     }
                     for (int i = 0; i < candidates.Length; i++)
                     {
