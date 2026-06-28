@@ -82,6 +82,51 @@ void main()
 }
 ";
 
+        // Wide lines: ANGLE/Direct3D clamps glLineWidth to 1, so lines wider than
+        // 1 px are rendered as screen-space quads (two triangles per segment)
+        // instead. Each vertex carries the segment's two endpoints, a side sign
+        // and a flag telling which endpoint this vertex sits at; the quad is
+        // expanded perpendicular to the segment in pixel space so the width is
+        // constant in pixels regardless of zoom. Pairs with UnlitFragmentShader.
+        public const string ThickLineVertexShader = @"
+#version 330 core
+
+layout(location = 0) in vec3  aStart;     // segment start (local space)
+layout(location = 1) in vec3  aEnd;       // segment end   (local space)
+layout(location = 2) in vec4  aColor;
+layout(location = 3) in float aSide;      // -1 or +1: which side to offset
+layout(location = 4) in float aEndFlag;   // 0 at start, 1 at end
+
+uniform mat4  uMVP;
+uniform vec2  uViewport;    // framebuffer size in pixels
+uniform float uHalfWidth;   // half line width in pixels
+
+out vec4 vColor;
+
+void main()
+{
+    vec4 clipS = uMVP * vec4(aStart, 1.0);
+    vec4 clipE = uMVP * vec4(aEnd,   1.0);
+
+    // Endpoints in pixel space (after perspective divide).
+    vec2 sS = (clipS.xy / clipS.w) * 0.5 * uViewport;
+    vec2 sE = (clipE.xy / clipE.w) * 0.5 * uViewport;
+
+    vec2  d   = sE - sS;
+    float len = length(d);
+    vec2  dir = (len > 1e-6) ? d / len : vec2(1.0, 0.0);
+    vec2  nrm = vec2(-dir.y, dir.x);     // perpendicular in pixel space
+
+    vec4 clip   = (aEndFlag < 0.5) ? clipS : clipE;
+    vec2 offPx  = nrm * aSide * uHalfWidth;
+    vec2 offNdc = offPx * 2.0 / uViewport;
+    clip.xy    += offNdc * clip.w;        // pre-divide, so width stays in pixels
+
+    gl_Position = clip;
+    vColor      = aColor;
+}
+";
+
         public const string PointVertexShader = @"
 #version 330 core
 

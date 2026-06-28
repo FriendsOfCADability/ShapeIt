@@ -23,6 +23,9 @@ namespace CADability.Avalonia
         private GL _gl = null!;
         private ShaderProgram _litShader = null!;
         private ShaderProgram _unlitShader = null!;
+        // Wide lines (> 1 px) rendered as screen-space quads; glLineWidth is
+        // clamped to 1 under ANGLE/Direct3D.
+        private ShaderProgram _thickLineShader = null!;
 
         // ── Point sprite rendering ─────────────────────────────────────────
         private ShaderProgram? _pointShader;
@@ -135,8 +138,11 @@ namespace CADability.Avalonia
             string texVert = AdaptShader(ShaderSources.TextureVertexShader, isFragment: false);
             string texFrag = AdaptShader(ShaderSources.TextureFragmentShader, isFragment: true);
 
+            string thickVert = AdaptShader(ShaderSources.ThickLineVertexShader, isFragment: false);
+
             _litShader = new ShaderProgram(_gl, vert, lit);
             _unlitShader = new ShaderProgram(_gl, vert, unlit);
+            _thickLineShader = new ShaderProgram(_gl, thickVert, unlit);
             _pointShader = new ShaderProgram(_gl, ptVert, ptFrag);
             _textShader = new ShaderProgram(_gl, txVert, txFrag);
             _textureShader = new ShaderProgram(_gl, texVert, texFrag);
@@ -223,6 +229,7 @@ namespace CADability.Avalonia
         {
             _litShader?.Dispose();
             _unlitShader?.Dispose();
+            _thickLineShader?.Dispose();
             _pointShader?.Dispose();
             _textShader?.Dispose();
             _textureShader?.Dispose();
@@ -247,6 +254,11 @@ namespace CADability.Avalonia
             _gl.ClearColor(background.R / 255f, background.G / 255f,
                            background.B / 255f, 1f);
             _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            // Reset the global line width at the start of every frame. glLineWidth
+            // is global GL state that is not stored per recorded buffer, so without
+            // this a thick width set during one frame (e.g. an immediate-mode line)
+            // could leak into the recorded geometry of the next frame.
+            _gl.LineWidth(1f);
         }
 
         void IPaintTo3D.AvoidColor(Substitutes.Color color) => _backgroundColor = color;
@@ -329,7 +341,19 @@ namespace CADability.Avalonia
             if (!_useLineWidth) return;
             float w = (lineWidth == null || lineWidth.Width == 0.0)
                       ? 1.0f : (float)(lineWidth.Width * 10.0);
-            _gl.LineWidth(Math.Clamp(w, 1f, 10f));
+            float applied = Math.Clamp(w, 1f, 10f);
+
+            if (_recordingList != null)
+            {
+                // While recording, the width must NOT touch the shared global
+                // glLineWidth (that leaks into later frames). Instead it is stored
+                // on the list so the polylines recorded next are bucketed by width
+                // and each buffer applies its own width at draw time.
+                _recordingList.CurrentLineWidth = applied;
+                return;
+            }
+
+            _gl.LineWidth(applied);
         }
 
         void IPaintTo3D.SetLinePattern(LinePattern pattern) { }
@@ -854,6 +878,15 @@ namespace CADability.Avalonia
             _unlitShader.SetVec4("uColorOverride", overrideColor ?? new Vector4(0, 0, 0, 0));
         }
 
+        private void SetupThickLineShader(Vector4? overrideColor, float lineWidth)
+        {
+            _thickLineShader.Use();
+            _thickLineShader.SetMatrix4("uMVP", _model * _view * _projection);
+            _thickLineShader.SetVec4("uColorOverride", overrideColor ?? new Vector4(0, 0, 0, 0));
+            _thickLineShader.SetVec2("uViewport", new Vector2(_width, _height));
+            _thickLineShader.SetFloat("uHalfWidth", lineWidth * 0.5f);
+        }
+
         private void SetupPointShader(PointSymbol symbol, Vector4? overrideColor)
         {
             _pointShader!.Use();
@@ -879,7 +912,12 @@ namespace CADability.Avalonia
                 switch (buf.Mode)
                 {
                     case PrimitiveType.Triangles:
-                        SetupLitShader(currentOverride);
+                        // Wide lines are stored as triangle quads but use their own
+                        // shader (screen-space expansion), not the lit surface shader.
+                        if (buf.IsThickLine)
+                            SetupThickLineShader(currentOverride, buf.LineWidth);
+                        else
+                            SetupLitShader(currentOverride);
                         break;
                     case PrimitiveType.Points:
                         SetupPointShader(buf.Symbol, currentOverride);

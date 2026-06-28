@@ -260,6 +260,11 @@ namespace CADability.Forms.NET8
             _gl.ClearColor(background.R / 255f, background.G / 255f,
                            background.B / 255f, 1f);
             _gl.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            // Reset the global line width at the start of every frame. glLineWidth
+            // is global GL state that is not stored per recorded buffer, so without
+            // this a thick width set during one frame (e.g. an immediate-mode line)
+            // could leak into the recorded geometry of the next frame.
+            _gl.LineWidth(1f);
         }
 
         void IPaintTo3D.AvoidColor(Substitutes.Color color) => _backgroundColor = color;
@@ -345,7 +350,19 @@ namespace CADability.Forms.NET8
             if (!_useLineWidth) return;
             float w = (lineWidth == null || lineWidth.Width == 0.0)
                       ? 1.0f : (float)(lineWidth.Width * 10.0);
-            _gl.LineWidth(Math.Clamp(w, 1f, 10f));
+            float applied = Math.Clamp(w, 1f, 10f);
+
+            if (_recordingList != null)
+            {
+                // While recording, the width must NOT touch the shared global
+                // glLineWidth (that leaks into later frames). Instead it is stored
+                // on the list so the polylines recorded next are bucketed by width
+                // and each buffer applies its own width at draw time.
+                _recordingList.CurrentLineWidth = applied;
+                return;
+            }
+
+            _gl.LineWidth(applied);
         }
 
         void IPaintTo3D.SetLinePattern(LinePattern pattern)

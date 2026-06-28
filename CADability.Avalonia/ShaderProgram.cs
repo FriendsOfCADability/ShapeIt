@@ -68,6 +68,12 @@ namespace CADability.Avalonia
             }
         }
 
+        public void SetVec2(string name, System.Numerics.Vector2 v)
+        {
+            int loc = _gl.GetUniformLocation(Handle, name);
+            if (loc >= 0) _gl.Uniform2(loc, v.X, v.Y);
+        }
+
         public void SetVec3(string name, System.Numerics.Vector3 v)
         {
             int loc = _gl.GetUniformLocation(Handle, name);

@@ -28,11 +28,16 @@ namespace CADability.Forms.NET8
             public readonly PrimitiveType Mode;   // Lines, Triangles, Points
             // Only meaningful when Mode == Points; selects the sprite shape.
             public readonly PointSymbol Symbol;
+            // Only meaningful when Mode == Lines; the glLineWidth to apply when
+            // drawing this buffer. Lines recorded with different widths end up in
+            // separate sub-buffers so each can set its own width.
+            public readonly float LineWidth;
 
             public SubBuffer(uint vao, uint vbo, uint vertexCount, PrimitiveType mode,
-                             PointSymbol symbol = PointSymbol.Dot)
+                             PointSymbol symbol = PointSymbol.Dot, float lineWidth = 1f)
             {
-                Vao = vao; Vbo = vbo; VertexCount = vertexCount; Mode = mode; Symbol = symbol;
+                Vao = vao; Vbo = vbo; VertexCount = vertexCount; Mode = mode;
+                Symbol = symbol; LineWidth = lineWidth;
             }
         }
 
@@ -41,7 +46,10 @@ namespace CADability.Forms.NET8
         internal const int FloatsPerVertex = 10;
 
         private List<float>? _triangleData;   // lit triangles
-        private List<float>? _lineData;        // unlit line strips/segments
+        // Unlit line segments, keyed by line width. glLineWidth is global GL state
+        // and is not part of the vertex data, so lines of different widths must be
+        // stored (and later drawn) as separate buffers.
+        private Dictionary<float, List<float>>? _lineDataByWidth;
         // Point data keyed by PointSymbol so each symbol gets its own SubBuffer
         // (multiple Points() calls in one list may use different symbols).
         private Dictionary<PointSymbol, List<float>>? _pointDataBySymbol;
@@ -60,6 +68,8 @@ namespace CADability.Forms.NET8
         // ── State at recording time ────────────────────────────────────────
         internal Vector4 CurrentColor { get; set; } = new Vector4(1, 1, 1, 1);
         internal Vector3 CurrentNormal { get; set; } = Vector3.UnitZ;
+        // Line width active at record time; applied to polylines recorded next.
+        internal float CurrentLineWidth { get; set; } = 1f;
         internal bool HasContents { get; private set; }
 
         // ── IPaintTo3DList ─────────────────────────────────────────────────
@@ -75,7 +85,7 @@ namespace CADability.Forms.NET8
         public void BeginRecording()
         {
             _triangleData      = new List<float>(4096);
-            _lineData          = new List<float>(2048);
+            _lineDataByWidth   = new Dictionary<float, List<float>>();
             _pointDataBySymbol = new Dictionary<PointSymbol, List<float>>();
             _subLists          = new List<(GlBufferList, Matrix4x4?, Vector4?)>();
         }
@@ -105,16 +115,24 @@ namespace CADability.Forms.NET8
         /// <summary>Append a polyline (line strip) to the recording buffer.</summary>
         public void RecordPolyline(ReadOnlySpan<Vector3> points)
         {
-            if (_lineData == null || points.Length < 2) return;
+            if (_lineDataByWidth == null || points.Length < 2) return;
             HasContents = true;
+
+            // Lines are bucketed by the current line width so each width becomes
+            // its own draw call (glLineWidth is set per buffer at draw time).
+            if (!_lineDataByWidth.TryGetValue(CurrentLineWidth, out var lineData))
+            {
+                lineData = new List<float>(2048);
+                _lineDataByWidth[CurrentLineWidth] = lineData;
+            }
 
             var color = CurrentColor;
             // Expand line-strip into individual line segments so we can use a
-            // single GL_LINES draw call for all polylines in this list.
+            // single GL_LINES draw call for all polylines of this width.
             for (int i = 0; i < points.Length - 1; i++)
             {
-                AppendLineVertex(_lineData, points[i],   color);
-                AppendLineVertex(_lineData, points[i+1], color);
+                AppendLineVertex(lineData, points[i],   color);
+                AppendLineVertex(lineData, points[i+1], color);
             }
         }
 
@@ -163,19 +181,21 @@ namespace CADability.Forms.NET8
         {
             _gl = gl;
             UploadBuffer(gl, _triangleData, PrimitiveType.Triangles);
-            UploadBuffer(gl, _lineData,     PrimitiveType.Lines);
+            if (_lineDataByWidth != null)
+                foreach (var (width, data) in _lineDataByWidth)
+                    UploadBuffer(gl, data, PrimitiveType.Lines, lineWidth: width);
             if (_pointDataBySymbol != null)
                 foreach (var (sym, data) in _pointDataBySymbol)
                     UploadBuffer(gl, data, PrimitiveType.Points, sym);
 
             // Free CPU memory
             _triangleData      = null;
-            _lineData          = null;
+            _lineDataByWidth   = null;
             _pointDataBySymbol = null;
         }
 
         private void UploadBuffer(GL gl, List<float>? data, PrimitiveType mode,
-                                   PointSymbol symbol = PointSymbol.Dot)
+                                   PointSymbol symbol = PointSymbol.Dot, float lineWidth = 1f)
         {
             if (data == null || data.Count == 0) return;
 
@@ -209,7 +229,7 @@ namespace CADability.Forms.NET8
             gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
 
             uint count = (uint)(data.Count / FloatsPerVertex);
-            _gpuBuffers.Add(new SubBuffer(vao, vbo, count, mode, symbol));
+            _gpuBuffers.Add(new SubBuffer(vao, vbo, count, mode, symbol, lineWidth));
         }
 
         // ──────────────────────────────────────────────────────────────────
@@ -244,8 +264,15 @@ namespace CADability.Forms.NET8
             foreach (var buf in _gpuBuffers)
             {
                 prepareDraw?.Invoke(buf);
+                // glLineWidth is global GL state; set it for this line buffer and
+                // restore the default afterwards so it never leaks to other lines
+                // (recorded buffers without an explicit width, immediate draws or
+                // the next frame).
+                bool widthSet = buf.Mode == PrimitiveType.Lines && buf.LineWidth != 1f;
+                if (widthSet) gl.LineWidth(buf.LineWidth);
                 gl.BindVertexArray(buf.Vao);
                 gl.DrawArrays(buf.Mode, 0, buf.VertexCount);
+                if (widthSet) gl.LineWidth(1f);
             }
             gl.BindVertexArray(0);
         }
