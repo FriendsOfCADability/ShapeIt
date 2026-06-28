@@ -109,7 +109,16 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(Select-String -Pattern \"error|Build succeeded|warning CS\")",
-      "PowerShell(dotnet build ShapeIt.Avalonia/ShapeIt.Avalonia.csproj -c Debug --nologo; \"EXIT=$LASTEXITCODE\")"
+      "PowerShell(dotnet build ShapeIt.Avalonia/ShapeIt.Avalonia.csproj -c Debug --nologo; \"EXIT=$LASTEXITCODE\")",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\_svgtest\")",
+      "Bash(git commit -m '@ *)",
+      "Bash(git commit *)",
+      "Bash(rm .git/COMMIT_EDITMSG_TMP)",
+      "Bash(test -f /c/Users/gerha/.claude/CLAUDE.md && echo \"EXISTS\" && cat /c/Users/gerha/.claude/CLAUDE.md || echo \"NOT FOUND\")",
+      "Bash(awk 'NR>=5802 && /^    public class |^    internal class |^    class / {print NR\": \"$0}' CADability/Surface.cs)",
+      "Bash(sed -n '5802,7249p' CADability/Surface.cs)",
+      "Read(//tmp/**)",
+      "PowerShell(dotnet test \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\tests\\\\CADability.Tests\\\\CADability.Tests.csproj\" --nologo -c Debug --filter \"Diagnose_PlaneNurbs\" 2>&1)"
     ]
   }
 }

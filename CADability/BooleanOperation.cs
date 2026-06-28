@@ -3,15 +3,16 @@ using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.Substitutes;
-using Point = CADability.GeoObject.Point;
 using MathNet.Numerics;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using Wintellect.PowerCollections;
+using Point = CADability.GeoObject.Point;
 
 
 namespace CADability
@@ -286,6 +287,17 @@ namespace CADability
             {
                 // test for inner intersections, where no edges are involved
                 if (!fc1.GetExtent(0.0).Interferes(fc2.GetExtent(0.0))) return; // bounding boxes don't interfere: no intersection
+#if DEBUGxxx
+                //Stream stream = File.Open(@"C:\Temp\Face1.json", FileMode.Create);
+                //JsonSerialize js = new JsonSerialize();
+                //js.ToStream(stream, fc1);
+                //stream.Close();
+                //stream = File.Open(@"C:\Temp\Face2.json", FileMode.Create);
+                //js = new JsonSerialize();
+                //js.ToStream(stream, fc2);
+                //stream.Close();
+#endif
+
                 IDualSurfaceCurve[] innerCurves = Surfaces.IntersectInner(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain);
                 if (innerCurves?.Length > 0)
                 {

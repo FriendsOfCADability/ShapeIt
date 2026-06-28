@@ -558,48 +558,54 @@ namespace CADability.DXF
             if (points[points.Count - 1] != p) points.Add(p);
             p = GeoPoint(face.FourthVertex);
             if (points[points.Count - 1] != p) points.Add(p);
-            if (points.Count == 3)
+            try
             {
-                Plane pln = new Plane(points[0], points[1], points[2]);
-                PlaneSurface surf = new PlaneSurface(pln);
-                Border bdr = new Border(new GeoPoint2D[] { new GeoPoint2D(0.0, 0.0), pln.Project(points[1]), pln.Project(points[2]) });
-                SimpleShape ss = new SimpleShape(bdr);
-                Face fc = Face.MakeFace(surf, ss);
-                return fc;
-            }
-            else if (points.Count == 4)
-            {
-                Plane pln = CADability.Plane.FromPoints(points.ToArray(), out double maxDist, out bool isLinear);
-                if (!isLinear)
+                if (points.Count == 3)
                 {
-                    if (maxDist > Precision.eps)
+                    Plane pln = new Plane(points[0], points[1], points[2]);
+                    PlaneSurface surf = new PlaneSurface(pln);
+                    Border bdr = new Border(new GeoPoint2D[] { new GeoPoint2D(0.0, 0.0), pln.Project(points[1]), pln.Project(points[2]) });
+                    SimpleShape ss = new SimpleShape(bdr);
+                    Face fc = Face.MakeFace(surf, ss);
+                    return fc;
+                }
+                else if (points.Count == 4)
+                {
+                    Plane pln = CADability.Plane.FromPoints(points.ToArray(), out double maxDist, out bool isLinear);
+                    if (!isLinear)
                     {
-                        Face fc1 = Face.MakeFace(points[0], points[1], points[2]);
-                        Face fc2 = Face.MakeFace(points[0], points[2], points[3]);
-                        GeoObject.Block blk = GeoObject.Block.Construct();
-                        blk.Set(new GeoObjectList(fc1, fc2));
-                        return blk;
-                    }
-                    else
-                    {
-                        PlaneSurface surf = new PlaneSurface(pln);
-                        Border bdr = new Border(new GeoPoint2D[] { pln.Project(points[0]), pln.Project(points[1]), pln.Project(points[2]), pln.Project(points[3]) });
-                        double[] sis = bdr.GetSelfIntersection(Precision.eps);
-                        if (sis.Length > 0)
+                        if (maxDist > Precision.eps)
                         {
-                            // multiple of three values: parameter1, parameter2, crossproduct of intersection direction
-                            // there can only be one intersection
-                            Border[] splitted = bdr.Split(new double[] { sis[0], sis[1] });
-                            for (int i = 0; i < splitted.Length; i++)
-                            {
-                                if (splitted[i].IsClosed) bdr = splitted[i];
-                            }
+                            Face fc1 = Face.MakeFace(points[0], points[1], points[2]);
+                            Face fc2 = Face.MakeFace(points[0], points[2], points[3]);
+                            GeoObject.Block blk = GeoObject.Block.Construct();
+                            blk.Set(new GeoObjectList(fc1, fc2));
+                            return blk;
                         }
-                        SimpleShape ss = new SimpleShape(bdr);
-                        Face fc = Face.MakeFace(surf, ss);
-                        return fc;
+                        else
+                        {
+                            PlaneSurface surf = new PlaneSurface(pln);
+                            Border bdr = new Border(new GeoPoint2D[] { pln.Project(points[0]), pln.Project(points[1]), pln.Project(points[2]), pln.Project(points[3]) });
+                            double[] sis = bdr.GetSelfIntersection(Precision.eps);
+                            if (sis.Length > 0)
+                            {
+                                // multiple of three values: parameter1, parameter2, crossproduct of intersection direction
+                                // there can only be one intersection
+                                Border[] splitted = bdr.Split(new double[] { sis[0], sis[1] });
+                                for (int i = 0; i < splitted.Length; i++)
+                                {
+                                    if (splitted[i].IsClosed) bdr = splitted[i];
+                                }
+                            }
+                            SimpleShape ss = new SimpleShape(bdr);
+                            Face fc = Face.MakeFace(surf, ss);
+                            return fc;
+                        }
                     }
                 }
+            }
+            catch (Exception ex)
+            {
             }
             return null;
 

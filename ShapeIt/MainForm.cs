@@ -1,6 +1,7 @@
 ﻿using CADability;
 using CADability.Actions;
 using CADability.Attribute;
+using CADability.Curve2D;
 using CADability.Forms.NET8;
 using CADability.GeoObject;
 using CADability.UserInterface;
@@ -330,7 +331,7 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            return;
+            // return;
             string? filename = null; // @"C:\Users\gerha\Documents\Zeichnungen\LampenArm06.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
@@ -399,7 +400,7 @@ namespace ShapeIt
                     Solid sres = NewBooleanOperation.Unite(operand1, operand2);
                 }
             }
-            if (slds.Count >1)
+            if (slds.Count > 1)
             {
                 if (command.Equals("UniteAll", StringComparison.OrdinalIgnoreCase))
                 {
@@ -684,93 +685,133 @@ namespace ShapeIt
         }
         private void Debug()
         {
-            List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
-            Solid operand1 = null, operand2 = null;
-            List<Solid> difference = new List<Solid>();
-            List<Solid> intersection = new List<Solid>();
-            List<Solid> union = new List<Solid>();
-            List<ICurve> edgeMarkers = new List<ICurve>();
-            foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
+            GeoObjectList l = modellingPropertyEntries.SelectedObjects;
+            if (l.Count == 1)
             {
-                if (go is CADability.GeoObject.Solid sld)
+                if (l[0] is Polyline pl && pl.IsRectangle)
                 {
-                    slds.Add(sld);
-                    if (sld.Style != null)
+                    GeoPoint sp = pl.StartPoint;
+                    GeoVector dx = pl.GetPoint(1) - sp;
+                    GeoVector dy = pl.GetPoint(2) - pl.GetPoint(1);
+                    GeoVector n = (dx ^ dy).Normalized;
+                    double m = (dx.Length + dy.Length) / 4.0;
+                    m *= 0.4;
+                    Random rnd = new Random();
+                    // Handle rectangle case
+                    int xc = 10, yc = 10;
+                    GeoPoint[,] poles = new GeoPoint[xc, yc];
+                    for (int i = 0; i < xc; i++)
                     {
-                        if (sld.Style.Name == "Operand1") operand1 = sld;
-                        else if (sld.Style.Name == "Operand2") operand2 = sld;
-                        else if (sld.Style.Name == "Difference") difference.Add(sld);
-                        else if (sld.Style.Name == "Union") union.Add(sld);
-                        else if (sld.Style.Name == "Intersection") intersection.Add(sld);
-                    }
-                }
-                if (go is ICurve curve)
-                {
-                    if (go.Style.Name == "EdgeMarker")
-                    {
-                        edgeMarkers.Add(curve);
-                    }
-                }
-            }
-            if (operand1 != null && operand2 != null)
-            {
-                if (difference.Count > 0)
-                {
-                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
-                    if (sres.Length > 0)
-                    {
-                        Project proj = Project.CreateSimpleProject();
-                        proj.GetActiveModel().Add(sres);
-                        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
-                    }
-                }
-            }
-            if (slds.Count == 2)
-            {
-                //Solid un = NewBooleanOperation.Unite(slds[0], slds[1]);
-                Solid[] sld;
-                if (slds[0].Volume(0.1) > slds[1].Volume(0.1))
-                {
-                    sld = NewBooleanOperation.Subtract(slds[0], slds[1]);
-                }
-                else
-                {
-                    sld = NewBooleanOperation.Subtract(slds[1], slds[0]);
-                }
-                //if (sld.Length > 0)
-                //{
-                //    Project proj = Project.CreateSimpleProject();
-                //    proj.GetActiveModel().Add(sld);
-                //    proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
-                //}
-            }
-            if (edgeMarkers.Count > 0)
-            {
-                foreach (Solid s in slds)
-                {
-                    foreach (Edge edg in s.Shells[0].Edges)
-                    {
-                        foreach (ICurve em in edgeMarkers)
+                        for (int j = 0; j < yc; j++)
                         {
-                            if (edg.Curve3D.SameGeometry(em, 0.1))
-                            {
-                                Shell rounded = s.Shells[0].RoundEdges(new Edge[] { edg }, 2);
-                            }
+                            GeoPoint p = sp + ((double)i / (xc - 1)) * dx + ((double)j / (yc - 1)) * dy;
+
+                            // lx, ly: 0 am Rand, 1 in der Mitte (linear)
+                            double lx = 1.0 - Math.Abs(2.0 * i / (xc - 1) - 1.0);
+                            double ly = 1.0 - Math.Abs(2.0 * j / (yc - 1) - 1.0);
+
+                            double rm = (1+rnd.NextDouble())*0.8*m;
+                            double t = rm * Math.Sqrt(1 - (1 - lx) * (1 - lx)) * Math.Sqrt(1 - (1 - ly) * (1 - ly));
+                            p = p + t * n;
+                            poles[i, j] = p;
+                        }
+                    }
+                    double[] uKnots = new double[xc + 3 + 1];
+                    double[] vKnots = new double[yc + 3 + 1];
+                    double dk = 1.0 / (xc - 3);
+                    for (int i = 0; i < uKnots.Length; i++)
+                    {
+                        double nom = i - 3;
+                        if (nom < 0) nom = 0;
+                        if (nom > xc - 3) nom = xc - 3;
+                        uKnots[i] = nom * dk;
+                    }
+                    dk = 1.0 / (yc - 3);
+                    for (int i = 0; i < vKnots.Length; i++)
+                    {
+                        double nom = i - 3;
+                        if (nom < 0) nom = 0;
+                        if (nom > yc - 3) nom = yc - 3;
+                        vKnots[i] = nom * dk;
+                    }
+                    NurbsSurface ns = new NurbsSurface(poles, null, uKnots, vKnots, 3, 3, false, false);
+                    Face f1 = Face.MakeFace(ns, new BoundingRect(0, 0, 1, 1));
+                    Face f2 = Face.MakeFace(new GeoObjectList(pl));
+                    Shell[] shs = Make3D.SewFaces(new Face[] { f1, f2});
+                    if (shs.Length == 1 && shs[0].OpenEdges.Length == 0)
+                    {
+                        Solid sld = Solid.MakeSolid(shs[0]);
+                        pl.Owner.Add(sld);
+                    }
+                }
+            }
+            else if (l.Count == 2)
+            {
+                int vnum = 5;
+                if (l.Count != 2) return;
+                BSpline? b1 = l[0] as BSpline;
+                BSpline? b2 = l[1] as BSpline;
+                if (b1 == null || b2 == null) return;
+                if ((b1 as ICurve).StartPoint.x > (b2 as ICurve).StartPoint.x) (b1, b2) = (b2, b1);
+                if (b1.Poles.Length != b2.Poles.Length) return;
+                GeoPoint[,] poles = new GeoPoint[b1.Poles.Length, vnum];
+                for (int i = 0; i < poles.GetLength(0); i++)
+                {
+                    GeoPoint p1 = b1.Poles[i];
+                    GeoPoint p2 = b2.Poles[i];
+                    double d = p1 | p2;
+                    double step = d / (vnum - 1);
+                    for (int j = 0; j < vnum; j++)
+                    {
+                        if (j == 0) poles[i, j] = p1;
+                        else if (j == vnum - 1) poles[i, j] = p2;
+                        else
+                        {
+                            double t = j * step;
+                            double len = Math.Sqrt(d * d / 4 - Math.Abs(d / 2 - t) * Math.Abs(d / 2 - t));
+                            GeoPoint p = p1 + t * (p2 - p1).Normalized;
+                            poles[i, j] = p + len * GeoVector.ZAxis;
                         }
                     }
                 }
+                double[] uKnots = new double[b1.Poles.Length + 3 + 1];
+                for (int i = 0; i < uKnots.Length; i++)
+                {
+                    int ind = i - 3;
+                    if (ind < 0) ind = 0;
+                    if (ind >= b1.Knots.Length) ind = b1.Knots.Length - 1;
+                    uKnots[i] = b1.Knots[ind];
+                }
+                double[] vKnots = new double[vnum + 3 + 1];
+                double dk = 1.0 / (vnum - 3);
+                for (int i = 0; i < vKnots.Length; i++)
+                {
+                    double nom = i - 3;
+                    if (nom < 0) nom = 0;
+                    if (nom > vnum - 3) nom = vnum - 3;
+                    vKnots[i] = nom * dk;
+                }
+                NurbsSurface ns = new NurbsSurface(poles, null, uKnots, vKnots, 3, 3, false, false);
+                Face f1 = Face.MakeFace(ns, new BoundingRect(0, 0, 1, 1));
+                ICurve c1 = ns.FixedU(0.0, 0, 1);
+                ICurve c2 = ns.FixedU(1.0, 0, 1);
+                Plane pl1 = new Plane(c1.StartPoint, -c1.StartDirection);
+                Plane pl2 = new Plane(c1.EndPoint, c1.EndDirection);
+
+                Face f2 = Face.MakeFace(new GeoObjectList(c1 as IGeoObject, Line.TwoPoints(c1.EndPoint, c1.StartPoint)));
+                Face f3 = Face.MakeFace(new GeoObjectList(c2 as IGeoObject, Line.TwoPoints(c2.EndPoint, c2.StartPoint)));
+
+                ICurve c3 = ns.FixedV(0, 0, 1);
+                ICurve c4 = ns.FixedV(1.0, 0, 1);
+                c3.Reverse();
+                Face f4 = Face.MakeFace(new GeoObjectList(c3 as IGeoObject, Line.TwoPoints(c3.EndPoint, c4.StartPoint), c4 as IGeoObject, Line.TwoPoints(c4.EndPoint, c3.StartPoint)));
+                Shell[] shs = Make3D.SewFaces(new Face[] { f1, f2, f3, f4 });
+                if (shs.Length == 1 && shs[0].OpenEdges.Length == 0)
+                {
+                    Solid sld = Solid.MakeSolid(shs[0]);
+                    b1.Owner.Add(sld);
+                }
             }
-            //if (slds.Count == 1)
-            //{
-            //    Shell shell = slds[0].Shells[0];
-            //    foreach (var vtx in shell.Vertices)
-            //    {
-            //        if ((vtx.Position | new GeoPoint(58, 12, 17)) < 3)
-            //        {
-            //            Shell rounded = shell.RoundEdges(vtx.Edges, 2);
-            //        }
-            //    }
-            //}
         }
 #endif
     }

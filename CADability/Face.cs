@@ -5310,6 +5310,56 @@ namespace CADability.GeoObject
                 return res;
             }
         }
+
+        internal DebuggerContainer DebugGrid
+        {
+            get
+            {
+                DebuggerContainer res = new DebuggerContainer();
+                SimpleShape ss = Area;
+                BoundingRect ext = ss.GetExtent();
+                GeoPoint2D c = ext.GetCenter();
+                // Choose the uv step size so that the resulting 3d distance between
+                // adjacent grid lines is about 1, measured at the center of the face.
+                double ud = Surface.UDirection(c).Length;
+                double vd = Surface.VDirection(c).Length;
+                double du = (ud > Precision.eps) ? 1.0 / ud : ext.Width;
+                double dv = (vd > Precision.eps) ? 1.0 / vd : ext.Height;
+                ColorDef cd = new ColorDef("debug", Color.Red);
+                // Vertical grid lines (constant u), spanning the full v range of the extent.
+                for (double u = ext.Left; u <= ext.Right; u += du)
+                {
+                    Line2D l2d = new Line2D(new GeoPoint2D(u, ext.Bottom), new GeoPoint2D(u, ext.Top));
+                    AddClippedGridLine(res, ss, l2d, cd);
+                }
+                // Horizontal grid lines (constant v), spanning the full u range of the extent.
+                for (double v = ext.Bottom; v <= ext.Top; v += dv)
+                {
+                    Line2D l2d = new Line2D(new GeoPoint2D(ext.Left, v), new GeoPoint2D(ext.Right, v));
+                    AddClippedGridLine(res, ss, l2d, cd);
+                }
+                return res;
+            }
+        }
+
+        private void AddClippedGridLine(DebuggerContainer res, SimpleShape ss, Line2D l2d, ColorDef cd)
+        {
+            // Clip the 2d line against the area; the result are parameter pairs
+            // [t0,t1, t0,t1, ...] of the parts that lie inside the area.
+            double[] clip = ss.Clip(l2d, true);
+            for (int i = 0; i + 1 < clip.Length; i += 2)
+            {
+                if (clip[i + 1] - clip[i] < 1e-6) continue;
+                ICurve2D part = l2d.Trim(clip[i], clip[i + 1]);
+                if (part == null) continue;
+                ICurve crv = Surface.Make3dCurve(part);
+                if (crv is IGeoObject go)
+                {
+                    if (go is IColorDef cdo) cdo.ColorDef = cd;
+                    res.Add(go);
+                }
+            }
+        }
 #endif
         internal string DebugString
         {

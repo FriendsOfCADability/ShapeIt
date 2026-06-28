@@ -4095,5 +4095,13 @@ namespace ShapeIt
             throw new NotImplementedException();
         }
 
+        internal GeoObjectList SelectedObjects
+        {
+            get
+            {
+                return new GeoObjectList(selectedObjects);
+            }
+        }
+
     }
 }

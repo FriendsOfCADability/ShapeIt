@@ -14,7 +14,14 @@ namespace CADability.Forms.NET8
         private System.Drawing.FontFamily ff;
         public FontFamilyImpl(string name)
         {
-            ff = new System.Drawing.FontFamily(name);
+            try
+            {
+                ff = new System.Drawing.FontFamily(name);
+            }
+            catch (ArgumentException)
+            {
+                ff = System.Drawing.FontFamily.GenericSansSerif;
+            }
         }
         public FontFamilyImpl()
         {

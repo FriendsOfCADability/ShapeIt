@@ -2112,13 +2112,14 @@ namespace CADability.Shapes
                 r2d.OutputMode = Reduce2D.Mode.Simple;
                 CurveGraph pg = new CurveGraph(r2d.Reduced, maxGap);
                 CompoundShape res = pg.CreateCompoundShape(false, new GeoPoint2D(0.0, 0.0), ConstrHatchInside.HatchMode.hull, partInPart);
-                if (res != null)
-                {
-                    for (int i = 0; i < res.simpleShapes.Length; i++)
-                    {
-                        res.simpleShapes[i].Reduce(maxGap);
-                    }
-                }
+                // Reducing breaks splines into 1000s of lines. We don't want it
+                //if (res != null)
+                //{
+                //    for (int i = 0; i < res.simpleShapes.Length; i++)
+                //    {
+                //        res.simpleShapes[i].Reduce(maxGap);
+                //    }
+                //}
                 return res;
             }
             return null;
