@@ -1490,7 +1490,9 @@ namespace CADability.GeoObject
         /// perpendicular to both surfaces at these points (i.e. the connection is parallel to the surface normal on
         /// both surfaces). Such a pair is a critical point of the distance between the two surfaces (local minimum,
         /// maximum or saddle of the distance). There may be more than one such pair; this method returns the first one
-        /// found starting from the provided <paramref name="uv1"/> and <paramref name="uv2"/>.
+        /// found. It starts from the provided <paramref name="uv1"/> and <paramref name="uv2"/> (which succeeds for the
+        /// common, well-behaved case) and, only if that start does not yield a valid pair, probes a coarse grid of
+        /// additional starts across the two domains.
         /// The search is restricted to the parameter rectangles <paramref name="bounds1"/> and <paramref name="bounds2"/>.
         /// A pair where the two points coincide (an intersection point of the surfaces) is not considered valid, because
         /// the perpendicularity is undefined there.
@@ -1539,50 +1541,84 @@ namespace CADability.GeoObject
             Vector<double> observedX = new DenseVector(4); // ignored, just provides the right length
             Vector<double> observedY = new DenseVector(4); // target is the zero vector: minimize ||r||^2
 
-            // Note: we deliberately do NOT pass MathNet's box constraints (lowerBound/upperBound) here. When the two
-            // parameter domains differ strongly in scale (e.g. a NURBS surface on [0,1]x[0,1] against a plane on a
-            // domain spanning tens of units), the bounded variant of the Levenberg-Marquardt minimizer stalls far away
-            // from the actual solution. The unconstrained solve converges reliably; we enforce the domains afterwards
-            // by rejecting a result that lies outside bounds1/bounds2.
-            NonlinearMinimizationResult result;
-            try
+            // Per-parameter scaling for the minimizer, taken from the size of each domain. 'scales' acts as a change of
+            // variables p_i = scales_i * q_i, i.e. it tells the minimizer the characteristic magnitude over which each
+            // parameter is expected to travel. This is essential when the two parametrizations differ strongly in scale
+            // (e.g. a NURBS surface on [0,1]x[0,1] against a plane whose domain spans hundreds of units): without it the
+            // Levenberg-Marquardt steps are completely unbalanced, the minimizer crawls for hundreds of iterations or
+            // runs out of iterations, and it tends to drift into the (rejected) intersection point.
+            //
+            // Note: the domain size, not the inverse tangent length, is the relevant quantity here. The solution itself
+            // does not depend on the bounds, but the *expected travel* of a parameter toward the solution does, and for
+            // a near-arc-length parametrization (like a plane) that travel is on the order of the domain extent.
+            double su1 = bounds1.Width, sv1 = bounds1.Height, su2 = bounds2.Width, sv2 = bounds2.Height;
+            if (su1 <= 0) su1 = 1; if (sv1 <= 0) sv1 = 1; if (su2 <= 0) su2 = 1; if (sv2 <= 0) sv2 = 1;
+            Vector<double> scales = new DenseVector(new double[] { su1, sv1, su2, sv2 });
+
+            // One Levenberg-Marquardt solve from a single start, followed by an independent geometric check. We
+            // deliberately do NOT pass MathNet's box constraints here: the bounded variant of the minimizer stalls far
+            // from the solution under strong scale disparity. The unconstrained solve converges reliably; the domain is
+            // enforced afterwards by rejecting a result outside bounds1/bounds2, and an intersection point (coinciding
+            // points, where perpendicularity is undefined) is rejected as well.
+            bool TrySolve(GeoPoint2D s1Start, GeoPoint2D s2Start, out GeoPoint2D r1, out GeoPoint2D r2)
             {
-                IObjectiveModel model = ObjectiveFunction.NonlinearModel(Residual, Jacobian, observedX, observedY);
-                LevenbergMarquardtMinimizer lm = new LevenbergMarquardtMinimizer(maximumIterations: 100);
-                result = lm.FindMinimum(model, new DenseVector(new double[] { uv1.x, uv1.y, uv2.x, uv2.y }));
+                r1 = s1Start; r2 = s2Start;
+                NonlinearMinimizationResult result;
+                try
+                {
+                    IObjectiveModel model = ObjectiveFunction.NonlinearModel(Residual, Jacobian, observedX, observedY);
+                    LevenbergMarquardtMinimizer lm = new LevenbergMarquardtMinimizer(maximumIterations: 100);
+                    result = lm.FindMinimum(model, new DenseVector(new double[] { s1Start.x, s1Start.y, s2Start.x, s2Start.y }), scales: scales);
+                }
+                catch
+                {
+                    return false;
+                }
+                if (result.ReasonForExit != ExitCondition.Converged && result.ReasonForExit != ExitCondition.RelativePoints && result.ReasonForExit != ExitCondition.RelativeGradient)
+                    return false;
+
+                GeoPoint2D ruv1 = new GeoPoint2D(result.MinimizingPoint[0], result.MinimizingPoint[1]);
+                GeoPoint2D ruv2 = new GeoPoint2D(result.MinimizingPoint[2], result.MinimizingPoint[3]);
+                if (!bounds1.ContainsEps(ruv1, bounds1.Size * 1e-6) || !bounds2.ContainsEps(ruv2, bounds2.Size * 1e-6)) return false;
+
+                surface1.DerivativeAt(ruv1, out GeoPoint p1, out GeoVector s1u, out GeoVector s1v);
+                surface2.DerivativeAt(ruv2, out GeoPoint p2, out GeoVector s2u, out GeoVector s2v);
+                GeoVector dir = p1 - p2;
+                double dist = dir.Length;
+                if (dist < Precision.eps) return false; // intersection point: perpendicularity is undefined, reject
+                dir = (1.0 / dist) * dir;
+                // |dir ^ n| is the sine of the angle between the connection and the surface normal; it must be ~0.
+                if ((dir ^ (s1u ^ s1v).Normalized).Length > 1e-6 || (dir ^ (s2u ^ s2v).Normalized).Length > 1e-6) return false;
+
+                r1 = ruv1; r2 = ruv2;
+                return true;
             }
-            catch
+
+            // Multi-start: try the provided start first - this succeeds for the common, well-behaved case. Only if it
+            // fails do we probe a coarse grid of additional starts: a "dented" surface produces several critical points,
+            // and many starts stall at a one-sided (perpendicular to only one surface) configuration or drift into the
+            // intersection. We stop at the first valid, non-degenerate pair. No closest-point projection
+            // (ISurface.PositionOf) is involved, so there is no nested minimization - each attempt is a single solve.
+            if (TrySolve(uv1, uv2, out GeoPoint2D res1, out GeoPoint2D res2))
             {
-                return false;
+                uv1 = res1; uv2 = res2;
+                return true;
             }
 
-            if (result.ReasonForExit != ExitCondition.Converged && result.ReasonForExit != ExitCondition.RelativePoints && result.ReasonForExit != ExitCondition.RelativeGradient)
-            {
-                return false;
-            }
-
-            GeoPoint2D ruv1 = new GeoPoint2D(result.MinimizingPoint[0], result.MinimizingPoint[1]);
-            GeoPoint2D ruv2 = new GeoPoint2D(result.MinimizingPoint[2], result.MinimizingPoint[3]);
-
-            // The result must lie inside the provided domains.
-            if (!bounds1.ContainsEps(ruv1, bounds1.Size * 1e-6) || !bounds2.ContainsEps(ruv2, bounds2.Size * 1e-6)) return false;
-
-            // Verify the geometric condition independently of the optimizer: the connection must be parallel to both
-            // surface normals, and the two points must not coincide (an intersection point is not a valid solution).
-            surface1.DerivativeAt(ruv1, out GeoPoint p1, out GeoVector s1u, out GeoVector s1v);
-            surface2.DerivativeAt(ruv2, out GeoPoint p2, out GeoVector s2u, out GeoVector s2v);
-            GeoVector dir = p1 - p2;
-            double dist = dir.Length;
-            if (dist < Precision.eps) return false; // surfaces touch / intersect here, perpendicularity is undefined
-            dir = (1.0 / dist) * dir;
-            GeoVector n1 = (s1u ^ s1v).Normalized;
-            GeoVector n2 = (s2u ^ s2v).Normalized;
-            // |dir ^ n| is the sine of the angle between the connection and the surface normal; it must be ~0.
-            if ((dir ^ n1).Length > 1e-6 || (dir ^ n2).Length > 1e-6) return false;
-
-            uv1 = ruv1;
-            uv2 = ruv2;
-            return true;
+            double[] fr = { 0.25, 0.5, 0.75 };
+            foreach (double fu in fr)
+                foreach (double fv in fr)
+                {
+                    GeoPoint2D g1 = new GeoPoint2D(bounds1.Left + fu * bounds1.Width, bounds1.Bottom + fv * bounds1.Height);
+                    if (TrySolve(g1, uv2, out res1, out res2)) { uv1 = res1; uv2 = res2; return true; }
+                }
+            foreach (double fu in fr)
+                foreach (double fv in fr)
+                {
+                    GeoPoint2D g2 = new GeoPoint2D(bounds2.Left + fu * bounds2.Width, bounds2.Bottom + fv * bounds2.Height);
+                    if (TrySolve(uv1, g2, out res1, out res2)) { uv1 = res1; uv2 = res2; return true; }
+                }
+            return false;
         }
     }
 }
