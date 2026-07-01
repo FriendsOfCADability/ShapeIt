@@ -345,7 +345,7 @@ namespace CADability.GeoObject
                     return res.ToArray();
                 }
                 else
-                {   // ein paar spezielle Lösungen (mit Ellipsen als Ergebnis) abfangen. BoxedSurfaceEx.Intersect ist aber auch gut!
+                {   // ein paar spezielle Lösungen (mit Ellipsen als Ergebnis) abfangen. ParallelepipedHull.Intersect ist aber auch gut!
 
                     double dpar1, dpar2;
                     double adist = Geometry.DistLL(this.Location, this.Axis, cyl2.Location, cyl2.Axis, out dpar1, out dpar2);
@@ -355,7 +355,7 @@ namespace CADability.GeoObject
                     }
                     GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
                     if (usedArea.IsInfinite || double.IsInfinity(usedArea.Size)) { usedArea = thisBounds; }
-                    ICurve[] res = BoxedSurfaceEx.Intersect(thisBounds, other, otherBounds, null, extremePositions);
+                    ICurve[] res = ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions);
                     return res;
 
                     //Unreachable code
@@ -479,7 +479,7 @@ namespace CADability.GeoObject
             {
                 GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
                 if (usedArea.IsInfinite || usedArea.IsEmpty()) usedArea = thisBounds;
-                return BoxedSurfaceEx.Intersect(thisBounds, other, otherBounds, null, extremePositions); // allgemeine Lösung
+                return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions); // allgemeine Lösung
             }
         }
         /// <summary>
@@ -1961,7 +1961,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toCylinder = m * toCylinder;
             toUnit = toCylinder.GetInverse();
         }
@@ -2139,7 +2139,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toCylinder = toCylinder * new ModOp(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0); // umkehrung von x
             toUnit = toCylinder.GetInverse();
             return new ModOp2D(-1, 0, Math.PI, 0, 1, 0);

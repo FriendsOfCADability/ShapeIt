@@ -651,7 +651,7 @@ namespace CADability
         }
         public override ModOp2D ReverseOrientation()
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             firstCurve.Reverse();
             secondCurve.Reverse();
             return new ModOp2D(-1.0, 0.0, 1.0, 0.0, 1.0, 0.0); // x wird invertiert, x ist der Parameter auf den Kurven
@@ -717,7 +717,7 @@ namespace CADability
             base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
 
-        // BoxedSurfaceEx is alot faster with the HitTest. Don't override it
+        // ParallelepipedHull is alot faster with the HitTest. Don't override it
         //public override bool HitTest(BoundingBox cube, out GeoPoint2D uv)
         //{
         //    foreach (GeoPoint2D pnt in new GeoPoint2D[] { GeoPoint2D.Origin, new GeoPoint2D(0.0, 1.0), new GeoPoint2D(1.0, 0.0), new GeoPoint2D(1.0, 1.0) })
@@ -997,7 +997,7 @@ namespace CADability
 #if DEBUG
         public int GetNumParEpis()
         {
-            return BoxedSurfaceEx.DebugCount;
+            return ParallelepipedHull.DebugCount;
         }
 
         public int Export(ExportStep export, bool topLevel)

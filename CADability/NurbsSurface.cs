@@ -40,45 +40,16 @@ namespace CADability.GeoObject
         // Kurven  mit festem u bzw. v, die schon mal berechnet wurden
         private WeakReference fixedUCurves;
         private WeakReference fixedVCurves;
-        private WeakReference cubeHull;
         private WeakReference uSingularities, vSingularities;
-        private new BoxedSurface boxedSurface
-        {
-            get
-            {
-                BoundingRect extent = new BoundingRect();
-                GetNaturalBounds(out extent.Left, out extent.Right, out extent.Bottom, out extent.Top);
-                if (cubeHull == null) cubeHull = new WeakReference(new BoxedSurface(this, extent));
-                BoxedSurface ch = null;
-                try
-                {
-                    if (cubeHull.Target != null)
-                    {
-                        ch = cubeHull.Target as BoxedSurface;
-                    }
-                }
-                catch (InvalidOperationException) { }
-                if (ch == null)
-                {   // wurde bereits gelöscht
-                    ch = new BoxedSurface(this, extent);
-                    cubeHull.Target = ch;
-                }
-#if DEBUG
-                BoxedSurfaceEx bex = new BoxedSurfaceEx(this, extent);
-#endif
-                return ch;
-            }
-        }
         private new void InvalidateSecondaryData()
         {
             fixedUCurves = null;
             fixedVCurves = null;
-            cubeHull = null;
             nubs = null;
             nurbs = null;
             simpleSurface = null;
             simpleSurfaceChecked = false;
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             uSingularities = null;
             vSingularities = null;
         }
@@ -482,7 +453,7 @@ namespace CADability.GeoObject
 
             Init();
 #if DEBUG
-            BoxedSurfaceEx bex = this.BoxedSurfaceEx;
+            ParallelepipedHull bex = this.ParallelepipedHull;
             Face dbg = this.DebugAsFace;
             dbg.AssureTriangles(0.1);
             DebuggerContainer dct = dbg.DebugTriangulation3D;
@@ -3287,7 +3258,7 @@ namespace CADability.GeoObject
         }
         public void DebugTest()
         {
-            BoxedSurfaceEx bse = this.BoxedSurfaceEx;
+            ParallelepipedHull bse = this.ParallelepipedHull;
             double[] usteps, vsteps;
             double umin = uKnots[0];
             double umax = uKnots[uKnots.Length - 1];
@@ -4371,7 +4342,7 @@ namespace CADability.GeoObject
                 dc.Add(FixedV(vKnots[i]));
             }
 #endif
-            IDualSurfaceCurve[] res = BoxedSurfaceEx.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
+            IDualSurfaceCurve[] res = ParallelepipedHull.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
             //IDualSurfaceCurve[] res = boxedSurface.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
             return res;
         }
@@ -4383,7 +4354,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override GeoPoint2D[] GetLineIntersection(GeoPoint startPoint, GeoVector direction)
         {
-            GeoPoint2D[] res = BoxedSurfaceEx.GetLineIntersection(startPoint, direction);
+            GeoPoint2D[] res = ParallelepipedHull.GetLineIntersection(startPoint, direction);
             return res;
         }
         /// <summary>
@@ -4560,7 +4531,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override bool HitTest(BoundingBox cube, out GeoPoint2D uv)
         {
-            return BoxedSurfaceEx.HitTest(cube, out uv);
+            return ParallelepipedHull.HitTest(cube, out uv);
         }
         private bool FindExtremum(GeoVector dir, double umin, double umax, double vmin, double vmax, double u, double v, out GeoPoint2D extr)
         {   // u und v liegen innerhalb der Masche umin,vmin...umax,vmax
@@ -4784,7 +4755,7 @@ namespace CADability.GeoObject
         public override ICurve[] Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds)
         {
             // testweise:
-            IDualSurfaceCurve[] dsc = BoxedSurfaceEx.GetSurfaceIntersection(other, otherBounds.Left, otherBounds.Right, otherBounds.Bottom, otherBounds.Top, Precision.eps);
+            IDualSurfaceCurve[] dsc = ParallelepipedHull.GetSurfaceIntersection(other, otherBounds.Left, otherBounds.Right, otherBounds.Bottom, otherBounds.Top, Precision.eps);
             ICurve[] res = new ICurve[dsc.Length];
             for (int i = 0; i < res.Length; i++)
             {
@@ -4868,7 +4839,7 @@ namespace CADability.GeoObject
                 List<double> luOnCurve3Ds = new List<double>();
                 ExplicitPCurve3D ec3d = (curve as IExplicitPCurve3D).GetExplicitPCurve3D();
                 // uKnots, vKnots sind die einfachen
-                double prec = BoxedSurfaceEx.GetRawExtent().Size * 1e-7;
+                double prec = ParallelepipedHull.GetRawExtent().Size * 1e-7;
                 if (implicitSurface == null)
                 {
                     implicitSurface = new CADability.ImplicitPSurface[uKnots.Length - 1, vKnots.Length - 1];

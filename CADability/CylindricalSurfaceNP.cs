@@ -244,7 +244,7 @@ namespace CADability.GeoObject
 		}
 		public override void Modify(ModOp m)
 		{
-			boxedSurfaceEx = null;
+			parallelepipedHull = null;
 			implicitPolynomial = null;
 			location = m * location;
 			xAxis = m * xAxis;

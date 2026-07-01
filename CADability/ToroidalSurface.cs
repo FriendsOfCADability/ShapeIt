@@ -184,7 +184,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toTorus = m * toTorus;
             toUnit = toTorus.GetInverse();
         }
@@ -2080,7 +2080,7 @@ namespace CADability.GeoObject
             //    {   // Der Polynomschnitt ist oft nicht sehr genau, deshalb hier mit Newton nachbessern
             //        double uc;
             //        GeoPoint2D uv;
-            //        if (BoxedSurfaceEx.NewtonCurveIntersection(curve, this, uvExtent, ref ips[i], out uv, out uc))
+            //        if (ParallelepipedHull.NewtonCurveIntersection(curve, this, uvExtent, ref ips[i], out uv, out uc))
             //        {
             //            double d = PointAt(PositionOf(ips[i])) | ips[i];
             //            if (d < prec)
@@ -2390,7 +2390,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toTorus = toTorus * new ModOp(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0); // umkehrung von y
             toUnit = toTorus.GetInverse();
             ModOp2D res = new ModOp2D(-1, 0, 2.0 * Math.PI, 0, 1, 0);

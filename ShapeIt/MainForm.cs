@@ -331,7 +331,7 @@ namespace ShapeIt
 #if DEBUG
         private void AutoDebug()
         {
-            // return;
+            return;
             string? filename = null; // @"C:\Users\gerha\Documents\Zeichnungen\LampenArm06.cdb.json";
             // add code here to be executed automatically upon start in debug mode
             // there is no mouse interaction before this code is finished
@@ -710,7 +710,7 @@ namespace ShapeIt
                             double lx = 1.0 - Math.Abs(2.0 * i / (xc - 1) - 1.0);
                             double ly = 1.0 - Math.Abs(2.0 * j / (yc - 1) - 1.0);
 
-                            double rm = (1+rnd.NextDouble())*0.8*m;
+                            double rm = (1 + rnd.NextDouble()) * 0.8 * m;
                             double t = rm * Math.Sqrt(1 - (1 - lx) * (1 - lx)) * Math.Sqrt(1 - (1 - ly) * (1 - ly));
                             p = p + t * n;
                             poles[i, j] = p;
@@ -737,10 +737,11 @@ namespace ShapeIt
                     NurbsSurface ns = new NurbsSurface(poles, null, uKnots, vKnots, 3, 3, false, false);
                     Face f1 = Face.MakeFace(ns, new BoundingRect(0, 0, 1, 1));
                     Face f2 = Face.MakeFace(new GeoObjectList(pl));
-                    Shell[] shs = Make3D.SewFaces(new Face[] { f1, f2});
+                    Shell[] shs = Make3D.SewFaces(new Face[] { f1, f2 });
                     if (shs.Length == 1 && shs[0].OpenEdges.Length == 0)
                     {
                         Solid sld = Solid.MakeSolid(shs[0]);
+                        CadFrame.Project.SetDefaults(sld);
                         pl.Owner.Add(sld);
                     }
                 }
@@ -760,17 +761,19 @@ namespace ShapeIt
                     GeoPoint p1 = b1.Poles[i];
                     GeoPoint p2 = b2.Poles[i];
                     double d = p1 | p2;
+                    double r = d / 2;
                     double step = d / (vnum - 1);
+                    double da = Math.PI / (vnum - 1);
+                    GeoPoint cnt = new GeoPoint(p1, p2);
+                    Plane arcPlane = new Plane(cnt, p1 - p2, GeoVector.ZAxis);
                     for (int j = 0; j < vnum; j++)
                     {
                         if (j == 0) poles[i, j] = p1;
                         else if (j == vnum - 1) poles[i, j] = p2;
                         else
                         {
-                            double t = j * step;
-                            double len = Math.Sqrt(d * d / 4 - Math.Abs(d / 2 - t) * Math.Abs(d / 2 - t));
-                            GeoPoint p = p1 + t * (p2 - p1).Normalized;
-                            poles[i, j] = p + len * GeoVector.ZAxis;
+                            double rrnd = rnd.NextDouble() / 2 + 0.5;
+                            poles[i, j] = arcPlane.ToGlobal(new GeoPoint2D(rrnd * r * Math.Cos(da * j), rrnd * 0.7 * r * Math.Sin(da * j)));
                         }
                     }
                 }
@@ -809,6 +812,7 @@ namespace ShapeIt
                 if (shs.Length == 1 && shs[0].OpenEdges.Length == 0)
                 {
                     Solid sld = Solid.MakeSolid(shs[0]);
+                    CadFrame.Project.SetDefaults(sld);
                     b1.Owner.Add(sld);
                 }
             }

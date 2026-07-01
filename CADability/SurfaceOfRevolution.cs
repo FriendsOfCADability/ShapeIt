@@ -670,7 +670,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             if (curveToRotate != null)
             {
                 curveToRotate = curveToRotate.CloneModified(m);
@@ -1006,7 +1006,7 @@ namespace CADability.GeoObject
             //return base.GetLineIntersection(startPoint, direction);
             else
             {
-                GeoPoint2D[] res = BoxedSurfaceEx.GetLineIntersection(startPoint, direction);
+                GeoPoint2D[] res = ParallelepipedHull.GetLineIntersection(startPoint, direction);
 #if DEBUG
                 DebuggerContainer dc = new DebuggerContainer();
                 GeoPoint[] dbg = new GeoPoint[res.Length];
@@ -1377,7 +1377,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {   // reverse the v-direction of the uv space
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
 
             axisDirection = -axisDirection; // reversing the axis direction reverses the u direction
             return new ModOp2D(-1.0, 0.0, 0.0, 0.0, 1.0, 0);

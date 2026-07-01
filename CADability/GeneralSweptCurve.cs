@@ -807,7 +807,7 @@ namespace CADability
         }
         public override ModOp2D ReverseOrientation()
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             along.Reverse();
             return ModOp2D.Translate(1, 0) * ModOp2D.Scale(-1, 1);
         }

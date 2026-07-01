@@ -2880,26 +2880,40 @@ namespace CADability.GeoObject
             List<GeoPoint2D> luvOnFaces = [];
             List<double> luOnCurve3Ds = [];
 
-            double lastd = 0.0;
+            // old implementation: did not consider that there might be several intersection points if this segment with the surface;
             for (int i = 0; i < tetraederBase.Length - 1; ++i)
             {
-                if (surface.MayIntersectSegment(tetraederBase[i], tetraederBase[i + 1]) ||
-                    surface.MayIntersectSegment(tetraederBase[i], tetraederVertex[2 * i]) ||
-                    surface.MayIntersectSegment(tetraederBase[i], tetraederVertex[2 * i + 1]) ||
-                    surface.MayIntersectSegment(tetraederBase[i + 1], tetraederVertex[2 * i]) ||
-                    surface.MayIntersectSegment(tetraederBase[i + 1], tetraederVertex[2 * i + 1]))
+                ParallelepipedHull.ParEpi[] parEpis = surface.ParallelepipedHull.FindParEpis(new CurveTetraeder(tetraederBase[i], tetraederBase[i + 1], tetraederVertex[2 * i], tetraederVertex[2 * i + 1], tetraederParams[i], tetraederParams[i + 1], this));
+                for (int j = 0; j < parEpis.Length; j++)
                 {
-                    double t = (tetraederParams[i] + tetraederParams[i + 1]) / 2;
-                    GeoPoint2D uv = surface.PositionOf(theCurve.PointAt(t));
-                    // a better starting position would be the intersection for the line with different sign
-                    if (BoxedSurfaceExtension.CurveSurfaceIntersectionLM(surface, theCurve, ref uv, ref t, out GeoPoint ip))
+                    if (parEpis[j].InterferesWithTetraeder(tetraederBase[i], tetraederBase[i + 1], tetraederVertex[2 * i], tetraederVertex[2 * i + 1], tetraederParams[i], tetraederParams[i + 1], out double t))
                     {
-                        if (t >= tetraederParams[i] && t <= tetraederParams[i + 1] && uvExtent.Contains(uv))
+                        GeoPoint2D uv = surface.PositionOf(theCurve.PointAt(t));
+                        if (BoxedSurfaceExtension.CurveSurfaceIntersectionLM(surface, theCurve, ref uv, ref t, out GeoPoint ip))
                         {
-                            lips.Add(ip);
-                            luvOnFaces.Add(uv);
-                            luOnCurve3Ds.Add(t);
+                            if (t >= tetraederParams[i] && t <= tetraederParams[i + 1] && uvExtent.ContainsEps(uv, Precision.eps))
+                            {
+                                lips.Add(ip);
+                                luvOnFaces.Add(uv);
+                                luOnCurve3Ds.Add(t);
+                            }
                         }
+                    }
+                }
+
+            }
+            // Overlapping ParEpis may yield the same intersection point more than once. Remove duplicates by
+            // comparing the curve parameter with a tolerance of 1e-6, keeping the first occurrence of each.
+            for (int i = luOnCurve3Ds.Count - 1; i > 0; --i)
+            {
+                for (int j = 0; j < i; ++j)
+                {
+                    if (Math.Abs(luOnCurve3Ds[i] - luOnCurve3Ds[j]) < 1e-6)
+                    {
+                        lips.RemoveAt(i);
+                        luvOnFaces.RemoveAt(i);
+                        luOnCurve3Ds.RemoveAt(i);
+                        break;
                     }
                 }
             }

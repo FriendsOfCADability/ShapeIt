@@ -1012,8 +1012,8 @@ namespace CADability.GeoObject
             // leider können sich die beiden Flächen auch so überdecken, dass keine Eckpunkte der einen in der jeweils anderen liegen
             // dann müssen aber die Kanten sich schneiden, jeweils 2 von der einen mit 2 von der anderen Fläche
             // hier wird nicht berücksichtigt, dass die Flächen völlig zueinander verzerrt sind, da gäbe es dann auch keine ModOp2D
-            BoxedSurfaceEx bs1 = (surface1 as ISurfaceImpl).BoxedSurfaceEx;
-            BoxedSurfaceEx bs2 = (surface2 as ISurfaceImpl).BoxedSurfaceEx;
+            ParallelepipedHull bs1 = (surface1 as ISurfaceImpl).ParallelepipedHull;
+            ParallelepipedHull bs2 = (surface2 as ISurfaceImpl).ParallelepipedHull;
             From1To2 = ModOp2D.Identity;
             if (!bs1.IsCloseTo(bs2)) return false;
             // die Eckpunkte bestimmen

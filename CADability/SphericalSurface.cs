@@ -526,7 +526,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toSphere = m * toSphere;
             toUnit = toSphere.GetInverse();
         }
@@ -736,7 +736,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toSphere = toSphere * new ModOp(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0); // umkehrung von y
             toUnit = toSphere.GetInverse();
             return new ModOp2D(-1, 0, 2.0 * Math.PI, 0, 1, 0);
@@ -884,7 +884,7 @@ namespace CADability.GeoObject
                 }
                 return res;
             }
-            return BoxedSurfaceEx.Intersect(thisBounds, other, otherBounds, null, extremePositions); // allgemeine Lösung
+            return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions); // allgemeine Lösung
         }
         public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {   // hier sollten die Schnitte mit Ebene, Cylinder, Kegel und Kugel gelöst werden

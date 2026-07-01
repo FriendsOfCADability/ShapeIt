@@ -118,7 +118,19 @@
       "Bash(awk 'NR>=5802 && /^    public class |^    internal class |^    class / {print NR\": \"$0}' CADability/Surface.cs)",
       "Bash(sed -n '5802,7249p' CADability/Surface.cs)",
       "Read(//tmp/**)",
-      "PowerShell(dotnet test \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\tests\\\\CADability.Tests\\\\CADability.Tests.csproj\" --nologo -c Debug --filter \"Diagnose_PlaneNurbs\" 2>&1)"
+      "PowerShell(dotnet test \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\tests\\\\CADability.Tests\\\\CADability.Tests.csproj\" --nologo -c Debug --filter \"Diagnose_PlaneNurbs\" 2>&1)",
+      "PowerShell(dotnet build CADability.Forms.NET8/CADability.Forms.NET8.csproj -c Debug --nologo -v q 2>&1 | Select-String -Pattern \"Fehler|error|Error\" | Select-Object -First 10; \"exit=$LASTEXITCODE\")",
+      "Bash(rm -f PerpendicularDiag.cs)",
+      "Bash(cp /tmp/ProjectTest.cs.bak ProjectTest.cs)",
+      "Bash(grep -iv \"//.*$\")",
+      "Bash(python -c \"import sys;print\\(sys.version\\)\")",
+      "Bash(xxd)",
+      "Bash(python \"C:/Users/gerha/AppData/Local/Temp/claude/C--Users-gerha-source-repos-ShapeIt/cfa1fe81-eb0d-4d21-b95f-41414371443a/scratchpad/refactor.py\")",
+      "Bash(grep -nP '//.*[äöüßÄÖÜ]' CADability/ParallelepipedHull.cs)",
+      "Bash(grep -viP '//.*\\(ParEpi|BoundingBox\\)')",
+      "Bash(grep -nP '//.*\\\\b\\(der|die|das|und|nicht|wird|ein|eine|einen|wenn|dann|man|hier|auch|noch|werden|muss|kann|sind|aber|oder|von|sich|dass|ist|mit|nur|schon|immer|jeder|jede|jeweils|Punkt|Fläche|Kurve|geht|liegt|gibt\\)\\\\b' CADability/ParallelepipedHull.cs)",
+      "Bash(grep -nP '//' CADability/ParallelepipedHull.cs)",
+      "Bash(grep -nP '//.*\\\\b\\(u\\\\.s\\\\.w|bzw|ggf|evtl|dgl|desgl|Bedingung|Werte|Feld|Felder|Netz|Masche|Spat|Spate|Würfel|Kurven|Flächen|Normalen|Schnittpunkt|Eckpunkt|Anfangspunkt|Endpunkt|Mittelpunkt|Tangente|verketten|einsortieren|aufteilen|geschlossen|offene\\)\\\\b' CADability/ParallelepipedHull.cs)"
     ]
   }
 }

@@ -1018,14 +1018,14 @@ public static class Evaluator
                 case UnaryPlusMarker _:
                     {
                         if (stack.Count < 1)
-                            throw new Exception("Too few operands for unary '-'.");
+                            throw new Exception("Too few operands for unary '+'.");
                         // stack remains unchanged
                         break;
                     }
                 case UnaryNotMarker _:
                     {
                         if (stack.Count < 1)
-                            throw new Exception("Too few operands for unary '-'.");
+                            throw new Exception("Too few operands for unary '!='.");
                         var v = stack.Pop();
                         stack.Push(!(bool)(v));
                         break;

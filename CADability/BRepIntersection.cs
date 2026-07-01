@@ -2335,7 +2335,7 @@ namespace CADability
                 ISurface srfc1 = edg.PrimaryFace.Surface.GetOffsetSurface(-radius);
                 ISurface srfc2 = edg.SecondaryFace.Surface.GetOffsetSurface(-radius);
                 srfc1.SetBounds(edg.PrimaryFace.GetUVBounds());
-                srfc2.SetBounds(edg.SecondaryFace.GetUVBounds()); // for BoxedSurfaceEx
+                srfc2.SetBounds(edg.SecondaryFace.GetUVBounds()); // for ParallelepipedHull
                 ICurve[] cvs = srfc1.Intersect(edg.PrimaryFace.GetUVBounds(), srfc2, edg.SecondaryFace.GetUVBounds());
                 // there is a problem with the length of the curves: should use "Surfaces.Intersect(srfc1, srfc2);" and fix the length below
                 if (cvs == null || cvs.Length == 0) continue;

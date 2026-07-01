@@ -14,6 +14,7 @@ using Wintellect.PowerCollections;
 using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
 using CADability.Substitutes;
+using System.IO;
 
 namespace CADability.GeoObject
 {
@@ -5359,6 +5360,18 @@ namespace CADability.GeoObject
                     res.Add(go);
                 }
             }
+        }
+        /// <summary>
+        /// Call this, to write this face to a file to let Claude code debug wth it.
+        /// </summary>
+        /// <param name="fileName"></param>
+        internal void WriteToFile(string fileName)
+        {
+            Stream stream = File.Open(fileName, FileMode.Create);
+            JsonSerialize js = new JsonSerialize();
+            js.ToStream(stream, this);
+            stream.Close();
+
         }
 #endif
         internal string DebugString

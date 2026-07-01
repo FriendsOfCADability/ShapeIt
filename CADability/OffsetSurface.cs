@@ -358,7 +358,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {   // genaugenommen geht eine Modifikation hier nicht, wird aber z.Z. nur zur Translation verwendet
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             if (m.IsOrthogonal)
             {
                 baseSurface = baseSurface.GetModified(m);
@@ -477,7 +477,7 @@ namespace CADability.GeoObject
         }
         public override ModOp2D ReverseOrientation()
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             offset = -offset;
             return baseSurface.ReverseOrientation();
         }

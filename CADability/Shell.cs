@@ -3952,7 +3952,7 @@ namespace CADability.GeoObject
                         //{
                         //    ll[i] = gsc.FixedV(i / 10.0, 0.0, 1.0).Length;
                         //}
-                        // DebuggerContainer dc = gsc.BoxedSurfaceEx.Debug;
+                        // DebuggerContainer dc = gsc.ParallelepipedHull.Debug;
 #endif
                         Vertex v1 = orgToOffsetVtx[new Pair<Face, Vertex>(edg.PrimaryFace, startHere)];
                         Vertex v2 = orgToOffsetVtx[new Pair<Face, Vertex>(edg.PrimaryFace, endHere)];

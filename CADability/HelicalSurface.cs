@@ -306,7 +306,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toSurface = m * toSurface;
             fromSurface = toSurface.GetInverse();
         }
@@ -498,7 +498,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {   // umkehrung der Y-Richtung
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             //double tmp = curveStartParameter;
             //curveStartParameter = curveEndParameter;
             //curveEndParameter = tmp;

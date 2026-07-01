@@ -88,7 +88,7 @@ TargetTypeName = "CADability.BRepItem, CADability", Description = "CADability ID
 TargetTypeName = "CADability.Curve2D.BSpline2D, CADability", Description = "CADability IDebuggerVisualizer Visualizer")]
 
 [assembly: DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
-TargetTypeName = "CADability.GeoObject.BoxedSurfaceEx.ParEpi, CADability", Description = "CADability IDebuggerVisualizer Visualizer")]
+TargetTypeName = "CADability.GeoObject.ParallelepipedHull.ParEpi, CADability", Description = "CADability IDebuggerVisualizer Visualizer")]
 
 [assembly: DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 TargetTypeName = "CADability.DebuggerContainer, CADability", Description = "CADability DebuggerContainer Visualizer")]

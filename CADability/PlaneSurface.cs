@@ -251,7 +251,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             fromUnitPlane = m * fromUnitPlane;
             toUnitPlane = fromUnitPlane.GetInverse();
         }
@@ -353,7 +353,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {   // x- und y-Achse vertauschen
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             fromUnitPlane = fromUnitPlane * new ModOp(0, 1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0);
             toUnitPlane = fromUnitPlane.GetInverse();
             return new ModOp2D(0, 1, 0, 1, 0, 0);
@@ -696,7 +696,7 @@ namespace CADability.GeoObject
                     return 0;
                 case ISurfaceImpl ns:
                     {
-                        GeoPoint2D[] normals = ns.BoxedSurfaceEx.PositionOfNormal(Normal);
+                        GeoPoint2D[] normals = ns.ParallelepipedHull.PositionOfNormal(Normal);
                         extremePositions = new List<Tuple<double, double, double, double>>();
                         for (int i = 0; i < normals.Length; i++)
                         {

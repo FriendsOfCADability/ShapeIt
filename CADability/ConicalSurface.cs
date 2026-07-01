@@ -310,7 +310,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toCone = m * toCone;
             toUnit = toCone.GetInverse();
         }
@@ -1585,7 +1585,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             toCone = toCone * new ModOp(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0); // umkehrung von x
             toUnit = toCone.GetInverse();
             return new ModOp2D(-1, 0, 2.0 * Math.PI, 0, 1, 0);

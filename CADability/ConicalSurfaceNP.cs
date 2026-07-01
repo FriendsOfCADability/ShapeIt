@@ -70,7 +70,7 @@ namespace CADability.GeoObject
             yAxis = m * yAxis;
             zAxis = m * zAxis;
             implicitPolynomial = null;
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
         }
         public override ICurve Make3dCurve(ICurve2D curve2d)
         {

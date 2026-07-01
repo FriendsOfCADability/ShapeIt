@@ -346,7 +346,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             basisCurve = basisCurve.CloneModified(m);
             direction = m * direction;
         }
@@ -425,7 +425,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ModOp2D ReverseOrientation()
         {   // wir drehen einfach die Y-Richtung um
-            boxedSurfaceEx = null;
+            parallelepipedHull = null;
             direction = -direction;
             return new ModOp2D(1.0, 0.0, 0.0, 0.0, -1.0, 0.0);
         }

@@ -504,7 +504,7 @@ namespace CADability.GeoObject
                 if (radius < 0) v = PI + v;
                 GeoPoint2D uv = new GeoPoint2D(u, v);
 #if DEBUG
-                // DebuggerContainer dc = this.BoxedSurfaceEx.Debug;
+                // DebuggerContainer dc = this.ParallelepipedHull.Debug;
 #endif
                 // commented out, because it too often throws exceptions
                 //if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;

@@ -83,7 +83,7 @@ Target = typeof(CADability.BRepItem), Description = "CADability IDebuggerVisuali
 Target = typeof(CADability.Curve2D.BSpline2D), Description = "CADability IDebuggerVisualizer Visualizer")]
 
 [assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
-Target = typeof(CADability.GeoObject.BoxedSurfaceEx.ParEpi), Description = "CADability IDebuggerVisualizer Visualizer")]
+Target = typeof(CADability.GeoObject.ParallelepipedHull.ParEpi), Description = "CADability IDebuggerVisualizer Visualizer")]
 
 [assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.DebuggerContainer), Description = "CADability DebuggerContainer Visualizer")]
