@@ -411,7 +411,7 @@ namespace CADability.GeoObject
             info.AddValue("LineWidth", lineWidth);
             info.AddValue("LinePattern", linePattern);
         }
-        public new void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
             // base.GetObjectData(data);
             data.AddProperty("StartPoint", startPoint);
@@ -421,7 +421,7 @@ namespace CADability.GeoObject
             if (linePattern != null) data.AddProperty("LinePattern", linePattern);
         }
 
-        public new void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
             // base.SetObjectData(data);
             startPoint = data.GetProperty<GeoPoint>("StartPoint");

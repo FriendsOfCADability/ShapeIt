@@ -2,7 +2,6 @@
 using CADability.GeoObject;
 using CADability.Substitutes;
 using System;
-using CADability.Substitutes;
 
 
 namespace CADability.Actions

@@ -2065,7 +2065,7 @@ namespace CADability.GeoObject
         }
         #endregion
         #region IJsonSerialize
-        public new void GetObjectData(IJsonWriteData data)
+        public void GetObjectData(IJsonWriteData data)
         {
             data.AddProperty("Poles", poles);
             data.AddProperty("Weights", weights);
@@ -2086,7 +2086,7 @@ namespace CADability.GeoObject
             if (linePattern != null) data.AddProperty("LinePattern", linePattern);
         }
 
-        public new void SetObjectData(IJsonReadData data)
+        public void SetObjectData(IJsonReadData data)
         {
             // base.SetObjectData(data);
             poles = data.GetProperty<GeoPoint[]>("Poles");

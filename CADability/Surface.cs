@@ -5659,7 +5659,7 @@ namespace CADability.GeoObject
                         InterpolatedDualSurfaceCurve dsc = new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, seeds[0], seeds[1], true);
                     }
                 }
-                catch (Exception ex)
+                catch (Exception)
                 {
 
                 }

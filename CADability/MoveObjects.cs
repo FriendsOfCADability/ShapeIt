@@ -1,7 +1,6 @@
 ﻿using CADability.Attribute;
 using CADability.GeoObject;
 using CADability.Substitutes;
-using CADability.Substitutes;
 
 
 namespace CADability.Actions

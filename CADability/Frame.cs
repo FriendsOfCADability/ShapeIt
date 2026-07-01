@@ -10,7 +10,6 @@ using System.Reflection;
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
 using DragEventArgs = CADability.Substitutes.DragEventArgs;
 using Action = CADability.Actions.Action;
-using CADability.Substitutes;
 using CADability.Attribute;
 
 namespace CADability

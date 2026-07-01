@@ -4,7 +4,6 @@ using CADability.Substitutes;
 using CADability.UserInterface;
 using System;
 using System.Collections;
-using CADability.Substitutes;
 
 namespace CADability.Actions
 {

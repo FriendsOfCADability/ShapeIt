@@ -2,7 +2,6 @@
 using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-using CADability.Substitutes;
 
 /* Connection to the new user-interface provided by CADability.Forms
  * 

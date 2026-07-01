@@ -22,6 +22,17 @@
     <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
 
 	  <LangVersion>latest</LangVersion>
+
+    <!-- Allow nullable reference annotations ('?') without turning on nullable
+         warnings; this silences CS8632 across the project. -->
+    <Nullable>annotations</Nullable>
+
+    <!-- Suppress warnings that are either intentional or not worth changing:
+         CS0162 unreachable code (intentional debug switches, e.g. if(false)),
+         CS0649/CS0169 vestigial fields kept for debugging/serialization,
+         CS8002 third-party assembly (StbImageSharp) without a strong name,
+         CS3005 legacy member names differing only in case. -->
+    <NoWarn>$(NoWarn);CS0162;CS0649;CS0169;CS8002;CS3005</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">

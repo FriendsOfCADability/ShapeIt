@@ -604,7 +604,7 @@ namespace CADability.DXF
                     }
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
             }
             return null;
