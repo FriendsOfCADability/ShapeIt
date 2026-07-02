@@ -516,7 +516,9 @@ namespace CADability.GeoObject
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint p = curve(mpos);
                         double d;
-                        if (GeneralCurve.PositionOf(bsp, p, ref mpos)) d = (bsp as ICurve).PointAt(mpos) | p;
+                        double rmpos = mpos; // to not change it in GeneralCurve.PositionOf
+                        // GeneralCurve.PositionOf is much faster then DistanceTo(p) because it doesnt need the tetraeder hull 
+                        if (GeneralCurve.PositionOf(bsp, p, ref rmpos)) d = (bsp as ICurve).PointAt(rmpos) | p;
                         else d = (bsp as ICurve).DistanceTo(p);
                         if (d > precision)
                         // if (((bsp as ICurve).PointAt(mpos) | p) > precision)
@@ -2065,7 +2067,7 @@ namespace CADability.GeoObject
         }
         #endregion
         #region IJsonSerialize
-        public void GetObjectData(IJsonWriteData data)
+        public new void GetObjectData(IJsonWriteData data)
         {
             data.AddProperty("Poles", poles);
             data.AddProperty("Weights", weights);
@@ -2086,7 +2088,7 @@ namespace CADability.GeoObject
             if (linePattern != null) data.AddProperty("LinePattern", linePattern);
         }
 
-        public void SetObjectData(IJsonReadData data)
+        public new void SetObjectData(IJsonReadData data)
         {
             // base.SetObjectData(data);
             poles = data.GetProperty<GeoPoint[]>("Poles");

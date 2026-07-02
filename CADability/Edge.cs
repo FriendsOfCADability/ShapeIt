@@ -2302,6 +2302,7 @@ namespace CADability
         void IJsonSerializeDone.SerializationDone(JsonSerialize jsonSerialize)
         {
             if (curve3d != null) (curve3d as IGeoObject).Owner = this;
+            if (curve3d is IJsonSerializeDone sd) sd.SerializationDone(jsonSerialize);
             if (curveOnPrimaryFace is Path2D && curve3d != null)
             {   // there sholud not be a path2D as a 2d curve of an edge
                 // old cdb file contain such edges, which is repaired here

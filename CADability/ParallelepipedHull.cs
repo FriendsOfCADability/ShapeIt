@@ -2772,6 +2772,12 @@ namespace CADability.GeoObject
                     BoundingBox bc = cubes[j].BoundingBox;
                     if (cubes[j].uvPatch.Interferes(ref uvExtent) && (curve as IOctTreeInsertable).HitTest(ref bc, 0.0))
                     {   // only check the relevant cubes
+                        if (curve is Line line)
+                        {   // it is often lines from octtree insertion and GetCurveIntersection throws an Exception which costs time.
+                            GeoPoint sp = line.StartPoint;
+                            GeoPoint ep = line.EndPoint;
+                            if (!cubes[j].ClipLine(ref sp, ref ep)) continue;
+                        }
                         // there is a bug: GetCurveIntersection only finds single intersection points where there might be multiple intersections
                         GetCurveIntersection(curve as ISimpleCurve, cubes[j], lips, luvOnFace, luOnCurve);
                     }

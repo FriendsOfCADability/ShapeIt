@@ -890,6 +890,69 @@ namespace CADability.Curve2D
             }
             return res;
         }
+
+        /// <summary>
+        /// Refines the parameter <paramref name="u"/> (used as start value) so that <see cref="PointAt(double)"/>
+        /// gets as close as possible to <paramref name="p"/>. Analogous to
+        /// <see cref="GeneralCurve.PositionOf(ICurve, GeoPoint, ref double)"/>, but for this 2D curve.
+        /// </summary>
+        /// <param name="p">the point to project onto the curve</param>
+        /// <param name="u">start value on input, refined parameter on output</param>
+        /// <returns>true, if a minimum could be found</returns>
+        public bool PositionOf(GeoPoint2D p, ref double u)
+        {
+            // Minimize |curve(u) - p|^2 using Levenberg-Marquardt.
+            // Residuals: r_i(u) = curve_i(u) - p_i  (i = 0,1 for x,y)
+            // Jacobian:  J[i,0] = d(curve_i)/du = DirectionAt(u)_i
+            try
+            {
+                var observedX = Vector<double>.Build.Dense(new[] { 0.0, 1.0 });
+                var observedY = Vector<double>.Build.Dense(new[] { p.x, p.y });
+
+                double Coord(double x, double y, int idx) => idx == 0 ? x : y;
+
+                Func<Vector<double>, double, double> scalarModel = (parameters, xi) =>
+                {
+                    double pu = Math.Max(0.0, Math.Min(1.0, parameters[0]));
+                    GeoPoint2D pt = PointAt(pu);
+                    return Coord(pt.x, pt.y, (int)Math.Round(xi));
+                };
+
+                Func<Vector<double>, double, Vector<double>> jacobian = (parameters, xi) =>
+                {
+                    double pu = Math.Max(0.0, Math.Min(1.0, parameters[0]));
+                    GeoVector2D dir = DirectionAt(pu);
+                    return Vector<double>.Build.Dense(new[] { Coord(dir.x, dir.y, (int)Math.Round(xi)) });
+                };
+
+                var objective = ObjectiveFunction.NonlinearModel(scalarModel, jacobian, observedX, observedY);
+                var initialGuess = Vector<double>.Build.Dense(new[] { u });
+                var lowerBound = Vector<double>.Build.Dense(new[] { 0.0 });
+                var upperBound = Vector<double>.Build.Dense(new[] { 1.0 });
+
+                var minimizer = new LevenbergMarquardtMinimizer(
+                    gradientTolerance: 1e-14,
+                    stepTolerance: 1e-14,
+                    functionTolerance: 1e-14,
+                    maximumIterations: 100);
+
+                var result = minimizer.FindMinimum(objective, initialGuess, lowerBound, upperBound);
+
+                if (result.ReasonForExit == ExitCondition.Converged ||
+                    result.ReasonForExit == ExitCondition.RelativeGradient ||
+                    result.ReasonForExit == ExitCondition.RelativePoints)
+                {
+                    u = Math.Max(0.0, Math.Min(1.0, result.MinimizingPoint[0]));
+                    return true;
+                }
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         /// <summary>
         /// Implements <see cref="CADability.Curve2D.ICurve2D.PositionAtLength (double)"/>
         /// </summary>

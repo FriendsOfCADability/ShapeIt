@@ -906,17 +906,17 @@ namespace CADability.GeoObject
                 var upperBound = Vector<double>.Build.Dense(new[] { 1.0 });
 
                 var minimizer = new LevenbergMarquardtMinimizer(
-                    gradientTolerance: 1e-10,
-                    stepTolerance: 1e-10,
-                    functionTolerance: 1e-10,
+                    gradientTolerance: 1e-14,
+                    stepTolerance: 1e-14,
+                    functionTolerance: 1e-14, // changed from 1e-10 to 1e-14 for better precision in InterpolatedDualSurfaceCurve ApproximateBSpline, otherwise we would get BSplines 
                     maximumIterations: 100);
 
                 var result = minimizer.FindMinimum(objective, initialGuess, lowerBound, upperBound);
 
                 if (result.ReasonForExit == ExitCondition.Converged ||
                     result.ReasonForExit == ExitCondition.RelativeGradient ||
-                    result.ReasonForExit == ExitCondition.RelativePoints ||
-                    result.ReasonForExit == ExitCondition.BoundTolerance)
+                    result.ReasonForExit == ExitCondition.RelativePoints)
+                    // result.ReasonForExit == ExitCondition.BoundTolerance
                 {
                     u = Math.Max(0.0, Math.Min(1.0, result.MinimizingPoint[0]));
                     return true;

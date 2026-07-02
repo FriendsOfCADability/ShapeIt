@@ -824,14 +824,13 @@ namespace CADability.Curve2D
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint2D p = curve(mpos);
                         double d;
-                        GeoPoint2D[] ftpts = bsp.PerpendicularFoot(p);
-                        if (ftpts.Length > 0) d = ftpts.Select(pp => pp | p).MinBy(d => d);
-                        else if (bsp.TryFindFootPoint(p, lastPos, item.Key, out double ufoot))
-                        {   // TryFindFootPoint seems not to work correctely
-                            d = p | bsp.PointAt(ufoot);
+                        double rmpos = mpos; // a copy to not modify the original mpos, which is used to add the point to the list
+                        if (bsp.PositionOf(p, ref rmpos))
+                        {
+                            d = bsp.PointAt(rmpos) | p;
                         }
                         else
-                        {
+                        {   // should never be called, but just in case
                             d = bsp.Distance(p);
                         }
                         if (d == double.MaxValue)
@@ -841,7 +840,6 @@ namespace CADability.Curve2D
                             d = p | onCurve;
                         }
                         if (d > precision)
-                        // if ((bsp.PointAt(mpos) | p) > precision) leads to too many points
                         {
                             toAdd.Add((mpos, p));
                         }

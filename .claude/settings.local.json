@@ -130,7 +130,13 @@
       "Bash(grep -viP '//.*\\(ParEpi|BoundingBox\\)')",
       "Bash(grep -nP '//.*\\\\b\\(der|die|das|und|nicht|wird|ein|eine|einen|wenn|dann|man|hier|auch|noch|werden|muss|kann|sind|aber|oder|von|sich|dass|ist|mit|nur|schon|immer|jeder|jede|jeweils|Punkt|Fläche|Kurve|geht|liegt|gibt\\)\\\\b' CADability/ParallelepipedHull.cs)",
       "Bash(grep -nP '//' CADability/ParallelepipedHull.cs)",
-      "Bash(grep -nP '//.*\\\\b\\(u\\\\.s\\\\.w|bzw|ggf|evtl|dgl|desgl|Bedingung|Werte|Feld|Felder|Netz|Masche|Spat|Spate|Würfel|Kurven|Flächen|Normalen|Schnittpunkt|Eckpunkt|Anfangspunkt|Endpunkt|Mittelpunkt|Tangente|verketten|einsortieren|aufteilen|geschlossen|offene\\)\\\\b' CADability/ParallelepipedHull.cs)"
+      "Bash(grep -nP '//.*\\\\b\\(u\\\\.s\\\\.w|bzw|ggf|evtl|dgl|desgl|Bedingung|Werte|Feld|Felder|Netz|Masche|Spat|Spate|Würfel|Kurven|Flächen|Normalen|Schnittpunkt|Eckpunkt|Anfangspunkt|Endpunkt|Mittelpunkt|Tangente|verketten|einsortieren|aufteilen|geschlossen|offene\\)\\\\b' CADability/ParallelepipedHull.cs)",
+      "PowerShell(dotnet build \"CADability\\\\CADability.csproj\" -c Debug -v q --no-incremental 2>&1 | Select-String -Pattern \"warning \\(CS|CA|SYSLIB|IDE|NU\\)\\\\d+\" | ForEach-Object { if \\($_ -match \"warning \\([A-Z]+\\\\d+\\)\"\\) { $matches[1] } } | Group-Object | Sort-Object Count -Descending | Format-Table Count, Name -AutoSize)",
+      "PowerShell(dotnet build \"CADability\\\\CADability.csproj\" -c Debug -v q --no-incremental 2>&1 | Select-String -Pattern \": warning \" | ForEach-Object { $_.Line.Trim\\(\\) } | Sort-Object -Unique | Out-File -FilePath \"$env:TEMP\\\\claude\\\\warns.txt\" -Encoding utf8; \\(Get-Content \"$env:TEMP\\\\claude\\\\warns.txt\" | Measure-Object -Line\\).Lines)",
+      "PowerShell(dotnet build \"CADability\\\\CADability.csproj\" -c Debug -v q --no-incremental 2>&1 | Select-String -Pattern \": \\(warning|error\\) \" | ForEach-Object { if \\($_ -match \": \\(warning|error\\) \\([A-Z]+\\\\d+\\)\"\\) { $matches[1] + \" \" + $matches[2] } } | Group-Object | Sort-Object Count -Descending | Format-Table Count, Name -AutoSize)",
+      "PowerShell(dotnet build \"CADability\\\\CADability.csproj\" -c Debug -v q --no-incremental 2>&1 | Select-String -Pattern \": warning CS0168\" | ForEach-Object { $_.Line.Trim\\(\\) } | Sort-Object -Unique)",
+      "PowerShell(git -C \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\" status --short)",
+      "PowerShell(git -C \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\" add CADability/BSpline.cs CADability/CADability.csproj CADability/Frame.cs CADability/ImportDxf.cs CADability/Line.cs CADability/MoveObjects.cs CADability/PropertiesExplorerInterfaces.cs CADability/RotateObjects.cs CADability/ScaleObjects.cs CADability/SnapObjects.cs CADability/Surface.cs CADability/SurfaceOfLinearExtrusion.cs)"
     ]
   }
 }
