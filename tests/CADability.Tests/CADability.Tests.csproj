@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <!--<Nullable>enable</Nullable>-->
     <UseWindowsForms>true</UseWindowsForms>
@@ -31,6 +31,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\CADability\CADability.csproj" />
+    <ProjectReference Include="..\..\CADability.Forms.NET8\CADability.Forms.NET8.csproj" />
   </ItemGroup>
 
 </Project>

@@ -332,6 +332,10 @@ namespace CADability
         GeoPoint2D[] polygonWithHoles;
         double eps;
         BoundingRect extent;
+        // vertices with an index below this are the original outline/hole points (fixed - must
+        // never move, so neighboring faces keep matching outlines); only vertices added later by
+        // SplitEdge/SplitTriangle (index >= this) are eligible for the quality smoothing pass
+        int originalVertexCount;
         bool preferHorizontal, preferVertical;
         public bool innerIntersection; // true, when the provided polyline intersect themselves (which they should not)
 #if DEBUG
@@ -399,6 +403,7 @@ namespace CADability
             polygonWithHoles = lPolygonWithHoles.ToArray();
 
 #if DEBUG
+            System.Diagnostics.Trace.WriteLine("maxDeflection: " + maxDeflection.ToString() + " maxBending: " + maxBending.ToString());
             DebuggerContainer dc = new DebuggerContainer();
             for (int i = 0; i < points.Length; ++i)
             {
@@ -457,6 +462,7 @@ namespace CADability
                     }
                 }
             }
+            originalVertexCount = vertex.Count; // fixed outline/hole points end here; see field comment
             // Test auf sich überschneidende Kanten. Mit solchen Kanten ist der Algorithmus nicht stabil
             // die Polygone müssen neu berechnet werden. Es gibt im allgemeinen wohl mehrere einzelne Polygone
             extent = BoundingRect.EmptyBoundingRect;
@@ -955,7 +961,19 @@ namespace CADability
             double md = surface.MaxDist(vertex[edge.v1].p2d, vertex[edge.next.v2].p2d, out mp);
             // if (d<0 &&Geometry.PointInsidePolygon(this.polygonWithHoles, mp)<1) md = double.MaxValue/2.0;
             //}
-            edge.angle = Math.Sign(d) / (md + maxDeflection); // das ist eine Kombination aus Spitzheit des Winkel und Abstand von der Fläche.
+            // The criteria above (2D turn angle sign, and how well the chord fits the surface)
+            // say nothing about the shape of the resulting triangle in 3D. In regions where the
+            // surface is strongly anisotropic (e.g. near a corner of a toroidal face, where equal
+            // 2D steps in the two parameter directions correspond to very different 3D arc
+            // lengths), a chord that fits the surface well can still form a very acute (sliver)
+            // triangle. Penalize such candidates so better-shaped ears elsewhere on the polygon
+            // are preferred first; by the time a bad candidate is unavoidable, its neighbors have
+            // often changed enough that it is no longer as thin. Well-shaped ears (>= 20 degrees)
+            // are not affected at all, so this only reorders candidates, never forbids one.
+            const double acceptableMinAngle = 20.0 * Math.PI / 180.0;
+            double minAngle3D = MinAngle(vertex[edge.v1].p3d, vertex[edge.v2].p3d, vertex[edge.next.v2].p3d);
+            double shapePenalty = Math.Max(1.0, acceptableMinAngle / Math.Max(minAngle3D, 1e-6));
+            edge.angle = Math.Sign(d) / ((md + maxDeflection) * shapePenalty); // das ist eine Kombination aus Spitzheit des Winkel und Abstand von der Fläche.
             slAngle.Add(edge, null);
         }
 
@@ -1177,6 +1195,19 @@ namespace CADability
             }
             return true;
         }
+        // smallest interior angle (in radians) of the 3D triangle p1,p2,p3; used by the
+        // angle-based diagonal exchange criterion in ExchangeDiagonalDist
+        private static double MinAngle(GeoPoint p1, GeoPoint p2, GeoPoint p3)
+        {
+            double a = p2 | p3;
+            double b = p1 | p3;
+            double c = p1 | p2;
+            if (a < Precision.eps || b < Precision.eps || c < Precision.eps) return 0.0; // degenerate
+            double angA = Math.Acos(Math.Max(-1.0, Math.Min(1.0, (b * b + c * c - a * a) / (2 * b * c))));
+            double angB = Math.Acos(Math.Max(-1.0, Math.Min(1.0, (a * a + c * c - b * b) / (2 * a * c))));
+            double angC = Math.PI - angA - angB;
+            return Math.Min(angA, Math.Min(angB, angC));
+        }
         bool ExchangeDiagonalDist(Edge edge)
         {
             ++exchangetotal;
@@ -1217,15 +1248,21 @@ namespace CADability
             Vertex freet2 = vertex[t2ind];
             // ... Abfrage ist schlecht: Nur tauschen, wenn echte Überschneidung der beiden Diagonalen
             if (!Geometry.InnerIntersection(freet1.p2d, freet2.p2d, vertex[edge.v1].p2d, vertex[edge.v2].p2d)) return false;
-            // 2. Test: ist die Diagonale in 3D kürzer als edge?
-            // Das ist nicht unbedingt ein Qualitätsmerkmal, es hängt von surface ab. D.h. man müsste eigentlich surface
-            // entscheiden lassen, welche Diagonale besser ist.
-            // Jetzt: Test nach besserer 3D Lösung
+            // 2. Test: would the new diagonal push the deviation from the surface beyond the
+            // requested tolerance? This is a hard limit, not a quality measure.
             GeoPoint2D mp;
             double ndist = surface.MaxDist(freet1.p2d, freet2.p2d, out mp);
-            if (ndist > edge.maxDist) return false; // die ist schlechter
-            //System.Diagnostics.Trace.WriteLine("Austausch: " + t1ind.ToString() + "--" + t2ind.ToString() + " gegen " + edge.v1.ToString() + "--" + edge.v2.ToString() + " (" + Geometry.DistPL(frm, freet1.p3d, freet2.p3d).ToString() + " < " + Geometry.DistPL(vm, vertex[edge.v1].p3d, vertex[edge.v2].p3d).ToString() + " )");
-            // if ((freet1.p3d | freet2.p3d) >= (vertex[edge.v1].p3d | vertex[edge.v2].p3d)) return false;
+            if (ndist > maxDeflection) return false; // would violate the tolerance
+            // 3. Quality criterion: pick the diagonal that maximizes the smallest interior angle
+            // of the two triangles involved (classic Delaunay criterion against thin, sliver
+            // triangles). Only exchange if this is actually an improvement.
+            double minAngleBefore = Math.Min(
+                MinAngle(vertex[edge.v1].p3d, vertex[edge.v2].p3d, freet1.p3d),
+                MinAngle(vertex[edge.v1].p3d, vertex[edge.v2].p3d, freet2.p3d));
+            double minAngleAfter = Math.Min(
+                MinAngle(freet1.p3d, freet2.p3d, vertex[edge.v1].p3d),
+                MinAngle(freet1.p3d, freet2.p3d, vertex[edge.v2].p3d));
+            if (minAngleAfter <= minAngleBefore) return false; // no improvement
             ++exchangesuccess;
             // 3. jetzt gemäß <|> die "senkrechte" edge um 90° nach links drehen "<->" und die Dreiecke updaten
             // Kante umbiegen
@@ -1947,6 +1984,167 @@ namespace CADability
                 }
             }
         }
+        // Quality-driven position smoothing, run after subdivision and diagonal exchange. Only
+        // vertices created during subdivision (index >= originalVertexCount) are ever moved -
+        // never the original outline/hole points, which must stay fixed so neighboring faces
+        // keep matching outlines. Each incident edge pulls the vertex towards its other endpoint,
+        // weighted by how badly that edge currently fits the surface (edge.maxDist), so poorly
+        // fitting edges pull harder than good ones. A move is only kept if every affected edge
+        // still respects maxDeflection and the summed deviation over those edges strictly
+        // decreases - so this can only ever improve, never regress, the local mesh.
+        private void SmoothInnerVertices()
+        {
+            if (vertex.Count <= originalVertexCount) return;
+
+            // Rebuild incident-edge sets from the triangle list: edges created by SplitEdge are
+            // never added to the `edges` field itself, so that list alone would be stale here.
+            HashSet<Edge>[] incident = new HashSet<Edge>[vertex.Count];
+            for (int ti = 0; ti < triangle.Count; ++ti)
+            {
+                Triangle t = triangle[ti];
+                foreach (Edge e in new[] { t.e1, t.e2, t.e3 })
+                {
+                    if (incident[e.v1] == null) incident[e.v1] = new HashSet<Edge>();
+                    incident[e.v1].Add(e);
+                    if (incident[e.v2] == null) incident[e.v2] = new HashSet<Edge>();
+                    incident[e.v2].Add(e);
+                }
+            }
+
+            // Work-queue instead of fixed rounds: a vertex only needs to be (re-)checked when
+            // something in its immediate neighborhood may have changed. Once most of the mesh has
+            // settled, a fixed round count keeps re-visiting vertices that have nothing new to
+            // react to; the queue naturally skips that wasted work while still converging to the
+            // same fixed point (every vertex whose neighborhood changes is re-enqueued).
+            Queue<int> queue = new Queue<int>();
+            bool[] queued = new bool[vertex.Count];
+            for (int vi = originalVertexCount; vi < vertex.Count; ++vi)
+            {
+                if (incident[vi] != null && incident[vi].Count > 0)
+                {
+                    queue.Enqueue(vi);
+                    queued[vi] = true;
+                }
+            }
+
+            // generous safety bound so a pathological oscillation cannot hang; should never be
+            // hit in practice since every accepted move strictly reduces the total deviation
+            long safetyBudget = (long)(vertex.Count - originalVertexCount) * 50;
+            long processed = 0;
+            while (queue.Count > 0 && processed < safetyBudget)
+            {
+                int vi = queue.Dequeue();
+                queued[vi] = false;
+                ++processed;
+                if (TrySmoothVertex(vi, incident[vi]))
+                {
+                    // neighbors now see a different pull, and vi itself may improve further
+                    foreach (Edge e in incident[vi])
+                    {
+                        int other = e.v1 == vi ? e.v2 : e.v1;
+                        if (other >= originalVertexCount && !queued[other] && incident[other] != null)
+                        {
+                            queue.Enqueue(other);
+                            queued[other] = true;
+                        }
+                    }
+                    if (!queued[vi]) { queue.Enqueue(vi); queued[vi] = true; }
+                }
+            }
+        }
+        private const double minRelativeImprovement = 0.05; // require at least 5% error reduction to accept a move
+        private bool TrySmoothVertex(int vi, HashSet<Edge> incidentEdges)
+        {
+            GeoPoint p3d = vertex[vi].p3d;
+            GeoVector force = GeoVector.NullVector;
+            double totalErrorBefore = 0;
+            double shortestEdge = double.MaxValue;
+            foreach (Edge e in incidentEdges)
+            {
+                int otherIndex = e.v1 == vi ? e.v2 : e.v1;
+                GeoVector dir = vertex[otherIndex].p3d - p3d;
+                double len = dir.Length;
+                if (len < Precision.eps) continue;
+                force = force + e.maxDist * (dir / len);
+                totalErrorBefore += e.maxDist;
+                shortestEdge = Math.Min(shortestEdge, len);
+            }
+            if (force.Length < Precision.eps || totalErrorBefore < Precision.eps) return false;
+
+            // scratch buffers, reused across attempts, to avoid recomputing surface.MaxDist a
+            // second time when a candidate position is accepted below
+            int edgeCount = incidentEdges.Count;
+            double[] trialMaxDist = new double[edgeCount];
+            double[] trialPosMaxDist = new double[edgeCount];
+
+            double stepFactor = 0.3 * shortestEdge / force.Length;
+            for (int attempt = 0; attempt < 4; ++attempt, stepFactor *= 0.5)
+            {
+                GeoPoint2D candidateUV;
+                try
+                {
+                    candidateUV = surface.PositionOf(p3d + stepFactor * force);
+                }
+                catch (Exception)
+                {
+                    continue; // surface could not invert this point, try a smaller step
+                }
+                if (!IsValidPosition(vi, candidateUV, incidentEdges)) continue;
+
+                double totalErrorAfter = 0;
+                bool withinTolerance = true;
+                int idx = 0;
+                foreach (Edge e in incidentEdges)
+                {
+                    int otherIndex = e.v1 == vi ? e.v2 : e.v1;
+                    GeoPoint2D mp;
+                    double d = surface.MaxDist(candidateUV, vertex[otherIndex].p2d, out mp);
+                    trialMaxDist[idx] = d;
+                    trialPosMaxDist[idx] = Geometry.LinePar(candidateUV, vertex[otherIndex].p2d, mp);
+                    ++idx;
+                    totalErrorAfter += d;
+                    if (d > maxDeflection) { withinTolerance = false; break; }
+                }
+                // Require a noticeable improvement, not just any improvement: without this, the
+                // work-queue chases an ever-longer tail of vanishingly small moves (each one
+                // re-enqueues its neighbors for another tiny possible gain), which was observed
+                // to cost far more time than it was worth in practice.
+                if (!withinTolerance || totalErrorAfter > totalErrorBefore * (1.0 - minRelativeImprovement)) continue;
+
+                // accept: commit the new position and reuse the deviations already computed above
+                vertex[vi].p2d = candidateUV;
+                vertex[vi].p3d = surface.PointAt(candidateUV);
+                idx = 0;
+                foreach (Edge e in incidentEdges)
+                {
+                    e.maxDist = trialMaxDist[idx];
+                    e.posMaxDist = trialPosMaxDist[idx];
+                    ++idx;
+                }
+                return true;
+            }
+            return false;
+        }
+        // checks that moving vertex vi to candidateUV keeps all incident triangles non-degenerate
+        // and correctly oriented (no inversion), same convention as Triangle.Area()
+        private bool IsValidPosition(int vi, GeoPoint2D candidateUV, HashSet<Edge> incidentEdges)
+        {
+            HashSet<Triangle> incidentTriangles = new HashSet<Triangle>();
+            foreach (Edge e in incidentEdges)
+            {
+                if (e.t1 != null) incidentTriangles.Add(e.t1);
+                if (e.t2 != null) incidentTriangles.Add(e.t2);
+            }
+            foreach (Triangle t in incidentTriangles)
+            {
+                GeoPoint2D p1 = t.v1 == vi ? candidateUV : vertex[t.v1].p2d;
+                GeoPoint2D p2 = t.v2 == vi ? candidateUV : vertex[t.v2].p2d;
+                GeoPoint2D p3 = t.v3 == vi ? candidateUV : vertex[t.v3].p2d;
+                double area = (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)) / 2.0;
+                if (area <= eps) return false; // degenerate or would invert the triangle's orientation
+            }
+            return true;
+        }
         public void GetTriangles(GeoPoint2D[] innerPoints, out GeoPoint2D[] p2d, out GeoPoint[] p3d, out int[] triangles)
         {
             int tc0 = System.Environment.TickCount;
@@ -2130,6 +2328,7 @@ namespace CADability
             if (splitInaccurateEdges)
             {
                 Approximate(false); // nur aufteilen, wenn Abstand zu groß
+                SmoothInnerVertices();
             }
 #if DEBUG
             //DebuggerContainer dc = Debug;
@@ -2151,7 +2350,6 @@ namespace CADability
                 triangles[ind++] = triangle[i].v3;
             }
         }
-
         private GeoPoint2D findMaxDist(GeoPoint2D p1, GeoPoint2D p2)
         {
             GeoPoint2D p0 = p1;
