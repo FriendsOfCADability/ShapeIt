@@ -9,6 +9,18 @@ using Wintellect.PowerCollections;
 
 namespace CADability
 {
+    // TEMPORARY, prototype evaluation only.
+    public static class TriangulationDebugCounters
+    {
+        public static int SplitCount, FallbackCount, GuardBlockedCount;
+        public static double GuardBlockedWorstResidual;
+        public static System.Collections.Generic.List<string> Log = new System.Collections.Generic.List<string>();
+        // per-phase wall time (ms) of the most recent GetSimpleTrianglesRecursiveSplit call, keyed
+        // by phase name; only the phases that actually ran for the requested stage are present
+        public static System.Collections.Generic.Dictionary<string, double> PhaseMs = new System.Collections.Generic.Dictionary<string, double>();
+    }
+    // TriangulationSmoothing has been moved to its own file (TriangulationSmoothing.cs) so it
+    // stays available while this file is excluded from compilation (CDTriangulation migration).
     internal class TriangulationException : ApplicationException
     {   // wird geworfen, wenn Kanten sich berühren oder überschneiden
         public TriangulationException(string msg)
@@ -336,6 +348,9 @@ namespace CADability
         // never move, so neighboring faces keep matching outlines); only vertices added later by
         // SplitEdge/SplitTriangle (index >= this) are eligible for the quality smoothing pass
         int originalVertexCount;
+        // captured once at construction time from TriangulationSmoothing's thread-local setting;
+        // see TrySmoothVertex
+        readonly double smoothingMinRelativeImprovement;
         bool preferHorizontal, preferVertical;
         public bool innerIntersection; // true, when the provided polyline intersect themselves (which they should not)
 #if DEBUG
@@ -393,6 +408,7 @@ namespace CADability
             this.surface = surface;
             this.maxDeflection = maxDeflection;
             this.maxBending = maxBending;
+            this.smoothingMinRelativeImprovement = TriangulationSmoothing.CurrentOrDefault;
             triangle = new List<Triangle>();
             edgepairs = new List<Pair<Edge, Edge>>();
             List<GeoPoint2D> lPolygonWithHoles = new List<GeoPoint2D>();
@@ -1355,6 +1371,445 @@ namespace CADability
             }
             return true;
         }
+        // =====================================================================================
+        // PROTOTYPE, isolated concept study - not wired into Face.cs / the production pipeline
+        // at all. Alternative to EarClipping(): instead of greedily clipping single ears (which
+        // ignores triangle shape entirely, see InsertEdge), recursively splits the boundary cycle
+        // in two at a well-chosen pair of vertices, so both halves are triangulated independently
+        // by the same method. This is a greedy simplification of Klincsek's O(n^3) DP algorithm
+        // for optimal simple-polygon triangulation (1980) - full DP would try every apex for every
+        // candidate diagonal; here we instead start from the most reflex (concave) vertex and pick
+        // the partner with the lowest surface deviation among all valid (non-crossing, interior,
+        // within-tolerance) candidates. Operates on the same previous/next cyclic edge list that
+        // ConnectHoles already builds (bridges are just regular cycle edges here), and produces
+        // ordinary Triangle/Edge/Vertex objects, so the existing Approximate/SmoothInnerVertices/
+        // ExchangeDiagonalDist post-processing and the existing Debug/DebugEdges/DebugTriangles
+        // visualizers work on its output unchanged.
+        private void EarClippingRecursiveSplit()
+        {
+            RecursiveSplit(edges[0], edges.Count);
+        }
+        private void RecursiveSplit(Edge startEdge, int count)
+        {
+            if (count == 3)
+            {
+                FormTriangle(startEdge, startEdge.next, startEdge.next.next);
+                return;
+            }
+            if (count < 3) return; // should never happen; safety net only
+
+            List<Edge> cycleEdges = new List<Edge>(count);
+            {
+                Edge e = startEdge;
+                for (int k = 0; k < count; ++k) { cycleEdges.Add(e); e = e.next; }
+            }
+
+            if (!FindBestSplit(cycleEdges, out int a, out int b))
+            {
+                Edge remainder = ClipOneEar(cycleEdges);
+                RecursiveSplit(remainder, count - 1);
+                return;
+            }
+            TriangulationDebugCounters.SplitCount++; // TEMPORARY
+
+            Edge edgeA = cycleEdges[(a - 1 + count) % count]; // edge ending at vertex a
+            Edge edgeB = cycleEdges[(b - 1 + count) % count]; // edge ending at vertex b
+            Edge eAB = new Edge(); // a -> b
+            Edge eBA = new Edge(); // b -> a
+            eAB.v1 = edgeA.v2;
+            eAB.v2 = edgeB.v2;
+            eBA.v1 = eAB.v2;
+            eBA.v2 = eAB.v1;
+            eAB.previous = edgeA;
+            eAB.next = edgeB.next; // captures the OLD value before anything is relinked below
+            eBA.previous = edgeB;
+            eBA.next = edgeA.next; // captures the OLD value before anything is relinked below
+            eAB.polygon = -1;
+            eBA.polygon = -1;
+            eAB.previous.next = eAB;
+            eAB.next.previous = eAB;
+            eBA.previous.next = eBA;
+            eBA.next.previous = eBA;
+            edges.Add(eAB); // Approximate's split loop reads `edges` (not the triangle list) to
+            edges.Add(eBA); // find its initial candidates, so new diagonals must be registered here
+            // eBA starts the "short way" sub-cycle (a -> a+1 -> ... -> b -> a), eAB starts the
+            // "long way" sub-cycle (b -> b+1 -> ... -> a -> b); same primitive ConnectHoles uses
+            // to merge two cycles into one, applied here to split one cycle into two.
+            int shortCount = b - a + 1;
+            int longCount = count - shortCount + 2;
+            RecursiveSplit(eBA, shortCount);
+            RecursiveSplit(eAB, longCount);
+        }
+        // e1, e2, e3 must form a genuine 3-cycle (e1.v2==e2.v1, e2.v2==e3.v1, e3.v2==e1.v1), as is
+        // always the case for the cycleEdges triples this is called with (three consecutive edges
+        // of a previous/next cycle whose length has shrunk to exactly 3). Under that invariant all
+        // three edges are traversed in their own forward (v1->v2) direction by this triangle, so
+        // generic Add() (which just claims whichever of t1/t2 is free, ignoring direction) is safe
+        // here: a freshly created edge always gets its first, correctly-forward, attachment this
+        // way, and an edge reused a second time (e.g. one returned by ClipOneEar) only reaches this
+        // point already holding its correctly-reversed first attachment, so the second, forward,
+        // Add() lands in the other slot as intended. See ClipOneEar for the one case (the newly
+        // created closing chord) where the edge's own stored direction does NOT match this
+        // triangle's forward traversal and AddReverse must be used explicitly instead.
+        private void FormTriangle(Edge e1, Edge e2, Edge e3)
+        {
+            Triangle t = new Triangle();
+            t.e1 = e1; t.e2 = e2; t.e3 = e3;
+            t.v1 = e1.v1; t.v2 = e1.v2; t.v3 = e2.v2;
+            e1.Add(t); e2.Add(t); e3.Add(t);
+            triangle.Add(t);
+        }
+        // vertex_k of the local cycle is defined as cycleEdges[k].v1 (equivalently
+        // cycleEdges[(k-1+count)%count].v2); cycleEdges[k] connects vertex_k to vertex_(k+1)
+        private GeoPoint2D VPos(List<Edge> cycleEdges, int k) => vertex[cycleEdges[k].v1].p2d;
+        private double VertexTurnAngle(List<Edge> cycleEdges, int k)
+        {
+            int count = cycleEdges.Count;
+            Edge incoming = cycleEdges[(k - 1 + count) % count];
+            Edge outgoing = cycleEdges[k];
+            GeoVector2D v1 = vertex[incoming.v2].p2d - vertex[incoming.v1].p2d;
+            GeoVector2D v2 = vertex[outgoing.v2].p2d - vertex[outgoing.v1].p2d;
+            if (Precision.IsNullVector(v1) || Precision.IsNullVector(v2)) return 0.0;
+            return -(new SweepAngle(v1, v2)).Radian; // >0 reflex, <0 convex - same convention as InsertEdge
+        }
+        private bool SegmentCrossesCycle(List<Edge> cycleEdges, int a, int b, GeoPoint2D pa, GeoPoint2D pb)
+        {
+            int count = cycleEdges.Count;
+            for (int k = 0; k < count; ++k)
+            {
+                int k2 = (k + 1) % count;
+                if (k == a || k2 == a || k == b || k2 == b) continue; // edges touching a or b: not a crossing
+                if (Geometry.SegmentIntersection(vertex[cycleEdges[k].v1].p2d, vertex[cycleEdges[k].v2].p2d, pa, pb)) return true;
+            }
+            return false;
+        }
+        private bool PointInPolygon(List<Edge> cycleEdges, GeoPoint2D p)
+        {
+            int count = cycleEdges.Count;
+            bool inside = false;
+            for (int k = 0; k < count; ++k)
+            {
+                GeoPoint2D pi = vertex[cycleEdges[k].v1].p2d;
+                GeoPoint2D pj = vertex[cycleEdges[k].v2].p2d;
+                if (((pi.y > p.y) != (pj.y > p.y)) && (p.x < (pj.x - pi.x) * (p.y - pi.y) / (pj.y - pi.y) + pi.x))
+                {
+                    inside = !inside;
+                }
+            }
+            return inside;
+        }
+        // Searches, starting with the most reflex (concave) vertex, for a valid split partner:
+        // non-crossing, midpoint inside the polygon, and within the deviation tolerance. Falls
+        // back to the next-most-reflex vertex if none is found, so an isolated bad reflex vertex
+        // cannot block progress.
+        // true if p1,p2,p3 have (near-)zero 2D area, i.e. are collinear
+        private bool IsDegenerateTriangle2D(GeoPoint2D p1, GeoPoint2D p2, GeoPoint2D p3)
+        {
+            double area = Math.Abs((p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)) / 2.0);
+            return area <= eps;
+        }
+        // A split or ear-clip is only useful if it does not immediately strand a degenerate
+        // (collinear) triple as a leftover 3-vertex sub-cycle, since RecursiveSplit's count==3
+        // base case has no choice left at that point but to form whatever triangle remains - found
+        // in practice on faces with long straight boundary runs (many collinear points in a row).
+        private bool WouldStrandDegenerateTriple(List<Edge> cycleEdges, int lo, int hi)
+        {
+            int count = cycleEdges.Count;
+            int shortCount = hi - lo + 1;
+            if (shortCount == 3 && IsDegenerateTriangle2D(VPos(cycleEdges, lo), VPos(cycleEdges, lo + 1), VPos(cycleEdges, hi)))
+                return true;
+            int longCount = count - shortCount + 2;
+            if (longCount == 3 && IsDegenerateTriangle2D(VPos(cycleEdges, hi), VPos(cycleEdges, (hi + 1) % count), VPos(cycleEdges, lo)))
+                return true;
+            return false;
+        }
+        private static double UnsignedAngle(double ux, double uy, double vx, double vy)
+        {
+            double lu = Math.Sqrt(ux * ux + uy * uy), lv = Math.Sqrt(vx * vx + vy * vy);
+            if (lu < 1e-12 || lv < 1e-12) return 0.0;
+            double cos = Math.Max(-1.0, Math.Min(1.0, (ux * vx + uy * vy) / (lu * lv)));
+            return Math.Acos(cos);
+        }
+        // At each of the diagonal's two endpoints, the diagonal splits that vertex's existing
+        // interior angle into two sub-angles (the eventual angles of whatever triangles will form
+        // there once recursion continues). Returns the smallest of those four sub-angles, so a
+        // candidate that would immediately create a sliver-like corner can be deprioritized.
+        private double MinCornerAngle(List<Edge> cycleEdges, int a, int b)
+        {
+            int count = cycleEdges.Count;
+            GeoPoint2D pa = VPos(cycleEdges, a), pb = VPos(cycleEdges, b);
+            GeoPoint2D paPred = VPos(cycleEdges, (a - 1 + count) % count);
+            GeoPoint2D paSucc = VPos(cycleEdges, (a + 1) % count);
+            GeoPoint2D pbPred = VPos(cycleEdges, (b - 1 + count) % count);
+            GeoPoint2D pbSucc = VPos(cycleEdges, (b + 1) % count);
+
+            double dx = pb.x - pa.x, dy = pb.y - pa.y;
+            double angleA1 = UnsignedAngle(pa.x - paPred.x, pa.y - paPred.y, dx, dy);
+            double angleA2 = UnsignedAngle(dx, dy, paSucc.x - pa.x, paSucc.y - pa.y);
+            double angleB1 = UnsignedAngle(pb.x - pbPred.x, pb.y - pbPred.y, -dx, -dy);
+            double angleB2 = UnsignedAngle(-dx, -dy, pbSucc.x - pb.x, pbSucc.y - pb.y);
+            return Math.Min(Math.Min(angleA1, angleA2), Math.Min(angleB1, angleB2));
+        }
+        private bool FindBestSplit(List<Edge> cycleEdges, out int bestA, out int bestB)
+        {
+            int count = cycleEdges.Count;
+            bestA = -1; bestB = -1;
+            const double acceptableCornerAngle = 20.0 * Math.PI / 180.0; // same threshold used in InsertEdge's ear-clipping fix
+
+            List<int> order = new List<int>(count);
+            for (int k = 0; k < count; ++k) order.Add(k);
+            order.Sort((x, y) => VertexTurnAngle(cycleEdges, y).CompareTo(VertexTurnAngle(cycleEdges, x))); // most reflex first
+
+            foreach (int a in order)
+            {
+                double bestScore = double.MaxValue;
+                int foundB = -1;
+                GeoPoint2D pa = VPos(cycleEdges, a);
+                for (int b = 0; b < count; ++b)
+                {
+                    if (b == a) continue;
+                    int diff = Math.Abs(b - a);
+                    int cyclicDist = Math.Min(diff, count - diff);
+                    if (cyclicDist < 2) continue; // adjacent - not a valid diagonal
+                    if (WouldStrandDegenerateTriple(cycleEdges, Math.Min(a, b), Math.Max(a, b))) continue;
+
+                    GeoPoint2D pb = VPos(cycleEdges, b);
+                    if (SegmentCrossesCycle(cycleEdges, a, b, pa, pb)) continue;
+                    GeoPoint2D mid = new GeoPoint2D(pa, pb);
+                    if (!PointInPolygon(cycleEdges, mid)) continue;
+
+                    double dist = surface.MaxDist(pa, pb, out _);
+                    if (dist > maxDeflection) continue;
+
+                    // penalize (but do not outright reject) candidates that would create a very
+                    // sharp corner, the same pattern already used in InsertEdge's ear-clipping fix
+                    double minCorner = MinCornerAngle(cycleEdges, a, b);
+                    double anglePenalty = Math.Max(1.0, acceptableCornerAngle / Math.Max(minCorner, 1e-6));
+                    double score = dist * anglePenalty;
+
+                    if (score < bestScore) { bestScore = score; foundB = b; }
+                }
+                if (foundB >= 0)
+                {
+                    bestA = Math.Min(a, foundB);
+                    bestB = Math.Max(a, foundB);
+                    return true;
+                }
+            }
+            return false;
+        }
+        // Fallback when no valid splitting diagonal exists anywhere in the cycle (turned out to be
+        // common on small sub-cycles, where there are only one or two possible diagonals to begin
+        // with): clip a single convex ear. Among all geometrically valid candidates (no other cycle
+        // vertex inside the candidate triangle - same safety criterion as EarClipping), pick the
+        // one whose closing chord deviates least from the surface, instead of just the first one
+        // found: since this fallback has no maxDeflection cutoff of its own (unlike FindBestSplit),
+        // taking the first valid candidate produced very long, badly-fitting ears in practice.
+        // Among all geometrically valid ear candidates (convex apex, no other cycle vertex inside),
+        // returns the local index k whose closing chord deviates least from the surface, or -1 if
+        // none qualify. When avoidDegenerateRemainder is true, also skips a candidate whose removal
+        // would leave a collinear 3-vertex remainder (see WouldStrandDegenerateTriple).
+        private int FindBestEar(List<Edge> cycleEdges, int count, bool avoidDegenerateRemainder)
+        {
+            const double acceptableCornerAngle = 20.0 * Math.PI / 180.0; // same threshold as FindBestSplit
+            int bestK = -1;
+            double bestScore = double.MaxValue;
+            for (int k = 0; k < count; ++k)
+            {
+                if (VertexTurnAngle(cycleEdges, k) >= 0) continue; // only convex vertices are ear candidates
+                Edge ea = cycleEdges[(k - 1 + count) % count];
+                Edge eb = cycleEdges[k];
+                GeoPoint2D p1 = vertex[ea.v1].p2d, p2 = vertex[ea.v2].p2d, p3 = vertex[eb.v2].p2d;
+                bool containsOther = false;
+                for (int m = 0; m < count; ++m)
+                {
+                    if (m == (k - 1 + count) % count || m == k || m == (k + 1) % count) continue; // skip the ear's own 3 corners
+                    if (PointInTriangle(vertex[cycleEdges[m].v1].p2d, p1, p2, p3)) { containsOther = true; break; }
+                }
+                if (containsOther) continue;
+                if (avoidDegenerateRemainder && count - 1 == 3)
+                {
+                    // removing vertex k leaves exactly the other 3 vertices as a sub-cycle
+                    int i1 = -1, i2 = -1, i3 = -1;
+                    for (int m = 0, found = 0; m < count; ++m)
+                    {
+                        if (m == k) continue;
+                        if (found == 0) i1 = m; else if (found == 1) i2 = m; else i3 = m;
+                        ++found;
+                    }
+                    if (IsDegenerateTriangle2D(VPos(cycleEdges, i1), VPos(cycleEdges, i2), VPos(cycleEdges, i3))) continue;
+                }
+
+                double dist = surface.MaxDist(p1, p3, out _);
+                // penalize (but do not outright reject) an ear whose own triangle is sliver-like -
+                // same pattern as FindBestSplit's corner-angle penalty
+                double angleAtP1 = UnsignedAngle(p2.x - p1.x, p2.y - p1.y, p3.x - p1.x, p3.y - p1.y);
+                double angleAtP2 = UnsignedAngle(p1.x - p2.x, p1.y - p2.y, p3.x - p2.x, p3.y - p2.y);
+                double angleAtP3 = Math.Max(0.0, Math.PI - angleAtP1 - angleAtP2);
+                double minAngle = Math.Min(angleAtP1, Math.Min(angleAtP2, angleAtP3));
+                double anglePenalty = Math.Max(1.0, acceptableCornerAngle / Math.Max(minAngle, 1e-6));
+                double score = dist * anglePenalty;
+
+                if (score < bestScore) { bestScore = score; bestK = k; }
+            }
+            return bestK;
+        }
+        private Edge ClipOneEar(List<Edge> cycleEdges)
+        {
+            TriangulationDebugCounters.FallbackCount++; // TEMPORARY
+            int count = cycleEdges.Count;
+            // try once avoiding a degenerate leftover triple (see WouldStrandDegenerateTriple), then
+            // once more without that restriction, so termination is guaranteed even in the rare case
+            // where every remaining candidate would strand one (e.g. count==4 with 3 collinear points)
+            int bestK = FindBestEar(cycleEdges, count, avoidDegenerateRemainder: true);
+            if (bestK < 0) bestK = FindBestEar(cycleEdges, count, avoidDegenerateRemainder: false);
+            if (bestK < 0) throw new TriangulationException("EarClippingRecursiveSplit: no valid ear found in fallback");
+
+            Edge bestEa = cycleEdges[(bestK - 1 + count) % count];
+            Edge bestEb = cycleEdges[bestK];
+            Edge newEdge = new Edge();
+            newEdge.v1 = bestEa.v1;
+            newEdge.v2 = bestEb.v2;
+            newEdge.previous = bestEa.previous;
+            newEdge.next = bestEb.next;
+            newEdge.previous.next = newEdge;
+            newEdge.next.previous = newEdge;
+            edges.Add(newEdge); // see the comment in RecursiveSplit's split case
+            // Not FormTriangle(bestEa, bestEb, newEdge): newEdge is stored as bestEa.v1 -> bestEb.v2
+            // (the "chord" convention, matching how the old EarClipping code orients its own closing
+            // edge), which is the OPPOSITE of this triangle's own forward traversal at that position
+            // (bestEb.v2 -> bestEa.v1). Attaching it via generic Add() - as FormTriangle does, safe
+            // only when every edge argument is genuinely forward - would silently record this
+            // triangle in the wrong (t1/forward) slot. Since newEdge is reused later (as bestEa or
+            // bestEb, or as an e1/e2/e3 of a base-case FormTriangle - all genuinely forward
+            // positions), that second, truly-forward attachment would then be forced into the wrong
+            // slot too, breaking SplitEdge's assumption (used by Approximate) that an edge's t1/t2
+            // triangles are its forward/reverse consumers - producing crossing edges once Approximate
+            // splits such a "mislabeled" edge. AddForward/AddReverse make the roles explicit instead.
+            Triangle t = new Triangle();
+            t.e1 = bestEa; t.e2 = bestEb; t.e3 = newEdge;
+            t.v1 = bestEa.v1; t.v2 = bestEa.v2; t.v3 = bestEb.v2;
+            bestEa.AddForward(t);
+            bestEb.AddForward(t);
+            newEdge.AddReverse(t);
+            triangle.Add(t);
+            return newEdge;
+        }
+        private static double Cross2D(GeoPoint2D p, GeoPoint2D a, GeoPoint2D b) => (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+        private static bool PointInTriangle(GeoPoint2D p, GeoPoint2D a, GeoPoint2D b, GeoPoint2D c)
+        {
+            double d1 = Cross2D(p, a, b), d2 = Cross2D(p, b, c), d3 = Cross2D(p, c, a);
+            bool hasNeg = d1 < 0 || d2 < 0 || d3 < 0;
+            bool hasPos = d1 > 0 || d2 > 0 || d3 > 0;
+            return !(hasNeg && hasPos);
+        }
+        // TEMPORARY entry point for evaluating the prototype above; mirrors GetSimpleTriangles but
+        // calls EarClippingRecursiveSplit() instead of EarClipping().
+        // stage: 0=raw, 1=+split only, 2=+split+flip, 3=+split+flip+smooth, 4=+split+flip+collapse
+        // short edges+smooth, 5=+split+flip+retract boundary tips+collapse short edges+smooth.
+        // TEMPORARY parameter, for isolating which post-processing phase introduces corruption /
+        // for comparing the effect of an individual phase.
+        // TEMPORARY diagnostic: scans the current triangle list's edges for pairwise 2D crossings
+        // (excluding pairs that share a vertex, which is not a crossing).
+        public List<string> DebugFindCrossingEdges()
+        {
+            HashSet<Edge> allEdges = new HashSet<Edge>();
+            for (int i = 0; i < triangle.Count; ++i)
+            {
+                allEdges.Add(triangle[i].e1);
+                allEdges.Add(triangle[i].e2);
+                allEdges.Add(triangle[i].e3);
+            }
+            List<Edge> edgeList = new List<Edge>(allEdges);
+            List<string> result = new List<string>();
+            for (int i = 0; i < edgeList.Count; ++i)
+            {
+                for (int j = i + 1; j < edgeList.Count; ++j)
+                {
+                    Edge e1 = edgeList[i], e2 = edgeList[j];
+                    if (e1.v1 == e2.v1 || e1.v1 == e2.v2 || e1.v2 == e2.v1 || e1.v2 == e2.v2) continue;
+                    if (Geometry.SegmentIntersection(vertex[e1.v1].p2d, vertex[e1.v2].p2d, vertex[e2.v1].p2d, vertex[e2.v2].p2d))
+                    {
+                        result.Add($"CROSS: edge({e1.v1},{e1.v2}) uv=({vertex[e1.v1].p2d.x:F5},{vertex[e1.v1].p2d.y:F5})-({vertex[e1.v2].p2d.x:F5},{vertex[e1.v2].p2d.y:F5}) " +
+                                   $"x edge({e2.v1},{e2.v2}) uv=({vertex[e2.v1].p2d.x:F5},{vertex[e2.v1].p2d.y:F5})-({vertex[e2.v2].p2d.x:F5},{vertex[e2.v2].p2d.y:F5})");
+                    }
+                }
+            }
+            return result;
+        }
+        public void GetSimpleTrianglesRecursiveSplit(out GeoPoint2D[] p2d, out GeoPoint[] p3d, out int[] triangles, int stage)
+        {
+            // TEMPORARY: per-phase timing for prototype evaluation, see TriangulationDebugCounters.PhaseMs
+            TriangulationDebugCounters.PhaseMs.Clear();
+            System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+            void Phase(string name, Action action)
+            {
+                sw.Restart();
+                action();
+                // TriangulationDebugCounters.PhaseMs[name] = sw.Elapsed.TotalMilliseconds;
+            }
+
+            Phase("EarClippingRecursiveSplit", () => EarClippingRecursiveSplit());
+            if (edgepairs != null)
+            {
+                for (int i = 0; i < edgepairs.Count; ++i)
+                {
+                    Edge e1 = edgepairs[i].First;
+                    Edge e2 = edgepairs[i].Second;
+                    Triangle t = e2.t1;
+                    if (t == null)
+                    {
+                        edges.Remove(e1);
+                        edges.Remove(e2);
+                    }
+                    else
+                    {
+                        if (t.e1 == e2) t.e1 = e1;
+                        else if (t.e2 == e2) t.e2 = e1;
+                        else t.e3 = e1;
+                        e2.Remove(t);
+                        e1.AddReverse(t);
+                        edges.Remove(e2);
+                    }
+                }
+            }
+            if (stage == 1) Phase("Approximate(noFlip)", () => Approximate(true));
+            else if (stage == 2) Phase("Approximate(flip)", () => Approximate(false));
+            else if (stage == 3)
+            {
+                Phase("Approximate(flip)", () => Approximate(false));
+                Phase("SmoothInnerVertices", () => SmoothInnerVertices());
+            }
+            else if (stage == 4)
+            {
+                Phase("Approximate(flip)", () => Approximate(false));
+                Phase("CollapseShortEdges", () => CollapseShortEdges());
+                Phase("SmoothInnerVertices", () => SmoothInnerVertices());
+            }
+            else if (stage == 5)
+            {
+                Phase("Approximate(flip)", () => Approximate(false));
+                Phase("RetractBoundaryTips", () => RetractBoundaryTips());
+                Phase("CollapseShortEdges", () => CollapseShortEdges());
+                Phase("SmoothInnerVertices", () => SmoothInnerVertices());
+            }
+            p2d = new GeoPoint2D[vertex.Count];
+            p3d = new GeoPoint[vertex.Count];
+            for (int i = 0; i < vertex.Count; ++i)
+            {
+                p2d[i] = vertex[i].p2d;
+                p3d[i] = vertex[i].p3d;
+            }
+            triangles = new int[triangle.Count * 3];
+            int ind = 0;
+            for (int i = 0; i < triangle.Count; ++i)
+            {
+                triangles[ind++] = triangle[i].v1;
+                triangles[ind++] = triangle[i].v2;
+                triangles[ind++] = triangle[i].v3;
+            }
+        }
+        // =====================================================================================
         private void EarClipping()
         {
             // OrderedMultiDictionary<double, Edge> byAngle = new OrderedMultiDictionary<double, Edge>(true);
@@ -1963,25 +2418,30 @@ namespace CADability
                 sortededges.Clear();
                 sortededges.AddRange(toAdd);
             }
-            if (!noFlip)
+            if (!noFlip) FlipUntilConverged();
+        }
+        // Repeatedly exchanges non-optimal diagonals (see ExchangeDiagonalDist) until no more
+        // improvement is found or a round cap is hit. Safe to call on its own, repeatedly, since
+        // it derives its edge set from the current `triangle` list rather than from the `edges`
+        // field (which SplitEdge never updates and would go stale after any split).
+        private void FlipUntilConverged()
+        {
+            for (int j = 0; j < 10; j++)
             {
-                for (int j = 0; j < 10; j++)
-                {
-                    bool noExchange = true;
+                bool noExchange = true;
 
-                    HashSet<Edge> allEdges = new HashSet<Edge>();
-                    for (int i = 0; i < triangle.Count; ++i)
-                    {
-                        if (!triangle[i].e1.isOptimal) allEdges.Add(triangle[i].e1);
-                        if (!triangle[i].e2.isOptimal) allEdges.Add(triangle[i].e2);
-                        if (!triangle[i].e3.isOptimal) allEdges.Add(triangle[i].e3);
-                    }
-                    foreach (Edge e in allEdges)
-                    {
-                        if (ExchangeDiagonalDist(e)) noExchange = false;
-                    }
-                    if (noExchange) break;
+                HashSet<Edge> allEdges = new HashSet<Edge>();
+                for (int i = 0; i < triangle.Count; ++i)
+                {
+                    if (!triangle[i].e1.isOptimal) allEdges.Add(triangle[i].e1);
+                    if (!triangle[i].e2.isOptimal) allEdges.Add(triangle[i].e2);
+                    if (!triangle[i].e3.isOptimal) allEdges.Add(triangle[i].e3);
                 }
+                foreach (Edge e in allEdges)
+                {
+                    if (ExchangeDiagonalDist(e)) noExchange = false;
+                }
+                if (noExchange) break;
             }
         }
         // Quality-driven position smoothing, run after subdivision and diagonal exchange. Only
@@ -2052,7 +2512,6 @@ namespace CADability
                 }
             }
         }
-        private const double minRelativeImprovement = 0.05; // require at least 5% error reduction to accept a move
         private bool TrySmoothVertex(int vi, HashSet<Edge> incidentEdges)
         {
             GeoPoint p3d = vertex[vi].p3d;
@@ -2109,7 +2568,7 @@ namespace CADability
                 // work-queue chases an ever-longer tail of vanishingly small moves (each one
                 // re-enqueues its neighbors for another tiny possible gain), which was observed
                 // to cost far more time than it was worth in practice.
-                if (!withinTolerance || totalErrorAfter > totalErrorBefore * (1.0 - minRelativeImprovement)) continue;
+                if (!withinTolerance || totalErrorAfter > totalErrorBefore * (1.0 - smoothingMinRelativeImprovement)) continue;
 
                 // accept: commit the new position and reuse the deviations already computed above
                 vertex[vi].p2d = candidateUV;
@@ -2144,6 +2603,414 @@ namespace CADability
                 if (area <= eps) return false; // degenerate or would invert the triangle's orientation
             }
             return true;
+        }
+        // TEMPORARY, prototype evaluation only (see the comment above EarClippingRecursiveSplit).
+        // Removes edges that are much shorter than their neighboring edges by collapsing their two
+        // endpoints onto one another, as long as every other edge dragged along by the move still
+        // respects maxDeflection afterwards. Only ever touches vertices added during subdivision
+        // (index >= originalVertexCount, same convention as SmoothInnerVertices) - the original
+        // outline/hole points are never moved or removed. Meant to run after FlipUntilConverged and
+        // before SmoothInnerVertices: short edges are typically left behind by SplitEdge choosing a
+        // posMaxDist close to one end, and the resulting needle triangles otherwise just sit there
+        // unimproved (their apex, pinned by many other incident triangles, has little room to move)
+        // instead of giving the smoothing pass a genuinely useful vertex to relax.
+        private void CollapseShortEdges()
+        {
+            // Self-normalizing candidate threshold instead of a fixed absolute length: an edge is
+            // considered once it is this much shorter than the average of the other 4 edges of its
+            // two adjacent triangles (its "diamond"), so the criterion adapts to local mesh density.
+            const double shortEdgeFactor = 0.25;
+
+            HashSet<Edge> rejected = new HashSet<Edge>(); // failed the tolerance check; don't retry
+            bool progress = true;
+            while (progress)
+            {
+                progress = false;
+
+                // Rebuilt from the triangle list every round: collapsing changes which
+                // edges/triangles exist, and (like FlipUntilConverged/SmoothInnerVertices) the
+                // `edges` field is not kept up to date by SplitEdge or by this method.
+                HashSet<Edge> allEdges = new HashSet<Edge>();
+                for (int ti = 0; ti < triangle.Count; ++ti)
+                {
+                    allEdges.Add(triangle[ti].e1);
+                    allEdges.Add(triangle[ti].e2);
+                    allEdges.Add(triangle[ti].e3);
+                }
+
+                Edge best = null;
+                double bestRatio = shortEdgeFactor;
+                foreach (Edge edge in allEdges)
+                {
+                    if (edge.t1 == null || edge.t2 == null) continue; // boundary edge, never collapsed
+                    if (edge.v1 < originalVertexCount || edge.v2 < originalVertexCount) continue; // fixed outline/hole point
+                    if (rejected.Contains(edge)) continue;
+                    int apex1 = ApexVertex(edge.t1, edge);
+                    int apex2 = ApexVertex(edge.t2, edge);
+                    if (apex1 == apex2) continue; // degenerate two-triangle pocket, not worth handling here
+                    double len = Geometry.Dist(vertex[edge.v1].p3d, vertex[edge.v2].p3d);
+                    double diamondAvg = (Geometry.Dist(vertex[edge.v1].p3d, vertex[apex1].p3d)
+                                       + Geometry.Dist(vertex[edge.v2].p3d, vertex[apex1].p3d)
+                                       + Geometry.Dist(vertex[edge.v1].p3d, vertex[apex2].p3d)
+                                       + Geometry.Dist(vertex[edge.v2].p3d, vertex[apex2].p3d)) / 4.0;
+                    if (diamondAvg <= eps) continue;
+                    double ratio = len / diamondAvg;
+                    if (ratio < bestRatio) { bestRatio = ratio; best = edge; }
+                }
+                if (best == null) break;
+
+                if (TryCollapseEdge(best, allEdges)) progress = true;
+                else rejected.Add(best);
+            }
+        }
+        // t's edge that is not `edge` itself and does not touch `edge`'s other vertex either - i.e.
+        // the vertex of t opposite edge.
+        private static int ApexVertex(Triangle t, Edge edge)
+        {
+            if (t.e1 == edge) return t.v3;
+            if (t.e2 == edge) return t.v1;
+            return t.v2;
+        }
+        // returns t's edge connecting the two given vertices (there is always exactly one, since t
+        // is a triangle and both vertices belong to it)
+        private static Edge TriangleEdgeBetween(Triangle t, int va, int vb)
+        {
+            foreach (Edge e in new[] { t.e1, t.e2, t.e3 })
+            {
+                if ((e.v1 == va && e.v2 == vb) || (e.v1 == vb && e.v2 == va)) return e;
+            }
+            throw new TriangulationException("CollapseShortEdges: triangle edge not found"); // should never happen
+        }
+        // all edges (other than skip1/skip2) that still touch centerIndex, drawn from allEdges
+        private static List<Edge> FanEdges(HashSet<Edge> allEdges, int centerIndex, Edge skip1, Edge skip2)
+        {
+            List<Edge> result = new List<Edge>();
+            foreach (Edge e in allEdges)
+            {
+                if (e == skip1 || e == skip2) continue;
+                if (e.v1 == centerIndex || e.v2 == centerIndex) result.Add(e);
+            }
+            return result;
+        }
+        // Attempts to collapse `edge` by moving one endpoint onto the other. Tries both directions
+        // (edge.v1 surviving, then edge.v2 surviving) and keeps the first one where every edge that
+        // gets dragged to the surviving vertex's position still respects maxDeflection there.
+        // Returns false (no change made) if neither direction passes.
+        private bool TryCollapseEdge(Edge edge, HashSet<Edge> allEdges)
+        {
+            Triangle t1 = edge.t1, t2 = edge.t2;
+            int v1 = edge.v1, v2 = edge.v2;
+            int apex1 = ApexVertex(t1, edge);
+            int apex2 = ApexVertex(t2, edge);
+
+            Edge eA = TriangleEdgeBetween(t1, v1, apex1); // survives if v1 is kept
+            Edge eB = TriangleEdgeBetween(t1, v2, apex1); // survives if v2 is kept
+            Edge eC = TriangleEdgeBetween(t2, v1, apex2); // survives if v1 is kept
+            Edge eD = TriangleEdgeBetween(t2, v2, apex2); // survives if v2 is kept
+
+            // v1 kept, v2 dropped: eB/eD (v2's side of the diamond) get merged away into eA/eC;
+            // every other edge still touching v2 gets dragged to v1's position and re-checked
+            if (CanCollapseOnto(vertex[v1].p2d, keepIndex: v1, dropIndex: v2, edge, eB, eD, allEdges))
+            {
+                PerformCollapse(t1, t2, eA, eB, eC, eD, keepIndex: v1, dropIndex: v2, allEdges);
+                return true;
+            }
+            // v2 kept, v1 dropped: mirror of the above
+            if (CanCollapseOnto(vertex[v2].p2d, keepIndex: v2, dropIndex: v1, edge, eA, eC, allEdges))
+            {
+                PerformCollapse(t1, t2, eB, eA, eD, eC, keepIndex: v2, dropIndex: v1, allEdges);
+                return true;
+            }
+            return false;
+        }
+        private bool CanCollapseOnto(GeoPoint2D keepP2d, int keepIndex, int dropIndex, Edge collapseEdge, Edge dropAtApex1, Edge dropAtApex2, HashSet<Edge> allEdges)
+        {
+            foreach (Edge e in FanEdges(allEdges, dropIndex, collapseEdge, null))
+            {
+                if (e == dropAtApex1 || e == dropAtApex2) continue; // disappears, not dragged along
+                int otherIndex = e.v1 == dropIndex ? e.v2 : e.v1;
+                if (surface.MaxDist(keepP2d, vertex[otherIndex].p2d, out _) > maxDeflection) return false;
+                // this edge moves from dropIndex to keepIndex's position - dropIndex's other fan
+                // neighbors are being restructured in the same collapse (so touching them isn't a
+                // real crossing), but unrelated, possibly distant, mesh geometry the moved edge now
+                // cuts across even though it still respects maxDeflection is a genuine problem
+                if (SegmentCrossesMesh(allEdges, keepP2d, vertex[otherIndex].p2d, keepIndex, dropIndex, otherIndex)) return false;
+            }
+            return true;
+        }
+        // keepEdgeAtApex1/keepEdgeAtApex2 are t1's/t2's edges touching keepIndex - they survive
+        // unchanged (keepIndex doesn't move). dropEdgeAtApex1/dropEdgeAtApex2 are t1's/t2's edges
+        // touching dropIndex - they are removed, and whichever triangle used to sit on their far
+        // side is re-attached to the corresponding keepEdge instead (see MergeAwayEdge).
+        private void PerformCollapse(Triangle t1, Triangle t2, Edge keepEdgeAtApex1, Edge dropEdgeAtApex1,
+            Edge keepEdgeAtApex2, Edge dropEdgeAtApex2, int keepIndex, int dropIndex, HashSet<Edge> allEdges)
+        {
+            for (int ti = 0; ti < triangle.Count; ++ti)
+            {
+                Triangle t = triangle[ti];
+                if (t == t1 || t == t2) continue;
+                if (t.v1 == dropIndex) t.v1 = keepIndex;
+                if (t.v2 == dropIndex) t.v2 = keepIndex;
+                if (t.v3 == dropIndex) t.v3 = keepIndex;
+            }
+            foreach (Edge e in allEdges)
+            {
+                if (e == dropEdgeAtApex1 || e == dropEdgeAtApex2) continue; // removed below instead of renamed
+                if (e.v1 == dropIndex) e.v1 = keepIndex;
+                if (e.v2 == dropIndex) e.v2 = keepIndex;
+            }
+            MergeAwayEdge(keepEdgeAtApex1, dropEdgeAtApex1, t1);
+            MergeAwayEdge(keepEdgeAtApex2, dropEdgeAtApex2, t2);
+            triangle.Remove(t1);
+            triangle.Remove(t2);
+        }
+        // eKeep and eDrop end up connecting the same two (post-collapse) vertices; eDrop is
+        // discarded and whichever triangle used to sit on its far side from `dying` gets re-attached
+        // to eKeep instead, in the exact slot (t1/t2, i.e. forward/reverse) that `dying` used to
+        // occupy in eKeep - which is always correct regardless of eKeep's/eDrop's individual
+        // storage direction, since that slot's meaning is precisely "whichever triangle sits on
+        // dying's side of this edge", and `other` is exactly the triangle taking over that side.
+        private void MergeAwayEdge(Edge eKeep, Edge eDrop, Triangle dying)
+        {
+            Triangle other = (eDrop.t1 == dying) ? eDrop.t2 : eDrop.t1;
+            if (eKeep.t1 == dying) eKeep.t1 = other; else eKeep.t2 = other;
+            if (other != null)
+            {
+                if (other.e1 == eDrop) other.e1 = eKeep;
+                else if (other.e2 == eDrop) other.e2 = eKeep;
+                else other.e3 = eKeep;
+            }
+        }
+        // TEMPORARY, prototype evaluation only (see the comment above EarClippingRecursiveSplit).
+        // A boundary vertex's incident triangles can never be improved by moving the vertex itself
+        // (the original outline/hole points are fixed, see originalVertexCount), so a "bundle" of
+        // several very thin triangles converging on one boundary point is stuck the way it is -
+        // SmoothInnerVertices has no vertex there it is allowed to touch. This pass relieves that:
+        // it pulls the tip back, i.e. introduces one new interior vertex B' a short distance in
+        // from the boundary point B, rehangs the entire interior fan at B onto B' instead (B keeps
+        // only its two fixed boundary edges plus one new edge to B'), and closes the two resulting
+        // quads (one at each end of the fan, where it used to meet a boundary edge) with a diagonal
+        // into two triangles - net two new triangles overall, exactly enough to make room for B'.
+        // Since B' is a genuine interior vertex, SmoothInnerVertices can subsequently move it to
+        // actually balance the fan - which it could never do for B itself.
+        private void RetractBoundaryTips()
+        {
+            const double acceptableCornerAngle = 20.0 * Math.PI / 180.0; // same threshold as FindBestSplit/FindBestEar
+
+            bool progress = true;
+            while (progress)
+            {
+                progress = false;
+                for (int b = 0; b < originalVertexCount; ++b)
+                {
+                    if (TryRetractTip(b, acceptableCornerAngle)) { progress = true; break; }
+                }
+            }
+        }
+        // Triggers when 3 or more interior edges converge on the boundary vertex b (unconditionally
+        // - that many triangles meeting at one boundary point is a bundle regardless of angle), or
+        // when there are exactly 2 and the sharpest of the resulting 3 triangles' angles at b is
+        // below acceptableCornerAngle. Returns false (no change made) without touching anything if
+        // the trigger doesn't fire, the fan can't be walked cleanly, or the retraction would fail
+        // any of its geometric/tolerance safety checks.
+        private bool TryRetractTip(int b, double acceptableCornerAngle)
+        {
+            HashSet<Edge> allEdges = new HashSet<Edge>();
+            HashSet<Edge> boundarySet = new HashSet<Edge>();
+            HashSet<Edge> interiorSet = new HashSet<Edge>();
+            for (int ti = 0; ti < triangle.Count; ++ti)
+            {
+                Triangle t = triangle[ti];
+                foreach (Edge e in new[] { t.e1, t.e2, t.e3 })
+                {
+                    allEdges.Add(e);
+                    if (e.v1 != b && e.v2 != b) continue;
+                    (e.t1 == null || e.t2 == null ? boundarySet : interiorSet).Add(e);
+                }
+            }
+            if (boundarySet.Count != 2) return false; // not a simple single-corner boundary vertex; skip
+            List<Edge> boundaryEdges = new List<Edge>(boundarySet);
+            Edge boundaryEdgePrev = boundaryEdges[0], boundaryEdgeNext = boundaryEdges[1];
+            int p = boundaryEdgePrev.v1 == b ? boundaryEdgePrev.v2 : boundaryEdgePrev.v1;
+            int q = boundaryEdgeNext.v1 == b ? boundaryEdgeNext.v2 : boundaryEdgeNext.v1;
+
+            // walk the fan from p's side to q's side, collecting triangles/edges/vertices in order
+            List<Triangle> fanTriangles = new List<Triangle>();
+            List<Edge> fanEdges = new List<Edge>();
+            List<int> fanVertices = new List<int>();
+            Triangle current = boundaryEdgePrev.t1 ?? boundaryEdgePrev.t2;
+            int currentOther = p;
+            while (true)
+            {
+                fanTriangles.Add(current);
+                int x = ThirdVertex(current, b, currentOther);
+                Edge edgeBX = TriangleEdgeBetween(current, b, x);
+                if (edgeBX == boundaryEdgeNext) break;
+                if (edgeBX.t1 == null || edgeBX.t2 == null) return false; // malformed/non-manifold fan
+                fanEdges.Add(edgeBX);
+                fanVertices.Add(x);
+                current = (edgeBX.t1 == current) ? edgeBX.t2 : edgeBX.t1;
+                currentOther = x;
+            }
+            int n = fanEdges.Count;
+
+            bool trigger;
+            if (n >= 3) trigger = true;
+            else if (n == 2)
+            {
+                double worstAngle = double.MaxValue;
+                foreach (Triangle t in fanTriangles) worstAngle = Math.Min(worstAngle, AngleAtVertex(t, b));
+                trigger = worstAngle < acceptableCornerAngle;
+            }
+            else trigger = false;
+            if (!trigger) return false;
+
+            // half the shortest edge at b decides how far in B' is placed
+            double shortest = Math.Min(Geometry.Dist(vertex[b].p3d, vertex[p].p3d), Geometry.Dist(vertex[b].p3d, vertex[q].p3d));
+            foreach (int f in fanVertices) shortest = Math.Min(shortest, Geometry.Dist(vertex[b].p3d, vertex[f].p3d));
+
+            GeoVector dirP = vertex[p].p3d - vertex[b].p3d;
+            GeoVector dirQ = vertex[q].p3d - vertex[b].p3d;
+            if (dirP.Length < Precision.eps || dirQ.Length < Precision.eps) return false;
+            GeoVector avgDir = dirP.Normalized + dirQ.Normalized;
+            if (avgDir.Length < Precision.eps)
+            {
+                // p and q directions cancel out (b sits at a near-straight corner); fall back to
+                // the average direction of the fan vertices instead
+                avgDir = GeoVector.NullVector;
+                foreach (int f in fanVertices)
+                {
+                    GeoVector d = vertex[f].p3d - vertex[b].p3d;
+                    if (d.Length > Precision.eps) avgDir = avgDir + d.Normalized;
+                }
+                if (avgDir.Length < Precision.eps) return false;
+            }
+            avgDir = avgDir.Normalized;
+
+            GeoPoint targetP3d = vertex[b].p3d + (0.5 * shortest) * avgDir;
+            GeoPoint2D newUV;
+            try { newUV = surface.PositionOf(targetP3d); }
+            catch (Exception) { return false; }
+            GeoPoint newP3d = surface.PointAt(newUV);
+
+            // b, p, b' and b, q, b' must come out as two distinct, non-degenerate, oppositely
+            // wound triangles (b' lies strictly between the p and q directions) - if not, the
+            // fan/geometry here isn't the simple case this pass targets; leave it alone
+            double areaT0 = SignedArea2D(vertex[b].p2d, vertex[p].p2d, newUV);
+            double areaTN = SignedArea2D(vertex[b].p2d, vertex[q].p2d, newUV);
+            if (Math.Abs(areaT0) <= eps || Math.Abs(areaTN) <= eps || Math.Sign(areaT0) == Math.Sign(areaTN)) return false;
+
+            // every edge whose b-endpoint moves to b' (the fan edges, now touching b' instead of b)
+            // plus the two brand new "outer" edges and the b-b' edge itself must still respect
+            // maxDeflection at the new position
+            bool WithinTolerance(GeoPoint2D other) => surface.MaxDist(newUV, other, out _) <= maxDeflection;
+            if (!WithinTolerance(vertex[p].p2d) || !WithinTolerance(vertex[q].p2d) || !WithinTolerance(vertex[b].p2d)) return false;
+            foreach (int f in fanVertices) if (!WithinTolerance(vertex[f].p2d)) return false;
+
+            // b' can end up close to a completely different, unrelated part of the mesh (e.g. a
+            // boundary that curves back close to itself, such as a small hole), in which case one
+            // of the segments now ending at b' - the new b-b'/p-b'/q-b' edges, or a fan edge that
+            // used to run to b and now runs to b' instead - would cut across it even though the
+            // local convexity/tolerance checks above are satisfied. Guard against that explicitly.
+            if (SegmentCrossesMesh(allEdges, vertex[b].p2d, newUV, b)
+                || SegmentCrossesMesh(allEdges, vertex[p].p2d, newUV, p)
+                || SegmentCrossesMesh(allEdges, vertex[q].p2d, newUV, q)) return false;
+            foreach (int f in fanVertices) if (SegmentCrossesMesh(allEdges, vertex[f].p2d, newUV, f)) return false;
+
+            // commit
+            vertex.Add(new Vertex(newUV, newP3d));
+            int bPrime = vertex.Count - 1;
+
+            foreach (Triangle t in fanTriangles)
+            {
+                if (t.v1 == b) t.v1 = bPrime;
+                if (t.v2 == b) t.v2 = bPrime;
+                if (t.v3 == b) t.v3 = bPrime;
+            }
+            foreach (Edge e in fanEdges)
+            {
+                if (e.v1 == b) e.v1 = bPrime;
+                if (e.v2 == b) e.v2 = bPrime;
+            }
+
+            Triangle t0 = fanTriangles[0];
+            Triangle tN = fanTriangles[fanTriangles.Count - 1];
+            Edge eBPrime = new Edge { v1 = b, v2 = bPrime };
+            Edge eP = new Edge { v1 = p, v2 = bPrime };
+            Edge eQ = new Edge { v1 = q, v2 = bPrime };
+
+            Triangle newT0 = BuildCornerTriangle(b, p, bPrime, areaT0, boundaryEdgePrev, eP, eBPrime);
+            if (boundaryEdgePrev.t1 == t0) boundaryEdgePrev.t1 = newT0; else boundaryEdgePrev.t2 = newT0;
+
+            Triangle newTN = BuildCornerTriangle(b, q, bPrime, areaTN, boundaryEdgeNext, eQ, eBPrime);
+            if (boundaryEdgeNext.t1 == tN) boundaryEdgeNext.t1 = newTN; else boundaryEdgeNext.t2 = newTN;
+
+            triangle.Add(newT0);
+            triangle.Add(newTN);
+            return true;
+        }
+        // Builds the new corner triangle (b, other, bPrime) in whichever vertex order matches the
+        // already-computed signed area (positive => (b,other,bPrime), negative => (b,bPrime,other)),
+        // and attaches its two brand-new edges (outerEdge = other-bPrime, sharedEdge = b-bPrime)
+        // accordingly. boundaryEdge (b-other) is deliberately left untouched here - it still points
+        // at the old fan-end triangle; the caller overwrites that slot with the returned triangle
+        // immediately afterwards, exactly reusing whichever forward/reverse role the old triangle
+        // held (see MergeAwayEdge's doc comment for why that slot-copy is always correct).
+        private Triangle BuildCornerTriangle(int b, int other, int bPrime, double area, Edge boundaryEdge, Edge outerEdge, Edge sharedEdge)
+        {
+            Triangle t = new Triangle();
+            if (area > 0)
+            {
+                t.v1 = b; t.v2 = other; t.v3 = bPrime;
+                t.e1 = boundaryEdge; t.e2 = outerEdge; t.e3 = sharedEdge;
+                AttachNewEdge(outerEdge, t, other, bPrime);
+                AttachNewEdge(sharedEdge, t, bPrime, b);
+            }
+            else
+            {
+                t.v1 = b; t.v2 = bPrime; t.v3 = other;
+                t.e1 = sharedEdge; t.e2 = outerEdge; t.e3 = boundaryEdge;
+                AttachNewEdge(sharedEdge, t, b, bPrime);
+                AttachNewEdge(outerEdge, t, bPrime, other);
+            }
+            return t;
+        }
+        // e is brand new (at most one of its two slots is already taken, by an earlier call of this
+        // same method for the other triangle sharing it) so, unlike MergeAwayEdge, there is no
+        // pre-existing role to preserve - just record whichever direction t actually traverses it.
+        private static void AttachNewEdge(Edge e, Triangle t, int from, int to)
+        {
+            if (e.v1 == from && e.v2 == to) e.AddForward(t); else e.AddReverse(t);
+        }
+        private static int ThirdVertex(Triangle t, int a, int b)
+        {
+            if (t.v1 != a && t.v1 != b) return t.v1;
+            if (t.v2 != a && t.v2 != b) return t.v2;
+            return t.v3;
+        }
+        private static double SignedArea2D(GeoPoint2D a, GeoPoint2D b, GeoPoint2D c) => (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y)) / 2.0;
+        // true if the candidate segment from->to crosses any edge of the current mesh that doesn't
+        // itself touch one of skipVertices (edges sharing one of those endpoints legitimately meet
+        // the segment there, that's not a crossing)
+        private bool SegmentCrossesMesh(HashSet<Edge> allEdges, GeoPoint2D from, GeoPoint2D to, params int[] skipVertices)
+        {
+            foreach (Edge e in allEdges)
+            {
+                bool skip = false;
+                foreach (int v in skipVertices) if (e.v1 == v || e.v2 == v) { skip = true; break; }
+                if (skip) continue;
+                if (Geometry.SegmentIntersection(vertex[e.v1].p2d, vertex[e.v2].p2d, from, to)) return true;
+            }
+            return false;
+        }
+        private double AngleAtVertex(Triangle t, int v)
+        {
+            int a, b;
+            if (t.v1 == v) { a = t.v2; b = t.v3; }
+            else if (t.v2 == v) { a = t.v1; b = t.v3; }
+            else { a = t.v1; b = t.v2; }
+            GeoPoint2D pv = vertex[v].p2d, pa = vertex[a].p2d, pb = vertex[b].p2d;
+            return UnsignedAngle(pa.x - pv.x, pa.y - pv.y, pb.x - pv.x, pb.y - pv.y);
         }
         public void GetTriangles(GeoPoint2D[] innerPoints, out GeoPoint2D[] p2d, out GeoPoint[] p3d, out int[] triangles)
         {

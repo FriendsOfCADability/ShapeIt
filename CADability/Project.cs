@@ -1238,6 +1238,12 @@ namespace CADability
         {
             Model m = GetActiveModel();
 
+            // For a slicer, a uniform mesh matters more than export speed - unlike interactive
+            // display, so allow the triangulation's quality smoothing to run to (near) full
+            // convergence instead of stopping once further gains become marginal. Scoped to this
+            // thread only, since background re-triangulation for other views may run in parallel
+            // on other threads and must keep using the fast interactive default.
+            using (TriangulationSmoothing.UseThoroughSmoothing(Settings.GlobalSettings.GetDoubleValue("Export.STL.SmoothingThoroughness", 0.0)))
             using (PaintToSTL pstl = new PaintToSTL(fileName, Settings.GlobalSettings.GetDoubleValue("Export.STL.Precision", 0.005)))
             {
                 pstl.Init();

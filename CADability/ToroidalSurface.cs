@@ -2565,8 +2565,6 @@ namespace CADability.GeoObject
         public override double MaxDist(GeoPoint2D sp, GeoPoint2D ep, out GeoPoint2D mp)
         {
             mp = new GeoPoint2D(sp, ep);
-            // ACHTUNG: zyklisch wird hier nicht berücksichtigt, wird aber vom aufrufenden Kontext (Triangulierung) berücksichtigt
-            // ansonsten wäre ja auch nicht klar, welche 2d-Linie gemeint ist
             return Geometry.DistPL(PointAt(mp), PointAt(sp), PointAt(ep));
         }
         public override ISurface GetOffsetSurface(double offset)

@@ -5961,6 +5961,7 @@ namespace CADability.GeoObject
                         }
                         triangleExtent = BoundingBox.EmptyBoundingBox;
                     }
+                    triangleBVH = null;
                 }
             }
 #if DEBUG
@@ -6088,6 +6089,7 @@ namespace CADability.GeoObject
         private int[] triangleIndex;
         private double trianglePrecision;
         private BoundingBox triangleExtent;
+        private BVHTree triangleBVH;
         private class TraingleOctTree : IOctTreeInsertable
         {
             public int Index;
@@ -6423,6 +6425,7 @@ namespace CADability.GeoObject
                     triangleUVPoint = new GeoPoint2D[0];
                     trianglePoint = new GeoPoint[0];
                     triangleIndex = new int[0];
+                    triangleBVH = null;
                 }
                 return;
             }
@@ -6502,14 +6505,18 @@ namespace CADability.GeoObject
                 }
                 // double dbga = this.area.Area;
 #endif
-                Triangulation t = new Triangulation(polylines.ToArray(), surface, precision * 5.0, 0.17);
+                CDTriangulation t = new CDTriangulation(polylines.ToArray(), surface, precision * 5, 0.17);
+
+                //Triangulation t = new Triangulation(polylines.ToArray(), surface, precision * 5.0, 0.17);
                 // precision*5: inside the face we don't need the same hight precision as on the bounds
                 if (!t.innerIntersection)
                 {
                     GeoPoint2D[] tmpTriUv;
                     GeoPoint[] tmpTriPoint;
                     int[] tmpTriInd;
+                    // t.GetSimpleTriangles(out tmpTriUv, out tmpTriPoint, out tmpTriInd, true);
                     t.GetSimpleTriangles(out tmpTriUv, out tmpTriPoint, out tmpTriInd, true);
+
                     int tc1 = System.Environment.TickCount - tc0;
                     if (Surface is IRestrictedDomain rd)
                     {   // in this case, where we have self intersecting polygons, the polygon intersection points may be outside the defined area of the surface.
@@ -6526,6 +6533,7 @@ namespace CADability.GeoObject
                         triangleUVPoint = tmpTriUv;
                         trianglePoint = tmpTriPoint;
                         triangleIndex = tmpTriInd;
+                        triangleBVH = null;
                     }
 #if DEBUG
                     DebuggerContainer dc3d = new DebuggerContainer();
@@ -6602,7 +6610,7 @@ namespace CADability.GeoObject
                         GeoPoint2D[] tmpTriUv;
                         GeoPoint[] tmpTriPoint;
                         int[] tmpTriInd;
-                        t = new Triangulation(multiPolyLines[i], surface, precision, 0.17);
+                        t = new CDTriangulation(multiPolyLines[i], surface, precision, 0.17);
                         if (!t.innerIntersection)
                         {
                             t.GetSimpleTriangles(out tmpTriUv, out tmpTriPoint, out tmpTriInd, true);
@@ -6657,6 +6665,7 @@ namespace CADability.GeoObject
                         triangleUVPoint = sumTriUv.ToArray();
                         trianglePoint = sumTriPoint.ToArray();
                         triangleIndex = sumTriInd.ToArray();
+                        triangleBVH = null;
                     }
                 }
             }
@@ -6846,6 +6855,7 @@ namespace CADability.GeoObject
                         trianglePoint = new GeoPoint[0];
                         triangleIndex = new int[0];
                         edgeIndizes = new int[0];
+                        triangleBVH = null;
                     }
                     return;
                 }
@@ -6913,7 +6923,7 @@ namespace CADability.GeoObject
                     esum += polylines[j].Length;
                     edgeIndizes[j] = esum;
                 }
-                Triangulation t = new Triangulation(polylines.ToArray(), surface, precision * 5.0, 0.17);
+                CDTriangulation t = new CDTriangulation(polylines.ToArray(), surface, precision * 5.0, 0.17);
                 // Genauigkeit für innere Punkte nur halbsoviel wie für den Rand, dort fallen die Knicke nicht so auf
                 GeoPoint2D[] innerPoints = null;
                 if (surface is NurbsSurface)
@@ -6975,7 +6985,7 @@ namespace CADability.GeoObject
                             GeoPoint2D[] tmpTriUv;
                             GeoPoint[] tmpTriPoint;
                             int[] tmpTriInd;
-                            Triangulation t = new Triangulation(multiPolyLines[i], surface, precision, 0.17);
+                            CDTriangulation t = new CDTriangulation(multiPolyLines[i], surface, precision, 0.17);
                             GeoPoint2D[] innerPoints = null;
                             if (surface is NurbsSurface)
                             {
@@ -7440,6 +7450,26 @@ namespace CADability.GeoObject
             //    }
             //    return triangleExtent;
             //}
+        }
+
+        public BVHTree TriangleBVH
+        {
+            get
+            {
+                if (triangleBVH == null)
+                {
+                    if (triangleIndex != null)
+                    {
+                        BoundingBox[] boundingBoxes = new BoundingBox[triangleIndex.Length / 3];
+                        for (int i = 0; i < boundingBoxes.Length; i++)
+                        {
+                            boundingBoxes[i] = new BoundingBox(trianglePoint[triangleIndex[3 * i]], trianglePoint[triangleIndex[3 * i + 1]], trianglePoint[triangleIndex[3 * i + 2]]);
+                        }
+                        triangleBVH = new BVHTree(boundingBoxes, 3, BVHBuildStrategy.MedianSplit);
+                    }
+                }
+                return triangleBVH;
+            }
         }
         /// <summary>
         /// Checks whether the provided 2d point in the parameter space of the surface is inside the bounds of this face.
@@ -9036,6 +9066,21 @@ namespace CADability.GeoObject
         }
         internal void IntersectAndPosition(Edge edg, out GeoPoint[] ip, out GeoPoint2D[] uvOnFace, out double[] uOnCurve3D, out Border.Position[] position, double prec = 0.0)
         {
+#if DEBUG
+            if (edg.Curve3D != null)
+            {
+                TetraederHull th = new TetraederHull(edg.Curve3D);
+                this.AssureTriangles(0.1);
+                List<(int i, int j)> overlappingTriangles = TriangleBVH.Overlapping(th.BVHTree).ToList();
+                List<int> trianglesHit = TriangleBVH.Traverse(bb => edg.Curve3D.HitTest(bb)).ToList();
+                DebuggerContainer dc = new DebuggerContainer();
+                for (int i = 0; i < trianglesHit.Count; i++)
+                {
+                    Face fc = Face.MakeFace(trianglePoint[triangleIndex[trianglesHit[i] * 3]], trianglePoint[triangleIndex[trianglesHit[i] * 3 + 1]], trianglePoint[triangleIndex[trianglesHit[i] * 3 + 2]]);
+                    dc.Add(fc);
+                }
+            }
+#endif
             if (prec == 0.0) prec = Precision.eps;
             GeoPoint[] ips;
             GeoPoint2D[] uvOnFaces;

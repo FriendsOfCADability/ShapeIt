@@ -8,559 +8,6 @@ using System.Text;
 namespace CADability
 {
 
-    #region Ursprüngliche Implementierung ohne generics
-    internal abstract class Pole
-    {
-        abstract public void Add(double factor, Pole toAdd);
-        abstract public Pole Create(double factor, Pole plus, Pole minus);
-        abstract public void Clear();
-        abstract public Pole Clone();
-        abstract public void Norm();
-        abstract public void Set(Pole toCopyFrom);
-        abstract public double Weight { get; }
-        virtual public GeoPoint GeoPoint { get { return GeoPoint.Origin; } }
-        virtual public GeoPoint2D GeoPoint2D { get { return GeoPoint2D.Origin; } }
-        virtual public GeoVector GeoVector { get { return new GeoVector(0, 0, 0); } }
-        virtual public GeoVector2D GeoVector2D { get { return new GeoVector2D(0, 0); } }
-    }
-
-    internal class Pole3DW : Pole
-    {
-        public double x, y, z, w;
-        public Pole3DW(double x, double y, double z, double w)
-        {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.w = w;
-        }
-        public override Pole Clone()
-        {
-            return new Pole3DW(x, y, z, w);
-        }
-        public override void Norm()
-        {
-            x /= w;
-            y /= w;
-            z /= w;
-            w = 1.0;
-        }
-        public override double Weight
-        {
-            get { return w; }
-        }
-        public override void Add(double factor, Pole toAdd)
-        {
-            Pole3DW p3d = toAdd as Pole3DW;
-            x += factor * p3d.x;
-            y += factor * p3d.y;
-            z += factor * p3d.z;
-            w += factor * p3d.w;
-        }
-        public override void Clear()
-        {
-            x = y = z = w = 0.0;
-        }
-        public override Pole Create(double factor, Pole plus, Pole minus)
-        {
-            Pole3DW plus3d = plus as Pole3DW;
-            Pole3DW minus3d = minus as Pole3DW;
-            return new Pole3DW(factor * (plus3d.x - minus3d.x), factor * (plus3d.y - minus3d.y), factor * (plus3d.z - minus3d.z), factor * (plus3d.w - minus3d.w));
-        }
-        public override void Set(Pole toCopyFrom)
-        {
-            Pole3DW p3d = toCopyFrom as Pole3DW;
-            x = p3d.x;
-            y = p3d.y;
-            z = p3d.z;
-            w = p3d.w;
-        }
-        public override GeoPoint GeoPoint
-        {
-            get
-            {
-                return new GeoPoint(x / w, y / w, z / w);
-            }
-        }
-        public override GeoVector GeoVector
-        {
-            get
-            {
-                return new GeoVector(x, y, z);
-            }
-        }
-    }
-
-    internal class Pole3D : Pole
-    {
-        public double x, y, z;
-        public Pole3D(double x, double y, double z)
-        {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-        }
-        public override Pole Clone()
-        {
-            return new Pole3D(x, y, z);
-        }
-        public override void Norm()
-        {
-        }
-        public override double Weight
-        {
-            get { return 1.0; }
-        }
-        public override void Add(double factor, Pole toAdd)
-        {
-            Pole3D p3d = toAdd as Pole3D;
-            x += factor * p3d.x;
-            y += factor * p3d.y;
-            z += factor * p3d.z;
-        }
-        public override void Clear()
-        {
-            x = y = z = 0.0;
-        }
-        public override Pole Create(double factor, Pole plus, Pole minus)
-        {
-            Pole3D plus3d = plus as Pole3D;
-            Pole3D minus3d = minus as Pole3D;
-            return new Pole3D(factor * (plus3d.x - minus3d.x), factor * (plus3d.y - minus3d.y), factor * (plus3d.z - minus3d.z));
-        }
-        public override void Set(Pole toCopyFrom)
-        {
-            Pole3D p3d = toCopyFrom as Pole3D;
-            x = p3d.x;
-            y = p3d.y;
-            z = p3d.z;
-        }
-        public override GeoPoint GeoPoint
-        {
-            get
-            {
-                return new GeoPoint(x, y, z);
-            }
-        }
-        public override GeoVector GeoVector
-        {
-            get
-            {
-                return new GeoVector(x, y, z);
-            }
-        }
-    }
-
-    internal class Pole2DW : Pole
-    {
-        public double x, y, w;
-        public Pole2DW(double x, double y, double w)
-        {
-            this.x = x;
-            this.y = y;
-            this.w = w;
-        }
-        public override Pole Clone()
-        {
-            return new Pole2DW(x, y, w);
-        }
-        public override void Norm()
-        {
-            x /= w;
-            y /= w;
-            w = 1.0;
-        }
-        public override double Weight
-        {
-            get { return w; }
-        }
-        public override void Add(double factor, Pole toAdd)
-        {
-            Pole2DW p2d = toAdd as Pole2DW;
-            x += factor * p2d.x;
-            y += factor * p2d.y;
-            w += factor * p2d.w;
-        }
-        public override void Clear()
-        {
-            x = y = w = 0.0;
-        }
-        public override Pole Create(double factor, Pole plus, Pole minus)
-        {
-            Pole2DW plus2d = plus as Pole2DW;
-            Pole2DW minus2d = minus as Pole2DW;
-            return new Pole2DW(factor * (plus2d.x - minus2d.x), factor * (plus2d.y - minus2d.y), factor * (plus2d.w - minus2d.w));
-        }
-        public override void Set(Pole toCopyFrom)
-        {
-            Pole2DW p2d = toCopyFrom as Pole2DW;
-            x = p2d.x;
-            y = p2d.y;
-            w = p2d.w;
-        }
-        public override GeoPoint2D GeoPoint2D
-        {
-            get
-            {
-                return new GeoPoint2D(x / w, y / w);
-            }
-        }
-        public override GeoVector2D GeoVector2D
-        {
-            get
-            {
-                return new GeoVector2D(x, y); // Vectoren sind nicht homogen, weight kann auch 0 sein!
-            }
-        }
-    }
-
-    internal class Pole2D : Pole
-    {
-        public double x, y;
-        public Pole2D(double x, double y)
-        {
-            this.x = x;
-            this.y = y;
-        }
-        public override Pole Clone()
-        {
-            return new Pole2D(x, y);
-        }
-        public override void Norm()
-        {
-        }
-        public override double Weight
-        {
-            get { return 1.0; }
-        }
-        public override void Add(double factor, Pole toAdd)
-        {
-            Pole2D p2d = toAdd as Pole2D;
-            x += factor * p2d.x;
-            y += factor * p2d.y;
-        }
-        public override void Clear()
-        {
-            x = y = 0.0;
-        }
-        public override Pole Create(double factor, Pole plus, Pole minus)
-        {
-            Pole2D plus2d = plus as Pole2D;
-            Pole2D minus2d = minus as Pole2D;
-            return new Pole2D(factor * (plus2d.x - minus2d.x), factor * (plus2d.y - minus2d.y));
-        }
-        public override void Set(Pole toCopyFrom)
-        {
-            Pole2D p2d = toCopyFrom as Pole2D;
-            x = p2d.x;
-            y = p2d.y;
-        }
-        public override GeoPoint2D GeoPoint2D
-        {
-            get
-            {
-                return new GeoPoint2D(x, y);
-            }
-        }
-        public override GeoVector2D GeoVector2D
-        {
-            get
-            {
-                return new GeoVector2D(x, y);
-            }
-        }
-    }
-
-    /// <summary>
-    /// Diese Klasse bildet die NURBS Funktionalität aus OpenCascade nach.
-    /// Vielleicht wird mal mehr draus...
-    /// </summary>
-    internal class Nurbs
-    {
-        /// <summary>
-        /// NURBS Buch S. 68,
-        /// knot (U) ist der flache Knotenvektor (mit Wiederholungen)
-        /// n ist noch nicht ganz klar, aber hat mit der Länge des Knotenvectors zu tun
-        /// </summary>
-        /// <param name="n"></param>
-        /// <param name="degree"></param>
-        /// <param name="u"></param>
-        /// <param name="knot"></param>
-        /// <returns></returns>
-        static int FindSpan(int high, int low, double u, double[] knot)
-        {
-            if (u >= knot[high]) return high - 1; // Sonderfall
-            int mid = (low + high) / 2;
-            while (u < knot[mid] || u >= knot[mid + 1])
-            {
-                if (u < knot[mid]) high = mid;
-                else low = mid;
-                mid = (low + high) / 2;
-            }
-            return mid;
-        }
-        /// <summary>
-        /// NURBS Buch S. 70.
-        /// Hier ein Versuch mit unsafe, wg fixed bzw. stackalloc
-        /// Das muss noch genauer ausgemessen werden, was es an Verbesserung bringt...
-        /// </summary>
-        static unsafe void BasisFuns(int span, double u, int degree, double[] knot, out double[] N)
-        {
-            N = new double[degree + 1];
-            fixed (double* pN = N)
-            {
-                double* left = stackalloc double[degree + 1]; // left und right sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
-                double* right = stackalloc double[degree + 1];
-                pN[0] = 1.0;
-                for (int j = 1; j <= degree; ++j)
-                {
-                    left[j] = u - knot[span + 1 - j];
-                    right[j] = knot[span + j] - u;
-                    double saved = 0.0;
-                    for (int r = 0; r < j; ++r)
-                    {
-                        double temp = pN[r] / (right[r + 1] + left[j - r]);
-                        pN[r] = saved + right[r + 1] * temp;
-                        saved = left[j - r] * temp;
-                    }
-                    pN[j] = saved;
-                }
-            }
-        }
-        static void AllBasisFuns(int span, double u, int degree, double[] knot, out double[][] AN)
-        {
-            AN = new double[degree + 1][];
-            for (int i = 0; i <= degree; ++i)
-            {
-                BasisFuns(span, u, i, knot, out AN[i]);
-            }
-        }
-        /// <summary>
-        /// NURBS Buch S. 124
-        /// </summary>
-        static public void CurvePoint(int degree, double[] knots, Pole[] Poles, double u, Pole res)
-        {
-            int span;
-            int n = knots.Length - degree - 1;
-            span = FindSpan(n, degree, u, knots);
-            double[] N; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
-            BasisFuns(span, u, degree, knots, out N);
-            res.Clear();
-            for (int j = 0; j <= degree; ++j)
-            {
-                res.Add(N[j], Poles[span - degree + j]);
-            }
-        }
-        // Folgendes geht leider nicht, da der Generic Parameter nicht mit + oder * verwendet werden kann
-        // das würde nur über Interface oder virtuelle methode einer Basisklasse gehen
-        // DOCH! http://www.codeproject.com/csharp/genericnumerics.asp
-        static public T CurvePoint<T, C>(int degree, double[] knots, T[] Poles, double u)
-            where T : new()
-            where C : IPoleCalculator<T>, new()
-        {
-            C calc = new C(); // das kostet angeblich nix!
-            int span;
-            int n = knots.Length - degree - 1;
-            span = FindSpan(n, degree, u, knots);
-            double[] N; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
-            BasisFuns(span, u, degree, knots, out N);
-            T res = new T();
-            for (int j = 0; j <= degree; ++j)
-            {
-                res = calc.Add(res, calc.Mul(N[j], Poles[span - degree + j]));
-                // res = res + N[j] * Poles[span - degree + j];
-            }
-            return res;
-        }
-
-        static public void CurveDerivCpts1(int degree, double[] knots, Pole[] Poles, out Pole[] Ctpts)
-        {
-            // Buch S. 98
-            // nur die Kontrollpunkte der 1. Ableitung berechnen, im Buch:
-            // p = degree, r1==0, r2==n==knots.Length-degree-1, 
-            int n = Poles.Length - 1;
-            Ctpts = new Pole[n];
-            int tmp = degree;
-            for (int i = 0; i <= n - 1; ++i)
-            {
-                // Ctpts[i] = degree * (Poles[i + 1] - Poles[i]) / (knots[i + degree + 1] - knots[i + 1]);
-                // damit ein Pole vom richtigen Typ erzeugt wird hier Aufruf der Create Methode
-                // hier wird knots um eines mehr gebraucht als bei den anderen Mathoden. Bei geschlossenen
-                // macht das Probleme.
-                int maxind = Math.Min(i + degree + 1, knots.Length - 1);
-                Ctpts[i] = Poles[i].Create(degree / (knots[maxind] - knots[i + 1]), Poles[i + 1], Poles[i]);
-            }
-        }
-        static public void CurveDerivCpts(int degree, int d, double[] knots, Pole[] Poles, out Pole[][] Ctpts)
-        {
-            // Buch S. 98
-            Ctpts = new Pole[d + 1][];
-            Ctpts[0] = new Pole[Poles.Length];
-            for (int i = 0; i < Poles.Length; ++i)
-            {
-                Ctpts[0][i] = Poles[i].Clone();
-            }
-            for (int k = 1; k <= d; ++k)
-            {
-                int n = Poles.Length - k;
-                Ctpts[k] = new Pole[n];
-                int tmp = degree - k + 1;
-                for (int i = 0; i <= n - 1; ++i)
-                {
-                    Ctpts[k][i] = Poles[i].Create(tmp / (knots[i + degree + 1] - knots[i + k]), Ctpts[k - 1][i + 1], Ctpts[k - 1][i]);
-                }
-            }
-        }
-        static public void CurveDerivsAlg1(int degree, double[] knots, Pole[] Poles, Pole[] Deriv1, double u, Pole deriv)
-        {
-            // implementiert im Buch S. 99 für d==1, also nur 1. Ableitung
-            // die unveränderlichen PK1 müssen natürlich zum BSpline objekt, damit sie nicht immer neu berechnet werden müssen
-            // für NURBS mit Weight, (also rationale) muss noch mit RatCurveDerivs1 nachgebessert werden
-            int n = knots.Length - degree - 1;
-            int span = FindSpan(n, degree, u, knots);
-            double[] N;
-            // AllBasisFuns(span, u, degree, knots, out N); // wir brauchen ja nur die mit "degree-1"
-            BasisFuns(span, u, degree - 1, knots, out N);
-            // CurveDerivCpts1(degree, knots, Poles, out PK1); wird jetzt übergeben
-            deriv.Clear();
-            for (int j = 0; j <= degree - 1; ++j)
-            {
-                deriv.Add(N[j], Deriv1[j + span - degree]);
-            }
-        }
-        static public void CurveDerivsAlg(int degree, int d, double[] knots, Pole[] Poles, Pole[][] PK, double u, out Pole[] deriv)
-        {
-            // implementiert im Buch S. 99 für d==1, also nur 1. Ableitung
-            // die unveränderlichen PK1 müssen natürlich zum BSpline objekt, damit sie nicht immer neu berechnet werden müssen
-            // für NURBS mit Weight, (also rationale) muss noch mit RatCurveDerivs1 nachgebessert werden
-            // Des Ergebnis von CurveDerivCpts wird als Parameter reingegeben, da es von u unabhängig ist
-            int n = knots.Length - degree - 1;
-            int span = FindSpan(n, degree, u, knots);
-            double[][] N;
-            AllBasisFuns(span, u, degree, knots, out N);
-            deriv = new Pole[d + 1];
-            for (int k = degree + 1; k <= d; ++k)
-            {
-                deriv[k] = Poles[0].Clone(); // gleicher Typ;
-                deriv[k].Clear(); // null setzen
-            }
-            int du = Math.Min(d, degree);
-            for (int k = 0; k <= du; ++k)
-            {
-                deriv[k] = Poles[0].Clone(); // gleicher Typ;
-                deriv[k].Clear(); // null setzen
-                for (int j = 0; j <= degree - k; ++j)
-                {
-                    deriv[k].Add(N[degree - k][j], PK[k][j + span - degree]);
-                }
-            }
-        }
-        static public void RatCurveDerivs1(Pole derivAtU, Pole pointAtU, Pole CK)
-        {
-            // im Buch S. 127. Aders und wders sind die echten Komponenten bzw. das Gewicht
-            // Es wird kein Array von Poles übergeben, sondern nur die 0. und 1. Ableitung
-            // Es wird auch nicht in Koordinaten und Gewicht geteilt, das wird hier direkt gemacht
-            // Für k==0 wird pointAt durch sein gewicht geteilt, für k==1 die gesuchte 1. Ableitung bestimmt
-            Pole pointAtUNorm = pointAtU.Clone();
-            pointAtUNorm.Norm(); // für den k=0 Fall wird nur durch Gewicht geteilt
-            Pole v = derivAtU.Clone();
-            v.Add(-derivAtU.Weight, pointAtUNorm); // Bin11 ist hoffentlich 1
-            CK.Set(v);
-        }
-        static private int[][] Bino(int max)
-        {
-            int[][] res = new int[max + 1][];
-            for (int i = 0; i <= max; ++i)
-            {
-                res[i] = new int[i + 1];
-                for (int j = 0; j <= i; ++j)
-                {   // i über j
-                    if (i == 0) res[i][j] = 1;
-                    else if (i == j || j == 0)
-                    {
-                        res[i][j] = 1;
-                    }
-                    else
-                    {
-                        res[i][j] = res[i - 1][j] + res[i - 1][j - 1];
-                    }
-                }
-            }
-            return res;
-        }
-        static public void RatCurveDerivs(Pole[] derivAtU, int d, out Pole[] CK)
-        {
-            // im Buch S. 127. Aders und wders sind die echten Komponenten bzw. das Gewicht
-            // diese beiden werden hier in einem Parameter übergeben
-            CK = new Pole[d + 1];
-            Pole nullPole = derivAtU[0].Clone();
-            nullPole.Clear();
-            double w = derivAtU[0].Weight;
-            int[][] B = Bino(d);
-            for (int k = 0; k <= d; ++k)
-            {
-                Pole v = derivAtU[k].Clone();
-                for (int i = 1; i <= k; ++i)
-                {
-                    v.Add(-B[k][i] * derivAtU[i].Weight, CK[k - i]);
-                }
-                CK[k] = v.Create(1.0 / w, v, nullPole);
-            }
-        }
-        static public int CurveKnotIns(int degree, double[] knots, Pole[] poles, double u, int r, out double[] newknots, out Pole[] newpoles)
-        {
-            // Buch S. 151
-            // p = degree
-            // s ist die Anzahl wie oft der Knoten schon drin ist (links von k), kann man berechnen
-            // r ist die Anzahl wie oft er noch rein soll (als Parameter: wie oft er drin sein soll, wird ggf.
-            // runtergerechnet, wenn er schon drin ist)
-            // das Ergebnis ist der Index, an dem u eingefügt wurde und wo somit die knots und poles aufzuteilen
-            // sind, wenn es denn zum splitten verwendet wird.
-            int np = poles.Length - 1; // könnte auch "knots.Length - degree - 1" sein, oder?
-            int k = FindSpan(knots.Length - degree - 1, degree, u, knots);
-            int s = 0;
-            while (knots[k - s] == u)
-            {
-                ++s;
-                --r;
-            }
-            int mp = np + degree + 1;
-            int nq = np + r;
-            newknots = new double[mp + r + 1];
-            newpoles = new Pole[poles.Length + r]; // ist vielleicht falsch (sieht aber gut aus)
-            Pole[] RW = new Pole[degree + 1];
-            for (int i = 0; i <= k; ++i) newknots[i] = knots[i];
-            for (int i = 1; i <= r; ++i) newknots[k + i] = u;
-            for (int i = k + 1; i <= mp; ++i) newknots[i + r] = knots[i];
-
-            for (int i = 0; i <= k - degree; ++i) newpoles[i] = poles[i].Clone();
-            for (int i = k - s; i <= np; ++i) newpoles[i + r] = poles[i].Clone();
-            for (int i = 0; i <= degree - s; ++i) RW[i] = poles[k - degree + i].Clone();
-            int L = 0;
-            for (int j = 1; j <= r; ++j)
-            {
-                L = k - degree + j;
-                for (int i = 0; i <= degree - j - s; ++i)
-                {
-                    double alpha = (u - knots[L + i]) / (knots[i + k + 1] - knots[L + i]);
-                    Pole tmp = poles[0].Clone(); // um einen vom gleichen typ zu erzeugen
-                    tmp.Clear();
-                    tmp.Add(alpha, RW[i + 1]);
-                    tmp.Add(1.0 - alpha, RW[i]); // auch w stimmt so!
-                    RW[i] = tmp;
-                    // RW[i] = alpha * RW[i + 1] + (1.0 - alpha) * RW[i];
-                }
-                newpoles[L] = RW[0].Clone();
-                newpoles[k + r - j - s] = RW[degree - j - s].Clone();
-            }
-            for (int i = L + 1; i < k - s; ++i)
-            {
-                newpoles[i] = RW[i - L].Clone();
-            }
-            return k;
-        }
-    }
-    #endregion
 
     internal interface IPoleCalculator<T>
     {
@@ -1062,11 +509,12 @@ namespace CADability
 
             #endregion
         }
-        C calc; // die abstrakte Rechenmaschine
+        // The pole arithmetic. Initialized here (not in the constructors) so that every constructor
+        // is covered; all implementations are stateless structs, so the instance costs nothing.
+        private readonly C calc = new C();
 
         public Nurbs(int degree, T[] poles, double[] knots)
         {
-            calc = new C(); // das kostet angeblich nix!
             this.udegree = degree;
             this.poles = poles;
             this.uknots = knots;
@@ -1078,20 +526,6 @@ namespace CADability
 
 
 
-        // Konstruktor macht aus unclamped-Nurbs-Daten einen clamped Nurbs (Buch S.576)
-        public Nurbs(bool periodic, int degree, T[] poles, double[] knots)
-        {
-            calc = new C(); // das kostet angeblich nix!
-            this.udegree = degree;
-            this.poles = poles;
-            this.uknots = knots;
-            // if (knots.Length - degree - 1 != poles.Length) throw new NurbsException("lenth of knots and poles not compatible with degree");
-            // Dieser einzige Konstruktor testet die Konsistenz bezüglich der Längen der arrays und degree
-            // damit kann weiter nichts beim indizieren schief gehen
-            Nurbs<T, C> res = Trim(knots[degree], knots[knots.Length - 1 - degree]);
-            this.poles = res.poles;
-            this.uknots = res.uknots;
-        }
 
 
 
@@ -1104,7 +538,6 @@ namespace CADability
             // bei gleicher Punktzahl. Komisch, oder?
             // also erstmal nicht verwenden...
             if (throughpoints.Length != throughdirections.Length) throw new NurbsException("points and direction arrays must be same size");
-            calc = new C(); // das kostet angeblich nix!
             this.udegree = degree;
 
             // 1. Abstände für den Knotenvektor
@@ -1157,7 +590,7 @@ namespace CADability
                 double u;
                 if (i < 1) u = 0.0;
                 else u = k[i - 1];
-                int span = FindSpanU(uknots.Length - degree - 1, degree, u);
+                int span = FindSpanU(uknots.Length - degree - 1, u);
                 DersBasisFuns(span, u, udegree, 1, out bf);
                 // die inneren Zeilen der Matrix sind um 1 nach rechts verschoben, hier mit ++span implementiert
                 //if (i > 0 && i < throughpoints.Length-1) ++span;
@@ -1218,7 +651,6 @@ namespace CADability
 
         public Nurbs(int degree, T[] throughpoints, bool periodic, out double[] throughpointsparam)
         {   // im Buch Seite 369
-            calc = new C(); // das kostet angeblich nix!
             degree = Math.Min(degree, throughpoints.Length - 1); // bei 2 Punkten nur 1. Grad, also Linie, u.s.w
             this.udegree = degree;
             if (periodic)
@@ -1337,7 +769,7 @@ namespace CADability
                 double u;
                 if (i == 0) u = 0.0;
                 else u = k[i - 1];
-                int span = FindSpanU(uknots.Length - degree - 1, degree, u);
+                int span = FindSpanU(uknots.Length - degree - 1, u);
                 BasisFunsU(span, u, degree, out bf);
                 for (int j = 0; j < bf.Length; ++j)
                 {
@@ -1385,7 +817,6 @@ namespace CADability
 
         public Nurbs(int degree, T[] throughpoints, double[] k, bool periodic)
         {   // im Buch Seite 369
-            calc = new C(); // das kostet angeblich nix!
             degree = Math.Min(degree, throughpoints.Length - 1); // bei 2 Punkten nur 1. Grad, also Linie, u.s.w
             this.udegree = degree;
             if (periodic)
@@ -1483,7 +914,7 @@ namespace CADability
                 double u;
                 if (i == 0) u = 0.0;
                 else u = k[i - 1];
-                int span = FindSpanU(uknots.Length - degree - 1, degree, u);
+                int span = FindSpanU(uknots.Length - degree - 1, u);
                 BasisFunsU(span, u, degree, out bf);
                 for (int j = 0; j < bf.Length; ++j)
                 {
@@ -1528,7 +959,6 @@ namespace CADability
         }
         public Nurbs(int udegree, int vdegree, T[] poles, int numUPoles, int numVPoles, double[] uknots, double[] vknots)
         {
-            calc = new C(); // das kostet angeblich nix!
             this.udegree = udegree;
             this.vdegree = vdegree;
             this.poles = poles;
@@ -1547,89 +977,78 @@ namespace CADability
 #endif
         }
 
-        int FindSpanU(int high, int low, double u)
+        /// <summary>
+        /// Returns the index of the knot span containing u, i.e. knots[span] &lt;= u &lt; knots[span+1],
+        /// with the guarantee that the span is never empty (knots[span] &lt; knots[span+1]).
+        /// For u at or outside the domain [knots[degree], knots[high]] the first resp. last non-empty
+        /// span is returned. Since the basis functions are polynomials on each span, evaluating them
+        /// with an outside u then yields the smooth (analytic) extension of the boundary segment.
+        /// This makes evaluation robust when algorithms like Newton iterations overshoot the domain
+        /// slightly. Note that for rational NURBS the weight function may have zeros far outside the
+        /// domain, so only moderate extrapolation (in the order of the boundary span width) is sound.
+        /// </summary>
+        /// <param name="knots">the flat knot vector</param>
+        /// <param name="degree">the degree; knots[degree] is the lower domain bound</param>
+        /// <param name="high">index of the upper domain bound in the knot vector</param>
+        /// <param name="u">the parameter</param>
+        private static int FindSpan(double[] knots, int degree, int high, double u)
         {
-            double eps = 1e-12;
-            //if ((u >= uknots[high] && high < uknots.Length - 1) || (u <= uknots[low] && low > 0)) return FindSpanU(uknots.Length - 1, 0, u); // ggf. bei v nachziehen!
-            //if (u >= uknots[high])
-            //{
-            //    int res = high - 1; // this was -1, but in one case we need res = high. any cases?
-            //    // im folgenden eine Notbremse, die nur bei periodischen Splines benötigt wird:
-            //    // vermutlich wid das mit einer ordentlichen Implementierung von unclamped unnötig
-            //    while (res > low && uknots[res] == uknots[res + 1]) --res;
-            //    if (res < low) res = low;
-            //    return res;
-            //}
-            // versuchsweise auch für Werte außerhalb arbeiten
-            // if (u >= uknots[high]) return high-1;
-            // if (u <= uknots[low]) return low;
-            // rechts außen (inkl. u == U[n+1])
-            if (u >= uknots[high] - eps) return high-1;
-
-            // links außen
-            if (u <= uknots[udegree] + eps) return udegree;
-
+            if (u >= knots[high])
+            {   // at or beyond the upper bound: return the last non-empty span
+                int span = high - 1;
+                while (span > degree && knots[span] == knots[span + 1]) --span;
+                return span;
+            }
+            if (u <= knots[degree])
+            {   // at or below the lower bound: return the first non-empty span
+                int span = degree;
+                while (span < high - 1 && knots[span] == knots[span + 1]) ++span;
+                return span;
+            }
+            // binary search as in the NURBS book; it terminates because knots[degree] < u < knots[high]
+            // and it cannot return an empty span, because u cannot satisfy knots[mid] <= u < knots[mid+1]
+            // when knots[mid] == knots[mid+1]
+            int low = degree;
             int mid = (low + high) / 2;
-            while (u < uknots[mid] || u >= uknots[mid + 1])
+            while (u < knots[mid] || u >= knots[mid + 1])
             {
-                if (u < uknots[mid]) high = mid;
+                if (u < knots[mid]) high = mid;
                 else low = mid;
                 mid = (low + high) / 2;
-                if (low == high) return low;
             }
             return mid;
         }
-        int FindSpanV(int high, int low, double v)
+        int FindSpanU(int high, double u)
         {
-            if (v >= vknots[high])
-            {
-                int res = high - 1; // Sonderfall
-                // im folgenden eine Notbremse, die nur bei periodischen Splines benötigt wird:
-                // vermutlich wid das mit einer ordentlichen Implementierung von unclamped unnötig
-                while (res > 0 && vknots[res] == vknots[res + 1]) --res;
-                return res;
-            }
-            // versuchsweise auch für Werte außerhalb arbeiten
-            // if (v >= vknots[high]) return high-1;
-            if (v <= vknots[low]) return low;
-            int mid = (low + high) / 2;
-            while (v < vknots[mid] || v >= vknots[mid + 1])
-            {
-                if (v < vknots[mid]) high = mid;
-                else low = mid;
-                mid = (low + high) / 2;
-                if (low == high) return low;
-            }
-            return mid;
+            return FindSpan(uknots, udegree, high, u);
         }
-        unsafe void BasisFunsU(int span, double u, int deg, out double[] N)
+        int FindSpanV(int high, double v)
+        {
+            return FindSpan(vknots, vdegree, high, v);
+        }
+        /// <summary>
+        /// Computes the deg+1 non-vanishing basis functions at u (NURBS book p. 70, A2.2).
+        /// The denominators cannot vanish as long as span is a non-empty knot span
+        /// (uknots[span] &lt; uknots[span+1]), which <see cref="FindSpan"/> guarantees.
+        /// </summary>
+        void BasisFunsU(int span, double u, int deg, out double[] N)
         {
             N = new double[deg + 1];
-            fixed (double* pN = N)
+            double[] left = new double[deg + 1];
+            double[] right = new double[deg + 1];
+            N[0] = 1.0;
+            for (int j = 1; j <= deg; ++j)
             {
-                double* left = stackalloc double[deg + 1];
-                double* right = stackalloc double[deg + 1];
-                pN[0] = 1.0;
-                for (int j = 1; j <= deg; ++j)
+                left[j] = u - uknots[span + 1 - j];
+                right[j] = uknots[span + j] - u;
+                double saved = 0.0;
+                for (int r = 0; r < j; ++r)
                 {
-                    left[j] = u - uknots[span + 1 - j];
-                    right[j] = uknots[span + j] - u;
-                    double saved = 0.0;
-                    for (int r = 0; r < j; ++r)
-                    {
-                        double temp = pN[r] / (right[r + 1] + left[j - r]);
-                        if (!double.IsNaN(temp) && !double.IsInfinity(temp))
-                        {
-                            pN[r] = saved + right[r + 1] * temp;
-                            saved = left[j - r] * temp;
-                        }
-                        else
-                        {
-                            pN[r] = saved;
-                        }
-                    }
-                    pN[j] = saved;
+                    double temp = N[r] / (right[r + 1] + left[j - r]);
+                    N[r] = saved + right[r + 1] * temp;
+                    saved = left[j - r] * temp;
                 }
+                N[j] = saved;
             }
         }
         void BasisFunsU(int span, int deg, out Polynom[] N, bool dim2)
@@ -1683,58 +1102,28 @@ namespace CADability
                 N[j] = saved;
             }
         }
-        void BasisFunsString(int span, double u, int deg, out string[] N)
-        {   // liefert die basisfunktionen als string, somit als Input für Maxima
-            // damit könnte man die liniearen Schnitte bis 4. Grades direkt lösbar machen
-            // und noch einiges andere mehr...
-            // indizes sollten sich auf span beziehen
-            // ACHTUNG: auf genügende Klammerung achten!
-            N = new string[deg + 1];
-            string[] left = new string[deg + 1];
-            string[] right = new string[deg + 1];
-            N[0] = "1 ";
-            for (int j = 1; j <= deg; ++j)
-            {
-                left[j] = "(u - uknots[span +(" + (1 - j).ToString() + ")])";
-                right[j] = "(uknots[span +(" + (j).ToString() + ")] - u)";
-                string saved = "0 ";
-                for (int r = 0; r < j; ++r)
-                {
-                    string temp = "((" + N[r] + ")/(" + right[r + 1] + "+" + left[j - r] + "))";
-                    N[r] = "(" + saved + "+ ((" + right[r + 1] + ")*(" + temp + ")))";
-                    saved = "((" + left[j - r] + ")*(" + temp + "))";
-                }
-                N[j] = saved;
-            }
-        }
-        unsafe void BasisFunsV(int span, double v, int deg, out double[] N)
+        /// <summary>
+        /// Computes the deg+1 non-vanishing basis functions at v (NURBS book p. 70, A2.2).
+        /// See <see cref="BasisFunsU(int, double, int, out double[])"/>.
+        /// </summary>
+        void BasisFunsV(int span, double v, int deg, out double[] N)
         {
             N = new double[deg + 1];
-            fixed (double* pN = N)
+            double[] left = new double[deg + 1];
+            double[] right = new double[deg + 1];
+            N[0] = 1.0;
+            for (int j = 1; j <= deg; ++j)
             {
-                double* left = stackalloc double[deg + 1];
-                double* right = stackalloc double[deg + 1];
-                pN[0] = 1.0;
-                for (int j = 1; j <= deg; ++j)
+                left[j] = v - vknots[span + 1 - j];
+                right[j] = vknots[span + j] - v;
+                double saved = 0.0;
+                for (int r = 0; r < j; ++r)
                 {
-                    left[j] = v - vknots[span + 1 - j];
-                    right[j] = vknots[span + j] - v;
-                    double saved = 0.0;
-                    for (int r = 0; r < j; ++r)
-                    {
-                        double temp = pN[r] / (right[r + 1] + left[j - r]);
-                        if (!double.IsNaN(temp) && !double.IsInfinity(temp))
-                        {
-                            pN[r] = saved + right[r + 1] * temp;
-                            saved = left[j - r] * temp;
-                        }
-                        else
-                        {
-                            pN[r] = saved;
-                        }
-                    }
-                    pN[j] = saved;
+                    double temp = N[r] / (right[r + 1] + left[j - r]);
+                    N[r] = saved + right[r + 1] * temp;
+                    saved = left[j - r] * temp;
                 }
+                N[j] = saved;
             }
         }
         void AllBasisFunsU(int span, double u, out double[][] AN)
@@ -2039,8 +1428,8 @@ namespace CADability
         {
             int span;
             int n = uknots.Length - udegree - 1;
-            span = FindSpanU(n, udegree, u);
-            double[] N; // N sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            span = FindSpanU(n, u);
+            double[] N;
             BasisFunsU(span, u, udegree, out N);
             T res = new T();
             for (int j = 0; j <= udegree; ++j)
@@ -2050,69 +1439,12 @@ namespace CADability
             }
             return res;
         }
-        /// <summary>
-        /// Writes a NURBS of a certain degree to a string that you can use as input for maxima. The poles are p0x, p0y,p0z,p0w,...,...p4w
-        /// </summary>
-        /// <param name="u"></param>
-        /// <returns></returns>
-        internal string CurvePointForMaxima(double u)
-        {
-            StringBuilder res = new StringBuilder();
-            int span;
-            int n = uknots.Length - udegree - 1;
-            span = FindSpanU(n, udegree, u);
-            string[] Nstr;
-            BasisFunsString(span, u, udegree, out Nstr);
-            string uknotstring = "[";
-            for (int i = 0; i < uknots.Length; i++) uknotstring = uknotstring + uknots[i].ToString() + ",";
-            uknotstring = uknotstring.Substring(0, uknotstring.Length - 1) + "]";
-            for (int i = 0; i < Nstr.Length; i++)
-            {
-                res.AppendLine("N" + i.ToString() + "(u,span,uknots) := " + Nstr[i] + ";");
-                // res.AppendLine("N" + i.ToString() + "(u," + (span + 1).ToString() + "," + uknotstring + ");");
-            }
-            string resstring = "0";
-            for (int j = 0; j <= udegree; ++j)
-            {
-                resstring = "(" + resstring + ") + N" + j.ToString() + "(u," + (span + 1).ToString() + "," + uknotstring + ")*p" + (span - udegree + j).ToString() + "w";
-            }
-            // to get the rational bSpline, remove the "w(u):="  and "/w(u)"
-            res.AppendLine("w(u):=" + resstring + ";");
-            res.AppendLine("x(u):= (" + resstring.Replace('w', 'x') + ")/w(u);");
-            res.AppendLine("y(u):= (" + resstring.Replace('w', 'y') + ")/w(u);");
-            res.AppendLine("z(u):= (" + resstring.Replace('w', 'z') + ")/w(u);");
-            res.AppendLine("w(u);");
-            res.AppendLine("x(u);");
-            res.AppendLine("y(u);");
-            res.AppendLine("z(u);");
-
-            return res.ToString();
-        }
-
-        public string[] CurvePointFormula(double u)
-        {
-            string[] Nstr;
-            int n = uknots.Length - udegree - 1;
-            int span = FindSpanU(n, udegree, u);
-            BasisFunsString(span, u, udegree, out Nstr);
-            string[] res = new string[Nstr.Length];
-            for (int i = 0; i < res.Length; i++) res[i] = "0";
-            for (int j = 0; j <= udegree; ++j)
-            {
-                // res = res + N[j] * Poles[span - degree + j];
-                for (int i = 0; i < res.Length; i++)
-                {
-                    res[i] = "(" + res[i] + ")" + " + (" + Nstr[j] + ") * " + "p[span-degree+" + j.ToString() + ", " + i.ToString() + "]";
-                }
-            }
-            return res;
-        }
         public Polynom[] CurvePointPolynom(double u)
         {
             int span;
             int n = uknots.Length - udegree - 1;
-            span = FindSpanU(n, udegree, u);
-            Polynom[] N; // N sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            span = FindSpanU(n, u);
+            Polynom[] N;
             BasisFunsU(span, udegree, out N, false);
             Polynom[] res = new Polynom[calc.GetComponents(poles[0]).Length];
             for (int i = 0; i < res.Length; i++) res[i] = new Polynom(0.0, 1);
@@ -2130,12 +1462,12 @@ namespace CADability
         public T SurfacePoint(double u, double v)
         {
             int n = uknots.Length - udegree - 1;
-            int uspan = FindSpanU(n, udegree, u);
+            int uspan = FindSpanU(n, u);
             int m = vknots.Length - vdegree - 1;
-            int vspan = FindSpanV(m, vdegree, v);
-            double[] Nu; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            int vspan = FindSpanV(m, v);
+            double[] Nu;
             BasisFunsU(uspan, u, udegree, out Nu);
-            double[] Nv; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            double[] Nv;
             BasisFunsV(vspan, v, vdegree, out Nv);
             int uind = uspan - udegree;
             T res = new T();
@@ -2154,12 +1486,12 @@ namespace CADability
         internal Polynom[] SurfacePointPolynom(double u, double v)
         {   // wir brauchen keine rationalen Polynome, einfache Polynome reichen. Die Division in BasisFunsU/V sind immer konstante
             int n = uknots.Length - udegree - 1;
-            int uspan = FindSpanU(n, udegree, u);
+            int uspan = FindSpanU(n, u);
             int m = vknots.Length - vdegree - 1;
-            int vspan = FindSpanV(m, vdegree, v);
-            Polynom[] Nu; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            int vspan = FindSpanV(m, v);
+            Polynom[] Nu;
             BasisFunsU(uspan, udegree, out Nu, true);
-            Polynom[] Nv; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            Polynom[] Nv;
             BasisFunsV(vspan, vdegree, out Nv);
             int uind = uspan - udegree;
             Polynom[] res = new Polynom[calc.GetComponents(poles[0]).Length];
@@ -2193,8 +1525,8 @@ namespace CADability
         {
             T[] vpoles = new T[numVPoles];
             int n = uknots.Length - udegree - 1;
-            int uspan = FindSpanU(n, udegree, u);
-            double[] Nu; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            int uspan = FindSpanU(n, u);
+            double[] Nu;
             BasisFunsU(uspan, u, udegree, out Nu);
             int uind = uspan - udegree;
             for (int vind = 0; vind < vpoles.Length; ++vind)
@@ -2218,8 +1550,8 @@ namespace CADability
         {
             T[] upoles = new T[numUPoles];
             int n = vknots.Length - vdegree - 1;
-            int vspan = FindSpanV(n, vdegree, v);
-            double[] Nv; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            int vspan = FindSpanV(n, v);
+            double[] Nv;
             BasisFunsV(vspan, v, vdegree, out Nv);
             int vind = vspan - vdegree;
             for (int uind = 0; uind < upoles.Length; ++uind)
@@ -2255,9 +1587,9 @@ namespace CADability
             //}
 
             int n = uknots.Length - udegree - 1;
-            int uspan = FindSpanU(n, udegree, u);
+            int uspan = FindSpanU(n, u);
             int m = vknots.Length - vdegree - 1;
-            int vspan = FindSpanV(m, vdegree, v);
+            int vspan = FindSpanV(m, v);
             double[][] Nu, Nv;
             AllBasisFunsU(uspan, u, out Nu);
             AllBasisFunsV(vspan, v, out Nv);
@@ -2343,12 +1675,12 @@ namespace CADability
         public void SurfaceDeriv1(double u, double v, out T pointAtUV, out T derivU, out T derivV)
         {   // Seite 137 bin sind alle 1
             int n = uknots.Length - udegree - 1;
-            int uspan = FindSpanU(n, udegree, u);
+            int uspan = FindSpanU(n, u);
             int m = vknots.Length - vdegree - 1;
-            int vspan = FindSpanV(m, vdegree, v);
-            double[] Nu; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            int vspan = FindSpanV(m, v);
+            double[] Nu;
             BasisFunsU(uspan, u, udegree, out Nu);
-            double[] Nv; // n sollte mit stackalloc alokiert werden, da es nur lokal gebraucht wird
+            double[] Nv;
             BasisFunsV(vspan, v, vdegree, out Nv);
             double[] Nuu;
             BasisFunsU(uspan, u, udegree - 1, out Nuu);
@@ -2403,7 +1735,7 @@ namespace CADability
             // für NURBS mit Weight, (also rationale) muss noch mit RatCurveDerivs1 nachgebessert werden
             if (deriv1 == null) InitDeriv1();
             int n = uknots.Length - udegree - 1;
-            int span = FindSpanU(n, udegree, u);
+            int span = FindSpanU(n, u);
             double[] N;
             BasisFunsU(span, u, udegree, out N);
             pointAtU = new T();
@@ -2433,7 +1765,7 @@ namespace CADability
             }
             int d = 2;
             int n = uknots.Length - udegree - 1;
-            int span = FindSpanU(n, udegree, u);
+            int span = FindSpanU(n, u);
             double[][] N;
             NBasisFuns(span, 3, u, out N);
             int du = Math.Min(d, udegree);
@@ -2471,7 +1803,7 @@ namespace CADability
         }
         public int FindIndex(double u)
         {   // liefert den Index für den Parameter
-            int k = FindSpanU(uknots.Length - udegree - 1, udegree, u);
+            int k = FindSpanU(uknots.Length - udegree - 1, u);
             return k; // evtl noch Verbesserung wie in CurveKnotIns
         }
         public int CurveKnotIns(double u, int r, out double[] newknots, out T[] newpoles)
@@ -2484,7 +1816,7 @@ namespace CADability
             // das Ergebnis ist der Index, an dem u eingefügt wurde und wo somit die knots und poles aufzuteilen
             // sind, wenn es denn zum splitten verwendet wird.
             int np = poles.Length - 1; // könnte auch "knots.Length - degree - 1" sein, oder?
-            int k = FindSpanU(uknots.Length - udegree, udegree, u);
+            int k = FindSpanU(uknots.Length - udegree, u);
             if (u != uknots[k] && u - uknots[k] < (uknots[uknots.Length - 1] - uknots[0]) * 1e-8)
             {   // hier wird geschummelt: wenn fast exakt auf einem Knoten eingefügt werden soll, so wird
                 // der knoten manipuliert und ein bisschen zurechtgerückt
@@ -2655,36 +1987,6 @@ namespace CADability
         public Nurbs<T, C> Clone(T[] poles)
         {
             return new Nurbs<T, C>(udegree, poles, uknots);
-        }
-        public double[] FindXNullDeg3(int span, double[] x)
-        {   // geht natürlich nur für nicht rationale, oder?
-            // x muss bei span-3 beginnen und 4 Werte haben x[0] = pole[span-3].x u.s.w.
-            // span zwischen udegree und uknots.Length - udegree - 1;
-            double uum3 = uknots[span - 3] * uknots[span - 3];
-            double uum2 = uknots[span - 2] * uknots[span - 2];
-            double uum1 = uknots[span - 1] * uknots[span - 1];
-            double uu0 = uknots[span] * uknots[span];
-            double uu1 = uknots[span + 1] * uknots[span + 1];
-            double uu2 = uknots[span + 2] * uknots[span + 2];
-            double uu3 = uknots[span + 3] * uknots[span + 3];
-            double um3 = uknots[span - 3] * uknots[span - 2];
-            double um2 = uknots[span - 2] * uknots[span - 1];
-            double um1 = uknots[span - 1] * uknots[span];
-            double u0 = uknots[span] * uknots[span + 1];
-            double u1 = uknots[span + 1] * uknots[span + 2];
-            double u2 = uknots[span + 2] * uknots[span + 3];
-            double a = (x[3] * uknots[span + 1] * uum1 - x[2] * uknots[span + 1] * uum1 - x[3] * uknots[span - 2] * uum1 + x[2] * uknots[span - 2] * uum1 + x[1] * uknots[span + 3] * uu2 - x[0] * uknots[span + 3] * uu2 - x[1] * uknots[span] * uu2 + x[0] * uknots[span] * uu2 - x[2] * uknots[span + 3] * uu1 + x[1] * uknots[span + 3] * uu1 + x[3] * uknots[span + 2] * uu1 - x[2] * uknots[span + 2] * uu1 + x[2] * uknots[span] * uu1 - x[1] * uknots[span] * uu1 - x[3] * uknots[span - 1] * uu1 + x[2] * uknots[span - 1] * uu1 + x[1] * uknots[span + 2] * uu0 - x[0] * uknots[span + 2] * uu0 - x[2] * uknots[span + 1] * uu0 + x[1] * uknots[span + 1] * uu0 - x[1] * uknots[span - 1] * uu0 + x[0] * uknots[span - 1] * uu0 + x[2] * uknots[span - 2] * uu0 - x[1] * uknots[span - 2] * uu0 - x[2] * uknots[span + 3] * um2 + x[1] * uknots[span + 3] * um2 + x[3] * uknots[span + 2] * um2 - x[2] * uknots[span + 2] * um2 + x[3] * uknots[span + 1] * um2 - x[2] * uknots[span + 1] * um2 + x[2] * uknots[span] * um2 - x[1] * uknots[span] * um2 + x[1] * uknots[span + 3] * um1 - x[0] * uknots[span + 3] * um1 + x[1] * uknots[span + 2] * um1 - x[0] * uknots[span + 2] * um1 - x[2] * uknots[span + 1] * um1 + x[1] * uknots[span + 1] * um1 - x[1] * uknots[span] * u2 + x[0] * uknots[span] * u2 - x[1] * uknots[span - 1] * u2 + x[0] * uknots[span - 1] * u2 + x[2] * uknots[span - 2] * u2 - x[1] * uknots[span - 2] * u2 - x[2] * uknots[span + 3] * u1 + x[1] * uknots[span + 3] * u1 - x[3] * uknots[span - 1] * u1 + x[2] * uknots[span - 1] * u1 - x[3] * uknots[span - 2] * u1 + x[2] * uknots[span - 2] * u1 + x[2] * uknots[span + 3] * u0 - x[1] * uknots[span + 3] * u0 + x[2] * uknots[span + 2] * u0 - x[1] * uknots[span + 2] * u0 - x[2] * uknots[span - 2] * u0 + x[1] * uknots[span - 2] * u0 + x[2] * uknots[span - 1] * uknots[span + 1] * uknots[span + 3] - x[1] * uknots[span - 1] * uknots[span + 1] * uknots[span + 3] + x[2] * uknots[span - 2] * uknots[span + 1] * uknots[span + 3] - x[1] * uknots[span - 2] * uknots[span + 1] * uknots[span + 3] - x[2] * uknots[span - 2] * uknots[span] * uknots[span + 3] + x[1] * uknots[span - 2] * uknots[span] * uknots[span + 3] - x[2] * uknots[span - 2] * uknots[span] * uknots[span + 2] + x[1] * uknots[span - 2] * uknots[span] * uknots[span + 2]) / (uu0 * uu1 * uum1 + u2 * uu1 * uum1 - uknots[span] * uknots[span + 3] * uu1 * uum1 - uknots[span] * uknots[span + 2] * uu1 * uum1 + u1 * uu0 * uum1 - u0 * uu0 * uum1 + uknots[span + 1] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 2] * uu0 * uum1 - uknots[span - 2] * uknots[span + 1] * uu0 * uum1 + uknots[span - 2] * uknots[span] * uu0 * uum1 - u0 * u2 * uum1 + uknots[span - 2] * uknots[span] * u2 * uum1 - uknots[span - 2] * uknots[span + 3] * u1 * uum1 + uknots[span - 2] * uknots[span + 3] * u0 * uum1 + uknots[span - 2] * uknots[span + 2] * u0 * uum1 + uu0 * uu1 * uu2 + um1 * uu1 * uu2 - u0 * uu1 * uu2 + uknots[span + 1] * uknots[span + 3] * uu1 * uu2 - uknots[span] * uknots[span + 3] * uu1 * uu2 - uknots[span - 1] * uknots[span + 3] * uu1 * uu2 - uknots[span - 2] * uknots[span + 3] * uu1 * uu2 + uknots[span - 2] * uknots[span] * uu1 * uu2 + um2 * uu0 * uu2 - uknots[span - 1] * uknots[span + 1] * uu0 * uu2 - uknots[span - 2] * uknots[span + 1] * uu0 * uu2 - u0 * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um2 * uu2 - uknots[span] * uknots[span + 3] * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um1 * uu2 + uknots[span - 2] * uknots[span + 3] * u0 * uu2 + um2 * uu0 * uu1 + um1 * uu0 * uu1 + u2 * uu0 * uu1 + u1 * uu0 * uu1 - uknots[span - 1] * uknots[span + 3] * uu0 * uu1 - uknots[span] * uknots[span + 2] * uu0 * uu1 - 2 * uknots[span - 1] * uknots[span + 2] * uu0 * uu1 - uknots[span - 2] * uknots[span + 2] * uu0 * uu1 - uknots[span - 1] * uknots[span + 1] * uu0 * uu1 + u2 * um2 * uu1 - uknots[span] * uknots[span + 3] * um2 * uu1 - uknots[span] * uknots[span + 2] * um2 * uu1 + 2 * u2 * um1 * uu1 + u1 * um1 * uu1 + uknots[span + 1] * uknots[span + 3] * um1 * uu1 - u0 * u2 * uu1 + uknots[span - 2] * uknots[span] * u2 * uu1 - uknots[span - 1] * uknots[span + 3] * u1 * uu1 + u2 * um2 * uu0 + 2 * u1 * um2 * uu0 - u0 * um2 * uu0 + uknots[span + 1] * uknots[span + 3] * um2 * uu0 - uknots[span] * uknots[span + 2] * um2 * uu0 + u1 * um1 * uu0 - uknots[span - 1] * uknots[span + 3] * u1 * uu0 - uknots[span - 2] * uknots[span + 3] * u1 * uu0 + uknots[span - 2] * uknots[span + 2] * u0 * uu0 - 2 * u0 * u2 * um2);
-            double b = -3 * (x[3] * u0 * uum1 - x[2] * u0 * uum1 - x[3] * uknots[span - 2] * uknots[span] * uum1 + x[2] * uknots[span - 2] * uknots[span] * uum1 - x[1] * u0 * uu2 + x[0] * u0 * uu2 + x[1] * uknots[span + 1] * uknots[span + 3] * uu2 - x[0] * uknots[span + 1] * uknots[span + 3] * uu2 - x[3] * um1 * uu1 + x[2] * um1 * uu1 - x[2] * u2 * uu1 + x[1] * u2 * uu1 + x[3] * uknots[span] * uknots[span + 2] * uu1 - x[1] * uknots[span] * uknots[span + 2] * uu1 + x[2] * um2 * uu0 - x[1] * um2 * uu0 + x[1] * u1 * uu0 - x[0] * u1 * uu0 - x[2] * uknots[span - 1] * uknots[span + 1] * uu0 + x[0] * uknots[span - 1] * uknots[span + 1] * uu0 + x[3] * u0 * um2 - x[2] * u0 * um2 - x[2] * uknots[span] * uknots[span + 3] * um2 + x[1] * uknots[span] * uknots[span + 3] * um2 + x[3] * uknots[span] * uknots[span + 2] * um2 - x[2] * uknots[span] * uknots[span + 2] * um2 - x[3] * u1 * um1 + x[2] * u1 * um1 + x[1] * u1 * um1 - x[0] * u1 * um1 + x[2] * uknots[span + 1] * uknots[span + 3] * um1 - x[0] * uknots[span + 1] * uknots[span + 3] * um1 - x[1] * u0 * u2 + x[0] * u0 * u2 - x[1] * uknots[span - 1] * uknots[span + 3] * u1 + x[0] * uknots[span - 1] * uknots[span + 3] * u1 + x[2] * uknots[span - 2] * uknots[span + 3] * u1 - x[1] * uknots[span - 2] * uknots[span + 3] * u1 - x[3] * uknots[span - 2] * uknots[span + 2] * u0 + x[1] * uknots[span - 2] * uknots[span + 2] * u0) / (uu0 * uu1 * uum1 + u2 * uu1 * uum1 - uknots[span] * uknots[span + 3] * uu1 * uum1 - uknots[span] * uknots[span + 2] * uu1 * uum1 + u1 * uu0 * uum1 - u0 * uu0 * uum1 + uknots[span + 1] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 2] * uu0 * uum1 - uknots[span - 2] * uknots[span + 1] * uu0 * uum1 + uknots[span - 2] * uknots[span] * uu0 * uum1 - u0 * u2 * uum1 + uknots[span - 2] * uknots[span] * u2 * uum1 - uknots[span - 2] * uknots[span + 3] * u1 * uum1 + uknots[span - 2] * uknots[span + 3] * u0 * uum1 + uknots[span - 2] * uknots[span + 2] * u0 * uum1 + uu0 * uu1 * uu2 + um1 * uu1 * uu2 - u0 * uu1 * uu2 + uknots[span + 1] * uknots[span + 3] * uu1 * uu2 - uknots[span] * uknots[span + 3] * uu1 * uu2 - uknots[span - 1] * uknots[span + 3] * uu1 * uu2 - uknots[span - 2] * uknots[span + 3] * uu1 * uu2 + uknots[span - 2] * uknots[span] * uu1 * uu2 + um2 * uu0 * uu2 - uknots[span - 1] * uknots[span + 1] * uu0 * uu2 - uknots[span - 2] * uknots[span + 1] * uu0 * uu2 - u0 * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um2 * uu2 - uknots[span] * uknots[span + 3] * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um1 * uu2 + uknots[span - 2] * uknots[span + 3] * u0 * uu2 + um2 * uu0 * uu1 + um1 * uu0 * uu1 + u2 * uu0 * uu1 + u1 * uu0 * uu1 - uknots[span - 1] * uknots[span + 3] * uu0 * uu1 - uknots[span] * uknots[span + 2] * uu0 * uu1 - 2 * uknots[span - 1] * uknots[span + 2] * uu0 * uu1 - uknots[span - 2] * uknots[span + 2] * uu0 * uu1 - uknots[span - 1] * uknots[span + 1] * uu0 * uu1 + u2 * um2 * uu1 - uknots[span] * uknots[span + 3] * um2 * uu1 - uknots[span] * uknots[span + 2] * um2 * uu1 + 2 * u2 * um1 * uu1 + u1 * um1 * uu1 + uknots[span + 1] * uknots[span + 3] * um1 * uu1 - u0 * u2 * uu1 + uknots[span - 2] * uknots[span] * u2 * uu1 - uknots[span - 1] * uknots[span + 3] * u1 * uu1 + u2 * um2 * uu0 + 2 * u1 * um2 * uu0 - u0 * um2 * uu0 + uknots[span + 1] * uknots[span + 3] * um2 * uu0 - uknots[span] * uknots[span + 2] * um2 * uu0 + u1 * um1 * uu0 - uknots[span - 1] * uknots[span + 3] * u1 * uu0 - uknots[span - 2] * uknots[span + 3] * u1 * uu0 + uknots[span - 2] * uknots[span + 2] * u0 * uu0 - 2 * u0 * u2 * um2);
-            double c = 3 * (x[3] * uknots[span + 1] * uu0 * uum1 - x[2] * uknots[span + 1] * uu0 * uum1 - x[3] * uknots[span - 2] * uu0 * uum1 + x[2] * uknots[span - 2] * uu0 * uum1 + x[1] * uknots[span + 3] * uu1 * uu2 - x[0] * uknots[span + 3] * uu1 * uu2 - x[1] * uknots[span] * uu1 * uu2 + x[0] * uknots[span] * uu1 * uu2 + x[3] * uknots[span + 2] * uu0 * uu1 - x[0] * uknots[span + 2] * uu0 * uu1 - x[3] * uknots[span - 1] * uu0 * uu1 + x[0] * uknots[span - 1] * uu0 * uu1 + x[2] * uknots[span + 3] * um1 * uu1 - x[0] * uknots[span + 3] * um1 * uu1 + x[2] * uknots[span + 2] * um1 * uu1 - x[0] * uknots[span + 2] * um1 * uu1 - x[2] * uknots[span] * u2 * uu1 + x[0] * uknots[span] * u2 * uu1 - x[2] * uknots[span - 1] * u2 * uu1 + x[0] * uknots[span - 1] * u2 * uu1 + x[3] * uknots[span + 2] * um2 * uu0 - x[1] * uknots[span + 2] * um2 * uu0 + x[3] * uknots[span + 1] * um2 * uu0 - x[1] * uknots[span + 1] * um2 * uu0 - x[3] * uknots[span - 1] * u1 * uu0 + x[1] * uknots[span - 1] * u1 * uu0 - x[3] * uknots[span - 2] * u1 * uu0 + x[1] * uknots[span - 2] * u1 * uu0 - x[2] * uknots[span] * u2 * um2 + x[1] * uknots[span] * u2 * um2 + x[2] * uknots[span + 3] * u1 * um2 - x[1] * uknots[span + 3] * u1 * um2 - x[2] * uknots[span + 3] * u0 * um2 + x[1] * uknots[span + 3] * u0 * um2 - x[2] * uknots[span + 2] * u0 * um2 + x[1] * uknots[span + 2] * u0 * um2 + x[2] * uknots[span + 3] * u1 * um1 - x[1] * uknots[span + 3] * u1 * um1 + x[2] * uknots[span - 2] * u0 * u2 - x[1] * uknots[span - 2] * u0 * u2) / (uu0 * uu1 * uum1 + u2 * uu1 * uum1 - uknots[span] * uknots[span + 3] * uu1 * uum1 - uknots[span] * uknots[span + 2] * uu1 * uum1 + u1 * uu0 * uum1 - u0 * uu0 * uum1 + uknots[span + 1] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 2] * uu0 * uum1 - uknots[span - 2] * uknots[span + 1] * uu0 * uum1 + uknots[span - 2] * uknots[span] * uu0 * uum1 - u0 * u2 * uum1 + uknots[span - 2] * uknots[span] * u2 * uum1 - uknots[span - 2] * uknots[span + 3] * u1 * uum1 + uknots[span - 2] * uknots[span + 3] * u0 * uum1 + uknots[span - 2] * uknots[span + 2] * u0 * uum1 + uu0 * uu1 * uu2 + um1 * uu1 * uu2 - u0 * uu1 * uu2 + uknots[span + 1] * uknots[span + 3] * uu1 * uu2 - uknots[span] * uknots[span + 3] * uu1 * uu2 - uknots[span - 1] * uknots[span + 3] * uu1 * uu2 - uknots[span - 2] * uknots[span + 3] * uu1 * uu2 + uknots[span - 2] * uknots[span] * uu1 * uu2 + um2 * uu0 * uu2 - uknots[span - 1] * uknots[span + 1] * uu0 * uu2 - uknots[span - 2] * uknots[span + 1] * uu0 * uu2 - u0 * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um2 * uu2 - uknots[span] * uknots[span + 3] * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um1 * uu2 + uknots[span - 2] * uknots[span + 3] * u0 * uu2 + um2 * uu0 * uu1 + um1 * uu0 * uu1 + u2 * uu0 * uu1 + u1 * uu0 * uu1 - uknots[span - 1] * uknots[span + 3] * uu0 * uu1 - uknots[span] * uknots[span + 2] * uu0 * uu1 - 2 * uknots[span - 1] * uknots[span + 2] * uu0 * uu1 - uknots[span - 2] * uknots[span + 2] * uu0 * uu1 - uknots[span - 1] * uknots[span + 1] * uu0 * uu1 + u2 * um2 * uu1 - uknots[span] * uknots[span + 3] * um2 * uu1 - uknots[span] * uknots[span + 2] * um2 * uu1 + 2 * u2 * um1 * uu1 + u1 * um1 * uu1 + uknots[span + 1] * uknots[span + 3] * um1 * uu1 - u0 * u2 * uu1 + uknots[span - 2] * uknots[span] * u2 * uu1 - uknots[span - 1] * uknots[span + 3] * u1 * uu1 + u2 * um2 * uu0 + 2 * u1 * um2 * uu0 - u0 * um2 * uu0 + uknots[span + 1] * uknots[span + 3] * um2 * uu0 - uknots[span] * uknots[span + 2] * um2 * uu0 + u1 * um1 * uu0 - uknots[span - 1] * uknots[span + 3] * u1 * uu0 - uknots[span - 2] * uknots[span + 3] * u1 * uu0 + uknots[span - 2] * uknots[span + 2] * u0 * uu0 - 2 * u0 * u2 * um2);
-            double d = (x[2] * uu0 * uu1 * uum1 + x[2] * u2 * uu1 * uum1 - x[2] * uknots[span] * uknots[span + 3] * uu1 * uum1 - x[2] * uknots[span] * uknots[span + 2] * uu1 * uum1 + x[2] * u1 * uu0 * uum1 - x[3] * u0 * uu0 * uum1 + x[2] * uknots[span + 1] * uknots[span + 3] * uu0 * uum1 - x[2] * uknots[span - 2] * uknots[span + 3] * uu0 * uum1 - x[2] * uknots[span - 2] * uknots[span + 2] * uu0 * uum1 - x[2] * uknots[span - 2] * uknots[span + 1] * uu0 * uum1 + x[3] * uknots[span - 2] * uknots[span] * uu0 * uum1 - x[2] * u0 * u2 * uum1 + x[2] * uknots[span - 2] * uknots[span] * u2 * uum1 - x[2] * uknots[span - 2] * uknots[span + 3] * u1 * uum1 + x[2] * uknots[span - 2] * uknots[span + 3] * u0 * uum1 + x[2] * uknots[span - 2] * uknots[span + 2] * u0 * uum1 + x[1] * uu0 * uu1 * uu2 + x[1] * um1 * uu1 * uu2 - x[0] * u0 * uu1 * uu2 + x[0] * uknots[span + 1] * uknots[span + 3] * uu1 * uu2 - x[1] * uknots[span] * uknots[span + 3] * uu1 * uu2 - x[1] * uknots[span - 1] * uknots[span + 3] * uu1 * uu2 - x[1] * uknots[span - 2] * uknots[span + 3] * uu1 * uu2 + x[1] * uknots[span - 2] * uknots[span] * uu1 * uu2 + x[1] * um2 * uu0 * uu2 - x[1] * uknots[span - 1] * uknots[span + 1] * uu0 * uu2 - x[1] * uknots[span - 2] * uknots[span + 1] * uu0 * uu2 - x[1] * u0 * um2 * uu2 + x[1] * uknots[span + 1] * uknots[span + 3] * um2 * uu2 - x[1] * uknots[span] * uknots[span + 3] * um2 * uu2 + x[1] * uknots[span + 1] * uknots[span + 3] * um1 * uu2 + x[1] * uknots[span - 2] * uknots[span + 3] * u0 * uu2 + x[1] * um2 * uu0 * uu1 + x[3] * um1 * uu0 * uu1 + x[2] * u2 * uu0 * uu1 + x[0] * u1 * uu0 * uu1 - x[2] * uknots[span - 1] * uknots[span + 3] * uu0 * uu1 - x[3] * uknots[span] * uknots[span + 2] * uu0 * uu1 - x[2] * uknots[span - 1] * uknots[span + 2] * uu0 * uu1 - x[1] * uknots[span - 1] * uknots[span + 2] * uu0 * uu1 - x[1] * uknots[span - 2] * uknots[span + 2] * uu0 * uu1 - x[0] * uknots[span - 1] * uknots[span + 1] * uu0 * uu1 + x[1] * u2 * um2 * uu1 - x[1] * uknots[span] * uknots[span + 3] * um2 * uu1 - x[1] * uknots[span] * uknots[span + 2] * um2 * uu1 + x[2] * u2 * um1 * uu1 + x[1] * u2 * um1 * uu1 + x[0] * u1 * um1 * uu1 + x[0] * uknots[span + 1] * uknots[span + 3] * um1 * uu1 - x[0] * u0 * u2 * uu1 + x[1] * uknots[span - 2] * uknots[span] * u2 * uu1 - x[0] * uknots[span - 1] * uknots[span + 3] * u1 * uu1 + x[2] * u2 * um2 * uu0 + x[2] * u1 * um2 * uu0 + x[1] * u1 * um2 * uu0 - x[3] * u0 * um2 * uu0 + x[2] * uknots[span + 1] * uknots[span + 3] * um2 * uu0 - x[3] * uknots[span] * uknots[span + 2] * um2 * uu0 + x[3] * u1 * um1 * uu0 - x[2] * uknots[span - 1] * uknots[span + 3] * u1 * uu0 - x[2] * uknots[span - 2] * uknots[span + 3] * u1 * uu0 + x[3] * uknots[span - 2] * uknots[span + 2] * u0 * uu0 - x[2] * u0 * u2 * um2 - x[1] * u0 * u2 * um2) / (uu0 * uu1 * uum1 + u2 * uu1 * uum1 - uknots[span] * uknots[span + 3] * uu1 * uum1 - uknots[span] * uknots[span + 2] * uu1 * uum1 + u1 * uu0 * uum1 - u0 * uu0 * uum1 + uknots[span + 1] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 3] * uu0 * uum1 - uknots[span - 2] * uknots[span + 2] * uu0 * uum1 - uknots[span - 2] * uknots[span + 1] * uu0 * uum1 + uknots[span - 2] * uknots[span] * uu0 * uum1 - u0 * u2 * uum1 + uknots[span - 2] * uknots[span] * u2 * uum1 - uknots[span - 2] * uknots[span + 3] * u1 * uum1 + uknots[span - 2] * uknots[span + 3] * u0 * uum1 + uknots[span - 2] * uknots[span + 2] * u0 * uum1 + uu0 * uu1 * uu2 + um1 * uu1 * uu2 - u0 * uu1 * uu2 + uknots[span + 1] * uknots[span + 3] * uu1 * uu2 - uknots[span] * uknots[span + 3] * uu1 * uu2 - uknots[span - 1] * uknots[span + 3] * uu1 * uu2 - uknots[span - 2] * uknots[span + 3] * uu1 * uu2 + uknots[span - 2] * uknots[span] * uu1 * uu2 + um2 * uu0 * uu2 - uknots[span - 1] * uknots[span + 1] * uu0 * uu2 - uknots[span - 2] * uknots[span + 1] * uu0 * uu2 - u0 * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um2 * uu2 - uknots[span] * uknots[span + 3] * um2 * uu2 + uknots[span + 1] * uknots[span + 3] * um1 * uu2 + uknots[span - 2] * uknots[span + 3] * u0 * uu2 + um2 * uu0 * uu1 + um1 * uu0 * uu1 + u2 * uu0 * uu1 + u1 * uu0 * uu1 - uknots[span - 1] * uknots[span + 3] * uu0 * uu1 - uknots[span] * uknots[span + 2] * uu0 * uu1 - 2 * uknots[span - 1] * uknots[span + 2] * uu0 * uu1 - uknots[span - 2] * uknots[span + 2] * uu0 * uu1 - uknots[span - 1] * uknots[span + 1] * uu0 * uu1 + u2 * um2 * uu1 - uknots[span] * uknots[span + 3] * um2 * uu1 - uknots[span] * uknots[span + 2] * um2 * uu1 + 2 * u2 * um1 * uu1 + u1 * um1 * uu1 + uknots[span + 1] * uknots[span + 3] * um1 * uu1 - u0 * u2 * uu1 + uknots[span - 2] * uknots[span] * u2 * uu1 - uknots[span - 1] * uknots[span + 3] * u1 * uu1 + u2 * um2 * uu0 + 2 * u1 * um2 * uu0 - u0 * um2 * uu0 + uknots[span + 1] * uknots[span + 3] * um2 * uu0 - uknots[span] * uknots[span + 2] * um2 * uu0 + u1 * um1 * uu0 - uknots[span - 1] * uknots[span + 3] * u1 * uu0 - uknots[span - 2] * uknots[span + 3] * u1 * uu0 + uknots[span - 2] * uknots[span + 2] * u0 * uu0 - 2 * u0 * u2 * um2);
-            double[] u = new double[3];
-            int n = Geometry.ragle3(a, b, c, d, u);
-            List<double> res = new List<double>();
-            for (int i = 0; i < n; ++i)
-            {
-                if (u[i] >= uknots[span] && u[i] <= uknots[span + 1]) res.Add(u[i]);
-            }
-            return res.ToArray();
         }
         public Nurbs<T, C> Trim(double u0, double u1)
         {
@@ -2928,6 +2230,118 @@ namespace CADability
             resknots[resknots.Length - 1] = resknots[resknots.Length - 2];
             return new Nurbs<T, C>(udegree, vdegree, respoles, newNumUPoles, numVPoles, resknots, vknots);
         }
+        /// <summary>
+        /// Returns the block of poles which influence the surface on the knot span containing (u, v).
+        /// The result contains (udegree+1)*(vdegree+1) poles, indexed as res[i + (udegree+1)*j] where i counts
+        /// in u and j in v direction. By the convex hull property the surface patch of this knot span is
+        /// contained in the convex hull of these poles (for rational surfaces: the hull of the dehomogenized
+        /// poles, provided all weights are positive).
+        /// </summary>
+        /// <param name="u">u parameter, determines the knot span (use the span midpoint to be unambiguous)</param>
+        /// <param name="v">v parameter, determines the knot span</param>
+        internal T[] GetSpanPoles(double u, double v)
+        {
+            int n = uknots.Length - udegree - 1;
+            int uspan = FindSpanU(n, u);
+            int m = vknots.Length - vdegree - 1;
+            int vspan = FindSpanV(m, v);
+            T[] res = new T[(udegree + 1) * (vdegree + 1)];
+            for (int j = 0; j <= vdegree; ++j)
+            {
+                for (int i = 0; i <= udegree; ++i)
+                {
+                    res[i + (udegree + 1) * j] = poles[ind(uspan - udegree + i, vspan - vdegree + j)];
+                }
+            }
+            return res;
+        }
+        /// <summary>
+        /// Evaluates the polar form (blossom) of the polynomial segment on knot span <paramref name="span"/>.
+        /// <paramref name="d"/> must contain the degree+1 poles influencing the span (it is modified in place),
+        /// <paramref name="t"/> the degree blossom arguments (order is irrelevant by symmetry). This is the
+        /// de Boor algorithm with a different parameter at each level. The denominators cannot vanish as long
+        /// as the span is not empty (knots[span] &lt; knots[span+1]).
+        /// </summary>
+        private T Blossom(T[] d, double[] t, double[] knots, int span, int degree)
+        {
+            for (int r = 1; r <= degree; ++r)
+            {
+                for (int i = degree; i >= r; --i)
+                {
+                    double alpha = (t[r - 1] - knots[i + span - degree]) / (knots[i + span - r + 1] - knots[i + span - degree]);
+                    d[i] = calc.Add(calc.Mul(1.0 - alpha, d[i - 1]), calc.Mul(alpha, d[i]));
+                }
+            }
+            return d[degree];
+        }
+        /// <summary>
+        /// Returns the Bézier control net of the surface restricted to [u0, u1] x [v0, v1], which must be
+        /// contained in a single knot span (there the surface is a single polynomial or rational segment).
+        /// Passing the boundaries of a knot span yields the Bézier net of the whole span. The net contains
+        /// (udegree+1)*(vdegree+1) poles, indexed as res[i + (udegree+1)*j], and describes the sub patch as a
+        /// tensor product Bézier surface over [u0, u1] x [v0, v1]. The Bézier poles are blossom values:
+        /// res[i,j] = blossom with u-arguments u0 ((udegree-i) times) and u1 (i times), v-arguments analogous.
+        /// The convex hull of the (dehomogenized) Bézier poles contains the sub patch and is tighter than the
+        /// hull of the b-spline poles of the span. u0 == u1 (or v0 == v1) is allowed: the net then degenerates
+        /// to the Bézier poles of the iso curve.
+        /// </summary>
+        internal T[] GetSubPatchBezier(double u0, double u1, double v0, double v1)
+        {
+            int n = uknots.Length - udegree - 1;
+            int uspan = FindSpanU(n, 0.5 * (u0 + u1));
+            int m = vknots.Length - vdegree - 1;
+            int vspan = FindSpanV(m, 0.5 * (v0 + v1));
+            T[] res = new T[(udegree + 1) * (vdegree + 1)];
+            // extract the Bézier poles in u direction for each v-row of the influencing block
+            double[] targs = new double[udegree];
+            T[] d = new T[udegree + 1];
+            for (int j = 0; j <= vdegree; ++j)
+            {
+                for (int i = 0; i <= udegree; ++i)
+                {
+                    for (int k = 0; k <= udegree; ++k) d[k] = poles[ind(uspan - udegree + k, vspan - vdegree + j)];
+                    for (int r = 0; r < udegree; ++r) targs[r] = (r < udegree - i) ? u0 : u1;
+                    res[i + (udegree + 1) * j] = Blossom(d, targs, uknots, uspan, udegree);
+                }
+            }
+            // the intermediate net is Bézier in u but still b-spline in v: extract in v direction per column
+            targs = new double[vdegree];
+            d = new T[vdegree + 1];
+            T[] col = new T[vdegree + 1];
+            for (int i = 0; i <= udegree; ++i)
+            {
+                for (int j = 0; j <= vdegree; ++j) col[j] = res[i + (udegree + 1) * j];
+                for (int j = 0; j <= vdegree; ++j)
+                {
+                    for (int k = 0; k <= vdegree; ++k) d[k] = col[k];
+                    for (int r = 0; r < vdegree; ++r) targs[r] = (r < vdegree - j) ? v0 : v1;
+                    res[i + (udegree + 1) * j] = Blossom(d, targs, vknots, vspan, vdegree);
+                }
+            }
+            return res;
+        }
+        /// <summary>
+        /// Curve version of <see cref="GetSubPatchBezier(double, double, double, double)"/>:
+        /// returns the udegree+1 Bézier poles of the single polynomial (or rational) segment on the knot span
+        /// containing u. The segment is a Bézier curve over [u0, u1], the boundaries of the knot span.
+        /// </summary>
+        internal T[] GetSpanBezier(double u, out double u0, out double u1)
+        {
+            int n = uknots.Length - udegree - 1;
+            int span = FindSpanU(n, u);
+            u0 = uknots[span];
+            u1 = uknots[span + 1];
+            T[] res = new T[udegree + 1];
+            double[] targs = new double[udegree];
+            T[] d = new T[udegree + 1];
+            for (int i = 0; i <= udegree; ++i)
+            {
+                for (int k = 0; k <= udegree; ++k) d[k] = poles[span - udegree + k];
+                for (int r = 0; r < udegree; ++r) targs[r] = (r < udegree - i) ? u0 : u1;
+                res[i] = Blossom(d, targs, uknots, span, udegree);
+            }
+            return res;
+        }
 
 
 
@@ -2948,7 +2362,6 @@ namespace CADability
         // (vgl. Artikel "Choosing nodes and knots in closed B-spline curve interpolation to point data" von H. Park, Computer-Aided Design 33 (2001) ).
         public Nurbs(int degree, T[] throughpoints, bool periodic, out double[] throughpointsparam, bool test, double[] initialKnots = null)
         {// "test" ist nur ein Dummy-Parameter, um den neuen Konstruktor vom alten zu unterscheiden
-            calc = new C();
             degree = Math.Min(degree, throughpoints.Length - 1); // bei 2 Punkten nur 1. Grad, also Linie, u.s.w
             this.udegree = degree;
             if (periodic)
@@ -3031,7 +2444,7 @@ namespace CADability
                 {
                     double[] bf;
                     double u = throughpointsparam[i];
-                    int span = (degree % 2 == 1) ? (degree + i) : FindSpanU(uknots.Length - degree - 1, degree, u);
+                    int span = (degree % 2 == 1) ? (degree + i) : FindSpanU(uknots.Length - degree - 1, u);
                     BasisFunsU(span, u, degree, out bf);
                     for (int j = 0; j < bf.Length; ++j)
                     {
@@ -3157,7 +2570,7 @@ namespace CADability
                 {
                     double[] bf;
                     double u = throughpointsparam[i];
-                    int span = FindSpanU(uknots.Length - degree - 1, degree, u);
+                    int span = FindSpanU(uknots.Length - degree - 1, u);
                     BasisFunsU(span, u, degree, out bf);
                     for (int j = 0; j < bf.Length; ++j)
                     {
@@ -3209,7 +2622,6 @@ namespace CADability
         // wäre ein Wert im Bereich der chordlength (Länge des Polygonzugs der Durchgangspunkte).
         public Nurbs(int degree, T[] throughpoints, T sDirection, T eDirection, out double[] throughpointsparam)
         {
-            calc = new C();
             degree = Math.Min(degree, throughpoints.Length - 1); // bei 2 Punkten nur 1. Grad, also Linie, u.s.w
             this.udegree = degree;
             int n = throughpoints.Length - 1; // Durchgangspunkte sind indiziert von 0 bis n
@@ -3284,7 +2696,7 @@ namespace CADability
             {
                 double[] bf;
                 double u = throughpointsparam[i - 1];
-                int span = FindSpanU(uknots.Length - degree - 1, degree, u);
+                int span = FindSpanU(uknots.Length - degree - 1, u);
                 BasisFunsU(span, u, degree, out bf);
                 for (int j = 0; j < bf.Length; ++j)
                 {
@@ -3363,7 +2775,6 @@ namespace CADability
         public Nurbs(int degree, T[] throughpoints, T[] throughdirections, bool periodic, out double[] throughpointsparam)
         {   // im Buch Seite 375
             if (throughpoints.Length != throughdirections.Length) throw new NurbsException("points and direction arrays must be same size");
-            calc = new C(); // das kostet angeblich nix!
             this.udegree = degree;
 
             int n = throughpoints.Length - 1;
@@ -3423,7 +2834,7 @@ namespace CADability
             {
                 double[,] bf;
                 double u = throughpointsparam[i];
-                int span = FindSpanU(uknots.Length - degree - 1, degree, u);
+                int span = FindSpanU(uknots.Length - degree - 1, u);
                 DersBasisFuns(span, u, udegree, 1, out bf);
                 for (int j = 0; j <= degree; ++j)
                 {
@@ -3522,7 +2933,7 @@ namespace CADability
                 if (uj < U[0]) uj = U[0];
                 if (uj > U[U.Length - 1]) uj = U[U.Length - 1];
 
-                int span = FindSpanU(uknots.Length - degree - 1, degree, uj);              // span k
+                int span = FindSpanU(uknots.Length - degree - 1, uj);              // span k
                 BasisFunsU(span, uj, p, out double[] N);        // N[0..p] entspricht i=span-p..span
 
                 int i0 = span - p;
@@ -3673,207 +3084,6 @@ namespace CADability
             return bounds;
         }
 
-
-    }
-
-
-    public static class BSplineInterpolation2D
-    {
-
-        /// <summary>
-        /// Interpoliert eine 2D B-Spline-Kurve (clamped/open uniform style, aber mit Knoten aus Parameter-Averaging)
-        /// so dass C(u[j]) = points[j] für alle j gilt.
-        /// </summary>
-        /// <param name="points">Datenpunkte Q_j, j=0..m</param>
-        /// <param name="u">Vorgegebene Parameter u_j (streng aufsteigend), gleiche Länge wie points</param>
-        /// <param name="degree">Grad p (>=1)</param>
-        /// <returns>(Pole/Kontrollpunkte P_i, Knotenvektor U)</returns>
-        public static (List<GeoPoint2D> poles, double[] knots) Interpolate(
-            IReadOnlyList<GeoPoint2D> points,
-            IReadOnlyList<double> u,
-            int degree)
-        {
-            if (points == null) throw new ArgumentNullException(nameof(points));
-            if (u == null) throw new ArgumentNullException(nameof(u));
-            if (points.Count != u.Count) throw new ArgumentException("points und u müssen gleich lang sein.");
-            if (points.Count < 2) throw new ArgumentException("Mindestens 2 Punkte nötig.");
-            if (degree < 1) throw new ArgumentOutOfRangeException(nameof(degree), "degree muss >= 1 sein.");
-
-            int m = points.Count - 1;      // #data - 1
-            int p = degree;
-
-            if (p > m)
-                throw new ArgumentException($"degree={p} ist zu groß für {m + 1} Punkte. Es muss gelten: degree <= points.Count-1.");
-
-            // ---- 1) Knotenvektor (clamped) per Averaging aus gegebenen Parametern u_j ----
-            // n = m (gleich viele Pole wie Datenpunkte)
-            int n = m;
-            double[] U = BuildKnotVectorByAveraging(u, p); // length n+p+2 = m+p+2
-
-            // ---- 2) Interpolationsmatrix A aufbauen: A[j,i] = N_{i,p}(u_j) ----
-            var A = Matrix<double>.Build.Dense(m + 1, n + 1, 0.0);
-
-            for (int j = 0; j <= m; j++)
-            {
-                double uj = u[j];
-
-                // Robustheit: uj minimal in [U[0], U[last]] clampen (falls numerisch minimal drüber/drunter)
-                if (uj < U[0]) uj = U[0];
-                if (uj > U[U.Length - 1]) uj = U[U.Length - 1];
-
-                int span = FindSpan(n, p, uj, U);              // span k
-                double[] N = BasisFuns(span, uj, p, U);        // N[0..p] entspricht i=span-p..span
-
-                int i0 = span - p;
-                for (int r = 0; r <= p; r++)
-                {
-                    int i = i0 + r;
-                    if (i >= 0 && i <= n)
-                        A[j, i] = N[r];
-                }
-            }
-
-            // ---- 3) Rechte Seite (x und y getrennt) ----
-            var qx = Vector<double>.Build.Dense(m + 1);
-            var qy = Vector<double>.Build.Dense(m + 1);
-            for (int j = 0; j <= m; j++)
-            {
-                qx[j] = points[j].x;
-                qy[j] = points[j].y;
-            }
-
-            // ---- 4) Lösen: A * Px = Qx und A * Py = Qy ----
-            // LU ist ok; falls du es als Bandmatrix lösen willst, kann man das später optimieren.
-            var lu = A.LU();
-
-            var px = lu.Solve(qx);
-            var py = lu.Solve(qy);
-
-            var poles = new List<GeoPoint2D>(n + 1);
-            for (int i = 0; i <= n; i++)
-                poles.Add(new GeoPoint2D(px[i], py[i]));
-
-            return (poles, U);
-        }
-
-        /// <summary>
-        /// Offener (clamped) Knotenvektor aus gegebenen Parametern via Averaging.
-        /// Für m+1 Parameter u[0..m], Grad p, liefert Länge m+p+2.
-        /// </summary>
-        private static double[] BuildKnotVectorByAveraging(IReadOnlyList<double> u, int p)
-        {
-            int m = u.Count - 1;
-            int n = m;                 // Interpolation: n=m
-            int knotCount = n + p + 2; // m + p + 2
-            double[] U = new double[knotCount];
-
-            // clamp Anfang
-            for (int i = 0; i <= p; i++)
-                U[i] = u[0];
-
-            // innere Knoten: j=1..(m-p)
-            // U[j+p] = (1/p) * sum_{i=j..j+p-1} u[i]
-            for (int j = 1; j <= m - p; j++)
-            {
-                double s = 0.0;
-                for (int i = j; i <= j + p - 1; i++)
-                    s += u[i];
-
-                U[j + p] = s / p;
-            }
-
-            // clamp Ende
-            for (int i = m + 1; i <= m + p + 1; i++)
-                U[i] = u[m];
-
-            return U;
-        }
-
-        /// <summary>
-        /// FindSpan nach Piegl/Tiller: liefert k so dass U[k] <= u < U[k+1], Sonderfall u==U[n+1] => k=n.
-        /// </summary>
-        private static int FindSpan(int n, int p, double u, double[] U)
-        {
-            // Sonderfall: ganz am Ende
-            if (u >= U[n + 1]) return n;
-            if (u <= U[p]) return p;
-
-            int low = p;
-            int high = n + 1;
-            int mid = (low + high) / 2;
-
-            while (u < U[mid] || u >= U[mid + 1])
-            {
-                if (u < U[mid]) high = mid;
-                else low = mid;
-                mid = (low + high) / 2;
-            }
-            return mid;
-        }
-
-        /// <summary>
-        /// BasisFuns nach Piegl/Tiller: gibt N[0..p] für den gegebenen span zurück.
-        /// N[r] entspricht N_{span-p+r, p}(u)
-        /// </summary>
-        private static double[] BasisFuns(int span, double u, int p, double[] U)
-        {
-            double[] N = new double[p + 1];
-            double[] left = new double[p + 1];
-            double[] right = new double[p + 1];
-
-            N[0] = 1.0;
-
-            for (int j = 1; j <= p; j++)
-            {
-                left[j] = u - U[span + 1 - j];
-                right[j] = U[span + j] - u;
-
-                double saved = 0.0;
-                for (int r = 0; r < j; r++)
-                {
-                    double denom = right[r + 1] + left[j - r];
-                    // denom sollte >0 sein; bei exakt gleichen Knoten kann denom 0 werden
-                    double temp = (denom != 0.0) ? (N[r] / denom) : 0.0;
-
-                    N[r] = saved + right[r + 1] * temp;
-                    saved = left[j - r] * temp;
-                }
-                N[j] = saved;
-            }
-            return N;
-        }
-
-        public static void CompressKnotVector(IReadOnlyList<double> knots, out List<double> uniqueKnots, out List<int> multiplicities, double eps = 1e-10)
-        {
-            if (knots == null || knots.Count == 0)
-                throw new ArgumentException("Knotenvektor ist leer.");
-
-            uniqueKnots = new List<double>();
-            multiplicities = new List<int>();
-
-            double current = knots[0];
-            int count = 1;
-
-            for (int i = 1; i < knots.Count; i++)
-            {
-                if (Math.Abs(knots[i] - current) <= eps)
-                {
-                    count++;
-                }
-                else
-                {
-                    uniqueKnots.Add(current);
-                    multiplicities.Add(count);
-
-                    current = knots[i];
-                    count = 1;
-                }
-            }
-
-            // letztes Element
-            uniqueKnots.Add(current);
-            multiplicities.Add(count);
-        }
 
     }
 

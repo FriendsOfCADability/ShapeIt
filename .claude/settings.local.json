@@ -1,6 +1,8 @@
 {
   "permissions": {
     "allow": [
+      "PowerShell",
+      "Bash(dotnet *)",
       "PowerShell(dotnet build *)",
       "Bash(dotnet build *)",
       "Bash(dir \"%APPDATA%\\\\Claude\")",
@@ -136,7 +138,16 @@
       "PowerShell(dotnet build \"CADability\\\\CADability.csproj\" -c Debug -v q --no-incremental 2>&1 | Select-String -Pattern \": \\(warning|error\\) \" | ForEach-Object { if \\($_ -match \": \\(warning|error\\) \\([A-Z]+\\\\d+\\)\"\\) { $matches[1] + \" \" + $matches[2] } } | Group-Object | Sort-Object Count -Descending | Format-Table Count, Name -AutoSize)",
       "PowerShell(dotnet build \"CADability\\\\CADability.csproj\" -c Debug -v q --no-incremental 2>&1 | Select-String -Pattern \": warning CS0168\" | ForEach-Object { $_.Line.Trim\\(\\) } | Sort-Object -Unique)",
       "PowerShell(git -C \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\" status --short)",
-      "PowerShell(git -C \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\" add CADability/BSpline.cs CADability/CADability.csproj CADability/Frame.cs CADability/ImportDxf.cs CADability/Line.cs CADability/MoveObjects.cs CADability/PropertiesExplorerInterfaces.cs CADability/RotateObjects.cs CADability/ScaleObjects.cs CADability/SnapObjects.cs CADability/Surface.cs CADability/SurfaceOfLinearExtrusion.cs)"
+      "PowerShell(git -C \"C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\" add CADability/BSpline.cs CADability/CADability.csproj CADability/Frame.cs CADability/ImportDxf.cs CADability/Line.cs CADability/MoveObjects.cs CADability/PropertiesExplorerInterfaces.cs CADability/RotateObjects.cs CADability/ScaleObjects.cs CADability/SnapObjects.cs CADability/Surface.cs CADability/SurfaceOfLinearExtrusion.cs)",
+      "Bash(dotnet test *)",
+      "PowerShell(dotnet test *)",
+      "Bash(grep *)",
+      "Bash(dotnet test-server *)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Bash(python -c \"import json; json.load\\(open\\(r'C:\\\\Users\\\\gerha\\\\source\\\\repos\\\\ShapeIt\\\\.claude\\\\settings.local.json'\\)\\)\")",
+      "Bash(git -C \"C:/Users/gerha/source/repos/ShapeIt\" status --short)",
+      "Bash(echo \"exit: $?\")"
     ]
   }
 }

@@ -4739,114 +4739,53 @@ namespace CADability.GeoObject
             GeoPoint sp3d, ep3d; // start und enpunkt in 3d, der maximale Abstand zu dieser Linie wird gesucht
             sp3d = PointAt(sp);
             ep3d = PointAt(ep);
-            // Kurzfassung zur Überbrückung der Probleme an 3 Stellen messen:
+            // Adaptive sampling: split the segment at the surface's "safe" grid lines (knots,
+            // periodicity quadrants, ...), which mark where the surface's curvature behavior
+            // changes. Between two such crossings the deviation from the chord is assumed to
+            // have a single extremum, so 3 samples per sub-interval are enough - the same
+            // sampling the previous, non-adaptive version always used over the whole [0,1].
+            // Surfaces that don't override GetSaveUSteps/GetSaveVSteps (no known grid) fall
+            // back to exactly that previous behavior, since there are no crossings to split at.
+            List<double> breaks = new List<double>();
+            breaks.Add(0.0);
+            AddGridCrossings(GetSaveUSteps(), sp.x, ep.x, breaks);
+            AddGridCrossings(GetSaveVSteps(), sp.y, ep.y, breaks);
+            breaks.Add(1.0);
+            breaks.Sort();
+
             double max = 0;
             mp = GeoPoint2D.Origin; // wg. Compiler
-            for (double d = 0.25; d < 1; d += 0.25)
+            for (int i = 1; i < breaks.Count; ++i)
             {
-                GeoPoint2D mpd = new GeoPoint2D(sp, ep, d);
-                GeoPoint mp3d = PointAt(mpd);
-                double dd = Geometry.DistPL(mp3d, sp3d, ep3d);
-                if (dd > max)
+                double t0 = breaks[i - 1], t1 = breaks[i];
+                if (t1 - t0 < 1e-8) continue; // duplicate/coincident crossing, degenerate sub-interval
+                for (double d = 0.25; d < 1; d += 0.25)
                 {
-                    mp = mpd;
-                    max = dd;
+                    GeoPoint2D mpd = new GeoPoint2D(sp, ep, t0 + d * (t1 - t0));
+                    GeoPoint mp3d = PointAt(mpd);
+                    double dd = Geometry.DistPL(mp3d, sp3d, ep3d);
+                    if (dd > max)
+                    {
+                        mp = mpd;
+                        max = dd;
+                    }
                 }
             }
             return max;
 
-            //Unreachable code
-            /*
-            ParallelepipedHull.RawPointNormalAt(sp, out sp3d, out sn); // Punkt und Normale auf die Fläche am Startpunkt
-            ParallelepipedHull.RawPointNormalAt(ep, out ep3d, out en); // Punkt und Normale auf die Fläche am Startpunkt
-            d3d = ep3d - sp3d; // die Richtung der 3d-Linie
-            double md = -1.0;
-            mp = new GeoPoint2D(sp, ep); // falls kein Punkt gefunden wird
-            if (new SweepAngle(sn, en).Radian < 0.1)
-            {   // die Fläche könnte z.B. eine Ebene sein, bei der u oder v-Richtung gebogen sind.
-                // dann sind die Normalenvektoren alle gleich und immer senkrecht zu der Verbindung sp3d - ep3d
-                // newton liefert dann  Mist, deshalb hier einfach Bisektion:
-            }
-            else
+        }
+        // Adds t in (0,1) to breaks for every point where the sp->ep segment (parametrized as
+        // s + t*(e-s)) crosses one of the given grid coordinates (u- or v-steps).
+        private static void AddGridCrossings(double[] steps, double s, double e, List<double> breaks)
+        {
+            if (steps == null || steps.Length == 0) return;
+            double d = e - s;
+            if (Math.Abs(d) < 1e-12) return;
+            for (int i = 0; i < steps.Length; ++i)
             {
-                GeoPoint2D[] t = newtonFindTangent(d3d, sp, ep, sn, en, (sp | ep) * 1e-4);
-                for (int i = 0; i < t.Length; i++)
-                {
-                    GeoPoint2D p = t[i];
-                    double d = Geometry.DistPL(ParallelepipedHull.RawPointAt(p), sp3d, ep3d);
-                    if (d > md)
-                    {
-                        md = d;
-                        mp = t[i];
-                    }
-                }
+                double t = (steps[i] - s) / d;
+                if (t > 1e-8 && t < 1.0 - 1e-8) breaks.Add(t);
             }
-            if (md < 0)
-            {   // hier wie obige Bedingung oder nichts mit newton gefundn
-                // hier nicht "RawPointAt" verwenden, denn es gibt ein Problem bei einer in sich verzerrten Ebene. Da liefert diese Funktion falsche Ergebnisse
-                //GeoPoint mp0 = ParallelepipedHull.RawPointAt(sp);
-                //GeoPoint mp3 = ParallelepipedHull.RawPointAt(ep);
-                GeoPoint mp0 = sp3d = PointAt(sp);
-                GeoPoint mp3 = ep3d = PointAt(ep);
-                GeoPoint2D spi = sp; // schnurren zusammen
-                GeoPoint2D epi = ep;
-                for (int i = 0; i < 10; i++)
-                {
-                    //GeoPoint mp1 = ParallelepipedHull.RawPointAt(new GeoPoint2D(spi, epi, 1 / 3.0));
-                    //GeoPoint mp2 = ParallelepipedHull.RawPointAt(new GeoPoint2D(spi, epi, 2 / 3.0));
-                    GeoPoint mp1 = PointAt(new GeoPoint2D(spi, epi, 1 / 3.0));
-                    GeoPoint mp2 = PointAt(new GeoPoint2D(spi, epi, 2 / 3.0));
-                    if (Geometry.DistPL(mp1, sp3d, ep3d) < Geometry.DistPL(mp2, sp3d, ep3d))
-                    {   // am Anfang ersetzen
-                        spi = new GeoPoint2D(spi, epi, 1 / 3.0);
-                        mp0 = mp1;
-                    }
-                    else
-                    {   // am Ende ersetzen
-                        epi = new GeoPoint2D(spi, epi, 2 / 3.0);
-                        mp3 = mp2;
-                    }
-                }
-                mp = new GeoPoint2D(spi, epi);
-                md = Geometry.DistPL(PointAt(mp), sp3d, ep3d);
-            }
-#if DEBUG
-            //DebuggerContainer dc = new DebuggerContainer();
-            //Line dbgl = Line.Construct();
-            //dbgl.SetTwoPoints(PointAt(sp), PointAt(ep));
-            //dc.Add(dbgl);
-            //GeoPoint ppmm = PointAt(mp);
-            //Line dbgl1 = Line.Construct();
-            //dbgl1.SetTwoPoints(ppmm, PointAt(sp));
-            //dc.Add(dbgl1);
-            //Line dbgl2 = Line.Construct();
-            //dbgl2.SetTwoPoints(ppmm, PointAt(ep));
-            //dc.Add(dbgl2);
-            //GeoPoint[] pg1 = new GeoPoint[100];
-            //GeoPoint[] pg2 = new GeoPoint[100];
-            //for (int i = 0; i < 100; i++)
-            //{
-            //    GeoPoint2D uv = new GeoPoint2D(sp, ep, i / 100.0);
-            //    pg1[i] = PointAt(uv);
-            //    ParallelepipedHull.RawPointNormalAt(uv, out pg2[i], out sn); // Punkt und Normale auf die Fläche am Startpunkt
-            //}
-            //Polyline pl1 = Polyline.Construct();
-            //Polyline pl2 = Polyline.Construct();
-            //try
-            //{
-            //    pl1.SetPoints(pg1, false);
-            //    dc.Add(pl1, 1);
-            //}
-            //catch (PolylineException) { }
-            //try
-            //{
-            //    pl2.SetPoints(pg2, false);
-            //    dc.Add(pl2, 2);
-            //}
-            //catch (PolylineException) { }
-#endif
-            return md;
-            */
         }
         public virtual bool IsCurveOnSurface(ICurve curve)
         {

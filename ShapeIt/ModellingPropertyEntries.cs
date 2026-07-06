@@ -102,7 +102,7 @@ namespace ShapeIt
             feedback.Attach(cadFrame.ActiveView);
             FeedbackArrow.SetNumberFormat(cadFrame);
             ViewsChanged(cadFrame); // first initialisation
-            
+
             mcpServer = new MCPServer(cadFrame, cadFrame.Project);
             uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
@@ -212,7 +212,7 @@ namespace ShapeIt
             try
             {
                 string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                string url  = $"http://localhost:{port}/";
+                string url = $"http://localhost:{port}/";
 
                 RegisterInSettingsJson(IOPath.Combine(home, ".claude", "settings.json"), url);
                 RegisterInClaudeJson(IOPath.Combine(home, ".claude.json"), home, url);
@@ -256,11 +256,11 @@ namespace ShapeIt
             if (root == null) return;
 
             // The key may exist with either slash style depending on how it was originally created
-            string keyFwd  = home.Replace('\\', '/');
+            string keyFwd = home.Replace('\\', '/');
             string keyBack = home.Replace('/', '\\');
-            JsonObject? entryFwd  = root[keyFwd]?.AsObject();
+            JsonObject? entryFwd = root[keyFwd]?.AsObject();
             JsonObject? entryBack = root[keyBack]?.AsObject();
-            JsonObject  entry     = entryFwd ?? entryBack ?? new JsonObject();
+            JsonObject entry = entryFwd ?? entryBack ?? new JsonObject();
             if (entryFwd == null && entryBack == null)
                 root[keyFwd] = entry;
 
@@ -2769,6 +2769,9 @@ namespace ShapeIt
             HashSet<Face> faces = Shell.ConnectedSameGeometryFaces(new Face[] { fc }); // in case of half cylinders etc. use the whole cylinder
 
             // where did the user touch the face? We need this point for the display of the dimensioning arrow
+            if (!clickBeam.Location.IsValid || clickBeam.Direction.IsNullVector()) return null; // face inserted by clipboard insert
+
+            // check whether the clickBeam intersects the face
             GeoPoint2D[] ips2d = fc.Surface.GetLineIntersection(clickBeam.Location, clickBeam.Direction);
             if (ips2d.Length > 1)
             {
@@ -2792,6 +2795,7 @@ namespace ShapeIt
                     }
                 }
             }
+
             GeoPoint touchingPoint; // the point where to attach the dimension feedback
             if (ips2d.Length == 0) touchingPoint = fc.Surface.PointAt(fc.Area.GetSomeInnerPoint());
             else touchingPoint = fc.Surface.PointAt(ips2d[0]);

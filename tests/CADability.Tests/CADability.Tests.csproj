@@ -16,6 +16,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- These tests target Face.GetSimpleTriangulationCDT / ...RecursiveSplit and
+         TriangulationDebugCounters, which only exist in the CDTriangulation prototype
+         worktree, not (yet) in this tree. Re-include them once that work is merged. -->
+    <Compile Remove="CDTriangulationTests.cs" />
+    <Compile Remove="RecursiveSplitDiagnosticTests.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="Files\**\*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

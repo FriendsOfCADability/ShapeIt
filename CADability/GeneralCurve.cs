@@ -916,7 +916,7 @@ namespace CADability.GeoObject
                 if (result.ReasonForExit == ExitCondition.Converged ||
                     result.ReasonForExit == ExitCondition.RelativeGradient ||
                     result.ReasonForExit == ExitCondition.RelativePoints)
-                    // result.ReasonForExit == ExitCondition.BoundTolerance
+                // result.ReasonForExit == ExitCondition.BoundTolerance
                 {
                     u = Math.Max(0.0, Math.Min(1.0, result.MinimizingPoint[0]));
                     return true;
@@ -1580,6 +1580,25 @@ namespace CADability.GeoObject
             get
             {
                 return tetraederVertex;
+            }
+        }
+        private BVHTree bVHTree;
+
+        public BVHTree BVHTree
+        {
+            get
+            {
+                if (bVHTree == null)
+                {
+                    BoundingBox[] boundingBoxes = new BoundingBox[tetraederBase.Length - 1];
+                    for (int i = 0; i < boundingBoxes.Length; ++i)
+                    {
+                        BoundingBox bb = new BoundingBox(tetraederBase[i], tetraederBase[i + 1], tetraederVertex[2 * i], tetraederVertex[2 * i + 1]);
+                        boundingBoxes[i] = bb;
+                    }
+                    bVHTree = new BVHTree(boundingBoxes);
+                }
+                return bVHTree;
             }
         }
         private OctTree<CurveTetraeder> octTree;
