@@ -61,11 +61,14 @@ namespace ShapeIt
             var toolsArr = definition["tools"]?.AsArray();
             if (toolsArr == null) return new JsonArray();
 
+            // The shared type definitions are kept as-is and referenced from each tool via
+            // standard JSON Schema "$defs" + "$ref". They are never mutated here; every copy
+            // placed into a tool's "$defs" is cloned first.
             var types = new Dictionary<string, JsonNode>(StringComparer.Ordinal);
             if (typesObj != null)
                 foreach (var kv in typesObj)
                     if (kv.Value != null)
-                        types[kv.Key] = kv.Value.DeepClone();
+                        types[kv.Key] = kv.Value;
 
             var result = new JsonArray();
             foreach (var toolNode in toolsArr)
@@ -73,8 +76,42 @@ namespace ShapeIt
                 if (toolNode == null) continue;
                 var tool = toolNode.DeepClone().AsObject();
 
-                if (tool["inputSchema"] is JsonNode schema)
-                    tool["inputSchema"] = ResolveRefs(schema, types, new HashSet<string>(StringComparer.Ordinal));
+                if (tool["inputSchema"] is JsonObject schema)
+                {
+                    // Rewrite "#/types/X" refs to "#/$defs/X" and gather the transitive closure
+                    // of referenced types. Each tool then carries a compact, self-contained
+                    // "$defs" section (one copy per needed type) instead of the fully inlined
+                    // definitions, which duplicated large recursive types (Selector -> Query ->
+                    // filters -> expressions) at every ref site and bloated the payload ~16x.
+                    var needed = new HashSet<string>(StringComparer.Ordinal);
+                    CollectRefs(schema, needed);
+                    RewriteRefsInPlace(schema);
+
+                    var closure = new HashSet<string>(StringComparer.Ordinal);
+                    var queue = new Queue<string>(needed);
+                    while (queue.Count > 0)
+                    {
+                        string name = queue.Dequeue();
+                        if (!closure.Add(name)) continue;
+                        if (!types.TryGetValue(name, out var def)) continue;
+                        CollectRefs(def, needed); // reuse buffer; enqueue any not yet closed
+                        foreach (var r in needed)
+                            if (!closure.Contains(r)) queue.Enqueue(r);
+                    }
+
+                    if (closure.Count > 0)
+                    {
+                        var defs = new JsonObject();
+                        foreach (var name in closure)
+                        {
+                            if (!types.TryGetValue(name, out var def)) continue;
+                            var clone = def.DeepClone();
+                            RewriteRefsInPlace(clone);
+                            defs[name] = clone;
+                        }
+                        schema["$defs"] = defs;
+                    }
+                }
 
                 StripInternalFields(tool);
                 result.Add(tool);
@@ -83,48 +120,42 @@ namespace ShapeIt
             return result;
         }
 
-        // Recursively replace "#/types/X" $ref nodes with the actual type definition inline.
-        // A resolving set prevents infinite recursion on hypothetical self-referencing types.
-        private static JsonNode ResolveRefs(JsonNode node, Dictionary<string, JsonNode> types, HashSet<string> resolving)
+        // Collect the names of all "#/types/X" $ref targets found in the subtree (read-only).
+        private static void CollectRefs(JsonNode? node, HashSet<string> found)
         {
             if (node is JsonObject obj)
             {
                 if (obj["$ref"] is JsonValue refVal && refVal.TryGetValue<string>(out var refStr)
                     && refStr.StartsWith("#/types/", StringComparison.Ordinal))
-                {
-                    string typeName = refStr["#/types/".Length..];
-                    if (!resolving.Contains(typeName) && types.TryGetValue(typeName, out var typeDef))
-                    {
-                        resolving.Add(typeName);
-                        var resolved = ResolveRefs(typeDef.DeepClone(), types, resolving);
-                        resolving.Remove(typeName);
-
-                        // Merge extra properties from the ref site (e.g. a "description" override)
-                        if (resolved is JsonObject resolvedObj)
-                            foreach (var prop in obj)
-                                if (prop.Key != "$ref" && !resolvedObj.ContainsKey(prop.Key) && prop.Value != null)
-                                    resolvedObj[prop.Key] = prop.Value.DeepClone();
-
-                        return resolved;
-                    }
-                    return node.DeepClone(); // unresolvable ref, leave as-is
-                }
-
-                var newObj = new JsonObject();
+                    found.Add(refStr["#/types/".Length..]);
                 foreach (var prop in obj)
-                    newObj[prop.Key] = prop.Value == null ? null : ResolveRefs(prop.Value, types, resolving);
-                return newObj;
+                    CollectRefs(prop.Value, found);
             }
-
-            if (node is JsonArray arr)
+            else if (node is JsonArray arr)
             {
-                var newArr = new JsonArray();
                 foreach (var item in arr)
-                    newArr.Add(item == null ? null : ResolveRefs(item, types, resolving));
-                return newArr;
+                    CollectRefs(item, found);
             }
+        }
 
-            return node.DeepClone();
+        // Rewrite every "#/types/X" $ref to "#/$defs/X" in place, so refs resolve against the
+        // tool's own "$defs" section. Sibling keywords next to $ref (e.g. a "description"
+        // override) are preserved as-is (valid under JSON Schema 2020-12).
+        private static void RewriteRefsInPlace(JsonNode? node)
+        {
+            if (node is JsonObject obj)
+            {
+                if (obj["$ref"] is JsonValue refVal && refVal.TryGetValue<string>(out var refStr)
+                    && refStr.StartsWith("#/types/", StringComparison.Ordinal))
+                    obj["$ref"] = "#/$defs/" + refStr["#/types/".Length..];
+                foreach (var prop in obj)
+                    RewriteRefsInPlace(prop.Value);
+            }
+            else if (node is JsonArray arr)
+            {
+                foreach (var item in arr)
+                    RewriteRefsInPlace(item);
+            }
         }
 
         // Remove fields that are internal tooling annotations and not part of JSON Schema

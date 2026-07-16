@@ -327,6 +327,9 @@
 				}
 			]
 		},
+		"ExpressionAny": {
+			"description": "A literal value or an expression evaluated in the current workspace context. Accepts a number, integer, boolean, string expression, or a structured value (array/object), mirroring the value types accepted by workspace.set."
+		},
 		"ExpressionBBox": {
 			"type": "object",
 			"description": "A literal value or expression for an axis-aligned bounding box in 3D.",
