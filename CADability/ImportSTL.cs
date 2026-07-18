@@ -1,242 +1,135 @@
-﻿using CADability.GeoObject;
+using CADability.GeoObject;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
-using Wintellect.PowerCollections;
 
 namespace CADability
 {
+    /// <summary>
+    /// Imports STL files. The triangles are collected in a lightweight <see cref="StlTriangleMesh"/> (no BRep
+    /// objects are created for the individual triangles, which used to make big STL files unusable). The mesh is
+    /// then passed to <see cref="StlSurfaceReconstruction"/>, which segments the triangles into regions of small
+    /// bending angles and tries to recognize standard surfaces (plane, cylinder, cone, sphere, torus).
+    /// This is work in progress (stage 1 of the STL reverse engineering): <see cref="Read(string)"/> currently
+    /// returns an empty array, the recognized surfaces are provided as raw faces (bounded by their uv extent, not
+    /// by the true outline) in <see cref="RecognizedFaces"/> for visual inspection.
+    /// </summary>
     public class ImportSTL
     {
         private StreamReader sr;
         private bool isASCII;
         private BinaryReader br;
-        private int numdec = 0, numnum = 0;
+        private int numdec = 0, numnum = 0; // to estimate the coordinate resolution of ASCII files from the number of decimal places
 
         public ImportSTL()
         {
-            // settings for precision etc
         }
-        class triangle
-        {
-            public GeoPoint p1, p2, p3;
-
-            public triangle(GeoPoint p1, GeoPoint p2, GeoPoint p3, GeoVector normal)
-            {
-                if (((p2 - p1) ^ (p3 - p2)) * normal > 0)
-                {
-                    this.p1 = p1;
-                    this.p2 = p2;
-                    this.p3 = p3;
-                }
-                else
-                {
-                    this.p1 = p1;
-                    this.p2 = p3;
-                    this.p3 = p2;
-                }
-            }
-        }
+        /// <summary>
+        /// After a call to <see cref="Read(string)"/> this list contains the recognition result: for each recognized
+        /// region a raw face on the fitted surface, colored by surface type (plane: green, cylinder: blue,
+        /// cone: orange, sphere: red, torus: violet); unrecognized regions as gray triangles.
+        /// </summary>
+        public GeoObjectList RecognizedFaces { get; private set; }
+        /// <summary>
+        /// The triangle mesh created by the last call to <see cref="Read(string)"/>.
+        /// </summary>
+        public StlTriangleMesh Mesh { get; private set; }
+        /// <summary>
+        /// The result of the surface recognition of the last call to <see cref="Read(string)"/>.
+        /// </summary>
+        public StlSurfaceReconstruction Reconstruction { get; private set; }
+        /// <summary>
+        /// When true (the default), <see cref="Read(string)"/> also builds the raw faces (<see cref="RecognizedFaces"/>).
+        /// Set to false to only run the surface recognition (populates <see cref="StlSurfaceReconstruction.Regions"/>),
+        /// which skips the still fragile / incomplete stage 2 face building.
+        /// </summary>
+        public bool BuildRawFaces { get; set; } = true;
 
         public Shell[] Read(string fileName)
         {
-            List<Shell> res = new List<Shell>();
-
-            using (sr = new StreamReader(fileName)) // may throw exceptions like "file not found" etc.
+            using (FileStream fs = File.OpenRead(fileName)) // may throw exceptions like "file not found" etc.
             {
-                char[] head = new char[5];
-                int read = sr.ReadBlock(head, 0, 5);
-                if (read != 5) throw new ApplicationException("cannot read from file");
-                if (new string(head) == "solid") isASCII = true;
-                else isASCII = false;
+                return Read(fs);
             }
-            if (isASCII)
-            {
-                sr = new StreamReader(fileName);
-                string title = sr.ReadLine();
-            }
-            else
-            {
-                br = new BinaryReader(File.Open(fileName, FileMode.Open));
-                br.ReadBytes(80);
-                uint nrtr = br.ReadUInt32();
-            }
-            OctTree<Vertex> verticesOctTree = null;
-            triangle tr;
-            int cnt = 0;
-            Set<Face> allFaces = new Set<Face>();
-            GeoObjectList dbgl = new GeoObjectList();
-            do
-            {
-                tr = GetNextTriangle();
-                if (tr == null) break;
-                if (verticesOctTree == null) verticesOctTree = new OctTree<Vertex>(new BoundingBox(tr.p1, tr.p2, tr.p3), 1e-6);
-                try
-                {
-                    PlaneSurface ps = new PlaneSurface(tr.p1, tr.p2, tr.p3);
-                    Vertex v1 = VertexFromPoint(verticesOctTree, tr.p1);
-                    Vertex v2 = VertexFromPoint(verticesOctTree, tr.p2);
-                    Vertex v3 = VertexFromPoint(verticesOctTree, tr.p3);
-                    Edge e1 = Vertex.SingleConnectingEdge(v1, v2);
-                    if (e1 != null && e1.SecondaryFace != null)
-                    { }
-                    if (e1 == null || e1.SecondaryFace != null) e1 = new Edge(Line.TwoPoints(v1.Position, v2.Position), v1, v2);
-                    Edge e2 = Vertex.SingleConnectingEdge(v2, v3);
-                    if (e2 != null && e2.SecondaryFace != null)
-                    { }
-                    if (e2 == null || e2.SecondaryFace != null) e2 = new Edge(Line.TwoPoints(v2.Position, v3.Position), v2, v3);
-                    Edge e3 = Vertex.SingleConnectingEdge(v3, v1);
-                    if (e3 != null && e3.SecondaryFace != null)
-                    { }
-                    if (e3 == null || e3.SecondaryFace != null) e3 = new Edge(Line.TwoPoints(v3.Position, v1.Position), v3, v1);
-                    dbgl.Add(Line.TwoPoints(v1.Position, v2.Position));
-                    dbgl.Add(Line.TwoPoints(v2.Position, v3.Position));
-                    dbgl.Add(Line.TwoPoints(v3.Position, v1.Position));
-                    Face fc = Face.Construct();
-                    fc.Surface = ps;
-                    //Line2D l1 = new Line2D(ps.Plane.Project(tr.p1), ps.Plane.Project(tr.p2));
-                    //Line2D l2 = new Line2D(ps.Plane.Project(tr.p2), ps.Plane.Project(tr.p3));
-                    //Line2D l3 = new Line2D(ps.Plane.Project(tr.p3), ps.Plane.Project(tr.p1));
-                    //if (e1.PrimaryFace == null) e1.SetPrimary(fc, l1, true);
-                    //else e1.SetSecondary(fc, l1, false);
-                    //if (e2.PrimaryFace == null) e2.SetPrimary(fc, l2, true);
-                    //else e2.SetSecondary(fc, l2, false);
-                    //if (e3.PrimaryFace == null) e3.SetPrimary(fc, l3, true);
-                    //else e3.SetSecondary(fc, l3, false);
-                    e1.SetFace(fc, e1.Vertex1 == v1);
-                    e2.SetFace(fc, e2.Vertex1 == v2);
-                    e3.SetFace(fc, e3.Vertex1 == v3);
-                    fc.Set(ps, new Edge[][] { new Edge[] { e1, e2, e3 } });
-                    allFaces.Add(fc);
-                    ++cnt;
-                }
-                catch (ModOpException)
-                {
-                    // empty triangle, plane construction failed
-                }
-            } while (tr != null);
-            while (!allFaces.IsEmpty())
-            {
-                Shell part = Shell.CollectConnected(allFaces);
-#if DEBUG
-                // TODO: some mechanism to tell whether and how to reverse engineer the stl file
-                double precision;
-                if (numnum == 0) precision = part.GetExtent(0.0).Size * 1e-5;
-                else precision = Math.Pow(10, -numdec / (double)(numnum)); // numdec/numnum is average number of decimal places
-                part.ReconstructSurfaces(precision);
-#endif
-                res.Add(part);
-            }
-            return res.ToArray();
         }
-
 
         public Shell[] Read(byte[] byteArray)
         {
-            List<Shell> res = new List<Shell>();
-
-            using (sr = new StreamReader(new MemoryStream(byteArray))) // may throw exceptions like "file not found" etc.
+            using (MemoryStream ms = new MemoryStream(byteArray))
             {
-                char[] head = new char[5];
-                int read = sr.ReadBlock(head, 0, 5);
-                if (read != 5) throw new ApplicationException("cannot read from file");
-                if (new string(head) == "solid") isASCII = true;
-                else isASCII = false;
+                return Read(ms);
             }
+        }
+
+        public Shell[] Read(Stream stream)
+        {
+            long startPosition = stream.Position;
+            byte[] head = new byte[5];
+            if (stream.Read(head, 0, 5) != 5) throw new ApplicationException("cannot read from stream");
+            isASCII = head[0] == 's' && head[1] == 'o' && head[2] == 'l' && head[3] == 'i' && head[4] == 'd';
+            stream.Position = startPosition;
+            StlTriangleMesh mesh = ReadMesh(stream);
+            if (mesh.TriangleCount == 0 && isASCII)
+            {   // some binary STL files also start with "solid": try again in binary mode
+                isASCII = false;
+                numdec = numnum = 0;
+                stream.Position = startPosition;
+                mesh = ReadMesh(stream);
+            }
+            mesh.Finish();
+            Mesh = mesh;
+            RecognizedFaces = new GeoObjectList();
+            Reconstruction = null;
+            if (mesh.TriangleCount > 0)
+            {
+                double extent = mesh.Extent.Size;
+                double precision;
+                if (numnum > 0) precision = Math.Pow(10, -numdec / (double)numnum); // numdec/numnum is the average number of decimal places
+                else precision = extent * 1e-5; // binary STL: single precision floats
+                precision = Math.Max(Math.Min(precision, extent * 1e-3), extent * 1e-7);
+                Reconstruction = new StlSurfaceReconstruction(mesh, precision);
+                if (BuildRawFaces)
+                {
+                    GeoObjectList rawFaces = Reconstruction.CreateRawFaces(); // inspect this list in the debugger to see the result
+                    RecognizedFaces = rawFaces;
+                }
+                else
+                {
+                    Reconstruction.Recognize(); // populate Regions only, skip the (stage 2) raw face building
+                }
+            }
+            // TODO (stage 2): build a Shell from the recognized surfaces with proper edges (intersection curves of
+            // adjacent surfaces) and return it here
+            return new Shell[0];
+        }
+
+        private StlTriangleMesh ReadMesh(Stream stream)
+        {
+            StlTriangleMesh mesh = new StlTriangleMesh();
+            uint expectedTriangles = uint.MaxValue;
             if (isASCII)
             {
-                sr = new StreamReader(new MemoryStream(byteArray));
-                string title = sr.ReadLine();
+                sr = new StreamReader(stream);
+                br = null;
+                sr.ReadLine(); // the "solid ..." title line
             }
             else
             {
-                br = new BinaryReader(new MemoryStream(byteArray));
-                br.ReadBytes(80);
-                uint nrtr = br.ReadUInt32();
+                br = new BinaryReader(stream);
+                sr = null;
+                br.ReadBytes(80); // the header
+                expectedTriangles = br.ReadUInt32();
             }
-            OctTree<Vertex> verticesOctTree = null;
-            triangle tr;
-            int cnt = 0;
-            Set<Face> allFaces = new Set<Face>();
-            GeoObjectList dbgl = new GeoObjectList();
-            do
+            for (uint i = 0; i < expectedTriangles; i++)
             {
-                tr = GetNextTriangle();
-                if (tr == null) break;
-                if (verticesOctTree == null) verticesOctTree = new OctTree<Vertex>(new BoundingBox(tr.p1, tr.p2, tr.p3), 1e-6);
-                try
-                {
-                    PlaneSurface ps = new PlaneSurface(tr.p1, tr.p2, tr.p3);
-                    Vertex v1 = VertexFromPoint(verticesOctTree, tr.p1);
-                    Vertex v2 = VertexFromPoint(verticesOctTree, tr.p2);
-                    Vertex v3 = VertexFromPoint(verticesOctTree, tr.p3);
-                    Edge e1 = Vertex.SingleConnectingEdge(v1, v2);
-                    if (e1 != null && e1.SecondaryFace != null)
-                    { }
-                    if (e1 == null || e1.SecondaryFace != null) e1 = new Edge(Line.TwoPoints(v1.Position, v2.Position), v1, v2);
-                    Edge e2 = Vertex.SingleConnectingEdge(v2, v3);
-                    if (e2 != null && e2.SecondaryFace != null)
-                    { }
-                    if (e2 == null || e2.SecondaryFace != null) e2 = new Edge(Line.TwoPoints(v2.Position, v3.Position), v2, v3);
-                    Edge e3 = Vertex.SingleConnectingEdge(v3, v1);
-                    if (e3 != null && e3.SecondaryFace != null)
-                    { }
-                    if (e3 == null || e3.SecondaryFace != null) e3 = new Edge(Line.TwoPoints(v3.Position, v1.Position), v3, v1);
-                    dbgl.Add(Line.TwoPoints(v1.Position, v2.Position));
-                    dbgl.Add(Line.TwoPoints(v2.Position, v3.Position));
-                    dbgl.Add(Line.TwoPoints(v3.Position, v1.Position));
-                    Face fc = Face.Construct();
-                    fc.Surface = ps;
-                    //Line2D l1 = new Line2D(ps.Plane.Project(tr.p1), ps.Plane.Project(tr.p2));
-                    //Line2D l2 = new Line2D(ps.Plane.Project(tr.p2), ps.Plane.Project(tr.p3));
-                    //Line2D l3 = new Line2D(ps.Plane.Project(tr.p3), ps.Plane.Project(tr.p1));
-                    //if (e1.PrimaryFace == null) e1.SetPrimary(fc, l1, true);
-                    //else e1.SetSecondary(fc, l1, false);
-                    //if (e2.PrimaryFace == null) e2.SetPrimary(fc, l2, true);
-                    //else e2.SetSecondary(fc, l2, false);
-                    //if (e3.PrimaryFace == null) e3.SetPrimary(fc, l3, true);
-                    //else e3.SetSecondary(fc, l3, false);
-                    e1.SetFace(fc, e1.Vertex1 == v1);
-                    e2.SetFace(fc, e2.Vertex1 == v2);
-                    e3.SetFace(fc, e3.Vertex1 == v3);
-                    fc.Set(ps, new Edge[][] { new Edge[] { e1, e2, e3 } });
-                    allFaces.Add(fc);
-                    ++cnt;
-                }
-                catch (ModOpException)
-                {
-                    // empty triangle, plane construction failed
-                }
-            } while (tr != null);
-            while (!allFaces.IsEmpty())
-            {
-                Shell part = Shell.CollectConnected(allFaces);
-#if DEBUG
-                // TODO: some mechanism to tell whether and how to reverse engineer the stl file
-                double precision;
-                if (numnum == 0) precision = part.GetExtent(0.0).Size * 1e-5;
-                else precision = Math.Pow(10, -numdec / (double)(numnum)); // numdec/numnum is average number of decimal places
-                part.ReconstructSurfaces(precision);
-#endif
-                res.Add(part);
+                if (!GetNextTriangle(out GeoPoint p1, out GeoPoint p2, out GeoPoint p3, out GeoVector normal)) break;
+                // the normal of the STL file determines the orientation, the vertex order in the mesh is made consistent with it
+                if (((p2 - p1) ^ (p3 - p2)) * normal >= 0) mesh.AddTriangle(p1, p2, p3);
+                else mesh.AddTriangle(p1, p3, p2);
             }
-            return res.ToArray();
-        }
-
-        private Vertex VertexFromPoint(OctTree<Vertex> verticesOctTree, GeoPoint closeTo)
-        {
-            Vertex[] close = verticesOctTree.GetObjectsFromPoint(closeTo);
-            for (int i = 0; i < close.Length; i++)
-            {
-                if ((close[i].Position | closeTo) == 0.0)
-                {
-                    return close[i];
-                }
-            }
-            Vertex res = new Vertex(closeTo);
-            verticesOctTree.AddObject(res);
-            return res;
+            sr = null;
+            br = null; // the underlying stream is closed by the caller
+            return mesh;
         }
 
         private void accumulatePrecision(params string[] number)
@@ -250,64 +143,68 @@ namespace CADability
                 }
             }
         }
-        private triangle GetNextTriangle()
+
+        private bool ParseVertex(string line, string expectedTag, out GeoPoint p)
         {
+            p = GeoPoint.Origin;
+            if (line == null) return false;
+            string[] parts = line.Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 4 || parts[0] != expectedTag) return false;
+            NumberStyles style = NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign;
+            if (!double.TryParse(parts[1], style, CultureInfo.InvariantCulture, out double x)) return false;
+            if (!double.TryParse(parts[2], style, CultureInfo.InvariantCulture, out double y)) return false;
+            if (!double.TryParse(parts[3], style, CultureInfo.InvariantCulture, out double z)) return false;
+            accumulatePrecision(parts[1], parts[2], parts[3]);
+            p = new GeoPoint(x, y, z);
+            return true;
+        }
+
+        private bool GetNextTriangle(out GeoPoint p1, out GeoPoint p2, out GeoPoint p3, out GeoVector normal)
+        {
+            p1 = p2 = p3 = GeoPoint.Origin;
+            normal = GeoVector.NullVector;
             if (isASCII)
             {
-                if (sr.EndOfStream) return null;
                 try
                 {
-                    string[] facet = sr.ReadLine().Trim().Split(' ');
-                    if (facet.Length != 5 || facet[0] != "facet" || facet[1] != "normal") return null;
-                    if (!double.TryParse(facet[2], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double nx)) return null;
-                    if (!double.TryParse(facet[3], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double ny)) return null;
-                    if (!double.TryParse(facet[4], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double nz)) return null;
-                    accumulatePrecision(facet[2], facet[3], facet[4]);
-                    if (sr.ReadLine().Trim() != "outer loop") return null;
-                    string[] vertex = sr.ReadLine().Trim().Split(' ');
-                    if (vertex.Length != 4 || vertex[0] != "vertex") return null;
-                    if (!double.TryParse(vertex[1], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p1x)) return null;
-                    if (!double.TryParse(vertex[2], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p1y)) return null;
-                    if (!double.TryParse(vertex[3], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p1z)) return null;
-                    accumulatePrecision(vertex[1], vertex[2], vertex[3]);
-                    vertex = sr.ReadLine().Trim().Split(' ');
-                    if (vertex.Length != 4 || vertex[0] != "vertex") return null;
-                    if (!double.TryParse(vertex[1], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p2x)) return null;
-                    if (!double.TryParse(vertex[2], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p2y)) return null;
-                    if (!double.TryParse(vertex[3], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p2z)) return null;
-                    accumulatePrecision(vertex[1], vertex[2], vertex[3]);
-                    vertex = sr.ReadLine().Trim().Split(' ');
-                    if (vertex.Length != 4 || vertex[0] != "vertex") return null;
-                    if (!double.TryParse(vertex[1], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p3x)) return null;
-                    if (!double.TryParse(vertex[2], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p3y)) return null;
-                    if (!double.TryParse(vertex[3], NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out double p3z)) return null;
-                    accumulatePrecision(vertex[1], vertex[2], vertex[3]);
-                    if (sr.ReadLine().Trim() != "endloop") return null;
-                    if (sr.ReadLine().Trim() != "endfacet") return null;
-                    triangle res = new triangle(new GeoPoint(p1x, p1y, p1z), new GeoPoint(p2x, p2y, p2z), new GeoPoint(p3x, p3y, p3z), new GeoVector(nx, ny, nz));
-                    return res;
+                    if (sr.EndOfStream) return false;
+                    string line = sr.ReadLine();
+                    if (line == null) return false;
+                    string[] facet = line.Trim().Split(new char[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (facet.Length != 5 || facet[0] != "facet" || facet[1] != "normal") return false; // e.g. "endsolid"
+                    NumberStyles style = NumberStyles.AllowDecimalPoint | NumberStyles.AllowExponent | NumberStyles.AllowLeadingSign;
+                    if (!double.TryParse(facet[2], style, CultureInfo.InvariantCulture, out double nx)) return false;
+                    if (!double.TryParse(facet[3], style, CultureInfo.InvariantCulture, out double ny)) return false;
+                    if (!double.TryParse(facet[4], style, CultureInfo.InvariantCulture, out double nz)) return false;
+                    if (sr.ReadLine()?.Trim() != "outer loop") return false;
+                    if (!ParseVertex(sr.ReadLine(), "vertex", out p1)) return false;
+                    if (!ParseVertex(sr.ReadLine(), "vertex", out p2)) return false;
+                    if (!ParseVertex(sr.ReadLine(), "vertex", out p3)) return false;
+                    if (sr.ReadLine()?.Trim() != "endloop") return false;
+                    if (sr.ReadLine()?.Trim() != "endfacet") return false;
+                    normal = new GeoVector(nx, ny, nz);
+                    return true;
                 }
                 catch (IOException)
                 {
-                    return null;
+                    return false;
                 }
             }
             else
             {
-                if (br.BaseStream.Position >= br.BaseStream.Length) return null;
                 try
                 {
-                    GeoVector normal = new GeoVector(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                    GeoPoint p1 = new GeoPoint(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                    GeoPoint p2 = new GeoPoint(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                    GeoPoint p3 = new GeoPoint(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
-                    int attr = br.ReadUInt16();
-                    triangle res = new triangle(p1, p2, p3, normal);
-                    return res;
+                    if (br.BaseStream.Position + 50 > br.BaseStream.Length) return false; // 12 floats + 2 bytes attribute
+                    normal = new GeoVector(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                    p1 = new GeoPoint(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                    p2 = new GeoPoint(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                    p3 = new GeoPoint(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                    br.ReadUInt16(); // attribute byte count, unused
+                    return true;
                 }
                 catch (EndOfStreamException)
                 {
-                    return null;
+                    return false;
                 }
             }
         }

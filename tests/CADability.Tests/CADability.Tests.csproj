@@ -21,6 +21,7 @@
          worktree, not (yet) in this tree. Re-include them once that work is merged. -->
     <Compile Remove="CDTriangulationTests.cs" />
     <Compile Remove="RecursiveSplitDiagnosticTests.cs" />
+    <Compile Remove="TriangulationQualityTests.cs" />
   </ItemGroup>
 
   <ItemGroup>

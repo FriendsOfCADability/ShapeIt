@@ -1428,7 +1428,7 @@ namespace CADability.GeoObject
                     if (tp.Length > 0)
                     {
                         if (tp.Length == 1) r2 = Math.Abs(tp[0].x);
-                        if (Math.Abs(tp[0].x) < Math.Abs(tp[1].x))
+                        else if (Math.Abs(tp[0].x) < Math.Abs(tp[1].x))
                         {
                             r2 = Math.Abs(tp[1].x);
                         }
