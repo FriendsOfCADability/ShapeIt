@@ -138,10 +138,12 @@ public class PropertyPageControl : Control
         if (_page != null)
         {
             _page.Changed -= OnPageChanged;
+            _page.SelectionChanged -= OnSelectionChanged;
             _page.ShowTextBoxRequested -= OnShowTextBoxRequested;
         }
         _page = page;
         _page.Changed += OnPageChanged;
+        _page.SelectionChanged += OnSelectionChanged;
         _page.ShowTextBoxRequested += OnShowTextBoxRequested;
         OnPageChanged();
     }
@@ -181,6 +183,11 @@ public class PropertyPageControl : Control
     // then commits the edit after a single keystroke (you couldn't type "44"). Set by the explorer.
     private bool _editing;
     public void SetEditing(bool v) => _editing = v;
+
+    // Set by OnSelectionChanged when a value-editable entry becomes selected before the control has
+    // been laid out (no valid metrics yet). Render flushes it once metrics are available, so the
+    // floating value editor still opens (e.g. a ConstructAction's first input selected in OnActivate).
+    private IPropertyEntry? _pendingEditEntry;
 
     private void OnPageChanged()
     {
@@ -249,6 +256,21 @@ public class PropertyPageControl : Control
         // Label extension overlay drawn last so it sits on top of the value column.
         if (_labelExtensionIdx >= 0 && _labelExtensionIdx < _entries.Count)
             DrawLabelExtension(ctx, _labelExtensionIdx, w);
+
+        // A selection wanted to open its value editor before the control was laid out (deferred from
+        // OnSelectionChanged). Metrics (_middle / _lineHeight) are valid now, so open it after this
+        // render pass completes — as long as the entry is still the current selection.
+        if (_pendingEditEntry != null)
+        {
+            var pending = _pendingEditEntry;
+            _pendingEditEntry = null;
+            if (pending == _page?.GetCurrentSelection())
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (pending == _page?.GetCurrentSelection())
+                        TryOpenValueEditor(pending);
+                }, DispatcherPriority.Loaded);
+        }
     }
 
     private void DrawEntry(DrawingContext ctx, int idx,
@@ -271,6 +293,7 @@ public class PropertyPageControl : Control
         bool  hasDirectMenu = flags.HasFlag(PropertyEntryType.DirectMenu);
         bool  hasOKBtn      = flags.HasFlag(PropertyEntryType.OKButton);
         bool  hasCancelBtn  = flags.HasFlag(PropertyEntryType.CancelButton);
+        bool  hasLock       = flags.HasFlag(PropertyEntryType.Lockable);
         // Total pixel width reserved by OK (✔) and Cancel (✖) buttons on the right edge.
         // Each button is _lineHeight wide — same as WinForms (area.Height).
         double okCancelWidth = (hasOKBtn ? _lineHeight : 0) + (hasCancelBtn ? _lineHeight : 0);
@@ -403,6 +426,7 @@ public class PropertyPageControl : Control
         {
             double vRight = w
                 - (hasCtx       ? _buttonWidth : 0)
+                - (hasLock      ? _buttonWidth : 0)
                 - (hasDD        ? _buttonWidth : 0)
                 - okCancelWidth;
             PutValueText(ctx, e.Value!, new Rect(_middle, y, Math.Max(0, vRight - _middle), _lineHeight));
@@ -428,6 +452,19 @@ public class PropertyPageControl : Control
             double gp = rd * 2.5;                    // vertical spacing between dot centres
             foreach (double dy in new[] { -gp, 0.0, gp })
                 ctx.DrawEllipse(BrushText, null, new Point(cx, cy + dy), rd, rd);
+        }
+
+        // Lock 🔒/🔓 button — sits directly left of the ContextMenu column (mirrors
+        // WinForms, where the lock is drawn just before the ⋮ dots). Lockable entries
+        // are construct-action inputs that have a default value: a closed padlock means
+        // the input is already satisfied by its default and needs no entry, an open one
+        // means it is being edited. Clicking toggles IsLocked via ButtonClicked(locked).
+        if (hasLock)
+        {
+            double lockLeft = w - (hasCtx ? _buttonWidth : 0) - _buttonWidth;
+            var bg = new Rect(lockLeft + 0.5, y + 0.5, _buttonWidth - 1, _lineHeight - 1);
+            ctx.DrawRectangle(BrushIndent, PenMiddle, bg);
+            DrawLock(ctx, new Rect(lockLeft, y, _buttonWidth, _lineHeight), e.IsLocked);
         }
 
         // DirectMenu ▶ button (only when no ContextMenu — mirrors WinForms else-if logic)
@@ -501,6 +538,60 @@ public class PropertyPageControl : Control
         var pen = new Pen(BrushText, 1.6);
         ctx.DrawLine(pen, new Point(cx - s, cy + s * 0.1), new Point(cx - s * 0.25, cy + s * 0.8));
         ctx.DrawLine(pen, new Point(cx - s * 0.25, cy + s * 0.8), new Point(cx + s, cy - s * 0.7));
+    }
+
+    private static void DrawLock(DrawingContext ctx, Rect r, bool locked)
+    {
+        // Padlock drawn as geometry — the browser/WASM font set has no crisp monochrome
+        // 🔒/🔓 glyph, so (like the ▾ ▶ ✔ ✖ symbols above) it is stroked directly.
+        // Locked: a closed ∩ shackle sitting on the body. Unlocked: the same shackle
+        // swung open about its left leg's base, so the right leg lifts out of the body.
+        double cx = r.X + r.Width / 2;
+        double s  = Math.Min(r.Width, r.Height);
+
+        double bodyW    = s * 0.52;
+        double bodyH    = s * 0.40;
+        // Body sits in the lower part of the cell, leaving room for the shackle above.
+        double bodyTop  = r.Y + r.Height / 2 - bodyH / 2 + s * 0.12;
+        var    body     = new Rect(cx - bodyW / 2, bodyTop, bodyW, bodyH);
+
+        var pen = new Pen(BrushText, 1.3);
+        ctx.DrawRectangle(null, pen, body, 1.5, 1.5);
+
+        // Closed ∩ shackle: two legs of length legLen joined by a semicircular arch.
+        double shR     = bodyW * 0.32;         // half-width of the arch
+        double legLen  = s * 0.20;             // straight vertical leg length
+        double archTop = bodyTop - legLen;
+        var g = new StreamGeometry();
+        using (var gc = g.Open())
+        {
+            gc.BeginFigure(new Point(cx - shR, bodyTop), false);
+            gc.LineTo(new Point(cx - shR, archTop));
+            gc.ArcTo(new Point(cx + shR, archTop),
+                     new Size(shR, shR), 0, false, SweepDirection.Clockwise);
+            gc.LineTo(new Point(cx + shR, bodyTop));
+            gc.EndFigure(false);
+        }
+
+        if (locked)
+        {
+            ctx.DrawGeometry(null, pen, g);
+        }
+        else
+        {
+            // Swing the shackle open around the left leg's base (counter-clockwise, so the
+            // right leg lifts up and out of the body — the classic open-padlock look).
+            var pivot = new Point(cx - shR, bodyTop);
+            var m = Matrix.CreateTranslation(-pivot.X, -pivot.Y)
+                  * Matrix.CreateRotation(-0.6)   // ~ -34°, negative = counter-clockwise
+                  * Matrix.CreateTranslation(pivot.X, pivot.Y);
+            using (ctx.PushTransform(m))
+                ctx.DrawGeometry(null, pen, g);
+        }
+
+        // Keyhole dot for a touch more padlock feel.
+        double kh = Math.Max(1.0, s * 0.06);
+        ctx.DrawEllipse(BrushText, null, new Point(cx, bodyTop + bodyH * 0.5), kh, kh);
     }
 
     // ── Shortcut helpers (ported from WinForms PropertyPage) ──────────────
@@ -824,6 +915,14 @@ public class PropertyPageControl : Control
         if (e.Flags.HasFlag(PropertyEntryType.ContextMenu) && p.X >= width - _buttonWidth)
             return (i, EMousePos.OnContextMenu);
 
+        // Lock button — one column left of the ContextMenu (mirrors WinForms geometry).
+        if (e.Flags.HasFlag(PropertyEntryType.Lockable))
+        {
+            double rightBtns = e.Flags.HasFlag(PropertyEntryType.ContextMenu) ? _buttonWidth : 0;
+            if (p.X >= width - rightBtns - _buttonWidth && p.X < width - rightBtns)
+                return (i, EMousePos.OnLockButton);
+        }
+
         if (e.Flags.HasFlag(PropertyEntryType.DirectMenu)
             && !e.Flags.HasFlag(PropertyEntryType.ContextMenu)
             && p.X >= width - _buttonWidth)
@@ -915,7 +1014,16 @@ public class PropertyPageControl : Control
                 {
                     RequestHideTextBox?.Invoke();
                     RequestHideDropDown?.Invoke();
+                    // Selecting a value-editable (not label-editable) entry auto-opens its floating
+                    // value editor via PropertyPage.SelectionChanged → OnSelectionChanged (WinForms
+                    // parity). Only a real selection change opens it, so don't steal focus back in
+                    // that case — the editor TextBox must keep keyboard focus.
+                    bool willEdit = entry != _page.GetCurrentSelection()
+                                    && entry.Flags.HasFlag(PropertyEntryType.ValueEditable)
+                                    && !entry.Flags.HasFlag(PropertyEntryType.LabelEditable)
+                                    && !entry.ReadOnly;
                     _page.SelectEntry(entry);
+                    if (willEdit) takeFocus = false;
                 }
                 break;
 
@@ -965,6 +1073,16 @@ public class PropertyPageControl : Control
             case EMousePos.OnDirectMenu:
                 _page.SelectEntry(entry);
                 entry.ButtonClicked(PropertyEntryButton.directMenu);
+                break;
+
+            case EMousePos.OnLockButton:
+                // Toggle the lock (mirrors WinForms). This flips IsLocked, which also
+                // adds/removes the ValueEditable flag, so close any open editor first
+                // and repaint to reflect the new padlock state and value area.
+                RequestHideTextBox?.Invoke();
+                RequestHideDropDown?.Invoke();
+                entry.ButtonClicked(PropertyEntryButton.locked);
+                InvalidateVisual();
                 break;
 
             case EMousePos.OnCheckbox:
@@ -1023,6 +1141,7 @@ public class PropertyPageControl : Control
             EMousePos.OnDropDown     => new Cursor(StandardCursorType.Hand),
             EMousePos.OnOkButton     => new Cursor(StandardCursorType.Hand),
             EMousePos.OnCancelButton => new Cursor(StandardCursorType.Hand),
+            EMousePos.OnLockButton   => new Cursor(StandardCursorType.Hand),
             // ValueAsButton: hand cursor so the user sees it is clickable
             EMousePos.OnValue when hitIdx >= 0 &&
                 _entries[hitIdx].Flags.HasFlag(PropertyEntryType.ValueAsButton)
@@ -1166,6 +1285,74 @@ public class PropertyPageControl : Control
         }
     }
 
+    /// <summary>
+    /// Fired by <see cref="PropertyPage.SelectionChanged"/> whenever the selected entry changes.
+    /// Mirrors the WinForms PropertyPage.SelectedIndex setter, which auto-opens the floating value
+    /// editor for a value-editable (but not label-editable) entry the instant it becomes selected —
+    /// so selecting the row (by clicking its label, by Tab, or programmatically) is enough to start
+    /// typing, without an extra click into the value cell.
+    ///
+    /// Scope is intentionally limited to the value TextBox: DropDown entries are left to their explicit
+    /// button-click handling so the toggle-open/close logic in RequestShowDropDown is not disturbed.
+    /// </summary>
+    private void OnSelectionChanged()
+    {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Post(OnSelectionChanged, DispatcherPriority.Normal);
+            return;
+        }
+        _pendingEditEntry = null;
+        var sel = _page?.GetCurrentSelection();
+        if (sel == null) return;
+        if (!sel.Flags.HasFlag(PropertyEntryType.ValueEditable)
+            || sel.Flags.HasFlag(PropertyEntryType.LabelEditable)
+            || sel.ReadOnly)
+            return;
+        // Defer the open to the end of the current dispatcher cycle instead of opening synchronously.
+        // At action start the selection happens deep inside ConstructAction.OnActivate — before the
+        // freshly shown Action page has been laid out and before the surrounding focus changes
+        // (SetControlCenterFocus, base.OnActivate, mouse-follow setup) have settled. Opening + focusing
+        // the editor synchronously there would either find no valid metrics yet or get its focus stolen
+        // by the subsequent relayout. Posting lets everything settle, then opens and focuses last.
+        // (e.g. the start point of "draw line", which otherwise never activated until the user clicked
+        // into the value cell.)
+        ScheduleOpenValueEditor(sel);
+    }
+
+    /// <summary>
+    /// Posts a value-editor open for <paramref name="sel"/> to run after the current dispatcher work.
+    /// If the control still has no valid layout metrics by then, the attempt is deferred once more to
+    /// the next <see cref="Render"/> via <see cref="_pendingEditEntry"/>.
+    /// </summary>
+    private void ScheduleOpenValueEditor(IPropertyEntry sel)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (sel != _page?.GetCurrentSelection()) return;   // selection moved on meanwhile
+            if (!TryOpenValueEditor(sel))
+            {
+                _pendingEditEntry = sel;
+                InvalidateVisual();
+            }
+        }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>
+    /// Opens the floating value editor for <paramref name="sel"/> when the control has valid layout
+    /// metrics. Returns false (without doing anything) when the control is not laid out yet, so the
+    /// caller can defer the attempt to <see cref="OnSelectionChanged"/> / the pending-edit flush.
+    /// </summary>
+    private bool TryOpenValueEditor(IPropertyEntry sel)
+    {
+        if (_middle <= 0 || _lineHeight <= 0) return false;
+        int si = FindSelectedIndex();
+        if (si < 0) return false;
+        sel.StartEdit(true);
+        RequestShowTextBox?.Invoke(ValueRect(si), sel.Value ?? "", sel);
+        return true;
+    }
+
     internal void ShowInputForCurrentSelection()
     {
         var sel = _page?.GetCurrentSelection();
@@ -1203,7 +1390,8 @@ public class PropertyPageControl : Control
         if (idx < 0 || idx >= _entries.Count) return default;
         var e = _entries[idx];
         double vRight = EffW
-            - (e.Flags.HasFlag(PropertyEntryType.ContextMenu) ? _buttonWidth : 0);
+            - (e.Flags.HasFlag(PropertyEntryType.ContextMenu) ? _buttonWidth : 0)
+            - (e.Flags.HasFlag(PropertyEntryType.Lockable) ? _buttonWidth : 0);
         return new Rect(_middle, idx * _lineHeight, vRight - _middle, _lineHeight);
     }
 
