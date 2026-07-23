@@ -310,7 +310,7 @@ namespace CADability.Actions
                 {
                     pathHit = Curves[0].Clone();
                     iCurveComposedSplit = Curves[0];
-                    ToolsRoundOff.pathTestIntersection(pathHit, objectPoint);
+                    CADability.GeoObject.Curves.PathTestIntersection(pathHit, objectPoint);
                 }
                 else
                 {

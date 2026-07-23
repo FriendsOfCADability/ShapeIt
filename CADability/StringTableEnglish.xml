@@ -1786,13 +1786,16 @@
 		<label>Trim</label>
 		<info>Select object and position to trim</info>
 	</data>
-	<data name="ToolsTrimSplit.Object">
-		<label>Split</label>
-		<info>Select object and position to split</info>
-	</data>
 	<data name="ToolsTrim.SourceObject">
 		<label>Trim destination</label>
 		<info>Select object at which the following objects will be trimmed. Select none to trim immediately</info>
+	</data>
+	<data name="ToolsTrim.Mode">
+		<label>Mode</label>
+		<info>Choose whether the objects are trimmed or split into their parts</info>
+	</data>
+	<data name="ToolsTrim.Mode.Values">
+		<label>|Trim|Split, join to path|Split into single objects</label>
 	</data>
 	<data name="ToolsExpand">
 		<label>Expand object</label>
@@ -5824,10 +5827,6 @@
 	<data name="Select.FeedbackColor">
 		<label>Feedback Color</label>
 		<info>Color for objects under hovering cursor</info>
-	</data>
-	<data name="ToolsExpand.Distance">
-		<label>distance</label>
-		<info>additional distance: positiv: longer, negativ: shorter</info>
 	</data>
 	<data name="MenuId.XAxis">
 		<label>X-Axis</label>

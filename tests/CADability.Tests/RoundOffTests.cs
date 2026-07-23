@@ -1,0 +1,181 @@
+using CADability;
+using CADability.GeoObject;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Text;
+using Path = System.IO.Path;
+
+namespace CADability.Tests
+{
+    /// <summary>
+    /// Tests for <see cref="RoundOffGeometry.TryComputeRoundOff"/>, the geometric core extracted from the interactive
+    /// round-off corner tool (RoundObjectsAction). The extraction lets us exercise the corner
+    /// detection without the interactive harness. The file RoundOffTest.cdb.json contains six connected lines; only the
+    /// corner near (52, 69, 0) currently rounds in the app, although several corners are geometrically valid.
+    /// </summary>
+    [TestClass]
+    public class RoundOffTests
+    {
+        public TestContext TestContext { get; set; }
+
+        private static string CdbFile([CallerFilePath] string thisFile = "")
+            => Path.Combine(Path.GetDirectoryName(thisFile), "Files", "CDB", "RoundOffTest.cdb.json");
+
+        // -------- synthetic happy-path cases (no file needed) --------
+
+        private static Line MakeLine(GeoPoint a, GeoPoint b)
+        {
+            Line l = Line.Construct();
+            l.StartPoint = a;
+            l.EndPoint = b;
+            return l;
+        }
+
+        [TestMethod]
+        public void RightAngleCornerRounds()
+        {
+            // corner at (10,0,0): one leg back along -X, one leg up along +Y; pick inside that quadrant
+            Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
+            Line b = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0));
+            bool ok = RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(9, 1, 0), 2.0, false,
+                Plane.XYPlane, out Ellipse arc, out _);
+            Assert.IsTrue(ok, "right-angle corner should round");
+            Assert.AreEqual(2.0, arc.Radius, 1e-6, "unexpected fillet radius");
+        }
+
+        [TestMethod]
+        public void FilletIsTangentToBothLegs()
+        {
+            Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
+            Line b = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0));
+            bool ok = RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(9, 1, 0), 2.0, false,
+                Plane.XYPlane, out Ellipse arc, out GeoPoint corner);
+            Assert.IsTrue(ok, "corner should round");
+            Assert.AreEqual(2.0, arc.Radius, 1e-6, "unexpected radius");
+            Assert.IsTrue(Precision.IsEqual(corner, new GeoPoint(10, 0, 0)), "corner should be the shared endpoint");
+            // both arc endpoints are the tangent points; each must lie on one of the legs (within the segment)
+            Assert.IsTrue(OnSegment(arc.StartPoint, a) || OnSegment(arc.StartPoint, b), "arc start not on a leg");
+            Assert.IsTrue(OnSegment(arc.EndPoint, a) || OnSegment(arc.EndPoint, b), "arc end not on a leg");
+            Assert.IsFalse(Precision.IsEqual(arc.StartPoint, arc.EndPoint), "the two tangent points must differ");
+        }
+
+        [TestMethod]
+        public void AcuteCornerRoundsRegardlessOfPickSide()
+        {
+            // acute corner at the origin, both legs into the first quadrant
+            Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
+            Line b = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 4, 0));
+            GeoPoint outsidePick = new GeoPoint(5, -1, 0); // deliberately outside the acute wedge
+
+            // with the pick-quadrant filter an outside pick wrongly rejects the (only) valid fillet — the reported bug
+            Assert.IsFalse(RoundOffGeometry.TryComputeRoundOff(a, b, outsidePick, 1.0, false,
+                Plane.XYPlane, out _, out _), "outside pick should be rejected while the quadrant filter is active");
+
+            // curves and corner are known, so the filter is skipped and the inner fillet is found regardless of the pick
+            Assert.IsTrue(RoundOffGeometry.TryComputeRoundOff(a, b, outsidePick, 1.0, true,
+                Plane.XYPlane, out Ellipse arc, out _), "with the filter skipped the corner should round");
+            Assert.AreEqual(1.0, arc.Radius, 1e-6, "unexpected radius");
+        }
+
+        private static bool OnSegment(GeoPoint p, ICurve curve)
+        {
+            double t = curve.PositionOf(p);
+            if (t < -1e-6 || t > 1.0 + 1e-6) return false;
+            return (p | curve.PointAt(t)) < 1e-6;
+        }
+
+        [TestMethod]
+        public void AcuteAndObtuseCornersRound()
+        {
+            // obtuse corner
+            Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
+            Line b = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(18, 6, 0));
+            Assert.IsTrue(RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(9.5, 0.5, 0), 1.5, false,
+                Plane.XYPlane, out _, out _), "obtuse corner should round");
+
+            // acute corner
+            Line c = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
+            Line d = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(2, 4, 0));
+            Assert.IsTrue(RoundOffGeometry.TryComputeRoundOff(c, d, new GeoPoint(8, 0.5, 0), 1.0, false,
+                Plane.XYPlane, out _, out _), "acute corner should round");
+        }
+
+        // -------- data-driven exploration over the supplied test file --------
+
+        [TestMethod]
+        public void RoundOffCornersFromFile()
+        {
+            string file = CdbFile();
+            Assert.IsTrue(System.IO.File.Exists(file), $"test file not found: {file}");
+            Project project = Project.ReadFromFile(file, "cdb");
+            Assert.IsNotNull(project, "could not read project");
+            Model model = project.GetActiveModel();
+            Assert.IsNotNull(model);
+
+            List<Line> lines = model.AllObjects.OfType<Line>().ToList();
+            Assert.AreEqual(6, lines.Count, "expected six lines in the test file");
+
+            const double radius = 3.0;
+            StringBuilder report = new StringBuilder();
+            report.AppendLine();
+            int roundable = 0;
+            bool knownGoodCornerRounds = false;
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                for (int j = i + 1; j < lines.Count; j++)
+                {
+                    if (!SharedVertex(lines[i], lines[j], out GeoPoint corner)) continue;
+
+                    // pick 1: exactly at the corner vertex (OnSameSide is lenient here)
+                    bool okVertex = RoundOffGeometry.TryComputeRoundOff(lines[i], lines[j], corner, radius, false,
+                        Plane.XYPlane, out _, out _);
+
+                    // pick 2: offset into the corner interior along the angle bisector (simulates a real mouse pick)
+                    GeoPoint pickInside = corner + 0.5 * InsideBisector(lines[i], lines[j], corner);
+                    bool okInside = RoundOffGeometry.TryComputeRoundOff(lines[i], lines[j], pickInside, radius, false,
+                        Plane.XYPlane, out _, out _);
+
+                    if (okVertex) roundable++;
+                    if (okVertex && Precision.IsEqual(corner, new GeoPoint(51.93661971830986, 68.90140845070425, 0.0)))
+                        knownGoodCornerRounds = true;
+                    report.AppendLine($"corner ({corner.x,7:F2},{corner.y,7:F2},{corner.z,7:F2})  lines {i},{j}  -> "
+                        + $"vertexPick={(okVertex ? "ROUND" : "no")}, insidePick={(okInside ? "ROUND" : "no")}");
+                }
+            }
+            report.AppendLine($"total roundable corners: {roundable}");
+            TestContext.WriteLine(report.ToString());
+            System.Diagnostics.Trace.WriteLine(report.ToString());
+
+            // The extracted geometry core handles every corner when fed the two adjacent lines directly, even though the
+            // interactive tool currently only rounds one of them. This proves the fault is upstream (curve preparation),
+            // not in TryComputeRoundOff, and guards the core against regressions.
+            Assert.IsTrue(knownGoodCornerRounds, "the known-good corner near (52,69,0) should round\n" + report);
+            Assert.AreEqual(6, roundable, "all six corners are geometrically valid and should round\n" + report);
+        }
+
+        // Direction from the shared corner into the interior of the corner (normalized bisector of the two legs).
+        private static GeoVector InsideBisector(Line a, Line b, GeoPoint corner)
+        {
+            GeoPoint farA = Precision.IsEqual(a.StartPoint, corner) ? a.EndPoint : a.StartPoint;
+            GeoPoint farB = Precision.IsEqual(b.StartPoint, corner) ? b.EndPoint : b.StartPoint;
+            GeoVector da = (farA - corner).Normalized;
+            GeoVector db = (farB - corner).Normalized;
+            GeoVector bisector = da + db;
+            return bisector.Length > 1e-9 ? bisector.Normalized : da;
+        }
+
+        private static bool SharedVertex(Line a, Line b, out GeoPoint shared)
+        {
+            GeoPoint[] pa = { a.StartPoint, a.EndPoint };
+            GeoPoint[] pb = { b.StartPoint, b.EndPoint };
+            foreach (GeoPoint x in pa)
+                foreach (GeoPoint y in pb)
+                    if (Precision.IsEqual(x, y)) { shared = x; return true; }
+            shared = GeoPoint.Origin;
+            return false;
+        }
+    }
+}

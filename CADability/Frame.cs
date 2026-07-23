@@ -1425,13 +1425,14 @@ namespace CADability
                     SetAction(new ConstrHatchInside(ConstrHatchInside.HatchMode.hull));
                     return true;
                 case "MenuId.Trim":
-                    SetAction(new ToolsTrim());
+                    // SetAction(new ToolsTrim());
+                    SetAction(new TrimObjectsAction());
                     return true;
                 case "MenuId.Trim.Split":
-                    SetAction(new ToolsTrimSplit());
+                    SetAction(new TrimObjectsAction(TrimObjectsAction.Mode.SplitToSingleObjects));
                     return true;
                 case "MenuId.Expand":
-                    SetAction(new ToolsExpand());
+                    SetAction(new ExpandObjectsAction());
                     return true;
                 case "MenuId.Connect":
                     SetAction(new ToolsConnect());
@@ -1443,7 +1444,7 @@ namespace CADability
                     SetAction(new ToolsCutOffMultiple());
                     return true;
                 case "MenuId.Round.Off":
-                    SetAction(new ToolsRoundOff());
+                    SetAction(new RoundObjectsAction());
                     return true;
                 case "MenuId.Round.In":
                     SetAction(new ToolsRoundIn());

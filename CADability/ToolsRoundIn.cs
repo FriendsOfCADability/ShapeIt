@@ -236,7 +236,7 @@ namespace CADability.Actions
 					pathHit = Curves[0].Clone();
 					iCurveComposedSplit = Curves[0];
 					// merken für OnDone zum löschen und Attributsetzen
-					ToolsRoundOff.pathTestIntersection(pathHit, objectPoint);
+					CADability.GeoObject.Curves.PathTestIntersection(pathHit, objectPoint);
 					//                    showRoundPathTestIntersection(pathHit);
 				}
 				else

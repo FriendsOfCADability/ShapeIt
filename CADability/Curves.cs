@@ -401,6 +401,67 @@ namespace CADability.GeoObject
     public class Curves
     {
         /// <summary>
+        /// Tests whether the (planar) path/polyline <paramref name="curveToTest"/> self-intersects near
+        /// <paramref name="pickPoint"/>. If so, the two crossing parameters are inserted as points into the curve and the
+        /// method returns true; if an ordinary path vertex is closer to the pick than the crossing, it returns false.
+        /// Used by the corner tools (round, chamfer) to handle self-intersecting outlines.
+        /// </summary>
+        public static bool PathTestIntersection(ICurve curveToTest, GeoPoint pickPoint)
+        {
+            if (curveToTest.GetPlanarState() == PlanarState.Planar) // the curve lies in a plane
+            {
+                Plane pl = curveToTest.GetPlane();
+                ICurve2D curve_2D = curveToTest.GetProjectedCurve(pl); // the 2D curve
+                if (curve_2D is Path2D) (curve_2D as Path2D).Flatten();
+                ICurve2D curveTemp;
+                if (curveToTest is Polyline)
+                {   // GetSelfIntersections only works with paths
+                    Path p = Path.Construct();
+                    p.Set(new ICurve[] { curveToTest.Clone() });
+                    p.Flatten();
+                    curveTemp = p.GetProjectedCurve(pl);
+                }
+                else curveTemp = curve_2D;
+                double[] pathIntersectionPoints = curveTemp.GetSelfIntersections(); // the self intersection parameters
+                if (pathIntersectionPoints.Length > 0)
+                {
+                    double distS = double.MaxValue; // distance of the pick to the crossings
+                    int interSectIndex = 0;
+                    for (int i = 0; i < pathIntersectionPoints.Length; i += 2) // always in pairs (near start and end)
+                    {   // find the nearest crossing; one per pair is enough
+                        GeoPoint2D ps = curveTemp.PointAt(pathIntersectionPoints[i]);
+                        double distLoc = Geometry.Dist(ps, pl.Project(pickPoint));
+                        if (distLoc < distS)
+                        {
+                            distS = distLoc;
+                            interSectIndex = i;
+                        }
+                    }
+                    // if an ordinary path vertex is even closer to the mouse, do nothing here (handled by the caller)
+                    for (int i = 0; i < (curveTemp as Path2D).SubCurvesCount; i++)
+                    {
+                        double distLoc = Geometry.Dist((curveTemp as Path2D).SubCurves[i].StartPoint, pl.Project(pickPoint));
+                        if (distLoc < distS) return false; // a path vertex is closer: nothing to do
+                    }
+
+                    // insert the two crossing points (one from the front, one from the back) into the test curve
+                    if (curveToTest is Path)
+                    {
+                        (curveToTest as Path).InsertPoint(pathIntersectionPoints[interSectIndex]);
+                        (curveToTest as Path).InsertPoint(pathIntersectionPoints[interSectIndex + 1]);
+                    }
+                    if (curveToTest is Polyline)
+                    {
+                        (curveToTest as Polyline).InsertPoint(pathIntersectionPoints[interSectIndex]);
+                        (curveToTest as Polyline).InsertPoint(pathIntersectionPoints[interSectIndex + 1]);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Determines the common plane of the two curves. If there is a common plane,
         /// the Parameter CommonPlane gets the result ant the function returns true. Otherwise
         /// the function returns false.
@@ -986,6 +1047,122 @@ namespace CADability.GeoObject
             return false;
         }
 
+        /// <summary>
+        /// Computes the minimum distance between a <paramref name="beam"/> (a ray starting at
+        /// <see cref="Axis.Location"/> and going into <see cref="Axis.Direction"/>) and a
+        /// <paramref name="curve"/>. In contrast to
+        /// <see cref="NewtonMinDist(ICurve, ref double, ICurve, ref double)"/> this method does not
+        /// need a start value: it first samples the curve (using its save positions and a uniform
+        /// grid) to find a good starting point and then refines that point with a Newton iteration.
+        /// The beam is treated as a ray (half line), so the closest point on the beam never lies
+        /// behind <see cref="Axis.Location"/> (<paramref name="parBeam"/> is always &gt;= 0). To get
+        /// the infinite-line behaviour instead, remove the clamping of <c>t</c> in the local
+        /// <c>RayDist</c> function.
+        /// </summary>
+        /// <param name="beam">the ray, given by a location and a direction</param>
+        /// <param name="curve">the curve</param>
+        /// <param name="parCurve">on return: the parameter (0..1) of the closest point on the curve</param>
+        /// <param name="parBeam">on return: the parameter of the closest point on the beam, measured
+        /// as the distance from <see cref="Axis.Location"/> along the normalized direction (always &gt;= 0)</param>
+        /// <param name="distance">on return: the minimum distance found</param>
+        /// <returns>true if a minimum distance could be determined, false for a degenerate beam or curve</returns>
+        public static bool MinDist(Axis beam, ICurve curve, out double parCurve, out double parBeam, out double distance)
+        {
+            parCurve = 0.0;
+            parBeam = 0.0;
+            distance = double.MaxValue;
+            if (curve == null) return false;
+            GeoVector beamDir = beam.Direction;
+            if (beamDir.IsNullVector()) return false;
+            GeoVector beamDirNorm = beamDir.Normalized;
+
+            // Distance from a point to the beam (which is a ray, not a full line). Also returns the
+            // parameter t (clamped to >= 0) of the foot point along the normalized beam direction.
+            double RayDist(GeoPoint p, out double t)
+            {
+                t = (p - beam.Location) * beamDirNorm; // projection onto the normalized direction
+                // t is not clmped, because we allow the infinite beam (both directions) to be used for the Newton step. 
+                GeoPoint foot = beam.Location + t * beamDirNorm;
+                return (p - foot).Length;
+            }
+
+            // --- 1. sampling: find a good starting parameter without needing an initial guess ---
+            // Combine the curve's save positions (natural breakpoints) with a uniform grid so that
+            // narrow local minima are not missed.
+            SortedSet<double> positions = new SortedSet<double>();
+            const int gridCount = 32;
+            for (int i = 0; i <= gridCount; i++) positions.Add(i / (double)gridCount);
+            double[] sp = curve.GetSavePositions();
+            if (sp != null)
+            {
+                for (int i = 0; i < sp.Length; i++)
+                {
+                    if (sp[i] >= 0.0 && sp[i] <= 1.0) positions.Add(sp[i]);
+                }
+            }
+
+            double bestU = 0.0;
+            double bestDist = double.MaxValue;
+            foreach (double u in positions)
+            {
+                double d = RayDist(curve.PointAt(u), out double _);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    bestU = u;
+                }
+            }
+
+            // --- 2. Newton refinement starting from the best sample ---
+            // In each step the beam and the local tangent line of the curve are treated as two lines
+            // and their closest connection is computed (Geometry.DistLL). The parameter change along
+            // the curve tangent is a first order Newton step for the curve parameter, exactly as in
+            // NewtonMinDist above.
+            double refinedU = bestU;
+            for (int i = 0; i < 30; i++)
+            {
+                GeoPoint p = curve.PointAt(refinedU);
+                GeoVector d = curve.DirectionAt(refinedU);
+                Geometry.DistLL(beam.Location, beamDir, p, d, out double _, out double cpar);
+                if (cpar == double.MaxValue || double.IsNaN(cpar))
+                {
+                    // beam and curve tangent are parallel: no reliable Newton step, keep current value
+                    break;
+                }
+                double nextU = refinedU + cpar;
+                if (curve.IsClosed)
+                {
+                    nextU -= Math.Floor(nextU); // wrap the parameter into [0, 1[
+                }
+                else
+                {
+                    if (nextU < 0.0) nextU = 0.0;
+                    if (nextU > 1.0) nextU = 1.0;
+                }
+                double step = nextU - refinedU;
+                refinedU = nextU;
+                if (Math.Abs(step) < 1e-8) break;
+            }
+
+            // --- 3. keep whichever of the Newton result and the best sample is closer ---
+            // The Newton step can leave the neighbourhood of the sampled minimum (clamping at a
+            // boundary, a nearby saddle, ...), so it must never make the result worse.
+            double refinedDist = RayDist(curve.PointAt(refinedU), out double refinedT);
+            if (refinedDist <= bestDist)
+            {
+                parCurve = refinedU;
+                distance = refinedDist;
+                parBeam = refinedT;
+            }
+            else
+            {
+                parCurve = bestU;
+                distance = RayDist(curve.PointAt(bestU), out double bestT);
+                parBeam = bestT;
+            }
+            return true;
+        }
+
 
         public struct MultiCurveIntersectionResult
         {
@@ -1042,11 +1219,20 @@ namespace CADability.GeoObject
             var vBuilder = Vector<double>.Build;
             var mBuilder = Matrix<double>.Build;
 
+            // All coordinates are handled relative to initialPoint (the "offset"): the
+            // curve points and the unknown P are shifted by -initialPoint before solving.
+            // This keeps the P part of the parameter vector close to 0, so MathNet's
+            // relative step-tolerance test (||dp|| <= stepTol*(||p||+stepTol)) does not
+            // become artificially loose when the geometry sits far from the world origin.
+            // The result is shifted back by +initialPoint at the end.
+            GeoPoint offset = initialPoint;
+
             // --- build initial guess vector: [Px, Py, Pz, u0, ..., u_{n-1}] ---
+            // In offset-relative coordinates the initial P is exactly the origin.
             var initialGuess = vBuilder.Dense(nUnknowns);
-            initialGuess[0] = initialPoint.x;
-            initialGuess[1] = initialPoint.y;
-            initialGuess[2] = initialPoint.z;
+            initialGuess[0] = 0.0;
+            initialGuess[1] = 0.0;
+            initialGuess[2] = 0.0;
 
             for (int i = 0; i < nCurves; i++)
             {
@@ -1073,7 +1259,8 @@ namespace CADability.GeoObject
             // We IGNORE xData, we only care about parameters and curves.
             Vector<double> ModelFunction(Vector<double> parameters, Vector<double> xData)
             {
-                var P = new GeoPoint(parameters[0], parameters[1], parameters[2]);
+                // P in offset-relative coordinates.
+                var P = new GeoVector(parameters[0], parameters[1], parameters[2]);
                 var result = vBuilder.Dense(mResiduals);
 
                 for (int i = 0; i < nCurves; i++)
@@ -1082,7 +1269,8 @@ namespace CADability.GeoObject
                     double ui = parameters[3 + i];
 
                     ICurve curve = curves[i];
-                    GeoPoint Ci = curve.PointAt(ui);
+                    // Curve point shifted into offset-relative coordinates.
+                    GeoVector Ci = curve.PointAt(ui) - offset;
                     GeoVector ri = Ci - P; // vector from P to curve point
 
                     result[row + 0] = ri.x;
@@ -1162,7 +1350,8 @@ namespace CADability.GeoObject
             // Extract best parameters
             Vector<double> pStar = result.MinimizingPoint;
 
-            GeoPoint bestPoint = new GeoPoint(pStar[0], pStar[1], pStar[2]);
+            // Shift the solved point back from offset-relative to world coordinates.
+            GeoPoint bestPoint = offset + new GeoVector(pStar[0], pStar[1], pStar[2]);
             double[] bestParameters = new double[nCurves];
             for (int i = 0; i < nCurves; i++)
             {

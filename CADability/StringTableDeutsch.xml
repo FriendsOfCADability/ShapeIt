@@ -1789,13 +1789,16 @@
 		<label>Trimmen</label>
 		<info>Bitte geben Sie die Stelle auf dem Objekt an, die weggetrimmt werden soll</info>
 	</data>
-	<data name="ToolsTrimSplit.Object">
-		<label>Aufteilen</label>
-		<info>Bitte geben Sie die Stelle auf dem Objekt an, die aufgeteilt werden soll</info>
-	</data>
 	<data name="ToolsTrim.SourceObject">
 		<label>Woran trimmen</label>
 		<info>Bitte geben Sie das Objekt an, bis zu dem getrimmt werden soll. Bei sofortiger Wiederholung des Trimmens bleibt dieses Objekt erhalten zum Mehrfachtrimmen an einer Grenze. Klicken ins Leere deaktiviert das Objekt.    </info>
+	</data>
+	<data name="ToolsTrim.Mode">
+		<label>Modus</label>
+		<info>Legt fest, ob die Objekte getrimmt oder in ihre Teile aufgeteilt werden</info>
+	</data>
+	<data name="ToolsTrim.Mode.Values">
+		<label>|Trimmen|Aufteilen, zu Pfad verbinden|Aufteilen in Einzelobjekte</label>
 	</data>
 	<data name="ToolsExpand">
 		<label>Objekt Verlängern</label>
@@ -5834,10 +5837,6 @@
 	<data name="Select.FeedbackColor">
 		<label>Rückmeldungsfarbe</label>
 		<info>Farbe der Objekte während der schnellen Rückmeldung (wenn eingeschaltet)</info>
-	</data>
-	<data name="ToolsExpand.Distance">
-		<label>Abstand</label>
-		<info>zusätzlicher Abstand: positiv: länger, negativ: kürzer</info>
 	</data>
 	<data name="MenuId.XAxis">
 		<label>X-Achse</label>
