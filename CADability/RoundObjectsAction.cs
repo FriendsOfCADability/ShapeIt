@@ -181,8 +181,7 @@ namespace CADability.Actions
             else
                 pick = pl.Intersect(beam.Location, beam.Direction);
 
-            // curves and corner are known, so skip the pick-based quadrant filter (always the inner-angle fillet)
-            if (RoundOffGeometry.TryComputeRoundOff(segA, segB, pick, radius, true,
+            if (RoundOffGeometry.TryComputeRoundOff(segA, segB, pick, radius,
                     base.ActiveDrawingPlane, out Ellipse arc, out GeoPoint cornerOut))
             {
                 bestDist = dist;
