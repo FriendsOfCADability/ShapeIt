@@ -6,35 +6,38 @@ using System.Collections.Generic;
 namespace CADability.Actions
 {
     /// <summary>
-    /// Rounds corners with a tangential fillet arc of the given radius. In <see cref="Mode.SingleCorner"/> the user
-    /// approaches one corner (the two curves meeting there are found automatically via the pick ray
-    /// <see cref="ConstructAction.CurrentMouseBeam"/>); a picked path/polyline is reduced to its end segment.
-    /// In <see cref="Mode.AllCorners"/> every corner of the picked path, polyline or connected chain of model curves is
-    /// rounded at once. The geometric core is <see cref="RoundOffGeometry"/>.
+    /// Rounds (fillet) or chamfers corners of curves. The operation (<see cref="CornerGeometry.Operation"/>) is fixed per
+    /// invocation (from the menu); the size input is the fillet radius or the chamfer edge length accordingly. In
+    /// <see cref="Mode.SingleCorner"/> the user approaches one corner (the two curves are found via the pick ray
+    /// <see cref="ConstructAction.CurrentMouseBeam"/>; a picked path/polyline is reduced to its end segment); in
+    /// <see cref="Mode.AllCorners"/> every corner of the picked path, polyline or connected chain is processed at once.
+    /// The geometric core is <see cref="CornerGeometry"/>.
     /// </summary>
-    internal class RoundObjectsAction : ConstructAction
+    internal class CornerCurvesAction : ConstructAction
     {
-        /// <summary>What the tool rounds.</summary>
+        /// <summary>What is processed: one corner or every corner of the picked object.</summary>
         public enum Mode
         {
             SingleCorner, // the one corner the user points at
             AllCorners    // every corner of the picked path / polyline / connected chain
         }
+        private readonly CornerGeometry.Operation operation; // fillet or chamfer, fixed per invocation
         private Mode mode; // the current mode, preset by the constructor and adjustable via modeInput
         private MultipleChoiceInput modeInput; // the input field to choose the mode
-        private LengthInput radiusInput; // the input field for the fillet radius
-        private double radius; // the current fillet radius
+        private LengthInput sizeInput; // the input field for the fillet radius / chamfer edge length
+        private double size; // the current fillet radius or chamfer edge length
 
-        // The rounding is computed from the current pick, radius and mode whenever any of them changes, shown as feedback
-        // and remembered here; it is applied to the model only in OnDone, when all inputs are fixed.
-        private RoundInfo pendingRound;      // the single-corner result to apply
-        private MultiRoundInfo pendingMulti; // the all-corners result to apply
-        private ICurve[] singleCurves;       // curves under the cursor at the last pick (single-corner mode)
-        private Axis singleBeam;             // the pick ray at the last pick (single-corner mode)
-        private ICurve allPicked;            // the object picked (all-corners mode)
+        // The result is computed from the current pick, size and mode whenever any of them changes, shown as feedback and
+        // remembered here; it is applied to the model only in OnDone, when all inputs are fixed.
+        private CornerInfo pendingCorner;     // the single-corner result to apply
+        private MultiCornerInfo pendingMulti;  // the all-corners result to apply
+        private ICurve[] singleCurves;         // curves under the cursor at the last pick (single-corner mode)
+        private Axis singleBeam;               // the pick ray at the last pick (single-corner mode)
+        private ICurve allPicked;              // the object picked (all-corners mode)
 
-        public RoundObjectsAction(Mode mode = Mode.SingleCorner)
+        public CornerCurvesAction(CornerGeometry.Operation operation = CornerGeometry.Operation.Fillet, Mode mode = Mode.SingleCorner)
         {
+            this.operation = operation;
             this.mode = mode;
         }
 
@@ -46,49 +49,58 @@ namespace CADability.Actions
             public List<ICurve> remnant; // the other segments of a composed curve, recombined afterwards (original order)
         }
 
-        // one computed fillet at a corner
-        private class RoundInfo
+        // one computed corner result: the two shortened segments joined by the corner curve (arc or chamfer line)
+        private class CornerInfo
         {
             public List<IGeoObject> originals; // the objects to remove on apply
             public ICurve segA;                // the two simple segments meeting at the corner
             public ICurve segB;
             public List<ICurve> remnant;       // the other segments (of a composed curve), recombined afterwards
-            public Ellipse arc;
+            public ICurve cornerCurve;         // the fillet arc or the chamfer line
             public GeoPoint corner;
+        }
+
+        // one fully-processed object: the objects to remove and the parts of the result (shortened segments + corner curves)
+        private class MultiCornerInfo
+        {
+            public List<IGeoObject> originals;
+            public List<ICurve> resultParts;
         }
 
         public override void OnSetAction()
         {
             base.ActiveObject = null;
             UpdateTitle();
-            radius = ConstrDefaults.DefaultRoundRadius;
+            bool fillet = operation == CornerGeometry.Operation.Fillet;
+            size = fillet ? ConstrDefaults.DefaultRoundRadius : ConstrDefaults.DefaultCutOffLength;
 
-            CurveInput curveInput = new CurveInput("ToolsRound.Object"); // the corner to be rounded
+            CurveInput curveInput = new CurveInput("ToolsRound.Object"); // the corner to be processed
             curveInput.ModifiableOnly = true;
-            curveInput.HitCursor = CursorTable.GetCursor("RoundOff.cur");
-            curveInput.MouseOverCurvesEvent += new CurveInput.MouseOverCurvesDelegate(MouseOverCornersToRound);
+            curveInput.HitCursor = CursorTable.GetCursor(fillet ? "RoundOff.cur" : "CutOff.cur");
+            curveInput.MouseOverCurvesEvent += new CurveInput.MouseOverCurvesDelegate(MouseOverCorners);
 
-            radiusInput = new LengthInput("ToolsRound.Radius");
-            radiusInput.DefaultLength = ConstrDefaults.DefaultRoundRadius;
-            radiusInput.ForwardMouseInputTo = curveInput; // keep processing mouse input for the corner
-            radiusInput.SetLengthEvent += new LengthInput.SetLengthDelegate(SetRadius);
+            // the label differs by operation: fillet radius vs. chamfer edge length
+            sizeInput = new LengthInput(fillet ? "ToolsRound.Radius" : "ToolsCutOff.Length");
+            sizeInput.DefaultLength = fillet ? ConstrDefaults.DefaultRoundRadius : ConstrDefaults.DefaultCutOffLength;
+            sizeInput.ForwardMouseInputTo = curveInput; // keep processing mouse input for the corner
+            sizeInput.SetLengthEvent += new LengthInput.SetLengthDelegate(SetSize);
 
             modeInput = new MultipleChoiceInput("ToolsRound.Mode", "ToolsRound.Mode.Values", (int)mode);
             modeInput.Optional = true;
             modeInput.ForwardMouseInputTo = curveInput;
             modeInput.SetChoiceEvent += new MultipleChoiceInput.SetChoiceDelegate(SetMode);
 
-            base.SetInput(curveInput, radiusInput, modeInput);
+            base.SetInput(curveInput, sizeInput, modeInput);
             base.ShowActiveObject = false;
             base.OnSetAction();
         }
 
-        private bool SetRadius(double length)
+        private bool SetSize(double length)
         {
             if (length >= 0.0)
             {
-                radius = length;
-                Recompute(); // the radius changed: rebuild the result and the preview
+                size = length;
+                Recompute(); // the size changed: rebuild the result and the preview
                 return true;
             }
             return false;
@@ -102,14 +114,16 @@ namespace CADability.Actions
         }
 
         private void UpdateTitle()
-        {   // the title reflects the current mode
-            base.TitleId = mode == Mode.AllCorners ? "ToolsRoundMultiple" : "ToolsRoundOff";
+        {   // the title reflects the operation and the mode
+            base.TitleId = operation == CornerGeometry.Operation.Fillet
+                ? (mode == Mode.AllCorners ? "ToolsRoundMultiple" : "ToolsRoundOff")
+                : (mode == Mode.AllCorners ? "ToolsCutOffMultiple" : "ToolsCutOff");
         }
 
-        private bool MouseOverCornersToRound(CurveInput sender, ICurve[] curves, bool up)
+        private bool MouseOverCorners(CurveInput sender, ICurve[] curves, bool up)
         {
-            // Only remember what the user points at and show the preview; the rounding is applied in OnDone once the
-            // curve input and the radius input are both fixed (the user may pick the corner and the radius in any order).
+            // Only remember what the user points at and show the preview; the result is applied in OnDone once the curve
+            // input and the size input are both fixed (the user may pick the corner and the size in any order).
             if (mode == Mode.AllCorners)
                 allPicked = curves.Length > 0 ? curves[0] : null;
             else
@@ -118,21 +132,21 @@ namespace CADability.Actions
                 singleBeam = base.CurrentMouseBeam;
             }
             Recompute();
-            return mode == Mode.AllCorners ? pendingMulti != null : pendingRound != null;
-            // returning true on up fixes the curve input; the action ends when the radius input is fixed as well
+            return mode == Mode.AllCorners ? pendingMulti != null : pendingCorner != null;
+            // returning true on up fixes the curve input; the action ends when the size input is fixed as well
         }
 
         /// <summary>
-        /// Recomputes the rounding result for the current pick, radius and mode, updates the feedback and stores the
-        /// result (<see cref="pendingRound"/> / <see cref="pendingMulti"/>) for OnDone. Called whenever the pick, the
-        /// radius or the mode changes.
+        /// Recomputes the result for the current pick, size and mode, updates the feedback and stores the result
+        /// (<see cref="pendingCorner"/> / <see cref="pendingMulti"/>) for OnDone. Called whenever the pick, the size or
+        /// the mode changes.
         /// </summary>
         private void Recompute()
         {
             FeedBack.ClearSelected();
-            pendingRound = null;
+            pendingCorner = null;
             pendingMulti = null;
-            if (radius <= 0.0) return; // no radius, nothing to round
+            if (size <= 0.0) return; // no size, nothing to do
             if (mode == Mode.AllCorners)
             {
                 if (allPicked == null) return;
@@ -143,18 +157,18 @@ namespace CADability.Actions
             else
             {
                 if (singleCurves == null) return;
-                pendingRound = ComputeBestCorner(singleCurves, singleBeam);
-                if (pendingRound != null) FeedBack.AddSelected(pendingRound.arc as IGeoObject);
+                pendingCorner = ComputeBestCorner(singleCurves, singleBeam);
+                if (pendingCorner != null) FeedBack.AddSelected(pendingCorner.cornerCurve as IGeoObject);
             }
         }
 
         /// <summary>
-        /// Finds the pair of connected curves whose shared corner the pick ray passes closest to, and returns the fillet,
+        /// Finds the pair of connected curves whose shared corner the pick ray passes closest to, and returns the result,
         /// or null. The mouse position itself is useless here because it lies in the active drawing plane, which is
         /// unrelated to the curves; the decisive measure is the distance to the pick ray. Each (possibly composed) curve
         /// is reduced to the simple segment at the corner so that a common plane always exists.
         /// </summary>
-        private RoundInfo ComputeBestCorner(ICurve[] curves, Axis beam)
+        private CornerInfo ComputeBestCorner(ICurve[] curves, Axis beam)
         {
             List<ICurve> candidates = new List<ICurve>();
             foreach (ICurve c in curves)
@@ -173,7 +187,7 @@ namespace CADability.Actions
                 }
             }
 
-            RoundInfo best = null;
+            CornerInfo best = null;
             double bestDist = double.MaxValue;
 
             // corners between two distinct curves that share an endpoint
@@ -195,7 +209,7 @@ namespace CADability.Actions
             }
 
             // corners inside a single path/polyline (and its seam if it is closed): a single path has no partner to be
-            // joined with, so it is rounded with its own adjacent segments
+            // joined with, so it is processed with its own adjacent segments
             foreach (ICurve candidate in candidates)
             {
                 if (!candidate.IsComposed) continue;
@@ -211,9 +225,9 @@ namespace CADability.Actions
 
         // evaluate a corner inside a single composed curve, between segment indices a and b, at the vertex 'corner'
         private void EvaluateSelfCorner(ICurve composed, ICurve[] subs, int a, int b, GeoPoint corner,
-            List<ICurve> candidates, Axis beam, ref RoundInfo best, ref double bestDist)
+            List<ICurve> candidates, Axis beam, ref CornerInfo best, ref double bestDist)
         {
-            // if a further curve attaches at this vertex it would be three curves and ambiguous -> not roundable
+            // if a further curve attaches at this vertex it would be three curves and ambiguous -> not processable
             if (ExternalAttachment(candidates, composed, corner)) return;
             List<ICurve> remnant = new List<ICurve>();
             for (int k = 0; k < subs.Length; k++)
@@ -222,9 +236,9 @@ namespace CADability.Actions
                 new List<IGeoObject> { composed as IGeoObject }, corner, beam, ref best, ref bestDist);
         }
 
-        // core evaluation: gate by the pick-ray distance, then compute the fillet of the two simple segments
+        // core evaluation: gate by the pick-ray distance, then compute the corner curve of the two simple segments
         private void EvaluateCorner(ICurve segA, ICurve segB, List<ICurve> remnant, List<IGeoObject> originals,
-            GeoPoint corner, Axis beam, ref RoundInfo best, ref double bestDist)
+            GeoPoint corner, Axis beam, ref CornerInfo best, ref double bestDist)
         {
             // the ray must pass closer to the corner than to the far ends of both segments, otherwise the user is
             // hovering elsewhere (along a segment or near a neighbouring corner)
@@ -241,11 +255,11 @@ namespace CADability.Actions
             else
                 pick = pl.Intersect(beam.Location, beam.Direction);
 
-            if (RoundOffGeometry.TryComputeRoundOff(segA, segB, pick, radius,
-                    base.ActiveDrawingPlane, out Ellipse arc, out GeoPoint cornerOut))
+            if (CornerGeometry.TryComputeCornerCurve(segA, segB, pick, size, operation, base.ActiveDrawingPlane,
+                    out ICurve cornerCurve, out GeoPoint cornerOut))
             {
                 bestDist = dist;
-                best = new RoundInfo { originals = originals, segA = segA, segB = segB, remnant = remnant, arc = arc, corner = cornerOut };
+                best = new CornerInfo { originals = originals, segA = segA, segB = segB, remnant = remnant, cornerCurve = cornerCurve, corner = cornerOut };
             }
         }
 
@@ -282,7 +296,7 @@ namespace CADability.Actions
                     segment = subs[subs.Length - 1].Clone();
                     for (int k = 0; k < subs.Length - 1; k++) remnant.Add(subs[k].Clone());
                 }
-                else return null; // corner not at a path end, cannot round here
+                else return null; // corner not at a path end, cannot process here
                 return new CornerCurve { original = curve, segment = segment, remnant = remnant };
             }
             // simple curve
@@ -290,40 +304,40 @@ namespace CADability.Actions
             return new CornerCurve { original = curve, segment = curve, remnant = new List<ICurve>() };
         }
 
-        private void ApplyRound(RoundInfo roundInfo)
+        private void ApplyCorner(CornerInfo cornerInfo)
         {
-            IGeoObject attrSource = roundInfo.originals[0];
+            IGeoObject attrSource = cornerInfo.originals[0];
             IGeoObjectOwner owner = attrSource.Owner;
             if (owner == null) return; // should never happen
 
-            // the two arc endpoints are the tangent points; assign each to the segment it lies on and shorten it
+            // the two corner-curve endpoints are the cut points; assign each to the segment it lies on and shorten it
             GeoPoint tpA, tpB;
-            if (DistanceToCurve(roundInfo.arc.StartPoint, roundInfo.segA) <= DistanceToCurve(roundInfo.arc.EndPoint, roundInfo.segA))
+            if (DistanceToCurve(cornerInfo.cornerCurve.StartPoint, cornerInfo.segA) <= DistanceToCurve(cornerInfo.cornerCurve.EndPoint, cornerInfo.segA))
             {
-                tpA = roundInfo.arc.StartPoint;
-                tpB = roundInfo.arc.EndPoint;
+                tpA = cornerInfo.cornerCurve.StartPoint;
+                tpB = cornerInfo.cornerCurve.EndPoint;
             }
             else
             {
-                tpA = roundInfo.arc.EndPoint;
-                tpB = roundInfo.arc.StartPoint;
+                tpA = cornerInfo.cornerCurve.EndPoint;
+                tpB = cornerInfo.cornerCurve.StartPoint;
             }
-            ICurve trimmedA = TrimToTangent(roundInfo.segA, tpA, roundInfo.corner);
-            ICurve trimmedB = TrimToTangent(roundInfo.segB, tpB, roundInfo.corner);
+            ICurve trimmedA = TrimToTangent(cornerInfo.segA, tpA, cornerInfo.corner);
+            ICurve trimmedB = TrimToTangent(cornerInfo.segB, tpB, cornerInfo.corner);
 
-            // collect all resulting segments: the remnant of the composed curve plus the two shortened segments and the arc
+            // collect all resulting segments: the remnant of the composed curve plus the two shortened segments and the corner curve
             List<ICurve> parts = new List<ICurve>();
-            parts.AddRange(roundInfo.remnant);
+            parts.AddRange(cornerInfo.remnant);
             parts.Add(trimmedA);
-            parts.Add(roundInfo.arc);
+            parts.Add(cornerInfo.cornerCurve);
             parts.Add(trimmedB);
             foreach (ICurve part in parts) (part as IGeoObject).CopyAttributes(attrSource);
 
             // remove the originals; they are replaced by the recombined result
-            foreach (IGeoObject original in roundInfo.originals) original.Owner?.Remove(original);
+            foreach (IGeoObject original in cornerInfo.originals) original.Owner?.Remove(original);
 
-            bool composed = roundInfo.remnant.Count > 0;
-            foreach (IGeoObject original in roundInfo.originals)
+            bool composed = cornerInfo.remnant.Count > 0;
+            foreach (IGeoObject original in cornerInfo.originals)
                 if ((original as ICurve)?.IsComposed == true) composed = true;
             if (composed || Frame.GetBooleanSetting("Construct.MakePath", true))
             {   // combine the whole result into a single (new) path
@@ -339,7 +353,7 @@ namespace CADability.Actions
         }
 
         /// <summary>
-        /// Returns a clone of <paramref name="curve"/> shortened to the tangent point, keeping the part away from the corner.
+        /// Returns a clone of <paramref name="curve"/> shortened to the cut point, keeping the part away from the corner.
         /// </summary>
         private static ICurve TrimToTangent(ICurve curve, GeoPoint tangentPoint, GeoPoint corner)
         {
@@ -396,27 +410,20 @@ namespace CADability.Actions
 
         // ---- "all corners" mode ----------------------------------------------------------------------------------
 
-        // one fully-rounded object: the objects to remove and the parts of the result (shortened segments + fillet arcs)
-        private class MultiRoundInfo
-        {
-            public List<IGeoObject> originals;
-            public List<ICurve> resultParts;
-        }
-
         /// <summary>
-        /// Rounds every corner of <paramref name="picked"/> at once. The ordered segments come from a path/polyline or,
+        /// Processes every corner of <paramref name="picked"/> at once. The ordered segments come from a path/polyline or,
         /// for a single curve, from a connected chain of model curves. Each inner corner (and the seam of a closed
-        /// outline) is filleted, and each segment is shortened by the fillets of its two neighbouring corners. Returns
-        /// null if nothing can be rounded.
+        /// outline) gets a corner curve, and each segment is shortened by the corner curves of its two neighbours.
+        /// Returns null if nothing can be processed.
         /// </summary>
-        private MultiRoundInfo ComputeAllCorners(ICurve picked)
+        private MultiCornerInfo ComputeAllCorners(ICurve picked)
         {
             if (picked == null) return null;
             if (!GetChain(picked, out List<ICurve> segments, out bool closed, out List<IGeoObject> originals)) return null;
-            List<ICurve> resultParts = RoundOffGeometry.RoundAllCorners(segments, closed, radius, base.ActiveDrawingPlane);
+            List<ICurve> resultParts = CornerGeometry.AllCorners(segments, closed, size, operation, base.ActiveDrawingPlane);
             if (resultParts == null) return null;
             foreach (ICurve part in resultParts) (part as IGeoObject).CopyAttributes(picked as IGeoObject);
-            return new MultiRoundInfo { originals = originals, resultParts = resultParts };
+            return new MultiCornerInfo { originals = originals, resultParts = resultParts };
         }
 
         /// <summary>
@@ -452,7 +459,7 @@ namespace CADability.Actions
             return segments.Count >= 2 && originals.Count > 0;
         }
 
-        private void ApplyMultiRound(MultiRoundInfo multi)
+        private void ApplyMultiCorner(MultiCornerInfo multi)
         {
             IGeoObject attrSource = multi.originals[0];
             IGeoObjectOwner owner = attrSource.Owner;
@@ -473,23 +480,23 @@ namespace CADability.Actions
         }
 
         public override void OnDone()
-        {   // all inputs are fixed: now apply the rounding that was computed and previewed during the interaction
+        {   // all inputs are fixed: now apply the result that was computed and previewed during the interaction
             if (mode == Mode.AllCorners)
             {
                 if (pendingMulti != null)
-                    using (base.Frame.Project.Undo.UndoFrame) ApplyMultiRound(pendingMulti);
+                    using (base.Frame.Project.Undo.UndoFrame) ApplyMultiCorner(pendingMulti);
             }
             else
             {
-                if (pendingRound != null)
-                    using (base.Frame.Project.Undo.UndoFrame) ApplyRound(pendingRound);
+                if (pendingCorner != null)
+                    using (base.Frame.Project.Undo.UndoFrame) ApplyCorner(pendingCorner);
             }
             base.OnDone();
         }
 
         public override string GetID()
         {
-            return "ToolsRoundOff";
+            return operation == CornerGeometry.Operation.Fillet ? "ToolsRoundOff" : "ToolsCutOff";
         }
     }
 }

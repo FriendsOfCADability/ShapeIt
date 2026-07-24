@@ -1438,13 +1438,13 @@ namespace CADability
                     SetAction(new ToolsConnect());
                     return true;
                 case "MenuId.Cut.Off":
-                    SetAction(new ToolsCutOff());
+                    SetAction(new CornerCurvesAction(CornerGeometry.Operation.Chamfer, CornerCurvesAction.Mode.SingleCorner));
                     return true;
                 case "MenuId.CutOffMultiple":
-                    SetAction(new ToolsCutOffMultiple());
+                    SetAction(new CornerCurvesAction(CornerGeometry.Operation.Chamfer, CornerCurvesAction.Mode.AllCorners));
                     return true;
                 case "MenuId.Round.Off":
-                    SetAction(new RoundObjectsAction());
+                    SetAction(new CornerCurvesAction(CornerGeometry.Operation.Fillet, CornerCurvesAction.Mode.SingleCorner));
                     return true;
                 case "MenuId.Round.In":
                     SetAction(new ToolsRoundIn());
@@ -1707,7 +1707,7 @@ namespace CADability
                     SetAction(new Measure());
                     return true;
                 case "MenuId.RoundMultiple":
-                    SetAction(new RoundObjectsAction(RoundObjectsAction.Mode.AllCorners));
+                    SetAction(new CornerCurvesAction(CornerGeometry.Operation.Fillet, CornerCurvesAction.Mode.AllCorners));
                     return true;
                 case "MenuId.Import":
                     OnFileImport();

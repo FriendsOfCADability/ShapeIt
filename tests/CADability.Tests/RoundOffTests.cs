@@ -10,8 +10,8 @@ using Path = System.IO.Path;
 namespace CADability.Tests
 {
     /// <summary>
-    /// Tests for <see cref="RoundOffGeometry.TryComputeRoundOff"/>, the geometric core extracted from the interactive
-    /// round-off corner tool (RoundObjectsAction). The extraction lets us exercise the corner
+    /// Tests for <see cref="CornerGeometry.TryComputeFillet"/>, the geometric core extracted from the interactive
+    /// corner tools (CornerCurvesAction). The extraction lets us exercise the corner
     /// detection without the interactive harness. The file RoundOffTest.cdb.json contains six connected lines; only the
     /// corner near (52, 69, 0) currently rounds in the app, although several corners are geometrically valid.
     /// </summary>
@@ -39,7 +39,7 @@ namespace CADability.Tests
             // corner at (10,0,0): one leg back along -X, one leg up along +Y; pick inside that quadrant
             Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
             Line b = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0));
-            bool ok = RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(9, 1, 0), 2.0,
+            bool ok = CornerGeometry.TryComputeFillet(a, b, new GeoPoint(9, 1, 0), 2.0,
                 Plane.XYPlane, out Ellipse arc, out _);
             Assert.IsTrue(ok, "right-angle corner should round");
             Assert.AreEqual(2.0, arc.Radius, 1e-6, "unexpected fillet radius");
@@ -50,7 +50,7 @@ namespace CADability.Tests
         {
             Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
             Line b = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0));
-            bool ok = RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(9, 1, 0), 2.0,
+            bool ok = CornerGeometry.TryComputeFillet(a, b, new GeoPoint(9, 1, 0), 2.0,
                 Plane.XYPlane, out Ellipse arc, out GeoPoint corner);
             Assert.IsTrue(ok, "corner should round");
             Assert.AreEqual(2.0, arc.Radius, 1e-6, "unexpected radius");
@@ -70,10 +70,10 @@ namespace CADability.Tests
 
             // the fillet is chosen purely from the geometry (the inner angle), so the pick side does not matter:
             // a pick outside the acute wedge rounds just like one inside it, and yields the same fillet
-            Assert.IsTrue(RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(5, -1, 0), 1.0,
+            Assert.IsTrue(CornerGeometry.TryComputeFillet(a, b, new GeoPoint(5, -1, 0), 1.0,
                 Plane.XYPlane, out Ellipse outsideArc, out _), "outside pick should still round");
             Assert.AreEqual(1.0, outsideArc.Radius, 1e-6, "unexpected radius");
-            Assert.IsTrue(RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(5, 1, 0), 1.0,
+            Assert.IsTrue(CornerGeometry.TryComputeFillet(a, b, new GeoPoint(5, 1, 0), 1.0,
                 Plane.XYPlane, out Ellipse insideArc, out _), "inside pick should round");
             Assert.IsTrue(Precision.IsEqual(outsideArc.StartPoint, insideArc.StartPoint)
                 || Precision.IsEqual(outsideArc.StartPoint, insideArc.EndPoint), "both picks should give the same fillet");
@@ -90,7 +90,7 @@ namespace CADability.Tests
                 MakeLine(new GeoPoint(10, 10, 0), new GeoPoint(0, 10, 0)),
                 MakeLine(new GeoPoint(0, 10, 0), new GeoPoint(0, 0, 0)),
             };
-            List<ICurve> parts = RoundOffGeometry.RoundAllCorners(square, true, 2.0, Plane.XYPlane);
+            List<ICurve> parts = CornerGeometry.AllCorners(square, true, 2.0, CornerGeometry.Operation.Fillet, Plane.XYPlane);
             Assert.IsNotNull(parts, "the square should round");
             int arcs = parts.OfType<Ellipse>().Count();
             int lines = parts.OfType<Line>().Count();
@@ -113,10 +113,46 @@ namespace CADability.Tests
                 MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0)),
                 MakeLine(new GeoPoint(10, 10, 0), new GeoPoint(20, 10, 0)),
             };
-            List<ICurve> parts = RoundOffGeometry.RoundAllCorners(chain, false, 2.0, Plane.XYPlane);
+            List<ICurve> parts = CornerGeometry.AllCorners(chain, false, 2.0, CornerGeometry.Operation.Fillet, Plane.XYPlane);
             Assert.IsNotNull(parts);
             Assert.AreEqual(2, parts.OfType<Ellipse>().Count(), "an open three-line chain has two inner corners");
             Assert.AreEqual(3, parts.OfType<Line>().Count(), "all three segments remain");
+        }
+
+        [TestMethod]
+        public void ChamferRightAngleHasRequestedEdgeLength()
+        {
+            // right angle at (10,0,0); a symmetric chamfer of edge length 3 cuts 3/sqrt(2) on each leg
+            Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
+            Line b = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0));
+            bool ok = CornerGeometry.TryComputeChamfer(a, b, new GeoPoint(9, 1, 0), 3.0,
+                Plane.XYPlane, out Line chamfer, out GeoPoint corner);
+            Assert.IsTrue(ok, "right angle should chamfer");
+            Assert.AreEqual(3.0, chamfer.Length, 1e-6, "the chamfer edge should have the requested length");
+            Assert.IsTrue(Precision.IsEqual(corner, new GeoPoint(10, 0, 0)), "unexpected corner");
+            // symmetric: the two cut points are equidistant from the corner
+            double dA = chamfer.StartPoint | corner;
+            double dB = chamfer.EndPoint | corner;
+            Assert.AreEqual(dA, dB, 1e-6, "a symmetric chamfer cuts both legs equally");
+            // both cut points lie on the legs, within the segments
+            Assert.IsTrue(OnSegment(chamfer.StartPoint, a) || OnSegment(chamfer.StartPoint, b), "cut point not on a leg");
+            Assert.IsTrue(OnSegment(chamfer.EndPoint, a) || OnSegment(chamfer.EndPoint, b), "cut point not on a leg");
+        }
+
+        [TestMethod]
+        public void ChamferAllCornersOfClosedSquare()
+        {
+            List<ICurve> square = new List<ICurve>
+            {
+                MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0)),
+                MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0)),
+                MakeLine(new GeoPoint(10, 10, 0), new GeoPoint(0, 10, 0)),
+                MakeLine(new GeoPoint(0, 10, 0), new GeoPoint(0, 0, 0)),
+            };
+            List<ICurve> parts = CornerGeometry.AllCorners(square, true, 2.0, CornerGeometry.Operation.Chamfer, Plane.XYPlane);
+            Assert.IsNotNull(parts, "the square should chamfer");
+            Assert.AreEqual(4, parts.OfType<Line>().Count(l => Math.Abs(l.Length - 2.0) < 1e-6), "four chamfer edges of length 2 expected");
+            Assert.AreEqual(8, parts.OfType<Line>().Count(), "four sides plus four chamfer edges");
         }
 
         private static bool OnSegment(GeoPoint p, ICurve curve)
@@ -132,13 +168,13 @@ namespace CADability.Tests
             // obtuse corner
             Line a = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
             Line b = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(18, 6, 0));
-            Assert.IsTrue(RoundOffGeometry.TryComputeRoundOff(a, b, new GeoPoint(9.5, 0.5, 0), 1.5,
+            Assert.IsTrue(CornerGeometry.TryComputeFillet(a, b, new GeoPoint(9.5, 0.5, 0), 1.5,
                 Plane.XYPlane, out _, out _), "obtuse corner should round");
 
             // acute corner
             Line c = MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0));
             Line d = MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(2, 4, 0));
-            Assert.IsTrue(RoundOffGeometry.TryComputeRoundOff(c, d, new GeoPoint(8, 0.5, 0), 1.0,
+            Assert.IsTrue(CornerGeometry.TryComputeFillet(c, d, new GeoPoint(8, 0.5, 0), 1.0,
                 Plane.XYPlane, out _, out _), "acute corner should round");
         }
 
@@ -170,12 +206,12 @@ namespace CADability.Tests
                     if (!SharedVertex(lines[i], lines[j], out GeoPoint corner)) continue;
 
                     // pick 1: exactly at the corner vertex
-                    bool okVertex = RoundOffGeometry.TryComputeRoundOff(lines[i], lines[j], corner, radius,
+                    bool okVertex = CornerGeometry.TryComputeFillet(lines[i], lines[j], corner, radius,
                         Plane.XYPlane, out _, out _);
 
                     // pick 2: offset into the corner interior along the angle bisector (simulates a real mouse pick)
                     GeoPoint pickInside = corner + 0.5 * InsideBisector(lines[i], lines[j], corner);
-                    bool okInside = RoundOffGeometry.TryComputeRoundOff(lines[i], lines[j], pickInside, radius,
+                    bool okInside = CornerGeometry.TryComputeFillet(lines[i], lines[j], pickInside, radius,
                         Plane.XYPlane, out _, out _);
 
                     if (okVertex) roundable++;
