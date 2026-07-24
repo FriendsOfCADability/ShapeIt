@@ -6,16 +6,37 @@ using System.Collections.Generic;
 namespace CADability.Actions
 {
     /// <summary>
-    /// Rounds the corner between two curves that meet at a common endpoint: the two curves are shortened to the tangent
-    /// points and a tangential fillet arc of the given radius is inserted. The user approaches a corner; the neighbouring
-    /// curve is found automatically via the pick ray (<see cref="ConstructAction.CurrentMouseBeam"/>). If a curve is a
-    /// path/polyline, only its end segment takes part in the computation and the result is recombined into a new path.
-    /// The geometric core is <see cref="RoundOffGeometry"/>.
+    /// Rounds corners with a tangential fillet arc of the given radius. In <see cref="Mode.SingleCorner"/> the user
+    /// approaches one corner (the two curves meeting there are found automatically via the pick ray
+    /// <see cref="ConstructAction.CurrentMouseBeam"/>); a picked path/polyline is reduced to its end segment.
+    /// In <see cref="Mode.AllCorners"/> every corner of the picked path, polyline or connected chain of model curves is
+    /// rounded at once. The geometric core is <see cref="RoundOffGeometry"/>.
     /// </summary>
     internal class RoundObjectsAction : ConstructAction
     {
+        /// <summary>What the tool rounds.</summary>
+        public enum Mode
+        {
+            SingleCorner, // the one corner the user points at
+            AllCorners    // every corner of the picked path / polyline / connected chain
+        }
+        private Mode mode; // the current mode, preset by the constructor and adjustable via modeInput
+        private MultipleChoiceInput modeInput; // the input field to choose the mode
         private LengthInput radiusInput; // the input field for the fillet radius
         private double radius; // the current fillet radius
+
+        // The rounding is computed from the current pick, radius and mode whenever any of them changes, shown as feedback
+        // and remembered here; it is applied to the model only in OnDone, when all inputs are fixed.
+        private RoundInfo pendingRound;      // the single-corner result to apply
+        private MultiRoundInfo pendingMulti; // the all-corners result to apply
+        private ICurve[] singleCurves;       // curves under the cursor at the last pick (single-corner mode)
+        private Axis singleBeam;             // the pick ray at the last pick (single-corner mode)
+        private ICurve allPicked;            // the object picked (all-corners mode)
+
+        public RoundObjectsAction(Mode mode = Mode.SingleCorner)
+        {
+            this.mode = mode;
+        }
 
         // one curve of a corner, reduced to the simple segment that touches the corner
         private class CornerCurve
@@ -39,7 +60,7 @@ namespace CADability.Actions
         public override void OnSetAction()
         {
             base.ActiveObject = null;
-            base.TitleId = "ToolsRoundOff";
+            UpdateTitle();
             radius = ConstrDefaults.DefaultRoundRadius;
 
             CurveInput curveInput = new CurveInput("ToolsRound.Object"); // the corner to be rounded
@@ -52,7 +73,12 @@ namespace CADability.Actions
             radiusInput.ForwardMouseInputTo = curveInput; // keep processing mouse input for the corner
             radiusInput.SetLengthEvent += new LengthInput.SetLengthDelegate(SetRadius);
 
-            base.SetInput(curveInput, radiusInput);
+            modeInput = new MultipleChoiceInput("ToolsRound.Mode", "ToolsRound.Mode.Values", (int)mode);
+            modeInput.Optional = true;
+            modeInput.ForwardMouseInputTo = curveInput;
+            modeInput.SetChoiceEvent += new MultipleChoiceInput.SetChoiceDelegate(SetMode);
+
+            base.SetInput(curveInput, radiusInput, modeInput);
             base.ShowActiveObject = false;
             base.OnSetAction();
         }
@@ -62,30 +88,64 @@ namespace CADability.Actions
             if (length >= 0.0)
             {
                 radius = length;
+                Recompute(); // the radius changed: rebuild the result and the preview
                 return true;
             }
             return false;
         }
 
+        private void SetMode(int val)
+        {   // the user changed the mode in the property grid
+            mode = (Mode)val;
+            UpdateTitle();
+            Recompute();
+        }
+
+        private void UpdateTitle()
+        {   // the title reflects the current mode
+            base.TitleId = mode == Mode.AllCorners ? "ToolsRoundMultiple" : "ToolsRoundOff";
+        }
+
         private bool MouseOverCornersToRound(CurveInput sender, ICurve[] curves, bool up)
         {
+            // Only remember what the user points at and show the preview; the rounding is applied in OnDone once the
+            // curve input and the radius input are both fixed (the user may pick the corner and the radius in any order).
+            if (mode == Mode.AllCorners)
+                allPicked = curves.Length > 0 ? curves[0] : null;
+            else
+            {
+                singleCurves = (ICurve[])curves.Clone();
+                singleBeam = base.CurrentMouseBeam;
+            }
+            Recompute();
+            return mode == Mode.AllCorners ? pendingMulti != null : pendingRound != null;
+            // returning true on up fixes the curve input; the action ends when the radius input is fixed as well
+        }
+
+        /// <summary>
+        /// Recomputes the rounding result for the current pick, radius and mode, updates the feedback and stores the
+        /// result (<see cref="pendingRound"/> / <see cref="pendingMulti"/>) for OnDone. Called whenever the pick, the
+        /// radius or the mode changes.
+        /// </summary>
+        private void Recompute()
+        {
             FeedBack.ClearSelected();
-            if (radius <= 0.0) return false; // no radius, nothing to round
-            RoundInfo roundInfo = ComputeBestCorner(curves, base.CurrentMouseBeam);
-            if (roundInfo == null) return false;
-            if (up)
-            {   // perform the rounding
-                using (base.Frame.Project.Undo.UndoFrame)
-                {
-                    ApplyRound(roundInfo);
-                }
+            pendingRound = null;
+            pendingMulti = null;
+            if (radius <= 0.0) return; // no radius, nothing to round
+            if (mode == Mode.AllCorners)
+            {
+                if (allPicked == null) return;
+                pendingMulti = ComputeAllCorners(allPicked);
+                if (pendingMulti != null)
+                    foreach (ICurve part in pendingMulti.resultParts) FeedBack.AddSelected(part as IGeoObject);
             }
             else
-            {   // preview the fillet arc
-                FeedBack.AddSelected(roundInfo.arc as IGeoObject);
+            {
+                if (singleCurves == null) return;
+                pendingRound = ComputeBestCorner(singleCurves, singleBeam);
+                if (pendingRound != null) FeedBack.AddSelected(pendingRound.arc as IGeoObject);
             }
-            return true;
-            // when true is returned and up == true, this action terminates, because there are no more open (unfixed) inputs.
         }
 
         /// <summary>
@@ -332,6 +392,99 @@ namespace CADability.Actions
         private static GeoPoint FarEnd(ICurve curve, GeoPoint corner)
         {
             return Precision.IsEqual(curve.StartPoint, corner) ? curve.EndPoint : curve.StartPoint;
+        }
+
+        // ---- "all corners" mode ----------------------------------------------------------------------------------
+
+        // one fully-rounded object: the objects to remove and the parts of the result (shortened segments + fillet arcs)
+        private class MultiRoundInfo
+        {
+            public List<IGeoObject> originals;
+            public List<ICurve> resultParts;
+        }
+
+        /// <summary>
+        /// Rounds every corner of <paramref name="picked"/> at once. The ordered segments come from a path/polyline or,
+        /// for a single curve, from a connected chain of model curves. Each inner corner (and the seam of a closed
+        /// outline) is filleted, and each segment is shortened by the fillets of its two neighbouring corners. Returns
+        /// null if nothing can be rounded.
+        /// </summary>
+        private MultiRoundInfo ComputeAllCorners(ICurve picked)
+        {
+            if (picked == null) return null;
+            if (!GetChain(picked, out List<ICurve> segments, out bool closed, out List<IGeoObject> originals)) return null;
+            List<ICurve> resultParts = RoundOffGeometry.RoundAllCorners(segments, closed, radius, base.ActiveDrawingPlane);
+            if (resultParts == null) return null;
+            foreach (ICurve part in resultParts) (part as IGeoObject).CopyAttributes(picked as IGeoObject);
+            return new MultiRoundInfo { originals = originals, resultParts = resultParts };
+        }
+
+        /// <summary>
+        /// Provides the ordered segments of the picked object plus the objects to remove: a path/polyline directly, or,
+        /// for a single curve, a connected chain of model curves (CreateFromModel). Returns false for fewer than two
+        /// segments.
+        /// </summary>
+        private bool GetChain(ICurve picked, out List<ICurve> segments, out bool closed, out List<IGeoObject> originals)
+        {
+            segments = new List<ICurve>();
+            originals = new List<IGeoObject>();
+            closed = false;
+            if (picked.IsComposed) // path or polyline
+            {
+                foreach (ICurve c in picked.SubCurves) segments.Add(c.Clone());
+                closed = picked.IsClosed;
+                originals.Add(picked as IGeoObject);
+            }
+            else
+            {   // a single curve: build a chain of connected model curves
+                Path chain = Path.CreateFromModel(picked, Frame.ActiveView.Model, Frame.ActiveView.Projection, true);
+                if (chain == null) return false;
+                for (int i = 0; i < chain.Count; i++)
+                {
+                    segments.Add(chain.Curve(i).Clone());
+                    IGeoObject original = null;
+                    if ((chain.Curve(i) as IGeoObject).UserData.ContainsData("CADability.Path.Original"))
+                        original = (chain.Curve(i) as IGeoObject).UserData.GetData("CADability.Path.Original") as IGeoObject;
+                    if (original != null && !originals.Contains(original)) originals.Add(original);
+                }
+                closed = chain.IsClosed;
+            }
+            return segments.Count >= 2 && originals.Count > 0;
+        }
+
+        private void ApplyMultiRound(MultiRoundInfo multi)
+        {
+            IGeoObject attrSource = multi.originals[0];
+            IGeoObjectOwner owner = attrSource.Owner;
+            if (owner == null) return; // should never happen
+            foreach (IGeoObject original in multi.originals) original.Owner?.Remove(original);
+
+            if (Frame.GetBooleanSetting("Construct.MakePath", true))
+            {   // combine the whole result into a single path
+                Path path = Path.FromSegments(multi.resultParts, false);
+                if (path != null)
+                {
+                    (path as IGeoObject).CopyAttributes(attrSource);
+                    owner.Add(path as IGeoObject);
+                    return;
+                }
+            }
+            foreach (ICurve part in multi.resultParts) owner.Add(part as IGeoObject);
+        }
+
+        public override void OnDone()
+        {   // all inputs are fixed: now apply the rounding that was computed and previewed during the interaction
+            if (mode == Mode.AllCorners)
+            {
+                if (pendingMulti != null)
+                    using (base.Frame.Project.Undo.UndoFrame) ApplyMultiRound(pendingMulti);
+            }
+            else
+            {
+                if (pendingRound != null)
+                    using (base.Frame.Project.Undo.UndoFrame) ApplyRound(pendingRound);
+            }
+            base.OnDone();
         }
 
         public override string GetID()

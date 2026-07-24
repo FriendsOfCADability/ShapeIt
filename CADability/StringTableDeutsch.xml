@@ -1844,6 +1844,13 @@
 		<label>Radius</label>
 		<info>Bitte geben Sie den Radius an, mit dem gerundet werden soll</info>
 	</data>
+	<data name="ToolsRound.Mode">
+		<label>Modus</label>
+		<info>Die angesteuerte Ecke runden, oder alle Ecken des Objekts auf einmal</info>
+	</data>
+	<data name="ToolsRound.Mode.Values">
+		<label>|Diese Ecke|Alle Ecken</label>
+	</data>
 	<data name="ToolsRoundIn">
 		<label>Objekte kehlen</label>
 		<info>Objekte können gekehlt werden. Entweder Schnittpunkt anfahren oder Einzelauswahl der zwei Kehlungsobjekte</info>

@@ -1707,7 +1707,7 @@ namespace CADability
                     SetAction(new Measure());
                     return true;
                 case "MenuId.RoundMultiple":
-                    SetAction(new ToolsRoundMultiple());
+                    SetAction(new RoundObjectsAction(RoundObjectsAction.Mode.AllCorners));
                     return true;
                 case "MenuId.Import":
                     OnFileImport();

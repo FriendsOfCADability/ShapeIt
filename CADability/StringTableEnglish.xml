@@ -1841,6 +1841,13 @@
 		<label>Radius</label>
 		<info>Radius for rounding</info>
 	</data>
+	<data name="ToolsRound.Mode">
+		<label>Mode</label>
+		<info>Round the corner you point at, or all corners of the object at once</info>
+	</data>
+	<data name="ToolsRound.Mode.Values">
+		<label>|This corner|All corners</label>
+	</data>
 	<data name="ToolsRoundIn">
 		<label>Channel</label>
 		<info>Channel objects at a common vertex</info>

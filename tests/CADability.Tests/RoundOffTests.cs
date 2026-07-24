@@ -79,6 +79,46 @@ namespace CADability.Tests
                 || Precision.IsEqual(outsideArc.StartPoint, insideArc.EndPoint), "both picks should give the same fillet");
         }
 
+        [TestMethod]
+        public void RoundAllCornersOfClosedSquare()
+        {
+            // a closed square of four lines (10 x 10)
+            List<ICurve> square = new List<ICurve>
+            {
+                MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0)),
+                MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0)),
+                MakeLine(new GeoPoint(10, 10, 0), new GeoPoint(0, 10, 0)),
+                MakeLine(new GeoPoint(0, 10, 0), new GeoPoint(0, 0, 0)),
+            };
+            List<ICurve> parts = RoundOffGeometry.RoundAllCorners(square, true, 2.0, Plane.XYPlane);
+            Assert.IsNotNull(parts, "the square should round");
+            int arcs = parts.OfType<Ellipse>().Count();
+            int lines = parts.OfType<Line>().Count();
+            Assert.AreEqual(4, arcs, "a square has four corners, so four fillet arcs are expected");
+            Assert.AreEqual(4, lines, "the four sides remain, each shortened at both ends");
+            foreach (Ellipse arc in parts.OfType<Ellipse>())
+                Assert.AreEqual(2.0, arc.Radius, 1e-6, "unexpected fillet radius");
+            // every side is shortened to 10 - 2*2 = 6
+            foreach (Line line in parts.OfType<Line>())
+                Assert.AreEqual(6.0, line.Length, 1e-6, "each side should be shortened by the radius at both ends");
+        }
+
+        [TestMethod]
+        public void RoundAllCornersOfOpenChainKeepsEnds()
+        {
+            // an open chain of three lines has two inner corners; the two outer ends stay unrounded
+            List<ICurve> chain = new List<ICurve>
+            {
+                MakeLine(new GeoPoint(0, 0, 0), new GeoPoint(10, 0, 0)),
+                MakeLine(new GeoPoint(10, 0, 0), new GeoPoint(10, 10, 0)),
+                MakeLine(new GeoPoint(10, 10, 0), new GeoPoint(20, 10, 0)),
+            };
+            List<ICurve> parts = RoundOffGeometry.RoundAllCorners(chain, false, 2.0, Plane.XYPlane);
+            Assert.IsNotNull(parts);
+            Assert.AreEqual(2, parts.OfType<Ellipse>().Count(), "an open three-line chain has two inner corners");
+            Assert.AreEqual(3, parts.OfType<Line>().Count(), "all three segments remain");
+        }
+
         private static bool OnSegment(GeoPoint p, ICurve curve)
         {
             double t = curve.PositionOf(p);

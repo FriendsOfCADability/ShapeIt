@@ -1,6 +1,7 @@
 using CADability.Curve2D;
 using CADability.GeoObject;
 using System;
+using System.Collections.Generic;
 
 namespace CADability
 {
@@ -137,6 +138,68 @@ namespace CADability
         private static bool WithinCurve(double par, double cornerPar)
         {
             return par > Math.Min(0.0, cornerPar) && par < Math.Max(1.0, cornerPar);
+        }
+
+        /// <summary>
+        /// Rounds every corner of the ordered <paramref name="segments"/> (which meet end-to-start) with a fillet of the
+        /// given <paramref name="radius"/>, and returns the resulting parts (shortened segments and fillet arcs) to be
+        /// joined into a path. For a <paramref name="closed"/> outline the seam between the last and first segment is
+        /// rounded as well. Each segment is shortened by the fillets of its two neighbouring corners; corners where the
+        /// fillet does not fit are left unrounded. Returns null if no corner could be rounded.
+        /// </summary>
+        public static List<ICurve> RoundAllCorners(IReadOnlyList<ICurve> segments, bool closed, double radius, Plane drawingPlane)
+        {
+            int n = segments.Count;
+            if (n < 2 || radius <= 0.0) return null;
+            int cornerCount = closed ? n : n - 1;
+
+            // the fillet at corner i sits between segments[i] and segments[(i+1) % n]; null where it does not fit
+            Ellipse[] arcs = new Ellipse[cornerCount];
+            bool anyRounded = false;
+            for (int i = 0; i < cornerCount; i++)
+            {
+                ICurve segA = segments[i];
+                ICurve segB = segments[(i + 1) % n];
+                if (TryComputeRoundOff(segA, segB, segA.EndPoint, radius, drawingPlane, out Ellipse arc, out _))
+                {
+                    arcs[i] = arc;
+                    anyRounded = true;
+                }
+            }
+            if (!anyRounded) return null;
+
+            List<ICurve> result = new List<ICurve>();
+            // shorten each segment by the fillets of the corners before and after it
+            for (int i = 0; i < n; i++)
+            {
+                Ellipse prevArc = (i >= 1) ? arcs[i - 1] : (closed ? arcs[cornerCount - 1] : null);
+                Ellipse nextArc = (i < cornerCount) ? arcs[i] : null;
+                ICurve seg = segments[i].Clone();
+                double tStart = prevArc != null ? seg.PositionOf(TangentOn(prevArc, seg)) : 0.0;
+                double tEnd = nextArc != null ? seg.PositionOf(TangentOn(nextArc, seg)) : 1.0;
+                if (tStart < tEnd - 1e-8) // the segment is not fully consumed by its two fillets
+                {
+                    seg.Trim(tStart, tEnd);
+                    result.Add(seg);
+                }
+            }
+            foreach (Ellipse arc in arcs) if (arc != null) result.Add(arc);
+            return result;
+        }
+
+        // the endpoint of the fillet arc that lies on the given segment (the tangent point there)
+        private static GeoPoint TangentOn(ICurve arc, ICurve segment)
+        {
+            return DistanceToCurve(arc.StartPoint, segment) <= DistanceToCurve(arc.EndPoint, segment)
+                ? arc.StartPoint : arc.EndPoint;
+        }
+
+        private static double DistanceToCurve(GeoPoint p, ICurve curve)
+        {
+            double pos = curve.PositionOf(p);
+            if (pos < 0.0) pos = 0.0;
+            if (pos > 1.0) pos = 1.0;
+            return p | curve.PointAt(pos);
         }
     }
 }
