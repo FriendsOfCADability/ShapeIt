@@ -732,9 +732,12 @@ namespace CADability.GeoObject
                 intersection = new GeoPoint[ips.Length];
                 for (int i = 0; i < ips.Length; ++i)
                 {
-                    par1[i] = ips[i].par1;
-                    par2[i] = ips[i].par2;
+                    //par1[i] = ips[i].par1;
+                    //par2[i] = ips[i].par2;
                     intersection[i] = pln.ToGlobal(ips[i].p);
+                    // the parametrisation of 2d curves and 3d curves is different with polylines and paths
+                    par1[i] = curve1.PositionOf(intersection[i]);
+                    par2[i] = curve2.PositionOf(intersection[i]);
                 }
                 return ips.Length;
             }

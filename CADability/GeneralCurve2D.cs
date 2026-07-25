@@ -511,7 +511,7 @@ namespace CADability.Curve2D
             }
         }
 
-        static public int mtCount=0;
+        static public int mtCount = 0;
         protected void MakeTriangulation()
         {   // ACHTUNG: Probleme sind hier Singularitäten und doppelte Punkte. Das muss noch überprüft werden
             // am Besten mit bösartigen BSplines (mehrfach identische Pole)
@@ -541,7 +541,7 @@ namespace CADability.Curve2D
                 GeoVector2D sec = points[i] - points[i - 1];
                 SweepAngle sa0 = new SweepAngle(directions[i - 1], sec);
                 SweepAngle sa1 = new SweepAngle(directions[i], sec);
-                if (directions[i - 1].Length < 1e-6 || directions[i].Length < 1e-6 || sec.Length<1e-6)
+                if (directions[i - 1].Length < 1e-6 || directions[i].Length < 1e-6 || sec.Length < 1e-6)
                 {   // wenn eine Richtung ein Nullvektor ist, wird nicht unterteilt
                     continue;
                 }
@@ -614,28 +614,28 @@ namespace CADability.Curve2D
             interdir = linterdir.ToArray();
             interparam = linterparam.ToArray();
             tringulation = ltringulation.ToArray();
-//#if DEBUG
-//            DebuggerContainer dc = new DebuggerContainer();
-//            Attribute.ColorDef red = new Attribute.ColorDef("red", Color.Red);
-//            Attribute.ColorDef green = new Attribute.ColorDef("green", Color.Green);
-//            Attribute.ColorDef blue = new Attribute.ColorDef("blue", Color.Blue);
-//            for (int i = 1; i < interpol.Length; ++i)
-//            {
-//                Line2D l1 = new Line2D(interpol[i - 1], interpol[i]);
-//                dc.Add(l1, Color.Red, i);
-//                Line2D l2 = new Line2D(interpol[i - 1], tringulation[i - 1]);
-//                dc.Add(l2, Color.Green, i);
-//                Line2D l3 = new Line2D(tringulation[i - 1], interpol[i]);
-//                dc.Add(l3, Color.Blue, i);
-//            }
-//            for (int i = 0; i < 100; ++i)
-//            {
-//                Line2D l1 = new Line2D(PointAt(i / 100.0), PointAt((i + 1) / 100.0));
-//                dc.Add(l1, Color.Black, i);
-//            }
-//            if (baseApproximation == null) baseApproximation = Approximate(false, 0.0); // Annäherung mit Bögen unter Auswertung der Tangenten
-//            dc.Add(baseApproximation, Color.Cyan, 0);
-//#endif
+            //#if DEBUG
+            //            DebuggerContainer dc = new DebuggerContainer();
+            //            Attribute.ColorDef red = new Attribute.ColorDef("red", Color.Red);
+            //            Attribute.ColorDef green = new Attribute.ColorDef("green", Color.Green);
+            //            Attribute.ColorDef blue = new Attribute.ColorDef("blue", Color.Blue);
+            //            for (int i = 1; i < interpol.Length; ++i)
+            //            {
+            //                Line2D l1 = new Line2D(interpol[i - 1], interpol[i]);
+            //                dc.Add(l1, Color.Red, i);
+            //                Line2D l2 = new Line2D(interpol[i - 1], tringulation[i - 1]);
+            //                dc.Add(l2, Color.Green, i);
+            //                Line2D l3 = new Line2D(tringulation[i - 1], interpol[i]);
+            //                dc.Add(l3, Color.Blue, i);
+            //            }
+            //            for (int i = 0; i < 100; ++i)
+            //            {
+            //                Line2D l1 = new Line2D(PointAt(i / 100.0), PointAt((i + 1) / 100.0));
+            //                dc.Add(l1, Color.Black, i);
+            //            }
+            //            if (baseApproximation == null) baseApproximation = Approximate(false, 0.0); // Annäherung mit Bögen unter Auswertung der Tangenten
+            //            dc.Add(baseApproximation, Color.Cyan, 0);
+            //#endif
         }
         protected void ClearTriangulation()
         {
@@ -1645,11 +1645,17 @@ namespace CADability.Curve2D
                 for (int i = 0; i < sc.Length; i++)
                 {
                     GeoPoint2DWithParameter[] p2ds = Intersect(sc[i]);
+                    List<GeoPoint2DWithParameter> validIntersectionPoints = new List<GeoPoint2DWithParameter>();
                     for (int j = 0; j < p2ds.Length; j++)
                     {
+                        if (p2ds[j].par2 < -1e-6 || p2ds[j].par2 > 1 + 1e-6) continue;
+                        // this only allows inner intersections for IntersectWith. If we need outer intersection
+                        // they are only allowed for the first segment, par2<0 or for the last segment, par2>1
+                        // in that case, the parameter calculation is diffidult
                         p2ds[j].par2 = IntersectWith.PositionOf(p2ds[j].p);
+                        validIntersectionPoints.Add(p2ds[j]);
                     }
-                    res.AddRange(p2ds);
+                    res.AddRange(validIntersectionPoints);
                 }
                 return res.ToArray();
             }
@@ -1718,7 +1724,7 @@ namespace CADability.Curve2D
                 }
             }
             // ggf noch nachbessern wie in GeneralCurve2D
-            if (res.Count==0)
+            if (res.Count == 0)
             {
                 if (Precision.IsNull(curve2.Distance(curve1.StartPoint))) res.Add(new GeoPoint2DWithParameter(curve1.StartPoint, 0.0, curve2.PositionOf(curve1.StartPoint)));
                 if (Precision.IsNull(curve2.Distance(curve1.EndPoint))) res.Add(new GeoPoint2DWithParameter(curve1.EndPoint, 1.0, curve2.PositionOf(curve1.EndPoint)));
