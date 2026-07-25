@@ -488,7 +488,7 @@ namespace CADability.Actions
             /// <summary>
             /// Creates an uninitialized DefaultGeoVector
             /// </summary>
-            public DefaultGeoVector()
+            public DefaultGeoVector(bool locked = false)
             {
                 vector = new GeoVector(0.0, 0.0, 0.0);
                 isDefined = false;
@@ -497,6 +497,7 @@ namespace CADability.Actions
                 activeAction = null;
                 startDirection = StartDirection.XAxis;
                 startLength = StartLength.UnitOne;
+                Locked = locked;
             }
             /// <summary>
             /// Creates an uninitialized DefaultGeoVector with a description how to initialize.
@@ -5875,7 +5876,7 @@ namespace CADability.Actions
             void IInputObject.SetFixed(bool isFixed)
             {
                 isfixed = isFixed;
-                editBox.Highlight = !isFixed;
+                if (editBox != null) editBox.Highlight = !isFixed;
             }
             public override void SetError(string errorMessage)
             {
@@ -6598,6 +6599,13 @@ namespace CADability.Actions
         public new GeoPoint CurrentMousePosition
         {
             get { return lastWorldPoint; }
+        }
+        public Axis CurrentMouseBeam
+        {
+            get
+            {
+                return new Axis(lastWorldPoint, CurrentMouseView.Projection.Direction);
+            }
         }
         /// <summary>
         /// Sets the input focus to the given input object. The input object must be one of those

@@ -92,6 +92,7 @@ namespace CADability.Tests
                 case ConicalSurface co: return $"Cone apex{P(co.Location)} axis{D(co.Axis)} angle={N1(co.OpeningAngle.Radian * 180 / Math.PI)} {n}";
                 case SphericalSurface s: return $"Sphere center{P(s.Location)} r={N(s.RadiusX)} {n}";
                 case ToroidalSurface t: return $"Torus center{P(t.Location)} axis{D(t.Axis)} R={N(t.MajorRadius)} r={N(t.MinorRadius)} {n}";
+                case NurbsSurface nu: return $"Nurbs poles={nu.Poles.GetLength(0)}x{nu.Poles.GetLength(1)} degree={nu.UDegree}x{nu.VDegree} {n}";
                 default: return $"Unrecognized {n}";
             }
         }

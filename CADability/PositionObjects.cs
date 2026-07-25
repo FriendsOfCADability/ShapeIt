@@ -8,7 +8,7 @@ namespace CADability
     /// <summary>
     /// 
     /// </summary>
-    internal class PositionObjects
+    public class PositionObjects
     {
         public PositionObjects()
         {

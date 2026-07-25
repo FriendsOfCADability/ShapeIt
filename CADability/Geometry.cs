@@ -3321,50 +3321,86 @@ namespace CADability
             return res;
         }
         public static double CircleFitLs(GeoPoint2D[] p, out GeoPoint2D c, out double r)
-        {   // siehe: http://www.had2know.com/academics/best-fit-circle-least-squares.html
-            // kommt ohne Iterationen aus, liefert direkt das Ergebnis mit least squre
-#if DEBUG
-            //Polyline2D p2d = new Polyline2D(p);
-#endif
-            Matrix m = new DenseMatrix(3, 3);
-            Vector b = new DenseVector(3);
-            for (int i = 0; i < p.Length; i++)
-            {
-                double s = p[i].x * p[i].x + p[i].y * p[i].y;
-                b[0] += p[i].x * s;
-                b[1] += p[i].y * s;
-                b[2] += s;
-                s = p[i].x * p[i].y;
-                m[0, 0] += p[i].x * p[i].x;
-                m[0, 1] += s;
-                m[0, 2] += p[i].x;
-                m[1, 0] += s;
-                m[1, 1] += p[i].y * p[i].y;
-                m[1, 2] += p[i].y;
-                m[2, 0] += p[i].x;
-                m[2, 1] += p[i].y;
-            }
-            m[2, 2] = p.Length;
-            Vector slv = (Vector)m.Transpose().Solve(b);
-            if (slv.IsValid())
-            {
-                c.x = slv[0] / 2.0;
-                c.y = slv[1] / 2.0;
-                double rt = 4 * slv[2] + slv[0] * slv[0] + slv[1] * slv[1];
-                if (rt >= 0)
-                {
-                    r = Math.Sqrt(rt) / 2.0;
-                    double res = 0.0;
-                    for (int i = 0; i < p.Length; i++)
-                    {
-                        res += Math.Abs((p[i].x - c.x) * (p[i].x - c.x) + (p[i].y - c.y) * (p[i].y - c.y) - r * r);
-                    }
-                    return res;
-                }
-            }
+        {
+            // Taubin fit: a geometrically (nearly) unbiased algebraic circle fit. Unlike the simple Kasa fit it does
+            // not systematically underestimate the radius on short arcs, and because it works on data centered at
+            // the centroid it stays well conditioned even for circles far from the coordinate origin.
+            // Returns the sum of the absolute residuals |dist^2 - r^2| (smaller is a better fit), double.MaxValue
+            // when no circle could be determined (fewer than three points or collinear points).
+            // References: G. Taubin, IEEE PAMI 13 (1991); implementation after N. Chernov, "Circular and Linear
+            // Regression: Fitting Circles and Lines by Least Squares".
             c = GeoPoint2D.Origin;
-            r = 0;
-            return double.MaxValue;
+            r = 0.0;
+            int n = p.Length;
+            if (n < 3) return double.MaxValue;
+
+            // center the data at the centroid
+            double meanX = 0.0, meanY = 0.0;
+            for (int i = 0; i < n; i++) { meanX += p[i].x; meanY += p[i].y; }
+            meanX /= n; meanY /= n;
+
+            // normalized moments of the centered points (z = x^2 + y^2)
+            double Mxx = 0.0, Myy = 0.0, Mxy = 0.0, Mxz = 0.0, Myz = 0.0, Mzz = 0.0;
+            for (int i = 0; i < n; i++)
+            {
+                double xi = p[i].x - meanX;
+                double yi = p[i].y - meanY;
+                double zi = xi * xi + yi * yi;
+                Mxx += xi * xi;
+                Myy += yi * yi;
+                Mxy += xi * yi;
+                Mxz += xi * zi;
+                Myz += yi * zi;
+                Mzz += zi * zi;
+            }
+            Mxx /= n; Myy /= n; Mxy /= n; Mxz /= n; Myz /= n; Mzz /= n;
+
+            double Mz = Mxx + Myy;
+            double covXY = Mxx * Myy - Mxy * Mxy;
+            double varZ = Mzz - Mz * Mz;
+
+            // characteristic cubic  a3*t^3 + a2*t^2 + a1*t + a0  whose smallest nonnegative root gives the fit
+            double a3 = 4.0 * Mz;
+            double a2 = -3.0 * Mz * Mz - Mzz;
+            double a1 = varZ * Mz + 4.0 * covXY * Mz - Mxz * Mxz - Myz * Myz;
+            double a0 = Mxz * (Mxz * Myy - Myz * Mxy) + Myz * (Myz * Mxx - Mxz * Mxy) - varZ * covXY;
+            double a22 = a2 + a2;
+            double a33 = a3 + a3 + a3;
+
+            // find the root by Newton's method starting at 0 (a few scalar steps; the start point brackets the
+            // relevant root). On divergence or a negative root fall back to t = 0, which is still a valid fit.
+            double t = 0.0;
+            double yPrev = double.MaxValue;
+            for (int iter = 0; iter < 50; iter++)
+            {
+                double y = a0 + t * (a1 + t * (a2 + t * a3));
+                if (Math.Abs(y) >= Math.Abs(yPrev)) { t = 0.0; break; } // not converging
+                double dy = a1 + t * (a22 + t * a33);
+                if (dy == 0.0) break;
+                double tOld = t;
+                t = tOld - y / dy;
+                if (double.IsNaN(t) || t < 0.0) { t = 0.0; break; }
+                if (t != 0.0 && Math.Abs((t - tOld) / t) < 1e-12) break;
+                yPrev = y;
+            }
+
+            double det = t * t - t * Mz + covXY;
+            if (det == 0.0 || double.IsNaN(det)) return double.MaxValue; // collinear points, no unique circle
+            double cx = (Mxz * (Myy - t) - Myz * Mxy) / det / 2.0;
+            double cy = (Myz * (Mxx - t) - Mxz * Mxy) / det / 2.0;
+            double rsqr = cx * cx + cy * cy + Mz;
+            if (rsqr < 0.0 || double.IsNaN(rsqr)) return double.MaxValue;
+
+            c.x = cx + meanX; // undo the centering
+            c.y = cy + meanY;
+            r = Math.Sqrt(rsqr);
+
+            double residual = 0.0;
+            for (int i = 0; i < n; i++)
+            {
+                residual += Math.Abs((p[i].x - c.x) * (p[i].x - c.x) + (p[i].y - c.y) * (p[i].y - c.y) - r * r);
+            }
+            return residual;
         }
 
         public static double SphereFit(GeoPoint[] points, out GeoPoint center, out double radius)

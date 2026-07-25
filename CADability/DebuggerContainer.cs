@@ -341,25 +341,13 @@ namespace CADability
             }
             return res;
         }
-        public static object SerializeAndDeserialize(ISerializable obj)
-        {
-            BinaryFormatter formatter = new BinaryFormatter(null, new StreamingContext(StreamingContextStates.File, null));
-            formatter.AssemblyFormat = System.Runtime.Serialization.Formatters.FormatterAssemblyStyle.Simple;
-            // formatter.TypeFormat = System.Runtime.Serialization.Formatters.FormatterTypeStyle.XsdString; // XsdString macht das wechseln von .NET Frameworks schwierig
-            MemoryStream ms = new MemoryStream();
-            formatter.Serialize(ms, obj);
-            formatter = new BinaryFormatter();
-            ms.Seek(0, SeekOrigin.Begin);
-            try
-            {
-                return formatter.Deserialize(ms);
-            }
-            catch
-            {
-                return null;
-            }
-        }
 
+        public void WriteToFile(string filename)
+        {
+            Project pr = Project.CreateSimpleProject();
+            pr.GetActiveModel().Add(toShow);
+            pr.WriteToFile(filename);
+        }
         internal void Add(IEnumerable<Edge> edges, Face onThisFace, double arrowsize, Color clr, int debugHint)
         {
             Random rnd = new Random();

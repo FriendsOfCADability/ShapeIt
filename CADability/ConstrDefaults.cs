@@ -76,6 +76,10 @@
         /// </summary>
         public static ConstructAction.DefaultLength DefaultRectHeight = new DefaultLength(ConstructAction.DefaultLength.StartValue.ViewWidth8);
         /// <summary>
+        /// The default angle of a rectangle/parallelogram. Normally it is set at the end of a rectangle-constrution to the angle of that rectangle, so a new rectangle/parallelogram can start with the angle of the last rectangle/parallelogram by using the TAB-button within the angle-textfield to accept the default angle. It is locked in its initial state, because in 99% of the cases, the rectangle is positioned horizontally. 
+        /// </summary>
+        public static ConstructAction.DefaultGeoVector DefaultRectAngle = new DefaultGeoVector(true);
+        /// <summary>
         /// The default height of a 3D-box. Normally it is set at the end of a box-constrution to the height of that box, so a new box can start with the height of the last box by using the TAB-button within the height-textfield to accept the default height.
         /// </summary>
         public static ConstructAction.DefaultLength DefaultBoxHeight = new DefaultLength(ConstructAction.DefaultLength.StartValue.ViewWidth4);

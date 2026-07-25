@@ -1169,10 +1169,14 @@ namespace CADability
                 cs = new CylindricalSurface(center, radius * dirx, radius * diry, axis);
 #if DEBUG
                 double dd = 0.0;
+                double maxError = 0.0;
                 for (int i = 0; i < points.Length; i++)
                 {
-                    dd += cs.GetDistance(points[i]);
+                    double d = cs.GetDistance(fromZAxis * points[i]);
+                    dd += d;
+                    maxError = Math.Max(maxError, d);
                 }
+                dd /= points.Length;
 #endif
                 return Math.Sqrt(minError);
             }

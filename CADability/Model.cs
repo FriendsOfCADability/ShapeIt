@@ -2433,16 +2433,31 @@ namespace CADability
 			}
 			return new GeoObjectList(res.ToArray());
 		}
-		/// <summary>
-		/// Adjusts the point defined by <paramref name="spf"/> (<see cref="SnapPointFinder.SourcePoint"/> and <see cref="SnapPointFinder.Projection"/>)
-		/// according to the settings of <paramref name="spf"/> (<see cref="SnapPointFinder.SnapModes"/> and other properties)
-		/// by checking all objects in the <paramref name="visibleLayers"/>.
-		/// As a result <see cref="SnapPointFinder.SnapPoint"/> and <see cref="SnapPointFinder.DidSnap"/> will be set.
-		/// </summary>
-		/// <param name="spf">Point to be adjusted and mode how to adjust</param>
-		/// <param name="projection">Projection</param>
-		/// <param name="visibleLayers">Visible layers to consider</param>
-		public void AdjustPoint(SnapPointFinder spf, Projection projection, Set<Layer> visibleLayers)
+        /// <summary>
+        /// Returns all objects of the model that are inside ore close to the provided box.
+        /// </summary>
+        /// <param name="box">Box from which to seek objects</param>
+        /// <returns>List of objects in or close to the box</returns>
+        public GeoObjectList GetObjectsCloseTo(IOctTreeInsertable item)
+        {
+            if (octTree == null) InitOctTree();
+            Set<IGeoObject> res = new Set<IGeoObject>();
+            IGeoObject[] found = octTree.GetObjectsCloseTo(item);
+			res.AddMany(found);
+			if (item is IGeoObject go) res.Remove(go);
+			// return child objects 
+			return new GeoObjectList(res.ToArray());
+        }
+        /// <summary>
+        /// Adjusts the point defined by <paramref name="spf"/> (<see cref="SnapPointFinder.SourcePoint"/> and <see cref="SnapPointFinder.Projection"/>)
+        /// according to the settings of <paramref name="spf"/> (<see cref="SnapPointFinder.SnapModes"/> and other properties)
+        /// by checking all objects in the <paramref name="visibleLayers"/>.
+        /// As a result <see cref="SnapPointFinder.SnapPoint"/> and <see cref="SnapPointFinder.DidSnap"/> will be set.
+        /// </summary>
+        /// <param name="spf">Point to be adjusted and mode how to adjust</param>
+        /// <param name="projection">Projection</param>
+        /// <param name="visibleLayers">Visible layers to consider</param>
+        public void AdjustPoint(SnapPointFinder spf, Projection projection, Set<Layer> visibleLayers)
 		{   // alle relevanten Objekte zunächst im Quadtree suchen
 			//BoundingRect br = new BoundingRect(spf.SourceBeam, spf.MaxDist, spf.MaxDist);
 			//GeoObjectList l = this.GetObjectsFromRect(br, PickMode.normal, null);

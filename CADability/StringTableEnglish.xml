@@ -1233,7 +1233,11 @@
 		<label>Starting point</label>
 		<info>Starting point of the rectangle</info>
 	</data>
-	<data name="Rect.SecondPoint">
+  <data name="Rect.CenterPoint">
+    <label>Center point</label>
+    <info>Center point of the rectangle</info>
+  </data>
+  <data name="Rect.SecondPoint">
 		<label>2nd Point</label>
 		<info>2nd point of the rectangle baseline</info>
 	</data>

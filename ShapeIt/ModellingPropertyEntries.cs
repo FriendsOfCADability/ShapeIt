@@ -316,6 +316,7 @@ namespace ShapeIt
                 GeoObjectList toSelect = new GeoObjectList(selectedObjects);
                 sender.SetSelectedObjects(new GeoObjectList()); // nothing selected
                 ComposeModellingEntries(toSelect, sender.Frame.ActiveView, null);
+                cadFrame.ControlCenter.ShowPropertyPage("Modelling");
             }
             return; // do we need this at all? selection here happens with filter mouse messages, this makes things complicated
 
@@ -1093,6 +1094,7 @@ namespace ShapeIt
                     SelectEntry multipleCurves = new SelectEntry("MultipleCurves.Properties", true);
                     multipleCurves.Label = StringTable.GetFormattedString("MultipleCurves.Properties", curves.Count);
                     GeoObjectList select = Helper.ThickCurvesFromCurves(curves);
+                    GeoObjectList capturedCurves = new GeoObjectList(curves);
                     multipleCurves.IsSelected = (selected, frame) =>
                     {
                         feedback.Clear();
@@ -1102,6 +1104,17 @@ namespace ShapeIt
                         }
                         feedback.Refresh();
                         return true;
+                    };
+                    multipleCurves.TestShortcut = (shortcut) =>
+                    {
+                        if (shortcut == Keys.Delete)
+                        {
+                            feedback.Clear();
+                            cadFrame.ActiveView.Model.Remove(capturedCurves);
+                            Clear();
+                            return true;
+                        }
+                        return false;
                     };
                     multipleCurves.Add(GetCurvesProperties(curves.ToList(), vw));
                     foreach (ICurve crv in curves)
@@ -2879,13 +2892,16 @@ namespace ShapeIt
             {
                 // check whether we can mate
                 Model model = owningShell.Owner as Model;
-                if (model == null) model = (owningShell.Owner as Solid).Owner as Model;
+                if (model == null && owningShell.Owner!=null) model = (owningShell.Owner as Solid).Owner as Model;
                 bool canMate = false;
-                foreach (IGeoObject geoObject in model)
+                if (model != null)
                 {
-                    if (geoObject is Solid && geoObject != owningShell.Owner) canMate = true;
-                    if (geoObject is Shell && geoObject != owningShell) canMate = true;
-                    if (canMate) break;
+                    foreach (IGeoObject geoObject in model)
+                    {
+                        if (geoObject is Solid && geoObject != owningShell.Owner) canMate = true;
+                        if (geoObject is Shell && geoObject != owningShell) canMate = true;
+                        if (canMate) break;
+                    }
                 }
                 if (canMate)
                 {
@@ -3145,6 +3161,7 @@ namespace ShapeIt
         /// <param name="isGap">Is a hole in the solid or part standing out</param>
         private IPropertyEntry GetFeatureProperties(IView vw, IEnumerable<Face> featureFaces, List<Face> connection, bool isGap)
         {
+            // return null; // sometimes takes too long and messes up some objects
             if (featureFaces.Count() == 1 && connection.Count == 1)
             {
                 if (featureFaces.First().Surface.SameGeometry(featureFaces.First().Domain, connection[0].Surface, connection[0].Domain, Precision.eps, out ModOp2D _))
@@ -3905,6 +3922,39 @@ namespace ShapeIt
                     Frame.SetAction(new CopyCircularObjects(new GeoObjectList(selectedObjects)));
                     Clear();
                     return true;
+                case "MenuId.Align.Left":
+                    PositionObjects.AlignLeft(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Align.Hcenter":
+                    PositionObjects.AlignHcenter(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Align.Right":
+                    PositionObjects.AlignRight(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Align.Top":
+                    PositionObjects.AlignTop(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Align.Vcenter":
+                    PositionObjects.AlignVcenter(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Align.Center":
+                    PositionObjects.AlignCenter(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Align.Bottom":
+                    PositionObjects.AlignBottom(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Space.Down":
+                    PositionObjects.SpaceDown(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Space.Across":
+                    PositionObjects.SpaceAcross(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Same.Width":
+                    PositionObjects.SameWidth(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
+                case "MenuId.Same.Height":
+                    PositionObjects.SameHeight(new GeoObjectList(selectedObjects), Frame.ActiveView.Projection, Frame.Project);
+                    return true;
                 case "MenuId.RPCDialog":
 #if !AVALONIA
                     if (mcpServerForm == null || mcpServerForm.IsDisposed)
@@ -4089,6 +4139,26 @@ namespace ShapeIt
                 case "MenuId.Copy.Matrix":
                 case "MenuId.Copy.Circular":
                     CommandState.Enabled = modelligIsActive && selectedObjects.Any();
+                    return true;
+                case "MenuId.Align.Hcenter":
+                case "MenuId.Align.Vcenter":
+                case "MenuId.Align.Center":
+                    CommandState.Enabled = modelligIsActive && (selectedObjects.Count > 0);
+                    return true;
+                case "MenuId.Object.MakePath":
+                case "MenuId.Align.Left":
+                case "MenuId.Align.Right":
+                case "MenuId.Align.Top":
+                case "MenuId.Align.Bottom":
+                case "MenuId.Same.Width":
+                case "MenuId.Same.Height":
+                case "MenuId.Save.Symbol":
+                case "MenuId.SelectedObjects.ComposeAll":
+                    CommandState.Enabled = modelligIsActive && (selectedObjects.Count > 1);
+                    return true;
+                case "MenuId.Space.Down":
+                case "MenuId.Space.Across":
+                    CommandState.Enabled = modelligIsActive && (selectedObjects.Count > 2);
                     return true;
                 default: return false;
             }

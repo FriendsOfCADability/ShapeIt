@@ -162,7 +162,11 @@ namespace ShapeIt
             ICurve spine1 = sweptSurface1.Axis(sweptFace1.Domain);
             ICurve spine2 = sweptSurface2.Axis(sweptFace2.Domain);
             ICurve spine3 = sweptSurface3.Axis(sweptFace3.Domain);
-            var cp = Curves.FindCommonPoint([spine1, spine2, spine3], vtx.Position, null, 1E-6, 1E-6, 1E-8, 100);
+            double [] ipp = Curves.Intersect(spine1, spine2, true);
+            GeoPoint sp = vtx.Position;
+            if (ipp.Length>0) sp = ipp.Select(spine1.PointAt).MinBy(p => (p | vtx.Position));
+            var cp = Curves.FindCommonPoint([spine1, spine2, spine3], sp, null, 1E-6, 1E-6, 1E-8, 100);
+
             if (cp.SumOfSquaredDistances < Precision.eps)
             {
                 // this is the center of the sphere, no we need the three arcs at the end faces to define the sphere
@@ -172,7 +176,39 @@ namespace ShapeIt
                     : sweptFace2.Surface.FixedU(cp.Parameters[1], sweptFace2.Domain.Bottom, sweptFace2.Domain.Top);
                 ICurve arc3 = sweptSurface3.ExtrusionDirectionIsV ? sweptFace3.Surface.FixedV(cp.Parameters[2], sweptFace3.Domain.Left, sweptFace3.Domain.Right)
                     : sweptFace3.Surface.FixedU(cp.Parameters[2], sweptFace3.Domain.Bottom, sweptFace3.Domain.Top);
-
+                Solid sphere = Make3D.MakeSphere(cp.Point, this.radius);
+                Solid box = Make3D.MakeBox(cp.Point - 2 * radius * GeoVector.XAxis - 2 * radius * GeoVector.YAxis - 2 * radius * GeoVector.ZAxis, 4 * radius * GeoVector.XAxis, 4 * radius * GeoVector.YAxis, 4 * radius * GeoVector.ZAxis); // a box big egnough
+                double pos = spine1.PositionOf(cp.Point);
+                Plane pln;
+                if (pos > 0.5) pln = new Plane(cp.Point, -spine1.DirectionAt(pos));
+                else pln = new Plane(cp.Point, spine1.DirectionAt(pos));
+                Shell[] parts = BooleanOperation.SplitByPlane(box.Shell, pln).upperPart;
+                if (parts.Length != 1) return null;
+                pos = spine2.PositionOf(cp.Point);
+                if (pos > 0.5) pln = new Plane(cp.Point, -spine2.DirectionAt(pos));
+                else pln = new Plane(cp.Point, spine2.DirectionAt(pos));
+                parts = BooleanOperation.SplitByPlane(parts[0], pln).upperPart;
+                if (parts.Length != 1) return null;
+                pos = spine3.PositionOf(cp.Point);
+                if (pos > 0.5) pln = new Plane(cp.Point, -spine3.DirectionAt(pos));
+                else pln = new Plane(cp.Point, spine3.DirectionAt(pos));
+                parts = BooleanOperation.SplitByPlane(parts[0], pln).upperPart;
+                if (parts.Length != 1) return null;
+                Solid[] boxMinusSphere = BooleanOperation.Subtract(Solid.MakeSolid(parts[0]), sphere);
+                if (boxMinusSphere.Length != 1) return null;
+                Shell part = boxMinusSphere[0].Shell.Clone() as Shell;
+                foreach (var vertex in boxMinusSphere[0].Shell.Vertices)
+                {
+                    if (Math.Abs((vertex.Position | cp.Point) - radius) < Precision.eps && vertex.Edges.Any(e => e.Curve3D is Line))
+                    {
+                        pln = new Plane(vertex.Position, vertex.Position - cp.Point);
+                        Shell[] tmp = BooleanOperation.SplitByPlane(part, pln).upperPart;
+                        if (tmp.Length != 1) return null;
+                        part = tmp[0];
+                    }
+                }
+                if (part != null) return new HashSet<Shell>([fillet1, fillet2, fillet3, part]);
+                else return new HashSet<Shell>([fillet1, fillet2, fillet3]);
             }
             int si1 = Curves.Intersect(spine1, spine2, out double[] par1, out double[] par2, out GeoPoint[] intersection);
             //double[] si2 = Curves.Intersect(spine2, spine3, true);

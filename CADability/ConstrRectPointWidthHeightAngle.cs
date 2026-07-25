@@ -1,4 +1,5 @@
 ﻿using CADability.GeoObject;
+using System;
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
 
 
@@ -12,27 +13,48 @@ namespace CADability.Actions
         public ConstrRectPointWidthHeightAngle()
         { }
 
-        private Polyline line;
+        private Polyline polyLine;
         private GeoVectorInput ang;
         private LengthInput height;
         private LengthInput width;
         private GeoPointInput startPointInput;
+        private GeoPointInput centerPointInput;
+        private static bool isCentered = false;
 
         private void StartPoint(GeoPoint p)
         {
-            //			line.RectangleLocation = p;
-            line.SetRectangle(p, line.RectangleWidth * base.ActiveDrawingPlane.DirectionX, line.RectangleHeight * base.ActiveDrawingPlane.DirectionY);
+            polyLine.SetRectangle(p, polyLine.RectangleWidth * base.ActiveDrawingPlane.DirectionX, polyLine.RectangleHeight * base.ActiveDrawingPlane.DirectionY);
+            SetCentered(false);
+        }
+
+        private void CenterPoint(GeoPoint p)
+        {
+            polyLine.SetRectangle(p - polyLine.RectangleWidth / 2 * base.ActiveDrawingPlane.DirectionX - polyLine.RectangleHeight / 2 * base.ActiveDrawingPlane.DirectionY, polyLine.RectangleWidth * base.ActiveDrawingPlane.DirectionX, polyLine.RectangleHeight * base.ActiveDrawingPlane.DirectionY);
+            SetCentered(true);
         }
 
         private double WidthCalculate(GeoPoint MousePosition)
         {  // falls die Breite über einen Punkt im Raum über dem jetzigen Rechteck bestimmt wird:
            // der Lotfußpunkt von MousePosition auf die NebenAchse (y-Direction)
-            GeoPoint p = Geometry.DropPL(MousePosition, line.RectangleLocation, line.ParallelogramSecondaryDirection);
-            if (!Precision.IsEqual(MousePosition, p))
-            {   // Neues Rechteck mit neuer Orientierung im Raum, x-Vektor: Lotfußpunkt, Mausposition
-                line.SetRectangle(line.RectangleLocation, new GeoVector(p, MousePosition), line.ParallelogramSecondaryDirection);
-                // nun die Breite zurückliefern
-                return line.RectangleWidth;
+            if (isCentered)
+            {
+                double dist = Math.Abs(Geometry.DistPL(MousePosition, polyLine.RectangleLocation + 0.5 * polyLine.ParallelogramMainDirection, polyLine.ParallelogramSecondaryDirection)); // center in xdirection
+                if (dist > Precision.eps)
+                {   // Neues Rechteck mit neuer Orientierung im Raum, x-Vektor: Lotfußpunkt, Mausposition
+                    polyLine.CenteredRectangleWidth = 2 * dist;
+                    // nun die Breite zurückliefern
+                    return polyLine.RectangleWidth;
+                }
+            }
+            else
+            {
+                GeoPoint p = Geometry.DropPL(MousePosition, polyLine.RectangleLocation, polyLine.ParallelogramSecondaryDirection);
+                if (!Precision.IsEqual(MousePosition, p))
+                {   // Neues Rechteck mit neuer Orientierung im Raum, x-Vektor: Lotfußpunkt, Mausposition
+                    polyLine.SetRectangle(polyLine.RectangleLocation, new GeoVector(p, MousePosition), polyLine.ParallelogramSecondaryDirection);
+                    // nun die Breite zurückliefern
+                    return polyLine.RectangleWidth;
+                }
             }
             return 0;
         }
@@ -41,7 +63,8 @@ namespace CADability.Actions
         {
             if (length > Precision.eps)
             {
-                line.RectangleWidth = length;
+                if (isCentered) polyLine.CenteredRectangleWidth = length;
+                else polyLine.RectangleWidth = length;
                 return true;
             }
             return false;
@@ -50,12 +73,25 @@ namespace CADability.Actions
         private double HeightCalculate(GeoPoint MousePosition)
         {   // falls die Höhe über einen Punkt im Raum über dem jetzigen Rechteck bestimmt wird:
             // der Lotfußpunkt von MousePosition auf die HauptAchse (x-Direction)
-            GeoPoint p = Geometry.DropPL(MousePosition, line.RectangleLocation, line.ParallelogramMainDirection);
-            if (!Precision.IsEqual(MousePosition, p))
-            {   // Neues Rechteck mit neuer Orientierung im Raum, y-Vektor: Lotfußpunkt, Mausposition
-                line.SetRectangle(line.RectangleLocation, line.ParallelogramMainDirection, new GeoVector(p, MousePosition));
-                // nun die Höhe zurückliefern
-                return line.RectangleHeight;
+            if (isCentered)
+            {
+                double dist = Math.Abs(Geometry.DistPL(MousePosition, polyLine.RectangleLocation + 0.5 * polyLine.ParallelogramSecondaryDirection, polyLine.ParallelogramMainDirection)); // center in xdirection
+                if (dist > Precision.eps)
+                {   // Neues Rechteck mit neuer Orientierung im Raum, x-Vektor: Lotfußpunkt, Mausposition
+                    polyLine.CenteredRectangleHeight = 2 * dist;
+                    // nun die Breite zurückliefern
+                    return polyLine.RectangleHeight;
+                }
+            }
+            else
+            {
+                GeoPoint p = Geometry.DropPL(MousePosition, polyLine.RectangleLocation, polyLine.ParallelogramMainDirection);
+                if (!Precision.IsEqual(MousePosition, p))
+                {   // Neues Rechteck mit neuer Orientierung im Raum, y-Vektor: Lotfußpunkt, Mausposition
+                    polyLine.SetRectangle(polyLine.RectangleLocation, polyLine.ParallelogramMainDirection, new GeoVector(p, MousePosition));
+                    // nun die Höhe zurückliefern
+                    return polyLine.RectangleHeight;
+                }
             }
             return 0;
         }
@@ -64,7 +100,8 @@ namespace CADability.Actions
         {
             if (length > Precision.eps)
             {
-                line.RectangleHeight = length;
+                if (isCentered) polyLine.CenteredRectangleHeight = length;
+                else polyLine.RectangleHeight = length;
                 return true;
             }
             return false;
@@ -82,7 +119,7 @@ namespace CADability.Actions
                 {
                     v2.Norm();
                     if (ActiveDrawingPlane.Normal != v2) // Spezialfall, ausschliessen, sonst krachts
-                        line.SetRectangle(line.RectangleLocation, line.RectangleWidth * v2, line.RectangleHeight * (ActiveDrawingPlane.Normal ^ v2));
+                        polyLine.SetRectangle(polyLine.RectangleLocation, polyLine.RectangleWidth * v2, polyLine.RectangleHeight * (ActiveDrawingPlane.Normal ^ v2));
                 }
                 return true;
             }
@@ -101,7 +138,7 @@ namespace CADability.Actions
                 {
                     if (l[i] is ICurve)
                     {
-                        double[] tanpos = (l[i] as ICurve).TangentPosition(line.ParallelogramSecondaryDirection);
+                        double[] tanpos = (l[i] as ICurve).TangentPosition(polyLine.ParallelogramSecondaryDirection);
                         if (tanpos != null)
                         {
                             for (int j = 0; j < tanpos.Length; j++)
@@ -127,7 +164,7 @@ namespace CADability.Actions
                 {
                     if (l[i] is ICurve)
                     {
-                        double[] tanpos = (l[i] as ICurve).TangentPosition(line.StartDirection);
+                        double[] tanpos = (l[i] as ICurve).TangentPosition(polyLine.StartDirection);
                         if (tanpos != null)
                         {
                             for (int j = 0; j < tanpos.Length; j++)
@@ -150,37 +187,70 @@ namespace CADability.Actions
 
         public override void OnSetAction()
         {
-            line = Polyline.Construct();
-            line.SetRectangle(ConstrDefaults.DefaultStartPoint, new GeoVector(ConstrDefaults.DefaultRectWidth, 0.0, 0.0), new GeoVector(0.0, ConstrDefaults.DefaultRectHeight, 0.0));
+            polyLine = Polyline.Construct();
+            polyLine.SetRectangle(ConstrDefaults.DefaultStartPoint, new GeoVector(ConstrDefaults.DefaultRectWidth, 0.0, 0.0), new GeoVector(0.0, ConstrDefaults.DefaultRectHeight, 0.0));
             base.BasePoint = ConstrDefaults.DefaultStartPoint;
-            base.ActiveObject = line;
+            base.ActiveObject = polyLine;
             base.TitleId = "Constr.Rect.PointWidthHeightAngle";
 
             startPointInput = new GeoPointInput("Rect.StartPoint");
-            startPointInput.DefaultGeoPoint = ConstrDefaults.DefaultStartPoint;
-            startPointInput.DefinesBasePoint = true;
+            startPointInput.Optional = isCentered;
+            if (!isCentered)
+            {
+                startPointInput.DefinesBasePoint = true;
+                startPointInput.DefaultGeoPoint = ConstrDefaults.DefaultStartPoint;
+            }
             startPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(StartPoint);
+            startPointInput.GetGeoPointEvent += () => polyLine.RectangleLocation;
             startPointInput.canOverrideDrawingPlane = true;
+
+            centerPointInput = new GeoPointInput("Rect.CenterPoint");
+
+            if (isCentered)
+            {
+                centerPointInput.DefaultGeoPoint = ConstrDefaults.DefaultStartPoint;
+                centerPointInput.DefinesBasePoint = true;
+            }
+            centerPointInput.Optional = !isCentered;
+            centerPointInput.SetGeoPointEvent += new ConstructAction.GeoPointInput.SetGeoPointDelegate(CenterPoint);
+            centerPointInput.GetGeoPointEvent += () => polyLine.Center;
+            centerPointInput.canOverrideDrawingPlane = true;
 
             width = new LengthInput("Rect.Width");
             width.DefaultLength = ConstrDefaults.DefaultRectWidth;
             width.SetLengthEvent += new ConstructAction.LengthInput.SetLengthDelegate(Width);
             width.CalculateLengthEvent += new CADability.Actions.ConstructAction.LengthInput.CalculateLengthDelegate(WidthCalculate);
-            width.ForwardMouseInputTo = startPointInput;
+            // width.ForwardMouseInputTo = startPointInput;
 
             height = new LengthInput("Rect.Height");
             height.DefaultLength = ConstrDefaults.DefaultRectHeight;
             height.SetLengthEvent += new ConstructAction.LengthInput.SetLengthDelegate(Height);
             height.CalculateLengthEvent += new CADability.Actions.ConstructAction.LengthInput.CalculateLengthDelegate(HeightCalculate);
-            height.ForwardMouseInputTo = startPointInput;
+            // height.ForwardMouseInputTo = startPointInput;
 
             ang = new GeoVectorInput("Rect.Angle");
             ang.IsAngle = true;
+            ang.DefaultGeoVector = ConstrDefaults.DefaultRectAngle;
             ang.SetGeoVectorEvent += new CADability.Actions.ConstructAction.GeoVectorInput.SetGeoVectorDelegate(RectAngle);
             ang.ForwardMouseInputTo = startPointInput;
-            base.SetInput(startPointInput, width, height, ang);
+            base.SetInput(startPointInput, centerPointInput, width, height, ang);
             base.ShowAttributes = true;
             base.OnSetAction();
+        }
+
+        private void SetCentered(bool centered)
+        {
+            if (centered)
+            {
+                centerPointInput.Optional = false;
+                startPointInput.Optional = true;
+            }
+            else
+            {
+                centerPointInput.Optional = true;
+                startPointInput.Optional = false;
+            }
+            isCentered = centered;
         }
 
         public override void OnRemoveAction()
@@ -195,7 +265,7 @@ namespace CADability.Actions
 
         public override void OnDone()
         {
-            ConstrDefaults.DefaultStartPoint.Point = line.RectangleLocation + line.ParallelogramMainDirection + line.ParallelogramSecondaryDirection;
+            ConstrDefaults.DefaultStartPoint.Point = polyLine.RectangleLocation + polyLine.ParallelogramMainDirection + polyLine.ParallelogramSecondaryDirection;
             // wird auf den Diagonalpunkt gesetzt
             base.OnDone();
         }

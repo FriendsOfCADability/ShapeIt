@@ -3536,9 +3536,22 @@ namespace CADability
                 {
                     foreach (Edge edg in fce.Edges)
                     {
+                        HashSet<Edge> connecting = new HashSet<Edge>(Vertex.ConnectingEdges(edg.Vertex1, edg.Vertex2));
+                        connecting.Remove(edg);
                         if (!allFaces.Contains(edg.PrimaryFace))
                         {
-                            if (!discardedFaces.Contains(edg.PrimaryFace) && edg.IsOrientedConnection)
+                            bool edgeFound = false;
+                            foreach (Edge ce in connecting)
+                            {
+                                if (allFaces.Contains(ce.PrimaryFace))
+                                {   // this is probably an overlapping face, which is not connected to the trimmed faces but already belongs to allFaces
+                                    if (SameEdge(ce, edg, precision))
+                                    {
+                                        edgeFound = true;
+                                    }
+                                }
+                            }
+                            if (!discardedFaces.Contains(edg.PrimaryFace) && edg.IsOrientedConnection && !edgeFound)
                             {
                                 allFaces.Add(edg.PrimaryFace);
                                 added = true;
@@ -3550,7 +3563,18 @@ namespace CADability
                         }
                         if (edg.SecondaryFace != null && !allFaces.Contains(edg.SecondaryFace))
                         {
-                            if (!discardedFaces.Contains(edg.SecondaryFace) && edg.IsOrientedConnection)
+                            bool edgeFound = false;
+                            foreach (Edge ce in connecting)
+                            {
+                                if (allFaces.Contains(ce.PrimaryFace))
+                                {// this is probably an overlapping face, which is not connected to the trimmed faces but already belongs to allFaces
+                                    if (SameEdge(ce, edg, precision))
+                                    { 
+                                        edgeFound = true;
+                                    }
+                                }
+                            }
+                            if (!discardedFaces.Contains(edg.SecondaryFace) && edg.IsOrientedConnection && !edgeFound)
                             {
                                 allFaces.Add(edg.SecondaryFace);
                                 added = true;
@@ -3562,8 +3586,6 @@ namespace CADability
                         }
                         else if (edg.SecondaryFace == null && !nonManifoldEdges.Contains(edg, precision))
                         {
-                            HashSet<Edge> connecting = new HashSet<Edge>(Vertex.ConnectingEdges(edg.Vertex1, edg.Vertex2));
-                            connecting.Remove(edg);
                             if (connecting.Count > 1)
                             {
                                 HashSet<Edge> toRemove = new HashSet<Edge>();
@@ -3915,16 +3937,18 @@ namespace CADability
                 bool needToCheck = false;
                 if (node.Value.Count > 1)
                 {
-                    double lastAngle = node.Value.Last().angle;
+                    var lastNode = node.Value.Last();
                     foreach ((Edge edge, double angle, bool outgoing) in node.Value)
                     {
-                        if (angle > lastAngle) lastAngle += Math.PI * 2;
-                        if (lastAngle - angle < eps)
+                        double aa = (lastNode.angle + cutCycle) % (Math.PI * 2);
+                        double bb = (angle + cutCycle) % (Math.PI * 2);
+                        // bb must be greater than aa
+                        if (bb - aa < eps)
                         {
                             needToCheck = true;
                             break;
                         }
-                        lastAngle = angle;
+                        lastNode = (edge, angle, outgoing);
                     }
                 }
                 if (needToCheck) // there are two or more edges with similar angles, we need to check the order by a small probe circle around the node, because the angle is not sufficient to decide the order
@@ -4721,7 +4745,7 @@ namespace CADability
         {   // it is assumed that the two edges connect the same vertices 
             // it is tested whether they have the same geometry (but maybe different directions) 
             // (two half circles may connect the same vertices but are not geometrically identical when they describe differnt parts of the same circle)
-            if (e1.Curve3D != null && e2.Curve3D != null) return e1.Curve3D.DistanceTo(e2.Curve3D.PointAt(0.5)) < 10 * precision; // nur precision war zu knapp
+            if (e1.Curve3D != null && e2.Curve3D != null) return e1.Curve3D.DistanceTo(e2.Curve3D.PointAt(0.5)) < 100 * precision; // there are cases where precision is too strong
             return false;
         }
 

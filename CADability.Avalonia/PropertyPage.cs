@@ -33,6 +33,15 @@ public class PropertyPage : IPropertyPage
     /// <summary>Fires whenever the displayed entries should be rebuilt.</summary>
     public event Action? Changed;
 
+    /// <summary>
+    /// Fires when the selected entry actually changes (not on every <see cref="Changed"/>).
+    /// Mirrors the funnel role of the WinForms PropertyPage.SelectedIndex setter: it lets the
+    /// PropertyPageControl auto-open the floating value editor for a value-editable entry the
+    /// moment it becomes selected, so the user can start typing without clicking into the value
+    /// cell first (WinForms parity).
+    /// </summary>
+    internal event Action? SelectionChanged;
+
     /// <summary>Fires when <see cref="BringToFront"/> is called.</summary>
     public event Action? BringToFrontRequested;
 
@@ -104,6 +113,9 @@ public class PropertyPage : IPropertyPage
             prev?.UnSelected(value!);
             value?.Selected(prev!);
             Changed?.Invoke();
+            // After the entry list has settled, notify listeners that the selection changed so
+            // the control can open the value editor for the newly selected entry (WinForms parity).
+            SelectionChanged?.Invoke();
         }
     }
 

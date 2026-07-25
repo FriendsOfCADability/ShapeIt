@@ -97,7 +97,9 @@
     <Compile Remove="ParametricsRadiusAction.cs" />
     <Compile Remove="PrintToGDI.cs" />
     <Compile Remove="SelectActionContextMenu.cs" />
+    <Compile Remove="ToolsTrim.cs" />
     <Compile Remove="Triangulation.cs" />
+    <Compile Remove="TriangulationSmoothing.cs" />
     <Content Remove="@(RemoveFiles)" />
     <None Remove="@(RemoveFiles)" />
   </ItemGroup>

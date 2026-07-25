@@ -1243,13 +1243,12 @@ namespace CADability
             // convergence instead of stopping once further gains become marginal. Scoped to this
             // thread only, since background re-triangulation for other views may run in parallel
             // on other threads and must keep using the fast interactive default.
-            using (TriangulationSmoothing.UseThoroughSmoothing(Settings.GlobalSettings.GetDoubleValue("Export.STL.SmoothingThoroughness", 0.0)))
             using (PaintToSTL pstl = new PaintToSTL(fileName, Settings.GlobalSettings.GetDoubleValue("Export.STL.Precision", 0.005)))
             {
                 pstl.Init();
                 for (int i = 0; i < m.Count; i++)
                 {
-                    m[i].PaintTo3D(pstl);
+                    m[i].Clone().PaintTo3D(pstl); // cloning to use fresh triangulation and not the cached resolution
                 }
             }
         }

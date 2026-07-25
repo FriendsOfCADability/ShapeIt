@@ -166,13 +166,21 @@ namespace CADability.UserInterface
             }
             else
             {
-                object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
-                if (o is double dd)
+                try
                 {
-                    val = dd;
-                    return true;
+                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                    if (o is double dd)
+                    {
+                        val = dd;
+                        return true;
+                    }
+                    else
+                    {
+                        val = 0.0;
+                        return false;
+                    }
                 }
-                else
+                catch (Exception)
                 {
                     val = 0.0;
                     return false;

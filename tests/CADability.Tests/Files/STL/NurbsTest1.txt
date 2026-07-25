@@ -1,0 +1,3 @@
+Plane:1 Nurbs:1  (4414 triangles, 2 regions)
+Nurbs poles=49x40 degree=3x3 3678
+Plane loc(122.34,89.26,1.09) normal(0.259,0.000,0.966) 736

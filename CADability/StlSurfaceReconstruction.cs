@@ -130,7 +130,7 @@ namespace CADability
 #endif
     }
 
-    public enum RecognizedSurfaceKind { Unrecognized, Plane, Cylinder, Cone, Sphere, Torus }
+    public enum RecognizedSurfaceKind { Unrecognized, Plane, Cylinder, Cone, Sphere, Torus, Nurbs }
 
     /// <summary>
     /// A connected set of mesh triangles together with the recognized surface (or null if no standard surface fits).
@@ -287,6 +287,10 @@ namespace CADability
             // geometrically belong to the neighbor (a plane running tangentially into a cone eats the cone's
             // border triangles). Reassign such triangles to the region they fit better.
             RefineRegionBoundaries();
+            // the regions are now a stable partition; whatever is still unrecognized is a freeform patch. Turn the
+            // ones separated from their neighbors by a crease into freeform NURBS surfaces (they may overshoot the
+            // border, the later surface intersection trims them to clean edges).
+            FitNurbsToUnrecognizedRegions();
 #if DEBUG
             DebuggerContainer dc = new DebuggerContainer();
             for (int i = 0; i < Regions.Count; i++)
@@ -2824,6 +2828,228 @@ namespace CADability
             return new GeoPoint(c);
         }
 
+        #endregion
+
+        #region freeform NURBS surfaces
+        /// <summary>
+        /// Maximum allowed distance of the region vertices from a fitted freeform NURBS surface for it to be
+        /// accepted. A freeform patch approximates a noisy triangle mesh (and its grid resampling smooths it), so
+        /// this is more generous than <see cref="Tolerance"/>. Regions that do not reach it stay unrecognized.
+        /// </summary>
+        public double NurbsTolerance { get; set; }
+
+        /// <summary>
+        /// The steepest surface slope (as the cosine of the angle between a triangle normal and the projection
+        /// plane normal) still treated as a valid height field. A triangle steeper than this folds the projection,
+        /// so the region cannot be parametrized over that plane; it is then left unrecognized (a cylinder- or
+        /// sphere-based parametrization for such strongly curved patches is future work).
+        /// </summary>
+        private const double nurbsMaxSlopeCos = 0.2; // ~78 degrees
+
+        /// <summary>Cubic in both directions - a good default for a smooth freeform patch.</summary>
+        private const int nurbsDegree = 3;
+
+        /// <summary>
+        /// Upper bound on the grid nodes (and hence NURBS poles) per direction. The natural resolution is one node
+        /// per mean triangle edge (finer than the mesh adds no information); this only caps very large regions to
+        /// keep the pole net and the downstream cost bounded.
+        /// </summary>
+        private const int nurbsMaxGrid = 60;
+
+        /// <summary>Grid overshoot beyond the region border, in cells, so the surface extends for the later trimming.</summary>
+        private const double nurbsOvershoot = 1.5;
+
+        /// <summary>
+        /// Turns unrecognized regions into freeform NURBS surfaces where possible. This handles the "hard edge"
+        /// case: the region is separated from its neighbors by a crease, so the NURBS surface may safely overshoot
+        /// the triangle border (the later surface intersection trims it to clean edges). See
+        /// <see cref="TryFitNurbsRegion"/> for the method. Regions that cannot be represented as a height field over
+        /// a single plane (they fold) are left unrecognized.
+        /// </summary>
+        private void FitNurbsToUnrecognizedRegions()
+        {
+            if (NurbsTolerance <= 0.0) NurbsTolerance = 3.0 * Tolerance;
+            foreach (RecognizedRegion region in Regions)
+            {
+                if (region.Surface != null) continue; // only unrecognized regions
+                if (TryFitNurbsRegion(region, out NurbsSurface nurbs, out double maxError))
+                {
+                    region.Surface = nurbs;
+                    region.Kind = RecognizedSurfaceKind.Nurbs;
+                    region.MaxError = maxError;
+                    region.InvalidateExtent();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Tries to fit a freeform NURBS surface to a region. The region vertices are projected onto their PCA plane;
+        /// when the projection does not fold (all triangles face the same side of the plane, so the region is a
+        /// height field over it), a regular grid is laid out on the plane - slightly larger than the region, so the
+        /// surface overshoots the border for the later trimming. Each grid node gets its 3D point from the triangle
+        /// its plane position falls into (barycentric interpolation); nodes beyond the border extrapolate from the
+        /// nearest triangle's plane. A NURBS surface is interpolated through the grid and accepted when all region
+        /// vertices stay within <see cref="NurbsTolerance"/>. Returns false (and leaves the region unrecognized) when
+        /// the region folds over the plane or the interpolated surface does not fit.
+        /// </summary>
+        private bool TryFitNurbsRegion(RecognizedRegion region, out NurbsSurface nurbs, out double maxError)
+        {
+            nurbs = null;
+            maxError = double.MaxValue;
+            GeoPoint[] pnts = RegionPoints(region.Triangles);
+            if (pnts.Length < (nurbsDegree + 1) * (nurbsDegree + 1)) return false; // too few points for a meaningful patch
+            // 1. projection plane and its in-plane axes (u along the largest spread, v perpendicular, w the normal)
+            if (PcaPlaneFit(pnts, out GeoPoint loc, out GeoVector w, out GeoVector u) == double.MaxValue) return false;
+            w = w.Normalized;
+            u = u.Normalized;
+            GeoVector v = (w ^ u).Normalized;
+            // 2. fold check: every triangle must face the same side of the plane (a consistent graph over it) and not
+            // be too steep; otherwise the region cannot be represented as a height field over this plane
+            double signSum = 0.0;
+            foreach (int tri in region.Triangles) signSum += (mesh.GetNormal(tri) * w) * mesh.GetArea(tri);
+            double sign = signSum >= 0.0 ? 1.0 : -1.0;
+            foreach (int tri in region.Triangles)
+                if (sign * (mesh.GetNormal(tri) * w) < nurbsMaxSlopeCos) return false;
+            // 3. project the region triangles onto the plane and record their 2D bounding boxes for fast lookup
+            int nt = region.Triangles.Count;
+            GeoPoint2D[][] proj2d = new GeoPoint2D[nt][];
+            GeoPoint[][] pts3d = new GeoPoint[nt][];
+            double[] minx = new double[nt], miny = new double[nt], maxx = new double[nt], maxy = new double[nt];
+            BoundingRect box = BoundingRect.EmptyBoundingRect;
+            for (int i = 0; i < nt; i++)
+            {
+                int tri = region.Triangles[i];
+                GeoPoint2D[] c2 = new GeoPoint2D[3];
+                GeoPoint[] c3 = new GeoPoint[3];
+                for (int corner = 0; corner < 3; corner++)
+                {
+                    GeoPoint p = mesh.GetTrianglePoint(tri, corner);
+                    GeoVector d = p - loc;
+                    c2[corner] = new GeoPoint2D(d * u, d * v);
+                    c3[corner] = p;
+                    box.MinMax(c2[corner]);
+                }
+                proj2d[i] = c2;
+                pts3d[i] = c3;
+                minx[i] = Math.Min(c2[0].x, Math.Min(c2[1].x, c2[2].x));
+                maxx[i] = Math.Max(c2[0].x, Math.Max(c2[1].x, c2[2].x));
+                miny[i] = Math.Min(c2[0].y, Math.Min(c2[1].y, c2[2].y));
+                maxy[i] = Math.Max(c2[0].y, Math.Max(c2[1].y, c2[2].y));
+            }
+            // 4. grid resolution from the mesh density (one node per mean triangle edge)
+            double cell = MeanRegionEdge(region.Triangles);
+            if (cell <= 0.0) return false;
+            BoundingRect coreBox = box; // the true region extent (before any overshoot)
+
+            // builds the grid at the given resolution cap and overshoot (in cells) and returns the interpolated
+            // surface with its max error over the region vertices
+            NurbsSurface buildFit(int cap, double overshootCells, out double err)
+            {
+                err = double.MaxValue;
+                BoundingRect gb = coreBox;
+                gb.Inflate(overshootCells * cell, overshootCells * cell);
+                int gnu = Math.Max(nurbsDegree + 1, Math.Min(cap, (int)Math.Round(gb.Width / cell) + 1));
+                int gnv = Math.Max(nurbsDegree + 1, Math.Min(cap, (int)Math.Round(gb.Height / cell) + 1));
+                double du = gb.Width / (gnu - 1), dv = gb.Height / (gnv - 1);
+                GeoPoint[,] g = new GeoPoint[gnu, gnv];
+                for (int i = 0; i < gnu; i++)
+                {
+                    double su = gb.Left + i * du;
+                    for (int j = 0; j < gnv; j++)
+                        g[i, j] = SampleHeightField(new GeoPoint2D(su, gb.Bottom + j * dv), proj2d, pts3d, minx, miny, maxx, maxy);
+                }
+                NurbsSurface ns;
+                try { ns = new NurbsSurface(g, nurbsDegree, nurbsDegree, false, false); }
+                catch (Exception) { return null; }
+                err = MaxDistance(ns, pnts);
+                return ns;
+            }
+
+            // 5./6. build, sample and interpolate the grid, then validate against the region vertices
+            nurbs = buildFit(nurbsMaxGrid, nurbsOvershoot, out maxError);
+            if (nurbs == null) return false;
+            return maxError <= NurbsTolerance;
+        }
+
+        /// <summary>
+        /// The 3D point on the region surface at the plane position <paramref name="q"/>: the point of the triangle
+        /// whose projection contains <paramref name="q"/> (barycentric interpolation), or - for a position beyond the
+        /// region border - an extrapolation from the plane of the nearest triangle.
+        /// </summary>
+        private static GeoPoint SampleHeightField(GeoPoint2D q, GeoPoint2D[][] proj2d, GeoPoint[][] pts3d,
+            double[] minx, double[] miny, double[] maxx, double[] maxy)
+        {
+            // inside case: only triangles whose 2D bounding box contains q can contain it
+            for (int i = 0; i < proj2d.Length; i++)
+            {
+                if (q.x < minx[i] || q.x > maxx[i] || q.y < miny[i] || q.y > maxy[i]) continue;
+                Barycentric(q, proj2d[i], out double a, out double b, out double c);
+                if (a >= -1e-9 && b >= -1e-9 && c >= -1e-9) return Combine(pts3d[i], a, b, c);
+            }
+            // outside all triangles: extrapolate from the nearest triangle (its barycentric coordinates run outside
+            // [0,1], which extends that triangle's plane linearly - good enough, the overshoot is trimmed away later)
+            int nearest = 0;
+            double nearestDist = double.MaxValue;
+            for (int i = 0; i < proj2d.Length; i++)
+            {
+                double d = Dist2DTriangle(q, proj2d[i]);
+                if (d < nearestDist) { nearestDist = d; nearest = i; }
+            }
+            Barycentric(q, proj2d[nearest], out double ea, out double eb, out double ec);
+            return Combine(pts3d[nearest], ea, eb, ec);
+        }
+
+        /// <summary>The point a*t0 + b*t1 + c*t2 (barycentric combination of the three triangle corners).</summary>
+        private static GeoPoint Combine(GeoPoint[] t, double a, double b, double c)
+        {
+            return new GeoPoint(a * t[0].x + b * t[1].x + c * t[2].x,
+                                a * t[0].y + b * t[1].y + c * t[2].y,
+                                a * t[0].z + b * t[1].z + c * t[2].z);
+        }
+
+        /// <summary>Barycentric coordinates of <paramref name="p"/> with respect to the 2D triangle <paramref name="t"/>.</summary>
+        private static void Barycentric(GeoPoint2D p, GeoPoint2D[] t, out double a, out double b, out double c)
+        {
+            double denom = (t[1].y - t[2].y) * (t[0].x - t[2].x) + (t[2].x - t[1].x) * (t[0].y - t[2].y);
+            if (Math.Abs(denom) < 1e-30) { a = b = c = 1.0 / 3.0; return; } // degenerate 2D triangle
+            a = ((t[1].y - t[2].y) * (p.x - t[2].x) + (t[2].x - t[1].x) * (p.y - t[2].y)) / denom;
+            b = ((t[2].y - t[0].y) * (p.x - t[2].x) + (t[0].x - t[2].x) * (p.y - t[2].y)) / denom;
+            c = 1.0 - a - b;
+        }
+
+        /// <summary>Distance of the 2D point <paramref name="p"/> from the triangle <paramref name="t"/> (0 if inside).</summary>
+        private static double Dist2DTriangle(GeoPoint2D p, GeoPoint2D[] t)
+        {
+            Barycentric(p, t, out double a, out double b, out double c);
+            if (a >= 0.0 && b >= 0.0 && c >= 0.0) return 0.0;
+            return Math.Min(Dist2DSegment(p, t[0], t[1]), Math.Min(Dist2DSegment(p, t[1], t[2]), Dist2DSegment(p, t[2], t[0])));
+        }
+
+        /// <summary>Distance of the 2D point <paramref name="p"/> from the segment a-b.</summary>
+        private static double Dist2DSegment(GeoPoint2D p, GeoPoint2D a, GeoPoint2D b)
+        {
+            double vx = b.x - a.x, vy = b.y - a.y;
+            double wx = p.x - a.x, wy = p.y - a.y;
+            double len2 = vx * vx + vy * vy;
+            double t = len2 > 0.0 ? (wx * vx + wy * vy) / len2 : 0.0;
+            if (t < 0.0) t = 0.0; else if (t > 1.0) t = 1.0;
+            double dx = wx - t * vx, dy = wy - t * vy;
+            return Math.Sqrt(dx * dx + dy * dy);
+        }
+
+        /// <summary>The mean edge length of the region triangles (a measure of the local mesh density).</summary>
+        private double MeanRegionEdge(List<int> triangles)
+        {
+            double sum = 0.0;
+            int count = 0;
+            foreach (int tri in triangles)
+            {
+                GeoPoint p0 = mesh.GetTrianglePoint(tri, 0), p1 = mesh.GetTrianglePoint(tri, 1), p2 = mesh.GetTrianglePoint(tri, 2);
+                sum += (p0 | p1) + (p1 | p2) + (p2 | p0);
+                count += 3;
+            }
+            return count > 0 ? sum / count : 0.0;
+        }
         #endregion
 
         #region raw faces for visualization

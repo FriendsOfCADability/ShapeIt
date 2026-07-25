@@ -1902,12 +1902,12 @@ namespace CADability.GeoObject
                 }
             }
 #if DEBUG
-            for (int i = 0; i < faces.Length; i++)
-            {
-                bool ok = faces[i].CheckConsistency();
-                if (!ok)
-                { }
-            }
+            //for (int i = 0; i < faces.Length; i++)
+            //{
+            //    bool ok = faces[i].CheckConsistency();
+            //    if (!ok)
+            //    { }
+            //}
 #endif
             // make all the vertices to only know the edges of faces (from parameter)
             for (int i = 0; i < faces.Length; i++)

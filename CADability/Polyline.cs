@@ -308,6 +308,26 @@ namespace CADability.GeoObject
                 SetRectangle(vertex[0], dirx, diry);
             }
         }
+        public double CenteredRectangleWidth
+        {
+            set
+            {
+                if (!IsRectangle) throw new PolylineException("Attempt to set rectangle width on polyline that is no rectangle", PolylineException.PolylineExceptionType.NoRectangle);
+                if (Math.Abs(value) < Precision.eps) throw new PolylineException("Attempt to set rectangle width to 0.0", PolylineException.PolylineExceptionType.General);
+                GeoVector dirx = vertex[1] - vertex[0];
+                GeoVector diry = vertex[3] - vertex[0];
+                GeoPoint c = Center;
+                dirx.Length = value;
+                SetRectangle(c - 0.5 * dirx - 0.5 * diry, dirx, diry);
+            }
+        }
+        public GeoPoint Center
+        {
+            get
+            {
+                return new GeoPoint(vertex);
+            }
+        }
         public double RectangleHeight
         {
             get
@@ -324,6 +344,18 @@ namespace CADability.GeoObject
                 GeoVector diry = vertex[3] - vertex[0];
                 diry.Length = value;
                 SetRectangle(vertex[0], dirx, diry);
+            }
+        }
+        public double CenteredRectangleHeight
+        {
+            set
+            {
+                if (!IsRectangle) throw new PolylineException("Attempt to set rectangle heigth on polyline that is no rectangle", PolylineException.PolylineExceptionType.NoRectangle);
+                GeoVector dirx = vertex[1] - vertex[0];
+                GeoVector diry = vertex[3] - vertex[0];
+                GeoPoint c = Center;
+                diry.Length = value;
+                SetRectangle(c - 0.5 * dirx - 0.5 * diry, dirx, diry);
             }
         }
         public GeoPoint RectangleLocation

@@ -594,6 +594,11 @@ namespace CADability
 
         public GeoPoint[] Interfere(GeoPoint sp, GeoPoint ep)
         {
+            if (Precision.IsEqual(sp,ep))
+            {
+                if (Precision.IsPointOnPlane(sp,this)) return new GeoPoint[] { sp };
+                else return new GeoPoint[0];
+            }
             GeoPoint ip;
             if (Intersect(sp, ep - sp, out ip))
             {

@@ -822,6 +822,10 @@ public static class Evaluator
         }
         var tokens = Lexer.Tokenize(expr);
         var rpn = Parser.ToRpn(tokens);
+        if (rpn.Count==1 && rpn[0] is UnaryMinusMarker)
+        {   // special case: unary minus without operand, e.g. "-". This is not a valid expression, but we return 0 for it, to enable typing "-3" in the input box without having to type "0-3"
+            return 0.0;
+        }
 
         var stack = new Stack<object>();
 

@@ -1236,7 +1236,11 @@
 		<label>Startpunkt</label>
 		<info>Bitte den Startpunkt des Rechtecks angeben</info>
 	</data>
-	<data name="Rect.SecondPoint">
+  <data name="Rect.CenterPoint">
+    <label>Mittelpunkt</label>
+    <info>Mittelpunkt des Rechtecks</info>
+  </data>
+  <data name="Rect.SecondPoint">
 		<label>2. Punkt</label>
 		<info>Bitte den zweiten Punkt der Rechteck-Grundlinie angeben</info>
 	</data>

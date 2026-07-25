@@ -66,6 +66,21 @@ public class PropertiesExplorer : UserControl, IControlCenter
     private IPropertyEntry? _editingEntry;
     private string          _editingOriginalValue = "";
 
+    // Live-preview state (mirrors WinForms PropertiesExplorer.Refresh / textBox.Modified):
+    // while a value is being edited, external value changes (e.g. a point/length following the mouse)
+    // are reflected into the editor text — but only until the user starts typing.
+    //
+    // _programmaticText holds the last text WE pushed into the editor (on open or live preview).
+    // Avalonia raises TextBox.TextChanged ASYNCHRONOUSLY, so a bool flag set around the assignment is
+    // already reset by the time the event fires; we therefore recognise our own updates by comparing
+    // the value. A TextChanged whose text differs from _programmaticText is a genuine user edit — only
+    // then do we forward it via EditTextChanged. This matters a lot: forwarding the editor's initial
+    // value on open would call GeoPointProperty.OnSetValue → SetFixed(true), fixing a ConstructAction's
+    // point input the instant its editor opens and breaking the mouse-follow.
+    private string? _programmaticText;
+    // Latches once the user has typed, which stops further mouse-driven live-preview refreshes.
+    private bool _editUserModified;
+
     // ── DropDown state (one floating ListBox active at a time) ─────────────
 
     private IPropertyEntry? _dropDownEntry;
@@ -134,7 +149,17 @@ public class PropertiesExplorer : UserControl, IControlCenter
         page.Changed += () =>
         {
             if (_editingEntry == null || _activeTabId != titleId) return;
-            if (page.ContainsEntry(_editingEntry)) return;
+            if (!_tabs.TryGetValue(titleId, out var tab)) return;
+
+            // Live preview (mirrors WinForms PropertiesExplorer.Refresh): while the edited entry is
+            // still present and the user has not started typing, reflect its current value — which may
+            // have just changed externally, e.g. a point/length following the mouse — into the editor.
+            if (page.ContainsEntry(_editingEntry))
+            {
+                if (tab.FloatingTextBox.IsVisible && !_editUserModified)
+                    RefreshEditorTextFromValue(tab.FloatingTextBox, _editingEntry);
+                return;
+            }
             string editingId = _editingEntry.ResourceId;
             Dispatcher.UIThread.Post(() =>
             {
@@ -152,6 +177,8 @@ public class PropertiesExplorer : UserControl, IControlCenter
                         t.FloatingTextBox.Height = r.Height;
                     }
                     if (!t.FloatingTextBox.IsFocused) t.FloatingTextBox.Focus();
+                    // Same live preview after a rebuild replaced the entry instance.
+                    if (!_editUserModified) RefreshEditorTextFromValue(t.FloatingTextBox, replacement);
                 }
                 else
                 {
@@ -210,16 +237,33 @@ public class PropertiesExplorer : UserControl, IControlCenter
         };
         floatingTb.TextChanged += (_, _) =>
         {
+            string cur = floatingTb.Text ?? "";
+            // Text we pushed ourselves (open or live mouse preview) → not a user edit. Compare by value
+            // because Avalonia raises this event asynchronously (a timing flag would be unreliable).
+            if (cur == _programmaticText) return;
+            _editUserModified = true;   // user typed → stop mouse-driven live preview from now on
             if (_editingEntry == null) return;
-            bool ok = _editingEntry.EditTextChanged(floatingTb.Text ?? "");
+            bool ok = _editingEntry.EditTextChanged(cur);
             floatingTb.Foreground = ok ? Brushes.Black : Brushes.Red;
         };
 
         // ── Wire PropertyPageControl callbacks ─────────────────────────────
         control.RequestShowTextBox = (rect, text, entry) =>
         {
+            // Already editing this exact entry → only keep the editor aligned (e.g. the selection
+            // funnel opened it and the pointer handler calls again, or the middle divider is dragged).
+            // Do NOT reset the text (that would discard what the user typed) or re-focus/re-select.
+            if (_editingEntry == entry && floatingTb.IsVisible)
+            {
+                floatingTb.Margin = new Thickness(rect.Left, rect.Top, 0, 0);
+                floatingTb.Width  = rect.Width;
+                floatingTb.Height = rect.Height;
+                return;
+            }
             _editingEntry         = entry;
             _editingOriginalValue = text;
+            _editUserModified     = false;   // fresh editor → allow mouse-driven live preview again
+            _programmaticText     = text;    // setting Text below is programmatic, not a user edit
             floatingTb.Text       = text;
             floatingTb.Margin     = new Thickness(rect.Left, rect.Top, 0, 0);
             floatingTb.Width      = rect.Width;
@@ -473,6 +517,28 @@ public class PropertiesExplorer : UserControl, IControlCenter
     // ── Floating TextBox lifecycle ─────────────────────────────────────────
 
     /// <summary>
+    /// Reflects the entry's current value into the floating editor without treating it as a user edit,
+    /// preserving the caret position and a full-text selection. Mirrors WinForms
+    /// PropertiesExplorer.Refresh (textBox.Text = value; keep caret; SelectAll if it was all selected).
+    /// Called from the live-preview path so a value following the mouse shows up while editing.
+    /// </summary>
+    private void RefreshEditorTextFromValue(TextBox tb, IPropertyEntry entry)
+    {
+        string value = entry.Value ?? "";
+        if (tb.Text == value) return;
+
+        int    caret  = tb.CaretIndex;
+        int    len    = tb.Text?.Length ?? 0;
+        bool   allSel = len > 0 && Math.Abs(tb.SelectionEnd - tb.SelectionStart) == len;
+
+        _programmaticText = value;   // recognised as our own update in TextChanged (async → value compare)
+        tb.Text = value;
+
+        if (allSel) tb.SelectAll();
+        else tb.CaretIndex = Math.Min(caret, value.Length);
+    }
+
+    /// <summary>
     /// Hides the floating TextBox and calls EndEdit on the active entry.
     /// Guarded against double-calls (LostFocus + explicit hide from pointer event).
     /// </summary>
@@ -489,9 +555,19 @@ public class PropertiesExplorer : UserControl, IControlCenter
         var entry = _editingEntry;
         _editingEntry = null;
 
+        // "modified" must mean the USER typed — not that the mouse-driven live preview changed the
+        // text. And "aborted" must mean an explicit cancel (Escape) — NOT merely "unmodified".
+        //
+        // EditableProperty.EndEdit reverts to valueBeforeEdit on aborted, and both abort and commit go
+        // through SetValue → (for a ConstructAction point) OnSetValue → SetFixed(true). So if we mapped
+        // "unmodified" to aborted, clicking to fix a mouse-followed point would revert it to the editor's
+        // open-time value AND fix the input there — swallowing the click's own fix/advance (OnMouse bails
+        // on an already-fixed input). Passing aborted=false, modified=false makes EndEdit a no-op, leaving
+        // the point where the mouse put it so the click itself fixes it and advances. Mirrors WinForms,
+        // which forwards textBox.Modified and only aborts on Escape.
         string newValue = tb.Text ?? "";
-        bool   modified = newValue != _editingOriginalValue;
-        entry.EndEdit(aborted || !modified, modified && !aborted, newValue);
+        bool   modified = _editUserModified;
+        entry.EndEdit(aborted, modified, newValue);
     }
 
     /// <summary>
