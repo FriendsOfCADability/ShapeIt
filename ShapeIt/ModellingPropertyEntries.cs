@@ -1526,7 +1526,7 @@ namespace ShapeIt
                                 cadFrame.ControlCenter.ShowPropertyPage("Action");
                                 Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
                                 if (fc == null) return false;
-                                frame.SetAction(new Constr3DFaceExtrude(fc));
+                                frame.SetAction(new ExtrudeFacesAction([fc]));
                                 return true;
                             };
                             res.Add(extrude);
@@ -1616,7 +1616,7 @@ namespace ShapeIt
                                         cadFrame.ControlCenter.ShowPropertyPage("Action");
                                         Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
                                         if (fc == null) return false;
-                                        frame.SetAction(new Constr3DFaceExtrude(fc));
+                                        frame.SetAction(new ExtrudeFacesAction([fc]));
                                         return true;
                                     };
                                     res.Add(extrude);
@@ -1699,7 +1699,7 @@ namespace ShapeIt
                 extrude.ExecuteMenu = (frame) =>
                 {
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
-                    frame.SetAction(new Constr3DFaceExtrude(fc));
+                    frame.SetAction(new ExtrudeFacesAction([fc]));
                     return true;
                 };
                 res.Add(extrude);
@@ -1888,7 +1888,7 @@ namespace ShapeIt
                     DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
                     extrude.ExecuteMenu = (frame) =>
                     {
-                        Constr3DFaceExtrude action = new Constr3DFaceExtrude(fc);
+                        ExtrudeFacesAction action = new ExtrudeFacesAction([fc]);
                         action.ActionDoneEvent += (ConstructAction ca, bool success) =>
                         {   // remove the curve from which the extrusion was made
                             if (success)
@@ -2058,7 +2058,19 @@ namespace ShapeIt
             DirectMenuEntry extrude = new DirectMenuEntry("MenuId.Constr.Solid.FaceExtrude"); // too bad, no icon yet, would be 159
             extrude.ExecuteMenu = (frame) =>
             {
-                Constr3DFaceExtrude action = new Constr3DFaceExtrude(new GeoObjectList(text));
+                CompoundShape[] shapes = text.GetShapes();
+                List<Face> textFaces = new List<Face>();
+                for (int j = 0; j < shapes.Length; j++)
+                {
+                    for (int k = 0; k < shapes[j].SimpleShapes.Length; k++)
+                    {
+                        Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), shapes[j].SimpleShapes[k]);
+                        fc.Modify(text.GlyphToWorld);
+                        textFaces.Add(fc);
+                    }
+                }
+
+                ExtrudeFacesAction action = new ExtrudeFacesAction(textFaces);
                 action.ActionDoneEvent += (ConstructAction ca, bool success) =>
                 {   // remove the curve from which the extrusion was made
                     if (success)
@@ -3679,7 +3691,7 @@ namespace ShapeIt
                 extrudeFace.ExecuteMenu = (frame) =>
                 {
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
-                    cadFrame.SetAction(new Constr3DFaceExtrude(face));
+                    cadFrame.SetAction(new ExtrudeFacesAction([face]));
                     return true;
                 };
                 extrudeFace.IsSelected = (selected, frame) =>

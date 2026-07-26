@@ -184,7 +184,7 @@ namespace CADability.GeoObject
         /// by PCA on its tangent directions.
         /// Returns GeoVector.NullVector if no clear normal exists.
         /// </summary>
-        private static GeoVector FindSweepNormal(ICurve curve, double[] parameters)
+        public static GeoVector FindSweepNormal(ICurve curve, double[] parameters)
         {
             // Need at least 3 samples to define a direction
             if (parameters == null || parameters.Length < 3)
@@ -227,7 +227,7 @@ namespace CADability.GeoObject
 
             // If the smallest variance direction is not much smaller than the
             // largest, the tangents are too isotropic -> fallback to Frenet
-            const double ratioThreshold = 0.5;
+            const double ratioThreshold = 0.8;
             if (minVal / maxVal > ratioThreshold)
                 return GeoVector.NullVector;
 

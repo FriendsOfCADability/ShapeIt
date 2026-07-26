@@ -7,6 +7,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using Wintellect.PowerCollections;
 
@@ -594,6 +595,7 @@ namespace CADability.GeoObject
 
         private static Shell MakeBrutePrism(Face lower, GeoVector extrusion)
         {
+            if (Precision.IsNullVector(extrusion)) return null;
             List<Face> res = new List<Face>();
             double minLen = extrusion.Length;
             foreach (Edge edg in lower.AllEdges)
@@ -1029,7 +1031,9 @@ namespace CADability.GeoObject
                         }
                         else
                         {
-                            normal = along.StartDirection.Normalized ^ dir;
+                            int n = 25;
+                            double[] values = Enumerable.Range(0, n + 1).Select(i => i / (double)n).ToArray();
+                            normal = SweptCircle.FindSweepNormal(along, values); // if normal==null, we should use the Frenet frame
                             if (normal.IsNullVector()) throw new NotImplementedException("not implemented: pipe along a curve which is not planar or linear");
                         }
                         ModOp m = ModOp.Fit(along.PointAt(pos), [dir, normal, dir ^ normal], along.StartPoint, [along.StartDirection.Normalized, normal, along.StartDirection.Normalized ^ normal]);
