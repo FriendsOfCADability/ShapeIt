@@ -450,5 +450,49 @@
     <label>RPC Workspace</label>
     <info>Show RPC Workspace</info>
   </data>
+	<data name="Constr.Face.Extrude.SeparatorHeight">
+		<label>Height of extrusion</label>
+		<info>Height of extrusion perpendicular to the face plane. You can also specify an extrusion vector or curve</info>
+	</data>
+	<data name="Constr.Face.Extrude.Height">
+		<label>Height</label>
+		<info>Height or thickness of the extrusion</info>
+	</data>
+	<data name="Constr.Face.Extrude.HeightOffset">
+		<label>Offset distance</label>
+		<info>Distance of an optional offset of the extrusion from the face</info>
+	</data>
+	<data name="Constr.Face.Extrude.SeparatorVector">
+		<label>Direction of extrusion</label>
+		<info>Direction of extrusion defined by a start and an end point. You can also specify the height of extrusion or an extrusion curve</info>
+	</data>
+	<data name="Constr.Face.ExtrusionDirection.Start">
+		<label>Direction start point</label>
+		<info>Start point of the extrusion direction. Together with the end point it defines the extrusion vector</info>
+	</data>
+	<data name="Constr.Face.ExtrusionDirection.End">
+		<label>Direction end point</label>
+		<info>End point of the extrusion direction. Together with the start point it defines the extrusion vector</info>
+	</data>
+	<data name="Constr.Face.Extrude.SeparatorPipe">
+		<label>Curve of extrusion</label>
+		<info>Curve of extrusion. You can also specify the height of extrusion or an extrusion vector</info>
+	</data>
+	<data name="Constr.Face.Extrude.Pipe">
+		<label>Extrusion path</label>
+		<info>Specify path or curve of extrusion</info>
+	</data>
+	<data name="Constr.Face.Rotate.SeparatorAngle">
+		<label>Angle of rotation</label>
+		<info>Sweep angle of the rotation and an optional angular offset</info>
+	</data>
+	<data name="Constr.Face.Rotate.SeparatorAxis">
+		<label>Axis of rotation</label>
+		<info>Axis of rotation, defined by a line or an arc, or by a point and a direction</info>
+	</data>
+	<data name="Constr.Face.Rotate.AxisSecondPoint">
+		<label>Axis second point</label>
+		<info>Second point of the axis of rotation. Together with the axis point it defines the axis direction</info>
+	</data>
 
 </root>

@@ -1549,7 +1549,7 @@ namespace ShapeIt
                                 cadFrame.ControlCenter.ShowPropertyPage("Action");
                                 Face fc = Face.MakeFace(new PlaneSurface(plane), new SimpleShape(bdrs[capturedI]));
                                 if (fc == null) return false;
-                                frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                                frame.SetAction(new RotateFacesAction([fc]));
                                 return true;
                             };
                             res.Add(rotate);
@@ -1639,7 +1639,7 @@ namespace ShapeIt
                                         cadFrame.ControlCenter.ShowPropertyPage("Action");
                                         Face fc = Face.MakeFace(new PlaneSurface(plane), forFace);
                                         if (fc == null) return false;
-                                        frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                                        frame.SetAction(new RotateFacesAction([fc]));
                                         return true;
                                     };
                                     res.Add(rotate);
@@ -1707,7 +1707,7 @@ namespace ShapeIt
                 rotate.ExecuteMenu = (frame) =>
                 {
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
-                    frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(fc)));
+                    frame.SetAction(new RotateFacesAction([fc]));
                     return true;
                 };
                 res.Add(rotate);
@@ -1911,9 +1911,9 @@ namespace ShapeIt
                     DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
                     rotate.ExecuteMenu = (frame) =>
                     {
-                        Constr3DFaceRotate action = new Constr3DFaceRotate(new GeoObjectList(fc));
+                        RotateFacesAction action = new RotateFacesAction([fc]);
                         action.ActionDoneEvent += (ConstructAction ca, bool success) =>
-                        {   // remove the curve from which the extrusion was made
+                        {   // remove the curve from which the rotation was made
                             if (success)
                             {
                                 cadFrame.ActiveView.Model.Remove(curve as IGeoObject);
@@ -2093,9 +2093,21 @@ namespace ShapeIt
             DirectMenuEntry rotate = new DirectMenuEntry("MenuId.Constr.Solid.FaceRotate"); // too bad, no icon yet, would be 160
             rotate.ExecuteMenu = (frame) =>
             {
-                Constr3DFaceRotate action = new Constr3DFaceRotate(new GeoObjectList(new GeoObjectList(text)));
+                CompoundShape[] shapes = text.GetShapes();
+                List<Face> textFaces = new List<Face>();
+                for (int j = 0; j < shapes.Length; j++)
+                {
+                    for (int k = 0; k < shapes[j].SimpleShapes.Length; k++)
+                    {
+                        Face fc = Face.MakeFace(new PlaneSurface(Plane.XYPlane), shapes[j].SimpleShapes[k]);
+                        fc.Modify(text.GlyphToWorld);
+                        textFaces.Add(fc);
+                    }
+                }
+
+                RotateFacesAction action = new RotateFacesAction(textFaces);
                 action.ActionDoneEvent += (ConstructAction ca, bool success) =>
-                {   // remove the curve from which the extrusion was made
+                {   // remove the text from which the rotation was made
                     if (success)
                     {
                         cadFrame.ActiveView.Model.Remove(text);
@@ -3709,7 +3721,7 @@ namespace ShapeIt
                 rotateFace.ExecuteMenu = (frame) =>
                 {
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
-                    frame.SetAction(new Constr3DFaceRotate(new GeoObjectList(face)));
+                    frame.SetAction(new RotateFacesAction([face]));
                     return true;
                 };
                 rotateFace.IsSelected = (selected, frame) =>

@@ -551,4 +551,48 @@
     <label>RPC Workspace</label>
     <info>RPC Workspace anzeigen</info>
   </data>
+	<data name="Constr.Face.Extrude.SeparatorHeight">
+		<label>Extrudier-Höhe</label>
+		<info>Höhe zum rechtwinkligen Extrudieren angeben (bezogen auf die Flächenebene). Alternativ kann ein beliebiger Vektor (Richtung) oder eine Extrudierkurve bestimmt werden.</info>
+	</data>
+	<data name="Constr.Face.Extrude.Height">
+		<label>Extrudier-Höhe</label>
+		<info>Höhe oder Dicke der Extrusion angeben.</info>
+	</data>
+	<data name="Constr.Face.Extrude.HeightOffset">
+		<label>Offset-Höhe</label>
+		<info>Optionalen Abstand der Extrusion zur Fläche angeben.</info>
+	</data>
+	<data name="Constr.Face.Extrude.SeparatorVector">
+		<label>Extrudier-Richtung</label>
+		<info>Extrudier-Richtung über einen Start- und einen Endpunkt angeben. Alternativ kann eine rechtwinklige Extrudier-Höhe oder eine Extrudierkurve angegeben werden.</info>
+	</data>
+	<data name="Constr.Face.ExtrusionDirection.Start">
+		<label>Richtungs-Startpunkt</label>
+		<info>Startpunkt der Extrudier-Richtung. Zusammen mit dem Endpunkt definiert er den Extrudier-Vektor.</info>
+	</data>
+	<data name="Constr.Face.ExtrusionDirection.End">
+		<label>Richtungs-Endpunkt</label>
+		<info>Endpunkt der Extrudier-Richtung. Zusammen mit dem Startpunkt definiert er den Extrudier-Vektor.</info>
+	</data>
+	<data name="Constr.Face.Extrude.SeparatorPipe">
+		<label>Extrudierkurve</label>
+		<info>Kurve zum Extrudieren angeben. Alternativ kann eine rechtwinklige Extrudier-Höhe oder eine beliebige Extrudierrichtung angegeben werden.</info>
+	</data>
+	<data name="Constr.Face.Extrude.Pipe">
+		<label>Extrudierkurve</label>
+		<info>Pfad oder Kurve zum Extrudieren angeben.</info>
+	</data>
+	<data name="Constr.Face.Rotate.SeparatorAngle">
+		<label>Drehwinkel</label>
+		<info>Drehwinkel der Rotation und ein optionaler Winkelversatz.</info>
+	</data>
+	<data name="Constr.Face.Rotate.SeparatorAxis">
+		<label>Rotationsachse</label>
+		<info>Rotationsachse, definiert durch eine Linie oder einen Bogen, oder durch Punkt und Richtung.</info>
+	</data>
+	<data name="Constr.Face.Rotate.AxisSecondPoint">
+		<label>Zweiter Achspunkt</label>
+		<info>Zweiter Punkt der Rotationsachse. Zusammen mit dem Achspunkt definiert er die Achsrichtung.</info>
+	</data>
 </root>

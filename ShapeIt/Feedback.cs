@@ -15,6 +15,7 @@ namespace ShapeIt
         public GeoObjectList FrontFaces = new GeoObjectList(); // List of front faces for distance for feedback
         public GeoObjectList BackFaces = new GeoObjectList(); // List of back faces for distance for feedback
         public GeoObjectList ShadowFaces = new GeoObjectList(); // List of faces, usually the result of an operation, displayed as a transparent overlay
+        public GeoObjectList CreatedObjects = new GeoObjectList(); // List of objects created by the action, displayed in the action's color (see CreatedObjectsColor), slightly transparent
         public GeoObjectList SelectedObjects = new GeoObjectList(); // List of selected objects to be displayed, when a entry is selected, displayed as brim
         public GeoObjectList Arrows = new GeoObjectList(); // List of highlighted objects to be displayed, when a entry is selected
         public Rectangle selectionRectangle = Rectangle.Empty;
@@ -23,12 +24,17 @@ namespace ShapeIt
         private IPaintTo3DList frontFacesDisplayList = null;
         private IPaintTo3DList backFacesDisplayList = null;
         private IPaintTo3DList shadowFacesDisplayList = null;
+        private IPaintTo3DList createdObjectsDisplayList = null;
         private IPaintTo3DList selectedObjectsDisplayList = null;
         private IPaintTo3DList arrowsDisplayList = null;
         private int handleSize;
         private Color handleColor;
 
         Color frontColor, backColor, selectColor, shadowColor;
+        // Color and transparency for the CreatedObjects list. The action sets CreatedObjectsColor to the
+        // color of its chosen attribute; the alpha (0..255) makes the not-yet-final shape a bit transparent.
+        public Color CreatedObjectsColor = Color.LightBlue;
+        public int CreatedObjectsAlpha = 210;
         public Feedback()
         {
             frontColor = Color.LightGreen;
@@ -54,6 +60,7 @@ namespace ShapeIt
             FrontFaces.Clear();
             BackFaces.Clear();
             ShadowFaces.Clear();
+            CreatedObjects.Clear();
             SelectedObjects.Clear();
             Arrows.Clear();
             hotSpots.Clear(); // was commented out, why?
@@ -62,8 +69,20 @@ namespace ShapeIt
             frontFacesDisplayList = null;
             backFacesDisplayList = null;
             shadowFacesDisplayList = null;
+            createdObjectsDisplayList = null;
             selectedObjectsDisplayList = null;
             arrowsDisplayList = null;
+        }
+
+        /// <summary>
+        /// Updates the color of the CreatedObjects list and repaints. Only the color override is rebuilt,
+        /// the geometry is reused, so this is cheap enough to call live while the user picks a color.
+        /// </summary>
+        public void SetCreatedObjectsColor(Color color)
+        {
+            CreatedObjectsColor = color;
+            createdObjectsDisplayList = null; // force the display list to be rebuilt with the new color
+            if (view != null) Refresh();
         }
 
         public void Refresh()
@@ -134,6 +153,17 @@ namespace ShapeIt
                 backFacesDisplayList = PaintToSelect.CloseList();
                 PaintToSelect.SetColor(backColor, -1);
             }
+            if (createdObjectsDisplayList == null)
+            {   // objects being created by the action, shown in the action's chosen color, a bit transparent
+                PaintToSelect.OpenList("created-objects");
+                PaintToSelect.SetColor(Color.FromArgb(CreatedObjectsAlpha, CreatedObjectsColor), 1);
+                foreach (IGeoObject go in CreatedObjects)
+                {
+                    go.PaintTo3D(PaintToSelect);
+                }
+                createdObjectsDisplayList = PaintToSelect.CloseList();
+                PaintToSelect.SetColor(CreatedObjectsColor, -1);
+            }
             PaintToSelect.SetColor(Color.Black); // color to display the arrows an text. objects should have ColorDef==null, so they don't set the color
             bool oldTriangulateText = PaintToSelect.TriangulateText;
             PaintToSelect.TriangulateText = false;
@@ -158,6 +188,7 @@ namespace ShapeIt
             PaintToSelect.PushMultModOp(toViewer);
             if (frontFacesDisplayList != null) PaintToSelect.List(frontFacesDisplayList);
             if (backFacesDisplayList != null) PaintToSelect.List(backFacesDisplayList);
+            if (createdObjectsDisplayList != null) PaintToSelect.List(createdObjectsDisplayList);
             PaintToSelect.SelectMode = true;
             if (selectedObjectsDisplayList != null) PaintToSelect.SelectedList(selectedObjectsDisplayList, 6);// width of the brim
             PaintToSelect.SelectMode = false;
