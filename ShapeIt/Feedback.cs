@@ -1,5 +1,6 @@
 ﻿using CADability.GeoObject;
 using CADability;
+using CADability.Curve2D;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,6 +36,19 @@ namespace ShapeIt
         // color of its chosen attribute; the alpha (0..255) makes the not-yet-final shape a bit transparent.
         public Color CreatedObjectsColor = Color.LightBlue;
         public int CreatedObjectsAlpha = 210;
+        // When true, the CreatedObjects are painted in their own colors (the attributes carried by the objects)
+        // instead of the single CreatedObjectsColor override. Used e.g. by ReflectObjectsAction, whose preview
+        // are mirrored clones that should keep the colors of their originals.
+        public bool CreatedObjectsOwnColor = false;
+        // Optional 2D icon drawn at a point, lying in a given plane (so it is drawn with the normal projection),
+        // but at a fixed on-screen size regardless of the zoom. The curves are defined in pixel units; in
+        // OnRepaint they are turned into GeoObjects in the plane and scaled so that one 2D unit == one screen
+        // pixel. This can render any symbol (crosshair, arrows, ...), see SetIcon / SetCrosshair.
+        private List<ICurve2D> iconCurves;
+        private GeoPoint iconLocation;
+        private GeoVector iconDirX, iconDirY; // two orthonormal directions spanning the icon plane (unless iconFacesViewer)
+        private bool iconFacesViewer; // when true the plane directions are taken from the current view, so the icon always faces the viewer
+        public double CrosshairDiameterPixels = 8.0;
         public Feedback()
         {
             frontColor = Color.LightGreen;
@@ -83,6 +97,92 @@ namespace ShapeIt
             CreatedObjectsColor = color;
             createdObjectsDisplayList = null; // force the display list to be rebuilt with the new color
             if (view != null) Refresh();
+        }
+
+        /// <summary>
+        /// Shows an icon at <paramref name="location"/>, lying in the plane perpendicular to
+        /// <paramref name="normal"/>. The 2D curves are given in pixel units; the icon keeps a fixed screen
+        /// size regardless of the zoom and can represent any symbol. If <paramref name="normal"/> is the null
+        /// vector the icon instead faces the viewer (billboard): its plane is taken from the current view
+        /// projection, so it is always seen from the front, from any perspective.
+        /// </summary>
+        public void SetIcon(IEnumerable<ICurve2D> curves2D, GeoPoint location, GeoVector normal)
+        {
+            if (curves2D == null) { ClearIcon(); return; }
+            iconCurves = new List<ICurve2D>(curves2D);
+            iconLocation = location;
+            iconFacesViewer = Precision.IsNullVector(normal);
+            if (!iconFacesViewer)
+            {
+                normal.Normalized.ArbitraryNormals(out GeoVector dirX, out GeoVector dirY);
+                iconDirX = dirX.Normalized;
+                iconDirY = dirY.Normalized;
+            }
+        }
+
+        public void ClearIcon()
+        {
+            iconCurves = null;
+        }
+
+        /// <summary>
+        /// Convenience over <see cref="SetIcon"/>: a crosshair (a circle plus two lines reaching slightly
+        /// beyond it, <see cref="CrosshairDiameterPixels"/> across) at <paramref name="center"/>, lying in the
+        /// plane perpendicular to <paramref name="normal"/> (e.g. the rotation plane).
+        /// </summary>
+        public void SetCrosshair(GeoPoint center, GeoVector normal)
+        {
+            double r = 0.5 * CrosshairDiameterPixels;
+            double ext = 1.4 * r; // the two lines extend a bit beyond the circle
+            List<ICurve2D> curves = new List<ICurve2D>
+            {
+                new Circle2D(GeoPoint2D.Origin, r),
+                new Line2D(new GeoPoint2D(-ext, 0.0), new GeoPoint2D(ext, 0.0)),
+                new Line2D(new GeoPoint2D(0.0, -ext), new GeoPoint2D(0.0, ext)),
+            };
+            SetIcon(curves, center, normal);
+        }
+
+        public void ClearCrosshair() => ClearIcon();
+
+        // Draws the current icon in its plane, scaled so that its pixel-unit 2D curves span the intended number
+        // of screen pixels. We always use parallel projection, so WorldToDeviceFactor is uniform across the view
+        // and a single scale factor (world units per pixel) yields the wanted size everywhere. The 2D curves are
+        // turned into GeoObjects via ICurve2D.MakeGeoObject and drawn through their own PaintTo3D (no direct
+        // primitive calls); a fine paint precision keeps pixel-sized arcs/circles smooth.
+        private void PaintIcon(IPaintTo3D paintTo3D, IView vw)
+        {
+            if (iconCurves == null || iconCurves.Count == 0) return;
+            double pixelToWorld = 1.0 / vw.Projection.WorldToDeviceFactor; // world units per screen pixel
+            GeoVector dirX, dirY;
+            if (iconFacesViewer)
+            {
+                // billboard: use the screen-aligned world directions of the current view so the icon always
+                // faces the viewer (upright and unforeshortened), independent of how the model is rotated
+                Plane projPlane = vw.Projection.ProjectionPlane;
+                dirX = projPlane.DirectionX;
+                dirY = projPlane.DirectionY;
+            }
+            else
+            {
+                dirX = iconDirX;
+                dirY = iconDirY;
+            }
+            Plane pl = new Plane(iconLocation, dirX, dirY);
+            ModOp scale = ModOp.Scale(iconLocation, pixelToWorld);
+            double oldPrecision = paintTo3D.Precision;
+            paintTo3D.Precision = 0.02 * pixelToWorld; // ~0.02 px, fine enough for smooth arcs at this size
+            paintTo3D.SetColor(handleColor);
+            paintTo3D.SetLineWidth(null);
+            paintTo3D.SetLinePattern(null);
+            foreach (ICurve2D c2d in iconCurves)
+            {
+                IGeoObject go = c2d.MakeGeoObject(pl);
+                if (go == null) continue;
+                go.Modify(scale); // the curves are in pixel units; scale so one 2D unit == one screen pixel
+                go.PaintTo3D(paintTo3D);
+            }
+            paintTo3D.Precision = oldPrecision;
         }
 
         public void Refresh()
@@ -156,13 +256,25 @@ namespace ShapeIt
             if (createdObjectsDisplayList == null)
             {   // objects being created by the action, shown in the action's chosen color, a bit transparent
                 PaintToSelect.OpenList("created-objects");
-                PaintToSelect.SetColor(Color.FromArgb(CreatedObjectsAlpha, CreatedObjectsColor), 1);
-                foreach (IGeoObject go in CreatedObjects)
-                {
-                    go.PaintTo3D(PaintToSelect);
+                if (CreatedObjectsOwnColor)
+                {   // paint each object in its own color (from its attributes), no override
+                    PaintToSelect.SetColor(Color.Black); // fallback for objects that carry no own color (ColorDef == null)
+                    foreach (IGeoObject go in CreatedObjects)
+                    {
+                        go.PaintTo3D(PaintToSelect);
+                    }
+                    createdObjectsDisplayList = PaintToSelect.CloseList();
                 }
-                createdObjectsDisplayList = PaintToSelect.CloseList();
-                PaintToSelect.SetColor(CreatedObjectsColor, -1);
+                else
+                {
+                    PaintToSelect.SetColor(Color.FromArgb(CreatedObjectsAlpha, CreatedObjectsColor), 1);
+                    foreach (IGeoObject go in CreatedObjects)
+                    {
+                        go.PaintTo3D(PaintToSelect);
+                    }
+                    createdObjectsDisplayList = PaintToSelect.CloseList();
+                    PaintToSelect.SetColor(CreatedObjectsColor, -1);
+                }
             }
             PaintToSelect.SetColor(Color.Black); // color to display the arrows an text. objects should have ColorDef==null, so they don't set the color
             bool oldTriangulateText = PaintToSelect.TriangulateText;
@@ -197,6 +309,7 @@ namespace ShapeIt
             toViewer = ModOp.Translate(-6 * PaintToSelect.Precision * view.Projection.Direction);
             PaintToSelect.PushMultModOp(toViewer);
             if (arrowsDisplayList != null) PaintToSelect.List(arrowsDisplayList);
+            PaintIcon(PaintToSelect, view);
 
             // restore the state of PaintToSelect
             PaintToSelect.PopModOp();

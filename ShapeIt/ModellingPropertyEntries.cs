@@ -2176,7 +2176,7 @@ namespace ShapeIt
             {
                 Clear();
                 cadFrame.ControlCenter.ShowPropertyPage("Action");
-                cadFrame.SetAction(new RotateObjects(capturedList));
+                cadFrame.SetAction(new RotateObjectsAction(capturedList));
                 return true;
             };
             MenuWithHandler scale = new MenuWithHandler("MenuId.Object.Scale");
@@ -2192,7 +2192,7 @@ namespace ShapeIt
             {
                 Clear();
                 cadFrame.ControlCenter.ShowPropertyPage("Action");
-                cadFrame.SetAction(new ReflectObjects(capturedList));
+                cadFrame.SetAction(new ReflectObjectsAction(capturedList));
                 return true;
             };
             MenuWithHandler copy = new MenuWithHandler("MenuId.Edit.Copy");
@@ -3923,7 +3923,7 @@ namespace ShapeIt
                     return true;
                 case "MenuId.Object.Rotate":
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
-                    Frame.SetAction(new RotateObjects(new GeoObjectList(selectedObjects)));
+                    Frame.SetAction(new RotateObjectsAction(new GeoObjectList(selectedObjects)));
                     Clear();
                     return true;
                 case "MenuId.Object.Scale":
@@ -3933,7 +3933,7 @@ namespace ShapeIt
                     return true;
                 case "MenuId.Object.Reflect":
                     cadFrame.ControlCenter.ShowPropertyPage("Action");
-                    Frame.SetAction(new ReflectObjects(new GeoObjectList(selectedObjects)));
+                    Frame.SetAction(new ReflectObjectsAction(new GeoObjectList(selectedObjects)));
                     Clear();
                     return true;
                 case "MenuId.Copy.Matrix":
