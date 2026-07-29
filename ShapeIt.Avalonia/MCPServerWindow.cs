@@ -29,6 +29,10 @@ namespace ShapeIt
         // aus der Zwischenablage übernimmt – Gegenstück zu JsonFilteringTextBox.
         private sealed class JsonFilteringTextBox : TextBox
         {
+            // Without this the derived type has no ControlTheme (the Fluent theme is keyed on
+            // typeof(TextBox)), so the control gets no template and no text can be entered.
+            protected override Type StyleKeyOverride => typeof(TextBox);
+
             protected override void OnKeyDown(KeyEventArgs e)
             {
                 if (e.KeyModifiers.HasFlag(KeyModifiers.Control) && e.Key == Key.V)
