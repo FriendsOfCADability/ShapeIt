@@ -1368,7 +1368,8 @@ namespace CADability.GeoObject
                 SurfaceHelper.AdjustPeriodic(this, ubounds, ref po);
                 if (po.x < umin || po.x > umax)
                 {
-                    elli.Trim(par1, par0);
+                    elli1.Complement(); // was elli.Trim(par1, par0), but with Rocho.cdb.json this must be Complement
+                    elli = elli1;
                 }
                 else
                 {
@@ -1809,7 +1810,6 @@ namespace CADability.GeoObject
             if (other is PlaneSurface)
             {
                 return GetPlaneIntersection(other as PlaneSurface, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, Precision.eps);
-
             }
             if (other is ISurfaceOfRevolution sr)
             {

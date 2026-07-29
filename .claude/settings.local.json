@@ -212,7 +212,12 @@
       "mcp__shapeit__document_commit_objects",
       "mcp__shapeit__inspect_scene",
       "mcp__shapeit__inspect_summary",
-      "mcp__shapeit__workspace_delete"
+      "mcp__shapeit__workspace_delete",
+      "mcp__shapeit__inspect_properties",
+      "mcp__shapeit__solid_box",
+      "mcp__shapeit__document_update_objects",
+      "mcp__shapeit__workspace_select",
+      "mcp__shapeit__feature_fillet"
     ],
     "defaultMode": "bypassPermissions"
   }

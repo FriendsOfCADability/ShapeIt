@@ -169,7 +169,7 @@ namespace ShapeIt
         private bool SetExtrusionOffset(double l)
         {
             extrusionOffset = l;
-            return true;
+            return Recalc();
         }
 
         private double CalculateExtrusionLength(GeoPoint mousePosition)

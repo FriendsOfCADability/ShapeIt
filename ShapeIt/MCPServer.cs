@@ -68,7 +68,29 @@ namespace ShapeIt
                 {
                     bool existedBefore = dict.ContainsKey(key);
                     dict[key] = value;
+                    // Keep the document-side name of solids in sync with the workspace name.
+                    // Operations like solid.boolean or workspace.select store their result as a
+                    // list even when it contains a single solid, so lists are named here too:
+                    // one solid gets the plain key, several get an index suffix following the
+                    // "name_0", "name_1" convention of the suffix-generating tools. Document
+                    // names need neither be unique nor non-null, so this is purely additive -
+                    // but document.update_objects matches by name, and listing tools benefit
+                    // from meaningful names.
                     if (value is Solid sld) sld.Name = key;
+                    else if (value is IReadOnlyList<Solid> solids)
+                    {
+                        if (solids.Count == 1)
+                        {
+                            if (solids[0] != null) solids[0].Name = key;
+                        }
+                        else
+                        {
+                            for (int i = 0; i < solids.Count; i++)
+                            {
+                                if (solids[i] != null) solids[i].Name = $"{key}_{i}";
+                            }
+                        }
+                    }
                     ItemSet?.Invoke(key, value, existedBefore);
                 }
             }
@@ -1676,30 +1698,6 @@ namespace ShapeIt
             namedItems[name] = value;
         }
 
-        private void AddNamed<T>(string name, T value)
-        {
-            if (!namedItems.TryGetValue(name, out var existing))
-            {
-                namedItems[name] = value!;
-                return;
-            }
-
-            if (existing is List<T> list)
-            {
-                list.Add(value!);
-                return;
-            }
-
-            if (existing is T existingT)
-            {
-                namedItems[name] = new List<T> { existingT, value! };
-                return;
-            }
-
-            throw new InvalidOperationException(
-                $"Name '{name}' is already bound to a value of type '{existing.GetType().FullName}', cannot add '{typeof(T).FullName}'.");
-        }
-
         private void Rebind(Shell oldShell, Shell newShell)
         {
             foreach (var item in namedItems)
@@ -2990,7 +2988,7 @@ namespace ShapeIt
                     {
                         for (int i = 0; i < points.Count; i++)
                         {
-                            AddNamed($"{name}_{i}", points[i]);
+                            namedItems[$"{name}_{i}"] = points[i];
                         }
                     }
                     namedItems[name] = points;
@@ -3668,16 +3666,15 @@ namespace ShapeIt
                     {
                         clone.Modify(rot);
                         next.Add(clone);
-                        if (suffix)
-                        {
-                            if (name != null) AddNamed($"{name}_{i}", clone);
-                            else
-                            {
-                                string? cname = clone.UserData["CADablity.MCP.Name"] as string;
-                                if (cname != null) AddNamed($"{name}_{i}", clone);
-                            }
-                        }
                     }
+                }
+                // One entry per rotation step. When several solids are patterned at once, the
+                // whole step is stored as a list (the indexer then names the members
+                // "<name>_<i>_0", "<name>_<i>_1", ...); a single solid is stored directly so it
+                // stays usable in expressions.
+                if (suffix && name != null && next.Count > 0)
+                {
+                    namedItems[$"{name}_{i}"] = next.Count == 1 ? (object)next[0] : next;
                 }
                 total.AddRange(next);
                 current = next;
@@ -3703,6 +3700,7 @@ namespace ShapeIt
                     if (iy != 0) moveVec += iy * sy;
                     ModOp move = ModOp.Translate(moveVec);
                     List<Solid> subList = [];
+                    List<Solid> unnamedSources = [];
                     foreach (Solid s in list)
                     {
                         Solid? clone = s.Clone() as Solid;
@@ -3713,15 +3711,20 @@ namespace ShapeIt
                             if (suffix)
                             {
                                 string? sn = FindName(s);
-                                if (sn != null) AddNamed($"{sn}_{ix}_{iy}", clone);
-                                else if (name != null) AddNamed($"{name}_{ix}_{iy}", clone);
+                                if (sn != null) namedItems[$"{sn}_{ix}_{iy}"] = clone;
+                                else if (name != null) unnamedSources.Add(clone);
                             }
                         }
+                    }
+                    // Clones of source solids without an own name share one entry per grid cell.
+                    if (unnamedSources.Count > 0)
+                    {
+                        namedItems[$"{name}_{ix}_{iy}"] = unnamedSources.Count == 1 ? (object)unnamedSources[0] : unnamedSources;
                     }
                     total.AddRange(subList);
                 }
             }
-            if (name != null) AddNamed(name, total);
+            if (name != null) namedItems[name] = total;
         }
 
         private void PatternByFormulaSolidsImpl(JsonElement solids, string template, JsonElement variables, JsonElement formulas, string? condition, JsonElement arguments, string transform, bool includeSource, bool copy, string? name, bool suffix, string? indexName, bool skipInvalidInstances)
