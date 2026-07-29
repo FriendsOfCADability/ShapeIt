@@ -187,8 +187,42 @@ namespace ShapeIt
         /// - parameters: the "params" object as JsonElement (may be undefined / null in the JSON)
         /// The return value is a JSON-RPC response string.
         /// </summary>
+        // Maps MCP-facing tool names ("solid_box") back to JSON-RPC method names ("solid.box").
+        // MCP tool names may not contain dots (see MCPHttpServer.BuildToolsList), so clients
+        // call the underscore variant; internally everything keeps using the dotted names.
+        private static Dictionary<string, string>? mcpToolNameToMethod;
+
+        private static string NormalizeMethodName(string method)
+        {
+            if (method.IndexOf('.') >= 0) return method; // already a dotted RPC name
+            if (mcpToolNameToMethod == null)
+            {
+                var map = new Dictionary<string, string>(StringComparer.Ordinal);
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                using var stream = assembly.GetManifestResourceStream("ShapeIt.McpToolsetDefinition.json");
+                if (stream != null)
+                {
+                    using var doc = JsonDocument.Parse(stream);
+                    if (doc.RootElement.TryGetProperty("tools", out JsonElement tools) && tools.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var tool in tools.EnumerateArray())
+                        {
+                            if (tool.TryGetProperty("name", out JsonElement nameEl) && nameEl.ValueKind == JsonValueKind.String)
+                            {
+                                string name = nameEl.GetString()!;
+                                map[name.Replace('.', '_')] = name;
+                            }
+                        }
+                    }
+                }
+                mcpToolNameToMethod = map;
+            }
+            return mcpToolNameToMethod.TryGetValue(method, out string? rpcName) ? rpcName : method;
+        }
+
         public string ProcessMethod(string method, int id, JsonElement parameters)
         {
+            method = NormalizeMethodName(method);
             var response = new JsonObject
             {
                 ["jsonrpc"] = "2.0",
@@ -259,6 +293,9 @@ namespace ShapeIt
             if (root.TryGetProperty("method", out var m) && m.ValueKind == JsonValueKind.String)
             {
                 method = m.GetString();
+                // accept the MCP-facing underscore names here too, so the template.begin/commit
+                // handling below works regardless of which spelling the client used
+                if (method != null) method = NormalizeMethodName(method);
             }
             if (root.TryGetProperty("id", out var idEl))
             {
@@ -611,7 +648,10 @@ namespace ShapeIt
 
         private GeoVector GetOptionalViewDirection(JsonElement el)
         {
-            GeoVector defaultDir = new GeoVector(1, 1, 2); // CADability isometric: xdir(-1,1,0) ^ ydir(-1,-1,1)
+            // Negated CADability isometric: StandardProjection.Isometric stores direction = xdir ^ ydir
+            // = (1,1,2), which points from the scene towards the camera. The Projection(Direction, up)
+            // constructor used by the renderer expects the opposite sense (camera towards scene).
+            GeoVector defaultDir = new GeoVector(-1, -1, -2);
             if (el.ValueKind == JsonValueKind.Undefined || el.ValueKind == JsonValueKind.Null) return defaultDir;
             if (el.ValueKind == JsonValueKind.String)
             {
@@ -623,7 +663,7 @@ namespace ShapeIt
                     "back"      => new GeoVector(0, -1,  0),
                     "left"      => new GeoVector(1,  0,  0),
                     "right"     => new GeoVector(-1, 0,  0),
-                    "isometric" => new GeoVector(1,  1,  2),
+                    "isometric" => new GeoVector(-1, -1, -2),
                     _           => defaultDir
                 };
             }
@@ -1918,31 +1958,46 @@ namespace ShapeIt
             }
         }
 
-        private void DocumentCommitObjectsImpl(JsonElement objects)
-        {
-            foreach (Solid sld in IterateSelector<Solid>(objects))
-            {
-                Project? project = FrameImpl.MainFrame?.Project;
-                if (project != null)
-                {
-                    Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
-                    if (style != null) { sld.Style = style; }
-                    FrameImpl.MainFrame?.Project?.GetActiveModel()?.Add(sld);
-                }
-            }
-        }
-
-        private void DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
+        private JsonNode DocumentCommitObjectsImpl(JsonElement objects)
         {
             Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
             if (project == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
             Model model = project.GetActiveModel();
             Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
+            // The result envelope only reports changes to namedItems, but committing touches the
+            // document model instead. Report the committed names explicitly, otherwise the client
+            // cannot tell a successful commit from a selector that resolved to nothing.
+            JsonArray committed = new JsonArray();
+            foreach (Solid sld in IterateSelector<Solid>(objects))
+            {
+                if (style != null) { sld.Style = style; }
+                model.Add(sld);
+                committed.Add(sld.Name);
+            }
+            if (committed.Count == 0) AddCallWarning("Nothing was committed: the selector did not resolve to any solid.");
+            return new JsonObject { ["committed"] = committed };
+        }
+
+        private JsonNode DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
+        {
+            Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
+            if (project == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
+            Model model = project.GetActiveModel();
+            Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
+            // Like document.commit_objects: report the affected names explicitly, because the
+            // result envelope only covers namedItems and this tool changes the document model.
+            JsonArray removedFromDocument = new JsonArray();
+            JsonArray addedToDocument = new JsonArray();
             foreach (Solid sld in IterateSelector<Solid>(remove))
             {
-                if (sld.Owner == model) model.Remove(sld);
+                if (sld.Owner == model)
+                {
+                    model.Remove(sld);
+                    removedFromDocument.Add(sld.Name);
+                }
                 else
                 {
+                    bool found = false;
                     foreach (IGeoObject go in model.AllObjects)
                     {
                         if (go is Solid sld2)
@@ -1950,17 +2005,26 @@ namespace ShapeIt
                             if (sld2.Name == sld.Name)
                             {
                                 model.Remove(sld2);
+                                removedFromDocument.Add(sld2.Name);
+                                found = true;
                                 break;
                             }
                         }
                     }
+                    if (!found) AddCallWarning($"'{sld.Name}' was not removed: no matching object is present in the document.");
                 }
             }
             foreach (Solid sld in IterateSelector<Solid>(add))
             {
                 if (style != null) { sld.Style = style; }
                 model.Add(sld);
+                addedToDocument.Add(sld.Name);
             }
+            return new JsonObject
+            {
+                ["removedFromDocument"] = removedFromDocument,
+                ["addedToDocument"] = addedToDocument
+            };
         }
 
         #endregion

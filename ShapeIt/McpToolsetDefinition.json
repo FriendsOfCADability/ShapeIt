@@ -1189,7 +1189,7 @@
 		},
 		{
 			"name": "document.commit_objects",
-			"description": "Commits one or more workspace objects into the document model (so they appear in the model tree and will be saved). Returns committed object ids. Note: objects are referenced by workspace name(s); use workspace.select first for queries or set operations.",
+			"description": "Commits one or more workspace objects into the document model (so they appear in the model tree and will be saved). Returns the names of the committed objects. Only solids are committed; a selector that resolves to no solid yields an empty list and a warning. Note: objects are referenced by workspace name(s); use workspace.select first for queries or set operations.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1201,6 +1201,19 @@
 					"objects"
 				],
 				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"committed": {
+						"type": "array",
+						"description": "Workspace names of the objects that were added to the document model.",
+						"items": { "type": "string" }
+					}
+				},
+				"required": [
+					"committed"
+				]
 			}
 		},
 		{
@@ -1222,6 +1235,25 @@
 				"anyOf": [
 					{ "required": [ "remove" ] },
 					{ "required": [ "add" ] }
+				]
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"removedFromDocument": {
+						"type": "array",
+						"description": "Names of the objects that were actually removed from the document model. Entries of 'remove' with no matching document object are omitted and reported as a warning.",
+						"items": { "type": "string" }
+					},
+					"addedToDocument": {
+						"type": "array",
+						"description": "Names of the objects that were added to the document model.",
+						"items": { "type": "string" }
+					}
+				},
+				"required": [
+					"removedFromDocument",
+					"addedToDocument"
 				]
 			}
 		},
@@ -3246,6 +3278,7 @@
 			"name": "solid.sphere",
 			"description": "Creates a sphere solid. The sphere can be defined using different equivalent parameter sets.",
 			"inputSchema": {
+				"type": "object",
 				"properties": {
 					"center": { "$ref": "#/types/Point3" },
 					"radius": { "$ref": "#/types/ExpressionNumber" },
@@ -4244,19 +4277,12 @@
 			"inputSchema": {
 				"type": "object",
 				"properties": {
-					"targets": {
-						"description": "Name or list of names of workspace objects to inspect.",
-						"oneOf": [
-							{ "type": "string" },
-							{
-								"type": "array",
-								"items": { "type": "string" },
-								"minItems": 1
-							}
-						]
+					"objects": {
+						"$ref": "#/types/NameRef",
+						"description": "Name or list of names of workspace objects to inspect."
 					}
 				},
-				"required": [ "targets" ],
+				"required": [ "objects" ],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
@@ -4317,11 +4343,9 @@
 			"inputSchema": {
 				"type": "object",
 				"properties": {
-					"targets": {
-						"type": "array",
-						"items": { "type": "string" },
-						"minItems": 1,
-						"description": "Workspace objects to include in the scene."
+					"objects": {
+						"$ref": "#/types/NameRef",
+						"description": "Name or list of names of workspace objects to include in the scene."
 					},
 					"includeBoundingBoxes": {
 						"type": "boolean",
@@ -4375,7 +4399,7 @@
 						]
 					}
 				},
-				"required": [ "targets" ],
+				"required": [ "objects" ],
 				"additionalProperties": false
 			},
 			"x-outputSchema": {
@@ -4431,7 +4455,7 @@
 								},
 								"method": {
 									"type": "string",
-									"description": "RPC method name, e.g. \"solid.box\" or \"sketch.create\"."
+									"description": "RPC method name, e.g. \"solid.box\" or \"sketch.create\". The MCP tool-name spelling with underscores (\"solid_box\") is also accepted."
 								},
 								"params": {
 									"type": "object",

@@ -78,6 +78,13 @@ namespace ShapeIt
 
                 if (tool["inputSchema"] is JsonObject schema)
                 {
+                    // MCP clients validate every tool strictly and reject the WHOLE tools/list
+                    // when a single inputSchema lacks type:"object" — guard against that here
+                    if (schema["type"] is not JsonValue typeVal || !typeVal.TryGetValue<string>(out string? schemaType) || schemaType != "object")
+                    {
+                        Trace($"Tool '{tool["name"]}' inputSchema has no type:\"object\" — fixed up for tools/list");
+                        schema["type"] = "object";
+                    }
                     // Rewrite "#/types/X" refs to "#/$defs/X" and gather the transitive closure
                     // of referenced types. Each tool then carries a compact, self-contained
                     // "$defs" section (one copy per needed type) instead of the fully inlined
@@ -114,6 +121,15 @@ namespace ShapeIt
                 }
 
                 StripInternalFields(tool);
+
+                // MCP tool names must match ^[a-zA-Z0-9_-]{1,128}$ (Anthropic API requirement;
+                // clients drop tools with invalid names). Our JSON-RPC methods use dots
+                // ("solid.box"), so serve an underscore variant ("solid_box"); MCPServer
+                // translates it back on dispatch (see MCPServer.NormalizeMethodName).
+                if (tool["name"] is JsonValue nameVal && nameVal.TryGetValue<string>(out string? toolName) && toolName != null)
+                {
+                    tool["name"] = toolName.Replace('.', '_');
+                }
                 result.Add(tool);
             }
 
