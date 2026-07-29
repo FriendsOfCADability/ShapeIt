@@ -334,7 +334,7 @@ namespace ShapeIt
         {
             feedback.Clear();
             // mark the rotation center / axis point with a screen-sized crosshair lying in the rotation plane
-            if (!Precision.IsNullVector(axisVector)) feedback.SetCrosshair(axisPoint, GeoVector.NullVector); // axisVector);
+            if (!Precision.IsNullVector(axisVector)) feedback.SetCrosshair(axisPoint, axisVector);
             else feedback.ClearCrosshair();
             if (!Precision.IsNullVector(axisVector) && (double)rotationAngle != 0.0)
             {
