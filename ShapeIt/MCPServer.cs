@@ -1514,6 +1514,14 @@ namespace ShapeIt
                 else
                 {
 
+                    // Filter properties that reference other objects are the same for every candidate,
+                    // so resolve them once here instead of once per item.
+                    List<Face>? onFaces = null, notOnFaces = null;
+                    Face? sameSurfaceFace = null;
+                    if (filter.TryGetProperty("onFace", out je)) onFaces = IterateSelector<Face>(je).ToList();
+                    if (filter.TryGetProperty("notOnFace", out je)) notOnFaces = IterateSelector<Face>(je).ToList();
+                    if (filter.TryGetProperty("sameSurface", out je)) sameSurfaceFace = IterateSelector<Face>(je).FirstOrDefault();
+
                     foreach (T toTest in fromsT)
                     {
                         if (toTest == null) continue;
@@ -1594,18 +1602,52 @@ namespace ShapeIt
                             if (toTest is Edge edge && edge.Curve3D is IGeoObject go) bb = go.GetBoundingCube();
                             string component = RequireString(je, "component");
                             switch (component.ToLower())
-                            {
-                                case "left": if (bb.Xmin < minValue || bb.Xmin > maxValue) continue; break;
-                                case "right": if (bb.Xmax < minValue || bb.Xmax > maxValue) continue; break;
-                                case "bottom": if (bb.Zmin < minValue || bb.Zmin > maxValue) continue; break;
-                                case "top": if (bb.Zmax < minValue || bb.Zmax > maxValue) continue; break;
-                                case "front": if (bb.Ymin < minValue || bb.Ymin > maxValue) continue; break;
-                                case "back": if (bb.Ymax < minValue || bb.Ymax > maxValue) continue; break;
+                            {   // face/solid style names (left, top, ...) and edge style names (xMin, zDiff, ...)
+                                // are both accepted, so a filter written for one target works for the others too
+                                case "left": case "xmin": if (bb.Xmin < minValue || bb.Xmin > maxValue) continue; break;
+                                case "right": case "xmax": if (bb.Xmax < minValue || bb.Xmax > maxValue) continue; break;
+                                case "front": case "ymin": if (bb.Ymin < minValue || bb.Ymin > maxValue) continue; break;
+                                case "back": case "ymax": if (bb.Ymax < minValue || bb.Ymax > maxValue) continue; break;
+                                case "bottom": case "zmin": if (bb.Zmin < minValue || bb.Zmin > maxValue) continue; break;
+                                case "top": case "zmax": if (bb.Zmax < minValue || bb.Zmax > maxValue) continue; break;
                                 case "centerx": if (bb.GetCenter().x < minValue || bb.GetCenter().x > maxValue) continue; break;
                                 case "centery": if (bb.GetCenter().y < minValue || bb.GetCenter().y > maxValue) continue; break;
                                 case "centerz": if (bb.GetCenter().z < minValue || bb.GetCenter().z > maxValue) continue; break;
-                                default: throw new JsonRpcException(-32602, $"Invalid params: 'component' = '{component}' must be one of left,right,bottom,top,front,back,centerX,centerY,centerZ");
+                                case "xdiff": if (bb.XDiff < minValue || bb.XDiff > maxValue) continue; break;
+                                case "ydiff": if (bb.YDiff < minValue || bb.YDiff > maxValue) continue; break;
+                                case "zdiff": if (bb.ZDiff < minValue || bb.ZDiff > maxValue) continue; break;
+                                default: throw new JsonRpcException(-32602, $"Invalid params: 'component' = '{component}' must be one of left/xMin, right/xMax, front/yMin, back/yMax, bottom/zMin, top/zMax, centerX, centerY, centerZ, xDiff, yDiff, zDiff");
                             }
+                        }
+
+                        // Edge specific filters (EdgeFilter in the toolset definition). They used to live
+                        // in a separate FilterEdges path which became unreachable when the tools moved to
+                        // NameRef + workspace.select; here they compose with the generic filters above.
+                        if (toTest is Edge edgeToTest)
+                        {
+                            if (filter.TryGetProperty("isConvex", out je))
+                            {   // tangential and same-surface edges are neither convex nor concave and
+                                // are therefore rejected by both settings
+                                AdjacencyType adjacency = edgeToTest.Adjacency();
+                                bool wantConvex = je.ValueKind == JsonValueKind.True;
+                                if (wantConvex && adjacency != AdjacencyType.Convex) continue;
+                                if (!wantConvex && adjacency != AdjacencyType.Concave) continue;
+                            }
+                            if (onFaces != null && !onFaces.Any(f => edgeToTest.PrimaryFace == f || edgeToTest.SecondaryFace == f)) continue;
+                            if (notOnFaces != null && notOnFaces.Any(f => edgeToTest.PrimaryFace == f || edgeToTest.SecondaryFace == f)) continue;
+                            if (filter.TryGetProperty("length", out je))
+                            {
+                                double minLength = GetOptionalDouble(je, "minValue", double.MinValue);
+                                double maxLength = GetOptionalDouble(je, "maxValue", double.MaxValue);
+                                double length = edgeToTest.Curve3D != null ? edgeToTest.Curve3D.Length : 0.0;
+                                if (length < minLength || length > maxLength) continue;
+                            }
+                        }
+                        // Face specific filter: only faces lying on the same surface as a reference face
+                        if (toTest is Face faceToTest && sameSurfaceFace != null)
+                        {
+                            if (faceToTest.Surface == null || sameSurfaceFace.Surface == null) continue;
+                            if (!faceToTest.Surface.SameGeometry(faceToTest.Domain, sameSurfaceFace.Surface, sameSurfaceFace.Domain, Precision.eps, out ModOp2D _)) continue;
                         }
 
                         // when we arrive here, all conditions have been fullfilled
@@ -1918,9 +1960,29 @@ namespace ShapeIt
             }
         }
 
-        private void WorkspaceSelectImpl(JsonElement selector, string name)
+        private void WorkspaceSelectImpl(JsonElement selector, string name, string? type)
         {
             List<object> selected = IterateSelector<object>(selector).ToList();
+            if (!string.IsNullOrEmpty(type))
+            {   // An explicit type coerces the result and expands owners into their parts: a solid
+                // yields its faces or edges, a face yields its edges. This makes it possible to name
+                // a typed set without writing a query, and it fails fast when the selection contains
+                // nothing of the requested type.
+                selected = type switch
+                {
+                    "solids" => [.. ExpandToType<Solid>(selected)],
+                    "faces" => [.. ExpandToType<Face>(selected)],
+                    "edges" => [.. ExpandToType<Edge>(selected)],
+                    "sketch_geometry" => [.. ExpandToType<ICurve2D>(selected), .. ExpandToType<CompoundShape>(selected).Cast<object>()],
+                    _ => throw new JsonRpcException("E_INVALID_PARAMS", $"Unknown type '{type}'. Valid types are: solids, faces, edges, sketch_geometry.")
+                };
+                if (selected.Count == 0) throw new JsonRpcException("E_NOT_FOUND", $"The selection yielded no objects of type '{type}'. Nothing was stored.");
+            }
+            if (selected.Count > 1)
+            {   // an edge or face reached through several owners must not appear twice
+                HashSet<object> seen = new(ReferenceEqualityComparer.Instance);
+                selected = selected.Where(seen.Add).ToList();
+            }
             if (selected.Count == 0) throw new JsonRpcException("E_NOT_FOUND", "The selection yielded no objects. Nothing was stored.");
             if (selected.Count == 1)
             {   // store a single object directly so it can be used in expressions (e.g. 'e1.Length')
@@ -4042,172 +4104,6 @@ namespace ShapeIt
                 namedItems[name] = sld;
             }
             if (rebind) Rebind(shell, rounded);
-        }
-
-        private List<Edge> EdgesFromEdgeSelector(JsonElement edges)
-        {
-            List<Edge> res = [];
-            // cases: name, id, query, op
-            string? expr = null;
-            if (edges.ValueKind == JsonValueKind.String)
-            {
-                expr = edges.GetString();
-            }
-            else if (edges.TryGetProperty("expr", out JsonElement exprEl))
-            {
-                expr = exprEl.GetString();
-            }
-            if (expr != null)
-            {
-                object evalRes = Evaluator.Evaluate(expr, namedItems.Dict);
-                if (evalRes is Edge e) res.Add(e);
-                if (evalRes is List<Edge> le) res.AddRange(le);
-            }
-            else if (edges.TryGetProperty("name", out JsonElement name))
-            {
-                string? nname = null;
-                if (name.ValueKind == JsonValueKind.String) nname = name.GetString();
-                if (nname != null && namedItems.TryGetValue(nname, out var named))
-                {
-                    if (named is Edge e) res.Add(e);
-                    if (named is List<Edge> le) res.AddRange(le);
-                }
-            }
-            // we ignore id
-            else if (edges.TryGetProperty("query", out JsonElement queryEl))
-            {
-                res.AddRange(EdgesFromQuery(queryEl));
-            }
-            else if (edges.TryGetProperty("op", out JsonElement opEl))
-            {
-                res.AddRange(EdgesFromBoolean(opEl));
-            }
-            else
-            {
-                throw new JsonRpcException("E_INVALID_PARAMS", "Edge selector: none of the required parameter 'name', 'query' or 'op' provided.");
-            }
-
-            return res;
-        }
-
-        private IEnumerable<Edge> EdgesFromBoolean(JsonElement opEl)
-        {
-            throw new NotImplementedException();
-        }
-
-        private IEnumerable<Edge> EdgesFromQuery(JsonElement queryEl)
-        {
-            // from, filter
-            object from = RequireObjectRef<object>(queryEl, "from");
-            List<Edge> fromEdges = [];
-            if (from is Edge edg) { fromEdges.Add(edg); }
-            if (from is List<Edge> ledg) { fromEdges.AddRange(ledg); }
-            if (from is Face fce) { fromEdges.AddRange(fce.AllEdges); }
-            if (from is List<Face> lfce) { foreach (Face f in lfce) fromEdges.AddRange(f.AllEdges); }
-            if (from is Solid sld) { fromEdges.AddRange(sld.Edges); }
-            if (from is List<Solid> lsld) { foreach (Solid s in lsld) fromEdges.AddRange(s.Edges); }
-            if (fromEdges.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "Edge query: no edges found.");
-
-            if (queryEl.TryGetProperty("filter", out JsonElement filterEl)) return FilterEdges(filterEl, fromEdges);
-            else return fromEdges;
-        }
-
-        private IEnumerable<Edge> FilterEdges(JsonElement filterEl, List<Edge> fromEdges)
-        {
-            // filter: isConvex, notOnFace, onFace, dihedralAngleDeg, length
-            HashSet<Edge> res = [.. fromEdges];
-            if (filterEl.TryGetProperty("isConvex", out JsonElement isConvexEl))
-            {
-                bool convex = isConvexEl.ValueKind == JsonValueKind.True;
-                foreach (Edge edge in res.Clone())
-                {
-                    if (convex && edge.Adjacency() == AdjacencyType.Concave) res.Remove(edge);
-                    if (!convex && edge.Adjacency() == AdjacencyType.Convex) res.Remove(edge);
-                }
-            }
-            if (filterEl.TryGetProperty("notOnFace", out JsonElement notOnFaceEl))
-            {
-                foreach (object o in IterateSelector<Face>(notOnFaceEl))
-                {
-                    if (o is Face nof)
-                    {
-                        foreach (Edge edge in res.Clone())
-                        {
-                            if (edge.PrimaryFace == nof) res.Remove(edge);
-                            if (edge.SecondaryFace == nof) res.Remove(edge);
-                        }
-                    }
-                }
-            }
-            if (filterEl.TryGetProperty("onFace", out JsonElement onFaceEl))
-            {
-                foreach (object o in IterateSelector<Face>(onFaceEl))
-                {
-                    if (o is Face of)
-                    {
-                        foreach (Edge edge in res.Clone())
-                        {
-                            if (edge.PrimaryFace != of && edge.SecondaryFace != of) res.Remove(edge);
-                        }
-                    }
-                }
-            }
-            if (filterEl.TryGetProperty("dihedralAngleDeg", out JsonElement dihedralAngleDegEl))
-            {
-                throw new NotImplementedException("Property 'dihedralAngleDeg' in edge filter not implemented");
-            }
-            if (filterEl.TryGetProperty("length", out JsonElement lengthEl))
-            {
-                double min = GetOptionalNumber(lengthEl, "minValue", double.MinValue);
-                double max = GetOptionalNumber(lengthEl, "maxValue", double.MaxValue);
-                foreach (Edge edge in res.Clone())
-                {
-                    if (edge.Curve3D.Length < min || edge.Curve3D.Length > max) res.Remove(edge);
-                }
-            }
-            if (filterEl.TryGetProperty("boundingBox", out JsonElement boundingBoxEl))
-            {
-                double min = GetOptionalNumber(boundingBoxEl, "minValue", double.MinValue);
-                double max = GetOptionalNumber(boundingBoxEl, "maxValue", double.MaxValue);
-                string component = RequireString(boundingBoxEl, "component");
-                foreach (Edge edge in res.Clone())
-                {
-                    BoundingBox ext = edge.Curve3D.GetExtent();
-                    switch (component)
-                    {
-
-                        case "xMin":
-                            if (ext.Xmin < min || ext.Xmin > max) res.Remove(edge);
-                            break;
-                        case "xMax":
-                            if (ext.Xmax < min || ext.Xmax > max) res.Remove(edge);
-                            break;
-                        case "yMin":
-                            if (ext.Ymin < min || ext.Ymin > max) res.Remove(edge);
-                            break;
-                        case "yMax":
-                            if (ext.Ymax < min || ext.Ymax > max) res.Remove(edge);
-                            break;
-                        case "zMin":
-                            if (ext.Zmin < min || ext.Zmin > max) res.Remove(edge);
-                            break;
-                        case "zMax":
-                            if (ext.Zmax < min || ext.Zmax > max) res.Remove(edge);
-                            break;
-                        case "xDiff":
-                            if (ext.XDiff < min || ext.XDiff > max) res.Remove(edge);
-                            break;
-                        case "yDiff":
-                            if (ext.YDiff < min || ext.YDiff > max) res.Remove(edge);
-                            break;
-                        case "zDiff":
-                            if (ext.ZDiff < min || ext.ZDiff > max) res.Remove(edge);
-                            break;
-
-                    }
-                }
-            }
-            return res;
         }
 
         #endregion

@@ -403,18 +403,6 @@
 					"$ref": "#/types/Selector",
 					"description": "Include only edges that belong to the given face(s). Face selector is resolved at runtime (expected faces)."
 				},
-				"dihedralAngle": {
-					"type": "object",
-					"properties": {
-						"min": {
-							"type": "number"
-						},
-						"max": {
-							"type": "number"
-						}
-					},
-					"additionalProperties": false
-				},
 				"length": {
 					"type": "object",
 					"properties": {
@@ -625,6 +613,10 @@
 			"type": "object",
 			"description": "Filter for selecting faces.",
 			"properties": {
+				"condition": {
+					"type": "string",
+					"description": "A boolean expression evaluated for the current object, which is available as 'this' (e.g. 'this.SurfaceType == \"planar\"'). The object is accepted when the expression evaluates to true."
+				},
 				"surfaceType": {
 					"type": "string",
 					"enum": [
@@ -713,14 +705,18 @@
 						"component"
 					],
 					"additionalProperties": false
-				},
-				"additionalProperties": false
-			}
+				}
+			},
+			"additionalProperties": false
 		},
 		"SolidFilter": {
 			"type": "object",
 			"description": "Filter for selecting solids.",
 			"properties": {
+				"condition": {
+					"type": "string",
+					"description": "A boolean expression evaluated for the current object, which is available as 'this' (e.g. 'this.SurfaceType == \"planar\"'). The object is accepted when the expression evaluates to true."
+				},
 				"closeTo": {
 					"$ref": "#/types/Point3",
 					"description": "Optional point near the desired solid (used for best-match selection)."
@@ -792,7 +788,7 @@
 				},
 				"filter": {
 					"description": "Target-specific filter schema depends on target.",
-					"oneOf": [
+					"anyOf": [
 						{
 							"$ref": "#/types/SolidFilter"
 						},
@@ -4161,6 +4157,11 @@
 						"type": "string",
 						"minLength": 1,
 						"description": "Workspace name under which the selection result is stored. A single selected object is stored directly, multiple objects as a typed list."
+					},
+					"type": {
+						"type": "string",
+						"enum": [ "solids", "faces", "edges", "sketch_geometry" ],
+						"description": "Optional type of the result. The selection is coerced to this type, expanding owners into their parts: a solid yields its faces or edges, a face yields its edges. Use it to name a typed set without writing a query (e.g. selector 'box1' with type 'edges' gives all edges of the solid), and to fail early when the selection contains nothing of that type."
 					}
 				},
 				"required": [ "selector", "name" ],
