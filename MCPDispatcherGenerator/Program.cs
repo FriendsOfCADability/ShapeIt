@@ -174,6 +174,20 @@ namespace MCPDispatcherGenerator
             sb.AppendLine("    {");
             sb.AppendLine("        AssertIsObject(root);");
 
+            // Emit the unknown-parameter check with the tool's schema property names, so typos
+            // in (especially optional) parameter names show up as warnings instead of being
+            // silently ignored.
+            var knownParams = new List<string>();
+            if (tool.InputSchema is { } schemaForNames
+                && TryGet(schemaForNames, "properties", out var propsForNames)
+                && propsForNames.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var prop in propsForNames.EnumerateObject()) knownParams.Add(prop.Name);
+            }
+            sb.Append("        WarnUnknownParameters(root");
+            foreach (var known in knownParams) sb.Append($", \"{known}\"");
+            sb.AppendLine(");");
+
             var paramVars = new List<string>();
 
             if (tool.InputSchema is { } inputSchema)
@@ -195,21 +209,25 @@ namespace MCPDispatcherGenerator
             }
 
             sb.AppendLine();
-            sb.Append("        ");
-            sb.Append(implName);
-            sb.Append("(");
-            sb.Append(string.Join(", ", paramVars));
-            sb.AppendLine(");");
-            sb.AppendLine();
-
             if (tool.OutputSchema is { } outputSchema && outputSchema.ValueKind == JsonValueKind.Object)
             {
-                sb.AppendLine("        var result = new JsonObject();");
-                EmitOutputScaffold(sb, "result", outputSchema, indent: "        ", depth: 0, maxDepth: 2);
-                sb.AppendLine("        return result;");
+                // Tools with an explicit output schema: the Impl method returns the JsonNode result itself.
+                sb.Append("        return ");
+                sb.Append(implName);
+                sb.Append("(");
+                sb.Append(string.Join(", ", paramVars));
+                sb.AppendLine(");");
             }
             else
             {
+                // Tools without an output schema: the Impl method is void; the central result
+                // envelope (created/modified/removed/warnings) is appended by ProcessMethod.
+                sb.Append("        ");
+                sb.Append(implName);
+                sb.Append("(");
+                sb.Append(string.Join(", ", paramVars));
+                sb.AppendLine(");");
+                sb.AppendLine();
                 sb.AppendLine("        return default;");
             }
 
@@ -350,40 +368,6 @@ namespace MCPDispatcherGenerator
             else sb.AppendLine($"        var {varName} = GetOptional(root, \"{propName}\");");
 
             return varName;
-        }
-
-        private static void EmitOutputScaffold(StringBuilder sb, string objVar, JsonElement schema, string indent, int depth, int maxDepth)
-        {
-            // Very light scaffold: if schema.type == object and has properties, add nested JsonObject for properties (up to maxDepth).
-            if (depth >= maxDepth) return;
-
-            var type = GetString(schema, "type");
-            if (type != "object") return;
-
-            if (!TryGet(schema, "properties", out var props) || props.ValueKind != JsonValueKind.Object) return;
-
-            foreach (var p in props.EnumerateObject())
-            {
-                var propName = p.Name;
-                var propSchema = p.Value;
-                var t = GetString(propSchema, "type");
-
-                if (t == "object" && depth + 1 < maxDepth)
-                {
-                    sb.AppendLine($"{indent}{objVar}[\"{propName}\"] = new JsonObject();");
-                    EmitOutputScaffold(sb, $"{objVar}[\"{propName}\"]!.AsObject()", propSchema, indent, depth + 1, maxDepth);
-                }
-                else if (t == "array")
-                {
-                    sb.AppendLine($"{indent}{objVar}[\"{propName}\"] = new JsonArray();");
-                }
-                else
-                {
-                    if (propName == "name") sb.AppendLine($"{indent}{objVar}[\"{propName}\"] = name;");
-                    else if (propName == "id") sb.AppendLine($"{indent}{objVar}[\"{propName}\"] = GetNextId(name); // remove name when there is none");
-                    else sb.AppendLine($"{indent}{objVar}[\"{propName}\"] = null; // TODO");
-                }
-            }
         }
 
         // ---------- Helpers ----------

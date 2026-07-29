@@ -470,10 +470,32 @@ namespace ShapeIt
                     });
                 }
 
+                // When the tool result carries a base64 PNG under "image", move it out of the
+                // JSON text into a proper MCP image content item: clients then pass it to the
+                // model as a real image instead of an unreadable base64 string.
+                string? imageBase64 = null;
+                if (rpcDoc?["result"] is JsonObject resultObj
+                    && resultObj["image"] is JsonValue imgVal
+                    && imgVal.TryGetValue<string>(out string? imgStr) && !string.IsNullOrEmpty(imgStr))
+                {
+                    imageBase64 = imgStr;
+                    resultObj["image"] = "(attached as separate image content item)";
+                }
+
                 string resultText = rpcDoc?["result"]?.ToJsonString() ?? "{}";
+                var content = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = resultText } };
+                if (imageBase64 != null)
+                {
+                    content.Add(new JsonObject
+                    {
+                        ["type"] = "image",
+                        ["data"] = imageBase64,
+                        ["mimeType"] = "image/png"
+                    });
+                }
                 return MakeResult(id, new JsonObject
                 {
-                    ["content"] = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = resultText } },
+                    ["content"] = content,
                     ["isError"] = false
                 });
             }

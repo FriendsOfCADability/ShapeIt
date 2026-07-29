@@ -54,20 +54,29 @@ namespace ShapeIt
             public IEnumerator<KeyValuePair<string, object>> GetEnumerator() => dict.GetEnumerator();
 
             public Dictionary<string, object> Dict => dict;
+
+            // Change notifications used by the MCPServer to build the result envelope of a tool call.
+            // ItemSet is called after a value has been stored via the indexer (existedBefore tells whether
+            // the name was already present), ItemRemoved after a name has been removed.
+            internal Action<string, object, bool>? ItemSet;
+            internal Action<string>? ItemRemoved;
+
             public object this[string key]
             {
                 get => dict[key];
                 set
                 {
+                    bool existedBefore = dict.ContainsKey(key);
                     dict[key] = value;
                     if (value is Solid sld) sld.Name = key;
+                    ItemSet?.Invoke(key, value, existedBefore);
                 }
             }
             public bool TryGetValue(string key, out object? value) => dict.TryGetValue(key, out value);
 
             internal void Remove(string name)
             {
-                dict.Remove(name);
+                if (dict.Remove(name)) ItemRemoved?.Invoke(name);
             }
 
             public void GetObjectData(IJsonWriteData data)
@@ -124,6 +133,7 @@ namespace ShapeIt
                 this.server = server;
                 namedItems = server.namedItems;
                 server.namedItems = new NamedItemsDictionary(namedItems);
+                server.AttachChangeTracking(server.namedItems);
                 // this is a flat copy, so in theory we could change the values. But I cannot think of a way where values are changed
                 // typically they are overwritten (in the new dictionary) with new values, which is not a problem here
             }
@@ -155,6 +165,7 @@ namespace ShapeIt
                 namedItems = new NamedItemsDictionary();
                 project.UserData.Add("MCPServer.NamedItems", namedItems.Dict);
             }
+            AttachChangeTracking(namedItems);
         }
 
         #endregion
@@ -187,9 +198,36 @@ namespace ShapeIt
             try
             {
                 System.Diagnostics.Trace.WriteLine($"RPC: {method}");
-                JsonNode result = DispatchGenerated(method, parameters);
-
-                response["result"] = result ?? new JsonObject();
+                // Track all named-item changes made during this call so the client gets a
+                // meaningful result (created/modified/removed items) even for tools whose
+                // implementation does not build an explicit result object.
+                CallChanges changes = new CallChanges();
+                callChangesStack.Push(changes);
+                JsonNode result;
+                try
+                {
+                    result = DispatchGenerated(method, parameters);
+                }
+                finally
+                {
+                    callChangesStack.Pop();
+                }
+                WarnWhenRequestedNameMissing(changes, method, parameters);
+                if (result is JsonObject resultObj)
+                {
+                    AppendCallChanges(resultObj, changes);
+                    response["result"] = resultObj;
+                }
+                else if (result == null)
+                {
+                    var envelope = new JsonObject();
+                    AppendCallChanges(envelope, changes);
+                    response["result"] = envelope;
+                }
+                else
+                {
+                    response["result"] = result;
+                }
             }
             catch (JsonRpcException jre)
             {
@@ -571,10 +609,9 @@ namespace ShapeIt
             }
         }
 
-        private GeoVector GetOptionalViewDirection(JsonElement obj, string prop)
+        private GeoVector GetOptionalViewDirection(JsonElement el)
         {
             GeoVector defaultDir = new GeoVector(1, 1, 2); // CADability isometric: xdir(-1,1,0) ^ ydir(-1,-1,1)
-            if (!obj.TryGetProperty(prop, out var el)) return defaultDir;
             if (el.ValueKind == JsonValueKind.Undefined || el.ValueKind == JsonValueKind.Null) return defaultDir;
             if (el.ValueKind == JsonValueKind.String)
             {
@@ -1111,7 +1148,7 @@ namespace ShapeIt
                     return o;
                 }
             }
-            throw new JsonRpcException(1001, $"Named object not found: {name}");
+            throw NamedItemNotFound(name);
         }
 
         private IEnumerable<object> ExpandResolved(JsonElement el)
@@ -1166,7 +1203,7 @@ namespace ShapeIt
                     if (val is IEnumerable<T> seq) foreach (T item in seq) yield return item;
                     else if (val is T t) yield return t;
                 }
-                else throw new JsonRpcException(-32602, $"Named object not found: {target}");
+                else throw NamedItemNotFound(target);
                 yield break;
             }
             if (selector.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: Selector must be an object");
@@ -1178,7 +1215,7 @@ namespace ShapeIt
                     if (val is IEnumerable<T> seq) foreach (T item in seq) yield return item;
                     else if (val is T t) yield return t;
                 }
-                else throw new JsonRpcException(-32602, $"Named object not found: {je.GetString()}");
+                else throw NamedItemNotFound(je.GetString());
             }
             else if (selector.TryGetProperty("names", out je) && je.ValueKind == JsonValueKind.Array)
             {   // array of ObjectRefs
@@ -1631,41 +1668,51 @@ namespace ShapeIt
                 {
                     Edge? newEdge = newShell.FindSimilarEdge(edge);
                     if (newEdge != null) namedItems[item.Key] = newEdge;
+                    else AddCallWarning($"The edge '{item.Key}' could not be rebound to the modified topology and now references stale geometry; re-select it (workspace.select) before further use.");
                 }
                 if (item.Value is List<Edge> ledge)
                 {
                     List<Edge> newList = [];
+                    int affected = 0, rebound = 0;
                     for (int i = 0; i < ledge.Count; i++)
                     {
                         if (ledge[i].Owner.Owner == oldShell)
                         {
+                            affected++;
                             Edge? newEdgel = newShell.FindSimilarEdge(ledge[i]);
-                            if (newEdgel != null) newList.Add(newEdgel);
+                            if (newEdgel != null) { newList.Add(newEdgel); rebound++; }
                             else newList.Add(ledge[i]);
                         }
                         else newList.Add(ledge[i]);
                     }
-                    namedItems[item.Key] = newList;
+                    // only re-store when something was actually rebound, so the result envelope
+                    // reports 'modified' only for real rebinds, not for untouched lists
+                    if (rebound > 0) namedItems[item.Key] = newList;
+                    if (rebound < affected) AddCallWarning($"{affected - rebound} of {affected} edges in '{item.Key}' could not be rebound to the modified topology and now reference stale geometry; re-select them (workspace.select) before further use.");
                 }
                 if (item.Value is Face face && face.Owner == oldShell)
                 {
                     Face? newFace = newShell.FindSimilarFace(face);
                     if (newFace != null) namedItems[item.Key] = newFace;
+                    else AddCallWarning($"The face '{item.Key}' could not be rebound to the modified topology and now references stale geometry; re-select it (workspace.select) before further use.");
                 }
                 if (item.Value is List<Face> lface)
                 {
                     List<Face> newList = [];
+                    int affected = 0, rebound = 0;
                     for (int i = 0; i < lface.Count; i++)
                     {
                         if (lface[i].Owner == oldShell)
                         {
+                            affected++;
                             Face? newFacel = newShell.FindSimilarFace(lface[i]);
-                            if (newFacel != null) newList.Add(newFacel);
+                            if (newFacel != null) { newList.Add(newFacel); rebound++; }
                             else newList.Add(lface[i]);
                         }
                         else newList.Add(lface[i]);
                     }
-                    namedItems[item.Key] = newList;
+                    if (rebound > 0) namedItems[item.Key] = newList;
+                    if (rebound < affected) AddCallWarning($"{affected - rebound} of {affected} faces in '{item.Key}' could not be rebound to the modified topology and now reference stale geometry; re-select them (workspace.select) before further use.");
                 }
             }
         }
@@ -1774,7 +1821,24 @@ namespace ShapeIt
 
         #region Document, undo and workspace operations
 
-        private JsonNode DocumentGetStateImpl() => throw new NotImplementedException();
+        private JsonNode DocumentGetStateImpl()
+        {
+            // list all named workspace items so a client can (re-)orient itself mid-session
+            var workspace = new JsonArray();
+            foreach (var item in namedItems)
+            {
+                workspace.Add(DescribeNamedItem(item.Key, item.Value));
+            }
+            var templateNames = new JsonArray();
+            foreach (string templateName in templates.Keys) templateNames.Add(templateName);
+            return new JsonObject
+            {
+                ["docVersion"] = stateVersion,
+                ["lengthUnit"] = "mm",
+                ["workspace"] = workspace,
+                ["templates"] = templateNames
+            };
+        }
 
         private void UndoBeginImpl(string label)
         {
@@ -1816,7 +1880,43 @@ namespace ShapeIt
             }
         }
 
-        private void WorkspaceDeleteImpl(JsonElement objects) => throw new NotImplementedException();
+        private void WorkspaceSelectImpl(JsonElement selector, string name)
+        {
+            List<object> selected = IterateSelector<object>(selector).ToList();
+            if (selected.Count == 0) throw new JsonRpcException("E_NOT_FOUND", "The selection yielded no objects. Nothing was stored.");
+            if (selected.Count == 1)
+            {   // store a single object directly so it can be used in expressions (e.g. 'e1.Length')
+                namedItems[name] = selected[0];
+            }
+            else
+            {   // store a typed list when all elements share a common type, otherwise the plain list
+                namedItems[name] = MakeTypedList(selected) ?? selected;
+            }
+        }
+
+        private void WorkspaceDeleteImpl(JsonElement objects)
+        {
+            List<string> names = [];
+            if (objects.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in objects.EnumerateArray())
+                {
+                    string? n = ParseObjectRef(el);
+                    if (n != null) names.Add(n);
+                }
+            }
+            else
+            {
+                string? n = ParseObjectRef(objects);
+                if (n != null) names.Add(n);
+            }
+            foreach (string name in names)
+            {
+                // deleting is idempotent: a missing name is only a warning, not an error
+                if (namedItems.ContainsKey(name)) namedItems.Remove(name);
+                else AddCallWarning(NamedItemNotFound(name).Message + " Nothing was deleted for this name.");
+            }
+        }
 
         private void DocumentCommitObjectsImpl(JsonElement objects)
         {
@@ -4208,10 +4308,47 @@ namespace ShapeIt
             }
         }
 
-        private void InspectPropertiesImpl(string target, JsonElement properties)
+        private JsonNode InspectPropertiesImpl(string target, JsonElement properties)
         {
-            throw new NotImplementedException();
+            if (!namedItems.TryGetValue(target, out object? item) || item == null) throw NamedItemNotFound(target);
+            if (properties.ValueKind != JsonValueKind.Array) throw new JsonRpcException(-32602, "Invalid params: 'properties' must be an array of property names");
+            var values = new JsonObject();
+            using (new NamedItemOverride(namedItems, item))
+            {   // evaluate each property as 'this.<property>' in the expression evaluator;
+                // a failing property yields an error entry instead of failing the whole call
+                foreach (var propEl in properties.EnumerateArray())
+                {
+                    if (propEl.ValueKind != JsonValueKind.String) throw new JsonRpcException(-32602, "Invalid params: 'properties' must contain strings");
+                    string prop = propEl.GetString()!;
+                    try
+                    {
+                        object result = Evaluator.Evaluate("this." + prop, namedItems.Dict);
+                        values[prop] = EvalResultToJson(result);
+                    }
+                    catch (Exception ex)
+                    {
+                        values[prop] = new JsonObject { ["error"] = ex.Message };
+                    }
+                }
+            }
+            return new JsonObject { ["values"] = values };
         }
+
+        private static JsonNode? EvalResultToJson(object? result) => result switch
+        {
+            null => null,
+            double d => JsonValue.Create(d),
+            int i => JsonValue.Create(i),
+            bool b => JsonValue.Create(b),
+            string s => JsonValue.Create(s),
+            GeoPoint p => new JsonObject { ["x"] = p.x, ["y"] = p.y, ["z"] = p.z },
+            GeoVector v => new JsonObject { ["x"] = v.x, ["y"] = v.y, ["z"] = v.z },
+            GeoPoint2D p2 => new JsonObject { ["x"] = p2.x, ["y"] = p2.y },
+            GeoVector2D v2 => new JsonObject { ["x"] = v2.x, ["y"] = v2.y },
+            BoundingBox bb => BoundingBoxToJson(bb),
+            BoundingRect br => BoundingRectToJson(br),
+            _ => JsonValue.Create(result.ToString())
+        };
 
         // Visually distinct colours for up to 8 named targets.
         // Cycles when there are more than 8 targets.
@@ -4230,8 +4367,16 @@ namespace ShapeIt
         private static string ColorToHex(Color c)
             => $"#{c.R:X2}{c.G:X2}{c.B:X2}";
 
-        private JsonNode InspectSceneImpl(JsonElement targets, bool includeBoundingBoxes, string? geometryFormat, bool includeImage, int imageWidth, int imageHeight, GeoVector viewDirection)
+        private JsonNode InspectSceneImpl(JsonElement targets, bool includeBoundingBoxes, string? geometryFormat, bool includeImage, JsonElement imageSize, JsonElement viewDirectionEl)
         {
+            // imageSize and viewDirection arrive as raw JSON because their schema types (object
+            // resp. string|Vec3 union) have no direct parameter mapping in the generator
+            int imageWidth = imageSize.ValueKind == JsonValueKind.Object ? GetOptionalInteger(imageSize, "width", 512) : 512;
+            int imageHeight = imageSize.ValueKind == JsonValueKind.Object ? GetOptionalInteger(imageSize, "height", 512) : 512;
+            // cap the image size: rendered images travel through the client's context window
+            imageWidth = Math.Clamp(imageWidth, 16, 1024);
+            imageHeight = Math.Clamp(imageHeight, 16, 1024);
+            GeoVector viewDirection = GetOptionalViewDirection(viewDirectionEl);
             var names = new List<string>();
             if (targets.ValueKind == JsonValueKind.String)
                 names.Add(targets.GetString()!);
@@ -4286,6 +4431,19 @@ namespace ShapeIt
             result["objects"]          = objects;
             result["sceneBoundingBox"] = sceneBB.IsEmpty ? null : BoundingBoxToJson(sceneBB);
             result["image"]            = imageBase64;
+            if (imageBase64 != null)
+            {
+                try
+                {   // debug convenience: also write the PNG to the temp directory so it can be
+                    // viewed when working with the RPC debug window instead of an MCP client
+                    string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ShapeIt");
+                    System.IO.Directory.CreateDirectory(dir);
+                    string file = System.IO.Path.Combine(dir, "inspect_scene.png");
+                    System.IO.File.WriteAllBytes(file, Convert.FromBase64String(imageBase64));
+                    result["imageFile"] = file;
+                }
+                catch (Exception) { } // never fail the call over the debug dump
+            }
             return result;
         }
 
@@ -4326,7 +4484,7 @@ namespace ShapeIt
             return cs.MakePaths(sk?.Plane ?? Plane.XYPlane);
         }
 
-        private JsonArray InspectSummaryImpl(JsonElement targets)
+        private JsonNode InspectSummaryImpl(JsonElement targets)
         {
             var names = new List<string>();
             if (targets.ValueKind == JsonValueKind.String)
@@ -4349,7 +4507,7 @@ namespace ShapeIt
                 entry["summary"] = GetItemSummary(item);
                 objects.Add(entry);
             }
-            return objects;
+            return new JsonObject { ["objects"] = objects };
         }
 
         private static object UnwrapSingletonList(object item) => item switch
@@ -4499,9 +4657,26 @@ namespace ShapeIt
 
         #region Templates and system metadata
 
-        private void SystemGetInfoImpl()
+        private static JsonObject? cachedToolsetInfo;
+
+        private JsonNode SystemGetInfoImpl()
         {
-            throw new NotImplementedException();
+            if (cachedToolsetInfo == null)
+            {
+                cachedToolsetInfo = new JsonObject();
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                using var stream = assembly.GetManifestResourceStream("ShapeIt.McpToolsetDefinition.json");
+                if (stream != null)
+                {
+                    using var doc = JsonDocument.Parse(stream);
+                    foreach (string prop in new[] { "toolsetId", "toolsetVersion", "schemaVersion", "generatedAt", "toolsHash" })
+                    {
+                        if (doc.RootElement.TryGetProperty(prop, out JsonElement el) && el.ValueKind == JsonValueKind.String)
+                            cachedToolsetInfo[prop] = el.GetString();
+                    }
+                }
+            }
+            return cachedToolsetInfo.DeepClone();
         }
 
         private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, bool allowDocumentCommit)
@@ -4859,34 +5034,15 @@ namespace ShapeIt
 
         static private object? MakeTypedList(List<object> selected)
         {
-            Type? t = selected.FirstOrDefault()?.GetType();
-            if (t != null && selected.All(x => x?.GetType() == t))
-            {
-                if (t == typeof(Edge))
-                {
-                    return selected.Cast<Edge>().ToList();
-                }
-                else if (t == typeof(Face))
-                {
-                    return selected.Cast<Face>().ToList();
-                }
-                else if (t == typeof(Solid))
-                {
-                    return selected.Cast<Solid>().ToList();
-                }
-                else if (t == typeof(ICurve))
-                {
-                    return selected.Cast<ICurve>().ToList();
-                }
-                else if (t == typeof(ICurve2D))
-                {
-                    return selected.Cast<ICurve2D>().ToList();
-                }
-                else if (t == typeof(CompoundShape))
-                {
-                    return selected.Cast<CompoundShape>().ToList();
-                }
-            }
+            if (selected.Count == 0) return null;
+            // use is-checks so that different concrete implementations of the same interface
+            // (e.g. Line2D and Arc2D as ICurve2D) still yield a common typed list
+            if (selected.All(x => x is Edge)) return selected.Cast<Edge>().ToList();
+            if (selected.All(x => x is Face)) return selected.Cast<Face>().ToList();
+            if (selected.All(x => x is Solid)) return selected.Cast<Solid>().ToList();
+            if (selected.All(x => x is CompoundShape)) return selected.Cast<CompoundShape>().ToList();
+            if (selected.All(x => x is ICurve2D)) return selected.Cast<ICurve2D>().ToList();
+            if (selected.All(x => x is ICurve)) return selected.Cast<ICurve>().ToList();
             return null;
         }
 

@@ -1,11 +1,13 @@
 {
-	"toolsetVersion": "shapeit.mcp.tools.v1.1",
+	"toolsetVersion": "shapeit.mcp.tools.v1.2",
 	"conventions": {
 		"ids": "All created objects return an opaque id string. Names are optional human-friendly aliases. Tools accept either id or name via ObjectRef.",
 		"units": "Unless otherwise specified, length units are millimeters in numeric literals. Angles are degrees.",
 		"documentModel": "Objects can exist in a temporary workspace until committed into the document model.",
 		"expressions": "Numeric/point/vector fields that allow expressions accept either a literal value or an Expression object.",
-		"sketchCoordinates": "Sketch entities use 2D coordinates (Point2/Vec2) in the sketch plane coordinate system."
+		"sketchCoordinates": "Sketch entities use 2D coordinates (Point2/Vec2) in the sketch plane coordinate system.",
+		"results": "Every successful tool call returns a result envelope describing the workspace changes it made: 'created' and 'modified' list affected named items with type and a compact geometry summary (value, bounding box or element counts), 'removed' lists removed names, 'warnings' lists non-fatal problems. Tools with an explicit output schema add their own fields to the same result object.",
+		"selection": "Tools reference workspace items by name (NameRef: a single name or an array of names). To select objects by query (e.g. faces/edges with filters) or by set operations, first call workspace.select, which stores the selection result under a name; then pass that name to the next tool. Selections are snapshots: modifying a solid does not update a previously selected set of its faces or edges."
 	},
 	"types": {
 		"ParameterInputSpec": {
@@ -134,6 +136,23 @@
 						"expr"
 					],
 					"additionalProperties": false
+				}
+			]
+		},
+		"NameRef": {
+			"description": "Reference to one or more named workspace items: a single name or an array of names. Use workspace.select to create a named item from a query or set operation first.",
+			"oneOf": [
+				{
+					"type": "string",
+					"minLength": 1
+				},
+				{
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					},
+					"minItems": 1
 				}
 			]
 		},
@@ -1114,7 +1133,7 @@
 				"type": "object",
 				"properties": {
 					"objects": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Optional set of objects to validate. If provided, condition is evaluated once for each object, with the current object available as 'this'."
 					},
 					"condition": {
@@ -1170,12 +1189,12 @@
 		},
 		{
 			"name": "document.commit_objects",
-			"description": "Commits one or more workspace objects into the document model (so they appear in the model tree and will be saved). Returns committed object ids. Note: objects are resolved via Selector (may select one or many).",
+			"description": "Commits one or more workspace objects into the document model (so they appear in the model tree and will be saved). Returns committed object ids. Note: objects are referenced by workspace name(s); use workspace.select first for queries or set operations.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					}
 				},
 				"required": [
@@ -1191,11 +1210,11 @@
 				"type": "object",
 				"properties": {
 					"remove": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Selector identifying one or more existing objects in the document to be removed."
 					},
 					"add": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Selector identifying one or more workspace objects to be committed to the document."
 					}
 				},
@@ -1208,7 +1227,7 @@
 		},
 		{
 			"name": "document.get_state",
-			"description": "Returns document state: active units (length), active selection, and current document version counter (monotonic).",
+			"description": "Returns the current session state: active length unit, a monotonic version counter (increments on every workspace change), a listing of all named workspace items (name, type, compact summary) and the names of defined templates. Call this to (re-)orient yourself, e.g. to find out which names exist.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {},
@@ -1218,7 +1237,8 @@
 				"type": "object",
 				"properties": {
 					"docVersion": {
-						"type": "integer"
+						"type": "integer",
+						"description": "Monotonic counter; increments on every workspace change."
 					},
 					"lengthUnit": {
 						"type": "string",
@@ -1229,17 +1249,29 @@
 							"in"
 						]
 					},
-					"selection": {
+					"workspace": {
 						"type": "array",
+						"description": "All named workspace items with type and compact summary.",
 						"items": {
-							"$ref": "#/types/ObjectRef"
+							"type": "object",
+							"properties": {
+								"name": { "type": "string" },
+								"type": { "type": "string" },
+								"summary": { "type": "object" }
+							},
+							"required": [ "name", "type" ]
 						}
+					},
+					"templates": {
+						"type": "array",
+						"items": { "type": "string" }
 					}
 				},
 				"required": [
 					"docVersion",
 					"lengthUnit",
-					"selection"
+					"workspace",
+					"templates"
 				]
 			}
 		},
@@ -1250,17 +1282,17 @@
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"edges": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"distance": {
 						"$ref": "#/types/ExpressionNumber",
 						"description": "distance from the edge"
 					},
 					"primaryFace": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "If a primary face is provided, the distance refers to that primary face of the edge. The distance on the secondary face secondaryDistance must be provided in that case. When no primaryFace is provided, the distance is applied to both faces, it is a symmetrical chamfer"
 					},
 					"secondaryDistance": {
@@ -1299,10 +1331,10 @@
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"edges": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"radius": {
 						"$ref": "#/types/ExpressionNumber"
@@ -1334,15 +1366,15 @@
 		},
 		{
 			"name": "feature.hole",
-			"description": "Creates a cylindrical hole on a planar face of a solid. centerOnFace uses face-local UV coordinates (0,0 is face origin). Optionally captures created topology outputs as named sets. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. Note: solid is resolved via Selector (expected single solid). Note: face is resolved via Selector (expected single face).",
+			"description": "Creates a cylindrical hole on a planar face of a solid. centerOnFace uses face-local UV coordinates (0,0 is face origin). Optionally captures created topology outputs as named sets. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. Note: solid is referenced by workspace name (expected single solid). Note: face is referenced by workspace name (expected single face).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"face": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"centerOnFace": {
 						"type": "object",
@@ -1420,12 +1452,12 @@
 		},
 		{
 			"name": "feature.split",
-			"description": "Split a solid by a separating surface. Currently, splitBy is a plane. The selected solid is divided into parts on the two sides of the plane. Parts on the side pointed to by the plane normal are considered outer; parts on the opposite side are considered inner. Result solids are only created for the sides for which a target name is provided. This allows efficient batch processing when only one side of the split is needed. Note: solid is resolved via Selector and must identify exactly one solid.",
+			"description": "Split a solid by a separating surface. Currently, splitBy is a plane. The selected solid is divided into parts on the two sides of the plane. Parts on the side pointed to by the plane normal are considered outer; parts on the opposite side are considered inner. Result solids are only created for the sides for which a target name is provided. This allows efficient batch processing when only one side of the split is needed. Note: solid is referenced by workspace name and must identify exactly one solid.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"solid": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "The solid to split. Must resolve to exactly one solid."
 					},
 					"splitBy": {
@@ -1537,7 +1569,7 @@
 				"properties": {
 					"solids": {
 						"description": "The objects to Pattern to pattern.",
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"axis": {
 						"$ref": "#/types/Axis3",
@@ -1668,7 +1700,7 @@
 				"properties": {
 					"solids": {
 						"description": "One object reference or a list of object references to pattern.",
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"countX": {
 						"$ref": "#/types/ExpressionInteger",
@@ -1728,7 +1760,7 @@
 				"type": "object",
 				"properties": {
 					"solids": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Source solids to copy and transform. Mutually exclusive with template."
 					},
 					"template": {
@@ -2606,7 +2638,7 @@
 						"description": "Target sketch. Its plane defines the section plane."
 					},
 					"solid": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "The solid or solids to intersect with the sketch plane. "
 					},
 					"merge": {
@@ -2735,7 +2767,7 @@
 						"description": "Target sketch."
 					},
 					"sketchGeometry": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Set of entities to connect. If omitted, all eligible entities in the sketch are used."
 					},
 					"precision": {
@@ -2781,12 +2813,12 @@
 		},
 		{
 			"name": "sketch.create_on_face",
-			"description": "Creates a new sketch attached to a planar face. Returns sketchId and the derived sketch plane. Note: face is resolved via Selector (expected single face).",
+			"description": "Creates a new sketch attached to a planar face. Returns sketchId and the derived sketch plane. Note: face is referenced by workspace name (expected single face).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"face": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"point": {
 						"$ref": "#/types/Point3",
@@ -2876,7 +2908,7 @@
 						"description": "Target sketch."
 					},
 					"sketchGeometry": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Optional selector for sketch geometry to analyze. If omitted, all eligible entities in the sketch are used."
 					},
 					"name": {
@@ -2983,7 +3015,7 @@
 						"description": "Target sketch."
 					},
 					"sketchGeometry": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Optional subset of entities to offset. If omitted, all eligible entities in the sketch are used."
 					},
 					"distance": {
@@ -3153,12 +3185,12 @@
 						"description": "Boolean operation: union, difference (target minus tools), intersect."
 					},
 					"a": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "First operand (target). If name is omitted, the result will inherit this operand's name."
 					},
 					"b": {
 						"description": "Second operand(s). Either a single solid reference or an array of solid references.",
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"name": {
 						"type": "string",
@@ -3334,12 +3366,12 @@
 		},
 		{
 			"name": "solid.extrude",
-			"description": "Extrudes a profile into a new solid body. direction defaults to profile/sketch normal. The extrusion spans from offset to offset+length along direction. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named sets. Note: profile is resolved via Selector (expected sketch geometry or sketch with closed loops).",
+			"description": "Extrudes a profile into a new solid body. direction defaults to profile/sketch normal. The extrusion spans from offset to offset+length along direction. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named sets. Note: profile is referenced by workspace name (expected sketch geometry or sketch with closed loops).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"profile": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"length": {
 						"$ref": "#/types/ExpressionNumber"
@@ -3389,12 +3421,12 @@
 		},
 		{
 			"name": "solid.helical_extrude",
-			"description": "Creates a new solid by helical extrusion of a planar profile around a given axis. The profile is rotated around the axis while simultaneously translated along it according to the specified pitch. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named topology sets. Note: profile is resolved via Selector and is expected to refer to closed sketch geometry or a sketch containing closed loops.",
+			"description": "Creates a new solid by helical extrusion of a planar profile around a given axis. The profile is rotated around the axis while simultaneously translated along it according to the specified pitch. Returns the new solid. Optionally captures start/end faces and profile-edge loops as named topology sets. Note: profile is referenced by workspace name and is expected to refer to closed sketch geometry or a sketch containing closed loops.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"profile": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "The profile to extrude. Expected to resolve to closed sketch geometry or a sketch containing closed loops."
 					},
 					"axis": {
@@ -3452,12 +3484,12 @@
 		},
 		{
 			"name": "solid.rotate",
-			"description": "Revolves a planar profile around an axis to create a new solid body (revolve). angle can be full rotation or degrees. Returns the new solid. For partial revolves, start/end cap faces may be captured. Note: profile is resolved via Selector.",
+			"description": "Revolves a planar profile around an axis to create a new solid body (revolve). angle can be full rotation or degrees. Returns the new solid. For partial revolves, start/end cap faces may be captured. Note: profile is referenced by workspace name.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"profile": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "A profile or closed curve to be swept around the axis."
 					},
 					"axis": {
@@ -3587,15 +3619,15 @@
 		},
 		{
 			"name": "solid.sweep",
-			"description": "Sweeps a profile along a path curve to create a new solid body. Path is a 3D curve or polycurve. Orientation defaults to 'follow' (Frenet/transport). Returns the new solid. Optionally captures start/end faces and profile-edge loops. Note: profile is resolved via Selector. Note: path is resolved via Selector (expected single path/curve).",
+			"description": "Sweeps a profile along a path curve to create a new solid body. Path is a 3D curve or polycurve. Orientation defaults to 'follow' (Frenet/transport). Returns the new solid. Optionally captures start/end faces and profile-edge loops. Note: profile is referenced by workspace name. Note: path is referenced by workspace name (expected single path/curve).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"profile": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"path": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"orientation": {
 						"type": "string",
@@ -3826,12 +3858,12 @@
 		},
 		{
 			"name": "transform.move",
-			"description": "Translates one or more objects by a 3D vector. If copy=true, returns new objects; otherwise modifies originals. Returned objects are references to moved/copied objects. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are resolved via Selector (may select one or many).",
+			"description": "Translates one or more objects by a 3D vector. If copy=true, returns new objects; otherwise modifies originals. Returned objects are references to moved/copied objects. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are referenced by workspace name(s); use workspace.select first for queries or set operations.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"delta": {
 						"$ref": "#/types/Vec3"
@@ -3855,12 +3887,12 @@
 		},
 		{
 			"name": "transform.reflect",
-			"description": "Reflects (mirrors) one or more objects across a plane. If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are resolved via Selector (may select one or many).",
+			"description": "Reflects (mirrors) one or more objects across a plane. If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are referenced by workspace name(s); use workspace.select first for queries or set operations.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"plane": {
 						"$ref": "#/types/Plane",
@@ -3897,7 +3929,7 @@
 				"type": "object",
 				"properties": {
 					"objects": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"axis": {
 						"$ref": "#/types/Axis3"
@@ -3925,12 +3957,12 @@
 		},
 		{
 			"name": "transform.scale",
-			"description": "Scales one or more objects about an origin. Provide either uniform factor or non-uniform factors (x,y,z). If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are resolved via Selector (may select one or many).",
+			"description": "Scales one or more objects about an origin. Provide either uniform factor or non-uniform factors (x,y,z). If copy=true, returns new objects; otherwise modifies originals. When copy=true, the server can also copy named topology references (copyNamed=true) and create new names using nameSuffix. Note: objects are referenced by workspace name(s); use workspace.select first for queries or set operations.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					},
 					"origin": {
 						"$ref": "#/types/Point3"
@@ -4027,12 +4059,12 @@
 		},
 		{
 			"name": "workspace.delete",
-			"description": "Deletes one or more workspace objects (temporary objects not yet committed). Deleting a committed object is not allowed and returns E_INVALID_PARAMS. Note: objects are resolved via Selector (may select one or many).",
+			"description": "Deletes one or more workspace objects (temporary objects not yet committed). Deleting a committed object is not allowed and returns E_INVALID_PARAMS. Note: objects are referenced by workspace name(s); use workspace.select first for queries or set operations.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"objects": {
-						"$ref": "#/types/Selector"
+						"$ref": "#/types/NameRef"
 					}
 				},
 				"required": [
@@ -4059,7 +4091,7 @@
 							{ "$ref": "#/types/Point3" },
 							{ "$ref": "#/types/Vec2" },
 							{ "$ref": "#/types/Vec3" },
-							{ "$ref": "#/types/Selector" },
+							{ "$ref": "#/types/NameRef" },
 							{ "$ref": "#/types/ExpressionBool" },
 							{ "$ref": "#/types/ExpressionBBox" },
 							{
@@ -4079,6 +4111,26 @@
 					}
 				},
 				"required": [ "name", "value" ],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "workspace.select",
+			"description": "Executes a selection and stores the result as a named workspace item for use in subsequent tool calls. This is the only tool that accepts the full Selector syntax (names, queries with filters such as extreme/onFace, set operations union/difference/intersect); all other tools reference workspace items by name. The selection is evaluated immediately (snapshot): modifying a solid afterwards does not update a previously selected set of its faces or edges. Fails if the selection is empty.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"selector": {
+						"$ref": "#/types/Selector",
+						"description": "The selection to execute."
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Workspace name under which the selection result is stored. A single selected object is stored directly, multiple objects as a typed list."
+					}
+				},
+				"required": [ "selector", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -4135,7 +4187,7 @@
 				"type": "object",
 				"properties": {
 					"result": {
-						"$ref": "#/types/Selector",
+						"$ref": "#/types/NameRef",
 						"description": "Object or object set exported as the template result. Typically one or more solids."
 					},
 					"resultKind": {
@@ -4229,7 +4281,7 @@
 		},
 		{
 			"name": "inspect.properties",
-			"description": "Returns selected properties of a workspace object. Property names follow the same naming conventions used in expressions (e.g. 'boundingBox', 'boundingBox.width', 'volume').",
+			"description": "Returns selected properties of a workspace object. Property names follow the same naming conventions used in expressions (e.g. 'Volume', 'Length', 'SurfaceType'); each property is evaluated as 'this.<property>'. A property that cannot be evaluated yields an error entry for that property instead of failing the call.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -4261,7 +4313,7 @@
 		},
 		{
 			"name": "inspect.scene",
-			"description": "Returns a spatial description of multiple workspace objects so their relative positions can be analyzed. Optionally includes geometry representations such as bounding boxes or mesh data.",
+			"description": "Returns a spatial description of multiple workspace objects so their relative positions can be analyzed. Optionally includes geometry representations such as bounding boxes or mesh data. With includeImage=true the rendered view is returned as a separate image content item of the tool result, so the model can inspect the scene visually.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -4289,19 +4341,19 @@
 					},
 					"imageSize": {
 						"type": "object",
-						"description": "Size of the rendered image in pixels. Only used when includeImage is true. Defaults to 512x512.",
+						"description": "Size of the rendered image in pixels. Only used when includeImage is true. Defaults to 512x512; the server caps both dimensions at 1024.",
 						"properties": {
 							"width": {
 								"type": "integer",
 								"minimum": 64,
-								"maximum": 4096,
+								"maximum": 1024,
 								"default": 512,
 								"description": "Image width in pixels."
 							},
 							"height": {
 								"type": "integer",
 								"minimum": 64,
-								"maximum": 4096,
+								"maximum": 1024,
 								"default": 512,
 								"description": "Image height in pixels."
 							}
@@ -4393,6 +4445,30 @@
 				},
 				"required": [ "calls" ],
 				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"summary": {
+						"type": "string",
+						"description": "Human readable summary of the batch execution."
+					},
+					"results": {
+						"type": "array",
+						"description": "One entry per executed call with index, method and its result envelope.",
+						"items": {
+							"type": "object",
+							"properties": {
+								"index": { "type": "integer" },
+								"method": { "type": "string" },
+								"result": { "type": "object" },
+								"error": { "type": "string" }
+							},
+							"required": [ "index", "method" ]
+						}
+					}
+				},
+				"required": [ "summary", "results" ]
 			}
 		}
 	],

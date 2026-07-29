@@ -120,13 +120,20 @@ ShapeIt uses multiple coordinate systems:
 
 Objects in ShapeIt are referenced by **name**.
 
-### Selectors
+### Names
 
-Simple references directly use names.
+Tools reference workspace objects by a single name or an array of names.
 
-### Queries
+### Selections (workspace.select)
 
-More advanced references use queries (see Chapter 10).
+To reference objects that have no name yet — e.g. "the four vertical edges
+of this box" or "all faces on the top side" — first call `workspace.select`.
+It executes a query (with filters such as `extreme` or `onFace`) or a set
+operation (`union`, `difference`, `intersect`) and stores the result under a
+name, which subsequent tools can use like any other workspace name.
+
+A selection is a snapshot: modifying a solid afterwards does not update a
+previously selected set of its faces or edges, so select right before use.
 
 ------------------------------------------------------------------------
 
