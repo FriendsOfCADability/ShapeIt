@@ -135,7 +135,7 @@ public partial class MCPServer
     }
 
     /// <summary>
-    /// Returns the current session state: active length unit, a monotonic version counter (increments on every workspace change), a listing of all named workspace items (name, type, compact summary) and the names of defined templates. Call this to (re-)orient yourself, e.g. to find out which names exist.
+    /// Returns the current session state: active length unit, a monotonic version counter (increments on every workspace change), a listing of all named workspace items (name, type, compact summary) and the names of defined templates. Call this to (re-)orient yourself, e.g. to find out which names exist. The face and edge counts in the summaries are topological (faces on periodic surfaces are split above half a period) and are not a reliable check of geometric correctness.
     /// </summary>
     private JsonNode DocumentGetState(JsonElement root)
     {
@@ -272,7 +272,7 @@ public partial class MCPServer
     }
 
     /// <summary>
-    /// Returns a concise summary of one or more workspace objects. The summary includes the object type and basic properties such as value, bounding box, or element counts when applicable.
+    /// Returns a concise summary of one or more workspace objects. The summary includes the object type and basic properties such as value, bounding box, or element counts when applicable. The element counts (faceCount, edgeCount) are topological: faces on periodic surfaces are split above half a period, so one bore may count as two faces. Do not use the counts to check whether a result is geometrically correct; use Volume, the bounding box, or a rendered section instead.
     /// </summary>
     private JsonNode InspectSummary(JsonElement root)
     {

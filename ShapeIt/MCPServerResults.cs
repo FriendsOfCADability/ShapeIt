@@ -71,6 +71,26 @@ namespace ShapeIt
             else changes.Created[name] = value;
         }
 
+        /// <summary>
+        /// Records that the item stored under <paramref name="name"/> was modified in place, i.e.
+        /// without a write to namedItems. The transform tools mutate their input objects directly
+        /// when no 'name' is given; without this the call would report an empty result and the
+        /// missing-result check could not tell a successful transform from a silent no-op.
+        /// </summary>
+        internal void NoteModifiedInPlace(string name)
+        {
+            if (!namedItems.TryGetValue(name, out object? value) || value == null) return;
+            stateVersion++;
+            if (callChangesStack.Count == 0) return;
+            CallChanges changes = callChangesStack.Peek();
+            if (changes.Created.ContainsKey(name))
+            {   // created earlier in this same call, so it stays a creation
+                changes.Created[name] = value;
+                return;
+            }
+            changes.Modified[name] = value;
+        }
+
         private void OnNamedItemRemoved(string name)
         {
             stateVersion++;
@@ -227,23 +247,44 @@ namespace ShapeIt
         // Tool families whose "name" parameter denotes the name under which the result is stored.
         private static readonly string[] resultNamePrefixes = { "solid.", "sketch.", "feature.", "pattern.", "surface.", "transform." };
 
-        /// <summary>
-        /// Adds a warning when a creating tool was given a 'name' but no item was stored under
-        /// that name (or a suffixed variant of it). This turns silent failures — e.g. a boolean
-        /// operation yielding no result — into a visible message for the client.
-        /// </summary>
-        private void WarnWhenRequestedNameMissing(CallChanges changes, string method, JsonElement parameters)
+        // Tools whose documented contract is that omitting "name" replaces or modifies the input.
+        // Only for these does an empty change set prove that the call silently did nothing; the
+        // remaining tools (sketch.add_*, solid.box, ...) legitimately store nothing without a name.
+        private static readonly string[] inPlaceResultMethods =
+            { "feature.", "transform.", "solid.boolean", "sketch.connect", "sketch.offset", "sketch.round_vertices" };
+
+        private static bool StartsWithAny(string method, string[] prefixes)
         {
-            bool isCreator = false;
-            foreach (string prefix in resultNamePrefixes)
-            {
-                if (method.StartsWith(prefix, StringComparison.Ordinal)) { isCreator = true; break; }
-            }
-            if (!isCreator) return;
+            foreach (string prefix in prefixes)
+                if (method.StartsWith(prefix, StringComparison.Ordinal)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Adds a warning when a creating tool produced no reachable result. With a 'name' that means
+        /// nothing was stored under that name (or a suffixed variant of it); without a 'name' — where
+        /// the convention is that the operation replaces or modifies its input — it means the call
+        /// changed no workspace object at all. Both turn silent failures into a visible message.
+        /// </summary>
+        private void WarnWhenResultMissing(CallChanges changes, string method, JsonElement parameters, JsonNode? result)
+        {
             if (parameters.ValueKind != JsonValueKind.Object) return;
-            if (!parameters.TryGetProperty("name", out JsonElement nameEl) || nameEl.ValueKind != JsonValueKind.String) return;
-            string? name = nameEl.GetString();
-            if (string.IsNullOrEmpty(name)) return;
+            string? name = null;
+            if (parameters.TryGetProperty("name", out JsonElement nameEl) && nameEl.ValueKind == JsonValueKind.String)
+            {
+                name = nameEl.GetString();
+                if (string.IsNullOrEmpty(name)) name = null;
+            }
+            if (name == null)
+            {
+                if (!StartsWithAny(method, inPlaceResultMethods)) return;
+                // A tool that returns its own payload reports the result itself and needs no check.
+                if (result != null && (result is not JsonObject payload || payload.Count > 0)) return;
+                if (changes.Created.Count > 0 || changes.Modified.Count > 0 || changes.Removed.Count > 0) return;
+                changes.Warnings.Add($"'{method}' was called without a 'name', so it should have replaced or modified its input, but no workspace object changed. The operation probably yielded no result.");
+                return;
+            }
+            if (!StartsWithAny(method, resultNamePrefixes)) return;
             if (namedItems.ContainsKey(name)) return;
             foreach (string created in changes.Created.Keys)
             {   // tools with suffix/nameWithSuffix store "name_0", "name_1", ...

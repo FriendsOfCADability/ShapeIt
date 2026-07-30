@@ -16,6 +16,10 @@ namespace ShapeIt
         private readonly SynchronizationContext uiContext;
         private readonly HttpListener listener;
         private readonly JsonArray toolsList;
+        // Declaration order matters: the two below are derived from definitionRoot.
+        private static readonly JsonNode? definitionRoot = LoadDefinitionRoot();
+        private static readonly string instructions = BuildInstructions(definitionRoot);
+        private static readonly string serverVersion = BuildServerVersion(definitionRoot);
         private Thread? listenerThread;
         private volatile bool running;
 
@@ -134,6 +138,50 @@ namespace ShapeIt
             }
 
             return result;
+        }
+
+        // -----------------------------------------------------------------------------------------
+        // Metadata read once from the embedded definition and served by initialize.
+
+        private static JsonNode? LoadDefinitionRoot()
+        {
+            var assembly = Assembly.GetExecutingAssembly();
+            const string resourceName = "ShapeIt.McpToolsetDefinition.json";
+            using var stream = assembly.GetManifestResourceStream(resourceName);
+            return stream == null ? null : JsonNode.Parse(stream);
+        }
+
+        // The version reported as serverInfo.version is derived from "toolsetVersion" rather than
+        // written out separately, so there can be no second version number contradicting the first.
+        // "shapeit.mcp.tools.v1.3" becomes "1.3"; anything not matching that shape is served as is.
+        private static string BuildServerVersion(JsonNode? definition)
+        {
+            if (definition?["toolsetVersion"] is not JsonValue val
+                || !val.TryGetValue<string>(out string? toolsetVersion)
+                || string.IsNullOrEmpty(toolsetVersion)) return "1.0";
+
+            int i = toolsetVersion.LastIndexOf(".v", StringComparison.Ordinal);
+            return i >= 0 && i + 2 < toolsetVersion.Length ? toolsetVersion[(i + 2)..] : toolsetVersion;
+        }
+
+        // The "conventions" block, served as InitializeResult.instructions: rules that hold across
+        // all tools (units, the result envelope, the snapshot semantics of selections, the face
+        // splitting on periodic surfaces). Repeating them in every tool description would cost far
+        // more than the ~2 KB they take up here, and without this the block never left the server:
+        // BuildToolsList only maps "types" and "tools".
+        private static string BuildInstructions(JsonNode? definition)
+        {
+            if (definition?["conventions"]?.AsObject() is not JsonObject conventions) return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Conventions that apply to all ShapeIt tools:");
+            foreach (var kv in conventions)
+            {
+                if (kv.Value is not JsonValue val || !val.TryGetValue<string>(out string? text) || string.IsNullOrEmpty(text)) continue;
+                sb.AppendLine();
+                sb.Append("- ").Append(kv.Key).Append(": ").AppendLine(text);
+            }
+            return sb.ToString();
         }
 
         // Collect the names of all "#/types/X" $ref targets found in the subtree (read-only).
@@ -329,8 +377,9 @@ namespace ShapeIt
         // -----------------------------------------------------------------------------------------
         // MCP method handlers
 
-        private static string HandleInitialize(int id) =>
-            MakeResult(id, new JsonObject
+        private static string HandleInitialize(int id)
+        {
+            var result = new JsonObject
             {
                 ["protocolVersion"] = "2024-11-05",
                 ["capabilities"]    = new JsonObject
@@ -338,8 +387,11 @@ namespace ShapeIt
                     ["tools"]     = new JsonObject(),
                     ["resources"] = new JsonObject()
                 },
-                ["serverInfo"] = new JsonObject { ["name"] = "ShapeIt", ["version"] = "1.0" }
-            });
+                ["serverInfo"] = new JsonObject { ["name"] = "ShapeIt", ["version"] = serverVersion }
+            };
+            if (instructions.Length > 0) result["instructions"] = instructions;
+            return MakeResult(id, result);
+        }
 
         private string HandleToolsList(int id) =>
             MakeResult(id, new JsonObject { ["tools"] = toolsList.DeepClone() });

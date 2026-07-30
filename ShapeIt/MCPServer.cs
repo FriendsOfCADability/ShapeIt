@@ -275,7 +275,7 @@ namespace ShapeIt
                 {
                     callChangesStack.Pop();
                 }
-                WarnWhenRequestedNameMissing(changes, method, parameters);
+                WarnWhenResultMissing(changes, method, parameters, result);
                 if (result is JsonObject resultObj)
                 {
                     AppendCallChanges(resultObj, changes);
@@ -1863,6 +1863,58 @@ namespace ShapeIt
             return null;
         }
 
+        /// <summary>
+        /// Enumerates the workspace names of a NameRef parameter (a single name or an array of names).
+        /// Yields nothing for shapes that carry no name, so callers decide whether that is an error.
+        /// </summary>
+        private IEnumerable<string> AllNames(JsonElement nameRef)
+        {
+            if (nameRef.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in nameRef.EnumerateArray())
+                    if (el.ValueKind == JsonValueKind.String && el.GetString() is string item) yield return item;
+            }
+            else if (nameRef.ValueKind == JsonValueKind.String)
+            {
+                if (nameRef.GetString() is string single) yield return single;
+            }
+            else if (nameRef.ValueKind == JsonValueKind.Object && nameRef.TryGetProperty("name", out var nameEl)
+                     && nameEl.ValueKind == JsonValueKind.String && nameEl.GetString() is string named) yield return named;
+        }
+
+        private string? FirstName(JsonElement nameRef) => AllNames(nameRef).FirstOrDefault();
+
+        /// <summary>
+        /// Returns the single workspace name of a NameRef parameter. A NameRef may also be an array,
+        /// but operations working on one shell cannot silently pick one entry out of several.
+        /// </summary>
+        private string RequireSingleName(JsonElement nameRef, string parameterName)
+        {
+            if (nameRef.ValueKind == JsonValueKind.Array)
+            {
+                List<string> names = [.. nameRef.EnumerateArray().Where(el => el.ValueKind == JsonValueKind.String).Select(el => el.GetString()!)];
+                if (names.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", $"'{parameterName}' must reference exactly one named solid.");
+                return names[0];
+            }
+            string? name = ParseObjectRef(nameRef);
+            if (string.IsNullOrEmpty(name)) throw new JsonRpcException("E_INVALID_PARAMS", $"'{parameterName}' must reference exactly one named solid.");
+            return name;
+        }
+
+        /// <summary>
+        /// Verifies that the 'solid' parameter names the very solid the given shell belongs to and
+        /// returns that name. Feature operations derive the shell from their edges and use 'solid'
+        /// only for naming, so a mismatch would otherwise overwrite an unrelated workspace item.
+        /// </summary>
+        private string RequireSolidNameFor(JsonElement solidRef, Shell shell)
+        {
+            string solidName = RequireSingleName(solidRef, "solid");
+            if (!namedItems.TryGetValue(solidName, out object? item) || item == null) throw NamedItemNotFound(solidName);
+            if (UnwrapSingletonList(item) is not Solid sld || sld.Shells.Length == 0 || sld.Shells[0] != shell)
+                throw new JsonRpcException("E_INVALID_PARAMS", $"'{solidName}' does not denote the single solid the given edges belong to.");
+            return solidName;
+        }
+
         private class FaceWrapperForEvaluator
         {
             Face face;
@@ -1919,10 +1971,27 @@ namespace ShapeIt
             public BoundingBox bounds => edge.Curve3D.GetExtent();
         }
 
+        private class SolidWrapperForEvaluator
+        {
+            Solid solid;
+            public SolidWrapperForEvaluator(Solid solid)
+            {
+                this.solid = solid;
+            }
+
+            public double Volume => solid.Shell.Volume(bounds.Size*1e-5);
+            public BoundingBox bounds => solid.GetExtent(0.0);
+        }
+
         private static object? wrapForEvaluator(object item)
         {
+            // A named item holding exactly one object behaves like that object: a query result with a
+            // single solid must answer 'this.Volume', not the properties of a List<Solid>. The rest of
+            // the server (inspect.scene, workspace listing) already follows this convention.
+            item = UnwrapSingletonList(item);
             if (item is Face fc) return new FaceWrapperForEvaluator(fc);
             if (item is Edge edg) return new EdgeWrapperForEvaluator(edg);
+            if (item is Solid solid) return new SolidWrapperForEvaluator(solid);
             // TODO implement other wrappers
             return item;
         }
@@ -3803,7 +3872,10 @@ namespace ShapeIt
             List<Solid> slda = IterateSelector<Solid>(a).ToList();
             List<Solid> sldb = IterateSelector<Solid>(b).ToList();
             if (slda.Count == 0 || sldb.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "Boolean operations require at least one solid 'a' and at least one other solid 'b' to operate with.");
-            if (name == null && slda[0] is IGeoObject go) name = go.UserData["CADablity.MCP.Name"] as string;
+            // Without a name the result inherits the name of operand 'a'. Take it from the parameter:
+            // the name stashed in UserData is only written on the ResolveObjectRef path (IterateSelector
+            // never sets it) and it goes stale as soon as the workspace entry is reassigned.
+            if (name == null) name = FirstName(a);
             object? res = null;
             Solid s1 = slda[0];
             List<Solid> s2 = [.. sldb, .. slda.Skip(1)];
@@ -4078,10 +4150,11 @@ namespace ShapeIt
             Solid cyl = Make3D.MakeCylinder(holeCenter, radius * pln.DirectionX, holeDepth * holeDir);
             if (cyl != null)
             {
-                string? resName = name;
-                if (resName == null) resName = FindName(onSolid);
+                // Without a name the original is replaced. Take that name from the 'solid' parameter:
+                // a reverse lookup of onSolid fails whenever the workspace item is a list of solids.
+                string resName = string.IsNullOrEmpty(name) ? RequireSingleName(solid, "solid") : name;
                 Solid[] res = NewBooleanOperation.Subtract(onSolid, cyl);
-                if (res != null && res.Length > 0 && resName != null)
+                if (res != null && res.Length > 0)
                 {
                     if (res.Length == 1)
                     {
@@ -4215,49 +4288,37 @@ namespace ShapeIt
             }
         }
 
-        private void FeatureChamferImpl(JsonElement solid, JsonElement edges, double distance, JsonElement primaryFace, double secondaryDistance, string name, bool rebind, JsonElement rebindTargets)
+        private void FeatureChamferImpl(JsonElement solid, JsonElement edges, double distance, JsonElement primaryFace, double secondaryDistance, string? name, bool rebind, JsonElement rebindTargets)
         {
             List<Edge> edgesToRound = IterateSelector<Edge>(edges).ToList();
             if (edgesToRound.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No edges found to fillet.");
             Shell? shell = edgesToRound.First().Owner.Owner as Shell;
             if (shell == null) throw new JsonRpcException("E_INVALID_PARAMS", "Edge is not part of a solid.");
+            // The geometry comes from the edges, 'solid' only names the workspace item to replace when
+            // no new name is given. Check it before doing the work so a mismatch fails fast.
+            string solidName = RequireSolidNameFor(solid, shell);
             if (double.IsNaN(secondaryDistance)) secondaryDistance = distance;
             // maybe flip distances
             ChamferEdges ce = new ChamferEdges(shell, edgesToRound, distance, secondaryDistance);
             Shell? rounded = ce.Execute();
             if (rounded == null) throw new JsonRpcException("E_OPERATION_FAILED", "Filletting failed.");
-            Solid sld = Solid.MakeSolid(rounded);
-            if (string.IsNullOrEmpty(name))
-            {
-                string? originalName = FindName(solid);
-                if (originalName != null) namedItems[originalName] = sld;
-            }
-            else
-            {
-                namedItems[name] = sld;
-            }
+            namedItems[string.IsNullOrEmpty(name) ? solidName : name] = Solid.MakeSolid(rounded);
             if (rebind) Rebind(shell, rounded);
         }
 
-        private void FeatureFilletImpl(object solid, JsonElement edges, double radius, string? name, bool rebind, JsonElement rebindTargets)
+        private void FeatureFilletImpl(JsonElement solid, JsonElement edges, double radius, string? name, bool rebind, JsonElement rebindTargets)
         {
             List<Edge> edgesToRound = IterateSelector<Edge>(edges).ToList();
             if (edgesToRound.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No edges found to fillet.");
             Shell? shell = edgesToRound.First().Owner.Owner as Shell;
             if (shell == null) throw new JsonRpcException("E_INVALID_PARAMS", "Edge is not part of a solid.");
+            // The geometry comes from the edges, 'solid' only names the workspace item to replace when
+            // no new name is given. Check it before doing the work so a mismatch fails fast.
+            string solidName = RequireSolidNameFor(solid, shell);
             RoundEdges re = new RoundEdges(shell, edgesToRound, radius);
             Shell? rounded = re.Execute();
             if (rounded == null) throw new JsonRpcException("E_OPERATION_FAILED", "Filletting failed.");
-            Solid sld = Solid.MakeSolid(rounded);
-            if (string.IsNullOrEmpty(name))
-            {
-                string? originalName = FindName(solid);
-                if (originalName != null) namedItems[originalName] = sld;
-            }
-            else
-            {
-                namedItems[name] = sld;
-            }
+            namedItems[string.IsNullOrEmpty(name) ? solidName : name] = Solid.MakeSolid(rounded);
             if (rebind) Rebind(shell, rounded);
         }
 
@@ -4348,6 +4409,9 @@ namespace ShapeIt
                 }
             }
             if (copy) namedItems[name] = modified;
+            // Without a name the originals were rotated in place, so nothing was written to
+            // namedItems; report the affected items explicitly.
+            else foreach (string rotatedName in AllNames(objectsEl)) NoteModifiedInPlace(rotatedName);
         }
 
         private void TransformMoveImpl(JsonElement objects, GeoVector delta, string name, string copySuffix)
@@ -4371,6 +4435,9 @@ namespace ShapeIt
                 }
             }
             if (name != null) namedItems[name] = modified;
+            // Without a name the originals were moved in place, so nothing was written to
+            // namedItems; report the affected items explicitly.
+            else foreach (string movedName in AllNames(objects)) NoteModifiedInPlace(movedName);
         }
 
         #endregion
@@ -4636,6 +4703,8 @@ namespace ShapeIt
             List<ICurve> cl when cl.Count == 1 => cl[0],
             List<ICurve2D> cl2 when cl2.Count == 1 => cl2[0],
             List<CompoundShape> csl when csl.Count == 1 => csl[0],
+            // workspace.select falls back to an untyped list when MakeTypedList finds no common type
+            List<object> ol when ol.Count == 1 => ol[0],
             _ => item
         };
 
@@ -4787,7 +4856,7 @@ namespace ShapeIt
                 if (stream != null)
                 {
                     using var doc = JsonDocument.Parse(stream);
-                    foreach (string prop in new[] { "toolsetId", "toolsetVersion", "schemaVersion", "generatedAt", "toolsHash" })
+                    foreach (string prop in new[] { "toolsetId", "toolsetVersion", "schemaVersion" })
                     {
                         if (doc.RootElement.TryGetProperty(prop, out JsonElement el) && el.ValueKind == JsonValueKind.String)
                             cachedToolsetInfo[prop] = el.GetString();

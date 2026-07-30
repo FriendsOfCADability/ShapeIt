@@ -1,5 +1,5 @@
 {
-	"toolsetVersion": "shapeit.mcp.tools.v1.2",
+	"toolsetVersion": "shapeit.mcp.tools.v1.3",
 	"conventions": {
 		"ids": "All created objects return an opaque id string. Names are optional human-friendly aliases. Tools accept either id or name via ObjectRef.",
 		"units": "Unless otherwise specified, length units are millimeters in numeric literals. Angles are degrees.",
@@ -7,7 +7,8 @@
 		"expressions": "Numeric/point/vector fields that allow expressions accept either a literal value or an Expression object.",
 		"sketchCoordinates": "Sketch entities use 2D coordinates (Point2/Vec2) in the sketch plane coordinate system.",
 		"results": "Every successful tool call returns a result envelope describing the workspace changes it made: 'created' and 'modified' list affected named items with type and a compact geometry summary (value, bounding box or element counts), 'removed' lists removed names, 'warnings' lists non-fatal problems. Tools with an explicit output schema add their own fields to the same result object.",
-		"selection": "Tools reference workspace items by name (NameRef: a single name or an array of names). To select objects by query (e.g. faces/edges with filters) or by set operations, first call workspace.select, which stores the selection result under a name; then pass that name to the next tool. Selections are snapshots: modifying a solid does not update a previously selected set of its faces or edges."
+		"selection": "Tools reference workspace items by name (NameRef: a single name or an array of names). To select objects by query (e.g. faces/edges with filters) or by set operations, first call workspace.select, which stores the selection result under a name; then pass that name to the next tool. Selections are snapshots: modifying a solid does not update a previously selected set of its faces or edges.",
+		"periodicFaces": "Faces on periodic surfaces (cylindrical, conical, spherical, toroidal) are split into two faces when the periodic parameter range exceeds half the period; closed circular edges are split the same way. One bore can therefore be two cylindrical faces: a bore reduced to 324 degrees by a slot reports two faces, one reduced to exactly 180 degrees reports a single face. Two consequences: face and edge counts are topological, not a stable fingerprint of a shape, so do not use them to judge whether a result is geometrically correct - use Volume, the bounding box, or a rendered section (inspect.scene with includeImage) instead. And a face or edge query never guarantees one hit per geometric surface, so an operation built on such a selection may silently affect only half of a bore."
 	},
 	"types": {
 		"ParameterInputSpec": {
@@ -627,7 +628,7 @@
 						"toroidal",
 						"freeform"
 					],
-					"description": "Optional surface type."
+					"description": "Optional surface type. Note that one geometric surface may yield several faces: faces on periodic surfaces are split when the periodic parameter range exceeds half the period, so e.g. a cylindrical bore interrupted by a slot can match twice. Expect more than one hit per surface and pass the whole selection on to the following operation rather than picking a single face."
 				},
 				"extreme": {
 					"type": "object",
@@ -1255,7 +1256,7 @@
 		},
 		{
 			"name": "document.get_state",
-			"description": "Returns the current session state: active length unit, a monotonic version counter (increments on every workspace change), a listing of all named workspace items (name, type, compact summary) and the names of defined templates. Call this to (re-)orient yourself, e.g. to find out which names exist.",
+			"description": "Returns the current session state: active length unit, a monotonic version counter (increments on every workspace change), a listing of all named workspace items (name, type, compact summary) and the names of defined templates. Call this to (re-)orient yourself, e.g. to find out which names exist. The face and edge counts in the summaries are topological (faces on periodic surfaces are split above half a period) and are not a reliable check of geometric correctness.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {},
@@ -3875,20 +3876,12 @@
 					},
 					"schemaVersion": {
 						"type": "string"
-					},
-					"generatedAt": {
-						"type": "string"
-					},
-					"toolsHash": {
-						"type": "string"
 					}
 				},
 				"required": [
 					"toolsetId",
 					"toolsetVersion",
-					"schemaVersion",
-					"generatedAt",
-					"toolsHash"
+					"schemaVersion"
 				],
 				"additionalProperties": false
 			}
@@ -4314,7 +4307,7 @@
 		},
 		{
 			"name": "inspect.summary",
-			"description": "Returns a concise summary of one or more workspace objects. The summary includes the object type and basic properties such as value, bounding box, or element counts when applicable.",
+			"description": "Returns a concise summary of one or more workspace objects. The summary includes the object type and basic properties such as value, bounding box, or element counts when applicable. The element counts (faceCount, edgeCount) are topological: faces on periodic surfaces are split above half a period, so one bore may count as two faces. Do not use the counts to check whether a result is geometrically correct; use Volume, the bounding box, or a rendered section instead.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -4594,7 +4587,5 @@
 		}
 	],
 	"toolsetId": "shapeit.mcp",
-	"schemaVersion": "2020-12",
-	"generatedAt": "2026-02-22T13:27:52.573811",
-	"toolsHash": "sha256:e0c7a835f255c5dfeec639da8a12279641d79467d068b9af80ac8556792b67e5"
+	"schemaVersion": "2020-12"
 }
