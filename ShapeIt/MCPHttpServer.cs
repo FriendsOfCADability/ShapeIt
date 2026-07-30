@@ -494,6 +494,15 @@ namespace ShapeIt
                 if (rpcDoc?["error"] is JsonNode errNode)
                 {
                     string msg = errNode["message"]?.GetValue<string>() ?? "Unknown error";
+                    // Warnings collected before the failure travel in error.data.warnings; append them
+                    // to the text, because a tools/call result carries no structured error payload.
+                    if (errNode["data"]?["warnings"] is JsonArray warnings)
+                    {
+                        foreach (JsonNode? warning in warnings)
+                        {
+                            if (warning != null) msg += Environment.NewLine + "Warning: " + warning.GetValue<string>();
+                        }
+                    }
                     return MakeResult(id, new JsonObject
                     {
                         ["content"] = new JsonArray { new JsonObject { ["type"] = "text", ["text"] = msg } },

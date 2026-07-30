@@ -4475,7 +4475,7 @@
 		},
 		{
 			"name": "rpc.batch",
-			"description": "Execute a sequence of RPC calls as one block. Use this whenever a task requires multiple operations (e.g. create sketch → add curves → extrude → boolean → commit). All calls run sequentially on the UI thread; execution stops on the first error. Prefer this over individual tool calls for any multi-step workflow.",
+			"description": "Execute a sequence of RPC calls as one block. Use this whenever a task requires multiple operations (e.g. create sketch → add curves → extrude → boolean → commit). All calls run sequentially on the UI thread; execution stops on the first error. By default the batch is atomic: a failing call rolls back everything the batch changed, and a successful batch becomes one undo step. Prefer this over individual tool calls for any multi-step workflow.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -4506,6 +4506,11 @@
 							"required": [ "jsonrpc", "id", "method", "params" ],
 							"additionalProperties": false
 						}
+					},
+					"atomic": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true (the default), the whole batch is one transaction: it runs inside its own undo frame, so a failing call rolls back every change the batch made before it, and a successful batch becomes a single undo step the user can revert at once. Set to false to keep the changes made before the failing call. When an undo frame was already opened with undo.begin, the batch runs inside that frame instead and is rolled back together with it."
 					}
 				},
 				"required": [ "calls" ],

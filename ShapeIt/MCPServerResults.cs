@@ -84,6 +84,23 @@ namespace ShapeIt
         }
 
         /// <summary>
+        /// Builds the JSON-RPC error object. Warnings collected before the failure are attached, so
+        /// a hint such as "this batch is not rolled back on its own" is not lost exactly when the
+        /// call fails - which is when it matters most.
+        /// </summary>
+        private static JsonObject MakeErrorObject(int code, string message, CallChanges changes)
+        {
+            JsonObject error = new JsonObject { ["code"] = code, ["message"] = message };
+            if (changes.Warnings.Count > 0)
+            {
+                var warnings = new JsonArray();
+                foreach (string warning in changes.Warnings) warnings.Add(warning);
+                error["data"] = new JsonObject { ["warnings"] = warnings };
+            }
+            return error;
+        }
+
+        /// <summary>
         /// Adds a warning to the result envelope of the current tool call. No-op when called
         /// outside a tool call; identical messages are only reported once.
         /// </summary>

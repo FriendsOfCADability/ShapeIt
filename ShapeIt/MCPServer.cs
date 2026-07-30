@@ -257,13 +257,14 @@ namespace ShapeIt
                 ["id"] = id
             };
 
+            // Track all named-item changes made during this call so the client gets a meaningful
+            // result (created/modified/removed items) even for tools whose implementation does not
+            // build an explicit result object. Declared outside the try so that warnings collected
+            // before a failure can still be attached to the error.
+            CallChanges changes = new CallChanges();
             try
             {
                 System.Diagnostics.Trace.WriteLine($"RPC: {method}");
-                // Track all named-item changes made during this call so the client gets a
-                // meaningful result (created/modified/removed items) even for tools whose
-                // implementation does not build an explicit result object.
-                CallChanges changes = new CallChanges();
                 callChangesStack.Push(changes);
                 JsonNode result;
                 try
@@ -293,18 +294,18 @@ namespace ShapeIt
             }
             catch (JsonRpcException jre)
             {
-                response["error"] = new JsonObject { ["code"] = jre.Code, ["message"] = jre.Message };
+                response["error"] = MakeErrorObject(jre.Code, jre.Message, changes);
                 if (!ReportError(jre.Message)) stopExecution = true;
             }
             catch (NotImplementedException nie)
             {
                 // Explicit marker that the dispatcher knows the method but implementation isn't done yet.
-                response["error"] = new JsonObject { ["code"] = -32601, ["message"] = nie.Message };
+                response["error"] = MakeErrorObject(-32601, nie.Message, changes);
                 if (!ReportError(nie.Message)) stopExecution = true;
             }
             catch (Exception ex)
             {
-                response["error"] = new JsonObject { ["code"] = -32603, ["message"] = ex.Message };
+                response["error"] = MakeErrorObject(-32603, ex.Message, changes);
                 if (!ReportError(ex.Message)) stopExecution = true;
             }
             finally
@@ -531,6 +532,19 @@ namespace ShapeIt
             return el.GetString() ?? throw new JsonRpcException(-32602, $"Invalid params: '{prop}' must be string");
         }
 
+        /// <summary>
+        /// Accepts the strings "true" and "false" as boolean literals. Clients - LLMs in particular -
+        /// sometimes send a stringified boolean. The expression evaluator does not know these
+        /// literals, so without this the caller would get a puzzling "Unknown name 'false'" error.
+        /// </summary>
+        private static bool? BoolFromString(string? text)
+        {
+            string trimmed = text?.Trim() ?? "";
+            if (string.Equals(trimmed, "true", StringComparison.OrdinalIgnoreCase)) return true;
+            if (string.Equals(trimmed, "false", StringComparison.OrdinalIgnoreCase)) return false;
+            return null;
+        }
+
         private bool GetOptionalBool(JsonElement obj, string? prop, bool defaultValue)
         {
             JsonElement el = obj;
@@ -545,6 +559,8 @@ namespace ShapeIt
             if (el.ValueKind == JsonValueKind.String) exprStr = el.GetString();
             if (exprStr != null)
             {
+                bool? literal = BoolFromString(exprStr);
+                if (literal.HasValue) return literal.Value;
                 try
                 {
                     object res = Evaluator.Evaluate(exprStr, namedItems.Dict);
@@ -575,6 +591,8 @@ namespace ShapeIt
             }
             if (exprStr != null)
             {
+                bool? literal = BoolFromString(exprStr);
+                if (literal.HasValue) return literal.Value;
                 try
                 {
                     object res = Evaluator.Evaluate(exprStr, namedItems.Dict);
@@ -1951,12 +1969,15 @@ namespace ShapeIt
             public readonly string Label;
             public readonly object Frame; // the object returned by UndoRedoSystem.OpenUndoFrame
             public readonly NamedItemsDictionary Workspace;
-            public UndoFrameState(string id, string label, object frame, NamedItemsDictionary workspace)
+            /// <summary>True for a frame the server opened itself, e.g. for an atomic rpc.batch.</summary>
+            public readonly bool IsInternal;
+            public UndoFrameState(string id, string label, object frame, NamedItemsDictionary workspace, bool isInternal = false)
             {
                 Id = id;
                 Label = label;
                 Frame = frame;
                 Workspace = workspace;
+                IsInternal = isInternal;
             }
         }
 
@@ -1982,24 +2003,68 @@ namespace ShapeIt
             return frame;
         }
 
-        private JsonNode UndoBeginImpl(string label)
+        /// <summary>
+        /// Opens an undo frame and makes it the current one. The workspace snapshot is a flat copy:
+        /// names are restored on a rollback, but objects modified in place rather than replaced keep
+        /// their modified state.
+        /// </summary>
+        private UndoFrameState OpenUndoFrameState(string label, bool isInternal = false)
         {
-            if (currentUndoFrame != null)
-                throw new JsonRpcException("E_INVALID_PARAMS", $"An undo frame is already open (undoFrameId '{currentUndoFrame.Id}', label '{currentUndoFrame.Label}'). Undo frames cannot be nested: close it with undo.end or undo.cancel first.");
             UndoRedoSystem undo = RequireUndoSystem();
             string id = "undo" + nextUndo++;
-            // the workspace snapshot is a flat copy: names are restored on cancel, but objects that
-            // were modified in place rather than replaced keep their modified state
-            currentUndoFrame = new UndoFrameState(id, label, undo.OpenUndoFrame(), new NamedItemsDictionary(namedItems));
-            return new JsonObject { ["undoFrameId"] = id, ["label"] = label };
+            UndoFrameState frame = new UndoFrameState(id, label, undo.OpenUndoFrame(), new NamedItemsDictionary(namedItems), isInternal);
+            currentUndoFrame = frame;
+            return frame;
+        }
+
+        /// <summary>
+        /// Closes the frame and keeps its changes. Returns whether an undo step was created; an empty
+        /// frame does not become one (see UndoRedoSystem.CloseUndoFrame).
+        /// </summary>
+        private bool CloseUndoFrameState(UndoFrameState frame)
+        {
+            bool undoStepCreated = frame.Frame is ArrayList al && al.Count > 0;
+            RequireUndoSystem().CloseUndoFrame(frame.Frame);
+            return undoStepCreated;
+        }
+
+        /// <summary>
+        /// Closes the frame, undoes its document changes and restores the workspace snapshot.
+        /// Returns whether document changes were actually undone.
+        /// </summary>
+        private bool RollBackUndoFrameState(UndoFrameState frame)
+        {
+            UndoRedoSystem undo = RequireUndoSystem();
+            // Check for content BEFORE closing: only a non-empty frame is pushed onto the undo stack,
+            // so undoing unconditionally would roll back an unrelated earlier step.
+            bool hasDocumentChanges = frame.Frame is ArrayList al && al.Count > 0;
+            undo.CloseUndoFrame(frame.Frame);
+            bool documentChangesUndone = hasDocumentChanges && undo.UndoLastStep();
+            if (hasDocumentChanges && !documentChangesUndone)
+                AddCallWarning("The document changes could not be rolled back; the workspace was restored nevertheless.");
+            // Restore the named items as they were when the frame was opened. Replacing the whole
+            // dictionary fires no change notification, so bump the state counter by hand - a client
+            // polling docVersion would otherwise miss the rollback.
+            namedItems = frame.Workspace;
+            AttachChangeTracking(namedItems);
+            stateVersion++;
+            return documentChangesUndone;
+        }
+
+        private JsonNode UndoBeginImpl(string label)
+        {
+            if (currentUndoFrame != null && currentUndoFrame.IsInternal)
+                throw new JsonRpcException("E_INVALID_PARAMS", "The running rpc.batch is already a transaction, and undo frames cannot be nested. Drop the undo.begin/undo.end calls - the batch itself is rolled back on failure and becomes one undo step on success - or pass atomic=false to rpc.batch to manage the undo frame yourself.");
+            if (currentUndoFrame != null)
+                throw new JsonRpcException("E_INVALID_PARAMS", $"An undo frame is already open (undoFrameId '{currentUndoFrame.Id}', label '{currentUndoFrame.Label}'). Undo frames cannot be nested: close it with undo.end or undo.cancel first.");
+            UndoFrameState frame = OpenUndoFrameState(label);
+            return new JsonObject { ["undoFrameId"] = frame.Id, ["label"] = frame.Label };
         }
 
         private JsonNode UndoEndImpl(string undoFrameId)
         {
             UndoFrameState frame = TakeUndoFrame(undoFrameId);
-            // an empty frame does not become an undo step (see UndoRedoSystem.CloseUndoFrame)
-            bool undoStepCreated = frame.Frame is ArrayList al && al.Count > 0;
-            RequireUndoSystem().CloseUndoFrame(frame.Frame);
+            bool undoStepCreated = CloseUndoFrameState(frame);
             // the workspace snapshot is simply dropped: the current state is the intended result
             return new JsonObject
             {
@@ -2012,20 +2077,7 @@ namespace ShapeIt
         private JsonNode UndoCancelImpl(string undoFrameId)
         {
             UndoFrameState frame = TakeUndoFrame(undoFrameId);
-            UndoRedoSystem undo = RequireUndoSystem();
-            // Check for content BEFORE closing: only a non-empty frame is pushed onto the undo stack,
-            // so undoing unconditionally would roll back an unrelated earlier step.
-            bool hasDocumentChanges = frame.Frame is ArrayList al && al.Count > 0;
-            undo.CloseUndoFrame(frame.Frame);
-            bool documentChangesUndone = hasDocumentChanges && undo.UndoLastStep();
-            if (hasDocumentChanges && !documentChangesUndone)
-                AddCallWarning("The document changes of this undo frame could not be rolled back; the workspace was restored nevertheless.");
-            // restore the named items as they were when the frame was opened. Replacing the whole
-            // dictionary fires no change notification, so bump the state counter by hand - a client
-            // polling docVersion would otherwise miss the rollback.
-            namedItems = frame.Workspace;
-            AttachChangeTracking(namedItems);
-            stateVersion++;
+            bool documentChangesUndone = RollBackUndoFrameState(frame);
             return new JsonObject
             {
                 ["undoFrameId"] = frame.Id,
@@ -5152,19 +5204,84 @@ namespace ShapeIt
 
         #region rpc.batch
 
-        private JsonNode RpcBatchImpl(JsonElement calls)
+        private JsonNode RpcBatchImpl(JsonElement calls, bool atomic)
         {
             if (calls.ValueKind != JsonValueKind.Array || calls.GetArrayLength() == 0)
                 throw new JsonRpcException(-32602, "Missing or empty 'calls' array");
 
-            var callsArr = calls.EnumerateArray().ToArray();
+            JsonElement[] callsArr = calls.EnumerateArray().ToArray();
             int total = callsArr.Length;
-            var results = new JsonArray();
-            bool hasError = false;
+            JsonArray results = new JsonArray();
 
-            for (int i = 0; i < total; i++)
+            // An atomic batch runs in its own undo frame: on failure everything it did is rolled
+            // back, on success it becomes a single undo step. Undo frames cannot be nested, so when
+            // the caller opened one itself the batch runs inside that frame and shares its fate.
+            UndoFrameState? transaction = null;
+            if (atomic)
             {
-                var callEl = callsArr[i];
+                if (currentUndoFrame == null) transaction = OpenUndoFrameState("rpc.batch", isInternal: true);
+                else AddCallWarning($"The batch runs inside the undo frame '{currentUndoFrame.Id}' opened with undo.begin, so a failing call is not rolled back on its own. Close that frame with undo.end or undo.cancel for a self-contained transaction.");
+            }
+            bool frameClosed = transaction == null;
+
+            try
+            {
+                bool hasError = RunBatchCalls(callsArr, results);
+                int executed = results.Count;
+                string summary = hasError
+                    ? $"Stopped at call {executed - 1} of {total} " +
+                      $"({results[executed - 1]!["method"]?.GetValue<string>()}): " +
+                      $"{results[executed - 1]!["error"]?.GetValue<string>()}"
+                    : $"Completed all {executed} of {total} calls successfully.";
+
+                if (!hasError)
+                {
+                    if (transaction != null)
+                    {
+                        currentUndoFrame = null;
+                        CloseUndoFrameState(transaction);
+                        frameClosed = true;
+                    }
+                    return new JsonObject
+                    {
+                        ["summary"] = summary,
+                        ["results"] = results
+                    };
+                }
+
+                string rollbackNote = "";
+                if (transaction != null)
+                {
+                    currentUndoFrame = null;
+                    bool documentChangesUndone = RollBackUndoFrameState(transaction);
+                    frameClosed = true;
+                    rollbackNote = documentChangesUndone
+                        ? " All changes made by this batch were rolled back."
+                        : " The batch had made no document changes to roll back; the workspace was restored.";
+                }
+                throw new JsonRpcException(-32000, summary + rollbackNote + " Results: " + results.ToJsonString());
+            }
+            finally
+            {
+                // Safety net for an unexpected exception: an undo frame left open would collect every
+                // later change into one step, including edits the user makes in the application.
+                if (transaction != null && !frameClosed)
+                {
+                    currentUndoFrame = null;
+                    try { RollBackUndoFrameState(transaction); } catch (Exception) { }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Runs the calls of a batch in order and collects one result entry per call. Stops at the
+        /// first failing call and returns true in that case.
+        /// </summary>
+        private bool RunBatchCalls(JsonElement[] callsArr, JsonArray results)
+        {
+            for (int i = 0; i < callsArr.Length; i++)
+            {
+                JsonElement callEl = callsArr[i];
 
                 if (!callEl.TryGetProperty("method", out var methodEl) || methodEl.ValueKind != JsonValueKind.String)
                 {
@@ -5174,8 +5291,7 @@ namespace ShapeIt
                         ["method"] = "(unknown)",
                         ["error"] = "Missing 'method' field"
                     });
-                    hasError = true;
-                    break;
+                    return true;
                 }
 
                 string method = methodEl.GetString()!;
@@ -5195,8 +5311,7 @@ namespace ShapeIt
                         ["method"] = method,
                         ["error"] = errNode["message"]?.GetValue<string>() ?? "Unknown error"
                     });
-                    hasError = true;
-                    break;
+                    return true;
                 }
 
                 results.Add(new JsonObject
@@ -5206,22 +5321,7 @@ namespace ShapeIt
                     ["result"] = rpcDoc?["result"]?.DeepClone() ?? new JsonObject()
                 });
             }
-
-            int executed = results.Count;
-            string summary = hasError
-                ? $"Stopped at call {executed - 1} of {total} " +
-                  $"({results[executed - 1]!["method"]?.GetValue<string>()}): " +
-                  $"{results[executed - 1]!["error"]?.GetValue<string>()}"
-                : $"Completed all {executed} of {total} calls successfully.";
-
-            if (hasError)
-                throw new JsonRpcException(-32000, summary + " Results: " + results.ToJsonString());
-
-            return new JsonObject
-            {
-                ["summary"] = summary,
-                ["results"] = results
-            };
+            return false;
         }
 
         #endregion
