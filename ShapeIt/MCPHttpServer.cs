@@ -302,6 +302,21 @@ namespace ShapeIt
                     _                 => MakeError(id, -32601, $"Method not found: {method}")
                 };
 
+                // tools/call is written to the protocol by MCPServer.ProcessMethod with its full
+                // request and response. The protocol level methods only get a one line note: a
+                // tools/list response is ~190 KB of schema and would swamp the protocol.
+                string? note = method switch
+                {
+                    "initialize"     => "MCP initialize - a client connected",
+                    "tools/list"     => $"MCP tools/list - {toolsList.Count} tools served",
+                    "resources/list" => "MCP resources/list",
+                    "resources/read" => $"MCP resources/read {request["params"]?["uri"]}",
+                    "ping"           => null, // keepalive, not worth an entry
+                    "tools/call"     => null, // logged in full further down the call chain
+                    _                => $"MCP {method}"
+                };
+                if (note != null) Server.LogProtocolNote(note);
+
                 WriteJson(ctx, 200, responseJson);
             }
             catch (Exception ex)

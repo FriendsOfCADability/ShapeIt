@@ -61,6 +61,25 @@ namespace ShapeIt
             }
         }
 
+        /// <summary>
+        /// Read-only text box that reports a double click. A plain <see cref="TextBox"/> raises
+        /// neither DoubleClick nor MouseDoubleClick from mouse input, because TextBoxBase switches
+        /// the StandardClick and StandardDoubleClick styles off and the edit control consumes the
+        /// message itself (it selects the word). So the window message is handled directly.
+        /// </summary>
+        public class DoubleClickTextBox : TextBox
+        {
+            public event EventHandler? TextDoubleClicked;
+
+            protected override void WndProc(ref Message m)
+            {
+                const int WM_LBUTTONDBLCLK = 0x0203;
+                // let the edit control move the caret to the clicked word first, then report
+                base.WndProc(ref m);
+                if (m.Msg == WM_LBUTTONDBLCLK) TextDoubleClicked?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
         private JsonFilteringTextBox textBox;
         private Button okButton;
         private Label rpcMethodLabel;
@@ -71,6 +90,8 @@ namespace ShapeIt
         private MCPServer server;
         private IPropertyPage wsPropPage;
         private GroupProperty? workspaceEntry = null;
+        private DoubleClickTextBox? protocolTextBox;
+        private int shownProtocolVersion = -1;
 
 
         private static IEnumerable<string> ReadJsonObjects(string text)
@@ -236,16 +257,138 @@ namespace ShapeIt
 
             infoTab.Controls.Add(infoLabel);
 
+            // --- Tab 4: Protokoll ---
+            TabPage protocolTab = new TabPage("Protokoll");
+
+            protocolTextBox = new DoubleClickTextBox();
+            protocolTextBox.Multiline = true;
+            protocolTextBox.ReadOnly = true;
+            // without this the control silently truncates the assigned text at 32767 characters
+            protocolTextBox.MaxLength = int.MaxValue;
+            protocolTextBox.Dock = DockStyle.Fill;
+            protocolTextBox.ScrollBars = ScrollBars.Both;
+            protocolTextBox.WordWrap = false;
+            protocolTextBox.Font = new Font(FontFamily.GenericMonospace, 9f);
+
+            Panel protocolButtonPanel = new Panel();
+            protocolButtonPanel.Dock = DockStyle.Bottom;
+            protocolButtonPanel.Height = 40;
+
+            Button clearProtocolButton = new Button();
+            clearProtocolButton.Text = "Leeren";
+            clearProtocolButton.Dock = DockStyle.Right;
+            clearProtocolButton.Width = 100;
+            clearProtocolButton.Click += (s, e) => server.ClearProtocol();
+
+            Button copyProtocolButton = new Button();
+            copyProtocolButton.Text = "Kopieren";
+            copyProtocolButton.Dock = DockStyle.Right;
+            copyProtocolButton.Width = 100;
+            copyProtocolButton.Click += (s, e) =>
+            {
+                string text = server.Protocol;
+                if (!string.IsNullOrEmpty(text)) Clipboard.SetText(text);
+            };
+
+            // Yields the recorded requests as RPC code, so a run can be repeated (or edited and
+            // repeated) by pasting it into the "RPC Code" tab.
+            Button copyCallsButton = new Button();
+            copyCallsButton.Text = "Calls kopieren";
+            copyCallsButton.Dock = DockStyle.Right;
+            copyCallsButton.Width = 120;
+            copyCallsButton.Click += (s, e) =>
+            {
+                string text = server.ProtocolCalls;
+                if (!string.IsNullOrEmpty(text)) Clipboard.SetText(text);
+            };
+
+            protocolTextBox.TextDoubleClicked += (s, e) => ShowImageUnderCaret();
+
+            protocolButtonPanel.Controls.Add(clearProtocolButton);
+            protocolButtonPanel.Controls.Add(copyProtocolButton);
+            protocolButtonPanel.Controls.Add(copyCallsButton);
+
+            protocolTab.Controls.Add(protocolTextBox);
+            protocolTab.Controls.Add(protocolButtonPanel);
+
             // Tabs hinzufügen
             tabControl.TabPages.Add(rpcTab);
             tabControl.TabPages.Add(workspaceTab);
             tabControl.TabPages.Add(infoTab);
+            tabControl.TabPages.Add(protocolTab);
 
             this.Controls.Add(tabControl);
 
             this.AcceptButton = okButton;
 
+            // The protocol is written from the HTTP worker threads as well, so marshal to the UI thread.
+            server.ProtocolChanged += OnProtocolChanged;
+            this.FormClosed += (s, e) => server.ProtocolChanged -= OnProtocolChanged;
+            RefreshProtocol();
+
             if (server.namedItems != null && server.namedItems.Dict != null) InitWorkspace();
+        }
+
+        private void OnProtocolChanged()
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            if (InvokeRequired) BeginInvoke(new Action(RefreshProtocol));
+            else RefreshProtocol();
+        }
+
+        /// <summary>
+        /// Opens the image whose placeholder is on the double clicked line. Lines without a
+        /// placeholder are ignored, so a double click anywhere else stays harmless.
+        /// </summary>
+        private void ShowImageUnderCaret()
+        {
+            if (protocolTextBox == null) return;
+            int line = protocolTextBox.GetLineFromCharIndex(protocolTextBox.SelectionStart);
+            string[] lines = protocolTextBox.Lines;
+            if (line < 0 || line >= lines.Length) return;
+            int imageNumber = MCPServer.FindImageNumberInLine(lines[line]);
+            if (imageNumber < 0) return;
+
+            string? base64 = server.GetProtocolImage(imageNumber);
+            if (base64 == null)
+            {
+                MessageBox.Show(this, $"Das Bild #{imageNumber} wird nicht mehr vorgehalten.", "Protokoll",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            try
+            {
+                // the stream has to stay alive as long as the image does, so it is not disposed here
+                Image image = Image.FromStream(new MemoryStream(Convert.FromBase64String(base64)));
+                Form viewer = new Form();
+                viewer.Text = $"Bild #{imageNumber} ({image.Width} x {image.Height})";
+                viewer.StartPosition = FormStartPosition.CenterParent;
+                viewer.Size = new Size(Math.Min(image.Width + 40, 1200), Math.Min(image.Height + 60, 900));
+                PictureBox pictureBox = new PictureBox();
+                pictureBox.Dock = DockStyle.Fill;
+                pictureBox.SizeMode = PictureBoxSizeMode.Zoom;
+                pictureBox.Image = image;
+                viewer.Controls.Add(pictureBox);
+                viewer.FormClosed += (s, e) => image.Dispose();
+                viewer.Show(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Das Bild konnte nicht dargestellt werden: " + ex.Message, "Protokoll",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        private void RefreshProtocol()
+        {
+            if (protocolTextBox == null || IsDisposed) return;
+            int version = server.ProtocolVersion;
+            if (version == shownProtocolVersion) return; // nothing new since the last update
+            shownProtocolVersion = version;
+            protocolTextBox.Text = server.Protocol;
+            // keep the newest entry visible
+            protocolTextBox.SelectionStart = protocolTextBox.TextLength;
+            protocolTextBox.ScrollToCaret();
         }
 
         public void AppendRpcCall(string rpcJson)

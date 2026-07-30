@@ -3,6 +3,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CADability;
 using CADability.Avalonia;
@@ -12,6 +13,7 @@ using CADability.Shapes;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -69,6 +71,8 @@ namespace ShapeIt
         private TextBlock rpcMethodLabel = null!;
         private TextBlock rpcProgressLabel = null!;
         private TabItem workspaceTab = null!;
+        private TextBox protocolTextBox = null!;
+        private int shownProtocolVersion = -1;
 
         private CadControl? cadControl;
         private Project? cadProject;
@@ -148,9 +152,63 @@ namespace ShapeIt
             // --- Tab 3: Info ---
             var infoTab = new TabItem { Header = "Info", Content = BuildInfoContent() };
 
+            // --- Tab 4: Protokoll ---
+            protocolTextBox = new TextBox
+            {
+                IsReadOnly = true,
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.NoWrap,
+                FontFamily = new FontFamily("Consolas, monospace"),
+            };
+            ScrollViewer.SetHorizontalScrollBarVisibility(protocolTextBox, ScrollBarVisibility.Auto);
+            ScrollViewer.SetVerticalScrollBarVisibility(protocolTextBox, ScrollBarVisibility.Auto);
+
+            protocolTextBox.DoubleTapped += (_, _) => ShowImageUnderCaret();
+
+            var clearProtocolButton = new Button { Content = "Leeren", Width = 120 };
+            clearProtocolButton.Click += (_, _) => server.ClearProtocol();
+            var copyProtocolButton = new Button { Content = "Kopieren", Width = 120 };
+            copyProtocolButton.Click += async (_, _) =>
+            {
+                string text = server.Protocol;
+                if (!string.IsNullOrEmpty(text) && Clipboard != null) await Clipboard.SetTextAsync(text);
+            };
+            // Yields the recorded requests as RPC code, so a run can be repeated (or edited and
+            // repeated) by pasting it into the "RPC Code" tab.
+            var copyCallsButton = new Button { Content = "Calls kopieren", Width = 140 };
+            copyCallsButton.Click += async (_, _) =>
+            {
+                string text = server.ProtocolCalls;
+                if (!string.IsNullOrEmpty(text) && Clipboard != null) await Clipboard.SetTextAsync(text);
+            };
+
+            var protocolButtonPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Spacing = 8,
+                Height = 40,
+            };
+            protocolButtonPanel.Children.Add(copyCallsButton);
+            protocolButtonPanel.Children.Add(copyProtocolButton);
+            protocolButtonPanel.Children.Add(clearProtocolButton);
+
+            var protocolPanel = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(protocolButtonPanel, Dock.Bottom);
+            protocolPanel.Children.Add(protocolButtonPanel);
+            protocolPanel.Children.Add(protocolTextBox);
+
+            var protocolTab = new TabItem { Header = "Protokoll", Content = protocolPanel };
+
             tabControl.Items.Add(rpcTab);
             tabControl.Items.Add(workspaceTab);
             tabControl.Items.Add(infoTab);
+            tabControl.Items.Add(protocolTab);
+
+            // The protocol is written from the HTTP worker threads as well, so marshal to the UI thread.
+            server.ProtocolChanged += OnProtocolChanged;
+            Closed += (_, _) => server.ProtocolChanged -= OnProtocolChanged;
+            RefreshProtocol();
 
             tabControl.SelectionChanged += (_, _) =>
             {
@@ -226,6 +284,59 @@ namespace ShapeIt
             cadControl.PropertiesExplorer.RemovePropertyPage("Global");
             cadControl.PropertiesExplorer.RemovePropertyPage("View");
             cadControl.PropertiesExplorer.ShowPropertyPage("Workspace");
+        }
+
+        private void OnProtocolChanged()
+        {
+            if (Dispatcher.UIThread.CheckAccess()) RefreshProtocol();
+            else Dispatcher.UIThread.Post(RefreshProtocol);
+        }
+
+        /// <summary>
+        /// Opens the image whose placeholder is on the double clicked line. Lines without a
+        /// placeholder are ignored, so a double click anywhere else stays harmless.
+        /// </summary>
+        private void ShowImageUnderCaret()
+        {
+            string text = protocolTextBox?.Text ?? "";
+            if (text.Length == 0) return;
+            int caret = Math.Clamp(protocolTextBox!.CaretIndex, 0, text.Length);
+            int lineStart = caret == 0 ? 0 : text.LastIndexOf('\n', caret - 1) + 1;
+            int lineEnd = text.IndexOf('\n', caret);
+            if (lineEnd < 0) lineEnd = text.Length;
+            if (lineEnd < lineStart) return;
+            int imageNumber = MCPServer.FindImageNumberInLine(text.Substring(lineStart, lineEnd - lineStart));
+            if (imageNumber < 0) return;
+
+            string? base64 = server.GetProtocolImage(imageNumber);
+            if (base64 == null) return; // no longer retained
+            try
+            {
+                using var stream = new MemoryStream(Convert.FromBase64String(base64));
+                var bitmap = new Bitmap(stream);
+                var viewer = new Window
+                {
+                    Title = $"Bild #{imageNumber} ({bitmap.PixelSize.Width} x {bitmap.PixelSize.Height})",
+                    Width = Math.Min(bitmap.PixelSize.Width + 40, 1200),
+                    Height = Math.Min(bitmap.PixelSize.Height + 60, 900),
+                    WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                    Content = new Image { Source = bitmap, Stretch = Stretch.Uniform },
+                };
+                viewer.Show(this);
+            }
+            catch (Exception)
+            {   // a payload that is not a decodable image is simply not shown
+            }
+        }
+
+        private void RefreshProtocol()
+        {
+            if (protocolTextBox == null) return;
+            int version = server.ProtocolVersion;
+            if (version == shownProtocolVersion) return; // nothing new since the last update
+            shownProtocolVersion = version;
+            protocolTextBox.Text = server.Protocol;
+            protocolTextBox.CaretIndex = protocolTextBox.Text?.Length ?? 0; // keep the newest entry visible
         }
 
         public void AppendRpcCall(string rpcJson)

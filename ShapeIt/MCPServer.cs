@@ -245,6 +245,12 @@ namespace ShapeIt
         public string ProcessMethod(string method, int id, JsonElement parameters)
         {
             method = NormalizeMethodName(method);
+            // Only the outermost call goes into the protocol: the calls inside an rpc.batch or a
+            // template are already part of that request and of its response.
+            bool logToProtocol = rpcNestingDepth == 0;
+            long startTimestamp = Stopwatch.GetTimestamp();
+            if (logToProtocol) LogRpcRequest(method, id, parameters);
+            rpcNestingDepth++;
             var response = new JsonObject
             {
                 ["jsonrpc"] = "2.0",
@@ -301,8 +307,14 @@ namespace ShapeIt
                 response["error"] = new JsonObject { ["code"] = -32603, ["message"] = ex.Message };
                 if (!ReportError(ex.Message)) stopExecution = true;
             }
+            finally
+            {
+                rpcNestingDepth--;
+            }
 
-            return response.ToJsonString();
+            string responseJson = response.ToJsonString();
+            if (logToProtocol) LogRpcResponse(method, id, responseJson, (long)Stopwatch.GetElapsedTime(startTimestamp).TotalMilliseconds);
+            return responseJson;
         }
 
         public void ProcessMethod(JsonElement root, bool executeTemplate = false)
