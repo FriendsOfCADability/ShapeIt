@@ -1264,6 +1264,14 @@
 			"x-outputSchema": {
 				"type": "object",
 				"properties": {
+					"openUndoFrame": {
+						"type": [ "object", "null" ],
+						"description": "The undo frame currently open, or null. While a frame is open every change - including changes made by the user in the application - is collected into that one undo step, so an open frame should be closed with undo.end or undo.cancel.",
+						"properties": {
+							"undoFrameId": { "type": "string" },
+							"label": { "type": "string" }
+						}
+					},
 					"docVersion": {
 						"type": "integer",
 						"description": "Monotonic counter; increments on every workspace change."
@@ -4039,51 +4047,83 @@
 		},
 		{
 			"name": "undo.begin",
-			"description": "Begins an undo frame. All subsequent committed changes until undo.end are grouped into one undo step. Returns undoFrameId.",
+			"description": "Opens an undo frame: every document change until undo.end is grouped into a single undo step, which the user can revert with one Undo in the application. Returns the undoFrameId required by undo.end and undo.cancel. Undo frames cannot be nested, and an open frame must always be closed - while it is open it also collects changes the user makes in the application itself. document.get_state reports whether a frame is currently open.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"label": {
 						"type": "string",
-						"description": "Human-friendly label, e.g. 'Create base plate'."
+						"description": "Human-friendly label for this group of changes, e.g. 'Create base plate'."
 					}
 				},
-				"required": [
-					"label"
-				],
+				"required": [ "label" ],
 				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"undoFrameId": {
+						"type": "string",
+						"description": "Identifier to pass to undo.end or undo.cancel."
+					},
+					"label": { "type": "string" }
+				},
+				"required": [ "undoFrameId" ]
 			}
 		},
 		{
 			"name": "undo.cancel",
-			"description": "Cancels an undo frame started with undo.begin, rolling back all changes in that frame.",
+			"description": "Cancels an undo frame opened with undo.begin: the document changes made inside the frame are rolled back and the workspace names are restored to their state at undo.begin. Objects that were modified in place rather than replaced keep their modified state.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"undoFrameId": {
-						"type": "string"
+						"type": "string",
+						"description": "The undoFrameId returned by undo.begin."
 					}
 				},
-				"required": [
-					"undoFrameId"
-				],
+				"required": [ "undoFrameId" ],
 				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"undoFrameId": { "type": "string" },
+					"label": { "type": "string" },
+					"documentChangesUndone": {
+						"type": "boolean",
+						"description": "False when the frame contained no document changes, so there was nothing to roll back."
+					},
+					"workspaceRestored": { "type": "boolean" }
+				},
+				"required": [ "undoFrameId", "documentChangesUndone", "workspaceRestored" ]
 			}
 		},
 		{
 			"name": "undo.end",
-			"description": "Ends an undo frame started with undo.begin. If errors occurred, server may auto-cancel the frame.",
+			"description": "Closes an undo frame opened with undo.begin and keeps its changes: everything done inside the frame becomes one undo step. Use undo.cancel instead to discard the changes.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"undoFrameId": {
-						"type": "string"
+						"type": "string",
+						"description": "The undoFrameId returned by undo.begin."
 					}
 				},
-				"required": [
-					"undoFrameId"
-				],
+				"required": [ "undoFrameId" ],
 				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"undoFrameId": { "type": "string" },
+					"label": { "type": "string" },
+					"undoStepCreated": {
+						"type": "boolean",
+						"description": "False when the frame contained no document changes, so no undo step was created."
+					}
+				},
+				"required": [ "undoFrameId", "undoStepCreated" ]
 			}
 		},
 		{

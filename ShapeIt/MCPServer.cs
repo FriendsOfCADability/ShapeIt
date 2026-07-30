@@ -1911,8 +1911,16 @@ namespace ShapeIt
             }
             var templateNames = new JsonArray();
             foreach (string templateName in templates.Keys) templateNames.Add(templateName);
+            // An undo frame left open swallows every later change - including changes the user makes
+            // in the GUI - into that one step, so it must be visible here.
+            JsonNode? openUndoFrame = currentUndoFrame == null ? null : new JsonObject
+            {
+                ["undoFrameId"] = currentUndoFrame.Id,
+                ["label"] = currentUndoFrame.Label
+            };
             return new JsonObject
             {
+                ["openUndoFrame"] = openUndoFrame,
                 ["docVersion"] = stateVersion,
                 ["lengthUnit"] = "mm",
                 ["workspace"] = workspace,
@@ -1920,17 +1928,100 @@ namespace ShapeIt
             };
         }
 
-        private void UndoBeginImpl(string label)
+        /// <summary>
+        /// An undo frame opened by undo.begin. While it is open, every document change is collected
+        /// into a single CADability undo step; the workspace snapshot allows undo.cancel to restore
+        /// the named items as well, which the CADability undo system knows nothing about.
+        /// </summary>
+        private sealed class UndoFrameState
         {
-
+            public readonly string Id;
+            public readonly string Label;
+            public readonly object Frame; // the object returned by UndoRedoSystem.OpenUndoFrame
+            public readonly NamedItemsDictionary Workspace;
+            public UndoFrameState(string id, string label, object frame, NamedItemsDictionary workspace)
+            {
+                Id = id;
+                Label = label;
+                Frame = frame;
+                Workspace = workspace;
+            }
         }
 
-        private void UndoEndImpl(string undoFrameId)
-        {
+        // Undo frames are not nested here: CADability merges a nested frame into its parent, so a
+        // cancel of the inner frame could no longer be rolled back on its own.
+        private UndoFrameState? currentUndoFrame;
 
+        private UndoRedoSystem RequireUndoSystem()
+        {
+            UndoRedoSystem? undo = project?.Undo;
+            if (undo == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: the project has no undo system.");
+            return undo;
         }
 
-        private JsonNode UndoCancelImpl(string undoFrameId) => throw new NotImplementedException();
+        private UndoFrameState TakeUndoFrame(string undoFrameId)
+        {
+            if (currentUndoFrame == null)
+                throw new JsonRpcException("E_INVALID_PARAMS", $"No undo frame is open, so '{undoFrameId}' cannot be closed. Open one with undo.begin first.");
+            if (currentUndoFrame.Id != undoFrameId)
+                throw new JsonRpcException("E_INVALID_PARAMS", $"The open undo frame is '{currentUndoFrame.Id}' (label '{currentUndoFrame.Label}'), not '{undoFrameId}'.");
+            UndoFrameState frame = currentUndoFrame;
+            currentUndoFrame = null;
+            return frame;
+        }
+
+        private JsonNode UndoBeginImpl(string label)
+        {
+            if (currentUndoFrame != null)
+                throw new JsonRpcException("E_INVALID_PARAMS", $"An undo frame is already open (undoFrameId '{currentUndoFrame.Id}', label '{currentUndoFrame.Label}'). Undo frames cannot be nested: close it with undo.end or undo.cancel first.");
+            UndoRedoSystem undo = RequireUndoSystem();
+            string id = "undo" + nextUndo++;
+            // the workspace snapshot is a flat copy: names are restored on cancel, but objects that
+            // were modified in place rather than replaced keep their modified state
+            currentUndoFrame = new UndoFrameState(id, label, undo.OpenUndoFrame(), new NamedItemsDictionary(namedItems));
+            return new JsonObject { ["undoFrameId"] = id, ["label"] = label };
+        }
+
+        private JsonNode UndoEndImpl(string undoFrameId)
+        {
+            UndoFrameState frame = TakeUndoFrame(undoFrameId);
+            // an empty frame does not become an undo step (see UndoRedoSystem.CloseUndoFrame)
+            bool undoStepCreated = frame.Frame is ArrayList al && al.Count > 0;
+            RequireUndoSystem().CloseUndoFrame(frame.Frame);
+            // the workspace snapshot is simply dropped: the current state is the intended result
+            return new JsonObject
+            {
+                ["undoFrameId"] = frame.Id,
+                ["label"] = frame.Label,
+                ["undoStepCreated"] = undoStepCreated
+            };
+        }
+
+        private JsonNode UndoCancelImpl(string undoFrameId)
+        {
+            UndoFrameState frame = TakeUndoFrame(undoFrameId);
+            UndoRedoSystem undo = RequireUndoSystem();
+            // Check for content BEFORE closing: only a non-empty frame is pushed onto the undo stack,
+            // so undoing unconditionally would roll back an unrelated earlier step.
+            bool hasDocumentChanges = frame.Frame is ArrayList al && al.Count > 0;
+            undo.CloseUndoFrame(frame.Frame);
+            bool documentChangesUndone = hasDocumentChanges && undo.UndoLastStep();
+            if (hasDocumentChanges && !documentChangesUndone)
+                AddCallWarning("The document changes of this undo frame could not be rolled back; the workspace was restored nevertheless.");
+            // restore the named items as they were when the frame was opened. Replacing the whole
+            // dictionary fires no change notification, so bump the state counter by hand - a client
+            // polling docVersion would otherwise miss the rollback.
+            namedItems = frame.Workspace;
+            AttachChangeTracking(namedItems);
+            stateVersion++;
+            return new JsonObject
+            {
+                ["undoFrameId"] = frame.Id,
+                ["label"] = frame.Label,
+                ["documentChangesUndone"] = documentChangesUndone,
+                ["workspaceRestored"] = true
+            };
+        }
 
         private void WorkspaceSetImpl(string name, JsonElement value, string? label, JsonElement input)
         {
