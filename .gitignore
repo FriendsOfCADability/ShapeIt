@@ -355,3 +355,6 @@ CADability.Forms/log.txt
 /ShapeIt/ReadMe-Upload.txt
 /ShapeIt/version.txt
 /index.html
+
+# Claude Code: persoenliche Einstellungen, nicht teilen
+.claude/settings.local.json
