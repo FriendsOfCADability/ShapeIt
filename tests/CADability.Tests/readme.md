@@ -1,13 +1,18 @@
 ﻿# CADability.Tests
 
-Run test from commandline:
+Run the tests from the command line:
 
 ```bash
-SET VsInstallRoot=C:\Program Files\Microsoft Visual Studio\2022\Community
-dotnet test CADability.sln
+dotnet test tests/CADability.Tests/CADability.Tests.csproj
 ```
 
-> ! Setting VsInstallRoot is required because CADability.csproj references Microsoft.VisualStudio.DebuggerVisualizers with this path.
+Note that this project is not part of any solution — `CADability.sln` does not contain it, so
+`dotnet test CADability.sln` runs nothing.
+
+> Earlier versions of this file claimed that `VsInstallRoot` has to be set. That is not the case: no project
+> reads the variable. `CADability.csproj` references `Microsoft.VisualStudio.DebuggerVisualizers` through a
+> hard coded relative path into `Program Files\Microsoft Visual Studio\2022\Community\...`, so what it really
+> needs is an installed VS 2022 — the variable never had any effect.
 
 # Coverage in Visual Studio
 

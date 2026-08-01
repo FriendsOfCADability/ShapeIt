@@ -117,13 +117,41 @@
     <PackageReference Include="System.Collections.Immutable" Version="9.0.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="6.0.0" />
   </ItemGroup>
+  <!--
+    Microsoft.VisualStudio.DebuggerVisualizers ships with Visual Studio itself, not as a NuGet package, so
+    its location depends on the installed version and edition. This used to be a path hard coded to
+    "2022\Community", which silently ties the build to one particular installation. Probe instead:
+      1. the Visual Studio we are being built from (VSINSTALLDIR), so the visualizers match the VS that will
+         debug them - this is the case when building inside the IDE or from a developer command prompt,
+      2. otherwise the installed versions, 2022 before 18 (2026), only because that keeps the resolution the
+         command line build had before. Swap the order to prefer the newer one.
+    When no Visual Studio is found at all, DebuggerVisualizer.cs is left out of the build: it is a debugging
+    aid, nothing else in CADability references those classes.
+  -->
+  <PropertyGroup>
+    <_VsVisualizerDll>Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.DebuggerVisualizers.dll</_VsVisualizerDll>
+    <_VsRoot>$(ProgramW6432)\Microsoft Visual Studio</_VsRoot>
+    <_VsRoot Condition="'$(ProgramW6432)' == ''">$(ProgramFiles)\Microsoft Visual Studio</_VsRoot>
+  </PropertyGroup>
+  <PropertyGroup>
+    <VsDebuggerVisualizersPath Condition="'$(VSINSTALLDIR)' != '' And Exists('$(VSINSTALLDIR)$(_VsVisualizerDll)')">$(VSINSTALLDIR)$(_VsVisualizerDll)</VsDebuggerVisualizersPath>
+    <VsDebuggerVisualizersPath Condition="'$(VsDebuggerVisualizersPath)' == '' And Exists('$(_VsRoot)\2022\Enterprise\$(_VsVisualizerDll)')">$(_VsRoot)\2022\Enterprise\$(_VsVisualizerDll)</VsDebuggerVisualizersPath>
+    <VsDebuggerVisualizersPath Condition="'$(VsDebuggerVisualizersPath)' == '' And Exists('$(_VsRoot)\2022\Professional\$(_VsVisualizerDll)')">$(_VsRoot)\2022\Professional\$(_VsVisualizerDll)</VsDebuggerVisualizersPath>
+    <VsDebuggerVisualizersPath Condition="'$(VsDebuggerVisualizersPath)' == '' And Exists('$(_VsRoot)\2022\Community\$(_VsVisualizerDll)')">$(_VsRoot)\2022\Community\$(_VsVisualizerDll)</VsDebuggerVisualizersPath>
+    <VsDebuggerVisualizersPath Condition="'$(VsDebuggerVisualizersPath)' == '' And Exists('$(_VsRoot)\18\Enterprise\$(_VsVisualizerDll)')">$(_VsRoot)\18\Enterprise\$(_VsVisualizerDll)</VsDebuggerVisualizersPath>
+    <VsDebuggerVisualizersPath Condition="'$(VsDebuggerVisualizersPath)' == '' And Exists('$(_VsRoot)\18\Professional\$(_VsVisualizerDll)')">$(_VsRoot)\18\Professional\$(_VsVisualizerDll)</VsDebuggerVisualizersPath>
+    <VsDebuggerVisualizersPath Condition="'$(VsDebuggerVisualizersPath)' == '' And Exists('$(_VsRoot)\18\Community\$(_VsVisualizerDll)')">$(_VsRoot)\18\Community\$(_VsVisualizerDll)</VsDebuggerVisualizersPath>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="CADability.DebuggerVisualizers">
       <HintPath>..\CADability.DebuggerVisualizers\bin\Debug\net48\CADability.DebuggerVisualizers.dll</HintPath>
     </Reference>
-    <Reference Include="Microsoft.VisualStudio.DebuggerVisualizers">
-      <HintPath>..\..\..\..\..\..\..\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\PublicAssemblies\Microsoft.VisualStudio.DebuggerVisualizers.dll</HintPath>
+    <Reference Include="Microsoft.VisualStudio.DebuggerVisualizers" Condition="'$(VsDebuggerVisualizersPath)' != ''">
+      <HintPath>$(VsDebuggerVisualizersPath)</HintPath>
     </Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(VsDebuggerVisualizersPath)' == ''">
+    <Compile Remove="DebuggerVisualizer.cs" />
   </ItemGroup>
 
 </Project>
