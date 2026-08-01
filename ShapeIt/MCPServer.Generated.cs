@@ -159,7 +159,7 @@ public partial class MCPServer
     }
 
     /// <summary>
-    /// Chamfers the specified edges of a solid. Edges can be selected by named sets, queries, or set expressions. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. For an unsymmetric chamfer you must provide 'primaryFace' and 'secondaryDistance'
+    /// Chamfers the specified edges of a solid. 'edges' names an edge or a named edge set; to chamfer the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. For an unsymmetric chamfer you must provide 'primaryFace' and 'secondaryDistance'
     /// </summary>
     private JsonNode FeatureChamfer(JsonElement root)
     {
@@ -180,7 +180,7 @@ public partial class MCPServer
     }
 
     /// <summary>
-    /// Rounds (fillets) the specified edges of a solid. Edges can be selected by ids, named sets, queries, or set expressions. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.
+    /// Rounds (fillets) the specified edges of a solid. 'edges' names an edge or a named edge set; to round the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.
     /// </summary>
     private JsonNode FeatureFillet(JsonElement root)
     {
@@ -289,7 +289,7 @@ public partial class MCPServer
     private JsonNode PatternByFormulaSolids(JsonElement root)
     {
         AssertIsObject(root);
-        WarnUnknownParameters(root, "solids", "template", "variables", "formulas", "condition", "arguments", "transform", "includeSource", "copy", "name", "suffix", "indexName", "skipInvalidInstances");
+        WarnUnknownParameters(root, "solids", "template", "variables", "formulas", "condition", "arguments", "transform", "includeSource", "name", "suffix", "indexName", "skipInvalidInstances");
         var solids = GetOptional(root, "solids");
         var template = GetOptionalString(root, "template");
         var variables = RequireProperty(root, "variables");
@@ -298,13 +298,12 @@ public partial class MCPServer
         var arguments = GetOptional(root, "arguments");
         var transform = RequireString(root, "transform");
         var includeSource = GetOptionalBool(root, "includeSource", false);
-        var copy = GetOptionalBool(root, "copy", true);
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var suffix = GetOptionalBool(root, "suffix", true);
         var indexName = GetOptionalString(root, "indexName");
         var skipInvalidInstances = GetOptionalBool(root, "skipInvalidInstances", false);
 
-        PatternByFormulaSolidsImpl(solids, template, variables, formulas, condition, arguments, transform, includeSource, copy, name, suffix, indexName, skipInvalidInstances);
+        PatternByFormulaSolidsImpl(solids, template, variables, formulas, condition, arguments, transform, includeSource, name, suffix, indexName, skipInvalidInstances);
 
         return default;
     }
@@ -331,21 +330,20 @@ public partial class MCPServer
     }
 
     /// <summary>
-    /// Creates a circular pattern of solids around a 3D axis passing through center. If angle is omitted, defaults to 360 degrees. If name is provided, it refers to the whole resulting set. If suffix is true, individual solids are also named using &lt;base&gt;_&lt;n&gt; where &lt;base&gt; is name (if provided) or the source object's name.
+    /// Creates a circular pattern of solids around a 3D axis passing through center. The source objects stay where they are; copies are placed at the pattern positions. If angle is omitted, defaults to 360 degrees. If name is provided, it refers to the whole resulting set. If suffix is true, individual solids are also named using &lt;base&gt;_&lt;n&gt;, where &lt;base&gt; is 'name' - without 'name' no individual names are assigned.
     /// </summary>
     private JsonNode PatternCircularSolids(JsonElement root)
     {
         AssertIsObject(root);
-        WarnUnknownParameters(root, "solids", "axis", "count", "angle", "copy", "name", "suffix");
+        WarnUnknownParameters(root, "solids", "axis", "count", "angle", "name", "suffix");
         var solids = RequireProperty(root, "solids");
         var axis = RequireAxis3D(root, "axis");
         var count = RequireInteger(root, "count");
         var angle = GetOptionalDouble(root, "angle", 360);
-        var copy = GetOptionalBool(root, "copy", true);
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var suffix = GetOptionalBool(root, "suffix", false);
 
-        PatternCircularSolidsImpl(solids, axis, count, angle, copy, name, suffix);
+        PatternCircularSolidsImpl(solids, axis, count, angle, name, suffix);
 
         return default;
     }
@@ -373,12 +371,12 @@ public partial class MCPServer
     }
 
     /// <summary>
-    /// Creates a rectangular or linear grid pattern of solids using 3D step vectors. If 'name' is provided, it refers to the entire resulting set. If 'suffix' is true, individual solids are also named using &lt;base&gt;_&lt;nx&gt;_&lt;ny&gt; (or &lt;base&gt;_&lt;n&gt; if one dimension equals 1), where &lt;base&gt; is 'name' (if provided) or the source object's name.
+    /// Creates a rectangular or linear grid pattern of solids using 3D step vectors. The source objects stay where they are; copies are placed at the grid positions. If 'name' is provided, it refers to the entire resulting set. If 'suffix' is true, individual solids are also named using &lt;base&gt;_&lt;nx&gt;_&lt;ny&gt;, where &lt;base&gt; is the workspace name of the source object, or 'name' for sources that are not named workspace items.
     /// </summary>
     private JsonNode PatternGridSolids(JsonElement root)
     {
         AssertIsObject(root);
-        WarnUnknownParameters(root, "solids", "countX", "countY", "countXNegative", "countYNegative", "stepX", "stepY", "copy", "name", "suffix");
+        WarnUnknownParameters(root, "solids", "countX", "countY", "countXNegative", "countYNegative", "stepX", "stepY", "name", "suffix");
         var solids = RequireProperty(root, "solids");
         var countX = RequireInteger(root, "countX");
         var countY = GetOptionalInteger(root, "countY", 0);
@@ -386,11 +384,10 @@ public partial class MCPServer
         var countYNegative = GetOptionalInteger(root, "countYNegative", 0);
         var stepX = RequireVector3D(root, "stepX");
         var stepY = GetOptionalVector3D(root, "stepY", GeoVector.Invalid);
-        var copy = GetOptionalBool(root, "copy", true);
         var name = GetOptionalString(root, "name");
         var suffix = GetOptionalBool(root, "suffix", false);
 
-        PatternGridSolidsImpl(solids, countX, countY, countXNegative, countYNegative, stepX, stepY, copy, name, suffix);
+        PatternGridSolidsImpl(solids, countX, countY, countXNegative, countYNegative, stepX, stepY, name, suffix);
 
         return default;
     }
@@ -717,7 +714,7 @@ public partial class MCPServer
         var op = RequireString(root, "op");
         var inputs = RequireProperty(root, "inputs");
         var subtract = GetOptional(root, "subtract");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SketchBooleanImpl(sketch, op, inputs, subtract, name);
 
@@ -750,7 +747,7 @@ public partial class MCPServer
         AssertIsObject(root);
         WarnUnknownParameters(root, "plane", "name");
         var plane = RequirePlane(root, "plane");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SketchCreateImpl(plane, name);
 
@@ -767,7 +764,7 @@ public partial class MCPServer
         var face = RequireProperty(root, "face");
         var point = GetOptionalPoint3D(root, "point", GeoPoint.Invalid);
         var xAxis = GetOptionalVector3D(root, "xAxis", GeoVector.Invalid);
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SketchCreateOnFaceImpl(face, point, xAxis, name);
 
@@ -786,7 +783,7 @@ public partial class MCPServer
         var curve = RequireProperty(root, "curve");
         var mode = GetOptionalString(root, "mode");
         var clamp = GetOptionalBool(root, "clamp", false);
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var captured = GetOptional(root, "captured");
 
         SketchFootPointOnCurveImpl(sketch, point, curve, mode, clamp, name, captured);
@@ -826,7 +823,7 @@ public partial class MCPServer
         var b = RequireProperty(root, "b");
         var mode = GetOptionalString(root, "mode");
         var tolerance = GetOptionalDouble(root, "tolerance", double.NaN);
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var suffix = GetOptionalBool(root, "suffix", true);
 
         SketchIntersectionsImpl(sketch, a, b, mode, tolerance, name, suffix);
@@ -947,7 +944,7 @@ public partial class MCPServer
         var sizeX = RequireDouble(root, "sizeX");
         var sizeY = RequireDouble(root, "sizeY");
         var sizeZ = RequireDouble(root, "sizeZ");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidBoxImpl(origin, axisX, axisY, sizeX, sizeY, sizeZ, name);
 
@@ -966,7 +963,7 @@ public partial class MCPServer
         var radius = RequireDouble(root, "radius");
         var cap = GetOptionalString(root, "cap");
         var coneTipDistance = GetOptionalDouble(root, "coneTipDistance", double.NaN);
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidCapsuleImpl(start, end, radius, cap, coneTipDistance, name);
 
@@ -984,7 +981,7 @@ public partial class MCPServer
         var end = RequirePoint3D(root, "end");
         var radiusStart = RequireDouble(root, "radiusStart");
         var radiusEnd = RequireDouble(root, "radiusEnd");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidConeImpl(start, end, radiusStart, radiusEnd, name);
 
@@ -1001,7 +998,7 @@ public partial class MCPServer
         var start = RequirePoint3D(root, "start");
         var end = RequirePoint3D(root, "end");
         var radius = RequireDouble(root, "radius");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidCylinderImpl(start, end, radius, name);
 
@@ -1019,7 +1016,7 @@ public partial class MCPServer
         var length = RequireDouble(root, "length");
         var direction = GetOptionalVector3D(root, "direction", GeoVector.Invalid);
         var offset = GetOptionalDouble(root, "offset", 0);
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var capture = GetOptional(root, "capture");
 
         SolidExtrudeImpl(profile, length, direction, offset, name, capture);
@@ -1039,7 +1036,7 @@ public partial class MCPServer
         var angle = RequireAngle(root, "angle");
         var offset = GetOptionalDouble(root, "offset", double.NaN);
         var pitch = RequireDouble(root, "pitch");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var capture = GetOptional(root, "capture");
 
         SolidHelicalExtrudeImpl(profile, axis, angle, offset, pitch, name, capture);
@@ -1058,7 +1055,7 @@ public partial class MCPServer
         var end = RequirePoint3D(root, "end");
         var outerRadius = RequireDouble(root, "outerRadius");
         var innerRadius = RequireDouble(root, "innerRadius");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidPipeImpl(start, end, outerRadius, innerRadius, name);
 
@@ -1075,7 +1072,7 @@ public partial class MCPServer
         var profile = RequireProperty(root, "profile");
         var axis = RequireAxis3D(root, "axis");
         var angle = RequireAngle(root, "angle");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var capture = GetOptional(root, "capture");
 
         SolidRotateImpl(profile, axis, angle, name, capture);
@@ -1096,7 +1093,7 @@ public partial class MCPServer
         var alignment = GetOptionalString(root, "alignment");
         var matchPoints1 = GetOptional(root, "matchPoints1");
         var matchPoints2 = GetOptional(root, "matchPoints2");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidRuledImpl(profile1, profile2, synchronization, alignment, matchPoints1, matchPoints2, name);
 
@@ -1113,7 +1110,7 @@ public partial class MCPServer
         var center = GetOptionalPoint3D(root, "center", GeoPoint.Invalid);
         var radius = GetOptionalDouble(root, "radius", double.NaN);
         var points = GetOptional(root, "points");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidSphereImpl(center, radius, points, name);
 
@@ -1130,7 +1127,7 @@ public partial class MCPServer
         var profile = RequireProperty(root, "profile");
         var path = RequireProperty(root, "path");
         var orientation = GetOptionalString(root, "orientation");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var capture = GetOptional(root, "capture");
 
         SolidSweepImpl(profile, path, orientation, name, capture);
@@ -1149,7 +1146,7 @@ public partial class MCPServer
         var axis = RequireVector3D(root, "axis");
         var majorRadius = RequireDouble(root, "majorRadius");
         var minorRadius = RequireDouble(root, "minorRadius");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SolidTorusImpl(center, axis, majorRadius, minorRadius, name);
 
@@ -1166,7 +1163,7 @@ public partial class MCPServer
         var degreeU = GetOptionalInteger(root, "degreeU", 3);
         var degreeV = GetOptionalInteger(root, "degreeV", 3);
         var approximation = RequireProperty(root, "approximation");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
 
         SurfaceParametricImpl(degreeU, degreeV, approximation, name);
 
@@ -1230,7 +1227,7 @@ public partial class MCPServer
         var template = RequireString(root, "template");
         var arguments = GetOptional(root, "arguments");
         var transform = GetOptionalString(root, "transform");
-        var name = GetOptionalString(root, "name");
+        var name = RequireString(root, "name");
         var explodeResult = GetOptionalBool(root, "explodeResult", false);
 
         TemplateInstantiateImpl(template, arguments, transform, name, explodeResult);

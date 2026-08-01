@@ -1,7 +1,7 @@
 {
 	"toolsetVersion": "shapeit.mcp.tools.v1.3",
 	"conventions": {
-		"ids": "All created objects return an opaque id string. Names are optional human-friendly aliases. Tools accept either id or name via ObjectRef.",
+		"names": "The workspace is a name-to-object map; a name is the only handle on an object, there are no object ids. Tools that create something from scratch therefore require 'name'. Tools that derive a result from an input object have an optional 'name': given, the result is stored under it and the input is left untouched; omitted, the result replaces the input under the input's own name. A name may hold a single object or a list; a list of one behaves like the object itself.",
 		"units": "Unless otherwise specified, length units are millimeters in numeric literals. Angles are degrees.",
 		"documentModel": "Objects can exist in a temporary workspace until committed into the document model.",
 		"expressions": "Numeric/point/vector fields that allow expressions accept either a literal value or an Expression object.",
@@ -878,22 +878,7 @@
 			]
 		},
 		"Selector": {
-			"type": "object",
 			"description": "Select one or many items of a given target type. Accepts name, a named set, a query, an explicit list of references, or set expressions (union/except/intersect).",
-			"properties": {
-				"target": {
-					"type": "string",
-					"enum": [
-						"solids",
-						"faces",
-						"edges",
-						"sketch_geometry",
-						"points3",
-						"points2"
-					],
-					"description": "Optional hint to disambiguate named sets."
-				}
-			},
 			"oneOf": [
 				{
 					"type": "array",
@@ -929,7 +914,7 @@
 						}
 					},
 					"required": [
-						"refs"
+						"names"
 					],
 					"additionalProperties": false
 				},
@@ -968,8 +953,7 @@
 					],
 					"additionalProperties": false
 				}
-			],
-			"additionalProperties": false
+			]
 		},
 		"SolidRef": {
 			"description": "Reference to a solid (BRep body) by name.",
@@ -1314,7 +1298,7 @@
 		},
 		{
 			"name": "feature.chamfer",
-			"description": "Chamfers the specified edges of a solid. Edges can be selected by named sets, queries, or set expressions. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. For an unsymmetric chamfer you must provide 'primaryFace' and 'secondaryDistance'",
+			"description": "Chamfers the specified edges of a solid. 'edges' names an edge or a named edge set; to chamfer the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. For an unsymmetric chamfer you must provide 'primaryFace' and 'secondaryDistance'",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1363,7 +1347,7 @@
 		},
 		{
 			"name": "feature.fillet",
-			"description": "Rounds (fillets) the specified edges of a solid. Edges can be selected by ids, named sets, queries, or set expressions. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.",
+			"description": "Rounds (fillets) the specified edges of a solid. 'edges' names an edge or a named edge set; to round the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1504,8 +1488,8 @@
 								"description": "Split by a plane defined by a point and a normal vector."
 							},
 							{
-								"$ref": "#/types/ObjectRef",
-								"description": "Split by a surface. This could be the result of surface.parametric or the surface of a face."
+								"$ref": "#/types/NameRef",
+								"description": "Split by a surface, given as the workspace name of that surface. Must resolve to exactly one surface. This could be the result of surface.parametric or the surface of a face."
 							}
 						]
 					},
@@ -1600,7 +1584,7 @@
 		},
 		{
 			"name": "pattern.circular_solids",
-			"description": "Creates a circular pattern of solids around a 3D axis passing through center. If angle is omitted, defaults to 360 degrees. If name is provided, it refers to the whole resulting set. If suffix is true, individual solids are also named using <base>_<n> where <base> is name (if provided) or the source object's name.",
+			"description": "Creates a circular pattern of solids around a 3D axis passing through center. The source objects stay where they are; copies are placed at the pattern positions. If angle is omitted, defaults to 360 degrees. If name is provided, it refers to the whole resulting set. If suffix is true, individual solids are also named using <base>_<n>, where <base> is 'name' - without 'name' no individual names are assigned.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1622,11 +1606,6 @@
 						"description": "Optional total sweep angle in degrees. If omitted, defaults to 360.",
 						"default": 360
 					},
-					"copy": {
-						"type": "boolean",
-						"default": true,
-						"description": "If true (default), creates copies. If false, keeps originals as the first instance and creates remaining as copies."
-					},
 					"name": {
 						"type": "string",
 						"description": "Optional group name for the result set."
@@ -1634,13 +1613,14 @@
 					"suffix": {
 						"type": "boolean",
 						"default": false,
-						"description": "If true, assigns individual names using <base>_<n> (e.g., bolt_1, bolt_2, ...). Base is name if provided, otherwise the source object's name."
+						"description": "If true, assigns individual names using <base>_<n> (e.g., bolt_1, bolt_2, ...). Base is 'name', which must be provided for this to have any effect. One entry per rotation step: when several solids are patterned at once, that entry holds the list of instances of the step."
 					}
 				},
 				"required": [
 					"solids",
 					"axis",
-					"count"
+					"count",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -1731,7 +1711,7 @@
 		},
 		{
 			"name": "pattern.grid_solids",
-			"description": "Creates a rectangular or linear grid pattern of solids using 3D step vectors. If 'name' is provided, it refers to the entire resulting set. If 'suffix' is true, individual solids are also named using <base>_<nx>_<ny> (or <base>_<n> if one dimension equals 1), where <base> is 'name' (if provided) or the source object's name.",
+			"description": "Creates a rectangular or linear grid pattern of solids using 3D step vectors. The source objects stay where they are; copies are placed at the grid positions. If 'name' is provided, it refers to the entire resulting set. If 'suffix' is true, individual solids are also named using <base>_<nx>_<ny>, where <base> is the workspace name of the source object, or 'name' for sources that are not named workspace items.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1767,19 +1747,14 @@
 						"$ref": "#/types/Vec3",
 						"description": "Step vector for Y direction (3D)."
 					},
-					"copy": {
-						"type": "boolean",
-						"default": true,
-						"description": "If true (default), creates a copy of the original. If false, the original remains at its position."
-					},
 					"name": {
 						"type": "string",
-						"description": "Optional name for the resulting set of solids. The set contains the grid instances of the input solids, including either the original objects or their copies depending on the 'copy' parameter."
+						"description": "Optional name for the resulting set of solids. The set contains the grid instances of the input solids; the source objects themselves stay where they are."
 					},
 					"suffix": {
 						"type": "boolean",
 						"default": false,
-						"description": "If true, assigns individual names using <base>_<nx>_<ny> (e.g., peg_0_0, peg_1_0, ...). Base is name if provided, otherwise the source object's name."
+						"description": "If true, assigns individual names using <base>_<nx>_<ny> (e.g., peg_0_0, peg_1_0, ...). Base is the workspace name of the source object; for sources that are not named workspace items, 'name' is used as the base instead. Sources that come from one and the same named list share a single entry per grid cell, which then holds the list of instances of that cell."
 					}
 				},
 				"required": [
@@ -1835,11 +1810,6 @@
 						"default": false,
 						"description": "If true and solids is used, the original source solids are included in the result in addition to the generated copies."
 					},
-					"copy": {
-						"type": "boolean",
-						"default": true,
-						"description": "If true, creates copies. Reserved for consistency with other pattern methods."
-					},
 					"name": {
 						"type": "string",
 						"description": "Optional base name for the resulting set."
@@ -1859,7 +1829,7 @@
 						"description": "If true, instances that fail due to invalid formulas, transforms, or template instantiation are skipped instead of failing the whole call."
 					}
 				},
-				"required": [ "variables", "transform" ],
+				"required": [ "variables", "transform", "name" ],
 				"additionalProperties": false,
 				"allOf": [
 					{
@@ -2788,7 +2758,8 @@
 				"required": [
 					"sketch",
 					"op",
-					"inputs"
+					"inputs",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -2843,7 +2814,8 @@
 					}
 				},
 				"required": [
-					"plane"
+					"plane",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -2870,7 +2842,8 @@
 					}
 				},
 				"required": [
-					"face"
+					"face",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -2883,7 +2856,8 @@
 				"required": [
 					"sketch",
 					"point",
-					"curve"
+					"curve",
+					"name"
 				],
 				"properties": {
 					"sketch": {
@@ -3002,7 +2976,8 @@
 				"required": [
 					"sketch",
 					"a",
-					"b"
+					"b",
+					"name"
 				],
 				"properties": {
 					"sketch": {
@@ -3274,7 +3249,7 @@
 					"sizeZ": { "$ref": "#/types/ExpressionNumber" },
 					"name": { "type": "string" }
 				},
-				"required": [ "origin", "sizeX", "sizeY", "sizeZ" ],
+				"required": [ "origin", "sizeX", "sizeY", "sizeZ", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -3296,6 +3271,7 @@
 					},
 					"name": { "type": "string" }
 				},
+				"required": [ "name" ],
 				"oneOf": [
 					{
 						"required": [
@@ -3325,7 +3301,7 @@
 					"radius": { "$ref": "#/types/ExpressionNumber" },
 					"name": { "type": "string" }
 				},
-				"required": [ "start", "end", "radius" ],
+				"required": [ "start", "end", "radius", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -3342,7 +3318,7 @@
 					"radiusEnd": { "$ref": "#/types/ExpressionNumber" },
 					"name": { "type": "string" }
 				},
-				"required": [ "start", "end", "radiusStart", "radiusEnd" ],
+				"required": [ "start", "end", "radiusStart", "radiusEnd", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -3359,7 +3335,7 @@
 					"minorRadius": { "$ref": "#/types/ExpressionNumber" },
 					"name": { "type": "string" }
 				},
-				"required": [ "center", "axis", "majorRadius", "minorRadius" ],
+				"required": [ "center", "axis", "majorRadius", "minorRadius", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -3381,7 +3357,7 @@
 					"coneTipDistance": { "$ref": "#/types/ExpressionNumber" },
 					"name": { "type": "string" }
 				},
-				"required": [ "start", "end", "radius" ],
+				"required": [ "start", "end", "radius", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -3398,7 +3374,7 @@
 					"innerRadius": { "$ref": "#/types/ExpressionNumber" },
 					"name": { "type": "string" }
 				},
-				"required": [ "start", "end", "outerRadius", "innerRadius" ],
+				"required": [ "start", "end", "outerRadius", "innerRadius", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -3452,7 +3428,8 @@
 				},
 				"required": [
 					"profile",
-					"length"
+					"length",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -3515,7 +3492,8 @@
 					"profile",
 					"axis",
 					"angle",
-					"pitch"
+					"pitch",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -3566,7 +3544,8 @@
 				"required": [
 					"profile",
 					"axis",
-					"angle"
+					"angle",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -3624,7 +3603,8 @@
 				},
 				"required": [
 					"profile1",
-					"profile2"
+					"profile2",
+					"name"
 				],
 				"additionalProperties": false,
 				"allOf": [
@@ -3700,7 +3680,8 @@
 				},
 				"required": [
 					"profile",
-					"path"
+					"path",
+					"name"
 				],
 				"additionalProperties": false
 			}
@@ -3853,7 +3834,7 @@
 						"description": "Optional name of the resulting surface."
 					}
 				},
-				"required": [ "approximation" ],
+				"required": [ "approximation", "name" ],
 				"additionalProperties": false
 			}
 		},
@@ -4301,7 +4282,7 @@
 						"description": "If true and the template returns multiple objects, they are exposed individually. Otherwise they are returned as one named set."
 					}
 				},
-				"required": [ "template" ],
+				"required": [ "template", "name" ],
 				"additionalProperties": false
 			}
 		},

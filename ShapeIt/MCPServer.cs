@@ -1854,13 +1854,42 @@ namespace ShapeIt
             }
         }
 
-        private string? FindName(object entity)
+        /// <summary>
+        /// Locates the workspace entry holding the given entity. Returns its name together with the
+        /// index of the entity inside that entry, or -1 when the entry is the entity itself. Entities
+        /// reached through a selector are usually members of a named list, so a plain name is not
+        /// enough to write a modified version back - the element has to be replaced in place.
+        /// </summary>
+        private (string name, int index)? FindNameAndIndex(object entity)
         {
             foreach (var item in namedItems)
             {
-                if (item.Value == entity) return item.Key;
+                if (ReferenceEquals(item.Value, entity)) return (item.Key, -1);
+                if (item.Value is System.Collections.IList list)
+                {
+                    for (int i = 0; i < list.Count; i++)
+                        if (ReferenceEquals(list[i], entity)) return (item.Key, i);
+                }
             }
             return null;
+        }
+
+        /// <summary>
+        /// Writes a modified entity back to the location <see cref="FindNameAndIndex"/> reported. A
+        /// list entry is replaced by a new list with the one element exchanged: that keeps change
+        /// tracking working and leaves the list instances of dictionary clones (templates) untouched.
+        /// </summary>
+        private void StoreAt((string name, int index) location, object newValue)
+        {
+            if (location.index < 0)
+            {
+                namedItems[location.name] = newValue;
+                return;
+            }
+            if (!namedItems.TryGetValue(location.name, out object? current) || current is not System.Collections.IList list) return;
+            List<object> items = new(list.Count);
+            for (int i = 0; i < list.Count; i++) items.Add(i == location.index ? newValue : list[i]!);
+            namedItems[location.name] = MakeTypedList(items) ?? items;
         }
 
         /// <summary>
@@ -3125,23 +3154,23 @@ namespace ShapeIt
             {
                 Path2D? p2d = null;
                 CompoundShape? cs = null;
-                string? currentName = null;
+                (string name, int index)? location = null;
                 if (entities[i] is Path2D ep2d)
                 {
                     if (sketch == null) sketch = ep2d.UserData["MCPServer.Sketch"] as Sketch;
-                    currentName = FindName(ep2d);
+                    location = FindNameAndIndex(ep2d);
                     p2d = ep2d;
                 }
                 else if (entities[i] is ICurve2D c2d)
                 {
                     if (sketch == null) sketch = c2d.UserData["MCPServer.Sketch"] as Sketch;
-                    currentName = FindName(c2d);
+                    location = FindNameAndIndex(c2d);
                     p2d = new Path2D([c2d]);
                 }
                 else if (entities[i] is CompoundShape ecs)
                 {
                     if (sketch == null) sketch = ecs.UserData["MCPServer.Sketch"] as Sketch;
-                    currentName = FindName(ecs);
+                    location = FindNameAndIndex(ecs);
                     throw new NotImplementedException("round vertices of sketch shape");
                 }
                 if (p2d != null)
@@ -3150,8 +3179,7 @@ namespace ShapeIt
                     if (rounded != null)
                     {
                         rounded.UserData.Add("MCPServer.Sketch", sketch);
-                        if (string.IsNullOrEmpty(name) && currentName != null) namedItems[currentName] = rounded;
-                        else if (name != null) namedItems[name] = rounded;
+                        StoreRoundedEntity(rounded, name, location);
                     }
                 }
                 if (cs != null)
@@ -3160,12 +3188,22 @@ namespace ShapeIt
                     if (rounded != null)
                     {
                         rounded.UserData.Add("MCPServer.Sketch", sketch);
-                        if (string.IsNullOrEmpty(name) && currentName != null) namedItems[currentName] = rounded;
-                        else if (name != null) namedItems[name] = rounded;
+                        StoreRoundedEntity(rounded, name, location);
                     }
                 }
             }
 
+        }
+
+        /// <summary>
+        /// Stores a rounded sketch entity: under the requested name, or - following the "no name means
+        /// the original is replaced" rule - back at the workspace location the source came from.
+        /// </summary>
+        private void StoreRoundedEntity(object rounded, string? name, (string name, int index)? location)
+        {
+            if (!string.IsNullOrEmpty(name)) namedItems[name] = rounded;
+            else if (location != null) StoreAt(location.Value, rounded);
+            else AddCallWarning("A rounded entity could not be stored: its source is not a named workspace item, and no 'name' was given to store the result under.");
         }
 
         private void PatternGridSketchImpl(Sketch sketch, JsonElement entities, int countX, int countY, JsonElement stepX, JsonElement stepY, bool merge, string name, bool nameWithSuffix)
@@ -3934,7 +3972,7 @@ namespace ShapeIt
             }
         }
 
-        private void PatternCircularSolidsImpl(JsonElement objects, Axis axis, int count, double angle, bool copy, string name, bool suffix)
+        private void PatternCircularSolidsImpl(JsonElement objects, Axis axis, int count, double angle, string name, bool suffix)
         {
 
             List<Solid> list = IterateObjectRefs<Solid>(objects).ToList(); // all objects assiziated via userdat by name
@@ -3971,7 +4009,7 @@ namespace ShapeIt
             if (name != null) namedItems[name] = total;
         }
 
-        private void PatternGridSolidsImpl(JsonElement objects, int countX, int countY, int countXNegative, int countYNegative, GeoVector stepX, GeoVector stepY, bool copy, string? name, bool suffix)
+        private void PatternGridSolidsImpl(JsonElement objects, int countX, int countY, int countXNegative, int countYNegative, GeoVector stepX, GeoVector stepY, string? name, bool suffix)
         {
             GeoVector sx = stepX;
             if (sx.Length <= Precision.eps) throw new JsonRpcException("E_INVALID_PARAMS", "stepX must be a non-zero vector.");
@@ -3980,6 +4018,11 @@ namespace ShapeIt
             if (countYNegative > 0) countYNegative = -countYNegative; // make sure countYNegative is negative or zero (usually provided positiv)
             if (countY - countYNegative > 0 && sy.Length <= Precision.eps) throw new JsonRpcException("E_INVALID_PARAMS", "stepY must be a non-zero vector when y counts are provided");
             List<Solid> list = IterateObjectRefs<Solid>(objects).ToList(); // all objects to pattern
+            // Resolve the workspace name of every source once, before the grid loop starts adding
+            // entries: several sources may come from one named list (they then share a base name),
+            // and a lookup inside the loop would have to search the entries just written as well.
+            List<string?> baseNames = [.. list.Select(s => FindNameAndIndex(s)?.name)];
+            bool anyUnnamedSource = false;
             List<Solid> total = new List<Solid>();
             for (int ix = countXNegative; ix <= countX; ix++)
             {
@@ -3989,21 +4032,36 @@ namespace ShapeIt
                     if (iy != 0) moveVec += iy * sy;
                     ModOp move = ModOp.Translate(moveVec);
                     List<Solid> subList = [];
+                    // One bucket per base name, so sources sharing a named list share their cell entry
+                    // instead of overwriting each other under the same "<base>_<ix>_<iy>".
+                    Dictionary<string, List<Solid>> cellByBaseName = new(StringComparer.Ordinal);
                     List<Solid> unnamedSources = [];
-                    foreach (Solid s in list)
+                    for (int i = 0; i < list.Count; i++)
                     {
-                        Solid? clone = s.Clone() as Solid;
+                        Solid? clone = list[i].Clone() as Solid;
                         if (clone != null)
                         {
                             clone.Modify(move);
                             subList.Add(clone);
                             if (suffix)
                             {
-                                string? sn = FindName(s);
-                                if (sn != null) namedItems[$"{sn}_{ix}_{iy}"] = clone;
-                                else if (name != null) unnamedSources.Add(clone);
+                                string? sn = baseNames[i];
+                                if (sn != null)
+                                {
+                                    if (!cellByBaseName.TryGetValue(sn, out List<Solid>? bucket)) cellByBaseName[sn] = bucket = [];
+                                    bucket.Add(clone);
+                                }
+                                else
+                                {
+                                    anyUnnamedSource = true;
+                                    if (name != null) unnamedSources.Add(clone);
+                                }
                             }
                         }
+                    }
+                    foreach (var bucket in cellByBaseName)
+                    {
+                        namedItems[$"{bucket.Key}_{ix}_{iy}"] = bucket.Value.Count == 1 ? (object)bucket.Value[0] : bucket.Value;
                     }
                     // Clones of source solids without an own name share one entry per grid cell.
                     if (unnamedSources.Count > 0)
@@ -4013,10 +4071,12 @@ namespace ShapeIt
                     total.AddRange(subList);
                 }
             }
+            if (suffix && anyUnnamedSource && name == null)
+                AddCallWarning("'suffix' was requested but some patterned solids are not named workspace items and no 'name' was given as a base, so their instances got no individual names.");
             if (name != null) namedItems[name] = total;
         }
 
-        private void PatternByFormulaSolidsImpl(JsonElement solids, string template, JsonElement variables, JsonElement formulas, string? condition, JsonElement arguments, string transform, bool includeSource, bool copy, string? name, bool suffix, string? indexName, bool skipInvalidInstances)
+        private void PatternByFormulaSolidsImpl(JsonElement solids, string template, JsonElement variables, JsonElement formulas, string? condition, JsonElement arguments, string transform, bool includeSource, string? name, bool suffix, string? indexName, bool skipInvalidInstances)
         {
             List<Solid> solidsToInsert = [];
             solidsToInsert = IterateSelector<Solid>(solids).ToList();
@@ -4223,7 +4283,10 @@ namespace ShapeIt
             List<Solid> solids = IterateSelector<Solid>(solid).ToList(); // should only be one
             Plane pln = Plane.Invalid;
             Shell? shell = null;
-            if (splitBy.TryGetProperty("standard", out var _) || splitBy.TryGetProperty("origin", out var _))
+            // 'splitBy' is either a Plane (always an object) or a NameRef naming a surface, which may
+            // be a bare string - TryGetProperty would throw on anything but an object.
+            if (splitBy.ValueKind == JsonValueKind.Object
+                && (splitBy.TryGetProperty("standard", out var _) || splitBy.TryGetProperty("origin", out var _)))
             {
                 pln = RequirePlane(splitBy);
             }
@@ -4344,38 +4407,34 @@ namespace ShapeIt
                 if (axis2d.IsValid)
                 {
                     ModOp2D reflect = ModOp2D.Reflect(axis2d.Location, axis2d.Direction);
+                    bool copy = !string.IsNullOrEmpty(name);
+                    List<object> reflected = [];
                     foreach (object obj in objects)
                     {
-                        if (obj is ICurve2D c2d)
-                        {
-                            ICurve2D? clone = c2d.GetModified(reflect) as ICurve2D;
-                            if (clone != null)
-                            {
-                                if (!string.IsNullOrEmpty(name)) namedItems[name] = clone;
-                                else
-                                {
-                                    string? currentName = FindName(c2d);
-                                    if (currentName != null) namedItems[currentName] = clone;
-                                }
-                            }
-                        }
-                        else if (obj is CompoundShape cs)
-                        {
-                            CompoundShape? clone = cs.GetModified(reflect) as CompoundShape;
-                            if (clone != null)
-                            {
-                                if (!string.IsNullOrEmpty(name)) namedItems[name] = clone;
-                                else
-                                {
-                                    string? currentName = FindName(cs);
-                                    if (currentName != null) namedItems[currentName] = clone;
-                                }
-                            }
-                        }
+                        object? clone = null;
+                        if (obj is ICurve2D c2d) clone = c2d.GetModified(reflect) as ICurve2D;
+                        else if (obj is CompoundShape cs) clone = cs.GetModified(reflect) as CompoundShape;
+                        if (clone == null) continue;
+                        reflected.Add(clone);
+                        // 2D entities cannot be reflected in place - GetModified returns a new object -
+                        // so without a name the source has to be replaced where it is stored.
+                        if (!copy) StoreReflectedInPlace(clone, obj);
                     }
+                    if (copy) namedItems[name] = MakeTypedList(reflected) ?? reflected;
                 }
                 else throw new JsonRpcException("E_INVALID_PARAMS", "For 2D reflection, a valid axis2d must be provided.");
             }
+        }
+
+        /// <summary>
+        /// Writes a reflected 2D entity back to the workspace location its source came from. Used only
+        /// when no 'name' was given, where the rule is that the originals are replaced.
+        /// </summary>
+        private void StoreReflectedInPlace(object reflected, object source)
+        {
+            var location = FindNameAndIndex(source);
+            if (location != null) StoreAt(location.Value, reflected);
+            else AddCallWarning("A reflected entity could not be stored: its source is not a named workspace item, and no 'name' was given to store the result under.");
         }
 
         private void TransformRotateImpl(JsonElement objectsEl, Axis axis, double angle, string name, string copySuffix)
