@@ -750,9 +750,12 @@ namespace CADability
                                     List<Edge> le = edge.Vertex1.EdgesOnFace(fc2);
                                     for (int k = 0; k < le.Count; k++)
                                     {
-                                        if (le[k] == edge) continue;
-                                        if (le[k].Vertex1 == edge.Vertex1 && Precision.SameDirection(le[k].Curve3D.StartDirection, edge.Curve3D.StartDirection, false)) tangential = true;
-                                        else if (le[k].Vertex2 == edge.Vertex1 && Precision.SameDirection(le[k].Curve3D.EndDirection, edge.Curve3D.StartDirection, false)) tangential = true;
+                                        if (le[k].Curve3D != null)
+                                        {   // it could be a pole
+                                            if (le[k] == edge) continue;
+                                            if (le[k].Vertex1 == edge.Vertex1 && Precision.SameDirection(le[k].Curve3D.StartDirection, edge.Curve3D.StartDirection, false)) tangential = true;
+                                            else if (le[k].Vertex2 == edge.Vertex1 && Precision.SameDirection(le[k].Curve3D.EndDirection, edge.Curve3D.StartDirection, false)) tangential = true;
+                                        }
                                     }
                                     le = edge.Vertex2.EdgesOnFace(fc2);
                                     for (int k = 0; k < le.Count; k++)

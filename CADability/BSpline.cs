@@ -491,8 +491,21 @@ namespace CADability.GeoObject
             if (Constructed != null) Constructed(this);
             extent = BoundingBox.EmptyBoundingBox;
         }
+        /// <summary>
+        /// Approximates the provided <paramref name="curve"/> by a cubic BSpline. Starting with 11 points the curve is
+        /// sampled with more and more points until the deviation is less than <paramref name="precision"/> or
+        /// <paramref name="maxCount"/> points are used. The parameter of the resulting BSpline is the parameter of the
+        /// provided function, i.e. it runs from <paramref name="minPar"/> to <paramref name="maxPar"/>.
+        /// </summary>
+        /// <param name="curve">the curve to approximate, in terms of a parameter to point function</param>
+        /// <param name="precision">the maximum deviation, 0.0: a small fraction of the extent of the curve</param>
+        /// <param name="minPar">the parameter where the curve starts</param>
+        /// <param name="maxPar">the parameter where the curve ends, must be greater than <paramref name="minPar"/></param>
+        /// <param name="maxCount">the maximum number of points to use</param>
+        /// <returns>the approximating BSpline, null if the parameter range is invalid</returns>
         public static BSpline Approximate(Func<double, GeoPoint> curve, double precision = 0.0, double minPar = 0, double maxPar = 1, int maxCount = 1000)
         {
+            if (!(maxPar > minPar)) return null; // an empty parameter range, the loops below would not terminate
             BoundingBox ext = BoundingBox.EmptyBoundingBox;
             SortedList<double, GeoPoint> positions = [];
             for (double par = minPar; par < maxPar + (maxPar - minPar) / 20; par += (maxPar - minPar) / 10)
@@ -504,8 +517,11 @@ namespace CADability.GeoObject
             if (precision == 0.0) precision = ext.Size * 1e-6;
             BSpline bsp = BSpline.Construct();
             bsp.FromNurbs(new Nurbs<GeoPoint, GeoPointPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3), minPar, maxPar);
-            double lastPos = 0.0;
-            GeoPoint lastPoint = GeoPoint.Invalid;
+            // ICurve.PointAt and GeneralCurve.PositionOf use a normalized position in 0...1, whereas the keys of
+            // "positions" are the parameters of the provided function. The BSpline is built with these parameters
+            // as its startParam and endParam, so both are related linearly.
+            double Normalized(double par) => (par - minPar) / (maxPar - minPar);
+            double lastPos = minPar;
             while (positions.Count < maxCount)
             {
                 List<(double, GeoPoint)> toAdd = [];
@@ -516,29 +532,28 @@ namespace CADability.GeoObject
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint p = curve(mpos);
                         double d;
-                        double rmpos = mpos; // to not change it in GeneralCurve.PositionOf
-                        // GeneralCurve.PositionOf is much faster then DistanceTo(p) because it doesnt need the tetraeder hull 
+                        double rmpos = Normalized(mpos); // to not change it in GeneralCurve.PositionOf
+                        // GeneralCurve.PositionOf is much faster then DistanceTo(p) because it doesnt need the tetraeder hull
                         if (GeneralCurve.PositionOf(bsp, p, ref rmpos)) d = (bsp as ICurve).PointAt(rmpos) | p;
                         else d = (bsp as ICurve).DistanceTo(p);
                         if (d > precision)
-                        // if (((bsp as ICurve).PointAt(mpos) | p) > precision)
                         {
                             toAdd.Add((mpos, p));
                         }
                     }
                     lastPos = item.Key;
-                    lastPoint = item.Value;
                 }
                 if (toAdd.Any())
                 {
                     foreach ((double par, GeoPoint point) in toAdd) positions[par] = point;
                     bsp.FromNurbs(new Nurbs<GeoPoint, GeoPointPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3), minPar, maxPar);
+                    lastPos = minPar;
 
 #if DEBUG
                     double dbgd = 0.0;
                     foreach (KeyValuePair<double, GeoPoint> item in positions)
                     {
-                        dbgd += (bsp as ICurve).PointAt(item.Key) | item.Value;
+                        dbgd += (bsp as ICurve).PointAt(Normalized(item.Key)) | item.Value;
                     }
 #endif
                 }

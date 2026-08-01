@@ -722,6 +722,7 @@ namespace CADability
                 GeoVector rebased = Geometry.ReBase(dir, dirx, diry, dirx ^ diry);
                 dir2Ds[i] = 2 * rebased.To2D();
             }
+            SurfaceHelper.UnwrapPeriodic(surface, periodicDomain, point2Ds);
             double spsum = 0.0;
             for (int i = 0; i < point2Ds.Length; i++)
             {

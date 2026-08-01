@@ -804,16 +804,31 @@ namespace CADability.Curve2D
             }
             else return null; // this are no hyperbola points
         }
+        /// <summary>
+        /// Approximates the provided <paramref name="curve"/> by a cubic BSpline. Starting with 11 points the curve is
+        /// sampled with more and more points until the deviation is less than <paramref name="precision"/> or
+        /// <paramref name="maxCount"/> points are used. The parameter of the resulting BSpline2D is the parameter of the
+        /// provided function, i.e. it runs from <paramref name="minPar"/> to <paramref name="maxPar"/>.
+        /// </summary>
+        /// <param name="curve">the curve to approximate, in terms of a parameter to point function</param>
+        /// <param name="precision">the maximum deviation</param>
+        /// <param name="minPar">the parameter where the curve starts</param>
+        /// <param name="maxPar">the parameter where the curve ends, must be greater than <paramref name="minPar"/></param>
+        /// <param name="maxCount">the maximum number of points to use</param>
+        /// <returns>the approximating BSpline, null if the parameter range is invalid</returns>
         public static BSpline2D Approximate(Func<double, GeoPoint2D> curve, double precision, double minPar = 0, double maxPar = 1, int maxCount = 1000)
         {
+            if (!(maxPar > minPar)) return null; // an empty parameter range, the loops below would not terminate
             SortedList<double, GeoPoint2D> positions = [];
             for (double par = minPar; par < maxPar + (maxPar - minPar) / 20; par += (maxPar - minPar) / 10)
             {
                 positions[par] = curve(par);
             }
             BSpline2D bsp = new BSpline2D(new Nurbs<GeoPoint2D, GeoPoint2DPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3));
-            double lastPos = 0.0;
-            GeoPoint2D lastPoint = GeoPoint2D.Invalid;
+            // PositionOf and PointAt use a normalized position in 0...1, whereas the keys of "positions" are the
+            // parameters of the provided function. The BSpline is built with these parameters, so both are related linearly.
+            double Normalized(double par) => (par - minPar) / (maxPar - minPar);
+            double lastPos = minPar;
             while (positions.Count < maxCount)
             {
                 List<(double, GeoPoint2D)> toAdd = [];
@@ -824,7 +839,7 @@ namespace CADability.Curve2D
                         double mpos = (item.Key + lastPos) / 2;
                         GeoPoint2D p = curve(mpos);
                         double d;
-                        double rmpos = mpos; // a copy to not modify the original mpos, which is used to add the point to the list
+                        double rmpos = Normalized(mpos); // a copy to not modify the original mpos, which is used to add the point to the list
                         if (bsp.PositionOf(p, ref rmpos))
                         {
                             d = bsp.PointAt(rmpos) | p;
@@ -845,18 +860,18 @@ namespace CADability.Curve2D
                         }
                     }
                     lastPos = item.Key;
-                    lastPoint = item.Value;
                 }
                 if (toAdd.Any())
                 {
                     foreach ((double par, GeoPoint2D point) in toAdd) positions[par] = point;
                     bsp = new BSpline2D(new Nurbs<GeoPoint2D, GeoPoint2DPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3));
+                    lastPos = minPar;
 
 #if DEBUG
                     double dbgd = 0.0;
                     foreach (KeyValuePair<double, GeoPoint2D> item in positions)
                     {
-                        dbgd += bsp.PointAt(item.Key) | item.Value;
+                        dbgd += bsp.PointAt(Normalized(item.Key)) | item.Value;
                     }
 #endif
                 }

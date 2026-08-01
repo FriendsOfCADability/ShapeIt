@@ -11121,6 +11121,7 @@ namespace CADability.GeoObject
             foreach (Edge edg in Edges)
             {
                 if (edg.PrimaryFace != this && edg.SecondaryFace != this) return false;
+                if (edg.SecondaryFace != null && edg.Forward(edg.PrimaryFace) == edg.Forward(edg.SecondaryFace)) return false; // wrong orientation of the two connected faces 
             }
             // sind die 2d Kurven richtig orientiert?
             foreach (Edge edg in Edges)
