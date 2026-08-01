@@ -151,7 +151,26 @@ namespace ShapeIt
             // all threads to run.". In release mode, we keep the parallelization enabled for better performance.
             MathNet.Numerics.Control.MaxDegreeOfParallelism = 1;
 #endif
-            //InitializeComponent();
+            string fileName = "";
+            bool debug = false;
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (!args[i].StartsWith("-"))
+                {
+                    fileName = args[i];
+                } else if (args[i] == "-d")
+                {
+                    debug = true;
+                }
+            }
+
+            if (debug)
+            {
+                AutoDebug(args[1]);
+                Close();
+                return;
+            }
+
             ShowLogo();
             // this.Icon = Properties.Resources.Icon;
             Assembly ThisAssembly = Assembly.GetExecutingAssembly();
@@ -161,15 +180,6 @@ namespace ShapeIt
                 this.Icon = new System.Drawing.Icon(str);
             }
 
-            string fileName = "";
-            for (int i = 0; i < args.Length; i++)
-            {
-                if (!args[i].StartsWith("-"))
-                {
-                    fileName = args[i];
-                    break;
-                }
-            }
             Project toOpen = null;
             if (!String.IsNullOrWhiteSpace(fileName))
             {
@@ -323,163 +333,61 @@ namespace ShapeIt
                     File.Delete(crashPath);
                 }
 #if DEBUG
-                AutoDebug();
+                // AutoDebug();
 #endif
             }
             base.OnActivated(e);
         }
-#if DEBUG
-        private void AutoDebug()
+
+        /// <summary>
+        /// Debug helper: opens a project that describes a BRep test case and executes it. The case is described
+        /// inside the project itself - the styles "Operand1"/"Operand2"/"EdgeMarker" plus a text object naming
+        /// the operation, see <see cref="BRepCaseReader"/>.
+        /// <para>
+        /// This takes the same path as the BRep regression tests (tests/CADability.Tests/BRepRegressionTests.cs),
+        /// so a failing test can be reproduced here: reading the same file always yields the same hash codes,
+        /// which is what makes conditional breakpoints usable. Unlike the tests, the operation runs on this
+        /// thread and without a time budget, so stepping and breakpoints behave normally.
+        /// </para>
+        /// </summary>
+        /// <param name="filename">The project to run; the most recently used file when empty.</param>
+        private void AutoDebug(string filename)
         {
-            return;
-            string? filename = null; // @"C:\Users\gerha\Documents\Zeichnungen\RoundEdgesBug1.cdb.json";
-            // add code here to be executed automatically upon start in debug mode
-            // there is no mouse interaction before this code is finished
             if (string.IsNullOrEmpty(filename))
             {
                 string[] mru = MRUFiles.GetMRUFiles();
                 if (mru.Length > 0) filename = mru.Last().Split(';')[0];
             }
-            if (!string.IsNullOrEmpty(filename)) CadFrame.Project = Project.ReadFromFile(filename);
+            if (string.IsNullOrEmpty(filename)) return;
+            // Open the project in the app first and build the case from exactly those objects, so that what you
+            // see on the screen is what the operation works on.
+            CadFrame.Project = Project.ReadFromFile(filename);
+            BRepCase testCase = BRepCaseReader.FromModel(CadFrame.Project.GetActiveModel(), BRepCaseReader.CaseName(filename));
+            foreach (string warning in testCase.Warnings) Trace.WriteLine($"AutoDebug {testCase.Name}: warning: {warning}");
+            if (!testCase.IsRunnable)
+            {   // never fail silently - that is how a typo in the text object used to make this method do nothing
+                foreach (string problem in testCase.Problems) Trace.WriteLine($"AutoDebug {testCase.Name}: {problem}");
+                return;
+            }
 
-            string command = "";
-            List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
-            Solid operand1 = null, operand2 = null;
-            List<Solid> difference = new List<Solid>();
-            List<Solid> intersection = new List<Solid>();
-            List<Solid> union = new List<Solid>();
-            List<ICurve> edgeMarkers = new List<ICurve>();
-            foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
+            BRepRunResult run = new BRepRunResult();
+            Stopwatch watch = Stopwatch.StartNew();
+            try
             {
-                if (go is CADability.GeoObject.Solid sld)
-                {
-                    slds.Add(sld);
-                    if (sld.Style != null)
-                    {
-                        if (sld.Style.Name == "Operand1") operand1 = sld;
-                        else if (sld.Style.Name == "Operand2") operand2 = sld;
-                        //else if (sld.Style.Name == "Difference") difference.Add(sld);
-                        //else if (sld.Style.Name == "Union") union.Add(sld);
-                        //else if (sld.Style.Name == "Intersection") intersection.Add(sld);
-                    }
-                }
-                if (go is ICurve curve)
-                {
-                    if (go.Style != null && go.Style.Name == "EdgeMarker")
-                    {
-                        edgeMarkers.Add(curve);
-                    }
-                }
-                if (go is Text txt)
-                {
-                    command = txt.TextString; // there sould only be one
-                }
+                run.Shells = BRepRunner.Execute(testCase); // this is the line to step into
             }
-            if (operand1 != null && operand2 != null)
+            catch (Exception e)
             {
-                //if (difference.Count > 0)
-                //{
-                //    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
-                //    if (sres.Length > 0)
-                //    {
-                //        Project proj = Project.CreateSimpleProject();
-                //        proj.GetActiveModel().Add(sres);
-                //        proj.WriteToFile("c:\\Temp\\subtract.cdb.json");
-                //    }
-                //}
-                if (command.StartsWith("Difference", StringComparison.OrdinalIgnoreCase) || command.Equals("Subtract", StringComparison.OrdinalIgnoreCase))
-                {
-                    Solid[] sres = NewBooleanOperation.Subtract(operand1, operand2);
-                }
-                if (command.StartsWith("Intersect", StringComparison.OrdinalIgnoreCase))
-                {
-                    Solid[] sres = NewBooleanOperation.Intersect(operand1, operand2);
-                }
-                if (command.Equals("Union", StringComparison.OrdinalIgnoreCase) || command.Equals("Unite", StringComparison.OrdinalIgnoreCase))
-                {
-                    Solid sres = NewBooleanOperation.Unite(operand1, operand2);
-                }
+                run.Error = e;
             }
-            if (slds.Count > 1)
-            {
-                if (command.Equals("UniteAll", StringComparison.OrdinalIgnoreCase))
-                {
-                    slds.Sort((s1, s2) =>
-                    {
-                        GeoPoint cnt1 = s1.GetExtent(0.0).GetCenter();
-                        GeoPoint cnt2 = s2.GetExtent(0.0).GetCenter();
-                        if (cnt1.y == cnt2.y) return cnt1.x.CompareTo(cnt2.x);
-                        else return cnt1.y.CompareTo(cnt2.y);
-                    });
-                    for (int i = 0; i < slds.Count; i++)
-                    {
-                        System.Diagnostics.Trace.WriteLine(slds[i].GetExtent(0.0).GetCenter().ToString() + " " + slds[i].Shells[0].GetHashCode().ToString());
-                    }
-                    Queue<Solid> queue = new Queue<Solid>(slds.Skip(1).Reverse());
-                    Solid accumulate = slds[0];
-                    int count = 0;
-                    while (queue.Count > 0)
-                    {
-                        Solid sld = queue.Dequeue();
-                        Solid tmp = NewBooleanOperation.Unite(sld, accumulate);
-                        if (tmp != null)
-                        {
-                            accumulate = tmp;
-                            count++;
-                        }
-                        else
-                        {
-                            queue.Enqueue(sld);
-                        }
-                    }
-                }
-            }
-            if (edgeMarkers.Count > 0)
-            {
-                List<Edge> edgesToRound = [];
-                Shell? shellToRound = null;
-                foreach (Solid s in slds)
-                {
-                    foreach (Edge edg in s.Shells[0].Edges)
-                    {
-                        foreach (ICurve em in edgeMarkers)
-                        {
-                            if (edg.Curve3D.SameGeometry(em, 0.1))
-                            {
-                                edgesToRound.Add(edg);
-                                shellToRound = s.Shells[0];
-                            }
-                        }
-                    }
-                }
-                if (command.StartsWith("RoundEdges", StringComparison.OrdinalIgnoreCase))
-                {
-                    string[] parts = command.Split(':');
-                    if (parts.Length == 2)
-                    {
-                        double d = double.Parse(parts[1]);
-                        if (d > 0)
-                        {
-                            Shell? rounded = shellToRound?.RoundEdges(edgesToRound, d);
-                        }
-                    }
-                }
-                if (command.StartsWith("ChamferEdges", StringComparison.OrdinalIgnoreCase))
-                {
-                    string[] parts = command.Split(':');
-                    if (parts.Length == 2)
-                    {
-                        double d = double.Parse(parts[1]);
-                        if (d > 0)
-                        {
-                            Shell? rounded = shellToRound?.ChamferEdges(edgesToRound, d, d);
-                            // CadFrame.Project.GetActiveModel().Add(rounded);
-                        }
-                    }
-                }
-            }
+            watch.Stop();
+            run.ElapsedMilliseconds = watch.ElapsedMilliseconds;
+
+            Trace.WriteLine($"AutoDebug {testCase.Name}: {testCase.Operation} -> {run.Describe()}"
+                + $" ({run.ElapsedMilliseconds} ms, valid={run.IsValid})");
+            // the very same summary the regression test compares against its baseline
+            Trace.WriteLine(BRepSummary.Describe(testCase, run).ToText());
         }
-#endif
 
         /// <summary>
         /// Filter the escape key for the modelling property page

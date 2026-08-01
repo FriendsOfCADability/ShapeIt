@@ -2,6 +2,7 @@
   "profiles": {
     "ShapeIt": {
       "commandName": "Project",
+      "commandLineArgs": "-d \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\BRep\\DifferenceBug19.cdb.json\"",
       "nativeDebugging": false,
       "hotReloadEnabled": true
     }

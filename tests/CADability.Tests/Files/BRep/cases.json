@@ -1,0 +1,120 @@
+{
+  // Per-case expectations for the BRep regression harness (BRepRegressionTests).
+  // A file that is not listed here defaults to status "Ok": it has to follow the marker convention,
+  // it has to run and it has to keep matching its baseline.
+  //
+  //   Ok           must produce a valid result and match the baseline
+  //   KnownFail    known to be broken; must still match the baseline. If it succeeds, the test says so
+  //                and the case should be promoted to "Ok"
+  //   CorruptInput the operands are already inconsistent - an import/authoring bug, not a BRep bug
+  //   NeedsFixup   the project file does not follow the marker convention yet (missing Operand1/Operand2
+  //                styles or no text object naming the operation)
+  //   Skip         deliberately excluded
+  // RelativeTolerance applies to the floating point values only (volume, area, lengths, coordinates); counts,
+  // the Euler characteristic, the surface histogram and the status are always compared exactly.
+  // It is 1e-4 and not 1e-6 because the operations are not bit-reproducible across runs: DifferenceBug15 was
+  // observed to differ by 5e-6 in volume in a full run, while it reproduces exactly when run on its own. The
+  // suspicion is an iteration order that depends on reference hash codes, which in turn depend on what ran
+  // before in the same process. Worth chasing separately - until then the tolerance absorbs it.
+  "Defaults": {
+    "TimeoutSeconds": 120,
+    "RelativeTolerance": 1e-4
+  },
+  "Cases": [
+    {
+      "Name": "DifferenceBug",
+      "Status": "CorruptInput",
+      "Comment": "markers were added later, the file is readable now - but Operand2 already fails Shell.CheckConsistency()"
+    },
+    {
+      "Name": "DifferenceBug3",
+      "Status": "NeedsFixup",
+      "Comment": "17 solids, no markers at all - unclear which ones are the operands"
+    },
+    {
+      "Name": "DifferenceBug4",
+      "Status": "NeedsFixup",
+      "Comment": "two solids with the styles \"3D\"/none and no text object"
+    },
+    {
+      "Name": "DifferenceBug6",
+      "Status": "NeedsFixup",
+      "Comment": "two text objects naming different operations (\"Unite\" and \"Difference\") - which one is the case?"
+    },
+    {
+      "Name": "DifferenceBug18",
+      "Status": "NeedsFixup",
+      "Comment": "one solid and one free shell, no markers, no text object"
+    },
+    {
+      "Name": "UniteBug1",
+      "Status": "NeedsFixup",
+      "Comment": "three solids with the style \"3D\", no text object - probably a chain of unions"
+    },
+    {
+      "Name": "UniteBug2",
+      "Status": "NeedsFixup",
+      "Comment": "two solids with the style \"3D\", no text object"
+    },
+    {
+      "Name": "DifferenceBug11",
+      "Status": "CorruptInput",
+      "Comment": "Operand1 fails Shell.CheckConsistency() before the operation even starts"
+    },
+    {
+      "Name": "UniteBug18",
+      "Status": "CorruptInput",
+      "Comment": "Operand1 fails Shell.CheckConsistency() before the operation even starts"
+    },
+    {
+      "Name": "UniteBug15",
+      "Status": "Ok",
+      "Operation": "Union",
+      "Comment": "operands are marked, only the text object is missing"
+    },
+
+    // --- currently broken (this is why the files exist). The baseline freezes the current behaviour,
+    //     so a change shows up either way: a different failure, or - the good case - success.
+    {
+      "Name": "DifferenceBug9",
+      "Status": "KnownFail",
+      "Comment": "Debug.Assert 'loops.Count should never be 0'"
+    },
+    {
+      "Name": "DifferenceBug16",
+      "Status": "KnownFail",
+      "Comment": "runs through but returns no shell at all"
+    },
+    {
+      "Name": "DifferenceBug17",
+      "Status": "KnownFail",
+      "Comment": "Debug.Assert inside the boolean operation"
+    },
+    {
+      "Name": "UniteBug3",
+      "Status": "KnownFail",
+      "Comment": "runs through but returns no shell at all"
+    },
+    {
+      "Name": "UniteBug8",
+      "Status": "KnownFail",
+      "Operation": "Union",
+      "Comment": "operands are marked, the text object is missing; Debug.Assert 'loops.Count should never be 0'"
+    },
+    {
+      "Name": "UniteBug9",
+      "Status": "KnownFail",
+      "Comment": "Debug.Assert 'loops.Count should never be 0'"
+    },
+    {
+      "Name": "UniteBug14",
+      "Status": "KnownFail",
+      "Comment": "NullReferenceException inside the boolean operation"
+    },
+    {
+      "Name": "UniteBug16",
+      "Status": "KnownFail",
+      "Comment": "Debug.Assert 'loops.Count should never be 0'"
+    }
+  ]
+}

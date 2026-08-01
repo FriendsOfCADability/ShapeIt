@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace ShapeIt
 {
-    internal class BlendEdges
+    public class BlendEdges
     {
         public Shell shell;
         public IEnumerable<Edge> convexEdges;

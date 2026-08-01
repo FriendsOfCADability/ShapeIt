@@ -11,7 +11,7 @@ using static ShapeIt.ShellExtensions;
 
 namespace ShapeIt
 {
-    internal class RoundEdges : BlendEdges
+    public class RoundEdges : BlendEdges
     {
         double radius;
         /// <summary>

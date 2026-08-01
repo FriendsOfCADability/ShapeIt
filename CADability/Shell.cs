@@ -4539,11 +4539,7 @@ namespace CADability.GeoObject
                 this.SetFaces(facesset.ToArray());
             }
         }
-#if DEBUG
         public bool CheckConsistency()
-#else
-        internal bool CheckConsistency()
-#endif
         {
             for (int i = 0; i < Faces.Length; i++)
             {

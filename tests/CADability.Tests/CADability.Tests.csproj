@@ -41,6 +41,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\CADability\CADability.csproj" />
     <ProjectReference Include="..\..\CADability.Forms.NET8\CADability.Forms.NET8.csproj" />
+    <!-- The BRep regression tests exercise RoundEdges/ChamferEdges, which still live in the ShapeIt app. -->
+    <ProjectReference Include="..\..\ShapeIt\ShapeIt.csproj" />
   </ItemGroup>
 
 </Project>

@@ -18,7 +18,8 @@ namespace ShapeIt
             // To customize application configuration such as set high DPI settings or default font,
             // see https://aka.ms/applicationconfiguration.
             ApplicationConfiguration.Initialize();
-            Application.Run(new MainForm(args));
+            Form form = new MainForm(args);
+            if (!form.IsDisposed) Application.Run(form);
         }
     }
 }

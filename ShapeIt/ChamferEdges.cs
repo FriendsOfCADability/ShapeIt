@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace ShapeIt
 {
-    internal class ChamferEdges : BlendEdges
+    public class ChamferEdges : BlendEdges
     {
         double length1, length2;
         public ChamferEdges(Shell shell, IEnumerable<Edge> edges, double length1, double length2) : base(shell, edges)
@@ -58,10 +58,12 @@ namespace ShapeIt
             Shell? toOperateOn = shell.Clone() as Shell;
             for (int i = 0; i < convexRoundingShells.Count; i++)
             {
-                foreach (var item in convexRoundingShells[i])
+                //foreach (var item in convexRoundingShells[i])
+                List<Shell> dbgList = convexRoundingShells[i].ToList();
+                    for (int j = 0;j< dbgList.Count;j++)
                 {
                     BooleanOperation bo = new BooleanOperation();
-                    bo.SetShells(toOperateOn, item, BooleanOperation.Operation.difference);
+                    bo.SetShells(toOperateOn, dbgList[j], BooleanOperation.Operation.difference);
 
                     Shell[] roundedShells = bo.Execute();
                     if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
