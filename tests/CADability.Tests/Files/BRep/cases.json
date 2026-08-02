@@ -20,6 +20,19 @@
     "TimeoutSeconds": 120,
     "RelativeTolerance": 1e-4
   },
+
+  // The two switches for a manual run - usable from the Visual Studio test explorer, no environment
+  // variables needed. Set one, run the tests, set it back.
+  //   "Only"       run just this one case, e.g. "UniteBug14". "" = all cases.
+  //   "Regenerate" write the baselines from the current behaviour instead of comparing against them.
+  //                Only after you judged a difference to be an improvement; review the changed files
+  //                under Baselines/ afterwards.
+  // As long as either is set, the test BaselineSwitchesAreTurnedOff fails - that is on purpose, so a
+  // half finished manual run cannot look green or slip into a commit.
+  "Run": {
+    "Only": "",
+    "Regenerate": false
+  },
   "Cases": [
     {
       "Name": "DifferenceBug",

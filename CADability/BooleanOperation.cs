@@ -3282,7 +3282,7 @@ namespace CADability
                 {
                     dcloops.Add(item.Item1, faceToSplit, arrowSize, Color.Blue, ++dbgc);
                 }
-                if (loops.Count == 0 && !commonOverlappingFaces.Contains(faceToSplit))
+                if (loops.Count == 0 && !commonOverlappingFaces.Contains(faceToSplit) && !faceToOverlappingFaces.ContainsKey(faceToSplit))
                 {
                     System.Diagnostics.Debug.Assert(false, "loops.Count should never be 0");
                 }

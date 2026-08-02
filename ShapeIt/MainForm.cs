@@ -153,6 +153,7 @@ namespace ShapeIt
 #endif
             string fileName = "";
             bool debug = false;
+            bool nofile = false;
             for (int i = 0; i < args.Length; i++)
             {
                 if (!args[i].StartsWith("-"))
@@ -161,6 +162,11 @@ namespace ShapeIt
                 } else if (args[i] == "-d")
                 {
                     debug = true;
+                }
+                else if (args[i] == "-x")
+                {   // so I can leave the file name in the command line, but don't want to open it, e.g. for debugging
+                    debug = true;
+                    nofile = true;
                 }
             }
 
@@ -181,7 +187,7 @@ namespace ShapeIt
             }
 
             Project toOpen = null;
-            if (!String.IsNullOrWhiteSpace(fileName))
+            if (!String.IsNullOrWhiteSpace(fileName) && !nofile)
             {
                 try
                 {

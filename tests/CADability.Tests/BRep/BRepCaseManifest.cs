@@ -47,7 +47,25 @@ namespace CADability.Tests.BRep
     public class CaseDefaults
     {
         public int TimeoutSeconds { get; set; } = 120;
-        public double RelativeTolerance { get; set; } = 1e-6;
+        // 1e-4 and not tighter: the operations are not bit-reproducible across runs, see the readme.
+        public double RelativeTolerance { get; set; } = 1e-4;
+    }
+
+    /// <summary>
+    /// The two switches for a manual run. They live in the file rather than in environment variables so that
+    /// they can be used from the Visual Studio test explorer: edit cases.json, run the tests, edit it back.
+    /// <para>
+    /// Leaving one of them on would quietly turn the suite into something else - a run that rewrites its own
+    /// expectations, or one that only looks at a single case. <see cref="BRepRegressionTests"/> therefore has a
+    /// test that fails as long as either is set: it cannot be forgotten and it cannot be committed unnoticed.
+    /// </para>
+    /// </summary>
+    public class RunOptions
+    {
+        /// <summary>Restrict the run to this single case, e.g. "UniteBug14". Empty means: all cases.</summary>
+        public string? Only { get; set; }
+        /// <summary>Rewrite the baselines from the current behaviour - only after judging the differences.</summary>
+        public bool Regenerate { get; set; }
     }
 
     /// <summary>
@@ -57,6 +75,7 @@ namespace CADability.Tests.BRep
     public class BRepCaseManifest
     {
         public CaseDefaults Defaults { get; set; } = new CaseDefaults();
+        public RunOptions Run { get; set; } = new RunOptions();
         public List<CaseEntry> Cases { get; set; } = new List<CaseEntry>();
 
         [JsonIgnore]

@@ -32,8 +32,18 @@ namespace CADability.Tests
     {
         public TestContext TestContext { get; set; } = null!;
 
-        private static bool Regenerate => Environment.GetEnvironmentVariable("BREP_REGEN") == "1";
-        private static string? SingleCase => Environment.GetEnvironmentVariable("BREP_CASE");
+        // Both switches can be set in cases.json ("Run": { "Only": ..., "Regenerate": ... }), which is what makes
+        // them usable from the Visual Studio test explorer, or as an environment variable for a command line run.
+        private static bool Regenerate
+            => Environment.GetEnvironmentVariable("BREP_REGEN") == "1" || manifest.Run.Regenerate;
+        private static string? SingleCase
+        {
+            get
+            {
+                string? fromEnvironment = Environment.GetEnvironmentVariable("BREP_CASE");
+                return string.IsNullOrWhiteSpace(fromEnvironment) ? manifest.Run.Only : fromEnvironment;
+            }
+        }
 
         private static string BRepDir([CallerFilePath] string thisFile = "")
             => Path.Combine(Path.GetDirectoryName(thisFile)!, "Files", "BRep");
@@ -65,6 +75,26 @@ namespace CADability.Tests
                 CaseEntry entry = manifest.Get(BRepCaseReader.CaseName(file));
                 parsedCases.Add(BRepCaseReader.Read(file, entry.Operation, entry.Parameter ?? double.NaN, entry.SecondaryParameter ?? double.NaN));
             }
+        }
+
+        /// <summary>
+        /// The two manual switches in cases.json have to be off. Both change what the suite means - "Regenerate"
+        /// makes it rewrite its own expectations instead of checking them, "Only" makes it look at a single case -
+        /// so leaving one on by accident would turn a green run into a meaningless one. This test is the reminder
+        /// and, since it is part of every run, also the safety net against committing them.
+        /// </summary>
+        [TestMethod]
+        public void BaselineSwitchesAreTurnedOff()
+        {
+            List<string> active = new List<string>();
+            if (manifest.Run.Regenerate)
+                active.Add("\"Regenerate\": true - the baselines are being overwritten instead of checked. "
+                    + "Review the changed files under Files/BRep/Baselines and set it back to false.");
+            if (!string.IsNullOrWhiteSpace(manifest.Run.Only))
+                active.Add($"\"Only\": \"{manifest.Run.Only}\" - all other cases are being skipped. "
+                    + "Set it back to \"\" to check the whole suite again.");
+            if (active.Count > 0)
+                Assert.Fail("cases.json is still in manual mode:\n  " + string.Join("\n  ", active));
         }
 
         /// <summary>

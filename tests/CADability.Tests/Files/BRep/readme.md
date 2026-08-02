@@ -105,8 +105,30 @@ first, as a regression rather than just a change, and regenerating one produces 
 dotnet test tests/CADability.Tests/CADability.Tests.csproj --filter FullyQualifiedName~BRepRegressionTests
 ```
 
-- `BREP_REGEN=1` rewrites all baselines — do this only after judging that a difference is an improvement.
-- `BREP_CASE=<name>` restricts the run to a single case.
+In Visual Studio: *Test → Test Explorer*, filter for `BRepRegressionTests`, run.
+
+### The two switches for a manual run
+
+They live in `cases.json`, so they work from the Visual Studio test explorer without setting anything up:
+
+```json
+"Run": {
+  "Only": "",
+  "Regenerate": false
+}
+```
+
+- **`Only`** — run just this one case, e.g. `"UniteBug14"`. Empty means all cases.
+- **`Regenerate`** — write the baselines from the current behaviour instead of comparing against them. Only
+  after you judged a difference to be an improvement; review the changed files under `Baselines/` afterwards.
+  Hand written `#` comments (the `# verified` notes) are carried over.
+
+Set one, run the tests, set it back. As long as either is set, the test **`BaselineSwitchesAreTurnedOff`
+fails** — on purpose: a half finished manual run must not look green, and must not slip into a commit.
+
+The environment variables `BREP_REGEN=1` and `BREP_CASE=<name>` still work and take precedence, for command
+line runs. Note that the `VAR=value command` prefix is bash syntax; in PowerShell it is `$env:BREP_REGEN = "1"`
+on a line of its own, and `$env:BREP_REGEN = $null` to switch it off again.
 
 Note that the tests run against a **Debug** build, where `Debug.Assert` failures are turned into exceptions
 by the test host. Several of the known failures are assertion hits rather than wrong results.
