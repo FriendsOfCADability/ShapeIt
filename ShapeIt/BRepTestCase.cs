@@ -58,7 +58,11 @@ namespace ShapeIt
         /// <summary>Second chamfer distance; NaN means "same as <see cref="Parameter"/>".</summary>
         public double SecondaryParameter { get; set; } = double.NaN;
 
-        /// <summary>The operands in a well defined order: [0] is Operand1, [1] is Operand2.</summary>
+        /// <summary>
+        /// The operands in a well defined order: [0] is Operand1, [1..] are the Operand2 objects in the order
+        /// they appear in the model. There may be more than one Operand2 - a difference then subtracts all of
+        /// them from Operand1, a union adds all of them.
+        /// </summary>
         public List<Shell> Operands { get; } = new List<Shell>();
         /// <summary>Edges of <c>Operands[0]</c> that the marker curves resolved to (round/chamfer only).</summary>
         public List<Edge> MarkedEdges { get; } = new List<Edge>();
@@ -224,43 +228,45 @@ namespace ShapeIt
             }
 
             // --- the operands ---------------------------------------------------------------------
-            int expectedOperands = OperandCount(result.Operation);
-            Shell? operand1 = candidates.FirstOrDefault(c => c.style == Operand1Style).shell;
-            Shell? operand2 = candidates.FirstOrDefault(c => c.style == Operand2Style).shell;
-            if (candidates.Count(c => c.style == Operand1Style) > 1) result.Problems.Add("more than one object with style \"Operand1\"");
-            if (candidates.Count(c => c.style == Operand2Style) > 1) result.Problems.Add("more than one object with style \"Operand2\"");
+            // The order of the Operand2 objects is the order they appear in the model, which is the order the
+            // operation is carried out in. It is stable across runs because it comes from the file.
+            List<Shell> operand1 = candidates.Where(c => c.style == Operand1Style).Select(c => c.shell).ToList();
+            List<Shell> operand2 = candidates.Where(c => c.style == Operand2Style).Select(c => c.shell).ToList();
+            if (operand1.Count > 1) result.Problems.Add($"{operand1.Count} objects with style \"Operand1\", there can only be one");
 
-            if (expectedOperands == 2)
+            switch (LayoutOf(result.Operation))
             {
-                if (operand1 == null || operand2 == null)
-                {
-                    result.Problems.Add($"expected two operands with the styles \"Operand1\"/\"Operand2\", found "
-                        + DescribeCandidates(candidates));
-                }
-                else
-                {
-                    result.Operands.Add(operand1);
-                    result.Operands.Add(operand2);
-                    if (candidates.Count > 2) result.Warnings.Add($"{candidates.Count - 2} further solid(s)/shell(s) are ignored");
-                }
-            }
-            else if (expectedOperands == 1)
-            {
-                Shell? single = operand1 ?? (candidates.Count == 1 ? candidates[0].shell : null);
-                if (single == null)
-                    result.Problems.Add($"expected exactly one operand (style \"Operand1\"), found " + DescribeCandidates(candidates));
-                else
-                {
-                    result.Operands.Add(single);
-                    if (operand2 != null) result.Warnings.Add("\"Operand2\" is ignored for this operation");
-                }
-            }
-            else if (expectedOperands == AnyNumberOfOperands)
-            {
-                // UniteAll takes every solid of the model. The order decides which pairs meet first, so it has
-                // to be reproducible: sort by the center of the extent, exactly as the old AutoDebug did.
-                if (candidates.Count < 2) result.Problems.Add($"UniteAll needs at least two solids, found " + DescribeCandidates(candidates));
-                else result.Operands.AddRange(candidates.Select(c => c.shell).OrderBy(s => s.GetExtent(0.0).GetCenter(), CenterComparer.Instance));
+                case OperandLayout.FirstAndOthers:
+                    if (operand1.Count != 1 || operand2.Count == 0)
+                    {
+                        result.Problems.Add("expected one \"Operand1\" and at least one \"Operand2\", found "
+                            + DescribeCandidates(candidates));
+                    }
+                    else
+                    {
+                        result.Operands.Add(operand1[0]);
+                        result.Operands.AddRange(operand2);
+                        int unmarked = candidates.Count - 1 - operand2.Count;
+                        if (unmarked > 0) result.Warnings.Add($"{unmarked} solid(s)/shell(s) without a marker are ignored");
+                    }
+                    break;
+                case OperandLayout.Single:
+                    Shell? single = operand1.Count == 1 ? operand1[0] : (candidates.Count == 1 ? candidates[0].shell : null);
+                    if (single == null)
+                        result.Problems.Add("expected exactly one operand (style \"Operand1\"), found " + DescribeCandidates(candidates));
+                    else
+                    {
+                        result.Operands.Add(single);
+                        if (operand2.Count > 0) result.Warnings.Add($"{operand2.Count} \"Operand2\" object(s) are ignored for this operation");
+                    }
+                    break;
+                case OperandLayout.All:
+                    // UniteAll takes every solid of the model, markers or not. Here the order does not come from
+                    // the file, so it is derived from the geometry to stay reproducible: by the center of the
+                    // extent, exactly as the old AutoDebug did.
+                    if (candidates.Count < 2) result.Problems.Add("UniteAll needs at least two solids, found " + DescribeCandidates(candidates));
+                    else result.Operands.AddRange(candidates.Select(c => c.shell).OrderBy(s => s.GetExtent(0.0).GetCenter(), CenterComparer.Instance));
+                    break;
             }
 
             // --- the marked edges -----------------------------------------------------------------
@@ -299,20 +305,29 @@ namespace ShapeIt
             return System.IO.Path.GetFileNameWithoutExtension(name);
         }
 
-        /// <summary>Return value of <see cref="OperandCount"/> for operations that take any number of operands.</summary>
-        public const int AnyNumberOfOperands = -1;
+        /// <summary>How an operation expects its operands to be marked in the project.</summary>
+        public enum OperandLayout
+        {
+            None,
+            /// <summary>One shell, marked "Operand1" (or the only solid in the model).</summary>
+            Single,
+            /// <summary>One "Operand1" and one or more "Operand2", in the order they appear in the model.</summary>
+            FirstAndOthers,
+            /// <summary>Every solid of the model, markers or not.</summary>
+            All
+        }
 
-        public static int OperandCount(BRepOperationKind kind)
+        public static OperandLayout LayoutOf(BRepOperationKind kind)
         {
             switch (kind)
             {
                 case BRepOperationKind.Union:
                 case BRepOperationKind.Difference:
-                case BRepOperationKind.Intersection: return 2;
+                case BRepOperationKind.Intersection: return OperandLayout.FirstAndOthers;
                 case BRepOperationKind.RoundEdges:
-                case BRepOperationKind.ChamferEdges: return 1;
-                case BRepOperationKind.UniteAll: return AnyNumberOfOperands;
-                default: return 0;
+                case BRepOperationKind.ChamferEdges: return OperandLayout.Single;
+                case BRepOperationKind.UniteAll: return OperandLayout.All;
+                default: return OperandLayout.None;
             }
         }
 

@@ -165,7 +165,6 @@ namespace ShapeIt
                 }
                 else if (args[i] == "-x")
                 {   // so I can leave the file name in the command line, but don't want to open it, e.g. for debugging
-                    debug = true;
                     nofile = true;
                 }
             }

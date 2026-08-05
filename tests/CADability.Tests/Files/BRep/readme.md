@@ -81,11 +81,21 @@ faces, edges or loops got lost or duplicated.
 Integers and strings are compared exactly, floating point numbers with a relative tolerance
 (`RelativeTolerance`, default `1e-4`), using the size of the input as the absolute floor.
 
-The tolerance is that loose on purpose: the operations are **not bit-reproducible across runs**.
-`DifferenceBug15` was seen to differ by 5e-6 in volume during a full run, while it reproduces exactly when
-run on its own — which suggests an iteration order somewhere that depends on reference hash codes, and those
-depend on what ran before in the same process. The counts, the Euler characteristic, the surface histogram
-and the status are compared exactly and are unaffected; they are what actually catches regressions.
+### Why the numbers used to move between runs
+
+`volume`, `area` and `extent` come from the triangulation, and `Face.AssureTriangles(0.0)` — the precision the
+rest of the code passes — **reuses whatever triangulation happens to exist**, however coarse it was made, and
+invents `extent size / 10` when there is none. So the values depended on what had run before in the same
+process: `DifferenceBug3` produced a 10% different area depending on whether it ran alone or in a full suite,
+and its area was understated by 58% in both cases.
+
+`ShellMetrics.PrecisionFor` therefore derives an explicit precision (`size / 1000`) from the exact geometry —
+vertex positions and edge curves, never from a triangulation — and passes that to `Volume`, `GetExtent` and
+`GetTriangulation`. Same number in every run, at the price of roughly a third more runtime.
+
+The tolerance stays at `1e-4` because one case was still seen to differ once in five runs. Counts, the Euler
+characteristic, the surface histogram and the status are compared exactly and were never affected; they are
+what actually catches regressions.
 
 ## Marking a result as correct
 

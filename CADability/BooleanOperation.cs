@@ -608,6 +608,9 @@ namespace CADability
                         tr.Trim(u1, u2);
                         ICurve2D con1 = crvsOnSurface1[i].Trim(params2dFace1[i, j1], params2dFace1[i, j2]);
                         ICurve2D con2 = crvsOnSurface2[i].Trim(params2dFace2[i, j1], params2dFace2[i, j2]);
+                        // projected curves are not precise when trimmed. 
+                        if (con1 is ProjectedCurve) con1 = fc1.Surface.GetProjectedCurve(tr, Precision.eps);
+                        if (con2 is ProjectedCurve) con2 = fc2.Surface.GetProjectedCurve(tr, Precision.eps);
                         {   // we need this test with the trimmed 3d curve in a strange case: a quarter of an ellipse is exactely outside a threequarter cylinder
                             // this part of a 2d curve gets arbitrarily wrong periodic adjusted
                             GeoPoint2D uv = fc1.Surface.PositionOf(tr.PointAt(0.5));
@@ -871,10 +874,9 @@ namespace CADability
                 Face otherFace = null;
                 foreach (Edge edg in fc1.AllEdges)
                 {
-                    if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position, intersectionCurve.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, intersectionCurve.EndPoint)) ||
-                        (Precision.IsEqual(edg.Vertex2.Position, intersectionCurve.StartPoint) && Precision.IsEqual(edg.Vertex1.Position, intersectionCurve.EndPoint))))
+                    if (edg.Curve3D != null && Curves.Overlapping(edg.Curve3D, intersectionCurve, Precision.eps, out double u1, out double u2, out double v1, out double v2))
                     {
-                        if (edg.Curve3D != null && edg.Curve3D.DistanceTo(intersectionCurve.PointAt(0.5)) < Precision.eps)
+                        if (edg.Curve3D.DistanceTo(intersectionCurve.PointAt(0.5)) < Precision.eps)
                         {
                             ++numberOfEdgesOnFc;
                             faceWithEdge = fc1;
@@ -885,10 +887,9 @@ namespace CADability
                 }
                 foreach (Edge edg in fc2.AllEdges)
                 {
-                    if (edg != null && ((Precision.IsEqual(edg.Vertex1.Position, intersectionCurve.StartPoint) && Precision.IsEqual(edg.Vertex2.Position, intersectionCurve.EndPoint)) ||
-                        (Precision.IsEqual(edg.Vertex2.Position, intersectionCurve.StartPoint) && Precision.IsEqual(edg.Vertex1.Position, intersectionCurve.EndPoint))))
+                    if (edg.Curve3D != null && Curves.Overlapping(edg.Curve3D, intersectionCurve, Precision.eps, out double u1, out double u2, out double v1, out double v2))
                     {
-                        if (edg.Curve3D != null && edg.Curve3D.DistanceTo(intersectionCurve.PointAt(0.5)) < Precision.eps)
+                        if (edg.Curve3D.DistanceTo(intersectionCurve.PointAt(0.5)) < Precision.eps)
                         {
                             ++numberOfEdgesOnFc;
                             faceWithEdge = fc2;
@@ -3572,7 +3573,7 @@ namespace CADability
                                 if (allFaces.Contains(ce.PrimaryFace))
                                 {// this is probably an overlapping face, which is not connected to the trimmed faces but already belongs to allFaces
                                     if (SameEdge(ce, edg, precision))
-                                    { 
+                                    {
                                         edgeFound = true;
                                     }
                                 }

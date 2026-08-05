@@ -9086,6 +9086,16 @@ namespace CADability.GeoObject
             GeoPoint2D[] uvOnFaces;
             double[] uOnCurve3Ds;
             surface.Intersect(edg.Curve3D, this.GetUVBounds(), out ips, out uvOnFaces, out uOnCurve3Ds);
+#if DEBUG
+            for (int i = 0; i < ips.Length; i++)
+            {
+                GeoPoint tst = ips[i];
+                Surfaces.NewtonIntersect(surface, this.GetUVBounds(), edg.Curve3D, ref tst);
+                double d = tst | ips[i];
+                d = surface.PointAt(uvOnFaces[i]) | tst;
+                d = edg.Curve3D.PointAt(uOnCurve3Ds[i]) | tst;
+            }
+#endif
             if (ips.Length == 0 && surface.GetDistance(edg.Curve3D.StartPoint) < prec && surface.GetDistance(edg.Curve3D.EndPoint) < prec && surface.GetDistance(edg.Curve3D.PointAt(0.5)) < prec)
             {
                 // the curve resides in the surface

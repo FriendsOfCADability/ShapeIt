@@ -355,6 +355,8 @@ namespace CADability.GeoObject
                 bounds1.MinMax(paramsuvsurf1[j]);
                 bounds2.MinMax(paramsuvsurf2[j]);
             }
+            bounds1.InflateRelative(1.01);
+            bounds2.InflateRelative(1.01);
             // maybe we are tangential here, special case: a swept circle where the spine is on an offset surface
             //IDualSurfaceCurve[] dbg = TestTangentialIntersections(surface1, bounds1, surface2, bounds2, points, paramsuvsurf1, paramsuvsurf2);
             IDualSurfaceCurve[] dscs = surface1.GetDualSurfaceCurves(bounds1, surface2, bounds2, points, null);

@@ -12,10 +12,10 @@
   //   Skip         deliberately excluded
   // RelativeTolerance applies to the floating point values only (volume, area, lengths, coordinates); counts,
   // the Euler characteristic, the surface histogram and the status are always compared exactly.
-  // It is 1e-4 and not 1e-6 because the operations are not bit-reproducible across runs: DifferenceBug15 was
-  // observed to differ by 5e-6 in volume in a full run, while it reproduces exactly when run on its own. The
-  // suspicion is an iteration order that depends on reference hash codes, which in turn depend on what ran
-  // before in the same process. Worth chasing separately - until then the tolerance absorbs it.
+  // It is 1e-4 rather than tighter because a case was still seen to differ once in five runs. Volume, area
+  // and extent used to depend on what ran before in the same process - Face.AssureTriangles(0.0) reuses
+  // whatever triangulation exists, however coarse - which is why the summary now asks for an explicit
+  // precision (size/1000, see ShellMetrics.PrecisionFor). That removed the effect for the cases we saw.
   "Defaults": {
     "TimeoutSeconds": 120,
     "RelativeTolerance": 1e-4
@@ -41,8 +41,8 @@
     },
     {
       "Name": "DifferenceBug3",
-      "Status": "NeedsFixup",
-      "Comment": "17 solids, no markers at all - unclear which ones are the operands"
+      "Status": "Ok",
+      "Comment": "16 Operand2 solids are subtracted from Operand1, one after the other"
     },
     {
       "Name": "DifferenceBug4",

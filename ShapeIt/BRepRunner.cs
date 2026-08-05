@@ -72,11 +72,11 @@ namespace ShapeIt
             switch (testCase.Operation)
             {
                 case BRepOperationKind.Union:
-                    return Boolean(testCase.Operands[0], testCase.Operands[1], BooleanOperation.Operation.union);
+                    return FoldUnion(testCase.Operands);
                 case BRepOperationKind.Difference:
-                    return Boolean(testCase.Operands[0], testCase.Operands[1], BooleanOperation.Operation.difference);
+                    return Fold(testCase.Operands, BooleanOperation.Operation.difference);
                 case BRepOperationKind.Intersection:
-                    return Boolean(testCase.Operands[0], testCase.Operands[1], BooleanOperation.Operation.intersection);
+                    return Fold(testCase.Operands, BooleanOperation.Operation.intersection);
                 case BRepOperationKind.UniteAll:
                     return UniteAll(testCase.Operands);
                 case BRepOperationKind.RoundEdges:
@@ -105,7 +105,8 @@ namespace ShapeIt
                 {
                     if (!shell.CheckConsistency()) return false;
                     if (shell.OpenEdgesExceptPoles.Length > 0) return false;
-                    if (shell.Volume(0.0) <= 0.0) return false;
+                    // the same explicit precision the summary uses, so validity and baseline agree
+                    if (shell.Volume(ShellMetrics.PrecisionFor(shell)) <= 0.0) return false;
                 }
                 catch (Exception) { return false; }
             }
@@ -117,6 +118,44 @@ namespace ShapeIt
             BooleanOperation booleanOperation = new BooleanOperation();
             booleanOperation.SetShells(first, second, operation);
             return booleanOperation.Execute() ?? Array.Empty<Shell>();
+        }
+
+        /// <summary>
+        /// Applies the operation to Operand1 and then, one after the other, to every further operand, in the
+        /// order they appear in the model: A - B1 - B2 - ... A step may split its input, so every shell
+        /// produced so far takes part in the next step. When nothing is left, the remaining operands are
+        /// skipped - subtracting from nothing stays nothing.
+        /// <para>With exactly two operands this is a single call, i.e. exactly what it did before.</para>
+        /// </summary>
+        private static Shell[] Fold(List<Shell> operands, BooleanOperation.Operation operation)
+        {
+            List<Shell> current = new List<Shell> { operands[0] };
+            for (int i = 1; i < operands.Count && current.Count > 0; i++)
+            {
+                List<Shell> next = new List<Shell>();
+                foreach (Shell shell in current) next.AddRange(Boolean(shell, operands[i], operation));
+                current = next;
+            }
+            return current.ToArray();
+        }
+
+        /// <summary>
+        /// Unites the operands one after the other, in the order they appear in the model. Unlike a difference
+        /// the accumulated result has to stay a single shell, because only then can the next operand be united
+        /// with it - uniting it with each part separately would duplicate that operand. When a step does not
+        /// yield exactly one shell, its result is handed back as it is and the remaining operands are not
+        /// applied; the summary then shows how many shells came out of it.
+        /// </summary>
+        private static Shell[] FoldUnion(List<Shell> operands)
+        {
+            Shell accumulated = operands[0];
+            for (int i = 1; i < operands.Count; i++)
+            {
+                Shell[] united = Boolean(accumulated, operands[i], BooleanOperation.Operation.union);
+                if (united.Length != 1) return united;
+                accumulated = united[0];
+            }
+            return new[] { accumulated };
         }
 
         /// <summary>

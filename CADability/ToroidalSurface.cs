@@ -293,16 +293,25 @@ namespace CADability.GeoObject
         /// <param name="uv"></param>
         /// <returns></returns>
         public override GeoVector GetNormal(GeoPoint2D uv)
-        {   // at a pole, the udirection may be 0, which results in a nullvector here, but there is actually a normal vector
-            // We calculate the normal as the point on the surface - point on the (circular) axis for the provided value of u.
-            // I think the normal should always be normalized per definition
-            return (UDirection(uv) ^ VDirection(uv)).Normalized;
-            // the idea of having a normal at the pole seems plausible, but the sign of the result is sometimes wrong
-            // and I don't know how to fix it.
-            //GeoPoint paxis = toTorus * new GeoPoint(Math.Cos(uv.x), Math.Sin(uv.x), 0.0);
-            //GeoPoint psurface = PointAt(uv);
-            //if (toTorus.Determinant < 0) return (psurface - paxis).Normalized; // reverse oriented
-            //else return (psurface - paxis).Normalized; // normal orientation
+        {   // At a pole of a spindle torus (minorRadius > 1) the u-direction is the nullvector, so the cross product
+            // UDirection ^ VDirection cannot be used there. But there still is a normal vector, which we calculate
+            // in the unit system: with n = (cos(v)*cos(u), cos(v)*sin(u), sin(v)) (which is the normalized direction
+            // from the point on the circular axis to the point on the surface) we have
+            //     UDirection ^ VDirection == minorRadius * (1 + minorRadius * cos(v)) * n
+            // i.e. n carries the direction, the scalar factor in front of it only carries length and sign.
+            // n is well defined for every (u,v), also at a pole: a pole is a self intersection of the surface (all u
+            // map onto the same point on the axis), so the normal there depends on u, i.e. on the sheet we are on.
+            // The scalar factor changes its sign when v passes a pole (1 + minorRadius * cos(v) becomes negative on
+            // the inner, "spindle" part of the surface). We must respect this sign to stay consistent with
+            // UDirection ^ VDirection. Exactly at the pole we use the sign of the outer part.
+            double factor = minorRadius * (1 + minorRadius * Math.Cos(uv.y));
+            GeoVector n = toTorus * new GeoVector(Math.Cos(uv.y) * Math.Cos(uv.x), Math.Cos(uv.y) * Math.Sin(uv.x), Math.Sin(uv.y));
+            // toTorus is a similarity transformation, so it maps the unit normal onto a vector parallel to the normal
+            // of the transformed surface. A reflecting toTorus (as produced by ReverseOrientation) flips the normal.
+            if (factor < 0.0) n = -n;
+            if (toTorus.Determinant < 0.0) n = -n;
+            // the normal should always be normalized per definition
+            return n.Normalized;
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Make3dCurve (ICurve2D)"/>
@@ -2033,9 +2042,9 @@ namespace CADability.GeoObject
                     List<double> luOnCurve3Ds = new List<double>();
                     Plane epln = new Plane(Plane.StandardPlane.XYPlane, uelli.Center.z);
                     double s = pln.Location.z / minorRadius;
-                    if (s >= -1.0 && s <= 1.0)
+                    if (s >= -1.0 - Precision.eps && s <= 1.0 + Precision.eps)
                     {
-                        double v = Math.Asin(s);
+                        double v = Math.Asin(Math.Max(-1, Math.Min(1, s)));
                         ImplicitPSurface dbg = (this as IImplicitPSurface).GetImplicitPSurface();
 
                         //ICurve bigCircle1 = FixedV(v, 0, Math.PI * 2);

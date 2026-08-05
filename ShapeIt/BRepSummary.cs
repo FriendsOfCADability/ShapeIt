@@ -198,11 +198,32 @@ namespace ShapeIt
     /// </summary>
     public static class ShellMetrics
     {
-        /// <summary>Precision passed to the triangulation; 0 means "let CADability choose", as elsewhere in the code.</summary>
-        private const double TriangulationPrecision = 0.0;
+        /// <summary>The triangulation precision, relative to the size of the shell.</summary>
+        private const double RelativeTriangulationPrecision = 1e-3;
+
+        /// <summary>
+        /// The precision volume, area and extent are computed with. It must not be 0.0, which is what the rest of
+        /// the code passes: <see cref="Face.AssureTriangles"/> then reuses whatever triangulation happens to exist
+        /// - however coarse it was made - and invents "extent size / 10" when there is none. Volume and area
+        /// would then depend on what ran before in the same process, and a case really did come out with a 10%
+        /// different area depending on whether it ran alone or in a full suite.
+        /// <para>
+        /// The precision is derived from the exact geometry only - vertex positions and edge curves, never from a
+        /// triangulation - so it is the same number in every run.
+        /// </para>
+        /// </summary>
+        public static double PrecisionFor(Shell shell)
+        {
+            BoundingBox box = BoundingBox.EmptyBoundingBox;
+            foreach (Vertex vertex in shell.Vertices) box.MinMax(vertex.Position);
+            foreach (Edge edge in shell.Edges) if (edge.Curve3D != null) box.MinMax(edge.Curve3D.GetExtent());
+            double size = box.IsEmpty ? 1.0 : box.Size;
+            return Math.Max(size, 1e-6) * RelativeTriangulationPrecision;
+        }
 
         public static void Describe(BRepSummary summary, string prefix, Shell shell)
         {
+            double precision = PrecisionFor(shell);
             Add(summary, prefix + "consistent", () => shell.CheckConsistency() ? "true" : "false");
             Add(summary, prefix + "faces", () => shell.Faces.Length.ToString(CultureInfo.InvariantCulture));
             Add(summary, prefix + "edges", () => RealEdgeCount(shell).ToString(CultureInfo.InvariantCulture));
@@ -214,10 +235,10 @@ namespace ShapeIt
             // pole edges do not count as edges, they must not make a shell count as open either.
             Add(summary, prefix + "closed", () => shell.OpenEdgesExceptPoles.Length == 0 ? "true" : "false");
             Add(summary, prefix + "openEdges", () => shell.OpenEdgesExceptPoles.Length.ToString(CultureInfo.InvariantCulture));
-            Add(summary, prefix + "volume", () => BRepSummary.Format(shell.Volume(TriangulationPrecision)));
+            Add(summary, prefix + "volume", () => BRepSummary.Format(shell.Volume(precision)));
             Add(summary, prefix + "area", () => BRepSummary.Format(SurfaceArea(shell)));
             Add(summary, prefix + "edgeLength", () => BRepSummary.Format(TotalEdgeLength(shell)));
-            Add(summary, prefix + "extent", () => FormatExtent(shell.GetExtent(TriangulationPrecision)));
+            Add(summary, prefix + "extent", () => FormatExtent(shell.GetExtent(precision)));
             Add(summary, prefix + "surfaces", () => SurfaceHistogram(shell));
         }
 
@@ -286,10 +307,11 @@ namespace ShapeIt
         /// <summary>The 3d surface area, summed over the triangulation of all faces (the same source Volume uses).</summary>
         public static double SurfaceArea(Shell shell)
         {
+            double precision = PrecisionFor(shell);
             double sum = 0.0;
             foreach (Face face in shell.Faces)
             {
-                face.GetTriangulation(TriangulationPrecision, out GeoPoint[] points, out _, out int[] indices, out _);
+                face.GetTriangulation(precision, out GeoPoint[] points, out _, out int[] indices, out _);
                 for (int i = 0; i < indices.Length; i += 3)
                 {
                     GeoVector a = points[indices[i + 1]] - points[indices[i]];
@@ -332,7 +354,7 @@ namespace ShapeIt
         /// </summary>
         public static Shell[] SortCanonically(IEnumerable<Shell> shells)
         {
-            return shells.OrderByDescending(s => Safe(() => s.Volume(TriangulationPrecision)))
+            return shells.OrderByDescending(s => Safe(() => s.Volume(PrecisionFor(s))))
                          .ThenByDescending(s => s.Faces.Length)
                          .ThenByDescending(s => Safe(() => SurfaceArea(s)))
                          .ToArray();
