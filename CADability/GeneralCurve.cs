@@ -1009,6 +1009,15 @@ namespace CADability.GeoObject
             res.surface = surface;
             return res;
         }
+        public void SurfaceModified(ModOp2D toNewSurface)
+        {
+            surfaceCurve = surfaceCurve.GetModified(toNewSurface);
+            InvalidateSecondaryData();
+        }
+        public ISurface Surface
+        {
+            get { return surface; }
+        }
         public override IGeoObject Clone()
         {
             return Construct(surfaceCurve, surface);

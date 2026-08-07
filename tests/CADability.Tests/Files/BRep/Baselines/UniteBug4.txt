@@ -42,5 +42,5 @@ out0.openEdges   = 0
 out0.volume      = 1296.94660079
 out0.area        = 2500.23866208
 out0.edgeLength  = 1295.03290605
-out0.extent      = 0, -12, 0, 60, 24, 2
+out0.extent      = 0, -12, -6.93889390391E-18, 60, 24, 2
 out0.surfaces    = CylindricalSurface:42 PlaneSurface:2

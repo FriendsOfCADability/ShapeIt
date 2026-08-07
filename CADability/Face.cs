@@ -9537,6 +9537,11 @@ namespace CADability.GeoObject
                         if (!edg.Forward(edg.SecondaryFace)) edg.SecondaryCurve2D.Reverse();
                     }
                 }
+                else if (edg.Curve3D is CurveOnSurface cons && cons.Surface==Surface)
+                {
+                    // Handle CurveOnSurface case
+                    cons.SurfaceModified(m);
+                }
             }
             area = null;
             SimpleShape ss = Area; // force area recalc

@@ -1,0 +1,29 @@
+{
+    "RPCCalls": [
+        {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "solid.box",
+            "params": {
+                "name": "Box100x80x40",
+                "origin": [
+                    0,
+                    0,
+                    0
+                ],
+                "sizeX": 100,
+                "sizeY": 80,
+                "sizeZ": 40
+            }
+        },
+
+        {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "document.commit_objects",
+            "params": {
+                "objects": "Box100x80x40"
+            }
+        }
+    ]
+}

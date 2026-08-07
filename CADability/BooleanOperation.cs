@@ -3494,8 +3494,18 @@ namespace CADability
                     var key = ofc.Vertices.ToImmutableHashSet(EqualityComparer<Vertex>.Default);
                     if (trimmedFaceSignatures.TryGetValue(key, out var list))
                     {
-                        trimmedFaces.ExceptWith(list);
-                        discardedFaces.UnionWith(list);
+                        // there is really the case, where a overlapping face has the same vertices as a trimmed face but is still diferent.
+                        // So we need to check, whether the overlapping face is really inside the trimmed face
+                        // e.g. UniteBug23
+                        for (int i = 0; i < list.Count; i++)
+                        {
+                            GeoPoint somePointOnFace = list[i].Surface.PointAt(list[i].Area.GetSomeInnerPoint());
+                            if (ofc.Contains(somePointOnFace,false))
+                            {
+                                trimmedFaces.Remove(list[i]);
+                                discardedFaces.Add(list[i]);
+                            }
+                        }
                     }
                 }
                 trimmedFaces.UnionWith(trimmedOverlappingFaces);

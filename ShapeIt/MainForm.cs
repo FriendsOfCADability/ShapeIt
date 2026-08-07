@@ -18,6 +18,7 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml;
@@ -152,16 +153,22 @@ namespace ShapeIt
             MathNet.Numerics.Control.MaxDegreeOfParallelism = 1;
 #endif
             string fileName = "";
-            bool debug = false;
+            bool debugBRep = false;
             bool nofile = false;
+            bool debugRPC = false;
             for (int i = 0; i < args.Length; i++)
             {
                 if (!args[i].StartsWith("-"))
                 {
                     fileName = args[i];
-                } else if (args[i] == "-d")
+                }
+                else if (args[i] == "-d")
                 {
-                    debug = true;
+                    debugBRep = true;
+                }
+                else if (args[i] == "-r")
+                {
+                    debugRPC = true;
                 }
                 else if (args[i] == "-x")
                 {   // so I can leave the file name in the command line, but don't want to open it, e.g. for debugging
@@ -169,9 +176,15 @@ namespace ShapeIt
                 }
             }
 
-            if (debug)
+            if (debugBRep)
             {
-                AutoDebug(args[1]);
+                DebugBRep(args[1]);
+                Close();
+                return;
+            }
+            if (debugRPC)
+            {
+                DebugRPC(args[1]);
                 Close();
                 return;
             }
@@ -345,6 +358,80 @@ namespace ShapeIt
         }
 
         /// <summary>
+        /// Debug helper: executes the JSON-RPC calls of an RPC case file (see tests/CADability.Tests/Files/RPC).
+        /// Such a file is a JSON object with a single array "RPCCalls", each entry being a complete JSON-RPC
+        /// request. The requests are handed to <see cref="MCPServer.ProcessMethod(JsonElement, bool)"/> directly,
+        /// i.e. without HTTP and without an MCP client, so the whole call chain can be stepped through here.
+        /// <para>
+        /// The calls typically build one or more solids and insert them into the project with
+        /// document.commit_objects; this is the same path a regression test will take later, which is why
+        /// everything is logged the way the test would compare it.
+        /// </para>
+        /// </summary>
+        /// <param name="filename">The RPC case file to run, given on the command line as -r &lt;file&gt;.</param>
+        private void DebugRPC(string filename)
+        {
+            if (string.IsNullOrEmpty(filename)) return;
+            if (!File.Exists(filename))
+            {   // never fail silently, a mistyped path would otherwise look like an empty run
+                Trace.WriteLine($"DebugRPC: file not found: {filename}");
+                return;
+            }
+            string caseName = System.IO.Path.GetFileNameWithoutExtension(filename);
+
+            // The calls need a project: document.commit_objects adds the solids to its active model.
+            CadFrame.GenerateNewProject();
+            MCPServer server = new MCPServer(CadFrame, CadFrame.Project);
+            // Run unattended: errors end up in the protocol instead of in a modal message box.
+            server.SuppressDialogs = true;
+
+            int executed = 0;
+            int total = 0;
+            Stopwatch watch = Stopwatch.StartNew();
+            try
+            {
+                // The JsonElements handed to ProcessMethod stay valid only as long as the document lives,
+                // so all calls are executed inside this using block.
+                using JsonDocument doc = JsonDocument.Parse(File.ReadAllText(filename));
+                if (!doc.RootElement.TryGetProperty("RPCCalls", out JsonElement calls) || calls.ValueKind != JsonValueKind.Array)
+                {
+                    Trace.WriteLine($"DebugRPC {caseName}: no array 'RPCCalls' in {filename}");
+                    return;
+                }
+                total = calls.GetArrayLength();
+                foreach (JsonElement call in calls.EnumerateArray())
+                {
+                    server.ProcessMethod(call); // this is the line to step into
+                    ++executed;
+                    if (server.stopExecution) break; // an error occurred and further processing was canceled
+                }
+            }
+            catch (Exception e)
+            {
+                Trace.WriteLine($"DebugRPC {caseName}: exception after {executed} calls: {e.Message}");
+            }
+            watch.Stop();
+
+            Trace.WriteLine($"DebugRPC {caseName}: {executed} of {total} calls executed"
+                + $" ({watch.ElapsedMilliseconds} ms, stopped={server.stopExecution})");
+            Trace.WriteLine(server.Protocol); // request and response of every call, as in the "Protokoll" tab
+
+            // What ended up in the document is the actual result of the run and what the regression test
+            // will have to check.
+            Model model = CadFrame.Project.GetActiveModel();
+            GeoObjectList committed = model.AllObjects;
+            Trace.WriteLine($"DebugRPC {caseName}: {committed.Count} object(s) in the model:");
+            for (int i = 0; i < committed.Count; i++)
+            {
+                IGeoObject go = committed[i];
+                string name = (go as Solid)?.Name;
+                BoundingBox extent = go.GetExtent(0.0);
+                Trace.WriteLine($"  {(string.IsNullOrEmpty(name) ? "(unnamed)" : name)}: {go.GetType().Name}"
+                    + $", extent ({extent.Xmin:F3},{extent.Ymin:F3},{extent.Zmin:F3})-({extent.Xmax:F3},{extent.Ymax:F3},{extent.Zmax:F3})");
+            }
+        }
+
+        /// <summary>
         /// Debug helper: opens a project that describes a BRep test case and executes it. The case is described
         /// inside the project itself - the styles "Operand1"/"Operand2"/"EdgeMarker" plus a text object naming
         /// the operation, see <see cref="BRepCaseReader"/>.
@@ -356,7 +443,7 @@ namespace ShapeIt
         /// </para>
         /// </summary>
         /// <param name="filename">The project to run; the most recently used file when empty.</param>
-        private void AutoDebug(string filename)
+        private void DebugBRep(string filename)
         {
             if (string.IsNullOrEmpty(filename))
             {

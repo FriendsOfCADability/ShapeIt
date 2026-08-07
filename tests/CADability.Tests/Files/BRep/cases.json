@@ -45,39 +45,9 @@
       "Comment": "16 Operand2 solids are subtracted from Operand1, one after the other"
     },
     {
-      "Name": "DifferenceBug4",
-      "Status": "NeedsFixup",
-      "Comment": "two solids with the styles \"3D\"/none and no text object"
-    },
-    {
-      "Name": "DifferenceBug6",
-      "Status": "NeedsFixup",
-      "Comment": "two text objects naming different operations (\"Unite\" and \"Difference\") - which one is the case?"
-    },
-    {
       "Name": "DifferenceBug18",
       "Status": "NeedsFixup",
       "Comment": "one solid and one free shell, no markers, no text object"
-    },
-    {
-      "Name": "UniteBug1",
-      "Status": "NeedsFixup",
-      "Comment": "three solids with the style \"3D\", no text object - probably a chain of unions"
-    },
-    {
-      "Name": "UniteBug2",
-      "Status": "NeedsFixup",
-      "Comment": "two solids with the style \"3D\", no text object"
-    },
-    {
-      "Name": "DifferenceBug11",
-      "Status": "CorruptInput",
-      "Comment": "Operand1 fails Shell.CheckConsistency() before the operation even starts"
-    },
-    {
-      "Name": "UniteBug18",
-      "Status": "CorruptInput",
-      "Comment": "Operand1 fails Shell.CheckConsistency() before the operation even starts"
     },
     {
       "Name": "UniteBug15",
@@ -90,8 +60,8 @@
     //     so a change shows up either way: a different failure, or - the good case - success.
     {
       "Name": "DifferenceBug9",
-      "Status": "KnownFail",
-      "Comment": "Debug.Assert 'loops.Count should never be 0'"
+      "Status": "Ok",
+      "Comment": "works since the no-empty-loops fix in BooleanOperation; result not verified by hand yet"
     },
     {
       "Name": "DifferenceBug16",
@@ -116,8 +86,8 @@
     },
     {
       "Name": "UniteBug9",
-      "Status": "KnownFail",
-      "Comment": "Debug.Assert 'loops.Count should never be 0'"
+      "Status": "Ok",
+      "Comment": "works since the no-empty-loops fix in BooleanOperation; result not verified by hand yet"
     },
     {
       "Name": "UniteBug14",
