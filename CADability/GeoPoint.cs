@@ -1192,7 +1192,7 @@ namespace CADability
         }
         public double Distance(GeoPoint2D p)
         {
-            return Geometry.DistPL(p, Location,Direction);
+            return Geometry.DistPL(p, Location, Direction);
         }
         #region ISerializable Members
         /// <summary>
@@ -1714,6 +1714,15 @@ namespace CADability
         {
             return (x == 0.0 && y == 0.0);
         }
+
+        public bool IsValid
+        {
+            get
+            {
+                return !double.IsNaN(x) && !double.IsNaN(y) && !double.IsInfinity(x) && !double.IsInfinity(y);
+            }
+        }
+
         public static GeoVector2D XAxis
         {
             get { return new GeoVector2D(1.0, 0.0); }

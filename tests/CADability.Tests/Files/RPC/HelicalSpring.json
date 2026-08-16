@@ -1,157 +1,206 @@
 {
-	"RPCCalls": [
-		{
-			"jsonrpc": "2.0",
-			"id": 1,
-			"method": "solid.box",
-			"params": {
-				"name": "block",
-				"origin": [
-					0,
-					0,
-					0
-				],
-				"sizeX": 80,
-				"sizeY": 30,
-				"sizeZ": 20
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 2,
-			"method": "sketch.create",
-			"params": {
-				"name": "wireProfile",
-				"plane": {
-					"origin": [
-						40,
-						15,
-						0
-					],
-					"xAxis": [
-						1,
-						0,
-						0
-					],
-					"yAxis": [
-						0,
-						0,
-						1
-					]
-				}
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 3,
-			"method": "sketch.add_circle",
-			"params": {
-				"sketch": {
-					"name": "wireProfile"
-				},
-				"center": [
-					10,
-					23
-				],
-				"radius": 2
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 4,
-			"method": "solid.helical_extrude",
-			"params": {
-				"name": "coil",
-				"profile": "wireProfile",
-				"axis": {
-					"origin": [
-						40,
-						15,
-						0
-					],
-					"direction": [
-						0,
-						0,
-						1
-					]
-				},
-				"angle": 1632,
-				"pitch": 7.5
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 5,
-			"method": "solid.cylinder",
-			"params": {
-				"name": "basePlate",
-				"start": [
-					40,
-					15,
-					19
-				],
-				"end": [
-					40,
-					15,
-					26
-				],
-				"radius": 13
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 6,
-			"method": "solid.cylinder",
-			"params": {
-				"name": "topCap",
-				"start": [
-					40,
-					15,
-					54
-				],
-				"end": [
-					40,
-					15,
-					60
-				],
-				"radius": 13
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 7,
-			"method": "inspect.summary",
-			"params": {
-				"objects": [
-					"block",
-					"coil",
-					"basePlate",
-					"topCap"
-				]
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 1,
-			"method": "solid.boolean",
-			"params": {
-				"op": "union",
-				"a": "block",
-				"b": [
-					"basePlate",
-					"coil",
-					"topCap"
-				],
-				"name": "FederBlock"
-			}
-		},
-		{
-			"jsonrpc": "2.0",
-			"id": 2,
-			"method": "inspect.summary",
-			"params": {
-				"objects": "FederBlock"
-			}
-		}
-	]
+  "CaseStatus": "Ok",
+  "Verify": [
+    "coil",
+    "FederBlock"
+  ],
+  "Baseline": {
+    "FederBlock": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The basic helical sweep with a block, a base plate and a cap; the case exists as the smoke test that the whole chain runs at all.",
+      "consistent": "true",
+      "faces": "15",
+      "edges": "48",
+      "poleEdges": "0",
+      "vertices": "38",
+      "holeLoops": "3",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "57318.5956775",
+      "area": "13967.4072605",
+      "edgeLength": "1480.24159262",
+      "extent": "0, 0, 0, 80, 30, 60",
+      "surfaces": "CylindricalSurface:4 HelicalSweepSurface:2 PlaneSurface:9"
+    },
+    "coil": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The basic helical sweep with a block, a base plate and a cap; the case exists as the smoke test that the whole chain runs at all.",
+      "consistent": "true",
+      "faces": "22",
+      "edges": "42",
+      "poleEdges": "0",
+      "vertices": "22",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3572.03012652",
+      "area": "3501.13002603",
+      "edgeLength": "712.114972661",
+      "extent": "28.0105260388, 3.02367925886, 21, 52, 26.9973682017, 59",
+      "surfaces": "HelicalSweepSurface:20 PlaneSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "block",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 80,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.create",
+      "params": {
+        "name": "wireProfile",
+        "plane": {
+          "origin": [
+            40,
+            15,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wireProfile"
+        },
+        "center": [
+          10,
+          23
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil",
+        "profile": "wireProfile",
+        "axis": {
+          "origin": [
+            40,
+            15,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1632,
+        "pitch": 7.5
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "basePlate",
+        "start": [
+          40,
+          15,
+          19
+        ],
+        "end": [
+          40,
+          15,
+          26
+        ],
+        "radius": 13
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "topCap",
+        "start": [
+          40,
+          15,
+          54
+        ],
+        "end": [
+          40,
+          15,
+          60
+        ],
+        "radius": 13
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "block",
+          "coil",
+          "basePlate",
+          "topCap"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "block",
+        "b": [
+          "basePlate",
+          "coil",
+          "topCap"
+        ],
+        "name": "FederBlock"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.summary",
+      "params": {
+        "objects": "FederBlock"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": "FederBlock"
+      }
+    }
+  ]
 }

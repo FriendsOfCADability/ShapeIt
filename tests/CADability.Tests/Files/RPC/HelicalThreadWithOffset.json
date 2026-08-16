@@ -1,0 +1,291 @@
+{
+  "Description": "Helical extrusion with an angular offset, i.e. vmin > 0 in Make3D.MakeHelicalSolid. The same triangular thread profile as in HelicalThreadOnRod.json is extruded three times: without offset, with 90 degrees and with 180 degrees. The offset is a pure screw motion of the same body, so all three solids must be congruent and must have exactly the same volume; only their position along the axis differs by pitch * offset / 360 (0, 0.75 and 1.5). The last steps unite the offset thread with a clearly overlapping rod (radius 5.2 instead of 5, so the known coincident-face problem of HelicalThreadOnRod.json is not part of this case).",
+  "Expected": "All three threads: volume 248.814 (Pappus: profile area 1.8 * centroid radius 5.5 * swept angle 8*PI), 26 faces, no open edges. z ranges: [-1.2, 13.2], [-0.45, 13.95] and [0.3, 14.7]. The union with the rod yields a single solid.",
+  "Actual": "Before the fix 'offset' was parsed by the generated handler but never passed on, MakeHelicalSolid was always called with extrOffset = 0, so all three extrusions were identical. With extrOffset != 0 MakeHelicalSolid returned null, because the sweep surfaces are built on the edges of lid0 (which is already rotated by vmin and lifted by extrOffset) while vsteps still ran from vmin to vmax, applying the offset a second time: the side faces did not meet the lids and the faces did not sew into a shell.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "threadNoOffset",
+    "threadOffset90",
+    "threadOffset180",
+    "threadedRod"
+  ],
+  "Baseline": {
+    "threadNoOffset": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Three threads at 0, 90 and 180 degrees plus the rod; the offsets must not change the result other than by rotation.",
+      "consistent": "true",
+      "faces": "26",
+      "edges": "51",
+      "poleEdges": "0",
+      "vertices": "27",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "248.813759848",
+      "area": "861.266343211",
+      "edgeLength": "472.450560047",
+      "extent": "-6.5, -6.5, -1.2, 6.5, 6.5, 13.2",
+      "surfaces": "CylindricalSurface:8 HelicalSweepSurface:16 PlaneSurface:2"
+    },
+    "threadOffset180": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Three threads at 0, 90 and 180 degrees plus the rod; the offsets must not change the result other than by rotation.",
+      "consistent": "true",
+      "faces": "26",
+      "edges": "51",
+      "poleEdges": "0",
+      "vertices": "27",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "248.813811139",
+      "area": "861.263697984",
+      "edgeLength": "472.450560047",
+      "extent": "-6.5, -6.5, 0.3, 6.5, 6.5, 14.7",
+      "surfaces": "CylindricalSurface:8 HelicalSweepSurface:16 PlaneSurface:2"
+    },
+    "threadOffset90": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Three threads at 0, 90 and 180 degrees plus the rod; the offsets must not change the result other than by rotation.",
+      "consistent": "true",
+      "faces": "26",
+      "edges": "51",
+      "poleEdges": "0",
+      "vertices": "27",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "248.813736615",
+      "area": "861.266554374",
+      "edgeLength": "472.450560047",
+      "extent": "-6.5, -6.5, -0.45, 6.5, 6.5, 13.95",
+      "surfaces": "CylindricalSurface:8 HelicalSweepSurface:16 PlaneSurface:2"
+    },
+    "threadedRod": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Three threads at 0, 90 and 180 degrees plus the rod; the offsets must not change the result other than by rotation.",
+      "consistent": "true",
+      "faces": "16",
+      "edges": "45",
+      "poleEdges": "0",
+      "vertices": "31",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1465.64715432",
+      "area": "880.99057167",
+      "edgeLength": "513.691767599",
+      "extent": "-6.5, -6.5, 0, 6.5, 6.5, 15",
+      "surfaces": "CylindricalSurface:10 HelicalSweepSurface:2 PlaneSurface:4"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "threadProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "threadProfile"
+        },
+        "vertices": [
+          {
+            "x": 5,
+            "y": -1.2,
+            "b": 0
+          },
+          {
+            "x": 6.5,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 5,
+            "y": 1.2,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "threadNoOffset",
+        "profile": "threadProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1440,
+        "pitch": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "threadOffset90",
+        "profile": "threadProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1440,
+        "offset": 90,
+        "pitch": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "threadOffset180",
+        "profile": "threadProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1440,
+        "offset": 180,
+        "pitch": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "threadNoOffset",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.properties",
+      "params": {
+        "target": "threadOffset90",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "threadOffset180",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "rod",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          15
+        ],
+        "radius": 5.2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "threadOffset180",
+        "b": "rod",
+        "name": "threadedRod",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "inspect.properties",
+      "params": {
+        "target": "threadedRod",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": "threadedRod"
+      }
+    }
+  ]
+}

@@ -1356,6 +1356,9 @@ namespace CADability.GeoObject
 
         public static Shell MakeHelicalSolid(Face face, Axis axis, double pitch, double extrHeight, double extrOffset, bool rightHanded)
         {
+            // extrOffset and extrHeight are distances along the axis, so the direction must have the length 1.
+            // (HelicalSweepSurface and ModOp.Rotate normalize themselves, but ModOp.Translate below does not.)
+            axis = axis.Normalized;
             double K = pitch / (2.0 * Math.PI);
             double vmin = extrOffset / pitch * (2.0 * Math.PI);
             double vmax = (extrOffset + extrHeight) / pitch * (2.0 * Math.PI);
@@ -1366,12 +1369,61 @@ namespace CADability.GeoObject
             Face lid1 = face.Clone() as Face;
             lid1.Modify(ModOp.Translate((extrOffset + extrHeight) * axis.Direction) * ModOp.Rotate(axis.Location, axis.Direction, new SweepAngle(vmax)));
             List<Face> faces = [lid0, lid1];
+            // The sweep surfaces below are built on the edges of lid0, which is already rotated by vmin and lifted
+            // by extrOffset. The sweep therefore has to start at 0 and not at vmin, otherwise the offset would be
+            // applied twice and the side faces would not meet the lids (only visible when extrOffset != 0).
+            double vsweep = vmax - vmin;
+            int numSegments = (int)Math.Ceiling(vsweep / Math.PI); // segments of 180° or less
+            double[] vsteps = new double[numSegments + 1];
+            for (int i = 0; i < numSegments; i++)
+            {
+                vsteps[i] = vsweep * i / numSegments;
+            }
+            vsteps[numSegments] = vsweep;
             foreach (Edge edge in lid0.Edges)
             {
                 HelicalSweepSurface hs = new HelicalSweepSurface(edge.Curve3D.Clone(), pitch, axis);
-                BoundingRect bdr = new BoundingRect(0, 0, 1, vmax - vmin);
-                Face sideFace = Face.MakeFace(hs, bdr);
-                faces.Add(sideFace);
+                if (edge.Curve3D is Line line && Precision.SameDirection(line.StartDirection, axis.Direction, false))
+                {   // a line which is parallel to the axis: make a cylindrical surface
+                    GeoVector cylXaxis = line.StartPoint - Geometry.DropPL(line.StartPoint, axis.Location, axis.Direction);
+                    GeoVector cylYaxis = cylXaxis ^ axis.Direction;
+                    cylYaxis.Length = cylXaxis.Length;
+                    CylindricalSurface cs = new CylindricalSurface(axis.Location, cylXaxis, cylYaxis, (cylXaxis ^ cylYaxis).Normalized);
+                    // The u parameter must be calculated continuously and must not be taken from PositionOf, which
+                    // wraps u into [0, 2*PI): the corners would still be correct points, but wherever the sweep
+                    // crosses the seam of the cylinder the rectangle between them runs around the cylinder the wrong
+                    // way, so the patch ends up on the opposite side. The line is parallel to the axis, therefore
+                    // both of its endpoints have the same u, and the sweep rotates them by v. Whether u runs with or
+                    // against v depends on the orientation of the cylinder relative to the axis.
+                    double uSign = (cs.ZAxis * axis.Direction) > 0.0 ? 1.0 : -1.0;
+                    double uStart = cs.PositionOf(hs.PointAt(new GeoPoint2D(0, vsteps[0]))).x;
+                    for (int i = 0; i < numSegments; i++)
+                    {
+                        double ui = uStart + uSign * (vsteps[i] - vsteps[0]);
+                        double ui1 = uStart + uSign * (vsteps[i + 1] - vsteps[0]);
+                        // v of the cylinder is the position along its axis, that one is not periodic
+                        GeoPoint2D l0 = new GeoPoint2D(ui, cs.PositionOf(hs.PointAt(new GeoPoint2D(0, vsteps[i]))).y);
+                        GeoPoint2D l1 = new GeoPoint2D(ui, cs.PositionOf(hs.PointAt(new GeoPoint2D(1, vsteps[i]))).y);
+                        GeoPoint2D l2 = new GeoPoint2D(ui1, cs.PositionOf(hs.PointAt(new GeoPoint2D(1, vsteps[i + 1]))).y);
+                        GeoPoint2D l3 = new GeoPoint2D(ui1, cs.PositionOf(hs.PointAt(new GeoPoint2D(0, vsteps[i + 1]))).y);
+                        Polyline2D p2d = new Polyline2D([l0, l1, l2, l3, l0]);
+                        Border bdr = new Border(p2d);
+                        Face sideFace = Face.MakeFace(cs.Clone(), new SimpleShape(bdr));
+                        faces.Add(sideFace);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < numSegments; i++)
+                    {
+                        BoundingRect br = new BoundingRect(0, vsteps[i], 1, vsteps[i + 1]);
+                        Face sideFace = Face.MakeFace(hs.Clone(), br);
+                        faces.Add(sideFace);
+#if DEBUG
+                        sideFace.PositionOf(hs.PointAt(new GeoPoint2D(0.5, (vsteps[i] + vsteps[i + 1]) / 2)));
+#endif
+                    }
+                }
             }
             Shell[] shell = SewFaces(faces.ToArray());
             if (shell.Length == 1) return shell[0];
@@ -2775,6 +2827,23 @@ namespace CADability.GeoObject
                     path = faceShellPathCurve.Clone() as Path;
                 }
                 path.Flatten(); // Flatten wirft zu kurze segmente hoffentlich raus
+                bool splitted = false; // arcs which start and end on the axis are not allowed, they are splitted at the middle point
+                do
+                {
+                    splitted = false;
+                    for (int i = 0; i < path.CurveCount; i++)
+                    {
+                        if (path.Curves[i] is Ellipse elli && Precision.IsPointOnAxis(elli.StartPoint, axis) && Precision.IsPointOnAxis(elli.EndPoint, axis))
+                        {
+                            ICurve[] parts = path.Split(path.PositionOf(elli.PointAt(0.5)));
+                            splitted = true;
+                            path = Path.FromSegments(parts, true);
+                            path.Flatten();
+                            originalFace = null; // to recreate the face
+                            break;
+                        }
+                    }
+                } while (splitted);
                 bool fullRotation = rotation.IsCloseTo(Math.PI * 2.0);
                 if (originalFace == null)
                 {
@@ -2966,30 +3035,47 @@ namespace CADability.GeoObject
                                     // in normal cases, the spherical surface only provides less than half a sphere, so no pole inside the face when we use an approopriate
                                     // axis for the spherical surface:
                                     GeoVector sphereAxis = GeoVector.NullVector;
+                                    GeoPoint middlePoint = GeoPoint.Origin;
                                     if (arcs[i] != null && arcs[i + 1] != null)
                                     {
                                         GeoPoint p1, p2;
                                         p1 = arcs[i].PointAt(0.5);
                                         p2 = arcs[i + 1].PointAt(0.5);
                                         sphereAxis = (p2 - p1).Normalized;
+                                        middlePoint = p1;
                                     }
                                     else if (arcs[i] != null)
                                     {
-                                        sphereAxis = (arcs[i].PointAt(0.5) - e.Center).Normalized; // pole would be at arcs[i].PointAt(0.5)
-                                        if (sphereAxis * axis.Direction > 0) sphereAxis = sphereAxis + axis.Direction.Normalized; // bend it towards the rotation axis
-                                        else sphereAxis = sphereAxis - axis.Direction.Normalized;
+                                        GeoPoint p1, p2;
+                                        p1 = arcs[i].PointAt(0.5);
+                                        p2 = e.EndPoint;
+                                        sphereAxis = (p2 - p1).Normalized;
+                                        middlePoint = p1;
                                     }
                                     else if (arcs[i + 1] != null)
                                     {
-                                        sphereAxis = (arcs[i + 1].PointAt(0.5) - e.Center).Normalized;
-                                        if (sphereAxis * axis.Direction > 0) sphereAxis = sphereAxis + axis.Direction.Normalized;
-                                        else sphereAxis = sphereAxis - axis.Direction.Normalized;
+                                        GeoPoint p1, p2;
+                                        p1 = e.StartPoint;
+                                        p2 = arcs[i + 1].PointAt(0.5);
+                                        sphereAxis = (p2 - p1).Normalized;
+                                        middlePoint = p2;
                                     }
+                                    Line l1 = Line.TwoPoints(e.Center, e.Center + e.Radius * sphereAxis.Normalized);
                                     if (!sphereAxis.IsNullVector())
                                     {
                                         sphereAxis.Norm();
                                         sphereAxis.ArbitraryNormals(out GeoVector dirx, out GeoVector diry);
                                         surface = new SphericalSurface(e.Center, e.Radius * dirx, e.Radius * diry, e.Radius * sphereAxis);
+                                        GeoPoint2D mp2d = surface.PositionOf(middlePoint);
+                                        BoundingRect ext = new BoundingRect(mp2d);
+                                        surface.SetBounds(ext);
+                                        foreach (GeoPoint point in new GeoPoint[] { s1c[i].StartPoint, s1c[i].EndPoint, s1c[i].StartPoint, s1c[i].EndPoint })
+                                        {
+                                            GeoPoint2D p2d = surface.PositionOf(point); // respects the current bounds
+                                            SurfaceHelper.AdjustPeriodic(surface, ext, ref p2d); // extend a bit to avoid numerical problems
+                                            ext.MinMax(p2d);
+                                            surface.SetBounds(ext);
+                                        }
                                     }
                                 }
                                 else
@@ -3021,7 +3107,7 @@ namespace CADability.GeoObject
                         if (surface != null)
                         {   // Face.MakeFace sorts and orients the curves as needed. If a curve is null, it will not be used.
                             // poles will be generated by Face.MakeFace
-                            surface.SetBounds(BoundingRect.EmptyBoundingRect); // toroidal surfaces behave strange when the bounds are set
+                            if (!(surface is SphericalSurface)) surface.SetBounds(BoundingRect.EmptyBoundingRect); // toroidal surfaces behave strange when the bounds are set
                             Face fc = Face.MakeFace(surface, [s2c[i], arcs[i], s1c[i], arcs[i + 1]]);
                             if (fc != null) faces.Add(fc);
 #if DEBUG

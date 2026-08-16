@@ -1,0 +1,498 @@
+{
+  "Description": "TODO: what does this case build, and why does it exist?",
+  "Expected": "TODO: what is the right result, and how do you know?",
+  "CaseStatus": "KnownFail",
+  "Verify": [
+    "die"
+  ],
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "document.get_state",
+      "params": {}
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "rpc.batch",
+      "params": {
+        "calls": [
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "solid.box",
+            "params": {
+              "name": "dieBody",
+              "origin": [
+                0,
+                0,
+                0
+              ],
+              "sizeX": 10,
+              "sizeY": 10,
+              "sizeZ": 10
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "workspace.select",
+            "params": {
+              "name": "allEdges",
+              "selector": "dieBody",
+              "type": "edges"
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "feature.fillet",
+            "params": {
+              "solid": "dieBody",
+              "edges": "allEdges",
+              "radius": 1
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "inspect.summary",
+            "params": {
+              "objects": "dieBody"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "rpc.batch",
+      "params": {
+        "calls": [
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p1_1",
+              "center": [
+                5,
+                5,
+                10.25
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p6_1",
+              "center": [
+                2.5,
+                2.5,
+                -0.25
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p6_2",
+              "center": [
+                2.5,
+                5,
+                -0.25
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p6_3",
+              "center": [
+                2.5,
+                7.5,
+                -0.25
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p6_4",
+              "center": [
+                7.5,
+                2.5,
+                -0.25
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p6_5",
+              "center": [
+                7.5,
+                5,
+                -0.25
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p6_6",
+              "center": [
+                7.5,
+                7.5,
+                -0.25
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 8,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p2_1",
+              "center": [
+                10.25,
+                2.5,
+                2.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 9,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p2_2",
+              "center": [
+                10.25,
+                7.5,
+                7.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 10,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p5_1",
+              "center": [
+                -0.25,
+                2.5,
+                2.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 11,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p5_2",
+              "center": [
+                -0.25,
+                7.5,
+                2.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 12,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p5_3",
+              "center": [
+                -0.25,
+                2.5,
+                7.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 13,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p5_4",
+              "center": [
+                -0.25,
+                7.5,
+                7.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 14,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p5_5",
+              "center": [
+                -0.25,
+                5,
+                5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 15,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p3_1",
+              "center": [
+                2.5,
+                10.25,
+                2.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 16,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p3_2",
+              "center": [
+                5,
+                10.25,
+                5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 17,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p3_3",
+              "center": [
+                7.5,
+                10.25,
+                7.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 18,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p4_1",
+              "center": [
+                2.5,
+                -0.25,
+                2.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 19,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p4_2",
+              "center": [
+                7.5,
+                -0.25,
+                2.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 20,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p4_3",
+              "center": [
+                2.5,
+                -0.25,
+                7.5
+              ],
+              "radius": 0.75
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 21,
+            "method": "solid.sphere",
+            "params": {
+              "name": "p4_4",
+              "center": [
+                7.5,
+                -0.25,
+                7.5
+              ],
+              "radius": 0.75
+            }
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "dieBody",
+        "b": [
+          "p1_1",
+          "p6_1",
+          "p6_2",
+          "p6_3",
+          "p6_4",
+          "p6_5",
+          "p6_6",
+          "p2_1",
+          "p2_2",
+          "p5_1",
+          "p5_2",
+          "p5_3",
+          "p5_4",
+          "p5_5",
+          "p3_1",
+          "p3_2",
+          "p3_3",
+          "p4_1",
+          "p4_2",
+          "p4_3",
+          "p4_4"
+        ],
+        "name": "die"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.properties",
+      "params": {
+        "target": "die",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 0.00001
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.scene",
+      "params": {
+        "objects": "die",
+        "viewDirection": "isometric",
+        "includeImage": true,
+        "imageSize": {
+          "width": 700,
+          "height": 700
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.scene",
+      "params": {
+        "objects": "die",
+        "viewDirection": [
+          1,
+          1,
+          1
+        ],
+        "includeImage": true,
+        "imageSize": {
+          "width": 700,
+          "height": 700
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "rpc.batch",
+      "params": {
+        "calls": [
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "workspace.delete",
+            "params": {
+              "objects": [
+                "dieBody",
+                "allEdges",
+                "p1_1",
+                "p6_1",
+                "p6_2",
+                "p6_3",
+                "p6_4",
+                "p6_5",
+                "p6_6",
+                "p2_1",
+                "p2_2",
+                "p5_1",
+                "p5_2",
+                "p5_3",
+                "p5_4",
+                "p5_5",
+                "p3_1",
+                "p3_2",
+                "p3_3",
+                "p4_1",
+                "p4_2",
+                "p4_3",
+                "p4_4"
+              ]
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "document.commit_objects",
+            "params": {
+              "objects": "die"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

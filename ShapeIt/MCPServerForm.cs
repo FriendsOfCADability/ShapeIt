@@ -302,11 +302,21 @@ namespace ShapeIt
                 if (!string.IsNullOrEmpty(text)) Clipboard.SetText(text);
             };
 
+            // Turns the session into a regression case: the recorded requests plus the fields the harness
+            // needs. No result is written - what the case has to produce is recorded later by a regenerate
+            // run, once the outcome has been judged correct.
+            Button exportCaseButton = new Button();
+            exportCaseButton.Text = "Als Testfall...";
+            exportCaseButton.Dock = DockStyle.Right;
+            exportCaseButton.Width = 130;
+            exportCaseButton.Click += (s, e) => ExportAsTestCase();
+
             protocolTextBox.TextDoubleClicked += (s, e) => ShowImageUnderCaret();
 
             protocolButtonPanel.Controls.Add(clearProtocolButton);
             protocolButtonPanel.Controls.Add(copyProtocolButton);
             protocolButtonPanel.Controls.Add(copyCallsButton);
+            protocolButtonPanel.Controls.Add(exportCaseButton);
 
             protocolTab.Controls.Add(protocolTextBox);
             protocolTab.Controls.Add(protocolButtonPanel);
@@ -335,6 +345,55 @@ namespace ShapeIt
             if (InvokeRequired) BeginInvoke(new Action(RefreshProtocol));
             else RefreshProtocol();
         }
+
+        /// <summary>
+        /// Writes the recorded session as an RPC regression case file (see
+        /// tests/CADability.Tests/Files/RPC/readme.md). Only the calls are exported, never a result: what the
+        /// case has to produce is recorded by a regenerate run of the harness, after the outcome has been
+        /// judged correct - which is a decision the export cannot make.
+        /// </summary>
+        private void ExportAsTestCase()
+        {
+            int callCount = server.ProtocolCallCount;
+            if (callCount == 0)
+            {
+                MessageBox.Show(this, "Das Protokoll enthält keine Aufrufe, die exportiert werden könnten.",
+                    "Als Testfall exportieren", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            using SaveFileDialog dialog = new SaveFileDialog();
+            dialog.Title = $"Sitzung als Testfall exportieren ({callCount} Aufrufe)";
+            dialog.Filter = "RPC-Testfall (*.json)|*.json|Alle Dateien (*.*)|*.*";
+            dialog.DefaultExt = "json";
+            dialog.AddExtension = true;
+            dialog.FileName = "Case" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".json";
+            if (lastExportDirectory != null && Directory.Exists(lastExportDirectory)) dialog.InitialDirectory = lastExportDirectory;
+            if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+            try
+            {
+                File.WriteAllText(dialog.FileName, server.BuildRpcCaseFile());
+                lastExportDirectory = System.IO.Path.GetDirectoryName(dialog.FileName);
+                MessageBox.Show(this,
+                    $"{callCount} Aufruf(e) geschrieben nach\n{dialog.FileName}\n\n"
+                    + "Noch zu tun:\n"
+                    + "  1. \"Description\" und \"Expected\" ausfüllen.\n"
+                    + "  2. \"Verify\" auf die Objekte kürzen, um die es geht.\n"
+                    + "  3. Datei nach tests/CADability.Tests/Files/RPC legen.\n"
+                    + "  4. Wenn das Ergebnis stimmt: in run.json \"Regenerate\" setzen, Test laufen lassen,\n"
+                    + "     den Diff prüfen, \"verified\"-Notiz ergänzen und \"CaseStatus\" auf \"Ok\" setzen.",
+                    "Als Testfall exportieren", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Die Datei konnte nicht geschrieben werden:\n" + ex.Message,
+                    "Als Testfall exportieren", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>Remembered between exports so the next one starts in the same folder.</summary>
+        private string? lastExportDirectory;
 
         /// <summary>
         /// Opens the image whose placeholder is on the double clicked line. Lines without a

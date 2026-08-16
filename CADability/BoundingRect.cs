@@ -320,7 +320,7 @@ namespace CADability
         /// Inflates the rectangle by a factor relative to its <see cref="BoundingRect.Size"/>.
         /// </summary>
         /// <param name="factor"></param>
-        public void InflateRelative(double factor)
+        public void InflateRelativeToSize(double factor)
         {
             double d = Size * factor - Size;
             if (!IsEmpty())
@@ -329,6 +329,22 @@ namespace CADability
                 Right += d;
                 Bottom -= d;
                 Top += d;
+            }
+        }
+        /// <summary>
+        /// Inflates the rectangle by a factor relative to its <see cref="BoundingRect.Size"/>.
+        /// </summary>
+        /// <param name="factor"></param>
+        public void InflateRelative(double factor)
+        {
+            double dx = Width * factor - Width;
+            double dy = Height * factor - Height;
+            if (!IsEmpty())
+            {
+                Left -= dx;
+                Right += dx;
+                Bottom -= dy;
+                Top += dy;
             }
         }
         /// <summary>

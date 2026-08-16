@@ -1,0 +1,326 @@
+{
+  "Description": "Two identical hollow cubes: a 10 mm cube with a spherical cavity of radius 4 at its centre. Cube A spans (0,0,0)..(10,10,10) with the cavity around (5,5,5); cube B is a copy of A moved by (5,5,5), so it spans (5,5,5)..(15,15,15) with its cavity around (10,10,10). The two solids overlap in the 5x5x5 block (5,5,5)..(10,10,10). Each cavity has exactly one octant inside the other cube, so the union must keep both cavities as closed 7/8 spheres. The cavities themselves do not touch: their centres are 5*sqrt(3) = 8.6603 apart, the sum of the radii is 8.",
+  "Expected": "V(cavity sphere) = 256*pi/3 = 268.082573. V(cubeHollowA) = V(cubeHollowB) = 1000 - 268.082573 = 731.917427. The intersection of the two solids is the 5x5x5 block minus the two cavity octants: V(intersect) = 125 - 2*268.082573/8 = 125 - 67.020643 = 57.979357. V(union) = 2*731.917427 - 57.979357 = 1405.855497. The difference A-B has a total volume of 731.917427 - 57.979357 = 673.938070, but consists of TWO separate solids: the octant of cavity B that reaches into A becomes material there and is cut off from the rest, because every one of its points has all coordinates >= 6 and therefore lies inside cube B, while the main part only exists where some coordinate is < 5. So V = 640.427749 (main part) + 33.510322 (the octant, one eighth of the cavity sphere). Topologically the union is ONE solid made of THREE shells: the outer hull plus two cavity shells, each a 7/8 sphere closed by three quarter-disc planar patches from the cube faces of the other body.",
+  "Status": "PASSES (2026-08-12, build 0.2.0.262, after the rule for untouched shell components was added). Keep as a regression guard.",
+  "Actual": "cubeHollowA = 731.916241, union = 1405.853345 (1 solid), intersect = 57.979361 (1 solid), difference = 2 solids with 640.427345 and 33.510376. All within 1.6e-6 relative of the exact values; the deviation is triangulation noise of the spherical faces.",
+  "CaseStatus": "Ok",
+  "Repeat": 4,
+  "Verify": [
+    "cubeHollowA",
+    "hollowUnion",
+    "hollowIntersect",
+    "hollowDifference"
+  ],
+  "Baseline": {
+    "cubeHollowA": {
+      "verified": "2026-08-14: checked against exact values, union 1405.855497 and intersect 125-2*256*pi/24 = 57.979357. The difference has two parts by construction, 640.427749 + 33.510322 - the octant of cavity B that reaches into A becomes material and is cut off from the rest.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "731.916241374",
+      "area": "801.010688904",
+      "edgeLength": "155.543063505",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:2"
+    },
+    "hollowDifference": {
+      "verified": "2026-08-14: checked against exact values, union 1405.855497 and intersect 125-2*256*pi/24 = 57.979357. The difference has two parts by construction, 640.427749 + 33.510322 - the octant of cavity B that reaches into A becomes material and is cut off from the rest.",
+      "solids": "2"
+    },
+    "hollowDifference#0": {
+      "verified": "2026-08-14: checked against exact values, union 1405.855497 and intersect 125-2*256*pi/24 = 57.979357. The difference has two parts by construction, 640.427749 + 33.510322 - the octant of cavity B that reaches into A becomes material and is cut off from the rest.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "30",
+      "poleEdges": "0",
+      "vertices": "21",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "640.427345486",
+      "area": "738.188902566",
+      "edgeLength": "187.949736489",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:9 SphericalSurface:2"
+    },
+    "hollowDifference#1": {
+      "verified": "2026-08-14: checked against exact values, union 1405.855497 and intersect 125-2*256*pi/24 = 57.979357. The difference has two parts by construction, 640.427749 + 33.510322 - the octant of cavity B that reaches into A becomes material and is cut off from the rest.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "33.5103763488",
+      "area": "62.8277445818",
+      "edgeLength": "35.2924388597",
+      "extent": "6, 6, 6, 10, 10, 10",
+      "surfaces": "PlaneSurface:3 SphericalSurface:2"
+    },
+    "hollowIntersect": {
+      "verified": "2026-08-14: checked against exact values, union 1405.855497 and intersect 125-2*256*pi/24 = 57.979357. The difference has two parts by construction, 640.427749 + 33.510322 - the octant of cavity B that reaches into A becomes material and is cut off from the rest.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "57.9793607983",
+      "area": "124.864362886",
+      "edgeLength": "82.5848777194",
+      "extent": "5, 5, 5, 10, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:4"
+    },
+    "hollowUnion": {
+      "verified": "2026-08-14: checked against exact values, union 1405.855497 and intersect 125-2*256*pi/24 = 57.979357. The difference has two parts by construction, 640.427749 + 33.510322 - the octant of cavity B that reaches into A becomes material and is cut off from the rest.",
+      "consistent": "true",
+      "faces": "22",
+      "edges": "54",
+      "poleEdges": "0",
+      "vertices": "38",
+      "holeLoops": "0",
+      "euler": "6",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1405.85334552",
+      "area": "1477.10947353",
+      "edgeLength": "363.899472977",
+      "extent": "0, 0, 0, 15, 15, 15",
+      "surfaces": "PlaneSurface:18 SphericalSurface:4"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "cubeA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.sphere",
+      "params": {
+        "name": "cavityA",
+        "center": [
+          5,
+          5,
+          5
+        ],
+        "radius": 4
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cubeA",
+        "b": "cavityA",
+        "name": "cubeHollowA",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "transform.move",
+      "params": {
+        "objects": "cubeHollowA",
+        "delta": [
+          5,
+          5,
+          5
+        ],
+        "name": "cubeHollowB"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "cubeHollowA",
+        "b": "cubeHollowB",
+        "name": "hollowUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "cubeHollowA",
+        "b": "cubeHollowB",
+        "name": "hollowIntersect",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cubeHollowA",
+        "b": "cubeHollowB",
+        "name": "hollowDifference",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "cubeHollowA",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.properties",
+      "params": {
+        "target": "hollowUnion",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "inspect.properties",
+      "params": {
+        "target": "hollowIntersect",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "workspace.select",
+      "params": {
+        "name": "differenceMain",
+        "selector": {
+          "query": {
+            "target": "solids",
+            "from": "hollowDifference",
+            "filter": {
+              "contains": [
+                0.5,
+                0.5,
+                0.5
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "inspect.properties",
+      "params": {
+        "target": "differenceMain",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "workspace.select",
+      "params": {
+        "name": "differenceOctant",
+        "selector": {
+          "query": {
+            "target": "solids",
+            "from": "hollowDifference",
+            "filter": {
+              "contains": [
+                9,
+                9,
+                9
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "inspect.properties",
+      "params": {
+        "target": "differenceOctant",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "cubeHollowA",
+          "hollowUnion",
+          "hollowIntersect",
+          "hollowDifference"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "hollowUnion",
+          "hollowIntersect",
+          "hollowDifference"
+        ]
+      }
+    }
+  ]
+}

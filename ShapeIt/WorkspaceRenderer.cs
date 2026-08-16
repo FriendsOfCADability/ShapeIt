@@ -91,10 +91,15 @@ namespace ShapeIt
             if (boundingCube.IsEmpty) return null;
 
             // Build a parallel projection from the requested view direction.
-            // Use world-Z as "up" hint; fall back to world-Y when nearly parallel to Z.
-            GeoVector up = Math.Abs(viewDirection.z) < 0.9
-                ? new GeoVector(0, 0, 1)
-                : new GeoVector(0, 1, 0);
+            // The top direction rule is the same one CADability uses for its views
+            // (see ProjectedModel.SetViewDirection and PaintToOpenGL.SetProjection):
+            // world Z is the "up" hint, so the Z axis always points upwards in the image.
+            // Only when looking along Z (top/bottom view), where that is impossible,
+            // world Y is used instead. The test must be a direction comparison, not a
+            // test on the z component, because viewDirection is not normalized.
+            GeoVector up = Precision.SameDirection(viewDirection, GeoVector.ZAxis, false)
+                ? GeoVector.YAxis
+                : GeoVector.ZAxis;
             var projection = new Projection(viewDirection, up);
 
             // Zoom-to-fit: project objects into 2-D, then fit the projection to the bitmap.

@@ -1,0 +1,839 @@
+{
+  "Description": "Tangency type 2: an edge of one solid lies in a face of the other. Axis aligned boxes cannot produce this - two boxes always meet in a face or along their face boundaries - so the touching body is a triangular prism, built from a three point profile in the xz plane and extruded along y. All coordinates stay rational and every expected volume is an exact integer.\nThe fixed partner is always the box (0,0,0)..(10,10,10); the contact is with its top face z=10, whose interior spans x,y in 0..10. The prism has cross section area 18 in every case, so its volume is 18 times the extrusion length.\nA note on the sub-cases, because one distinction that suggests itself does not actually exist: for a valid manifold solid, an edge lying in a plane always has the material on ONE side of that plane. Material on both sides would require the solid to be non-manifold along that edge. So there is no 'edge in face with the body straddling the plane' - a body that straddles meets the face in an AREA, which is the ordinary transversal intersection, included here as case b for comparison.",
+  "Expected": "a  prism standing on its apex edge, material entirely above z=10, contact line x=5, z=10, y=2..8, strictly inside the top face and not reaching its boundary. Prism volume 18*6 = 108.\n   union: the two bodies meet along a line only, so welding them would produce a non-manifold solid. Two separate solids of 1000 and 108 is the sound answer.\n   intersect: empty. difference box-prism: 1000, a clean box with 6 faces and 12 edges. difference prism-box: 108 unchanged.\nb  CONTROL, the same prism 2 mm lower so it really penetrates: apex at z=8. The submerged part is a triangle of depth 2 and half width 1, area 2, volume 2*6 = 12.\n   union 1000 + 108 - 12 = 1096, intersect 12, difference box-prism 988, difference prism-box 96.\nc  prism hanging inside the box, apex edge touching the top face from INSIDE. Volume 108, entirely within the box.\n   union: 1000, the prism is absorbed. intersect: 108, the prism itself. difference box-prism: 892, with a cavity whose apex edge touches the top face along a line. difference prism-box: empty.\nd  the same prism as in a, but extruded from y=-2 to y=12, so its edge lies only PARTLY in the face and crosses the face boundary at (5,0,10) and (5,10,10). Volume 18*14 = 252.\n   union: two solids, 1000 and 252. intersect: empty. difference box-prism: 1000 - and it must be a CLEAN box, 6 faces / 12 edges / 8 vertices, because nothing is removed.\ne  the realistic case, where the edge contact is incidental: the tool is the prism of case a united with a peg (3,3,5)..(7,7,12) that crosses the top face transversally. Tool volume 108 + 112 - 8 = 212, the overlap of prism and peg being the integral of (z-10)*4 from 10 to 12.\n   intersect 80 (the part of the peg below z=10), union 1000 + 212 - 80 = 1132, difference box-tool 920, difference tool-box 132.",
+  "Status": "PASSES (2026-08-13). Keep as a regression guard for tangency type 2. Every expected volume is hit exactly in all five cases, the topology is minimal everywhere, and everything is deterministic - each of the four interesting operations was repeated 8 times with identical face and edge counts.\nFixed since the first measurement: case d, difference box minus prism, now returns the clean box with 6 faces / 12 edges / 8 vertices. It used to come back with 14 edges and 10 vertices, because the contact line crossing the top face from boundary to boundary split the two boundary edges it met and left two vertices behind with no edge between them. Case a, whose contact line stays strictly inside the face, was already clean, which is what located the defect at the contact line reaching the face boundary.\nCONVENTION, not a defect - cases a and d, union: the operation returns TWO separate solids rather than one, because welding bodies that meet along a line only would give a non-manifold solid. That is the defensible answer and it is what a caller can work with; worth confirming that it is intended rather than incidental. The same question will come back in tangency types 3 and 4, where every union is of this kind.",
+  "Actual (2026-08-13, current)": "a: prism 108 (5 faces / 9 edges), union = 2 solids with 1000 (6/12) and 108 (5/9), intersect empty, difference box-prism 1000 (6/12), difference prism-box 108 (5/9).\nb: union 1096 (11/24), intersect 12 (5/9), difference box-prism 988 (10/21), difference prism-box 96 (6/12).\nc: union 1000 (6/12), intersect 108 (5/9), difference box-prism 892 (11/21), difference prism-box empty.\nd: prism 252, union = 2 solids with 1000 (6/12) and 252 (5/9), intersect empty, difference box-prism 1000 (6/12).\ne: tool 212 (12/30), intersect 80 (6/12), union 1132 (19/44), difference box-tool 920 (11/24), difference tool-box 132 (14/32).\nDeterminism, 8 runs each: case a union 2 solids every time, case d union 2 solids every time, case d difference 6/12 every time, case a difference 6/12 every time.",
+  "Actual (first measurement)": "As above, except case d difference box-prism, which returned 1000 with 6 faces / 14 edges / 10 vertices.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "aWedge",
+    "aInter",
+    "aDiff",
+    "aUnion",
+    "bInter",
+    "bUnion",
+    "bDiff",
+    "cInter",
+    "cDiff",
+    "dDiff",
+    "eTool",
+    "eInter",
+    "eUnion",
+    "eDiff",
+    "eDiffRev"
+  ],
+  "Baseline": {
+    "aDiff": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "aInter": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "exists": "false"
+    },
+    "aUnion": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "solids": "2"
+    },
+    "aUnion#0": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "aUnion#1": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "108",
+      "area": "152.49844719",
+      "edgeLength": "56.83281573",
+      "extent": "2, 2, 10, 8, 8, 16",
+      "surfaces": "PlaneSurface:5"
+    },
+    "aWedge": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "108",
+      "area": "152.49844719",
+      "edgeLength": "56.83281573",
+      "extent": "2, 2, 10, 8, 8, 16",
+      "surfaces": "PlaneSurface:5"
+    },
+    "bDiff": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "21",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "988",
+      "area": "618.83281573",
+      "edgeLength": "150.94427191",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:10"
+    },
+    "bInter": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "12",
+      "area": "42.83281573",
+      "edgeLength": "30.94427191",
+      "extent": "4, 2, 8, 6, 8, 10",
+      "surfaces": "PlaneSurface:5"
+    },
+    "bUnion": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1096",
+      "area": "709.66563146",
+      "edgeLength": "177.88854382",
+      "extent": "0, 0, 0, 10, 10, 14",
+      "surfaces": "PlaneSurface:11"
+    },
+    "cDiff": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "21",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "892",
+      "area": "752.49844719",
+      "edgeLength": "176.83281573",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:11"
+    },
+    "cInter": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "108",
+      "area": "152.49844719",
+      "edgeLength": "56.83281573",
+      "extent": "2, 2, 4, 8, 8, 10",
+      "surfaces": "PlaneSurface:5"
+    },
+    "dDiff": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "eDiff": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "920",
+      "area": "680",
+      "edgeLength": "172",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:11"
+    },
+    "eDiffRev": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "32",
+      "poleEdges": "0",
+      "vertices": "20",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "132",
+      "area": "186.60990337",
+      "edgeLength": "105.77708764",
+      "extent": "2, 2, 10, 8, 8, 16",
+      "surfaces": "PlaneSurface:14"
+    },
+    "eInter": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "80",
+      "area": "112",
+      "edgeLength": "52",
+      "extent": "3, 3, 5, 7, 7, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "eTool": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "30",
+      "poleEdges": "0",
+      "vertices": "20",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "212",
+      "area": "266.60990337",
+      "edgeLength": "125.77708764",
+      "extent": "2, 2, 5, 8, 8, 16",
+      "surfaces": "PlaneSurface:12"
+    },
+    "eUnion": {
+      "verified": "2026-08-14: tangency type 2, all volumes exact integers. Case d difference must stay 6 faces / 12 edges - it once left two stray vertices behind. Cases a and d union return two solids on purpose: welding along a line only would be non-manifold, confirmed as intended.",
+      "consistent": "true",
+      "faces": "19",
+      "edges": "44",
+      "poleEdges": "0",
+      "vertices": "28",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1132",
+      "area": "754.60990337",
+      "edgeLength": "225.77708764",
+      "extent": "0, 0, 0, 10, 10, 16",
+      "surfaces": "PlaneSurface:19"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "tBox",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.create",
+      "params": {
+        "name": "aProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "aProfile"
+        },
+        "vertices": [
+          {
+            "x": 5,
+            "y": 10,
+            "b": 0
+          },
+          {
+            "x": 2,
+            "y": 16,
+            "b": 0
+          },
+          {
+            "x": 8,
+            "y": 16,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.extrude",
+      "params": {
+        "name": "aWedge",
+        "profile": "aProfile",
+        "direction": [
+          0,
+          1,
+          0
+        ],
+        "offset": 2,
+        "length": 6
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "tBox",
+        "b": "aWedge",
+        "name": "aInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "tBox",
+        "b": "aWedge",
+        "name": "aDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "assert.check",
+      "params": {
+        "objects": "aDiff",
+        "condition": "this.Volume > 999.999 && this.Volume < 1000.001",
+        "message": "nothing is removed here, the result must be the untouched box with V = 1000"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tBox",
+        "b": "aWedge",
+        "name": "aUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "sketch.create",
+      "params": {
+        "name": "bProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "bProfile"
+        },
+        "vertices": [
+          {
+            "x": 5,
+            "y": 8,
+            "b": 0
+          },
+          {
+            "x": 2,
+            "y": 14,
+            "b": 0
+          },
+          {
+            "x": 8,
+            "y": 14,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.extrude",
+      "params": {
+        "name": "bWedge",
+        "profile": "bProfile",
+        "direction": [
+          0,
+          1,
+          0
+        ],
+        "offset": 2,
+        "length": 6
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "tBox",
+        "b": "bWedge",
+        "name": "bInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "inspect.properties",
+      "params": {
+        "target": "bInter",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tBox",
+        "b": "bWedge",
+        "name": "bUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "tBox",
+        "b": "bWedge",
+        "name": "bDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "sketch.create",
+      "params": {
+        "name": "cProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "cProfile"
+        },
+        "vertices": [
+          {
+            "x": 5,
+            "y": 10,
+            "b": 0
+          },
+          {
+            "x": 2,
+            "y": 4,
+            "b": 0
+          },
+          {
+            "x": 8,
+            "y": 4,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.extrude",
+      "params": {
+        "name": "cWedge",
+        "profile": "cProfile",
+        "direction": [
+          0,
+          1,
+          0
+        ],
+        "offset": 2,
+        "length": 6
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "tBox",
+        "b": "cWedge",
+        "name": "cInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "tBox",
+        "b": "cWedge",
+        "name": "cDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "inspect.properties",
+      "params": {
+        "target": "cDiff",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "sketch.create",
+      "params": {
+        "name": "dProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "dProfile"
+        },
+        "vertices": [
+          {
+            "x": 5,
+            "y": 10,
+            "b": 0
+          },
+          {
+            "x": 2,
+            "y": 16,
+            "b": 0
+          },
+          {
+            "x": 8,
+            "y": 16,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.extrude",
+      "params": {
+        "name": "dWedge",
+        "profile": "dProfile",
+        "direction": [
+          0,
+          1,
+          0
+        ],
+        "offset": -2,
+        "length": 14
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "tBox",
+        "b": "dWedge",
+        "name": "dDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "inspect.summary",
+      "params": {
+        "objects": "dDiff"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "assert.check",
+      "params": {
+        "objects": "dDiff",
+        "condition": "this.Volume > 999.999 && this.Volume < 1000.001",
+        "message": "nothing is removed, the result must be the untouched box - and it must have 6 faces and 12 edges, not 14"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "solid.box",
+      "params": {
+        "name": "ePeg",
+        "origin": [
+          3,
+          3,
+          5
+        ],
+        "sizeX": 4,
+        "sizeY": 4,
+        "sizeZ": 7
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "aWedge",
+        "b": "ePeg",
+        "name": "eTool",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "tBox",
+        "b": "eTool",
+        "name": "eInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tBox",
+        "b": "eTool",
+        "name": "eUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "tBox",
+        "b": "eTool",
+        "name": "eDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "eTool",
+        "b": "tBox",
+        "name": "eDiffRev",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "aDiff",
+          "bUnion",
+          "bDiff",
+          "cDiff",
+          "dDiff",
+          "eTool",
+          "eInter",
+          "eUnion",
+          "eDiff",
+          "eDiffRev"
+        ]
+      }
+    }
+  ]
+}

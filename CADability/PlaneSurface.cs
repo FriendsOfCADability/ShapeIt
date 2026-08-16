@@ -538,7 +538,8 @@ namespace CADability.GeoObject
                 //base.Intersect(curve, out ipsdbg, out uvOnFacesdbg, out uOnCurve3Dsdbg);
 #endif
                 return;
-            } else if (curve is Ellipse elli && elli.IsCircle && Math.Abs(GetDistance(elli.Center)-elli.Radius)<Precision.eps)
+            }
+            else if (curve is Ellipse elli && elli.IsCircle && Precision.IsPerpendicular(Normal, elli.Plane.Normal, false) && Math.Abs(GetDistance(elli.Center) - elli.Radius) < Precision.eps)
             {   // special case: a circle tangential to the plane (and perpendicular)
                 // this is more precise than the general case
                 ips = [Plane.FootPoint(elli.Center)];

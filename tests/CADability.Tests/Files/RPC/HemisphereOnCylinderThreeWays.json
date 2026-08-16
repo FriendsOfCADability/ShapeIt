@@ -1,0 +1,370 @@
+{
+  "Description": "A hemisphere of D80 closed off by a D80 cylinder 100 long, built THREE ways that must all produce the same solid: the lower half of a sphere r=40 centred on the origin (z -40..0) plus a cylinder r=40 from z=0 to z=100.\n  resA - union of the cylinder with the WHOLE sphere; the sphere's upper half is inside the cylinder\n  resB - union of the cylinder with the lower half only, split off first, so the two meet in a coincident disc at z=0\n  resC - one revolve of the meridian profile, no boolean involved\nSphere and cylinder have the same radius, so their surfaces touch tangentially along the circle z=0 - two tangential periodic surfaces. That contact used to break every operation between them; resA and resB are the guard against it coming back.\nThe rest of the case checks that the three results are interchangeable, which is the real claim: dAC and dCA compare resA against resC as point sets and must be empty, iAC and uAC combine them, and pAB does the same for the two boolean-built solids as a control. Three constructions of one solid should not behave differently in a later operation.",
+  "Expected": "All three are one closed, consistent solid with extent -40, -40, -40, 40, 40, 100 and the same volume:\n  hemisphere  2/3*pi*40^3            = 134041.286553\n  cylinder    pi*40^2*100            = 502654.824574\n  total                              = 636696.111128\nSurface area, exact: hemisphere 2*pi*40^2 = 10053.096491, cylinder wall 2*pi*40*100 = 25132.741229, top disc pi*40^2 = 5026.548246, total 40212.385966. There is no bottom face - the hemisphere closes it.\nBecause the three are the same point set, the combinations are forced:\n  dAC = resA - resC   EMPTY, recorded as \"exists\": \"false\"\n  dCA = resC - resA   EMPTY\n  iAC = resA n resC   the whole solid, 636696.111128\n  uAC = resA u resC   the whole solid, 636696.111128\n  pAB = resA n resB   the whole solid, 636696.111128  (control: no revolve involved)\nNote on the recorded numbers: the baseline volume comes from ShellMetrics with its own precision (size/1000, so 0.18 for this shell), not from the inspect.properties calls in RPCCalls, which ask for 1e-5. The two differ in the last digits; the inspect calls are there for stepping through with -r. iAC is deliberately absent from the closing inspect.summary: while the defect is open the name does not exist, and inspecting a missing name would fail the case instead of recording it.",
+  "Status": "PARTLY FIXED. Two defects closed on 2026-08-16, one still open.\n\nFIXED - tangential contact of periodic surfaces. Until 2026-08-16 the D80 sphere and the D80 coaxial cylinder could not be combined at all: union returned the two operands unmerged, difference returned empty, intersect dropped the tangentially touching component. resA and resB now agree to 4.5e-8 - 636700.4222908 and 636700.4223362 against the exact 636696.111128, i.e. 6.8e-6 - and are the regression guard for it.\n\nFIXED - the revolve volume. solid.rotate on a profile containing a circular arc reported a badly wrong volume: 535395.360 against 636696.111, -15.9 percent, and tightening the precision from 1e-5 to 1e-8 made it WORSE (532948.908), so it converged to a wrong value rather than being a tessellation artefact. The shape was right all along (dAC and dCA were empty then too). resC now measures 636692.7804435, i.e. -5.2e-6.\n\nOPEN - a solid from solid.rotate is not interchangeable with the boolean-built one. The operations between resA and resC contradict each other:\n  resA - resC  empty   (consistent with 'same point set')\n  resC - resA  empty   (consistent)\n  resA n resC  EMPTY   WRONG - should be the whole solid\n  resA u resC  a solid with 5 faces, extent z -40..0   WRONG - that is the hemisphere alone, the cylinder part is gone\nThe same operations between resA and resB, neither of which comes from a revolve, are correct: resA n resB gives one solid with 6 faces and 12 edges over the full z -40..100. So the difference reports 'identical', the intersection reports 'disjoint' and the union returns a fragment - for one and the same pair of solids.\nWhere to look: resC has 6 faces and 10 EDGES where resA, resB and pAB all have 6 faces and 12 edges. The revolve lays out the seam and the poles differently, and that is the most likely home of the remaining problem - the classification cannot match the two shells up.\n\nSeparate defect, deliberately NOT part of this case because an exception aborts the run before the fingerprint is collected: the difference of two COINCIDENT solids throws instead of returning the empty result. Repro: run this case, then\n  {\"jsonrpc\":\"2.0\",\"id\":99,\"method\":\"solid.boolean\",\"params\":{\"op\":\"difference\",\"a\":\"resA\",\"b\":\"resB\",\"name\":\"dAB\",\"rebind\":false}}\n-> \"The given key 'CADability.GeoObject.Face' was not present in the dictionary\". resA and resB are the same point set, so the answer should be empty. Note that intersect and union on that same pair are fine, so it is the difference specifically. Worth its own case file.",
+  "Actual": "2026-08-16 after the two fixes, measured over the MCP server with inspect.properties at precision 1e-5:\n  tHemi 134045.6161164 (exact 134041.286553, 3.2e-5), 4 faces, 6 edges\n  resA  636700.4222908, 6 faces, 12 edges, extent -40,-40,-40 .. 40,40,100\n  resB  636700.4223362, 6 faces, 12 edges, same extent\n  resC  636692.7804435, 6 faces, 10 edges, same extent\n  dAC   empty          correct\n  dCA   empty          correct\n  iAC   EMPTY          WRONG\n  uAC   5 faces, z -40..0   WRONG\n  pAB   6 faces, 12 edges, z -40..100   correct\n\nEarlier, before the fixes, for the record: resC was 535395.3601627 at precision 1e-5 and 532948.9080636 at 1e-8, and iAC was then correct at 636700.4222630 - the intersection has regressed as the revolve was repaired, which is worth knowing when bisecting.",
+  "CaseStatus": "KnownFail",
+  "Repeat": 3,
+  "Verify": [
+    "tHemi",
+    "resA",
+    "resB",
+    "resC",
+    "dAC",
+    "dCA",
+    "iAC",
+    "uAC",
+    "pAB"
+  ],
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.sphere",
+      "params": {
+        "name": "tSph",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "tCyl",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          100
+        ],
+        "radius": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tSph",
+        "b": "tCyl",
+        "name": "resA",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "inspect.properties",
+      "params": {
+        "target": "resA",
+        "properties": [
+          "volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "feature.split",
+      "params": {
+        "solid": "tSph",
+        "nameInner": "tHemi",
+        "rebind": false,
+        "splitBy": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "normal": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "tHemi",
+        "properties": [
+          "volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tHemi",
+        "b": "tCyl",
+        "name": "resB",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "resB",
+        "properties": [
+          "volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "sketch.create",
+      "params": {
+        "name": "tRevSk",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "tRevSk"
+        },
+        "name": "tArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 40,
+        "startAngle": 270,
+        "sweepAngle": 90
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "tRevSk"
+        },
+        "name": "tL1",
+        "start": [
+          40,
+          0
+        ],
+        "end": [
+          40,
+          100
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "tRevSk"
+        },
+        "name": "tL2",
+        "start": [
+          40,
+          100
+        ],
+        "end": [
+          0,
+          100
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "tRevSk"
+        },
+        "name": "tL3",
+        "start": [
+          0,
+          100
+        ],
+        "end": [
+          0,
+          -40
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "tRevSk"
+        },
+        "precision": 0.0001,
+        "name": "tProfile",
+        "sketchGeometry": [
+          "tArc",
+          "tL1",
+          "tL2",
+          "tL3"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.rotate",
+      "params": {
+        "profile": "tProfile",
+        "name": "resC",
+        "angle": {
+          "full": true
+        },
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "inspect.properties",
+      "params": {
+        "target": "resC",
+        "properties": [
+          "volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "resA",
+        "b": "resC",
+        "name": "dAC",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "resC",
+        "b": "resA",
+        "name": "dCA",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "resA",
+        "b": "resC",
+        "name": "iAC",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "resA",
+        "b": "resC",
+        "name": "uAC",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "resA",
+        "b": "resB",
+        "name": "pAB",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "tHemi",
+          "resA",
+          "resB",
+          "resC",
+          "uAC",
+          "pAB"
+        ]
+      }
+    }
+  ]
+}

@@ -1782,7 +1782,7 @@ namespace CADability.Curve2D
             {   // here we are close enough to try with newton
                 par = (spar + epar) / 2.0;
                 int iterations = 20;
-                if (TryPointDeriv2At(par, out GeoPoint2D point, out GeoVector2D deriv1, out GeoVector2D deriv2))
+                if (TryPointDeriv2At(par, out GeoPoint2D point, out GeoVector2D deriv1, out GeoVector2D deriv2) && deriv1.IsValid)
                 {
                     double stepTolerance = (epar - spar) * 1e-8;
                     double functionTolerance = (point | fromHere) * deriv1.Length * 1e-18;

@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using CADability;
 using CADability.Avalonia;
@@ -182,6 +183,12 @@ namespace ShapeIt
                 if (!string.IsNullOrEmpty(text) && Clipboard != null) await Clipboard.SetTextAsync(text);
             };
 
+            // Turns the session into a regression case: the recorded requests plus the fields the harness
+            // needs. No result is written - what the case has to produce is recorded later by a regenerate
+            // run, once the outcome has been judged correct.
+            var exportCaseButton = new Button { Content = "Als Testfall...", Width = 150 };
+            exportCaseButton.Click += async (_, _) => await ExportAsTestCaseAsync();
+
             var protocolButtonPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -189,6 +196,7 @@ namespace ShapeIt
                 Spacing = 8,
                 Height = 40,
             };
+            protocolButtonPanel.Children.Add(exportCaseButton);
             protocolButtonPanel.Children.Add(copyCallsButton);
             protocolButtonPanel.Children.Add(copyProtocolButton);
             protocolButtonPanel.Children.Add(clearProtocolButton);
@@ -290,6 +298,83 @@ namespace ShapeIt
         {
             if (Dispatcher.UIThread.CheckAccess()) RefreshProtocol();
             else Dispatcher.UIThread.Post(RefreshProtocol);
+        }
+
+        /// <summary>
+        /// Writes the recorded session as an RPC regression case file (see
+        /// tests/CADability.Tests/Files/RPC/readme.md). Only the calls are exported, never a result: what the
+        /// case has to produce is recorded by a regenerate run of the harness, after the outcome has been
+        /// judged correct - which is a decision the export cannot make.
+        /// </summary>
+        private async Task ExportAsTestCaseAsync()
+        {
+            int callCount = server.ProtocolCallCount;
+            if (callCount == 0)
+            {
+                await ShowInfoAsync("Als Testfall exportieren",
+                    "Das Protokoll enthält keine Aufrufe, die exportiert werden könnten.");
+                return;
+            }
+
+            IStorageFile? file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = $"Sitzung als Testfall exportieren ({callCount} Aufrufe)",
+                DefaultExtension = "json",
+                SuggestedFileName = "Case" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".json",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("RPC-Testfall") { Patterns = new[] { "*.json" } }
+                }
+            });
+            if (file == null) return;
+
+            try
+            {
+                // Through the storage API rather than the local path: on Linux a picked file can come from a
+                // portal, where the path is not writable directly.
+                await using Stream stream = await file.OpenWriteAsync();
+                await using StreamWriter writer = new StreamWriter(stream);
+                await writer.WriteAsync(server.BuildRpcCaseFile());
+            }
+            catch (Exception ex)
+            {
+                await ShowInfoAsync("Als Testfall exportieren", "Die Datei konnte nicht geschrieben werden:\n" + ex.Message);
+                return;
+            }
+
+            await ShowInfoAsync("Als Testfall exportieren",
+                $"{callCount} Aufruf(e) geschrieben nach\n{file.Name}\n\n"
+                + "Noch zu tun:\n"
+                + "  1. \"Description\" und \"Expected\" ausfüllen.\n"
+                + "  2. \"Verify\" auf die Objekte kürzen, um die es geht.\n"
+                + "  3. Datei nach tests/CADability.Tests/Files/RPC legen.\n"
+                + "  4. Wenn das Ergebnis stimmt: in run.json \"Regenerate\" setzen, Test laufen lassen,\n"
+                + "     den Diff prüfen, \"verified\"-Notiz ergänzen und \"CaseStatus\" auf \"Ok\" setzen.");
+        }
+
+        /// <summary>A minimal modal note - Avalonia has no MessageBox of its own.</summary>
+        private async Task ShowInfoAsync(string title, string text)
+        {
+            Button okButton = new Button { Content = "OK", Width = 90, HorizontalAlignment = HorizontalAlignment.Right };
+            Window dialog = new Window
+            {
+                Title = title,
+                SizeToContent = SizeToContent.WidthAndHeight,
+                CanResize = false,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Content = new StackPanel
+                {
+                    Margin = new Avalonia.Thickness(16),
+                    Spacing = 12,
+                    Children =
+                    {
+                        new SelectableTextBlock { Text = text, MaxWidth = 620, TextWrapping = TextWrapping.Wrap },
+                        okButton
+                    }
+                }
+            };
+            okButton.Click += (_, _) => dialog.Close();
+            await dialog.ShowDialog(this);
         }
 
         /// <summary>

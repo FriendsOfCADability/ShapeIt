@@ -1,0 +1,243 @@
+{
+  "Description": "Coil spring (circular wire, mean radius 10, wire radius 2, so the wire occupies the radial band 8..12) and a coaxial cylinder of radius 7. The two solids are completely disjoint - the cylinder fits into the free bore of the coil without touching it.",
+  "Expected": "union: two separate solids, total volume 2368.705 + 3694.513 = 6063.218. intersect: empty (E_NOT_FOUND or an empty result). difference both ways: the respective operand unchanged.",
+  "Status": "union FIXED (re-checked 2026-08-10): returns two separate solids as expected. intersect STILL WRONG - this file is now the canonical case for that.",
+  "Actual": "solid.boolean intersect returns 2368.6613, i.e. operand a (the coil), although the two bodies are disjoint and the intersection must be empty. The same symptom shows up whenever the operands merely touch instead of overlapping: thread + rod r=5, coil + cylinder r=8 (tangent) and rectCoil + cylinder r=10 (coincident face) all return exactly V(a) as the intersection. It looks like the 'no intersection found' branch returns the target unchanged instead of an empty result.",
+  "Actual (before the fix)": "union returned a single solid with the volume of the coil, i.e. the cylinder was silently dropped; intersect returned the coil as well. Only the two differences were correct.",
+  "CaseStatus": "Ok",
+  "ExpectError": [
+    {
+      "id": 8,
+      "code": "1002"
+    },
+    {
+      "id": 9,
+      "code": "1002"
+    }
+  ],
+  "Verify": [
+    "coil",
+    "innerRod",
+    "coilUnionRod",
+    "coilIntersectRod"
+  ],
+  "Baseline": {
+    "coil": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Coil and rod are disjoint, so the union must be two separate solids and the intersection must be EMPTY - which is why calls 8 and 9 fail on purpose (see ExpectError). Note that the Status prose below still says 'intersect STILL WRONG'; that verdict is from 2026-08-10, before the empty result was implemented, and no longer applies.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2330.56661655",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coilIntersectRod": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Coil and rod are disjoint, so the union must be two separate solids and the intersection must be EMPTY - which is why calls 8 and 9 fail on purpose (see ExpectError). Note that the Status prose below still says 'intersect STILL WRONG'; that verdict is from 2026-08-10, before the empty result was implemented, and no longer applies.",
+      "exists": "false"
+    },
+    "coilUnionRod": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Coil and rod are disjoint, so the union must be two separate solids and the intersection must be EMPTY - which is why calls 8 and 9 fail on purpose (see ExpectError). Note that the Status prose below still says 'intersect STILL WRONG'; that verdict is from 2026-08-10, before the empty result was implemented, and no longer applies.",
+      "solids": "2"
+    },
+    "coilUnionRod#0": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Coil and rod are disjoint, so the union must be two separate solids and the intersection must be EMPTY - which is why calls 8 and 9 fail on purpose (see ExpectError). Note that the Status prose below still says 'intersect STILL WRONG'; that verdict is from 2026-08-10, before the empty result was implemented, and no longer applies.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3694.48190863",
+      "area": "1357.89659501",
+      "edgeLength": "135.964594301",
+      "extent": "-7, -7, 0, 7, 7, 24",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    },
+    "coilUnionRod#1": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Coil and rod are disjoint, so the union must be two separate solids and the intersection must be EMPTY - which is why calls 8 and 9 fail on purpose (see ExpectError). Note that the Status prose below still says 'intersect STILL WRONG'; that verdict is from 2026-08-10, before the empty result was implemented, and no longer applies.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2330.56661655",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "innerRod": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Coil and rod are disjoint, so the union must be two separate solids and the intersection must be EMPTY - which is why calls 8 and 9 fail on purpose (see ExpectError). Note that the Status prose below still says 'intersect STILL WRONG'; that verdict is from 2026-08-10, before the empty result was implemented, and no longer applies.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3694.48190863",
+      "area": "1357.89659501",
+      "edgeLength": "135.964594301",
+      "extent": "-7, -7, 0, 7, 7, 24",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "wireProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wireProfile"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil",
+        "profile": "wireProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "innerRod",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          24
+        ],
+        "radius": 7
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coil",
+        "b": "innerRod",
+        "name": "coilUnionRod",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "coil",
+        "b": "innerRod",
+        "name": "coilIntersectRod",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilUnionRod",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilIntersectRod",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "coilUnionRod",
+          "coilIntersectRod"
+        ]
+      }
+    }
+  ]
+}

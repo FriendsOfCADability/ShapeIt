@@ -1,0 +1,17 @@
+{
+  // The two switches for a manual run of RpcRegressionTests. They live in a file rather than in environment
+  // variables so they work from the Visual Studio test explorer: edit, run the tests, edit back.
+  //
+  //   "Only"       run just this one case, by file name without extension, e.g. "TouchingEdgeInFace".
+  //                "" = all cases.
+  //   "Regenerate" record the baselines from the current behaviour instead of comparing against them.
+  //                Only after you judged the result correct; review the diff of the case files afterwards.
+  //                A regenerate run refuses to write a case that is not stable over its "Repeat" runs.
+  //
+  // As long as either is set, the test RunSwitchesAreTurnedOff fails - on purpose, so a half finished manual
+  // run cannot look green or slip into a commit.
+  //
+  // The environment variables RPC_CASE=<name> and RPC_REGEN=1 take precedence, for command line runs.
+  "Only": "",
+  "Regenerate": false
+}

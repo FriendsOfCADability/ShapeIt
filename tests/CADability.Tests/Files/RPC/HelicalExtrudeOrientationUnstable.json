@@ -1,0 +1,488 @@
+{
+  "Description": "The SAME coil (circular wire, mean radius 10, wire radius 2, 3 turns, pitch 8) is built five times from five separate but identical sketches. A helical sweep is a shear of a torus and shear preserves volume, so the exact volume is A * 2*pi*R * turns = (pi*2^2) * 2*pi*10 * 3 = 2368.705056. (2368.6667987045694 with precision=bounds*1e-4)",
+  "Expected": "All five volumes identical and positive. At the default precision of 1e-4 inspect.properties reports about 2368.66, which is the volume-integration accuracy and not a geometry error - measured with precision 1e-6 the same body gives 2368.705052, i.e. correct to 9 digits.",
+  "Status": "FIXED. Re-checked 2026-08-10: all five volumes identical and positive, and 8 further runs in separate batches gave +2368.6613 every time, stable to the 11th digit. Keep as a regression guard.",
+  "Actual (before the fix)": "The orientation of the resulting shell was not stable - identical input produced a positive or a negative volume. Observed pattern in two independent experiments: coil1, coil2, coil3, coil5 negative and coil4 POSITIVE. The positive instance also differed in the last digits, so it was a different result and not only a flipped sign. This was the root cause behind most of the other Helical*.json cases: an inverted shell fed into solid.boolean either threw or silently swapped intersect and difference.",
+  "Resolved": "The deviation from the exact volume at the default precision was NOT a geometry error - it is the reduced volume-integration accuracy. Measured with the new inspect.properties 'precision' parameter: 1e-4 gives 2368.661272 (rel. err 1.9e-5), 1e-5 gives 2368.704593 (2.0e-7), 1e-6 gives 2368.705052 (1.9e-9). Clean convergence, so the helical face is fine.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "coil1",
+    "coil2",
+    "coil3",
+    "coil4",
+    "coil5"
+  ],
+  "Baseline": {
+    "coil1": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The point of the case is stability: all five coils must come out with the same POSITIVE volume, +2368.6613. The orientation used to flip between runs, so treat any sign change here as the original defect returning.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2368.66127152",
+      "area": "2396.55592375",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coil2": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The point of the case is stability: all five coils must come out with the same POSITIVE volume, +2368.6613. The orientation used to flip between runs, so treat any sign change here as the original defect returning.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2368.66127152",
+      "area": "2396.55592375",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coil3": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The point of the case is stability: all five coils must come out with the same POSITIVE volume, +2368.6613. The orientation used to flip between runs, so treat any sign change here as the original defect returning.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2368.66127152",
+      "area": "2396.55592375",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coil4": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The point of the case is stability: all five coils must come out with the same POSITIVE volume, +2368.6613. The orientation used to flip between runs, so treat any sign change here as the original defect returning.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2368.66127152",
+      "area": "2396.55592375",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coil5": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The point of the case is stability: all five coils must come out with the same POSITIVE volume, +2368.6613. The orientation used to flip between runs, so treat any sign change here as the original defect returning.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2368.66127152",
+      "area": "2396.55592375",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "wire1",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wire1"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil1",
+        "profile": "wire1",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "sketch.create",
+      "params": {
+        "name": "wire2",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wire2"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil2",
+        "profile": "wire2",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "sketch.create",
+      "params": {
+        "name": "wire3",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wire3"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil3",
+        "profile": "wire3",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "sketch.create",
+      "params": {
+        "name": "wire4",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wire4"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil4",
+        "profile": "wire4",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "sketch.create",
+      "params": {
+        "name": "wire5",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wire5"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil5",
+        "profile": "wire5",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coil1",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coil2",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coil3",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coil4",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coil5",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "coil1",
+          "coil2",
+          "coil3",
+          "coil4",
+          "coil5"
+        ]
+      }
+    }
+  ]
+}

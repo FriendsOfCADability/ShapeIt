@@ -6,7 +6,7 @@
 		"documentModel": "Objects can exist in a temporary workspace until committed into the document model.",
 		"expressions": "Numeric/point/vector fields that allow expressions accept either a literal value or an Expression object.",
 		"sketchCoordinates": "Sketch entities use 2D coordinates (Point2/Vec2) in the sketch plane coordinate system.",
-		"results": "Every successful tool call returns a result envelope describing the workspace changes it made: 'created' and 'modified' list affected named items with type and a compact geometry summary (value, bounding box or element counts), 'removed' lists removed names, 'warnings' lists non-fatal problems. Tools with an explicit output schema add their own fields to the same result object.",
+		"results": "Every successful tool call returns a result envelope describing the workspace changes it made: 'created' and 'modified' list affected named items with type and a compact geometry summary (value, bounding box or element counts), 'removed' lists removed names, 'warnings' lists non-fatal problems. 'empty': true marks a successful call whose result is legitimately nothing (e.g. intersecting disjoint solids); nothing is stored in that case and a warning says which operation was empty - do not infer this from a missing 'created', an in-place modification has none either. A summary omits the bounding box when the item has no extent; 'count': 0 then says the item is empty. Tools with an explicit output schema add their own fields to the same result object.",
 		"selection": "Tools reference workspace items by name (NameRef: a single name or an array of names). To select objects by query (e.g. faces/edges with filters) or by set operations, first call workspace.select, which stores the selection result under a name; then pass that name to the next tool. Selections are snapshots: modifying a solid does not update a previously selected set of its faces or edges - and a feature that consumes edges or faces usually invalidates them, so re-select after every modelling step rather than reusing the name. Do not send the select and the call that consumes it as two separate requests; bundle them (see batching).",
 		"batching": "rpc.batch executes several calls in one request, in order, and later calls see the names created by earlier ones. The select-then-operate pattern belongs in a single batch: workspace.select together with the feature/transform call that consumes the selection is one round trip instead of two. With the default 'atomic': true the batch is also a single undo step that rolls back completely if any call fails, so a failed feature cannot leave half-built helper objects behind. The same holds for a chain of construction steps, e.g. creating the tool bodies and the solid.boolean that consumes them.",
 		"periodicFaces": "Faces on periodic surfaces (cylindrical, conical, spherical, toroidal) are split into two faces when the periodic parameter range exceeds half the period; closed circular edges are split the same way. One bore can therefore be two cylindrical faces: a bore reduced to 324 degrees by a slot reports two faces, one reduced to exactly 180 degrees reports a single face. Two consequences: face and edge counts are topological, not a stable fingerprint of a shape, so do not use them to judge whether a result is geometrically correct - use Volume, the bounding box, or a rendered section (inspect.scene with includeImage) instead. And a face or edge query never guarantees one hit per geometric surface, so an operation built on such a selection may silently affect only half of a bore."
@@ -3184,7 +3184,7 @@
 		},
 		{
 			"name": "solid.boolean",
-			"description": "Performs a boolean operation on solids. The first operand is the target (and defines the default name). The second operand can be a single solid or a list of solids. Does not modify inputs; returns a new solid. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across boolean changes.",
+			"description": "Performs a boolean operation on solids. The first operand is the target (and defines the default name). The second operand can be a single solid or a list of solids. Does not modify inputs; returns a new solid. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across boolean changes. An empty result is a valid outcome, not an error: 'intersect' of disjoint solids is empty (this is how a collision check is done), and 'difference' is empty when b fully contains a. The call then succeeds with 'empty': true and stores nothing - and if 'name' was omitted, operand a is removed, since the result would have replaced it.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -4330,6 +4330,11 @@
 					"target": {
 						"type": "string",
 						"description": "Name of the workspace object."
+					},
+					"precision": {
+						"type": "number",
+						"description": "Triangulation accuracy for numeric properties (e.g. Volume), relative to the bounding box size, hence scale-independent. Default 1e-4, capped at 1e-6 with a warning. Cost and accuracy both scale about 100x per decade; 1e-5 (relative error 2e-7, ~2.5 s) is usually the best trade-off. A result may be finer than requested, because an existing finer triangulation is reused - use one fixed precision when values must be comparable.",
+						"default": 0.0001
 					},
 					"properties": {
 						"type": "array",

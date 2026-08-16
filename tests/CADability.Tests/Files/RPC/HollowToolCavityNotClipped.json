@@ -1,0 +1,637 @@
+{
+  "Description": "Boolean operations with a HOLLOW TOOL, testing the rule for shell components that are not touched by any component of the other shell. The tool is always the same hollow box 'gTool': a 10x10x10 box from (9,0,0) to (19,10,10) with a spherical cavity of radius 3 around (14,5,5), so the cavity occupies x = 11..17 and is never touched by any target face. Three massive target boxes of growing length put that cavity completely outside the target (0..10), partly inside it (0..13) or completely inside it (0..20). Case 4 repeats the first one with a hollow target, to show that a cavity in the target is not what decides. Cases 5..8 apply union and intersect to the same pairs, because the keep/drop rule reverses between the operations. Nothing touches anywhere: the target faces are at x = 10, 13 and 20 while the cavity runs from 11 to 17.",
+  "Expected": "The rule for an untouched component S: in the intersection kernel S survives exactly if it lies inside the other solid. Expressed on the original geometry that becomes 'inside' for intersect, 'outside' for union, and for the difference A-B 'outside B' for components of A but 'inside A' for components of B. V(sphere r=3) = 36*pi = 113.097336, V(gTool) = 1000 - 36*pi = 886.902664.\nDIFFERENCE (target minus tool), the cavity of the tool becomes material where it lies inside the target:\n- gDiffOut, target 0..10: cavity entirely outside the target, must be dropped. ONE solid, V = 900.\n- gDiffPart, target 0..13: cavity cut by the plane x = 13, leaving a cap of height 2. TWO solids, V = 900 and 28*pi/3 = 29.321531.\n- gDiffIn, target 0..20: THREE solids, V = 900, the whole cavity sphere 113.097336, and the slice x = 19..20 with V = 100.\n- gDiffHollow, hollow target 0..10 with a cavity of radius 3 around (5,5,5): ONE solid, V = 900 - 36*pi = 786.902664.\nUNION, the cavity of the tool survives only where the target does not fill it:\n- gUniOut, target 0..10: the cavity stays a closed void. ONE solid, V = 1000 + 886.902664 - 100 = 1786.902664.\n- gUniIn, target 0..20: the target fills the cavity completely, so it must disappear. ONE solid, V = 2000, six faces.\nINTERSECT, the mirror image of the union:\n- gIntOut, target 0..10: result is the slice x = 9..10, the cavity is outside it and must be dropped. ONE solid, V = 100.\n- gIntIn, target 0..20: result is the tool itself, cavity included. ONE solid, V = 886.902664.",
+  "Status": "PASSES (2026-08-12, build 0.2.0.262). Regression guard for the bug described below.\nHistory: before the rule for untouched components was implemented, gDiffOut and gDiffHollow returned an extra free floating solid ball at x = 11..17 with V = 113.097839, completely outside the target's own bounding box - the cavity of the tool was taken over unclipped. gDiffPart and gDiffIn were already correct at that time, which located the defect precisely: the clipping worked, it only failed when the intersection of cavity and target was empty, apparently falling back to the unclipped original instead of dropping the shell.",
+  "Actual": "All eight cases correct, measured over the MCP server: gDiffOut = 900 (1 solid), gDiffPart = 900 + 29.321137 (2 solids), gDiffIn = 900 + 113.097839 + 100 (3 solids), gDiffHollow = 786.902170 (1 solid), gUniOut = 1786.902182 (1 solid), gUniIn = 2000 (1 solid), gIntOut = 100 (1 solid), gIntIn = 886.902171 (1 solid).\nNote for reading multi-solid results: they are stored under one name as a typed list, and inspect.properties cannot read 'Volume' from a list. Pick the parts first with workspace.select and a solids query using filter 'contains' with a point inside the wanted part. 'extreme' is not enough here, because several parts share the same extreme coordinate and it then silently returns the same solid twice.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "gTool",
+    "gDiffOut",
+    "gDiffPart",
+    "gDiffIn",
+    "gDiffHollow",
+    "gUniOut",
+    "gUniIn",
+    "gIntOut",
+    "gIntIn"
+  ],
+  "Baseline": {
+    "gDiffHollow": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "786.902170428",
+      "area": "673.059945821",
+      "edgeLength": "142.657297629",
+      "extent": "0, 0, 0, 9, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:2"
+    },
+    "gDiffIn": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "solids": "3"
+    },
+    "gDiffIn#0": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "900",
+      "area": "560",
+      "edgeLength": "116",
+      "extent": "0, 0, 0, 9, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "gDiffIn#1": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "2",
+      "edges": "4",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "113.097839125",
+      "area": "113.074473936",
+      "edgeLength": "26.657297629",
+      "extent": "11, 2, 2, 17, 8, 8",
+      "surfaces": "SphericalSurface:2"
+    },
+    "gDiffIn#2": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "100",
+      "area": "240",
+      "edgeLength": "84",
+      "extent": "19, 0, 0, 20, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "gDiffOut": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "900",
+      "area": "560",
+      "edgeLength": "116",
+      "extent": "0, 0, 0, 9, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "gDiffPart": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "solids": "2"
+    },
+    "gDiffPart#0": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "900",
+      "area": "560",
+      "edgeLength": "116",
+      "extent": "0, 0, 0, 9, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "gDiffPart#1": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "5",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "29.3211371923",
+      "area": "62.8241923171",
+      "edgeLength": "29.0175417436",
+      "extent": "11, 2.17157287525, 2.17157287525, 13, 7.82842712475, 7.82842712475",
+      "surfaces": "PlaneSurface:1 SphericalSurface:2"
+    },
+    "gIntIn": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "886.902171335",
+      "area": "713.058722992",
+      "edgeLength": "146.657297629",
+      "extent": "9, 0, 0, 19, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:2"
+    },
+    "gIntOut": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "100",
+      "area": "240",
+      "edgeLength": "84",
+      "extent": "9, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "gTool": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "886.90311875",
+      "area": "712.707722319",
+      "edgeLength": "146.657297629",
+      "extent": "9, 0, 0, 19, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:2"
+    },
+    "gUniIn": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2000",
+      "area": "1000",
+      "edgeLength": "160",
+      "extent": "0, 0, 0, 20, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "gUniOut": {
+      "verified": "2026-08-14: all eight cases checked against exact values - 900, 900+28*pi/3, 900+36*pi+100, 900-36*pi, 1786.902664, 2000, 100 and 886.902664. Regression guard for the tool cavity that used to survive unclipped outside the target.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1786.90218165",
+      "area": "1073.04747735",
+      "edgeLength": "182.657297629",
+      "extent": "0, 0, 0, 19, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "gtBox",
+        "origin": [
+          9,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.sphere",
+      "params": {
+        "name": "gtCav",
+        "center": [
+          14,
+          5,
+          5
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "gtBox",
+        "b": "gtCav",
+        "name": "gTool",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.box",
+      "params": {
+        "name": "gShort",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.box",
+      "params": {
+        "name": "gMid",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 13,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.box",
+      "params": {
+        "name": "gLong",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "ghBox",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.sphere",
+      "params": {
+        "name": "ghCav",
+        "center": [
+          5,
+          5,
+          5
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "ghBox",
+        "b": "ghCav",
+        "name": "gHollowShort",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "gShort",
+        "b": "gTool",
+        "name": "gDiffOut",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "assert.check",
+      "params": {
+        "objects": "gDiffOut",
+        "maxCount": 1,
+        "message": "the cavity of the tool lies completely outside the target and must not appear in the difference"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gDiffOut",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "gMid",
+        "b": "gTool",
+        "name": "gDiffPart",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "workspace.select",
+      "params": {
+        "name": "gDiffPartCap",
+        "selector": {
+          "query": {
+            "target": "solids",
+            "from": "gDiffPart",
+            "filter": {
+              "contains": [
+                12.5,
+                5,
+                5
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gDiffPartCap",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "gLong",
+        "b": "gTool",
+        "name": "gDiffIn",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "workspace.select",
+      "params": {
+        "name": "gDiffInBall",
+        "selector": {
+          "query": {
+            "target": "solids",
+            "from": "gDiffIn",
+            "filter": {
+              "contains": [
+                14,
+                5,
+                5
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gDiffInBall",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "gHollowShort",
+        "b": "gTool",
+        "name": "gDiffHollow",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "assert.check",
+      "params": {
+        "objects": "gDiffHollow",
+        "maxCount": 1,
+        "message": "difference must return a single solid with one cavity, V = 900 - 36*pi = 786.902664"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gDiffHollow",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "gShort",
+        "b": "gTool",
+        "name": "gUniOut",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gUniOut",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "gLong",
+        "b": "gTool",
+        "name": "gUniIn",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gUniIn",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "gShort",
+        "b": "gTool",
+        "name": "gIntOut",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gIntOut",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "gLong",
+        "b": "gTool",
+        "name": "gIntIn",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "inspect.properties",
+      "params": {
+        "target": "gIntIn",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "gDiffOut",
+          "gDiffPart",
+          "gDiffIn",
+          "gDiffHollow",
+          "gUniOut",
+          "gUniIn",
+          "gIntOut",
+          "gIntIn"
+        ]
+      }
+    }
+  ]
+}

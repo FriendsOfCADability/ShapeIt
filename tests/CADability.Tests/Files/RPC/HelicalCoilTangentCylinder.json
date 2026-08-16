@@ -1,0 +1,181 @@
+{
+  "Description": "Coil spring (circular wire, mean radius 10, wire radius 2) united with a coaxial cylinder whose lateral face is exactly tangent to the inner envelope of the wire (10 - 2 = 8).",
+  "Expected": "TWO separate solids with a total volume of 2368.661 + 4825.484 = 7194.145 - bodies that merely touch are not merged (decided by Gerhard, 2026-08-10). intersect must be empty.",
+  "Status": "union FIXED (re-checked 2026-08-10): returns two solids, reproducibly over three runs, no exception any more. intersect STILL WRONG.",
+  "Actual": "solid.boolean intersect returns 2368.6613 - the complete coil, i.e. operand a - although the bodies only touch along a line and the intersection must be empty. See HelicalCoilDisjointCylinder.json for the canonical case.",
+  "Actual (before the fix)": "solid.boolean union failed with 'Error in the application.'.",
+  "CaseStatus": "KnownFail",
+  "Verify": [
+    "coil",
+    "core",
+    "coilOnCore"
+  ],
+  "Baseline": {
+    "coil": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the union is fixed and the intersection is still wrong. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2330.56661655",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coilOnCore": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the union is fixed and the intersection is still wrong. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2368.66505098",
+      "area": "2396.83806868",
+      "edgeLength": "405.291451516",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:2 PlaneSurface:2"
+    },
+    "core": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the union is fixed and the intersection is still wrong. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "4825.4561546",
+      "area": "1602.59956071",
+      "edgeLength": "148.530964915",
+      "extent": "-8, -8, 0, 8, 8, 24",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "wireProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wireProfile"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil",
+        "profile": "wireProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "core",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          24
+        ],
+        "radius": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coil",
+        "b": "core",
+        "name": "coilOnCore",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilOnCore",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": "coilOnCore"
+      }
+    }
+  ]
+}

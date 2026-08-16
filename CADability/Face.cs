@@ -238,13 +238,7 @@ namespace CADability.GeoObject
             hashCode = hashCodeCounter++;
             extent = BoundingBox.EmptyBoundingBox;
             if (Constructed != null) Constructed(this);
-#if DEBUG
-            if (hashCode == 47)
-            {
-
-            }
-
-#endif
+            DebugBreak.OnFaceCreated(hashCode); // breaks if this hashCode was requested, e.g. via command line "-f:47"
         }
         /// <summary>
         /// Internal use only
@@ -5925,10 +5919,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         internal void ModifySurfaceOnly(ModOp m)
         {
-#if DEBUG
-            if (hashCode == 406)
-            { }
-#endif
+            DebugBreak.Hit("Face.ModifySurfaceOnly", hashCode);
             BoundingRect ext = (surface as ISurfaceImpl).usedArea;
             surface = surface.GetModified(m);
             (surface as ISurfaceImpl).usedArea = ext; // needed for BoxedSurface
@@ -5937,9 +5928,8 @@ namespace CADability.GeoObject
         public void ModifySurface(ModOp m)
         {
             // usually called from Shell, which modifies the edges separately
+            DebugBreak.Hit("Face.ModifySurface", hashCode);
 #if DEBUG
-            if (hashCode == 406)
-            { }
             int tc0 = System.Environment.TickCount;
 #endif
             using (new Changing(this, false)) // no undo necessary
@@ -5976,10 +5966,7 @@ namespace CADability.GeoObject
         /// <param name="m"></param>
         public override void Modify(ModOp m)
         {
-#if DEBUG
-            if (hashCode == 406)
-            { }
-#endif
+            DebugBreak.Hit("Face.Modify", hashCode);
             using (new Changing(this, "ModifyInverse", m))
             {
                 ModifySurface(m);
@@ -6317,14 +6304,11 @@ namespace CADability.GeoObject
             List<GeoPoint2D> polyoutline = new List<GeoPoint2D>();
 
             ICurve2D[] usedCurves = new ICurve2D[outline.Length];
-#if DEBUG
-            if (hashCode == 1087)
-            { }
-            if (UserData.ContainsData("StepImport.ItemNumber"))
-            {
-                IntegerProperty ip = UserData["StepImport.ItemNumber"] as IntegerProperty;
-                if (ip.IntegerValue == 3672)
-                { }
+            DebugBreak.Hit("Face.Triangulate", hashCode);
+#if DEBUG // the UserData lookup is not free, so unlike the Hit call it must not remain in a release build
+            if (UserData.ContainsData("StepImport.ItemNumber") && UserData["StepImport.ItemNumber"] is IntegerProperty ip)
+            {   // break on the item number of the STEP file this face came from, e.g. "-b:StepImport.ItemNumber:3672"
+                DebugBreak.Hit("StepImport.ItemNumber", ip.IntegerValue);
             }
 #endif
             for (int i = 0; i < outline.Length; ++i)
@@ -7591,9 +7575,7 @@ namespace CADability.GeoObject
             //                              (otherwise false)
             // outside of the face          (otherwise true)
             //  =>  cube doesn't hit the face
-#if DEBUG
-            if (hashCode == 63) { }
-#endif
+            DebugBreak.Hit("Face.HitTest", hashCode);
             // not sure, why we need this here, but in some cases usedArea is undefined
             if ((Surface as ISurfaceImpl).usedArea.IsInfinite || (Surface as ISurfaceImpl).usedArea.IsInvalid()) (Surface as ISurfaceImpl).usedArea = Domain;
             GeoPoint2D uv;
@@ -8528,6 +8510,7 @@ namespace CADability.GeoObject
                 orientedOutward = true;
             }
             hashCode = hashCodeCounter++;
+            DebugBreak.OnFaceCreated(hashCode);
             extent = BoundingBox.EmptyBoundingBox;
             lockTriangulationRecalc = new object();
             lockTriangulationData = new object();
@@ -10123,10 +10106,7 @@ namespace CADability.GeoObject
 
         internal void CombineConnectedSameSurfaceEdges()
         {
-#if DEBUG
-            if (2712 == hashCode)
-            { }
-#endif
+            DebugBreak.Hit("Face.CombineConnectedSameSurfaceEdges", hashCode);
             for (int i = 0; i < outline.Length; i++)
             {
                 if (outline[i].SecondaryFace == null) continue;
@@ -10548,6 +10528,8 @@ namespace CADability.GeoObject
         /// <param name="sortEdges"></param>
         internal void ReplaceEdge(Edge toReplace, Edge[] replaceBy, bool sortEdges = false)
         {
+            Shell shell = this.Owner as Shell;
+            if (shell != null) shell.InvalidateEdges();
             Vertex v1 = toReplace.StartVertex(this);
             Vertex v2 = toReplace.EndVertex(this);
             if (sortEdges)

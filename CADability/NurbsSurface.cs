@@ -3636,7 +3636,7 @@ namespace CADability.GeoObject
                 ext.Top += vSpan * 1e-4;
             }
             BoundingRect ext1 = ext;
-            ext1.InflateRelative(1.01);
+            ext1.InflateRelativeToSize(1.01);
             bool ok = false; // when there are poles, we only need to make it non-periodic, when the pole is inside the extent
             double[] us = GetUSingularities();
             double[] vs = GetVSingularities();

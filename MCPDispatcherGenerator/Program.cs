@@ -15,10 +15,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 namespace MCPDispatcherGenerator
 {
 
@@ -26,6 +28,12 @@ namespace MCPDispatcherGenerator
     {
         static int Main(string[] args)
         {
+            // The generator emits C# source code, so all numbers must be formatted
+            // culture-independently (decimal point, not comma). Setting the culture
+            // once here covers every interpolated string / ToString() in this tool.
+            CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+            CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+            Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
 
             string? path;
             if (args.Length < 1) path = @"C:\Users\gerha\source\repos\ShapeIt\ShapeIt\McpToolsetDefinition.json";

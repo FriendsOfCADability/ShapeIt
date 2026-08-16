@@ -28,9 +28,7 @@ namespace CADability
             edges = new HashSet<Edge>();
             uvposition = new Dictionary<Face, GeoPoint2D>();
             hashCode = hashCodeCounter++;
-#if DEBUG
-            if (16009 == hashCode ) { }
-#endif
+            DebugBreak.OnVertexCreated(hashCode); // breaks if this hashCode was requested, e.g. via command line "-v:3435"
         }
         internal void AddEdge(Edge edge)
         {
@@ -307,12 +305,7 @@ namespace CADability
 
         internal void AdjustCoordinate(GeoPoint p)
         {
-#if DEBUG
-            if (1070 == this.hashCode || 1063 == this.hashCode)
-            {
-
-            }
-#endif
+            DebugBreak.Hit("Vertex.AdjustCoordinate", hashCode);
             GeoPoint mp = new GeoPoint(position, p); // point in between the two starting positions
             // collect all involved surfaces
             Set<Face> surfaces = new Set<Face>();
@@ -388,6 +381,7 @@ namespace CADability
             edges = new HashSet<Edge>();
             uvposition = new Dictionary<Face, GeoPoint2D>();
             hashCode = hashCodeCounter++;
+            DebugBreak.OnVertexCreated(hashCode);
         }
         public void GetObjectData(IJsonWriteData data)
         {
@@ -433,6 +427,7 @@ namespace CADability
             deserializedEdges = (Edge[])info.GetValue("Edges", typeof(Edge[]));
             uvposition = new Dictionary<Face, GeoPoint2D>();
             hashCode = hashCodeCounter++;
+            DebugBreak.OnVertexCreated(hashCode);
         }
 
         /// <summary>

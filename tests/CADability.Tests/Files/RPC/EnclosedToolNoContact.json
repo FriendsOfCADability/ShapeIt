@@ -1,0 +1,331 @@
+{
+  "Description": "The most basic hollow body construction: a 10x10x10 box minus a tool that lies STRICTLY INSIDE it, with no contact between the two shells anywhere. Three tools are used - a box (2,2,2)..(8,8,8), a sphere of radius 4 around (5,5,5) and a sphere of radius 3 around the same point - and all three operations are applied. Two control cases where the tool DOES reach through the boundary are included, because they behave differently and narrow the defect down.",
+  "Expected": "Tool strictly inside the target, no contact at all:\n- difference = the target with a closed cavity: 784 with 12 faces for the box tool, 1000 - 256*pi/3 = 731.917427 with 8 faces for the sphere of radius 4, 1000 - 36*pi = 886.902664 for the sphere of radius 3.\n- intersect = the tool itself: 216 for the box tool.\n- union = the target unchanged: 1000, 6 faces, no cavity.\nBy the rule for untouched shell components: the tool's shell lies inside the target, so it survives in the intersection and in the difference (inverted, as a cavity), and is dropped in the union. The target's hull lies outside the tool, so it survives in the union and in the difference and is dropped in the intersection.\nControls where the tool crosses the boundary: a box (2,2,2) of size 6x6x20 leaves 712 with 11 faces, a box (2,2,-1) of size 6x6x12 punches a through hole and leaves 640 with 10 faces. A tool that encloses the whole target gives the empty result, correctly.",
+  "Status": "PASSES (2026-08-13). Keep as a regression guard - this is how every cavity in the RPC corpus is built, so a defect here blocks the whole corpus and is worth catching first.\nMeasured: hollowByBox = 784 with 12 faces, coreByBox = 216, unionByBox = 1000, hollowBySphere = 731.916241, the sphere of radius 3 gives 886.902172, throughHole = 640 with 10 faces, the tool crossing one face leaves 712 with 11 faces, and a tool enclosing the whole target correctly yields the empty result.\n\nEarlier state, for the record:\nSEVERE REGRESSION, first measured 2026-08-13, introduced by the fix for the flaky containment test (a HashSet was iterated in varying order and a touching face was classified as inside).\nWith the tool strictly inside the target and no shell contact anywhere, the difference and the intersection both return the EMPTY result. The union is correct. Everything still works as soon as the tool reaches through the boundary, and a tool that encloses the target still yields the correct empty result - so the defect is confined to the case where the two shells do not touch at all and one is enclosed by the other, which is exactly the untouched-component path.\nThe asymmetry is the useful clue: of the three operations only the union is right, and the union is the one where the enclosed shell has to be DROPPED. Both operations that have to KEEP the enclosed shell fail, and they fail completely - the difference does not merely lose the cavity and return a solid 1000, it returns nothing at all, so the target's own hull is being dropped as well.\nImpact: this is how every cavity in the whole RPC test corpus is built, so it blocks HollowCubeUnionOffset, HollowCubeUnionOverlapCavities, HollowBarCutCavities, HollowToolCavityNotClipped and case e of TouchingCoincidentFaces. Those 71 checks could not be re-run.\nWhat the same fix DID achieve, measured in the same session: the flaky intersection of TouchingCoincidentFaces case d is gone - 30 of 30 runs correct where it used to fail about one run in five - and 60 further runs over the other tangency geometries were clean as well.",
+  "Actual": "difference box minus inner box: empty. difference box minus sphere r=4: empty. difference box minus sphere r=3: empty. intersect box with inner box: empty. union box with inner box: 1000 (correct). Tool crossing the boundary: 712 / 11 faces and 640 / 10 faces (both correct). Tool enclosing the target: empty (correct).",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "hollowByBox",
+    "coreByBox",
+    "unionByBox",
+    "hollowBySphere",
+    "throughHole"
+  ],
+  "Baseline": {
+    "coreByBox": {
+      "verified": "2026-08-14: cavity construction, checked against exact values - 784 and 216 for the box tool, 1000-256*pi/3 = 731.917427 for the sphere, 640 for the through hole. Measured over the MCP server, all within 1.6e-6 relative.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "216",
+      "area": "216",
+      "edgeLength": "72",
+      "extent": "2, 2, 2, 8, 8, 8",
+      "surfaces": "PlaneSurface:6"
+    },
+    "hollowByBox": {
+      "verified": "2026-08-14: cavity construction, checked against exact values - 784 and 216 for the box tool, 1000-256*pi/3 = 731.917427 for the sphere, 640 for the through hole. Measured over the MCP server, all within 1.6e-6 relative.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "784",
+      "area": "816",
+      "edgeLength": "192",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:12"
+    },
+    "hollowBySphere": {
+      "verified": "2026-08-14: cavity construction, checked against exact values - 784 and 216 for the box tool, 1000-256*pi/3 = 731.917427 for the sphere, 640 for the through hole. Measured over the MCP server, all within 1.6e-6 relative.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "731.916241374",
+      "area": "801.010688904",
+      "edgeLength": "155.543063505",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:2"
+    },
+    "throughHole": {
+      "verified": "2026-08-14: cavity construction, checked against exact values - 784 and 216 for the box tool, 1000-256*pi/3 = 731.917427 for the sphere, 640 for the through hole. Measured over the MCP server, all within 1.6e-6 relative.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "2",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "640",
+      "area": "768",
+      "edgeLength": "208",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:10"
+    },
+    "unionByBox": {
+      "verified": "2026-08-14: cavity construction, checked against exact values - 784 and 216 for the box tool, 1000-256*pi/3 = 731.917427 for the sphere, 640 for the through hole. Measured over the MCP server, all within 1.6e-6 relative.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "target",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "innerBox",
+        "origin": [
+          2,
+          2,
+          2
+        ],
+        "sizeX": 6,
+        "sizeY": 6,
+        "sizeZ": 6
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "target",
+        "b": "innerBox",
+        "name": "hollowByBox",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "inspect.properties",
+      "params": {
+        "target": "hollowByBox",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "target",
+        "b": "innerBox",
+        "name": "coreByBox",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coreByBox",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "target",
+        "b": "innerBox",
+        "name": "unionByBox",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "unionByBox",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.box",
+      "params": {
+        "name": "target2",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.sphere",
+      "params": {
+        "name": "innerSphere4",
+        "center": [
+          5,
+          5,
+          5
+        ],
+        "radius": 4
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "target2",
+        "b": "innerSphere4",
+        "name": "hollowBySphere",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "inspect.properties",
+      "params": {
+        "target": "hollowBySphere",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.box",
+      "params": {
+        "name": "target3",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.box",
+      "params": {
+        "name": "throughTool",
+        "origin": [
+          2,
+          2,
+          -1
+        ],
+        "sizeX": 6,
+        "sizeY": 6,
+        "sizeZ": 12
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "target3",
+        "b": "throughTool",
+        "name": "throughHole",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "inspect.properties",
+      "params": {
+        "target": "throughHole",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "hollowByBox",
+          "coreByBox",
+          "unionByBox",
+          "hollowBySphere",
+          "throughHole"
+        ]
+      }
+    }
+  ]
+}

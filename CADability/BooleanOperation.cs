@@ -55,6 +55,7 @@ namespace CADability
     {
         private Shell shell1; // the two shells, which are intersected
         private Shell shell2; // either shell1 and shell2 are set or multipleFaces is set
+        private double triangulationPrecision = 0.0;
         private List<Face> multipleFaces; // the faces, which are intersected. 
         private Dictionary<Edge, Edge> originalToClonedEdges; // points from the original edges to the clones we are working on
         private Dictionary<Vertex, Vertex> originalToClonedVertices; // points from the original vertices to the clones we are working on
@@ -249,18 +250,19 @@ namespace CADability
                         }
                         else
                         {
-                            IEnumerable<Vertex> vtxs = GetFaceEdgeIntersection(fca, edge, out bool curveIsInSurface);
+                            List<Vertex> vtxs = GetFaceEdgeIntersection(fca, edge, out bool curveIsInSurface).ToList();
+                            vtxs.Sort((v1, v2) => edge.Curve3D.PositionOf(v1.Position).CompareTo(edge.Curve3D.PositionOf(v2.Position)));
                             if (curveIsInSurface)
                             {   // why not accumulate the vertices and create the intersection edges later?
                                 List<ICurve> curveParts = new List<ICurve>();
                                 var list = vtxs as IList<Vertex> ?? vtxs.ToList();
-                                for (int i = 0; i < list.Count - 1; i += 2)
+                                for (int i = 0; i < list.Count - 1; i++)
                                 {
                                     var a = list[i];
                                     var b = list[i + 1];
                                     ICurve part = edge.Curve3D.Clone();
                                     part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(b.Position));
-                                    curveParts.Add(part);
+                                    if (fca.Contains(part.PointAt(0.5), true)) curveParts.Add(part);
                                 }
                                 if (curveParts.Count > 0 && vtxs.Count() > 1)
                                 {
@@ -1004,7 +1006,7 @@ namespace CADability
                 curveIsInSurface = found.curveIsInSurface;
                 return found.vertices;
             }
-            List<Vertex> res = new List<Vertex>();
+            HashSet<Vertex> res = new HashSet<Vertex>();
             GeoPoint[] ip;
             GeoPoint2D[] uvOnFace;
             double[] uOnCurve3D;
@@ -1021,24 +1023,57 @@ namespace CADability
             if (edge.SecondaryFace != null && edge.SecondaryFace.Surface.SameGeometry(edge.SecondaryFace.Domain, face.Surface, face.Domain, precision, out ModOp2D _)) { curveIsInSurface = true; return res; }
             if (face.Surface.IsCurveOnSurface(edge.Curve3D))
             {
-                ICurve2D c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);
-                // TODO: there is a problem here: in UniteBug8 there are two differen ways to oproject the ellipse onto the sphere:
-                // u==1,5 and u=4.7 which describe two different part of a projected curve. This cannot be resolved by GetProjectedCurve
-                SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, c2d);
-                double[] parts = face.Area.Clip(c2d, true); // there could be multiple parts with periodic surfaces, which are not found here
-                for (int i = 0; i < parts.Length; i++)
+                if (face.Surface.IsUPeriodic || face.Surface.IsVPeriodic)
+                {   // there are cases where the edge.Curve3D spirals around the face. Working with the projected curve would yield the wrong result
+                    foreach (Edge faceEdge in face.Edges)
+                    {
+                        if (faceEdge.Curve3D != null)
+                        {
+                            if (Curves.Intersect(faceEdge.Curve3D, edge.Curve3D, out double[] u1, out double[] u2, out GeoPoint[] ipoints) > 0)
+                            {
+                                for (int i = 0; i < ipoints.Length; i++)
+                                {
+                                    Vertex v = CreateOrFindVertex(ipoints[i]);
+                                    v.AddPositionOnFace(face, face.PositionOf(ipoints[i]));
+                                    // not sure whether we still need IntersectionVertex
+                                    if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
+                                    edgesToSplit[edge].Add(v);
+                                    res.Add(v);
+                                }
+                            }
+                        }
+                    }
+                }
+                else
                 {
-                    GeoPoint2D uv = c2d.PointAt(parts[i]);
-                    GeoPoint p = face.Surface.PointAt(uv);
-                    Vertex v = CreateOrFindVertex(p);
-                    v.AddPositionOnFace(face, uv);
-                    // not sure whether we still need IntersectionVertex
-                    if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
-                    edgesToSplit[edge].Add(v);
-                    res.Add(v);
+                    ICurve2D c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);
+                    // TODO: there is a problem here: in UniteBug8 there are two differen ways to oproject the ellipse onto the sphere:
+                    // u==1,5 and u=4.7 which describe two different part of a projected curve. This cannot be resolved by GetProjectedCurve
+                    SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, c2d);
+                    double[] parts = face.Area.Clip(c2d, true); // there could be multiple parts with periodic surfaces, which are not found here
+                    for (int i = 0; i < parts.Length; i++)
+                    {
+                        GeoPoint2D uv = c2d.PointAt(parts[i]);
+                        GeoPoint p = face.Surface.PointAt(uv);
+                        Vertex v = CreateOrFindVertex(p);
+                        v.AddPositionOnFace(face, uv);
+                        // not sure whether we still need IntersectionVertex
+                        if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
+                        edgesToSplit[edge].Add(v);
+                        res.Add(v);
+                    }
+                }
+                foreach (Vertex v in new Vertex[] { edge.Vertex1, edge.Vertex2 })
+                {
+                    if (!res.Contains(v) && face.Contains(v.Position, true))
+                    {
+                        if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
+                        edgesToSplit[edge].Add(v);
+                        res.Add(v);
+                    }
                 }
                 curveIsInSurface = true;
-                FaceEdgeIntersections[(edge, face)] = (res, curveIsInSurface);
+                FaceEdgeIntersections[(edge, face)] = (res.ToList(), curveIsInSurface);
                 return res;
             }
             face.IntersectAndPosition(edge, out ip, out uvOnFace, out uOnCurve3D, out position, precision);
@@ -1074,7 +1109,7 @@ namespace CADability
                 }
                 if (operation == Operation.testonly) return res; // ein Schnittpunkt reicht hier
             }
-            FaceEdgeIntersections[(edge, face)] = (res, curveIsInSurface);
+            FaceEdgeIntersections[(edge, face)] = (res.ToList(), curveIsInSurface);
             return res;
         }
 
@@ -1612,6 +1647,12 @@ namespace CADability
             shell1 = s1.Clone(originalToClonedEdges, originalToClonedVertices, originalToClonedFaces); // we clone the shells to not destroy the originals. We could keep references to the original by UserData
             shell2 = s2.Clone(originalToClonedEdges, originalToClonedVertices, originalToClonedFaces);
             this.operation = operation;
+            // calculate the triangulation according to the size of the bounding box. We need this for Volume calculation
+            BoundingBox ext = shell1.GetExtent(0.0);
+            ext.MinMax(shell2.GetExtent(0.0));
+            triangulationPrecision = ext.Size * 1e-4;
+            shell1.PreCalcTriangulation(triangulationPrecision);
+            shell2.PreCalcTriangulation(triangulationPrecision);
         }
 
         public static Face[] ClipFace(Face toClip, Face clipBy)
@@ -1921,7 +1962,7 @@ namespace CADability
                     {   // create a new face. The outline of the new face is the rectangular domain of the main face. The outline will not be used later, but is is needed for the face
                         // in some situations.
                         BoundingRect ext = mainFace.Domain;
-                        ext.InflateRelative(1.1);
+                        ext.InflateRelativeToSize(1.1);
                         commonFace = Face.MakeFace(mainFace.Surface.Clone(), ext);
                         commonFaces[(mainFace, otherFace)] = commonFace;
                         commonFaceHasMainSurface = true;
@@ -3124,6 +3165,30 @@ namespace CADability
                 if (edg.Curve3D != null) dcis.Add(edg.Curve3D as IGeoObject, edg.GetHashCode());
             }
 #endif
+            // we need to retrieve the parts before shell1 and shell2 are beeing destroyed by the intersection process and the edges may be invalid. 
+            List<HashSet<Face>> parts1 = shell1.GetConnectedFaceSets();
+            List<HashSet<Face>> parts2 = shell2.GetConnectedFaceSets();
+            Shell shell1Cloned = shell1.Clone() as Shell; // we need a Clone which keeps the triangulation
+            Shell shell2Cloned = shell2.Clone() as Shell;
+            HashSet<Edge> edgeOnBothShells = new HashSet<Edge>(); // both shells contain the same edge, this is a non-manifold condition
+            shell1.RecalcEdges();
+            foreach (Edge edg in shell1.Edges)
+            {
+                IEnumerable<Edge> multipleEdges = Vertex.ConnectingEdges(edg.Vertex1, edg.Vertex2);
+                foreach (Edge me in multipleEdges)
+                {
+                    if (me == edg) continue;
+                    if (shell2.Edges.Contains(me))
+                    {
+                        if (SameEdge(me, edg, precision))
+                        {
+                            edgeOnBothShells.Add(me);
+                            edgeOnBothShells.Add(edg);
+                        }
+                    }
+                }
+            }
+
             // if a face is overlapping both in the same orientaiation and the opposite orientation with some other faces
             // there might be intersectionEdges which cross an existing vertex. This is refined here.
             // Maybe this condition also applies to othe faces which are overlapping in the same orientaiation or the opposite orientation, but no case found yet
@@ -3210,7 +3275,7 @@ namespace CADability
                         {
                             // two inverse intersection edges are also identical with an original edge:
                             // this will make an ambiguous situation
-                            nonManifoldEdges.Add(edg);
+                            edgeOnBothShells.Add(edg);
                             // hasNonManifoldEdge = true; // excluded for debugging SplitBug1
                         }
                     }
@@ -3500,7 +3565,7 @@ namespace CADability
                         for (int i = 0; i < list.Count; i++)
                         {
                             GeoPoint somePointOnFace = list[i].Surface.PointAt(list[i].Area.GetSomeInnerPoint());
-                            if (ofc.Contains(somePointOnFace,false))
+                            if (ofc.Contains(somePointOnFace, false))
                             {
                                 trimmedFaces.Remove(list[i]);
                                 discardedFaces.Add(list[i]);
@@ -3524,7 +3589,13 @@ namespace CADability
             }
             // to avoid oppositeCommonFaces to be connected with the trimmedFaces, we destroy these faces
 
-            foreach (Face fce in discardedFaces) fce.DisconnectAllEdges();
+            foreach (Face fce in discardedFaces)
+            {   // the 2d outline of a face cannot be computed any more when its edges are disconnected. The geometry of these faces is still
+                // needed to decide whether an untouched part of a shell belongs to the result (see "combine shells and holes"), so we force
+                // the outline to be cached while the face is still intact
+                SimpleShape forceCalculation = fce.Area;
+                fce.DisconnectAllEdges();
+            }
 
 #if DEBUG
             openTrimmedEdges = new HashSet<Edge>();
@@ -3550,6 +3621,8 @@ namespace CADability
                 {
                     foreach (Edge edg in fce.Edges)
                     {
+                        if (edgeOnBothShells.Contains(edg)) continue; // this coondition may be too strong,
+                                                                      // we need it in TouchingEdgesAndVertices.json, id==30
                         HashSet<Edge> connecting = new HashSet<Edge>(Vertex.ConnectingEdges(edg.Vertex1, edg.Vertex2));
                         connecting.Remove(edg);
                         if (!allFaces.Contains(edg.PrimaryFace))
@@ -3640,16 +3713,6 @@ namespace CADability
                 }
             }
 
-            if (allFaces.Count == 0 && discardedFaces.Count > 0)
-            {   // there were no intersections, only identical opposite faces, like when glueing two parts together
-                // this remains empty in case of intersection and returns the full body in case of union
-                if (this.operation == Operation.union || this.operation == Operation.difference)
-                {
-                    allFaces.UnionWith(shell1.Faces);
-                    allFaces.UnionWith(shell2.Faces);
-                    allFaces.ExceptWith(discardedFaces);
-                }
-            }
             if (allFaces.Count == 0 && multipleFaces != null)
             {
                 // simply connect all faces, there were no intersections
@@ -3685,40 +3748,9 @@ namespace CADability
                                                  // allFaces now contains all the trimmed faces plus the faces, which are (directly or indirectly) connected (via edges) to the trimmed faces
             List<Face> nonManifoldParts = new List<Face>();
             shellsAreUnchanged = (allFaces.Count == 0);
-            if (allFaces.Count == 0)
-            {
-                if (operation == Operation.union)
-                {
-                    shell1.ReverseOrientation(); // both shells have been reversed, undo this reversion
-                    shell2.ReverseOrientation();
-                    if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell2); // shell2 contains shell1, the result ist shell2
-                    else if (shell1.Contains(shell2.Vertices[0].Position)) res.Add(shell1); // shell1 contains shell2, the result ist shell1
-                    else
-                    {   // shells are disjunct, as union we return both
-                        res.Add(shell1);
-                        res.Add(shell2);
-                    }
-                }
-                else if (operation == Operation.difference)
-                {   // no intersection: shell1 - shell2, shell2 is reversed, i.e. IsInside means outside of the original
-                    // the shells might have been damaged, so we cannot use them
-                    //if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell1); // shell1 remains unchanged, because shell2 is outside
-                    //else if (shell1.Contains(shell2.Vertices[0].Position))
-                    //{   // this is a solid with an inner hole. This is currently not implemented by Solid as it is very rarely used
-                    //    // the correct result would be shell1 and shell2 in its reversed form
-                    //    res.Add(shell1);
-                    //    res.Add(shell2);
-                    //}
-                    // else: the result is empty, because shell2 contains shell1 completely (nothing to do here, return empty result)
-                }
-                else if (operation == Operation.intersection)
-                {
-                    //if (shell2.Contains(shell1.Vertices[0].Position)) res.Add(shell1); // shell2 contains shell1, the result ist shell1
-                    //else if (shell1.Contains(shell2.Vertices[0].Position)) res.Add(shell2); // shell1 contains shell2, the result ist shell2
-                    // else: shells are disjunct, the result is empty
-
-                }
-            }
+            // when allFaces is empty, there were no intersections at all. This case doesn't need a special treatment here: shell1 and shell2
+            // are completely untouched and are handled by "combine shells and holes" at the end of this method, which decides for each
+            // untouched part of the two shells whether it belongs to the result.
             foreach (Face fc in allFaces)
             {
                 string[] allUserDataKeys = fc.UserData.AllItems;
@@ -3742,7 +3774,7 @@ namespace CADability
                 if (allowOpenEdges || !shell.HasOpenEdgesExceptPoles())
                 {
                     if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(); // two connected faces which have the same surface are merged into one face
-                    if (operation == Operation.union || operation == Operation.connectMultiple) shell.ReverseOrientation(); // both had been reversed and the intersection had been calculated
+                    // reversing the orientation moved to the end, ater the shells and the holes are combined
 #if DEBUG
                     System.Diagnostics.Debug.Assert(shell.CheckConsistency());
 #endif
@@ -3758,8 +3790,11 @@ namespace CADability
                         if (!shell.HasOpenEdgesExceptPoles())
                         {
                             if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(); // two connected faces which have the same surface are merged into one face
-                            if (operation == Operation.union) shell.ReverseOrientation(); // both had been reversed and the intersection had been calculated
-                            if (shell.Volume(Precision.eps) > Precision.eps * 100) res.Add(shell); // we sometimes get two identical faces, which are inverse oriented
+                            // this shell is still in the orientation of the intersection, it is reversed at the end together with all other shells.
+                            // For a union the shells have been reversed, so there the enclosed volume has to be negative
+                            double volume = shell.Volume(Precision.eps);
+                            if (operation == Operation.union) volume = -volume;
+                            if (volume > Precision.eps * 100) res.Add(shell); // we sometimes get two identical faces, which are inverse oriented
                             nonManifoldParts.Clear();
                         }
                     }
@@ -3772,33 +3807,172 @@ namespace CADability
             {
                 unusedFaces = new List<Face>(multipleFaces.Except(discardedFaces));
             }
-            // combine shells and holes: when a shell is completely inside another shell and is not outward oriented,
-            // it is a hole and has to be added to the outer shell
-            if (res.Count > 1)
+            // combine shells and holes:
+            // The result consists of the shells which have been assembled from the trimmed faces (they are already contained in res) and of
+            // those parts of shell1 and shell2 which have not been touched by the intersection at all. A "part" is a connected set of faces
+            // (see Shell.GetConnectedFaceSets): a solid with cavities consists of the outer hull and of one part for each cavity, where the
+            // normals of a cavity point into the cavity.
+            // A part which contains a discarded face or a face which is already used in res has been cut, its relevant faces are already in res.
+            // An untouched part belongs to the result, when the material behind it (the side its normals point away from) is inside the other
+            // shell. This is the same criterion which is used for the single trimmed faces, only applied to a complete part at once, which is
+            // possible because an untouched part cannot cross the other shell.
+            // Everything here still happens in the world of the intersection: for a union both shells have been reversed, for a difference only
+            // shell2 has been reversed. Since this reversion also applies to the cavities, the rule above is valid for all three operations. The
+            // reversion is undone below, when all parts of the result have been collected.
+            if (multipleFaces == null && shell1IsClosed && shell2IsClosed && !allowOpenEdges)
             {
-                List<Shell> combinedShells = new List<Shell>(); // outward oriented shells
-                List<Shell> holes = new List<Shell>(); // inward oriented shells, i.e. holes
-                foreach (Shell sh in res) if (sh.IsOutwardOriented()) combinedShells.Add(sh); else holes.Add(sh);
-                // if there is an outward oriented part of the result which resides in a hole, we use it as a seperate result
+                // I think if res is empty, i.e. there were not intersections, we must use both shells in the result. At the ende we have to rejct shells with negative volume
+                HashSet<Face> usedFaces = new HashSet<Face>();
+                foreach (Shell sh in res) usedFaces.UnionWith(sh.Faces);
+                usedFaces.UnionWith(discardedFaces);
+                foreach ((Shell shell, List<HashSet<Face>> sparts, Shell other, List<HashSet<Face>> oparts) in new (Shell, List<HashSet<Face>>, Shell, List<HashSet<Face>>)[] { (shell1Cloned, parts1, shell2Cloned, parts2), (shell2Cloned, parts2, shell1Cloned, parts1) })
+                {
+                    foreach (HashSet<Face> part in sparts)
+                    {
+                        if (part.Any(fc => usedFaces.Contains(fc))) continue; // this part has been cut, it is already contained in res
+                        if (!IsClosedPart(part)) continue; // all parts should be closed
+                        if (!IsInsideShell(part, other)) continue; // the material behind this part is not inside the other shell
+                        Shell untouchedShell = Shell.MakeShell(part.ToArray());
+                        untouchedShell.CombineConnectedFaces();
+                        res.Add(untouchedShell);
+                    }
+                }
+            }
+            if (res.Count == 0 && discardedFaces.Count > 0)
+            {   // there were no intersections, only identical opposite faces, like when glueing two parts together
+                // this remains empty in case of intersection and returns the full body in case of union
+                if (this.operation == Operation.union || this.operation == Operation.difference)
+                {
+                    HashSet<Face> remainingFaces = new HashSet<Face>();
+                    remainingFaces.UnionWith(shell1.Faces);
+                    remainingFaces.UnionWith(shell2.Faces);
+                    remainingFaces.ExceptWith(discardedFaces);
+                    Shell connectedShell = Shell.MakeShell(remainingFaces.ToArray(), true);
+                    if (!connectedShell.HasOpenEdgesExceptPoles())
+                    {
+                        connectedShell.CombineConnectedFaces();
+                        res.Add(connectedShell);
+                    }
+                }
+            }
+
+            for (int i = 0; i < res.Count; i++)
+            {
+                if (operation == Operation.union || operation == Operation.connectMultiple) res[i].ReverseOrientation(); // both had been reversed and the intersection had been calculated
+            }
+            if (res.Count > 1)
+            {   // an inward oriented shell (it encloses a negative volume) is a cavity and has to be added as a hole to the shell which contains
+                // it. An outward oriented shell which resides inside a cavity is not a hole but a separate part of the result.
+                List<Shell> combinedShells = new List<Shell>(); // outward oriented shells, enclosing a positive volume
+                List<Shell> holes = new List<Shell>(); // inward oriented shells, enclosing a negative volume, i.e. cavities
+                foreach (Shell sh in res)
+                {   // IsOutwardOriented is the sign of the enclosed volume, but determined by a ray cast. Shell.Volume would be the more direct
+                    // criterion, but it triangulates all faces and this cached triangulation would then be used by the consumer of the result
+                    if (sh.IsOutwardOriented()) combinedShells.Add(sh); else holes.Add(sh);
+                }
                 holes.Sort((s1, s2) => s2.GetExtent(0.0).Volume.CompareTo(s1.GetExtent(0.0).Volume)); // sort holes by extent, biggest extent first
-                combinedShells.Sort((s1, s2) => s1.GetExtent(0.0).Volume.CompareTo(s2.GetExtent(0.0).Volume)); // sort combined shells by extent, smallest extent first
+                combinedShells.Sort((s1, s2) => s1.Volume(triangulationPrecision).CompareTo(s2.Volume(triangulationPrecision))); // smallest volume first, to find the innermost surrounding shell
                 foreach (Shell hole in holes)
                 {
                     bool isHole = false;
                     foreach (Shell sh in combinedShells)
                     {
-                        if (sh.Contains(hole.Vertices[0].Position))
+                        if (IsInsideShell(hole.Faces, sh))
                         {
                             sh.AddInnerHole(hole.Faces);
                             isHole = true;
                             break;
                         }
                     }
-                    if (!isHole) System.Diagnostics.Debug.Assert(false); // this should not happen
+                    // if a hole is not inside any of the shells, it will be rejected, which is correct
+                    //if (!isHole) System.Diagnostics.Debug.Assert(false); // a cavity without a surrounding shell: this should not happen
+                }
+                combinedShells.Reverse(); // now the biggest is the first one
+                for (int i = 0; i < combinedShells.Count - 1; i++)
+                {
+                    for (int j = i + 1; j < combinedShells.Count; j++)
+                    {
+                        if (IsInsideShell(combinedShells[j].Faces, combinedShells[i]))
+                        {
+                            combinedShells.RemoveAt(j);
+                            --j; // to also test the following smaller shells
+                        }
+                    }
                 }
                 res = combinedShells;
             }
+            for (int i = res.Count - 1; i >= 0; --i)
+            {
+                if (res[i].Volume(triangulationPrecision) < 0) res.RemoveAt(i);
+            }
             return res.ToArray();
+        }
+
+        /// <summary>
+        /// Checks whether the provided faces build a closed part, i.e. each edge is used by two faces of this part. Poles (edges which start and
+        /// end at the same vertex) don't need a second face.
+        /// </summary>
+        /// <param name="part">A connected set of faces</param>
+        /// <returns>true, if the part is closed</returns>
+        private static bool IsClosedPart(HashSet<Face> part)
+        {
+            foreach (Face fc in part)
+            {
+                foreach (Edge edg in fc.AllEdges)
+                {
+                    if (edg.SecondaryFace == null)
+                    {
+                        if (edg.Vertex1 == edg.Vertex2) continue; // a pole
+                        return false;
+                    }
+                    if (!part.Contains(edg.PrimaryFace) || !part.Contains(edg.SecondaryFace)) return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Checks whether the provided faces are inside the provided shell, i.e. on the material side of its faces. The faces must not
+        /// intersect the shell, then a point on them is unambiguously inside or outside and there is no need to move the test point onto
+        /// the material side. The faces are tested one after the other until one of them yields a decision, a tangential ray or a ray
+        /// through an edge of the shell yields no decision.
+        /// </summary>
+        /// <param name="faces">Faces which don't intersect <paramref name="shell"/></param>
+        /// <param name="shell">The shell to test against, its orientation defines what "inside" means</param>
+        /// <returns>true, if the faces are inside the shell</returns>
+        private static bool IsInsideShell(IEnumerable<Face> faces, Shell shell)
+        {
+            foreach (Face fc in faces)
+            {
+                GeoPoint2D uv = fc.Area.GetSomeInnerPoint();
+                bool inside = IsInsideShell(fc.Surface.PointAt(uv), fc.Surface.GetNormal(uv), shell, out bool decided);
+                if (decided) return inside;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Checks whether the provided point is inside the provided shell, i.e. on the material side of its faces. A ray is cast from the point
+        /// and the first intersection ahead decides: when the ray leaves the material there, the point was inside. Unlike
+        /// <see cref="Shell.Contains(GeoPoint)"/> this also works for shells with cavities and for inverted shells, where the material extends
+        /// to infinity and a ray may leave without any intersection.
+        /// </summary>
+        /// <param name="point">The point to test, it must not be located on the shell</param>
+        /// <param name="direction">The direction of the ray</param>
+        /// <param name="shell">The shell to test against, its orientation defines what "inside" means</param>
+        /// <param name="decided">false, if the ray is tangential to the shell or hits an edge, then the result is meaningless</param>
+        /// <returns>true, if the point is inside the shell</returns>
+        private static bool IsInsideShell(GeoPoint point, GeoVector direction, Shell shell, out bool decided)
+        {
+            List<(double par, bool outward)> ip = shell.GetOrientedLineIntersection(point, direction.Normalized, out bool isBoundaryCase);
+            decided = !isBoundaryCase;
+            if (isBoundaryCase) return false;
+            ip.Sort((a, b) => a.par.CompareTo(b.par));
+            for (int i = 0; i < ip.Count; i++)
+            {   // at the first intersection ahead of the point the ray either leaves the material (then the point was inside) or enters it
+                if (ip[i].par > Precision.eps) return ip[i].outward;
+            }
+            return !shell.IsOutwardOriented(); // nothing ahead: only an inverted shell has material at infinity
         }
 
         private bool IdenticalFaces(Face face1, Face face2)
@@ -3921,11 +4095,25 @@ namespace CADability
             // for each node (connectionpoint of two or more edges) we keep a list of incomming and outgoing edges to this point
             // the edges are sorted clockwise with respect to the node, so when you enter on an index, the naxt index (modlus) goes to the left.
             // typically there are only two or three edges in a node
+            Dictionary<Vertex, Vertex> poleVertices = []; // a pole edge has identical start and endvertex. Bute here we nned different vertices
+            // so we invent for each pole a duplicate vertex, which is the endvertex of the pole-edge and the startvertex of the next edge.
+            // these vertices will only be used as keys in the nodes dictionary, they are not part of the geometry.
+            foreach (Edge edge in originalEdges)
+            {
+                if (edge.Vertex1 == edge.Vertex2)
+                {
+                    Vertex v = new Vertex(edge.Vertex1.Position);
+                    System.Diagnostics.Debug.Assert(edge.Curve3D == null); // this must be a pole
+                    poleVertices[edge.Vertex1] = v;
+                }
+            }
             foreach (Edge edge in availableEdges)
             {
                 ICurve2D c2d = edge.Curve2D(onThisFace);
                 Vertex sv = edge.StartVertex(onThisFace);
                 Vertex ev = edge.EndVertex(onThisFace);
+                if (sv == ev && poleVertices.TryGetValue(sv, out Vertex v)) ev = v; // use the duplicate vertex for the end of a pole edge
+                else if (poleVertices.TryGetValue(sv, out Vertex poleEnd)) sv = poleEnd; // use the duplicat vertex for an edge which starts at a pole
                 if (!nodes.TryGetValue(sv, out List<(Edge edge, double angle, bool outgoing)> list)) nodes[sv] = list = new List<(Edge edge, double angle, bool outgoing)>();
                 double a = c2d.StartDirection.Angle % (Math.PI * 2);
                 intervals[(int)(angleToIntervalFactor * a) % intervals.Length] = true; // disable this interval
@@ -4015,6 +4203,8 @@ namespace CADability
                 while (current != null)
                 {
                     List<(Edge edge, double angle, bool outgoing)> node = nodes[current.EndVertex(onThisFace)];
+                    // if current is a pole, use the pole-endvertex instead
+                    if (current.StartVertex(onThisFace) == current.EndVertex(onThisFace) && poleVertices.TryGetValue(current.StartVertex(onThisFace), out Vertex poleEnd)) node = nodes[poleEnd];
                     int i = node.FindIndex(n => n.edge == current); // current is incoming endge into node i
                     if (i < 0)
                     {   // should never happen

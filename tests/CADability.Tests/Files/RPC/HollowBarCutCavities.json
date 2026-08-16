@@ -1,0 +1,376 @@
+{
+  "Description": "A 30x10x10 bar with three spherical cavities of radius 3 at (5,5,5), (15,5,5) and (25,5,5) is cut by a box that covers the whole cross section and removes everything with x > 15. The cut does two things at once: it deletes cavity 3 completely (a whole inner shell has to disappear) and it opens cavity 2 (the cut plane runs through the centre of the sphere, so the cavity turns into a spherical dimple in the new planar face). Cavity 1 is untouched. No tangency anywhere: the cut plane x=15 is 7 mm away from cavity 1 and from cavity 3, and the only face of the cutting box that intersects the bar at all is its x=15 face - all its other faces lie completely outside the bar.",
+  "Expected": "Volumes with V(sphere r=3) = 36*pi = 113.097336 and V(half sphere) = 18*pi = 56.548668:\n- multiCav (bar with 3 cavities) = 3000 - 108*pi = 2660.707993\n- cutFarStep1 (cut at x=20, cavity 3 removed, cavities 1 and 2 intact) = 2000 - 72*pi = 1773.805329\n- barTwoCut (bar 0..20 with 2 cavities, cut at x=15, cavity 2 opened, nothing removed entirely) = 1500 - 54*pi = 1330.353997\n- cutHalf (the full case: cavity 3 removed AND cavity 2 opened) = 1500 - 54*pi = 1330.353997\ncutHalf and barTwoCut must be the identical solid: same outer box 0..15, one closed cavity around (5,5,5) and one hemispherical dimple in the face x=15.",
+  "Status": "PASSES (re-checked 2026-08-11, build 0.2.0.262). Keep as a regression guard for cuts through a body with several cavities.\nHistory: on the first attempt the application appeared to hang here. It was in fact running under the Visual Studio debugger, which stopped it on a NullReferenceException - from the outside that looks exactly like a deadlock (CPU time frozen to the last digit, Responding=False, no dialog window of its own), so do not read the old symptom description as evidence of a lock. After the restart all four steps run through.",
+  "Actual": "All steps correct, all within 6e-7 relative of the exact values:\n- multiCav = 2660.706587 (exact 2660.707993)\n- cutFar = 1773.804365 (exact 1773.805329), 10 faces / 20 edges = 6 box faces + 2 intact cavities\n- barTwoCut = 1330.353947 (exact 1330.353997), 10 faces / 21 edges, bbox 0..15\n- cutHalf = 1330.353947, 10 faces / 21 edges, bbox 0..15 - identical to barTwoCut to 13 digits, as required.\nThe combination was additionally re-run as a fresh sequence (build the bar with three cavities and cut it immediately, with no other boolean operation in between, since BRep results can depend on the call history) and gives the same 1330.353947.",
+  "Note": "The narrowing steps are ordered from harmless to failing on purpose, so the call the file stops at identifies the cause:\n- 'cutFar' (call 8) isolates effect 1: an entire cavity shell is removed, no cavity is opened.\n- 'barTwoCut' (call 12) isolates effect 2: a cavity is opened by the cut, no cavity is removed entirely.\n- 'cutHalf' (call 14) is the original failing case, both effects together.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "multiCav",
+    "cutFar",
+    "barTwoCut",
+    "cutHalf"
+  ],
+  "Baseline": {
+    "barTwoCut": {
+      "verified": "2026-08-14: checked against exact values 3000-108*pi, 2000-72*pi and 1500-54*pi. barTwoCut and cutHalf must stay identical - they are the same solid reached two ways; they agreed to 11 digits.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "21",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1330.35394692",
+      "area": "941.308291945",
+      "edgeLength": "198.835502365",
+      "extent": "0, 0, 0, 15, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:4"
+    },
+    "cutFar": {
+      "verified": "2026-08-14: checked against exact values 3000-108*pi, 2000-72*pi and 1500-54*pi. barTwoCut and cutHalf must stay identical - they are the same solid reached two ways; they agreed to 11 digits.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "20",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "6",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1773.80436529",
+      "area": "1226.09137927",
+      "edgeLength": "213.314595258",
+      "extent": "0, 0, 0, 20, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:4"
+    },
+    "cutHalf": {
+      "verified": "2026-08-14: checked against exact values 3000-108*pi, 2000-72*pi and 1500-54*pi. barTwoCut and cutHalf must stay identical - they are the same solid reached two ways; they agreed to 11 digits.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "21",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1330.35394692",
+      "area": "941.308291945",
+      "edgeLength": "198.835502365",
+      "extent": "0, 0, 0, 15, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:4"
+    },
+    "multiCav": {
+      "verified": "2026-08-14: checked against exact values 3000-108*pi, 2000-72*pi and 1500-54*pi. barTwoCut and cutHalf must stay identical - they are the same solid reached two ways; they agreed to 11 digits.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "20",
+      "holeLoops": "0",
+      "euler": "8",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2660.70658717",
+      "area": "1739.09860689",
+      "edgeLength": "279.971892887",
+      "extent": "0, 0, 0, 30, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "barA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 30,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.sphere",
+      "params": {
+        "name": "cav1",
+        "center": [
+          5,
+          5,
+          5
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.sphere",
+      "params": {
+        "name": "cav2",
+        "center": [
+          15,
+          5,
+          5
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.sphere",
+      "params": {
+        "name": "cav3",
+        "center": [
+          25,
+          5,
+          5
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "barA",
+        "b": [
+          "cav1",
+          "cav2",
+          "cav3"
+        ],
+        "name": "multiCav",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "multiCav",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "cutterFar",
+        "origin": [
+          20,
+          -5,
+          -5
+        ],
+        "sizeX": 25,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "multiCav",
+        "b": "cutterFar",
+        "name": "cutFar",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.properties",
+      "params": {
+        "target": "cutFar",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.box",
+      "params": {
+        "name": "barB",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.sphere",
+      "params": {
+        "name": "cav1b",
+        "center": [
+          5,
+          5,
+          5
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.sphere",
+      "params": {
+        "name": "cav2b",
+        "center": [
+          15,
+          5,
+          5
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "barB",
+        "b": [
+          "cav1b",
+          "cav2b"
+        ],
+        "name": "barTwoCav",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.box",
+      "params": {
+        "name": "cutterMid",
+        "origin": [
+          15,
+          -5,
+          -5
+        ],
+        "sizeX": 25,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "barTwoCav",
+        "b": "cutterMid",
+        "name": "barTwoCut",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "inspect.properties",
+      "params": {
+        "target": "barTwoCut",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.box",
+      "params": {
+        "name": "cutterAll",
+        "origin": [
+          15,
+          -5,
+          -5
+        ],
+        "sizeX": 25,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "multiCav",
+        "b": "cutterAll",
+        "name": "cutHalf",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "inspect.properties",
+      "params": {
+        "target": "cutHalf",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "multiCav",
+          "cutFar",
+          "barTwoCut",
+          "cutHalf"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "cutFar",
+          "barTwoCut",
+          "cutHalf"
+        ]
+      }
+    }
+  ]
+}

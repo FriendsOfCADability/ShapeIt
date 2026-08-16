@@ -1,0 +1,182 @@
+{
+  "Description": "Helical extrusion of a RECTANGULAR profile (4 x 3, centred at radius 12, so its inner face lies on radius 10) united with a coaxial cylinder of radius 10. The inner face of the coil and the lateral face of the cylinder are coincident over the whole height - unlike the circular-wire cases this is a face/face coincidence, not a tangency along a line.",
+  "Expected": "TWO separate solids with a total volume of 1809.557 + 5654.865 = 7464.422 - the bodies only touch and bodies that merely touch are not merged (decided by Gerhard, 2026-08-10). intersect must be empty.",
+  "Status": "No exception any more and the total volume is right (re-checked 2026-08-10): 7464.4217 against the exact 7464.4221, reproducible over three runs, and now 2 s instead of 43 s. Two things still open: the result is ONE solid instead of two, and intersect is wrong.",
+  "Actual": "union merges the two merely touching bodies into a single solid; the volume is correct, so this is purely about not merging. solid.boolean intersect returns 1809.5574 - operand a - although the intersection must be empty. Same face/face coincidence as HelicalThreadOnRod.json, but there the volume additionally comes out wrong - the difference is probably the much tighter thread there (pitch 3 at a profile height of 2.4 versus pitch 9 at height 3 here).",
+  "Actual (before the fix)": "solid.boolean union failed with 'Error in the application.' after about 43 s.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "rectCoil",
+    "hub",
+    "rectCoilOnHub"
+  ],
+  "Baseline": {
+    "hub": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Total volume 7464.4217 against the exact 7464.4221 stated in the file, and no exception any more.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5654.62127093",
+      "area": "1749.79548195",
+      "edgeLength": "161.663706144",
+      "extent": "-10, -10, 0, 10, 10, 18",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    },
+    "rectCoil": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Total volume 7464.4217 against the exact 7464.4221 stated in the file, and no exception any more.",
+      "consistent": "true",
+      "faces": "18",
+      "edges": "36",
+      "poleEdges": "0",
+      "vertices": "20",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1809.55453718",
+      "area": "2136.73558714",
+      "edgeLength": "677.58786384",
+      "extent": "-14, -14, -1.5, 14, 14, 19.5",
+      "surfaces": "CylindricalSurface:8 HelicalSweepSurface:8 PlaneSurface:2"
+    },
+    "rectCoilOnHub": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Total volume 7464.4217 against the exact 7464.4221 stated in the file, and no exception any more.",
+      "consistent": "true",
+      "faces": "18",
+      "edges": "42",
+      "poleEdges": "0",
+      "vertices": "26",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7464.42196275",
+      "area": "3179.09833093",
+      "edgeLength": "794.251569984",
+      "extent": "-14, -14, -1.5, 14, 14, 19.5",
+      "surfaces": "CylindricalSurface:12 HelicalSweepSurface:2 PlaneSurface:4"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "rectProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_rectangle",
+      "params": {
+        "sketch": {
+          "name": "rectProfile"
+        },
+        "center": [
+          12,
+          0
+        ],
+        "width": 4,
+        "height": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "rectCoil",
+        "profile": "rectProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 720,
+        "pitch": 9
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "hub",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          18
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "rectCoil",
+        "b": "hub",
+        "name": "rectCoilOnHub",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "rectCoilOnHub",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": "rectCoilOnHub"
+      }
+    }
+  ]
+}

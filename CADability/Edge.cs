@@ -821,12 +821,8 @@ namespace CADability
         }
         internal Edge()
         {
-            hashCode = hashCodeCounter++; // 
-#if DEBUG
-            if (hashCode == 70534 )
-            {
-            }
-#endif
+            hashCode = hashCodeCounter++; //
+            DebugBreak.OnEdgeCreated(hashCode); // breaks if this hashCode was requested, e.g. via command line "-e:29196"
         }
         /// <summary>
         /// INTERNAL: partial construction, must be completed by SetFace
@@ -2073,11 +2069,7 @@ namespace CADability
 
         internal void SetSecondary(Face secondaryFace, ICurve2D curveOnSecondaryFace, bool forwardOnSecondaryFace)
         {
-#if DEBUG
-            if (hashCode == 1469 || hashCode == 1468)
-            {
-            }
-#endif
+            DebugBreak.Hit("Edge.SetSecondary", hashCode);
             this.secondaryFace = secondaryFace;
             this.curveOnSecondaryFace = curveOnSecondaryFace;
             this.forwardOnSecondaryFace = forwardOnSecondaryFace;

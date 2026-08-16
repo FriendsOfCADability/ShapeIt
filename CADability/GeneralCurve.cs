@@ -651,7 +651,7 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="p"></param>
         /// <returns></returns>
-        public virtual CADability.Curve2D.ICurve2D GetProjectedCurve(Plane p)
+        public virtual ICurve2D GetProjectedCurve(Plane p)
         {
             return new ProjectedCurve(this, p);
         }
@@ -1252,14 +1252,14 @@ namespace CADability.GeoObject
                 catch (PlaneException)
                 {
 #if DEBUG
-                    Polyline res = Polyline.Construct();
-                    int dbglen = 1000;
-                    GeoPoint[] vtx = new GeoPoint[dbglen];
-                    for (int i = 0; i < dbglen; i++)
-                    {
-                        vtx[i] = theCurve.PointAt(i * 1.0 / dbglen);
-                    }
-                    res.SetPoints(vtx, false);
+                    //Polyline res = Polyline.Construct();
+                    //int dbglen = 1000;
+                    //GeoPoint[] vtx = new GeoPoint[dbglen];
+                    //for (int i = 0; i < dbglen; i++)
+                    //{
+                    //    vtx[i] = theCurve.PointAt(i * 1.0 / dbglen);
+                    //}
+                    //res.SetPoints(vtx, false);
 #endif
                     pars.Add(from);
                     points.Add(p1);
@@ -1780,21 +1780,106 @@ namespace CADability.GeoObject
                 GeoPoint p = start + l * dir;
                 return (p.x + p.y < 1.0) && (p.x >= 0.0) && (p.x <= 1.0) && (p.y >= 0.0) && (p.y <= 1.0);
             }
+            /// <summary>
+            /// Tolerance for the segment tests against the unit tetrahedron and the unit triangle. Since these tests
+            /// are performed in the unit system, where the tetrahedron has the size 1, this is a relative tolerance.
+            /// The tetrahedron interference test is only a preselection for the following intersection calculations,
+            /// so false positives do no harm, whereas false negatives would make intersections disappear. This is why
+            /// the unit tetrahedron and the unit triangle are widened by this value in all directions.
+            /// </summary>
+            private const double unitEps = 1e-6;
+            /// <summary>
+            /// Clips the parameter interval [lmin, lmax] of a line segment against a single half space.
+            /// f0 and f1 are the values of the (linear) half space function at the start- and endpoint of the
+            /// segment, the inside of the half space is where this function is negative. The half space is widened
+            /// by <see cref="unitEps"/>. Returns false when the segment is completely outside of the half space,
+            /// otherwise lmin and lmax are narrowed down.
+            /// </summary>
+            private static bool ClipHalfSpace(double f0, double f1, ref double lmin, ref double lmax)
+            {
+                double d = f1 - f0;
+                if (Math.Abs(d) < 1e-13) return f0 <= unitEps; // parallel to the boundary plane: inside or outside as a whole
+                double l = (unitEps - f0) / d; // parameter where the widened boundary plane is crossed
+                if (d > 0.0)
+                {   // the function is growing, the inside is before l
+                    if (l < lmax) lmax = l;
+                }
+                else
+                {   // the function is falling, the inside is behind l
+                    if (l > lmin) lmin = l;
+                }
+                return lmin <= lmax;
+            }
+            /// <summary>
+            /// The tolerance <see cref="unitEps"/> expressed in the parameter of the segment from sp to ep, i.e. the
+            /// interval [-res, 1+res] describes the segment widened by unitEps at both ends.
+            /// </summary>
+            private static double ParameterEps(GeoPoint sp, GeoPoint ep)
+            {
+                double len = (ep - sp).Length;
+                if (len < unitEps) return 1.0; // degenerated to a point, the half spaces alone decide
+                return unitEps / len;
+            }
+            /// <summary>
+            /// Tests whether the line segment from sp to ep, which must already be given in the unit system of a
+            /// tetrahedron (i.e. transformed with <see cref="ToUnit"/>), intersects the unit tetrahedron. The unit
+            /// tetrahedron is spanned by the origin and the three unit vectors, i.e. it is the intersection of the
+            /// four half spaces x&gt;=0, y&gt;=0, z&gt;=0 and x+y+z&lt;=1, each widened by <see cref="unitEps"/>.
+            /// </summary>
+            private static bool UnitTetraederInterferes(GeoPoint sp, GeoPoint ep)
+            {
+                double eps = ParameterEps(sp, ep);
+                double lmin = -eps, lmax = 1.0 + eps;
+                if (!ClipHalfSpace(-sp.x, -ep.x, ref lmin, ref lmax)) return false;
+                if (!ClipHalfSpace(-sp.y, -ep.y, ref lmin, ref lmax)) return false;
+                if (!ClipHalfSpace(-sp.z, -ep.z, ref lmin, ref lmax)) return false;
+                if (!ClipHalfSpace(sp.x + sp.y + sp.z - 1.0, ep.x + ep.y + ep.z - 1.0, ref lmin, ref lmax)) return false;
+                return true; // a non empty part of the segment remains inside
+            }
+            /// <summary>
+            /// Tests whether the line segment from sp to ep, which must already be given in the unit system of a
+            /// flat tetrahedron (i.e. transformed with <see cref="ToUnit"/>), intersects the unit triangle
+            /// (0,0,0), (1,0,0), (0,1,0) in the xy-plane, widened by <see cref="unitEps"/>.
+            /// </summary>
+            private static bool UnitTriangleInterferes(GeoPoint sp, GeoPoint ep)
+            {
+                double eps = ParameterEps(sp, ep);
+                if (Math.Abs(sp.z) < unitEps && Math.Abs(ep.z) < unitEps)
+                {   // the segment lies in the plane of the triangle: clip it against the three half planes
+                    double lmin = -eps, lmax = 1.0 + eps;
+                    if (!ClipHalfSpace(-sp.x, -ep.x, ref lmin, ref lmax)) return false;
+                    if (!ClipHalfSpace(-sp.y, -ep.y, ref lmin, ref lmax)) return false;
+                    if (!ClipHalfSpace(sp.x + sp.y - 1.0, ep.x + ep.y - 1.0, ref lmin, ref lmax)) return false;
+                    return true;
+                }
+                // the segment must pierce the plane of the triangle inside the unit triangle
+                GeoVector dir = ep - sp;
+                if (Math.Abs(dir.z) < 1e-13) return false; // parallel to the plane, but not inside it
+                double l = -sp.z / dir.z;
+                if (l < -eps || l > 1.0 + eps) return false;
+                GeoPoint p = sp + l * dir;
+                return (p.x + p.y <= 1.0 + unitEps) && (p.x >= -unitEps) && (p.y >= -unitEps);
+            }
             public bool Interferes(CurveTetraeder t)
             {   // überschneiden sich zwei Tetraeder
-                // noch nicht berücksichtig: Tetraeder ist nur eine Linie
-                if (IsLinear)
-                {
-                    if (t.IsLinear)
-                    {   // zwei Linien
-                        double par1, par2;
-                        double d = Geometry.DistLLWrongPar2(t1, t2 - t1, t.t1, t.t2 - t.t1, out par1, out par2);
-                        return (d < Precision.eps && par1 >= 0.0 && par1 <= 1.0 && par2 >= 0.0 && par2 <= 1.0);
-                    }
-                    else
-                    {
-                        return t.Interferes(this); // da t nicht Linear werden wir nicht endlos rekursiv
-                    }
+                if (IsLinear && t.IsLinear)
+                {   // zwei Linien
+                    double par1, par2;
+                    double d = Geometry.DistLLWrongPar2(t1, t2 - t1, t.t1, t.t2 - t.t1, out par1, out par2);
+                    return (d < Precision.eps && par1 >= 0.0 && par1 <= 1.0 && par2 >= 0.0 && par2 <= 1.0);
+                }
+                if (IsLinear || t.IsLinear)
+                {   // exactly one of the two is degenerated to a line segment. Calling the test with exchanged
+                    // roles does not work here, because the unit system of a line is degenerate (it maps the line
+                    // onto the x-axis, the unit tetrahedron in that system has no relation to the line).
+                    // Instead the line segment is transformed into the unit system of the other tetrahedron and
+                    // clipped against the unit tetrahedron (or the unit triangle, if the other one is flat).
+                    CurveTetraeder line = IsLinear ? this : t;
+                    CurveTetraeder other = IsLinear ? t : this;
+                    GeoPoint sp = other.ToUnit * line.t1;
+                    GeoPoint ep = other.ToUnit * line.t2;
+                    if (other.IsFlat) return UnitTriangleInterferes(sp, ep);
+                    return UnitTetraederInterferes(sp, ep);
                 }
                 if (IsFlat && t.IsFlat)
                 {   // beide sind flach, aber nicht notwendig in einer Ebene
@@ -2566,7 +2651,11 @@ namespace CADability.GeoObject
                 AddAproximation(tetraederBase[i], tetraederBase[i + 1], tetraederParams[i], tetraederParams[i + 1], maxError, points);
             }
             Polyline res = Polyline.Construct();
-            res.SetPoints(points.ToArray(), false);
+            try
+            {
+                res.SetPoints(points.ToArray(), false);
+            }
+            catch (PolylineException) { }
             return res;
         }
 

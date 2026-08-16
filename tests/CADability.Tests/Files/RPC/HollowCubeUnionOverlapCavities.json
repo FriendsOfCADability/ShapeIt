@@ -1,0 +1,325 @@
+{
+  "Description": "Same setup as HollowCubeUnionOffset.json, but with a smaller offset so that the two cavities intersect each other. Cube A spans (0,0,0)..(10,10,10) with a spherical cavity of radius 4 around (5,5,5); cube B is a copy of A moved by (3,3,3), so it spans (3,3,3)..(13,13,13) with its cavity around (8,8,8). The cavity centres are 3*sqrt(3) = 5.196152 apart, clearly less than the sum of the radii (8), so the two spheres overlap in a lens of radius sqrt(16 - 27/4) = 3.041381. Both spheres stay strictly inside their own cube (sphere A spans 1..9, sphere B spans 4..12), so every void is a closed inner shell, never an opening in the outer hull.",
+  "Expected": "The union has ONE outer hull and THREE separate cavities, not two and not one:\n(1) the part of sphere A outside cube B - three overlapping caps around the corner (3,3,3), bounded by the spherical surface of A and the three cube faces x=3, y=3, z=3; V = 113.730852;\n(2) the mirrored part of sphere B outside cube A around the corner (10,10,10); V = 113.730852;\n(3) the lens sphere A AND sphere B, which lies entirely inside the common block (3,3,3)..(10,10,10) (its coordinates run from 4.017 to 8.983 in every axis) and is therefore a separate closed void bounded by two spherical caps; V = 43.624902.\nThe lens is NOT connected to (1) or (2): the material of the other body separates them. Total void = 271.086607.\nVolumes: V(sphere) = 256*pi/3 = 268.082573, V(cubeHollowA) = V(cubeHollowB) = 731.917427. V(cube A OR cube B) = 2000 - 343 = 1657, hence V(union) = 1657 - 271.086607 = 1385.913393. V(intersect) = 343 - (2*154.351721 - 43.624902) = 77.921460, where 154.351721 is the volume of one sphere inside the common block. The difference A-B has a total volume of 731.917427 - 77.921460 = 653.995967 and consists of TWO separate solids: the part of cavity B that lies inside A becomes material and is separated from the rest (all its points have coordinates >= 4 and are therefore inside cube B, while the main part only exists where some coordinate is < 3). V = 543.269148 (main part) + 110.726820 (the piece of cavity B inside A, which is 154.351721 minus the lens 43.624902 shared with cavity A). Consistency check: V(union) + V(intersect) = V(A) + V(B) = 1463.834854.\nThe intersect result is a further stress case: the common block (3,3,3)..(10,10,10) minus the connected blob (sphere A OR sphere B), which breaks through the boundary near the corner (3,3,3) and again near (10,10,10). It should be a single shell with a tunnel running diagonally through it (genus 1), not several pieces.",
+  "Status": "PASSES (2026-08-12, build 0.2.0.262, after the rule for untouched shell components was added). Keep as a regression guard; unlike HollowCubeUnionOffset.json the cavities intersect each other here, so the operation has to split one void into several shells.",
+  "Actual": "cubeHollowA = 731.916241, union = 1385.912443 (1 solid), intersect = 77.920991 (1 solid), difference = 2 solids with 543.269115 and 110.727336. All within 6e-6 relative of the exact values.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "cubeHollowA",
+    "hollowUnion",
+    "hollowIntersect",
+    "hollowDifference"
+  ],
+  "Baseline": {
+    "cubeHollowA": {
+      "verified": "2026-08-14: checked against exact values, union 1385.913393 and intersect 77.921460. The three cavities are separate: the lens lies entirely inside the common block (4.017..8.983 per axis) and is walled off from the two corner voids.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "731.916241374",
+      "area": "801.010688904",
+      "edgeLength": "155.543063505",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:2"
+    },
+    "hollowDifference": {
+      "verified": "2026-08-14: checked against exact values, union 1385.913393 and intersect 77.921460. The three cavities are separate: the lens lies entirely inside the common block (4.017..8.983 per axis) and is walled off from the two corner voids.",
+      "solids": "2"
+    },
+    "hollowDifference#0": {
+      "verified": "2026-08-14: checked against exact values, union 1385.913393 and intersect 77.921460. The three cavities are separate: the lens lies entirely inside the common block (4.017..8.983 per axis) and is walled off from the two corner voids.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "31",
+      "poleEdges": "0",
+      "vertices": "21",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "543.269115462",
+      "area": "645.568395929",
+      "edgeLength": "203.28871605",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:9 SphericalSurface:3"
+    },
+    "hollowDifference#1": {
+      "verified": "2026-08-14: checked against exact values, union 1385.913393 and intersect 77.921460. The three cavities are separate: the lens lies entirely inside the common block (4.017..8.983 per axis) and is walled off from the two corner voids.",
+      "consistent": "true",
+      "faces": "7",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "11",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "110.727336006",
+      "area": "155.451270316",
+      "edgeLength": "71.5973091247",
+      "extent": "4, 4, 4, 10, 10, 10",
+      "surfaces": "PlaneSurface:3 SphericalSurface:4"
+    },
+    "hollowIntersect": {
+      "verified": "2026-08-14: checked against exact values, union 1385.913393 and intersect 77.921460. The three cavities are separate: the lens lies entirely inside the common block (4.017..8.983 per axis) and is walled off from the two corner voids.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "30",
+      "poleEdges": "0",
+      "vertices": "20",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "77.9209905587",
+      "area": "216.853589464",
+      "edgeLength": "137.250022668",
+      "extent": "3, 3, 3, 10, 10, 10",
+      "surfaces": "PlaneSurface:6 SphericalSurface:4"
+    },
+    "hollowUnion": {
+      "verified": "2026-08-14: checked against exact values, union 1385.913393 and intersect 77.921460. The three cavities are separate: the lens lies entirely inside the common block (4.017..8.983 per axis) and is walled off from the two corner voids.",
+      "consistent": "true",
+      "faces": "28",
+      "edges": "64",
+      "poleEdges": "0",
+      "vertices": "44",
+      "holeLoops": "0",
+      "euler": "8",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1385.91244353",
+      "area": "1385.13622867",
+      "edgeLength": "412.522027682",
+      "extent": "0, 0, 0, 13, 13, 13",
+      "surfaces": "PlaneSurface:18 SphericalSurface:10"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "cubeA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.sphere",
+      "params": {
+        "name": "cavityA",
+        "center": [
+          5,
+          5,
+          5
+        ],
+        "radius": 4
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cubeA",
+        "b": "cavityA",
+        "name": "cubeHollowA",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "transform.move",
+      "params": {
+        "objects": "cubeHollowA",
+        "delta": [
+          3,
+          3,
+          3
+        ],
+        "name": "cubeHollowB"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "cubeHollowA",
+        "b": "cubeHollowB",
+        "name": "hollowUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "cubeHollowA",
+        "b": "cubeHollowB",
+        "name": "hollowIntersect",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cubeHollowA",
+        "b": "cubeHollowB",
+        "name": "hollowDifference",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "cubeHollowA",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.properties",
+      "params": {
+        "target": "hollowUnion",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "inspect.properties",
+      "params": {
+        "target": "hollowIntersect",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "workspace.select",
+      "params": {
+        "name": "differenceMain",
+        "selector": {
+          "query": {
+            "target": "solids",
+            "from": "hollowDifference",
+            "filter": {
+              "contains": [
+                0.5,
+                0.5,
+                0.5
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "inspect.properties",
+      "params": {
+        "target": "differenceMain",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "workspace.select",
+      "params": {
+        "name": "differenceCavityPiece",
+        "selector": {
+          "query": {
+            "target": "solids",
+            "from": "hollowDifference",
+            "filter": {
+              "contains": [
+                9,
+                9,
+                9
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "inspect.properties",
+      "params": {
+        "target": "differenceCavityPiece",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "cubeHollowA",
+          "hollowUnion",
+          "hollowIntersect",
+          "hollowDifference"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "hollowUnion",
+          "hollowIntersect",
+          "hollowDifference"
+        ]
+      }
+    }
+  ]
+}

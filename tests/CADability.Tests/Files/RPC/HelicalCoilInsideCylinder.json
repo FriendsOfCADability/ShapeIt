@@ -1,0 +1,248 @@
+{
+  "Description": "Coil spring (circular wire, mean radius 10, wire radius 2, so the wire occupies the radial band 8..12, z from -2 to 26) and a coaxial cylinder of radius 12, z from 0 to 24. Unlike the other tangency cases the two bodies REALLY OVERLAP: the wire lies completely inside the cylinder radially and only grazes its lateral face at exactly r=12. Only the two wire ends stick out below z=0 and above z=24.",
+  "Expected": "union: ONE solid (the bodies share a large common volume, so this is not a mere-touching case), volume V(coil) + V(cylinder) - V(intersect) = 2368.661 + 10857.340 - 2284.897 = 10941.104. intersect: the part of the coil inside the cylinder, about 2284.9.",
+  "Status": "intersect is CORRECT (2284.8965, reproducible over three runs - it is not equal to operand a, so the empty-intersection bug does not apply here). union returns TWO solids instead of one.",
+  "Actual": "solid.boolean union returns a solid[] with count 2, reproducibly over three runs. Rendering the result looks geometrically right (cylinder with the coil merged in, wire ends protruding at both ends), so this looks like a result-splitting/bookkeeping issue rather than wrong geometry. Note: in the build before the tangency fix this same pair returned a SINGLE solid from union (volume 10950.97, measured with a correctly oriented coil), so this may be a regression - but that comparison is not perfectly controlled, since the coil volume itself changed slightly with the fix.",
+  "Note": "Because the union result is a solid[], inspect.properties cannot report its volume ('Property Volume not found on type List<Solid>'), which is why no union volume is listed above.",
+  "CaseStatus": "KnownFail",
+  "Verify": [
+    "coil",
+    "sleeve",
+    "coilInSleeve",
+    "coilInsideSleeve"
+  ],
+  "Baseline": {
+    "coil": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the intersection is correct (2284.8965) and the union is the problem. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2330.56661655",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coilInSleeve": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the intersection is correct (2284.8965) and the union is the problem. Do not promote to \"Ok\" without judging the result itself.",
+      "solids": "2"
+    },
+    "coilInSleeve#0": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the intersection is correct (2284.8965) and the union is the problem. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "10856.897884",
+      "area": "2700.37644558",
+      "edgeLength": "198.796447372",
+      "extent": "-12, -12, 0, 12, 12, 24",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    },
+    "coilInSleeve#1": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the intersection is correct (2284.8965) and the union is the problem. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2330.56661655",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coilInsideSleeve": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the intersection is correct (2284.8965) and the union is the problem. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "18",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2284.89228416",
+      "area": "2357.07589524",
+      "edgeLength": "465.053661688",
+      "extent": "-12, -12, -5.07389152469E-10, 12, 12, 24.0000000005",
+      "surfaces": "HelicalSweepSurface:2 PlaneSurface:4"
+    },
+    "sleeve": {
+      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the intersection is correct (2284.8965) and the union is the problem. Do not promote to \"Ok\" without judging the result itself.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "10856.897884",
+      "area": "2700.37644558",
+      "edgeLength": "198.796447372",
+      "extent": "-12, -12, 0, 12, 12, 24",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "wireProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wireProfile"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil",
+        "profile": "wireProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "sleeve",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          24
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coil",
+        "b": "sleeve",
+        "name": "coilInSleeve",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "coil",
+        "b": "sleeve",
+        "name": "coilInsideSleeve",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "coil",
+          "sleeve",
+          "coilInSleeve",
+          "coilInsideSleeve"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilInsideSleeve",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "coilInSleeve",
+          "coilInsideSleeve"
+        ]
+      }
+    }
+  ]
+}

@@ -9,8 +9,13 @@
 //     "created":  [ { "name": "...", "type": "...", "summary": { ... } }, ... ],
 //     "modified": [ ... same shape ... ],
 //     "removed":  [ "name1", ... ],
+//     "empty":    true,
 //     "warnings": [ "..." ]
 //   }
+//
+// "empty" marks a successful call whose result is legitimately empty (the intersection of two
+// disjoint solids, for example). It is an explicit flag because an absent "created" is ambiguous:
+// a pure in-place modification produces no "created" entry either.
 //
 // Tools with their own output schema (inspect.*, rpc.batch, ...) keep their custom fields;
 // the envelope properties are merged into the same result object. Nested calls (rpc.batch,
@@ -36,6 +41,8 @@ namespace ShapeIt
             public readonly Dictionary<string, object> Modified = new(StringComparer.Ordinal);
             public readonly List<string> Removed = new();
             public readonly List<string> Warnings = new();
+            // Set when the operation succeeded but produced nothing - a valid answer, not a failure.
+            public bool Empty;
         }
 
         // One entry per nested ProcessMethod call; namedItems notifications are recorded in the
@@ -56,9 +63,15 @@ namespace ShapeIt
         // so clients can detect whether the workspace changed since they last looked.
         private int stateVersion;
 
+        // Names that were not created because the operation legitimately yielded an empty result,
+        // mapped to the explanation. A later "unknown name" error looks the cause up here, so the
+        // reason is still in the response when the client missed the warning of the earlier call.
+        private readonly Dictionary<string, string> emptyResultNames = new(StringComparer.Ordinal);
+
         private void OnNamedItemSet(string name, object value, bool existedBefore)
         {
             stateVersion++;
+            emptyResultNames.Remove(name); // the name exists again, the earlier explanation is obsolete
             if (callChangesStack.Count == 0) return;
             CallChanges changes = callChangesStack.Peek();
             changes.Removed.Remove(name);
@@ -129,6 +142,27 @@ namespace ShapeIt
             if (callChangesStack.Count == 0) return;
             List<string> warnings = callChangesStack.Peek().Warnings;
             if (!warnings.Contains(message)) warnings.Add(message);
+        }
+
+        /// <summary>
+        /// Marks the current tool call as having produced an empty - but valid - result and states
+        /// in a warning which operation was empty. Used for cases like the intersection of two
+        /// disjoint solids: the client asked a question and "nothing" is the answer, so this must
+        /// not become an error (which would also tear down the whole batch when atomic is set).
+        /// </summary>
+        private void NoteEmptyResult(string reason)
+        {
+            if (callChangesStack.Count > 0) callChangesStack.Peek().Empty = true;
+            AddCallWarning(reason);
+        }
+
+        /// <summary>
+        /// Records why <paramref name="name"/> does not exist in the workspace, so a later lookup of
+        /// that name can name the cause instead of just reporting the name as missing.
+        /// </summary>
+        private void NoteNameNotCreated(string name, string reason)
+        {
+            if (!string.IsNullOrEmpty(name)) emptyResultNames[name] = reason;
         }
 
         /// <summary>
@@ -218,6 +252,13 @@ namespace ShapeIt
         {
             if (string.IsNullOrEmpty(name)) return new JsonRpcException("E_NOT_FOUND", "Named object not found: no name given.");
             var sb = new System.Text.StringBuilder($"Named object not found: '{name}'.");
+            // When the name is missing because an earlier operation came out empty, that is the
+            // answer to "why", and it beats any "did you mean" guess.
+            if (emptyResultNames.TryGetValue(name, out string? emptyReason))
+            {
+                sb.Append(' ').Append(emptyReason);
+                return new JsonRpcException("E_NOT_FOUND", sb.ToString());
+            }
             List<string> keys = namedItems.Keys.ToList();
             string? caseMatch = keys.FirstOrDefault(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase));
             if (caseMatch != null)
@@ -269,6 +310,9 @@ namespace ShapeIt
         private void WarnWhenResultMissing(CallChanges changes, string method, JsonElement parameters, JsonNode? result)
         {
             if (parameters.ValueKind != JsonValueKind.Object) return;
+            // An empty result was already reported as such, with a message naming the operation.
+            // The generic "probably yielded no result" hint would only add noise here.
+            if (changes.Empty) return;
             string? name = null;
             if (parameters.TryGetProperty("name", out JsonElement nameEl) && nameEl.ValueKind == JsonValueKind.String)
             {
@@ -321,6 +365,9 @@ namespace ShapeIt
                 foreach (string name in changes.Removed) removed.Add(name);
                 result["removed"] = removed;
             }
+            // Explicit flag: an absent "created" alone does not tell an empty result apart from an
+            // in-place modification.
+            if (changes.Empty) result["empty"] = true;
             if (changes.Warnings.Count > 0)
             {
                 var warnings = new JsonArray();

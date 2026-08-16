@@ -131,12 +131,12 @@ namespace ShapeIt
             private object? oldNamedItem;
             private string name;
             NamedItemsDictionary namedItems;
-            public NamedItemOverride(NamedItemsDictionary namedItems, object temp, string name = "this")
+            public NamedItemOverride(NamedItemsDictionary namedItems, object temp, double inspectPrecision = 1e-4, string name = "this")
             {
                 this.namedItems = namedItems;
                 this.name = name;
                 if (!namedItems.TryGetValue(name, out oldNamedItem)) oldNamedItem = null;
-                object? wrappedItem = wrapForEvaluator(temp);
+                object? wrappedItem = wrapForEvaluator(temp, inspectPrecision);
                 if (wrappedItem != null) namedItems[name] = wrappedItem;
             }
             public void Dispose()
@@ -709,14 +709,14 @@ namespace ShapeIt
             {
                 return el.GetString() switch
                 {
-                    "top"       => new GeoVector(0,  0, -1),
-                    "bottom"    => new GeoVector(0,  0,  1),
-                    "front"     => new GeoVector(0,  1,  0),
-                    "back"      => new GeoVector(0, -1,  0),
-                    "left"      => new GeoVector(1,  0,  0),
-                    "right"     => new GeoVector(-1, 0,  0),
+                    "top" => new GeoVector(0, 0, -1),
+                    "bottom" => new GeoVector(0, 0, 1),
+                    "front" => new GeoVector(0, 1, 0),
+                    "back" => new GeoVector(0, -1, 0),
+                    "left" => new GeoVector(1, 0, 0),
+                    "right" => new GeoVector(-1, 0, 0),
                     "isometric" => new GeoVector(-1, -1, -2),
-                    _           => defaultDir
+                    _ => defaultDir
                 };
             }
             return RequireVector3D(el, null);
@@ -1580,7 +1580,7 @@ namespace ShapeIt
                             else if (je.ValueKind == JsonValueKind.Object && je.TryGetProperty("expr", out var exprEl) && exprEl.ValueKind == JsonValueKind.String) expr = exprEl.GetString();
                             if (expr == null) throw new JsonRpcException("E_INVALID_PARAMETER", "condition not found");
 
-                            using (new NamedItemOverride(namedItems, toTest))
+                            using (new NamedItemOverride(namedItems, toTest, inspectPrecision))
                             {
                                 object evalRes = Evaluator.Evaluate(expr, namedItems.Dict);
                                 if (evalRes is bool b)
@@ -2003,16 +2003,18 @@ namespace ShapeIt
         private class SolidWrapperForEvaluator
         {
             Solid solid;
-            public SolidWrapperForEvaluator(Solid solid)
+            double inspectPrecision;
+            public SolidWrapperForEvaluator(Solid solid, double inspectPrecision)
             {
                 this.solid = solid;
+                this.inspectPrecision = inspectPrecision;
             }
 
-            public double Volume => solid.Shell.Volume(bounds.Size*1e-5);
+            public double Volume => solid.Shell.Volume(bounds.Size * inspectPrecision); // reduced from 1e-5 to 1e-4 for performance reasons
             public BoundingBox bounds => solid.GetExtent(0.0);
         }
 
-        private static object? wrapForEvaluator(object item)
+        private static object? wrapForEvaluator(object item, double inspectPrecision)
         {
             // A named item holding exactly one object behaves like that object: a query result with a
             // single solid must answer 'this.Volume', not the properties of a List<Solid>. The rest of
@@ -2020,7 +2022,7 @@ namespace ShapeIt
             item = UnwrapSingletonList(item);
             if (item is Face fc) return new FaceWrapperForEvaluator(fc);
             if (item is Edge edg) return new EdgeWrapperForEvaluator(edg);
-            if (item is Solid solid) return new SolidWrapperForEvaluator(solid);
+            if (item is Solid solid) return new SolidWrapperForEvaluator(solid, inspectPrecision);
             // TODO implement other wrappers
             return item;
         }
@@ -2273,7 +2275,10 @@ namespace ShapeIt
 
         private JsonNode DocumentCommitObjectsImpl(JsonElement objects)
         {
-            Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
+            // The live project of the application first, so that a File/New during a session is followed.
+            // Without a frame - the regression harness constructs the server headless on a project of its own -
+            // fall back to the project this server was constructed with. TODO: project should be property of this
+            Project? project = FrameImpl.MainFrame?.Project ?? this.project;
             if (project == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
             Model model = project.GetActiveModel();
             Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
@@ -2293,7 +2298,9 @@ namespace ShapeIt
 
         private JsonNode DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
         {
-            Project? project = FrameImpl.MainFrame?.Project; // TODO: project should be property of this
+            // See DocumentCommitObjectsImpl: live project first, the one this server was constructed with when
+            // there is no frame. TODO: project should be property of this
+            Project? project = FrameImpl.MainFrame?.Project ?? this.project;
             if (project == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Internal error: no active project.");
             Model model = project.GetActiveModel();
             Style style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
@@ -3527,7 +3534,10 @@ namespace ShapeIt
                     Face face = Face.MakeFace(ps, simpleShapes[i]);
                     if (face != null)
                     {
-                        Shell shl = Make3D.MakeHelicalSolid(face, axis, pitch, pitch * angle / 360, 0.0, true);
+                        // "offset" is an angular offset in degrees, MakeHelicalSolid expects the corresponding
+                        // travel along the axis
+                        double extrOffset = double.IsNaN(offset) ? 0.0 : pitch * offset / 360;
+                        Shell shl = Make3D.MakeHelicalSolid(face, axis, pitch, pitch * angle / 360, extrOffset, true);
                         if (shl != null)
                         {
                             Solid sld = Solid.MakeSolid(shl);
@@ -3686,8 +3696,8 @@ namespace ShapeIt
             {
                 for (int j = 0; j < minSamplesV; ++j)
                 {
-                    using var uu = new NamedItemOverride(namedItems, uMin + i * du, uParameter);
-                    using var vv = new NamedItemOverride(namedItems, vMin + j * dv, vParameter);
+                    using var uu = new NamedItemOverride(namedItems, uMin + i * du,inspectPrecision, uParameter);
+                    using var vv = new NamedItemOverride(namedItems, vMin + j * dv,inspectPrecision, vParameter);
                     double x = (double)Evaluator.Evaluate(xExpr, namedItems.Dict);
                     double y = (double)Evaluator.Evaluate(yExpr, namedItems.Dict);
                     double z = (double)Evaluator.Evaluate(zExpr, namedItems.Dict);
@@ -3871,17 +3881,13 @@ namespace ShapeIt
                     {
                         newfragments.AddRange(res);
                     }
-                    else
-                    {
-                        newfragments.Add(fragments[i]);
-                    }
                 }
                 fragments = newfragments;
             }
             return fragments;
         }
 
-        Solid[] IntersectMany(Solid solid, List<Solid> other)
+        List<Solid> IntersectMany(Solid solid, List<Solid> other)
         {
             List<Solid> fragments = new List<Solid>();
             fragments.Add(solid);
@@ -3895,14 +3901,10 @@ namespace ShapeIt
                     {
                         newfragments.AddRange(res);
                     }
-                    else
-                    {
-                        newfragments.Add(fragments[i]);
-                    }
                 }
                 fragments = newfragments;
             }
-            return fragments.ToArray();
+            return fragments;
         }
 
         private void SolidBooleanImpl(string op, JsonElement a, JsonElement b, string? name, bool rebind, JsonElement rebindTargets)
@@ -3913,6 +3915,7 @@ namespace ShapeIt
             // Without a name the result inherits the name of operand 'a'. Take it from the parameter:
             // the name stashed in UserData is only written on the ResolveObjectRef path (IterateSelector
             // never sets it) and it goes stale as soon as the workspace entry is reassigned.
+            bool nameGiven = name != null;
             if (name == null) name = FirstName(a);
             object? res = null;
             Solid s1 = slda[0];
@@ -3950,12 +3953,22 @@ namespace ShapeIt
                     break;
                 case "intersect":
                     {
-                        res = new List<Solid>(IntersectMany(s1, s2));
+                        res = IntersectMany(s1, s2);
                     }
                     break;
                 default: throw new JsonRpcException("E_INVALID_PARAMS", $"'solid.boolean' unknown operator {op}");
             }
             sw.Stop();
+            // An empty result is an answer, not a malfunction: "intersect" of two disjoint solids is
+            // exactly the question a collision check asks, and "difference" is legitimately empty as
+            // soon as 'b' completely contains 'a'. Handled once here for all operations - only union
+            // can never come out empty. An empty list must never reach the workspace, though: every
+            // consumer (bounding box, rendering, selectors) would have to cope with a solid-less entry.
+            if (IsEmptyBooleanResult(res))
+            {
+                ReportEmptyBooleanResult(op, name, nameGiven);
+                return;
+            }
             if (res != null && name != null) namedItems[name] = res;
             if (rebind)
             {
@@ -3970,6 +3983,56 @@ namespace ShapeIt
                     Rebind(sldb, lres);
                 }
             }
+        }
+
+        /// <summary>
+        /// True when a boolean operation produced no solid at all. Both spellings of "nothing" count:
+        /// a null result and an empty solid list.
+        /// </summary>
+        private static bool IsEmptyBooleanResult(object? res) => res switch
+        {
+            null => true,
+            List<Solid> list => list.Count == 0,
+            _ => false
+        };
+
+        /// <summary>
+        /// Reports an empty boolean result: sets "empty" in the result envelope and explains in a
+        /// warning which operation was empty. Nothing is stored - and when the caller omitted 'name',
+        /// the result would have replaced operand 'a' under its own name, so 'a' has to be removed
+        /// and to appear in "removed". Otherwise the client keeps working with a name that is gone
+        /// and the next call fails with an "unknown name" far away from the cause.
+        /// </summary>
+        private void ReportEmptyBooleanResult(string op, string? name, bool nameGiven)
+        {
+            string cause = $"'solid.boolean' with op '{op}' produced an empty result"
+                + " - a valid outcome (e.g. intersecting disjoint solids, or subtracting a solid that fully contains the target), not an error.";
+            if (name == null)
+            {   // no name given and operand 'a' has none either: nothing to store, nothing to remove
+                NoteEmptyResult($"{cause} Nothing was stored in the workspace.");
+                return;
+            }
+            if (nameGiven)
+            {
+                if (namedItems.ContainsKey(name))
+                {   // the name was already in use: it keeps its previous value, which is not the
+                    // result of this call - saying so avoids the client mistaking it for one
+                    NoteEmptyResult($"{cause} Nothing was stored under the requested name '{name}', which still holds its previous value.");
+                    return;
+                }
+                NoteEmptyResult($"{cause} Nothing was stored under the requested name '{name}'.");
+                NoteNameNotCreated(name, $"The name was never created: {cause}");
+                return;
+            }
+            if (!namedItems.ContainsKey(name))
+            {
+                NoteEmptyResult($"{cause} Nothing was stored in the workspace.");
+                NoteNameNotCreated(name, $"The name was never created: {cause}");
+                return;
+            }
+            namedItems.Remove(name); // reported as "removed" through the change tracking
+            NoteEmptyResult($"{cause} Since no 'name' was given, the result would have replaced operand '{name}', which is therefore now removed from the workspace.");
+            NoteNameNotCreated(name, $"The name was removed: {cause} Since no 'name' was given, the result replaced operand '{name}', and an empty result leaves nothing behind.");
         }
 
         private void PatternCircularSolidsImpl(JsonElement objects, Axis axis, int count, double angle, string name, bool suffix)
@@ -4523,7 +4586,7 @@ namespace ShapeIt
                     namedItems.TryGetValue("this", out oldValue);
                     foreach (var item in selected)
                     {
-                        object? wrappedItem = wrapForEvaluator(item);
+                        object? wrappedItem = wrapForEvaluator(item, inspectPrecision);
                         if (wrappedItem != null)
                         {
                             namedItems["this"] = wrappedItem;
@@ -4552,12 +4615,13 @@ namespace ShapeIt
             }
         }
 
-        private JsonNode InspectPropertiesImpl(string target, JsonElement properties)
+        private JsonNode InspectPropertiesImpl(string target, double precision, JsonElement properties)
         {
             if (!namedItems.TryGetValue(target, out object? item) || item == null) throw NamedItemNotFound(target);
             if (properties.ValueKind != JsonValueKind.Array) throw new JsonRpcException(-32602, "Invalid params: 'properties' must be an array of property names");
             var values = new JsonObject();
-            using (new NamedItemOverride(namedItems, item))
+            this.inspectPrecision = ClampInspectPrecision(precision);
+            using (new NamedItemOverride(namedItems, item, inspectPrecision))
             {   // evaluate each property as 'this.<property>' in the expression evaluator;
                 // a failing property yields an error entry instead of failing the whole call
                 foreach (var propEl in properties.EnumerateArray())
@@ -4576,6 +4640,34 @@ namespace ShapeIt
                 }
             }
             return new JsonObject { ["values"] = values };
+        }
+
+        /// <summary>
+        /// Keeps the requested inspect.properties precision inside the usable range and tells the client
+        /// whenever the value it asked for was not used.
+        /// </summary>
+        private double ClampInspectPrecision(double precision)
+        {
+            if (double.IsNaN(precision) || precision <= 0.0)
+            {   // A precision of 0.0 does not mean "exact": Face.AssureTriangles then reuses whatever
+                // triangulation happens to exist and invents "extent size / 10" when there is none, so the
+                // result would silently depend on what ran before (see ShellMetrics.PrecisionFor).
+                AddCallWarning($"'precision' must be greater than 0, but {Fmt(precision)} was given;"
+                    + $" the default {Fmt(DefaultInspectPrecision)} was used instead.");
+                return DefaultInspectPrecision;
+            }
+            if (precision < MinInspectPrecision)
+            {
+                AddCallWarning($"'precision' {Fmt(precision)} is finer than the supported minimum and was capped"
+                    + $" at {Fmt(MinInspectPrecision)}. The cost grows by about two orders of magnitude per decade"
+                    + $" and a running call cannot be cancelled, so a finer value would block the application"
+                    + $" for hours. Note that {Fmt(MinInspectPrecision)} already yields a relative volume error"
+                    + $" of about 1e-9.");
+                return MinInspectPrecision;
+            }
+            return precision;
+
+            static string Fmt(double d) => d.ToString("G4", System.Globalization.CultureInfo.InvariantCulture);
         }
 
         private static JsonNode? EvalResultToJson(object? result) => result switch
@@ -4629,9 +4721,9 @@ namespace ShapeIt
                     if (el.ValueKind == JsonValueKind.String && el.GetString() is string s)
                         names.Add(s);
 
-            var objects  = new JsonArray();
-            var geoObjs  = new List<(IGeoObject obj, Color color)>();
-            var sceneBB  = BoundingBox.EmptyBoundingBox;
+            var objects = new JsonArray();
+            var geoObjs = new List<(IGeoObject obj, Color color)>();
+            var sceneBB = BoundingBox.EmptyBoundingBox;
             int colorIdx = 0;
 
             foreach (string name in names)
@@ -4645,7 +4737,7 @@ namespace ShapeIt
                 Color color = ScenePalette[colorIdx++ % ScenePalette.Length];
 
                 var entry = new JsonObject { ["name"] = name };
-                entry["type"]  = GetItemTypeName(unwrapped);
+                entry["type"] = GetItemTypeName(unwrapped);
                 entry["color"] = ColorToHex(color);
 
                 var itemGeos = ItemToRenderableGeoObjects(unwrapped).ToList();
@@ -4658,9 +4750,9 @@ namespace ShapeIt
                 var itemBB = BoundingBox.EmptyBoundingBox;
                 foreach (var (go, _) in geoObjs.TakeLast(itemGeos.Count))
                     itemBB.MinMax(go.GetBoundingCube());
-                if (!itemBB.IsEmpty)
+                if (BoundingBoxToJson(itemBB) is JsonObject bbJson)
                 {
-                    entry["boundingBox"] = BoundingBoxToJson(itemBB);
+                    entry["boundingBox"] = bbJson;
                     sceneBB.MinMax(itemBB);
                 }
 
@@ -4672,9 +4764,9 @@ namespace ShapeIt
                 : null;
 
             var result = new JsonObject();
-            result["objects"]          = objects;
-            result["sceneBoundingBox"] = sceneBB.IsEmpty ? null : BoundingBoxToJson(sceneBB);
-            result["image"]            = imageBase64;
+            result["objects"] = objects;
+            result["sceneBoundingBox"] = BoundingBoxToJson(sceneBB); // null when nothing has an extent
+            result["image"] = imageBase64;
             if (imageBase64 != null)
             {
                 try
@@ -4820,47 +4912,68 @@ namespace ShapeIt
                     Shell shell = sld.Shells[0];
                     s["faceCount"] = shell.Faces.Length;
                     s["edgeCount"] = shell.Edges.Length;
-                    s["boundingBox"] = BoundingBoxToJson(sld.GetBoundingCube());
+                    SetBoundingBox(s, sld.GetBoundingCube());
                     break;
                 case Sketch sk:
                     s["curveCount"] = sk.Curves.Count;
                     s["shapeCount"] = sk.Shapes.Count;
                     break;
                 case Face fc:
-                    s["boundingBox"] = BoundingBoxToJson(fc.GetBoundingCube());
+                    SetBoundingBox(s, fc.GetBoundingCube());
                     break;
                 case List<Solid> sl:
                     s["count"] = sl.Count;
-                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(sl, x => x.GetBoundingCube()));
+                    SetBoundingBox(s, CombineBoundingBoxes(sl, x => x.GetBoundingCube()));
                     break;
                 case List<Face> fl:
                     s["count"] = fl.Count;
-                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(fl, x => x.GetBoundingCube()));
+                    SetBoundingBox(s, CombineBoundingBoxes(fl, x => x.GetBoundingCube()));
                     break;
                 case List<Edge> el:
                     s["count"] = el.Count;
-                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(el, x =>
+                    SetBoundingBox(s, CombineBoundingBoxes(el, x =>
                         x.Curve3D is IGeoObject go ? go.GetBoundingCube() : BoundingBox.EmptyBoundingBox));
                     break;
                 case List<ICurve> cl:
                     s["count"] = cl.Count;
-                    s["boundingBox"] = BoundingBoxToJson(CombineBoundingBoxes(cl, x =>
+                    SetBoundingBox(s, CombineBoundingBoxes(cl, x =>
                         x is IGeoObject go ? go.GetBoundingCube() : BoundingBox.EmptyBoundingBox));
                     break;
                 case List<ICurve2D> cl2:
                     s["count"] = cl2.Count;
-                    s["boundingRect"] = BoundingRectToJson(CombineBoundingRects(cl2, x => x.GetExtent()));
+                    SetBoundingRect(s, CombineBoundingRects(cl2, x => x.GetExtent()));
                     break;
                 case List<CompoundShape> csl:
                     s["count"] = csl.Count;
-                    s["boundingRect"] = BoundingRectToJson(CombineBoundingRects(csl,
+                    SetBoundingRect(s, CombineBoundingRects(csl,
                         x => CombineBoundingRects(x.SimpleShapes, ss => ss.GetExtent())));
                     break;
             }
             return s;
         }
 
-        private static JsonObject BoundingBoxToJson(BoundingBox bb) => new JsonObject
+        /// <summary>
+        /// Adds the "boundingBox" property, but only for a non-empty box. An empty list of objects has
+        /// no extent; "count": 0 alone says so, and a box property would have to carry infinities.
+        /// </summary>
+        private static void SetBoundingBox(JsonObject target, BoundingBox bb)
+        {
+            if (BoundingBoxToJson(bb) is JsonObject json) target["boundingBox"] = json;
+        }
+
+        /// <summary>Same as <see cref="SetBoundingBox"/> for the 2d "boundingRect" property.</summary>
+        private static void SetBoundingRect(JsonObject target, BoundingRect rect)
+        {
+            if (BoundingRectToJson(rect) is JsonObject json) target["boundingRect"] = json;
+        }
+
+        /// <summary>
+        /// Serializes a bounding box, or returns null for the empty box. The empty box is built from
+        /// double.MaxValue/MinValue, so its sizes are infinite - and Infinity is not valid JSON.
+        /// Serializing it would either throw or (with AllowNamedFloatingPointLiterals) hand the
+        /// client an "Infinity" it has to interpret. Callers omit the property instead.
+        /// </summary>
+        private static JsonObject? BoundingBoxToJson(BoundingBox bb) => bb.IsEmpty ? null : new JsonObject
         {
             ["minX"] = bb.Xmin,
             ["minY"] = bb.Ymin,
@@ -4873,7 +4986,8 @@ namespace ShapeIt
             ["sizeZ"] = bb.Zmax - bb.Zmin
         };
 
-        private static JsonObject BoundingRectToJson(BoundingRect r) => new JsonObject
+        /// <summary>Same as <see cref="BoundingBoxToJson"/> for the 2d case: null for the empty rect.</summary>
+        private static JsonObject? BoundingRectToJson(BoundingRect r) => r.IsEmpty() ? null : new JsonObject
         {
             ["left"] = r.Left,
             ["bottom"] = r.Bottom,
@@ -4904,6 +5018,18 @@ namespace ShapeIt
         #region Templates and system metadata
 
         private static JsonObject? cachedToolsetInfo;
+        private double inspectPrecision;
+
+        /// <summary>The default for inspect.properties 'precision', mirroring the default in the toolset definition.</summary>
+        private const double DefaultInspectPrecision = 1e-4;
+
+        /// <summary>
+        /// The finest precision inspect.properties accepts. The cost of the volume integration grows by
+        /// roughly two orders of magnitude per decade - on a three-turn coil spring 1e-5 takes 2.5 s and
+        /// 1e-6 takes 310 s, so 1e-7 would run for hours. There is no way to cancel a running call, so a
+        /// single mistyped digit would block the whole application; hence the hard cap.
+        /// </summary>
+        private const double MinInspectPrecision = 1e-6;
 
         private JsonNode SystemGetInfoImpl()
         {

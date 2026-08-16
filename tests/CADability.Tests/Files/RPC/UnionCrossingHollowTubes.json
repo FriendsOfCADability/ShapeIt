@@ -1,0 +1,595 @@
+{
+  "Description": "Two identical hollow tubes with a teardrop cross section, crossing at right angles in the XY plane. The profile is a 270 degree arc of radius 10 plus two tangent lines that meet at 90 degrees at (0, 10*sqrt(2)); the bore is the same shape with radius 8, which makes the wall exactly 2 mm everywhere, on the arc as well as on the flanks and at the tip. Both tubes are 120 long, centred on the origin, one extruded along X and one along Y, both with the tip pointing towards +Z.\nThe case builds the crossing TWICE, by the two routes that a caller might take, and both results are verified. They are deliberately NOT the same solid - see \"Expected\":\n- crossFromHollow: unite the two finished hollow tubes. This is the plain set union and it is what regressed; it used to return the two operands unmerged.\n- crossFromSolids: unite the two solid outer bodies, unite the two bores, subtract once at the end. This is the manufactured cross fitting, with both bores open through the crossing.\nThe second tube is built from its own sketch instead of by rotating the first one, so that the case does not depend on the 6.1e-17 tilt a 90 degree rotation about Z leaves in the matrix.",
+  "Expected": "Both names must be ONE closed, consistent solid, and they must NOT be equal. With a = outer body of tube A, a' = its bore, b, b' likewise:\n  crossFromHollow = (a\\a') u (b\\b')   - the wall of A survives where it crosses the bore of B\n  crossFromSolids = (a u b) \\ (a' u b') - the bores are carried through, that wall is removed\nThe second is a subset of the first, and the gap between them is exactly the wall material of each tube inside the other's bore. That relation is the sharpest check in this case, because both sides are measured the same way and the triangulation error largely cancels:\n  crossFromHollow - crossFromSolids = 2*(V(a n b') - V(a' n b'))\nV(a n b') and V(a' n b') are not in this case; measured separately over the MCP server on 2026-08-15 they are 3813.7931 and 2813.4864, giving 2*(3813.7931 - 2813.4864) = 2000.6135 against a recorded 28316.5273895 - 26315.9122908 = 2000.6151, i.e. 8e-7 relative.\nSingle tube, exact: the ring area is 0.75*pi*(100-64) + (100-64) = 27*pi + 36 = 120.8230016, so tubeX and tubeY are 120*(27*pi + 36) = 3240*pi + 4320 = 14498.7601976 - recorded 14498.7608885, 4.8e-8 relative. 8 faces, 18 edges, euler 0.\nSolid outer prism, exact: 120*(75*pi + 100) = 9000*pi + 12000 = 40274.3338823. Solid inner prism, exact: 120*(48*pi + 64) = 5760*pi + 7680 = 25775.5736847. The union of two crossing prisms has no closed form here, so crossOuter and crossInner are captured; their recorded values imply an intersection of 2*40274.3338823 - 75053.1785831 = 5495.4892 for the outer bodies and 2*25775.5736847 - 48737.264768 = 2813.8826 for the bores. Both are the right size: the Steinmetz solid of two perpendicular CYLINDERS is 16/3*r^3, i.e. 5333.33 for r=10 and 2730.67 for r=8, and the teardrop is a little larger than its circle because of the tip.\ncrossFromSolids must equal crossOuter - crossInner = 75053.1785831 - 48737.264768 = 26315.9138, against the recorded 26315.9122908 - 5.8e-8 relative.\ncrossFromHollow by inclusion-exclusion: 2*14498.7602 - [V(a n b) - 2*V(a n b') + V(a' n b')] = 28997.5204 - [5495.4892 - 7627.5862 + 2813.4864] = 28316.13, against the recorded 28316.5273895 - 1.4e-5 relative. Looser than the checks above on purpose: V(a n b) is itself derived from the measured crossOuter, so its error propagates undamped into a difference of much smaller numbers.",
+  "Status": "FIXED. Keep as a regression guard.\nDefect, first measured 2026-08-15 on develop (8fe321ca): solid.boolean op=union on the two hollow tubes returned a solid[] with count 2 - the two untouched operands - instead of one merged solid. It reported NO error, and the bounding box of the list was exactly the right one, so a client that only looked at the extent saw nothing wrong; the result type was the only signal. Uniting two thin closed SHELLS whose walls intersect each other twice was the failing case, while uniting the corresponding solid bodies (crossOuter, crossInner) was fine all along - the same shape of asymmetry as in EnclosedToolNoContact.\nRuled out while the defect was open, so nobody has to walk these again if something similar shows up:\n- The 90 degree rotation. The defect appeared identically whether the second tube was a rotated copy of the first or built from its own sketch and exactly axis aligned (bounding box exactly -10..10).\n- rebind. Measured with true and false, same result.\n- The hollow tubes themselves. tubeX and tubeY were each one clean closed solid with 8 faces, 18 edges.\nFixed by GH on 2026-08-15. crossFromHollow is now one closed consistent solid with 44 faces and the volume the set union has to have; the baseline below was recorded from that state, stable over 3 runs.\nStill open as a separate question, not covered by this case: whether silently returning the untouched operands is an acceptable answer for a union that cannot be computed. A caller cannot tell that apart from \"the two bodies were already disjoint\", which is a legitimate union result.",
+  "Actual": "2026-08-15, after the fix: crossFromHollow one solid, 44 faces, 92 edges, euler 4, volume 28316.5273895. crossFromSolids one solid, 28 faces, 64 edges, euler -4, volume 26315.9122908. tubeX and tubeY 8 faces, 18 edges, 14498.7608885 each. crossOuter 75053.1785831, crossInner 48737.264768, both 16 faces.\nBefore the fix: crossFromHollow was a solid[] with count 2, extent correct, no error. Everything else was already as it is now.",
+  "CaseStatus": "Ok",
+  "Repeat": 3,
+  "Verify": [
+    "tubeX",
+    "tubeY",
+    "crossFromHollow",
+    "crossOuter",
+    "crossInner",
+    "crossFromSolids"
+  ],
+  "Baseline": {
+    "crossFromHollow": {
+      "verified": "2026-08-15 GH: the result of the fix, verified against crossFromSolids rather than captured blindly. The two constructions must differ by exactly 2*(V(a n b') - V(a' n b')) = 2*(3813.7931 - 2813.4864) = 2000.6135; recorded difference 2000.6151, i.e. 8e-7. Inclusion-exclusion gives 28316.13 independently, 1.4e-5. See \"Expected\".",
+      "consistent": "true",
+      "faces": "44",
+      "edges": "92",
+      "poleEdges": "0",
+      "vertices": "56",
+      "holeLoops": "4",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "28316.5273895",
+      "area": "28164.523683",
+      "edgeLength": "2392.03438799",
+      "extent": "-60, -60, -10, 60, 60, 14.1421356237",
+      "surfaces": "CylindricalSurface:16 PlaneSurface:28"
+    },
+    "crossFromSolids": {
+      "verified": "2026-08-15 GH: calculated, crossOuter - crossInner = 75053.1785831 - 48737.264768 = 26315.9138, met to 5.8e-8.",
+      "consistent": "true",
+      "faces": "28",
+      "edges": "64",
+      "poleEdges": "0",
+      "vertices": "36",
+      "holeLoops": "4",
+      "euler": "-4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "26315.9122908",
+      "area": "26738.7094206",
+      "edgeLength": "2108.45180858",
+      "extent": "-60, -60, -10, 60, 60, 14.1421356237",
+      "surfaces": "CylindricalSurface:8 PlaneSurface:20"
+    },
+    "crossInner": {
+      "verified": "2026-08-15 GH: captured. Implied intersection 2*25775.5736847 - 48737.264768 = 2813.8826, against 16/3*512 = 2730.67 for the two cylinders - right size.",
+      "consistent": "true",
+      "faces": "16",
+      "edges": "32",
+      "poleEdges": "0",
+      "vertices": "18",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "48737.264768",
+      "area": "12669.9281622",
+      "edgeLength": "1017.0896927",
+      "extent": "-60, -60, -8, 60, 60, 11.313708499",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:12"
+    },
+    "crossOuter": {
+      "verified": "2026-08-15 GH: captured, not calculable in closed form. Implied intersection 2*40274.3338823 - 75053.1785831 = 5495.4892, against 16/3*1000 = 5333.33 for the two circumscribed cylinders - right size, larger by the tip.",
+      "consistent": "true",
+      "faces": "16",
+      "edges": "32",
+      "poleEdges": "0",
+      "vertices": "18",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "75053.1785831",
+      "area": "15781.4633596",
+      "edgeLength": "1091.36211588",
+      "extent": "-60, -60, -10, 60, 60, 14.1421356237",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:12"
+    },
+    "tubeX": {
+      "verified": "2026-08-15 GH: exact, 120*(27*pi+36) = 14498.7601976, met to 4.8e-8.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "18",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "2",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "14498.7608885",
+      "area": "14734.2101302",
+      "edgeLength": "961.646003294",
+      "extent": "-60, -10, -10, 60, 10, 14.1421356237",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:6"
+    },
+    "tubeY": {
+      "verified": "2026-08-15 GH: exact, 120*(27*pi+36) = 14498.7601976, met to 4.8e-8. Identical to tubeX by symmetry, and recorded identically.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "18",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "2",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "14498.7608885",
+      "area": "14734.2101302",
+      "edgeLength": "961.646003294",
+      "extent": "-10, -60, -10, 10, 60, 14.1421356237",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "sketchX",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            0,
+            1,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 10,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterRight",
+        "start": [
+          7.0710678118654755,
+          7.0710678118654755
+        ],
+        "end": [
+          0,
+          14.142135623730951
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterLeft",
+        "start": [
+          0,
+          14.142135623730951
+        ],
+        "end": [
+          -7.0710678118654755,
+          7.0710678118654755
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 8,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerRight",
+        "start": [
+          5.656854249492381,
+          5.656854249492381
+        ],
+        "end": [
+          0,
+          11.313708498984761
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerLeft",
+        "start": [
+          0,
+          11.313708498984761
+        ],
+        "end": [
+          -5.656854249492381,
+          5.656854249492381
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "precision": 0.0001,
+        "name": "xOuter",
+        "sketchGeometry": [
+          "xOuterArc",
+          "xOuterRight",
+          "xOuterLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "precision": 0.0001,
+        "name": "xInner",
+        "sketchGeometry": [
+          "xInnerArc",
+          "xInnerRight",
+          "xInnerLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "xOuter",
+        "length": 120,
+        "offset": -60,
+        "name": "outerX"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "xInner",
+        "length": 120,
+        "offset": -60,
+        "name": "innerX"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "outerX",
+        "b": "innerX",
+        "name": "tubeX",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "sketch.create",
+      "params": {
+        "name": "sketchY",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            -1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 10,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterRight",
+        "start": [
+          7.0710678118654755,
+          7.0710678118654755
+        ],
+        "end": [
+          0,
+          14.142135623730951
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterLeft",
+        "start": [
+          0,
+          14.142135623730951
+        ],
+        "end": [
+          -7.0710678118654755,
+          7.0710678118654755
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 8,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerRight",
+        "start": [
+          5.656854249492381,
+          5.656854249492381
+        ],
+        "end": [
+          0,
+          11.313708498984761
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerLeft",
+        "start": [
+          0,
+          11.313708498984761
+        ],
+        "end": [
+          -5.656854249492381,
+          5.656854249492381
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "precision": 0.0001,
+        "name": "yOuter",
+        "sketchGeometry": [
+          "yOuterArc",
+          "yOuterRight",
+          "yOuterLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "precision": 0.0001,
+        "name": "yInner",
+        "sketchGeometry": [
+          "yInnerArc",
+          "yInnerRight",
+          "yInnerLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "yOuter",
+        "length": 120,
+        "offset": -60,
+        "name": "outerY"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "yInner",
+        "length": 120,
+        "offset": -60,
+        "name": "innerY"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "outerY",
+        "b": "innerY",
+        "name": "tubeY",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tubeX",
+        "b": "tubeY",
+        "name": "crossFromHollow",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "outerX",
+        "b": "outerY",
+        "name": "crossOuter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "innerX",
+        "b": "innerY",
+        "name": "crossInner",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "crossOuter",
+        "b": "crossInner",
+        "name": "crossFromSolids",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "tubeX",
+          "tubeY",
+          "crossFromHollow",
+          "crossOuter",
+          "crossInner",
+          "crossFromSolids"
+        ]
+      }
+    }
+  ]
+}

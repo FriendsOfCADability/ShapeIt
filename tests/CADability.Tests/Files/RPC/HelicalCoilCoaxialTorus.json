@@ -1,0 +1,181 @@
+{
+  "Description": "Coil spring (circular wire, mean radius 10, wire radius 2) united with a coaxial torus whose centre circle is identical to the centre circle of the helix (major radius 10) and whose tube (minor radius 3) completely encloses the wire cross section where they meet.",
+  "Expected": "One solid; the torus swallows one turn of the coil. Volume must be less than 2368.705 + 1776.529 = 4145.234 and greater than 2368.705.",
+  "Status": "FIXED (re-checked 2026-08-10). V(coil)=2368.6613, V(torus)=1776.5174, V(union)=3588.0400, V(intersect)=557.1242 - the identity V(union)+V(intersect)=V(a)+V(b) holds to 3.6e-6 relative, reproducibly over three runs. Keep as a regression guard.",
+  "Actual (before the fix)": "solid.boolean union failed with 'Error in the application.' after about 0.9 s. This was the fastest reproduction of the tangency/coincidence crash.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "coil",
+    "ring",
+    "coilWithRing"
+  ],
+  "Baseline": {
+    "coil": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The file's own Expected field carries the check: V(union)+V(intersect) = V(coil)+V(torus), measured 3588.0400 + 557.1242 against 2368.6613 + 1776.5174.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2330.56661655",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coilWithRing": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The file's own Expected field carries the check: V(union)+V(intersect) = V(coil)+V(torus), measured 3588.0400 + 557.1242 against 2368.6613 + 1776.5174.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "34",
+      "poleEdges": "0",
+      "vertices": "24",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3588.03942632",
+      "area": "2846.84562389",
+      "edgeLength": "618.809047894",
+      "extent": "-13, -13, -2, 13, 13, 26",
+      "surfaces": "HelicalSweepSurface:4 PlaneSurface:2 ToroidalSurface:4"
+    },
+    "ring": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. The file's own Expected field carries the check: V(union)+V(intersect) = V(coil)+V(torus), measured 3588.0400 + 557.1242 against 2368.6613 + 1776.5174.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1775.026634",
+      "area": "1161.20651161",
+      "edgeLength": "163.362817987",
+      "extent": "-13, -13, 9, 13, 13, 15",
+      "surfaces": "ToroidalSurface:4"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "wireProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wireProfile"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil",
+        "profile": "wireProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.torus",
+      "params": {
+        "name": "ring",
+        "center": [
+          0,
+          0,
+          12
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 10,
+        "minorRadius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coil",
+        "b": "ring",
+        "name": "coilWithRing",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilWithRing",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": "coilWithRing"
+      }
+    }
+  ]
+}

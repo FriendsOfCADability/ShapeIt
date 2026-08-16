@@ -14,10 +14,12 @@
 // and the log stays readable instead of being buried under a few hundred kilobytes of base64.
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CADability.GeoObject;
 
 namespace ShapeIt
 {
@@ -115,22 +117,92 @@ namespace ShapeIt
                 lock (protocolLock)
                 {
                     StringBuilder text = new();
-                    foreach (ProtocolEntry entry in protocolEntries)
+                    foreach (JsonObject block in RequestBlocks())
                     {
-                        if (entry.Kind != ProtocolEntryKind.Request) continue;
                         if (text.Length > 0) text.AppendLine().AppendLine();
-                        JsonObject block = new()
-                        {
-                            ["jsonrpc"] = "2.0",
-                            ["id"] = entry.Id,
-                            ["method"] = entry.Method,
-                            ["params"] = entry.Payload?.DeepClone() ?? new JsonObject()
-                        };
                         text.Append(block.ToJsonString(IndentedJson));
                     }
                     return text.ToString();
                 }
             }
+        }
+
+        /// <summary>The recorded requests as JSON-RPC blocks, in the order they were sent. Call under the lock.</summary>
+        private List<JsonObject> RequestBlocks()
+        {
+            List<JsonObject> blocks = new();
+            foreach (ProtocolEntry entry in protocolEntries)
+            {
+                if (entry.Kind != ProtocolEntryKind.Request) continue;
+                blocks.Add(new JsonObject
+                {
+                    ["jsonrpc"] = "2.0",
+                    ["id"] = entry.Id,
+                    ["method"] = entry.Method,
+                    ["params"] = entry.Payload?.DeepClone() ?? new JsonObject()
+                });
+            }
+            return blocks;
+        }
+
+        /// <summary>Number of recorded requests - what an export would contain.</summary>
+        public int ProtocolCallCount
+        {
+            get { lock (protocolLock) return protocolEntries.Count(e => e.Kind == ProtocolEntryKind.Request); }
+        }
+
+        /// <summary>
+        /// The recorded session as an RPC regression case file, see tests/CADability.Tests/Files/RPC/readme.md.
+        /// <para>
+        /// Deliberately written WITHOUT a "Baseline": what the case has to produce is recorded by a regenerate
+        /// run of the harness, after a human has judged the outcome correct. An export must not claim to know
+        /// the right answer - it only knows what happened.
+        /// </para>
+        /// <para>
+        /// "CaseStatus" is "KnownFail" for the same reason: a fresh case has no baseline yet, and a case
+        /// without one that claims to be "Ok" would check nothing while looking green.
+        /// </para>
+        /// </summary>
+        /// <param name="description">What the case builds and why it exists. A stub when left empty.</param>
+        public string BuildRpcCaseFile(string? description = null)
+        {
+            JsonArray calls = new();
+            JsonArray verify = new();
+            lock (protocolLock)
+            {
+                foreach (JsonObject block in RequestBlocks()) calls.Add(block);
+            }
+            // Pre-filled with the solids that are in the workspace now: after a session those are exactly the
+            // candidates for "what this case is about". Meant to be trimmed by hand - everything listed here
+            // ends up in the baseline, and scaffolding in the fingerprint only makes the diff noisy.
+            // (JsonNode) and not Add(name): the generic Add<T> wraps a string in a JsonValueCustomized, which
+            // then wants a TypeInfoResolver on the serializer options. The implicit conversion does not.
+            foreach (string name in SolidNamesInWorkspace()) verify.Add((JsonNode)name);
+
+            JsonObject root = new()
+            {
+                ["Description"] = string.IsNullOrWhiteSpace(description)
+                    ? "TODO: what does this case build, and why does it exist?"
+                    : description,
+                ["Expected"] = "TODO: what is the right result, and how do you know?",
+                ["CaseStatus"] = "KnownFail",
+                ["Verify"] = verify,
+                ["RPCCalls"] = calls
+            };
+            return root.ToJsonString(IndentedJson) + "\n";
+        }
+
+        private List<string> SolidNamesInWorkspace()
+        {
+            List<string> names = new();
+            foreach (KeyValuePair<string, object> item in namedItems.Items)
+            {
+                if (item.Value is Solid || item.Value is Shell) names.Add(item.Key);
+                else if (item.Value is System.Collections.IEnumerable list and not string
+                         && list.Cast<object>().Any() && list.Cast<object>().All(o => o is Solid)) names.Add(item.Key);
+            }
+            names.Sort(StringComparer.Ordinal);
+            return names;
         }
 
         /// <summary>

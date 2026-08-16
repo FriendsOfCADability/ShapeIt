@@ -36,8 +36,20 @@ namespace CADability.GeoObject
 
         public override ICurve FixedU(double u, double vmin, double vmax)
         {
-            Line2D l2d = new Line2D(new GeoPoint2D(u, vmin), new GeoPoint2D(u, vmax));
-            return CurveOnSurface.Construct(l2d, this);
+            // The coordinate system of the HelicalCurve must be built at v==0, not at v==vmin: its x-axis is the
+            // reference for the angle 0 and its origin is the point on the axis where the height is 0. Both refer to
+            // the parameter which is passed as the start parameter of the helix, and that is v.
+            GeoPoint pointAtV0 = PointAt(new GeoPoint2D(u, 0.0));
+            GeoPoint axisPoint = Geometry.DropPL(pointAtV0, axis.Location, axis.Direction);
+            GeoVector xAxis = pointAtV0 - axisPoint;
+            if (xAxis.IsNullVector())
+            {   // this part of the profile lies on the axis: the swept curve degenerates to a straight line
+                return Line.TwoPoints(PointAt(new GeoPoint2D(u, vmin)), PointAt(new GeoPoint2D(u, vmax)));
+            }
+            Plane pln = new Plane(axisPoint, xAxis, axis.Direction ^ xAxis);
+            HelicalCurve helicalCurve = HelicalCurve.Construct();
+            helicalCurve.SetHelix(pln, xAxis.Length, pitch, vmin, vmax - vmin);
+            return helicalCurve;
         }
 
         public override ICurve FixedV(double v, double umin, double umax)
@@ -54,7 +66,7 @@ namespace CADability.GeoObject
 
         public override ISurface GetModified(ModOp m)
         {
-            
+
             HelicalSweepSurface res = new HelicalSweepSurface(curve.CloneModified(m), pitch, (m * axis).Normalized);
             res.SetBounds(this.GetBounds());
             return res;
@@ -77,7 +89,13 @@ namespace CADability.GeoObject
         }
         public override void GetSafeParameterSteps(double umin, double umax, double vmin, double vmax, out double[] intu, out double[] intv)
         {
-            base.GetSafeParameterSteps(umin, umax, vmin, vmax, out intu, out intv);
+            intu = curve.GetSavePositions();
+            int vnum = (int)Math.Max(2, Math.Ceiling((vmax - vmin) / Math.PI * 2)); // 4 divisions per round
+            intv = new double[vnum];
+            for (int i = 0; i < vnum; i++)
+            {
+                intv[i] = vmin + (vmax - vmin) * i / (vnum - 1);
+            }
         }
         public override GeoPoint PointAt(GeoPoint2D uv)
         {
@@ -246,7 +264,7 @@ namespace CADability.GeoObject
                     double dv = pln.Distance(p) - pln.Distance(ips[i]);
                     double v = (dv / pitch) * 2.0 * Math.PI;
                     double d = PointAt(new GeoPoint2D(u[i], v)) | p;
-                    if (d< bestDist)
+                    if (d < bestDist)
                     {
                         bestDist = d;
                         bestIndex = i;

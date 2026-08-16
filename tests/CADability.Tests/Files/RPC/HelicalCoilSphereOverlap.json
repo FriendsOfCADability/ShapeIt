@@ -1,0 +1,261 @@
+{
+  "Description": "Coil spring (circular wire, mean radius 10, wire radius 2, z from -2 to 26) and a sphere of radius 11 around (0,0,12). The sphere clearly overlaps the wire: the wire occupies the radial band 8..12 and the sphere reaches radius 11 in the plane z=12.",
+  "Expected": "V(union) + V(intersect) = V(coil) + V(sphere) = 2368.705 + 5575.280 = 7943.985, with 0 < V(intersect) < 2368.705.",
+  "Status": "FIXED (re-checked 2026-08-10). V(union)=7208.1880, V(intersect)=735.7382, V(coil minus ball)=1632.9238 against V(coil)=2368.6613 and V(ball)=5575.2798: both identities hold to about 2e-6 relative. Keep as a regression guard.",
+  "Actual (before the fix)": "Failed, with a symptom that depended on the orientation the helical extrusion happened to produce (see HelicalExtrudeOrientationUnstable.json). With a POSITIVE coil no overlap was detected at all and every operation returned one of the operands unchanged; with a NEGATIVE coil the union threw 'Sequence contains no elements'. A coaxial cylinder of radius 9 showed the same signature and additionally needed about 340 s.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "coil",
+    "ball",
+    "coilUnionBall",
+    "coilIntersectBall",
+    "coilMinusBall"
+  ],
+  "Baseline": {
+    "ball": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "consistent": "true",
+      "faces": "2",
+      "edges": "4",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5574.63273616",
+      "area": "1500.32673177",
+      "edgeLength": "97.7434246395",
+      "extent": "-11, -11, 1, 11, 11, 23",
+      "surfaces": "SphericalSurface:2"
+    },
+    "coil": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2330.56661655",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+    },
+    "coilIntersectBall": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "32",
+      "poleEdges": "0",
+      "vertices": "23",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "735.737291733",
+      "area": "1133.06067189",
+      "edgeLength": "391.023551637",
+      "extent": "-11, -10.9967852125, 4.45016556458, 10.7863336727, 10.9967933923, 19.5498344326",
+      "surfaces": "HelicalSweepSurface:2 SphericalSurface:9"
+    },
+    "coilMinusBall": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "consistent": "true",
+      "faces": "13",
+      "edges": "42",
+      "poleEdges": "0",
+      "vertices": "31",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1632.92493911",
+      "area": "2188.11750262",
+      "edgeLength": "604.179381444",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:2 PlaneSurface:2 SphericalSurface:9"
+    },
+    "coilUnionBall": {
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "consistent": "true",
+      "faces": "13",
+      "edges": "42",
+      "poleEdges": "0",
+      "vertices": "31",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7208.18705828",
+      "area": "2780.44556596",
+      "edgeLength": "633.36776051",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:2 PlaneSurface:2 SphericalSurface:9"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "wireProfile",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_circle",
+      "params": {
+        "sketch": {
+          "name": "wireProfile"
+        },
+        "center": [
+          10,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.helical_extrude",
+      "params": {
+        "name": "coil",
+        "profile": "wireProfile",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        },
+        "angle": 1080,
+        "pitch": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.sphere",
+      "params": {
+        "name": "ball",
+        "center": [
+          0,
+          0,
+          12
+        ],
+        "radius": 11
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coil",
+        "b": "ball",
+        "name": "coilUnionBall",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "coil",
+        "b": "ball",
+        "name": "coilIntersectBall",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "coil",
+        "b": "ball",
+        "name": "coilMinusBall",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilUnionBall",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilIntersectBall",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilMinusBall",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "coilUnionBall",
+          "coilIntersectBall",
+          "coilMinusBall"
+        ]
+      }
+    }
+  ]
+}

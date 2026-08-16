@@ -1,0 +1,648 @@
+{
+  "Description": "Tangency type 1: two faces touch over an area, both lying on the same plane. All five cases use axis aligned boxes only, so every expected volume is an exact integer and no triangulation noise is involved. The cases split into two groups that behave completely differently, and the deciding property is NOT how large the contact area is but the ORIENTATION of the two faces at the contact:\n- OPPOSITE SENSE (cases a, c, d, e): the outward normals are antiparallel, the two bodies abut and lie on opposite sides of the contact. The contact region must disappear from the boundary of the result, in the union as well as in the intersection.\n- SAME SENSE (case b): the outward normals are parallel, both bodies lie on the same side of the contact. The contact region survives exactly once.\nFor the difference A-B the tool is inverted first, which swaps the two groups - so the difference needs no rule of its own.\nThe cases within the opposite sense group vary the shape of the contact region: congruent faces (a), partial overlap (c), one face strictly inside the other so that the surviving face gets an inner loop (d), and the contact being the complete wall of a cavity (e).",
+  "Expected": "a  congruent, opposite sense: boxes (0,0,0)..(10,10,10) and (0,0,10)..(10,10,20), touching on the full face z=10.\n   union = one solid, V = 2000, 6 faces (a clean 10x10x20 box, the interface is gone).\n   intersect = empty. difference A-B = 1000, 6 faces.\nb  congruent, same sense: boxes (0,0,0)..(10,10,10) and (0,0,0)..(10,10,5), sharing the face z=0.\n   union = A, V = 1000. intersect = B, V = 500. difference A-B = the slice z=5..10, V = 500.\nc  partial overlap, opposite sense: the upper box shifted to (5,0,10)..(15,10,20), so the contact is only x=5..10 of the face z=10.\n   union = one solid, V = 2000, 10 faces (with coplanar merging: the two L shaped side faces count as one each).\n   intersect = empty. difference A-B = 1000.\nd  contact strictly inside the larger face, opposite sense: small box (2,2,10)..(8,8,14) standing on the large one.\n   union = one solid, V = 1144, 11 faces - the top face of the large box keeps an INNER LOOP where the small box sits.\n   intersect = empty. difference A-B = 1000, 6 faces.\ne  the contact is the entire wall of a cavity: A = box (0,0,0)..(10,10,10) minus box (2,2,2)..(8,8,8), V = 784; B = exactly that inner box, V = 216.\n   union = ONE solid, V = 1000, 6 faces, no cavity left - B fills the cavity exactly and the whole cavity wall must vanish.\n   intersect = empty. difference A-B = 784 (A unchanged, 12 faces). difference B-A = 216 (B unchanged, 6 faces).",
+  "Status": "PASSES, INCLUDING REPEATED RUNS (2026-08-13). All five cases correct in all three operations. The flakiness of case d is gone: 30 consecutive runs of its intersection were correct where it used to fail about one run in five, and 72 further runs over the other geometries in the same session were clean as well - 102 runs, no failure.\nRoot cause of the flakiness, found by Gerhard: the test whether one shell lies inside the other iterated the faces of a HashSet, whose order differed from run to run, and a TOUCHING face was classified as lying inside. Case d was the one to expose it because its contact region lies strictly inside the larger face and shares no part of that face's boundary, so a touching face was all the test had to go on.\nWhen re-testing this file, repeat case d at least ten times. A single green run proved nothing at the old failure rate, and the defect was invisible in the operands: they came out of the failing runs with the correct 6 faces / 12 edges and the correct bounding boxes.\nThe first fix attempt for this introduced a severe regression elsewhere - a tool lying strictly inside the target broke difference and intersect completely, which blocked every cavity in the corpus. That is documented in EnclosedToolNoContact.json and is fixed as well.\n\nEarlier state, for the record:\nALL CASES CORRECT, BUT CASE d NOT DETERMINISTIC (2026-08-13, after the case e intersect and the coplanar face merging were fixed).\nFixed since the previous measurement: case e intersect now returns the empty result instead of the inverted inner box with V = -216, and case a union merges its coplanar side faces again, giving the canonical 6 faces / 12 edges instead of 10 / 20. Every other value is unchanged.\nOPEN - case d intersect is flaky. The same call with the same inputs returns the correct empty result on most runs and operand a (a solid with V = 1000 and 6 faces) on some. Measured over 24 runs in one session: 5 wrong, about 21 percent. It is genuinely non-deterministic, not order dependent - an earlier hypothesis that a preceding union on the same operands triggers it did not hold up: 1 of 8 wrong with a preceding union, 3 of 8 wrong without any preceding operation. The operands look untouched afterwards (6 faces / 12 edges, correct bounding boxes), so whatever differs between runs is not visible in the summary; it is accumulated session state of the same kind that makes BRep regression runs differ from single runs.\nWhat singles out case d: its contact region lies STRICTLY INSIDE the larger face and shares no part of that face's boundary. The other four cases were run 8 times each in the same session with 0 failures - congruent contact (a), contact reaching three edges of the face (c), contact over a complete cavity wall (e), and two boxes 50 mm apart as a control. Variants with the contact touching one or two edges of the larger face were correct as well. So the trigger is the fully enclosed contact region, i.e. the configuration that needs an inner loop.\nA test of case d that runs once and passes proves nothing. Repeat it at least ten times.\n\nEarlier state, for the record:\nONE DEFECT LEFT plus one topology regression (2026-08-12, after the empty result handling and the case e union were fixed).\nCORRECT NOW: all five unions, all seven differences, the same sense group (case b) completely, and the empty intersections in a, c and d, which now answer with 'empty': true and a warning instead of returning operand a. Case e union produces the expected single solid with V = 1000 and 6 faces - the cavity wall vanishes and the two bodies merge.\nSTILL BROKEN - case e intersect: returns a solid with 6 faces, bounding box (2,2,2)..(8,8,8) and Volume = -216, i.e. the inner box with inverted orientation, where the correct answer is the empty result. Note that this does NOT run into the empty result path at all: the kernel believes there is something to intersect. The contact is opposite sense over the complete cavity wall, so by the same rule that makes the union merge, the intersection has to be empty.\nTOPOLOGY REGRESSION - case a union: the volume is right (2000) and the solid is valid and closed (10 faces, 20 edges, 12 vertices by Euler, and a further boolean on it yields a clean 6 face box), but the four pairs of coplanar side faces are no longer merged. Before the last change this case produced a canonical 6 face / 12 edge box. Case c (10 faces) and case d (11 faces) still merge their coplanar faces, so the merging did not disappear in general - it is specifically the case where the coincident face is consumed completely on both sides. Not a correctness bug, but the result is no longer minimal.\n\nEarlier state, for the record:\nPARTLY BROKEN, first measurement 2026-08-12 (build 0.2.0.262).\nCORRECT: the whole same sense group (case b, all three operations). The union in cases a, c and d - including the inner loop in d, which comes out with exactly the expected 11 faces and V = 1144, and the clean merge in a, where 12 faces collapse to 6. Every difference in all five cases.\nBUG 1 - union does not merge when the contact is a complete cavity wall (case e): the result is not one solid but a list of two, the unchanged A with V = 784 and the unchanged B with V = 216. The cavity wall is neither removed nor is anything joined; the operation behaves as if the two bodies did not touch at all. Cases a, c and d show that the same coincidence is handled correctly on an outer face, so what is special here is that the coincident face belongs to an inner shell.\nBUG 2 - intersect returns a negative volume in case e: a solid with 6 faces and Volume = -216, i.e. the inner box with inverted orientation. The correct answer is the empty result.\nNOT A TANGENCY BUG: in cases a, c and d the intersection originally returned operand a unchanged with V = 1000 - the general empty result defect documented in IntersectEmptyResult.json.\nRe-measured 2026-08-12 after that defect was fixed: a, c and d no longer return operand a, so the tangency handling itself is now plausible for them, but the answer cannot be read yet - the call fails with -32603 while serialising the bounding box of the empty result. Judging a, c and d therefore still waits on the reporting side of IntersectEmptyResult.json. Everything else in this file was re-measured unchanged, in particular case e, which is the only genuine tangency defect here.",
+  "Actual (2026-08-13, current)": "a: union 2000 / 6 faces / 12 edges, difference 1000 / 6 faces, intersect empty (12 of 12 runs).\nb: union 1000, intersect 500, difference 500.\nc: union 2000 / 10 faces, difference 1000, intersect empty (12 of 12 runs).\nd: union 1144 / 11 faces, difference 1000 / 6 faces, intersect empty (30 of 30 runs).\ne: union 1000 / 6 faces, difference A-B 784 / 12 faces, difference B-A 216 / 6 faces, intersect empty (12 of 12 runs).\nVariants with the contact reaching one or two edges of the larger face, and two boxes 50 mm apart as a control: 12 runs each, all correct.",
+  "Actual (2026-08-13, before the HashSet fix)": "d: intersect empty on 19 of 24 runs and a solid with V = 1000 on the other 5. All other cases as above.",
+  "Actual (2026-08-12)": "a: union 2000 but 10 faces / 20 edges instead of 6 / 12, difference 1000 / 6 faces OK, intersect empty OK.\nb: union 1000 OK, intersect 500 OK, difference 500 OK.\nc: union 2000 / 10 faces OK, difference 1000 OK, intersect empty OK.\nd: union 1144 / 11 faces OK, difference 1000 OK, intersect empty OK.\ne: union 1000 / 6 faces OK, difference A-B 784 / 12 faces OK, difference B-A 216 / 6 faces OK, intersect = -216 WRONG.",
+  "Actual (first measurement)": "a: union 2000 / 6 faces OK, difference 1000 / 6 faces OK, intersect 1000 (operand a).\nb: union 1000 OK, intersect 500 OK, difference 500 OK - fully correct.\nc: union 2000 / 10 faces OK, difference 1000 OK, intersect 1000 (operand a).\nd: union 1144 / 11 faces OK, difference 1000 OK, intersect 1000 (operand a).\ne: union = list of 2 solids (784 with 12 faces and 216 with 6 faces), difference A-B 784 / 12 faces OK, difference B-A 216 / 6 faces OK, intersect = -216.",
+  "CaseStatus": "Ok",
+  "ExpectError": [
+    {
+      "id": 29,
+      "code": "1002"
+    }
+  ],
+  "Verify": [
+    "aUnion",
+    "aDiff",
+    "aInter",
+    "bUnion",
+    "bInter",
+    "bDiff",
+    "cUnion",
+    "cDiff",
+    "dUnion",
+    "dDiff",
+    "eUnion",
+    "eDiff",
+    "eDiffRev",
+    "eInter"
+  ],
+  "Baseline": {
+    "aDiff": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "aInter": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "exists": "false"
+    },
+    "aUnion": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2000",
+      "area": "1000",
+      "edgeLength": "160",
+      "extent": "0, 0, 0, 10, 10, 20",
+      "surfaces": "PlaneSurface:6"
+    },
+    "bDiff": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "500",
+      "area": "400",
+      "edgeLength": "100",
+      "extent": "-1.7763568394E-15, 0, 5, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "bInter": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "500",
+      "area": "400",
+      "edgeLength": "100",
+      "extent": "0, 0, 0, 10, 10, 5",
+      "surfaces": "PlaneSurface:6"
+    },
+    "bUnion": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "cDiff": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "cUnion": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2000",
+      "area": "1100",
+      "edgeLength": "220",
+      "extent": "0, 0, 0, 15, 10, 20",
+      "surfaces": "PlaneSurface:10"
+    },
+    "dDiff": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "dUnion": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1144",
+      "area": "696",
+      "edgeLength": "184",
+      "extent": "0, 0, 0, 10, 10, 14",
+      "surfaces": "PlaneSurface:11"
+    },
+    "eDiff": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "784",
+      "area": "816",
+      "edgeLength": "192",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:12"
+    },
+    "eDiffRev": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "216",
+      "area": "216",
+      "edgeLength": "72",
+      "extent": "2, 2, 2, 8, 8, 8",
+      "surfaces": "PlaneSurface:6"
+    },
+    "eInter": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "exists": "false"
+    },
+    "eUnion": {
+      "verified": "2026-08-14: tangency type 1, all volumes are exact integers. Case a must stay 6 faces / 12 edges (coplanar merging), case d 11 faces (inner loop), case e 1000 with 6 faces (cavity wall vanishes). Case d intersect was flaky at about 21% and was confirmed over 30 consecutive runs.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "aA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "aB",
+        "origin": [
+          0,
+          0,
+          10
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "aA",
+        "b": "aB",
+        "name": "aUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "aA",
+        "b": "aB",
+        "name": "aDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "aA",
+        "b": "aB",
+        "name": "aInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.box",
+      "params": {
+        "name": "bA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "bB",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 5
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "bA",
+        "b": "bB",
+        "name": "bUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "bA",
+        "b": "bB",
+        "name": "bInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "bA",
+        "b": "bB",
+        "name": "bDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.box",
+      "params": {
+        "name": "cA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.box",
+      "params": {
+        "name": "cB",
+        "origin": [
+          5,
+          0,
+          10
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "cA",
+        "b": "cB",
+        "name": "cUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cA",
+        "b": "cB",
+        "name": "cDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.box",
+      "params": {
+        "name": "dA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.box",
+      "params": {
+        "name": "dB",
+        "origin": [
+          2,
+          2,
+          10
+        ],
+        "sizeX": 6,
+        "sizeY": 6,
+        "sizeZ": 4
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "dA",
+        "b": "dB",
+        "name": "dUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "dA",
+        "b": "dB",
+        "name": "dDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.box",
+      "params": {
+        "name": "eOuter",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "solid.box",
+      "params": {
+        "name": "eCav",
+        "origin": [
+          2,
+          2,
+          2
+        ],
+        "sizeX": 6,
+        "sizeY": 6,
+        "sizeZ": 6
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "eOuter",
+        "b": "eCav",
+        "name": "eA",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "solid.box",
+      "params": {
+        "name": "eB",
+        "origin": [
+          2,
+          2,
+          2
+        ],
+        "sizeX": 6,
+        "sizeY": 6,
+        "sizeZ": 6
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "eA",
+        "b": "eB",
+        "name": "eUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "assert.check",
+      "params": {
+        "objects": "eUnion",
+        "maxCount": 1,
+        "message": "B fills the cavity of A exactly, so the union must be a single solid box with V = 1000 and 6 faces"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "inspect.properties",
+      "params": {
+        "target": "eUnion",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "eA",
+        "b": "eB",
+        "name": "eDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "eB",
+        "b": "eA",
+        "name": "eDiffRev",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "eA",
+        "b": "eB",
+        "name": "eInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "aUnion",
+          "aDiff",
+          "bUnion",
+          "bInter",
+          "bDiff",
+          "cUnion",
+          "cDiff",
+          "dUnion",
+          "dDiff",
+          "eUnion",
+          "eDiff",
+          "eDiffRev",
+          "eInter"
+        ]
+      }
+    }
+  ]
+}

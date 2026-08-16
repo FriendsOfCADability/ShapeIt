@@ -156,6 +156,9 @@ namespace ShapeIt
             bool debugBRep = false;
             bool nofile = false;
             bool debugRPC = false;
+            // "-e:<list>", "-f:<list>", "-v:<list>": break in the debugger when an edge, face or vertex
+            // with one of the given hashCodes is created, e.g. "-e:29196" or "-e:1468,1469,2000-2010"
+            DebugBreak.ParseCommandLine(args);
             for (int i = 0; i < args.Length; i++)
             {
                 if (!args[i].StartsWith("-"))
@@ -177,16 +180,14 @@ namespace ShapeIt
             }
 
             if (debugBRep)
-            {
-                DebugBRep(args[1]);
+            {   // use the collected fileName, not args[1], so the order of the arguments doesn't matter
+                DebugBRep(fileName);
                 Close();
                 return;
             }
             if (debugRPC)
             {
-                DebugRPC(args[1]);
-                Close();
-                return;
+                DebugRPC(fileName);
             }
 
             ShowLogo();
@@ -198,17 +199,20 @@ namespace ShapeIt
                 this.Icon = new System.Drawing.Icon(str);
             }
 
-            Project toOpen = null;
-            if (!String.IsNullOrWhiteSpace(fileName) && !nofile)
+            if (!debugRPC)
             {
-                try
+                Project toOpen = null;
+                if (!String.IsNullOrWhiteSpace(fileName) && !nofile)
                 {
-                    toOpen = Project.ReadFromFile(fileName);
+                    try
+                    {
+                        toOpen = Project.ReadFromFile(fileName);
+                    }
+                    catch { }
                 }
-                catch { }
+                if (toOpen == null) CadFrame.GenerateNewProject();
+                else CadFrame.Project = toOpen;
             }
-            if (toOpen == null) CadFrame.GenerateNewProject();
-            else CadFrame.Project = toOpen;
 
             string version = ReadEmbeddedVersion(); // version from version.txt
             this.Text = $"ShapeIt with CADability – Version: {version}";

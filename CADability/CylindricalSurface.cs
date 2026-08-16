@@ -50,11 +50,19 @@ namespace CADability.GeoObject
         public CylindricalSurface(GeoPoint location, GeoVector directionX, GeoVector directionY, GeoVector directionZ) : base()
         {
             // this may also be a left handed system
-            ModOp m1 = ModOp.Fit(new GeoVector[] { GeoVector.XAxis, GeoVector.YAxis, GeoVector.ZAxis },
-                new GeoVector[] { directionX, directionY, directionZ });
-            ModOp m2 = ModOp.Translate(location.x, location.y, location.z);
-            toCylinder = m2 * m1;
-            toUnit = toCylinder.GetInverse();
+            try
+            {
+                ModOp m1 = ModOp.Fit(new GeoVector[] { GeoVector.XAxis, GeoVector.YAxis, GeoVector.ZAxis },
+                    new GeoVector[] { directionX, directionY, directionZ });
+                ModOp m2 = ModOp.Translate(location.x, location.y, location.z);
+                toCylinder = m2 * m1;
+                toUnit = toCylinder.GetInverse();
+            }
+            catch (Exception ex)
+            {
+                //ActiveFrame.Frame.UIService.ShowMessageBox("Error creating CylindricalSurface{" + directionX + ", " + directionY + ", " + directionZ + "}: " + ex.Message, "CylindricalSurface", MessageBoxButtons.OK);
+                //throw new ApplicationException("CylindricalSurface: " + ex.Message);
+            }
         }
         internal CylindricalSurface(CylindricalSurface toClone) : base()
         {
@@ -122,6 +130,25 @@ namespace CADability.GeoObject
         public Line AxisLine(double vmin, double vmax)
         {
             return Line.TwoPoints(toCylinder * new GeoPoint(0, 0, vmin), toCylinder * new GeoPoint(0, 0, vmax));
+        }
+        /// <summary>
+        /// True, when the cross section of this cylinder is a circle (and not an ellipse) and the axis is
+        /// perpendicular to that cross section. Only then a helix on the unit cylinder is mapped onto a helix.
+        /// </summary>
+        private bool IsCircularWithPerpendicularAxis
+        {
+            get
+            {
+                GeoVector xdir = toCylinder * GeoVector.XAxis;
+                GeoVector ydir = toCylinder * GeoVector.YAxis;
+                GeoVector zdir = toCylinder * GeoVector.ZAxis;
+                double rx = xdir.Length;
+                double ry = ydir.Length;
+                if (rx < Precision.eps || ry < Precision.eps) return false;
+                if (Math.Abs(rx - ry) > Precision.eps * Math.Max(rx, ry)) return false; // an elliptical cylinder
+                if (Math.Abs((xdir * ydir) / (rx * ry)) > Precision.epsa) return false; // a sheared cross section
+                return Precision.SameDirection(zdir, xdir ^ ydir, false); // a sheared axis
+            }
         }
         #region ISurfaceImpl Overrides
         /// <summary>
@@ -634,18 +661,17 @@ namespace CADability.GeoObject
                     }
                 }
             }
-            // wenn es eine Linie ist, dann kommt entweder eine Linie (v-Richtung) oder eine Ellipse (u-Richtung)
-            // oder eine Schraubenlinie raus
-            // das besondere wäre noch ein Sinus, der macht nämlich eine Ellipse, aber das geht besser so:
-            // Es gibt eine besondere 2D Kurve, die ist Parameterkurve auf einer Fläche geschnitten mit 
-            // einer anderen Fläche. Und wenn die andere Fläche eine Ebene ist, dann gibts eine Ellipse
-            // 
+            // a 2d line yields a line (v direction), an ellipse (u direction) or a helical curve (slanted)
+            // a sine curve would be a special case, it also yields an ellipse, but that is handled better this way:
+            // there is a special 2d curve, which is the parameter curve of a surface intersected with another
+            // surface. And when the other surface is a plane, the result is an ellipse
+            //
             if (curve2d is Line2D)
             {
                 Line2D l2d = curve2d as Line2D;
                 GeoVector2D dir = l2d.EndPoint - l2d.StartPoint;
                 if (Math.Abs(dir.x) < Precision.eps)
-                {   // das Ergebnis ist eine Mantel-Linie
+                {   // the result is a line on the surface of the cylinder
                     Line res = Line.Construct();
                     res.StartPoint = PointAt(l2d.StartPoint);
                     res.EndPoint = PointAt(l2d.EndPoint);
@@ -653,7 +679,7 @@ namespace CADability.GeoObject
                 }
                 else if (Math.Abs(dir.y) < Precision.eps)
                 {
-                    // Kreis(bogen) bzw. Ellipsenbogen
+                    // circular arc resp. elliptical arc
                     Ellipse res = Ellipse.Construct();
                     res.SetArcPlaneCenterRadius(new Plane(Plane.StandardPlane.XYPlane, l2d.StartPoint.y), new GeoPoint(0.0, 0.0, l2d.StartPoint.y), 1.0);
                     res.StartPoint = new GeoPoint(Math.Cos(l2d.StartPoint.x), Math.Sin(l2d.StartPoint.x), l2d.StartPoint.y);
@@ -662,15 +688,18 @@ namespace CADability.GeoObject
                     res.SweepParameter = l2d.EndPoint.x - l2d.StartPoint.x;
                     res.Modify(toCylinder);
                     return res;
-                    //// DEBUG
-                    //if (toCylinder.Determinant > 0.0) return res;
-                    //else
-                    //{
-                    //    Line l = Line.Construct();
-                    //    l.StartPoint = PointAt(l2d.StartPoint);
-                    //    l.EndPoint = PointAt(l2d.EndPoint);
-                    //    return l;
-                    //}
+                }
+                else if (IsCircularWithPerpendicularAxis)
+                {   // a slanted line yields a helical curve. On the unit cylinder the v coordinate advances by
+                    // k = dir.y/dir.x per radian, i.e. the pitch (per full turn) is 2*PI*k. The HelicalCurve
+                    // measures its height from the origin of its plane, so that origin has to be the point on the
+                    // axis where the height is 0, which is v - k*u at the start point of the line.
+                    double k = dir.y / dir.x;
+                    Plane pln = new Plane(new GeoPoint(0.0, 0.0, l2d.StartPoint.y - k * l2d.StartPoint.x), GeoVector.XAxis, GeoVector.YAxis);
+                    HelicalCurve res = HelicalCurve.Construct();
+                    res.SetHelix(pln, 1.0, k * 2.0 * Math.PI, l2d.StartPoint.x, dir.x);
+                    res.Modify(toCylinder); // toCylinder is a similarity here, so the helix is preserved
+                    return res;
                 }
             }
             return base.Make3dCurve(curve2d);

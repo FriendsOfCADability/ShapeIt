@@ -275,9 +275,21 @@ namespace CADability.GeoObject
         }
         public double Volume(double precision)
         {
+            return SignedVolume(Faces, precision);
+        }
+        /// <summary>
+        /// Computes the signed volume enclosed by the provided faces. The faces must form a closed shell, otherwise the
+        /// result is meaningless. The sign follows the orientation: faces with outward pointing normals (a hull) enclose a
+        /// positive volume, faces with inward pointing normals (a hole or cavity) enclose a negative volume.
+        /// </summary>
+        /// <param name="shellFaces">The faces of a closed shell</param>
+        /// <param name="precision">The precision of the triangulation</param>
+        /// <returns>The signed enclosed volume</returns>
+        public static double SignedVolume(IEnumerable<Face> shellFaces, double precision)
+        {
             double sum = 0.0;
             double corr = 0.0;
-            foreach (Face fc in Faces)
+            foreach (Face fc in shellFaces)
             {
                 fc.GetTriangulation(precision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingBox triangleExtent);
                 if (triangleIndex == null) continue;
@@ -1020,6 +1032,7 @@ namespace CADability.GeoObject
                 List<(double, bool)> faceIntersections = fc.GetOrientedLineIntersection(location, direction, out bool bc);
                 res.AddRange(faceIntersections);
                 isBoundaryCase |= bc;
+                isBoundaryCase |= faceIntersections.Any(f => Math.Abs(f.Item1) < 1e-5); // an intersection was at the startpoint
             }
             return res;
         }
@@ -1047,38 +1060,70 @@ namespace CADability.GeoObject
             State |= ShellFlags.HasHoles;
         }
         /// <summary>
-        /// Returns the outer hull and the holes of this shell as lists of faces. The first entry in the list is always the hull, 
-        /// the following entries are holes. If there are no holes, the list contains only one entry with all faces.
+        /// Returns the connected components of the faces of this shell: two faces belong to the same component when there is
+        /// a path from one to the other via common edges. For a closed shell each component is itself a closed shell, i.e. the
+        /// outer hull or one of the holes (see <see cref="GetHullAndHoles"/>). This is a purely topological operation, it makes
+        /// no assumption about orientation or closedness and can also be used on open shells.
         /// </summary>
-        /// <returns></returns>
-        public List<IEnumerable<Face>> GetHullAndHoles()
+        /// <returns>The connected components, each face of this shell is contained in exactly one of them</returns>
+        public List<HashSet<Face>> GetConnectedFaceSets()
         {
-            List<IEnumerable<Face>> res = new List<IEnumerable<Face>>();
-            // the first face always belongs to the hull
-            HashSet<Face> availableFaces = faces.ToHashSet();
-            HashSet<Face> currentSet = new HashSet<Face>();
+            List<HashSet<Face>> res = new List<HashSet<Face>>();
+            HashSet<Face> availableFaces = faces.ToHashSet(); // faces not yet assigned to a component
             Queue<Face> toCheck = new Queue<Face>();
-            toCheck.Enqueue(faces[0]); // we start with the first face to get the outer hull as the first entry in the list
-            while (availableFaces.Any() && toCheck.Any())
+            while (availableFaces.Any())
             {
+                HashSet<Face> currentSet = new HashSet<Face>(); // each component needs its own set
+                Face startWith = availableFaces.First();
+                availableFaces.Remove(startWith);
+                toCheck.Enqueue(startWith);
                 while (toCheck.Any())
                 {
                     Face fc = toCheck.Dequeue();
-                    if (!currentSet.Contains(fc))
+                    currentSet.Add(fc);
+                    foreach (Edge ed in fc.Edges)
                     {
-                        currentSet.Add(fc);
-                        availableFaces.Remove(fc);
-                        foreach (Edge ed in fc.Edges)
-                        {
-                            if (!currentSet.Contains(ed.PrimaryFace)) toCheck.Enqueue(ed.PrimaryFace);
-                            if (ed.SecondaryFace != null && !currentSet.Contains(ed.SecondaryFace)) toCheck.Enqueue(ed.SecondaryFace);
-                        }
+                        // Remove returns true only for faces of this shell which have not been visited yet
+                        if (availableFaces.Remove(ed.PrimaryFace)) toCheck.Enqueue(ed.PrimaryFace);
+                        if (ed.SecondaryFace != null && availableFaces.Remove(ed.SecondaryFace)) toCheck.Enqueue(ed.SecondaryFace);
                     }
                 }
                 res.Add(currentSet);
-                if (availableFaces.Any()) toCheck.Enqueue(availableFaces.First());
             }
             return res;
+        }
+        /// <summary>
+        /// Returns the outer hull and the holes (cavities) of this shell as sets of faces. If there are no holes, the hull
+        /// contains all faces and holes is empty.
+        /// The connected components are provided by <see cref="GetConnectedFaceSets"/>, the hull is identified by the enclosed
+        /// volume: the normals of a hole point into the cavity, so a hole encloses a negative volume, and since the holes are
+        /// located inside the hull, the hull is the component with the greatest absolute volume. It is the only component with a
+        /// positive volume, unless the shell is inverted, as it is used as an intermediate result of union and difference: then
+        /// all signs are reversed and the hull is the only component with a negative volume.
+        /// The shell must be closed, otherwise the volumes and hence the result are meaningless.
+        /// </summary>
+        /// <returns>The faces of the outer hull and the faces of each hole</returns>
+        public (HashSet<Face> hull, HashSet<Face>[] holes) GetHullAndHoles()
+        {
+            List<HashSet<Face>> parts = GetConnectedFaceSets();
+            if (parts.Count == 0) return (new HashSet<Face>(), Array.Empty<HashSet<Face>>()); // an empty shell
+            if (parts.Count == 1) return (parts[0], Array.Empty<HashSet<Face>>()); // no holes, no need to compute the volume
+            // only the sign of the volume is relevant here, and short edges are resolved more precisely anyhow
+            double precision = GetBoundingCube().Size * 1e-4;
+            int hullIndex = 0;
+            double maxVolume = 0.0; // the holes are enclosed by the hull, so the hull has the greatest absolute volume
+            for (int i = 0; i < parts.Count; i++)
+            {
+                double volume = Math.Abs(SignedVolume(parts[i], precision));
+                if (volume > maxVolume)
+                {
+                    maxVolume = volume;
+                    hullIndex = i;
+                }
+            }
+            HashSet<Face> hull = parts[hullIndex];
+            parts.RemoveAt(hullIndex);
+            return (hull, parts.ToArray());
         }
         public void CopyAll(Shell toCopyFrom)
         {   // nur wg. undo
@@ -6764,6 +6809,11 @@ namespace CADability.GeoObject
                 if (f.Contains(p, false) && f.Surface.SameGeometry(f.Domain, face.Surface, face.Domain, Precision.eps, out var _)) return f;
             }
             return null;
+        }
+
+        internal void InvalidateEdges()
+        {
+            edges = null;
         }
     }
 }

@@ -1,0 +1,128 @@
+{
+  "Description": "Minimal case for the empty result of solid.boolean 'intersect'. Two 10x10x10 boxes that do not touch at all: one at the origin, the other 50 mm away at (50,0,0). Their intersection is empty. This is NOT a tangency case - it is the plain question what the operation returns when there is nothing to intersect.",
+  "Expected": "The intersection is empty. Whatever the convention is - an empty result, an error, or a result with no created objects - it must not be one of the operands. Volume 1000 is wrong under every convention.",
+  "Status": "PASSES (re-measured 2026-08-12 after the empty result handling was implemented). Keep as a regression guard.\nThe call now succeeds and answers with 'empty': true plus a warning naming the operation and stating that nothing was stored under the requested name. The name is not created - a later reference reports 'Workspace item not found'. document.get_state stays healthy. Verified in three variants: intersect of two disjoint boxes, difference where the tool fully contains the target, and the in-place variant with 'name' omitted, where the envelope additionally lists the vanished operand under 'removed' and says so in the warning.\n\nEarlier stages of this defect, for the record:\nSTAGE 1 - the operation returned operand a unchanged with Volume 1000, silently.\nSTAGE 2 - GEOMETRY FIXED, REPORTING BROKEN (the intermediate state after the first fix).\nThe original defect is gone: the operation no longer returns operand a. What happens now is that the call fails with JSON-RPC code -32603 and the message '.NET number values such as positive and negative infinity cannot be written as valid JSON'. The empty result is stored under the given name as an EMPTY List<Solid>, and writing its summary asks for the bounding box of nothing, which is the empty bounding cube with plus/minus infinity - System.Text.Json refuses to write that.\nBlast radius, which is what makes this more than a cosmetic problem: as long as one such empty result sits in the workspace, document.get_state fails for the rest of the session, and so does every inspect.summary that merely MENTIONS the name in a list of otherwise valid objects. inspect.properties still answers, but only with \"Property 'Volume' not found on type List<Solid>\", which is how one can tell an empty result from a failed call at all.\nRecovery: workspace.delete on every name that holds an empty result - after that document.get_state works again. Verified.\nTwo things to decide, and they are independent: whether an empty result should occupy a name at all (or be reported as removed/absent), and that the summary of an empty result must not serialise a bounding box - omitting it, or reporting count 0, would be enough.",
+  "Actual": "Before the fix: boxIntersect was a solid with 6 faces, bounding box (0,0,0)..(10,10,10), Volume = 1000 - identical to boxA.\nAfter the fix: the call returns error -32603 (infinity not writable as JSON). The name exists in the workspace and holds an empty List<Solid>. document.get_state and any inspect.summary touching that name fail with the same error until the name is deleted.",
+  "CaseStatus": "Ok",
+  "Verify": [
+    "boxA",
+    "boxB",
+    "boxIntersect"
+  ],
+  "ExpectError": [
+    {
+      "id": 4,
+      "code": "1002"
+    },
+    {
+      "id": 5,
+      "code": "1002"
+    }
+  ],
+  "Baseline": {
+    "boxA": {
+      "verified": "2026-08-14: the intersection of two boxes 50 mm apart must be empty - boxIntersect is recorded as exists=false, and the two follow-up calls on that name fail on purpose (see ExpectError). Regression guard for the fallback that used to return operand a.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "0, 0, 0, 10, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "boxB": {
+      "verified": "2026-08-14: the intersection of two boxes 50 mm apart must be empty - boxIntersect is recorded as exists=false, and the two follow-up calls on that name fail on purpose (see ExpectError). Regression guard for the fallback that used to return operand a.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1000",
+      "area": "600",
+      "edgeLength": "120",
+      "extent": "50, 0, 0, 60, 10, 10",
+      "surfaces": "PlaneSurface:6"
+    },
+    "boxIntersect": {
+      "verified": "2026-08-14: the intersection of two boxes 50 mm apart must be empty - boxIntersect is recorded as exists=false, and the two follow-up calls on that name fail on purpose (see ExpectError). Regression guard for the fallback that used to return operand a.",
+      "exists": "false"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "boxA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "boxB",
+        "origin": [
+          50,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "boxA",
+        "b": "boxB",
+        "name": "boxIntersect",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "inspect.summary",
+      "params": {
+        "objects": "boxIntersect"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "inspect.properties",
+      "params": {
+        "target": "boxIntersect",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    }
+  ]
+}
