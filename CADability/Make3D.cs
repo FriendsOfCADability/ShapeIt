@@ -2075,10 +2075,10 @@ namespace CADability.GeoObject
                 Set<Face> sf = new Set<Face>();
                 extractConnectedFaces(allFaces, allFaces.GetAny(), sf);
 #if DEBUG
-                foreach (Face fc in sf)
-                {
-                    bool ok = fc.CheckConsistency();
-                }
+                //foreach (Face fc in sf)
+                //{
+                //    bool ok = fc.CheckConsistency();
+                //}
 #endif
                 Shell shell = Shell.MakeShell(sf.ToArray());
                 shell.AssertOutwardOrientation();
@@ -2772,6 +2772,7 @@ namespace CADability.GeoObject
 
         static public IGeoObject Rotate(IGeoObject faceShellPathCurve, Axis axis, SweepAngle rotation, SweepAngle offset, Project project)
         {
+            // TODO: check whether the axis is valid for the given face/shell/path/curve. If not, return null.
             Face originalFace = faceShellPathCurve as Face;
             if (faceShellPathCurve is Face)
             {
@@ -2827,6 +2828,33 @@ namespace CADability.GeoObject
                     path = faceShellPathCurve.Clone() as Path;
                 }
                 path.Flatten(); // Flatten wirft zu kurze segmente hoffentlich raus
+                // The axis may not cross the path:
+                if (path.GetPlanarState() == PlanarState.Planar)
+                {
+                    Plane pln = path.GetPlane();
+                    if (Precision.IsDirectionInPlane(axis.Direction, pln) && Precision.IsPointOnPlane(axis.Location, pln))
+                    {
+                        GeoPoint2D al2d = pln.Project(axis.Location);
+                        GeoVector2D ad2d = pln.Project(axis.Direction);
+                        Path2D path2d = path.GetProjectedCurve(pln) as Path2D;
+                        BoundingRect pext = path2d.GetExtent();
+                        if (pext.ClipLine(al2d, ad2d, out GeoPoint2D p1, out GeoPoint2D p2))
+                        {
+                            for (int i = 0; i < path.CurveCount; i++)
+                            {
+                                ICurve2D c2d = path.Curve(i).GetProjectedCurve(pln);
+                                GeoPoint2DWithParameter[] ips = c2d.Intersect(p1, p2);
+                                for (int j = 0; j < ips.Length; j++)
+                                {
+                                    if (ips[j].par1 > Precision.eps && ips[j].par1 < 1.0 - Precision.eps)
+                                    {   // a curveof the path is crossed by the axis, this is not allowed
+                                        return null;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 bool splitted = false; // arcs which start and end on the axis are not allowed, they are splitted at the middle point
                 do
                 {
@@ -2993,28 +3021,29 @@ namespace CADability.GeoObject
                                 GeoVector dirx = (l.StartDirection ^ axis.Direction).Normalized;
                                 GeoVector diry = (axis.Direction ^ dirx).Normalized;
                                 GeoPoint apex = Geometry.IntersectLL(l.StartPoint, l.StartDirection, axis.Location, axis.Direction);
-                                //Angle a = new Angle(l.StartDirection, axis.Direction);
-                                //if (a > Math.PI / 2.0) a = Math.PI - a;
-                                // surface = new ConicalSurface(apex, dirx, diry, axis.Direction, a, 0.0);
-                                try
-                                {
-                                    if (Precision.IsEqual(apex, l.StartPoint))
-                                    {
-                                        ModOp m1 = ModOp.Fit(new GeoPoint[] { l.EndPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI / 2.0) * l.EndPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI) * l.EndPoint, apex }, new GeoPoint[] { new GeoPoint(1, 0, 1), new GeoPoint(0, 1, 1), new GeoPoint(-1, 0, 1), GeoPoint.Origin }, true);
-                                        surface = new ConicalSurface(m1.GetInverse());
-                                    }
-                                    else
-                                    {
-                                        ModOp m = ModOp.Fit(new GeoPoint[] { l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI / 2.0) * l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI) * l.StartPoint, apex }, new GeoPoint[] { new GeoPoint(1, 0, 1), new GeoPoint(0, 1, 1), new GeoPoint(-1, 0, 1), GeoPoint.Origin }, true);
-                                        surface = new ConicalSurface(m.GetInverse());
-                                    }
-                                }
-                                catch (ModOpException)
-                                {
-                                    Angle a = new Angle(l.StartDirection, axis.Direction);
-                                    if (a > Math.PI / 2.0) a = Math.PI - a;
-                                    surface = new ConicalSurface(apex, dirx, diry, axis.Direction.Normalized, a, 0.0);
-                                }
+                                Angle a = new Angle(l.StartDirection, axis.Direction);
+                                if (a > Math.PI / 2.0) a = Math.PI - a;
+                                surface = new ConicalSurface(apex, dirx, diry, axis.Direction.Normalized, a, 0.0);
+                                if (l.StartDirection * axis.Direction < 0.0) surface.ReverseOrientation();
+                                //    try
+                                //    {
+                                //        if (Precision.IsEqual(apex, l.StartPoint))
+                                //        {
+                                //            ModOp m1 = ModOp.Fit(new GeoPoint[] { l.EndPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI / 2.0) * l.EndPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI) * l.EndPoint, apex }, new GeoPoint[] { new GeoPoint(1, 0, 1), new GeoPoint(0, 1, 1), new GeoPoint(-1, 0, 1), GeoPoint.Origin }, true);
+                                //            surface = new ConicalSurface(m1.GetInverse());
+                                //        }
+                                //        else
+                                //        {
+                                //            ModOp m = ModOp.Fit(new GeoPoint[] { l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI / 2.0) * l.StartPoint, ModOp.Rotate(axis.Location, axis.Direction, Math.PI) * l.StartPoint, apex }, new GeoPoint[] { new GeoPoint(1, 0, 1), new GeoPoint(0, 1, 1), new GeoPoint(-1, 0, 1), GeoPoint.Origin }, true);
+                                //            surface = new ConicalSurface(m.GetInverse());
+                                //        }
+                                //    }
+                                //    catch (ModOpException)
+                                //    {
+                                //        Angle a = new Angle(l.StartDirection, axis.Direction);
+                                //        if (a > Math.PI / 2.0) a = Math.PI - a;
+                                //        surface = new ConicalSurface(apex, dirx, diry, axis.Direction.Normalized, a, 0.0);
+                                //    }
                             }
                             else
                             {
@@ -3129,10 +3158,7 @@ namespace CADability.GeoObject
                 if (shells.Length == 1)
                 {
 #if DEBUG
-                    foreach (Edge edg in shells[0].Edges)
-                    {
-                        if (edg.Vertex1 == edg.Vertex2) { }
-                    }
+                    shells[0].CheckConsistency();
 #endif
                     if (project != null)
                     {

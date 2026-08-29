@@ -1,0 +1,193 @@
+{
+  "Description": "A pointed cone made by revolving a planar profile 360 degrees around the z axis, standing not on a flat\nbase but on a second, inward pointing cone.\nThe profile is a triangle in the x/z plane, x = radius r, y = height z:\n  A = (0, 24)    apex of the outer cone, ON the axis\n  B = (10, 0)    outer rim of the base\n  C = (0, 7.5)   apex of the inward cone, ON the axis\nclosed by the segment C -> A, which lies ON the axis of revolution and therefore sweeps nothing.\nThat is the point of the case: a revolve whose profile meets the axis twice, so the result is made of two\nconical faces only - a pole at each apex, one shared base circle, and no planar face anywhere. The body\nstands on a circle, not on a face.\nDimensions do not matter here, only the shape: base radius R = 10, height H = 24, depth of the recess\nd = 7.5, chosen so both slant lengths are integral (26 and 12.5).",
+  "Expected": "One closed, consistent solid of two conical faces meeting in the base circle r = 10 at z = 0, with a pole\nat (0,0,24) and a pole at (0,0,7.5). A full revolve splits each of the two faces at the seam, so four\nConicalSurface faces are the expected record, not a defect.\nAll values are exact, computed not measured:\n  volume      outer cone minus recess cone = 1/3*pi*R^2*(H-d) = 550*pi = 1727.8759594744\n  area        the two lateral surfaces, there is no base face:\n              slant outer  sqrt(10^2 + 24^2)  = 26\n              slant recess sqrt(10^2 + 7.5^2) = 12.5\n              pi*R*(26 + 12.5) = 385*pi = 1209.5132339605\n  edgeLength  base circle 2*pi*10 = 62.8318530718, plus the seam of each face:\n              2*26 + 2*12.5 = 77, total 139.8318530718\n  extent      -10, -10, 0, 10, 10, 24\n  consistent  true",
+  "CaseStatus": "Ok",
+  "Repeat": 3,
+  "Verify": [
+    "spike"
+  ],
+  "Baseline": {
+    "spike": {
+      "verified": "2026-08-26 GH: matches the hand computed values - volume 550*pi = 1727.8759594744 to 2.1e-7 and area 385*pi = 1209.5131716321 to 2e-12, edgeLength 139.8318530718 exactly. Two conical faces split at the seam into four, a pole at each apex, no planar face. The area was 1209.5132339605 (5.6e-4 off) while it was summed over the flat triangles; since ShellMetrics integrates |Su x Sv| over the parameter domain it is exact here, because the domain of a cone mantle is a rectangle and needs no mesh at all.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "4",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1727.875602",
+      "area": "1209.51317163",
+      "edgeLength": "139.831853072",
+      "extent": "-10, -10, 0, 10, 10, 24",
+      "surfaces": "ConicalSurface:4"
+    }
+  },
+  "Status": "OK since 2026-08-21. Recorded earlier the same day as a KNOWN FAILURE with consistent = false,\nvolume 344.478796275 and area 1040.93733452; that was the build of that morning. Nothing in this case\nchanged - the working tree did (Face.cs, Make3D.cs, Surface.cs, BoundingRect.cs) - and the result has\nbeen the one below in every run since, over several fresh processes.\n\nSTILL OPEN, and this case is slow because of it: triangulating a face with a pole does not converge.\nCall id 4 asks for precision 1e-5, which reaches Face.GetSimpleTriangulation as maxDeflection 5e-5, and\na single half cone then produces about 39000 triangles from 20000 vertices - the hard cap\nmaxVerts = max(20000, inputVertexCount*50) in CDTriangulation.Refine. It stops at the cap, it does not\nconverge. Measured on the same face, boundary sampled with 30 points:\n    maxDeflection 0.32     118 triangles   area 406.6865   (true 408.4070)\n    maxDeflection 0.05   37368 triangles   area 409.6935   18303 of the Steiner points from the shape\n                                                           quality criterion\n    maxDeflection 0.05     680 triangles   area 413.7600   same, with MinAngle3D set to 0\n    maxDeflection 5e-5   39114 triangles   area 405.0733   19538 Steiner points from edge deflection,\n                                                           quality plays no part, the cap stops it\nTwo independent causes. The quality criterion is pole specific: the same surface as a band with the apex\ncut away gives 406 triangles at maxDeflection 0.05 with the criterion on and 402 with it off. The\ndeflection cascade at 5e-5 is not pole specific - the band hits the cap just the same.\nThat defect does not corrupt the fingerprint below: ShellMetrics measures at size*1e-3 = 0.064, where the\nface triangulates cleanly. It only costs the runtime, roughly 26 seconds per repeat.\n\nThe values below are stable over 3 runs.",
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "spikeSk",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "rpc.batch",
+      "params": {
+        "calls": [
+          {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "sketch.add_line",
+            "params": {
+              "sketch": {
+                "name": "spikeSk"
+              },
+              "name": "outerSlant",
+              "start": [
+                0,
+                24
+              ],
+              "end": [
+                10,
+                0
+              ]
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "sketch.add_line",
+            "params": {
+              "sketch": {
+                "name": "spikeSk"
+              },
+              "name": "recessSlant",
+              "start": [
+                10,
+                0
+              ],
+              "end": [
+                0,
+                7.5
+              ]
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "sketch.add_line",
+            "params": {
+              "sketch": {
+                "name": "spikeSk"
+              },
+              "name": "onAxis",
+              "start": [
+                0,
+                7.5
+              ],
+              "end": [
+                0,
+                24
+              ]
+            }
+          },
+          {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "sketch.connect",
+            "params": {
+              "sketch": {
+                "name": "spikeSk"
+              },
+              "name": "spikeProfile",
+              "precision": 0.0001,
+              "sketchGeometry": [
+                "outerSlant",
+                "recessSlant",
+                "onAxis"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.rotate",
+      "params": {
+        "profile": "spikeProfile",
+        "name": "spike",
+        "angle": {
+          "full": true
+        },
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "inspect.properties",
+      "params": {
+        "target": "spike",
+        "properties": [
+          "Volume",
+          "Area",
+          "Extent"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "inspect.summary",
+      "params": {
+        "objects": "spike"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": "spike"
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-using CADability.Attribute;
+﻿using CADability.Attribute;
 using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.Substitutes;
@@ -664,6 +664,7 @@ namespace CADability
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length),
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length));
                 var start = MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(new double[] { apex.x, apex.y, apex.z, Z0.x, Z0.y, Z0.z, semiAngle });
+                SolverTrace.Record("MathNet.LM");
                 var result = minimizer.FindMinimum(obj, start);
                 var pr = result.MinimizingPoint;
                 GeoVector axis = new GeoVector(pr[3], pr[4], pr[5]);
@@ -715,6 +716,7 @@ namespace CADability
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length),
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length));
                 var start = MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(new double[] { axisPoint.x, axisPoint.y, axisPoint.z, n0.x, n0.y, n0.z, radius });
+                SolverTrace.Record("MathNet.LM");
                 var result = minimizer.FindMinimum(obj, start);
                 var pr = result.MinimizingPoint;
                 GeoVector axis = new GeoVector(pr[3], pr[4], pr[5]);
@@ -752,6 +754,7 @@ namespace CADability
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length),
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length));
                 var start = MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(new double[] { center.x, center.y, center.z, radius });
+                SolverTrace.Record("MathNet.LM");
                 var result = minimizer.FindMinimum(obj, start);
                 var pr = result.MinimizingPoint;
                 double R = pr[3];
@@ -2718,6 +2721,7 @@ namespace CADability
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length),
                     MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length));
                 var start = MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(new double[] { center.x, center.y, center.z, n0.x, n0.y, n0.z, minorRadius });
+                SolverTrace.Record("MathNet.LM");
                 var result = minimizer.FindMinimum(obj, start);
                 var pr = result.MinimizingPoint;
                 GeoPoint loc = new GeoPoint(pr[0], pr[1], pr[2]);

@@ -1,0 +1,905 @@
+{
+  "Description": "Definiert die parametrische Vorlage 'FutterSiloUnterteil' und legt zur Kontrolle gleich zwei Instanzen im Modell ab.\nAusfuehren mit:  ShapeIt.exe -r <diese Datei>\nSeit 2026-08-17 laesst sich dieselbe Vorlage auch direkt ueber MCP aufzeichnen: tools/call geht jetzt durch MCPServer.ProcessMethod(JsonElement), und nur diese Ueberladung zeichnet auf. Diese Datei bleibt trotzdem nuetzlich - sie legt die Vorlage ohne laufenden Client an, und ihr Rumpf ist die Referenz fuer die Geometrie.",
+  "Parameters": "dPipe    Aussendurchmesser Fallrohr        Vorgabe 80 mm\ndOutlet  Aussendurchmesser Futterauslass   Vorgabe 20 mm\noverhang Ueberstand Futterauslass          Vorgabe 20 mm\nwall     Wandstaerke                       Vorgabe  2 mm\nheight   Gesamthoehe ueber der XY-Ebene    Vorgabe 60 mm\nAbgeleitet: Halbkugel z 0..dPipe/2, Zylinder bis height, Arme dPipe+2*overhang lang, Skizzenebene der Arme bei z = dOutlet/2, damit sie auf der XY-Ebene aufliegen.",
+  "Expected": "SiloStandard (Vorgabewerte): ein Solid, 41 Flaechen, 116 Kanten, x/y -60..60, z 0..60, Volumen 43261.162427.\nSiloGross (dPipe 100, dOutlet 25, overhang 15, wall 3, height 80): ein Solid, 41 Flaechen, 116 Kanten, x/y -65..65 vor dem Versetzen, z 0..80, Volumen 96164.674144. Anschliessend um 200 in x versetzt.\nBeide Zahlen wurden am 2026-08-17 ueber den MCP-Server gemessen, indem die Konstruktion mit den jeweiligen Werten als Literale gebaut wurde - also ohne Vorlage. Weichen die Instanzen davon ab, liegt es an der Aufzeichnung oder am Einsetzen der Parameter, nicht an der Geometrie.",
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "template.begin",
+      "params": {
+        "name": "FutterSiloUnterteil",
+        "label": "Futtersilo-Unterteil",
+        "category": "Silo",
+        "tags": [
+          "Silo",
+          "Futter",
+          "Fallrohr",
+          "Tropfenprofil"
+        ],
+        "description": "Unteres Ende eines Futtersilos fuer Koerner: ein senkrechtes Fallrohr, unten mit einer Halbkugel geschlossen, mit vier tropfenfoermigen Futterauslaessen. Oben wird das Vorratsrohr aufgesteckt. Die Auslaesse liegen mit ihrer Aussenflaeche auf der XY-Ebene auf, ebenso der tiefste Punkt der Halbkugel; innen liegen Bohrungen und Kugelinnenflaeche gemeinsam auf z = Wandstaerke. Randbedingungen, die die Einzelgrenzen nicht abdecken: Auslassdurchmesser kleiner als Fallrohrdurchmesser, Wandstaerke kleiner als der halbe Auslassdurchmesser, Gesamthoehe groesser als der halbe Fallrohrdurchmesser.",
+        "parameters": [
+          {
+            "name": "dPipe",
+            "value": 80,
+            "label": "Aussendurchmesser Fallrohr",
+            "input": {
+              "kind": "length",
+              "unit": "mm",
+              "order": 1,
+              "min": 10,
+              "step": 5,
+              "decimals": 2,
+              "group": "Futtersilo",
+              "description": "Aussendurchmesser des senkrechten Fallrohrs. Der Halbkugelboden hat denselben Durchmesser, die Halbkugel ist also dPipe/2 hoch."
+            }
+          },
+          {
+            "name": "dOutlet",
+            "value": 20,
+            "label": "Aussendurchmesser Futterauslass",
+            "input": {
+              "kind": "length",
+              "unit": "mm",
+              "order": 2,
+              "min": 6,
+              "step": 1,
+              "decimals": 2,
+              "group": "Futtersilo",
+              "description": "Aussendurchmesser der vier Tropfenrohre. Das Profil ist ein 270-Grad-Bogen mit zwei Tangenten, die sich mit 90 Grad treffen; die Spitze zeigt nach oben."
+            }
+          },
+          {
+            "name": "overhang",
+            "value": 20,
+            "label": "Ueberstand Futterauslass",
+            "input": {
+              "kind": "length",
+              "unit": "mm",
+              "order": 3,
+              "min": 1,
+              "step": 5,
+              "decimals": 2,
+              "group": "Futtersilo",
+              "description": "Wie weit die Auslaesse ueber die Aussenflaeche des Fallrohrs hinausragen. Die Arme sind damit dPipe + 2*overhang lang."
+            }
+          },
+          {
+            "name": "wall",
+            "value": 2,
+            "label": "Wandstaerke",
+            "input": {
+              "kind": "length",
+              "unit": "mm",
+              "order": 4,
+              "min": 0.5,
+              "step": 0.5,
+              "decimals": 2,
+              "group": "Futtersilo",
+              "description": "Wandstaerke, ueberall gleich: an der Halbkugel, am Fallrohr und rund um die Tropfenprofile."
+            }
+          },
+          {
+            "name": "height",
+            "value": 60,
+            "label": "Gesamthoehe",
+            "input": {
+              "kind": "length",
+              "unit": "mm",
+              "order": 5,
+              "min": 10,
+              "step": 5,
+              "decimals": 2,
+              "group": "Futtersilo",
+              "description": "Gesamthoehe ueber der XY-Ebene. Davon entfallen dPipe/2 auf die Halbkugel, der Rest auf das zylindrische Stueck, auf das das Vorratsrohr aufgesteckt wird."
+            }
+          }
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "assert.check",
+      "params": {
+        "condition": "dOutlet < dPipe",
+        "message": "Auslassdurchmesser ({dOutlet} mm) muss kleiner als der Fallrohrdurchmesser ({dPipe} mm) sein."
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "assert.check",
+      "params": {
+        "condition": "wall < dOutlet/2",
+        "message": "Wandstaerke ({wall} mm) muss kleiner als der halbe Auslassdurchmesser ({dOutlet/2} mm) sein."
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "assert.check",
+      "params": {
+        "condition": "height > dPipe/2",
+        "message": "Gesamthoehe ({height} mm) muss groesser als der halbe Fallrohrdurchmesser ({dPipe/2} mm) sein."
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "workspace.set",
+      "params": {
+        "name": "rP",
+        "value": "dPipe/2"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "workspace.set",
+      "params": {
+        "name": "rPi",
+        "value": "dPipe/2 - wall"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "workspace.set",
+      "params": {
+        "name": "rA",
+        "value": "dOutlet/2"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "workspace.set",
+      "params": {
+        "name": "rAi",
+        "value": "dOutlet/2 - wall"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "workspace.set",
+      "params": {
+        "name": "tanO",
+        "value": "rA/sqrt(2)"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "workspace.set",
+      "params": {
+        "name": "apexO",
+        "value": "rA*sqrt(2)"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "workspace.set",
+      "params": {
+        "name": "tanI",
+        "value": "rAi/sqrt(2)"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "workspace.set",
+      "params": {
+        "name": "apexI",
+        "value": "rAi*sqrt(2)"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "workspace.set",
+      "params": {
+        "name": "half",
+        "value": "rP + overhang"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "workspace.set",
+      "params": {
+        "name": "lenArm",
+        "value": "2*half"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "workspace.set",
+      "params": {
+        "name": "innerTop",
+        "value": "height + rP"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "workspace.set",
+      "params": {
+        "name": "capSize",
+        "value": "2*dPipe"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "workspace.set",
+      "params": {
+        "name": "negDPipe",
+        "value": "-dPipe"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "workspace.set",
+      "params": {
+        "name": "negHalf",
+        "value": "-half"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "workspace.set",
+      "params": {
+        "name": "negTanO",
+        "value": "-tanO"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "workspace.set",
+      "params": {
+        "name": "negTanI",
+        "value": "-tanI"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "solid.sphere",
+      "params": {
+        "name": "outerSphere",
+        "center": [
+          0,
+          0,
+          "rP"
+        ],
+        "radius": "rP"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "outerCollar",
+        "start": [
+          0,
+          0,
+          "rP"
+        ],
+        "end": [
+          0,
+          0,
+          "height"
+        ],
+        "radius": "rP"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "outerSphere",
+        "b": "outerCollar",
+        "name": "bowlRaw",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.box",
+      "params": {
+        "name": "capTool",
+        "origin": [
+          "negDPipe",
+          "negDPipe",
+          "height"
+        ],
+        "sizeX": "capSize",
+        "sizeY": "capSize",
+        "sizeZ": "dPipe"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "bowlRaw",
+        "b": "capTool",
+        "name": "bowlOuter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "solid.sphere",
+      "params": {
+        "name": "innerSphere",
+        "center": [
+          0,
+          0,
+          "rP"
+        ],
+        "radius": "rPi"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "innerCollar",
+        "start": [
+          0,
+          0,
+          "rP"
+        ],
+        "end": [
+          0,
+          0,
+          "innerTop"
+        ],
+        "radius": "rPi"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "innerSphere",
+        "b": "innerCollar",
+        "name": "bowlInner",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "sketch.create",
+      "params": {
+        "name": "sketchX",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            "rA"
+          ],
+          "xAxis": [
+            0,
+            1,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": "rA",
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterRight",
+        "start": [
+          "tanO",
+          "tanO"
+        ],
+        "end": [
+          0,
+          "apexO"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterLeft",
+        "start": [
+          0,
+          "apexO"
+        ],
+        "end": [
+          "negTanO",
+          "tanO"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": "rAi",
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerRight",
+        "start": [
+          "tanI",
+          "tanI"
+        ],
+        "end": [
+          0,
+          "apexI"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerLeft",
+        "start": [
+          0,
+          "apexI"
+        ],
+        "end": [
+          "negTanI",
+          "tanI"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "precision": 0.0001,
+        "name": "xOuter",
+        "sketchGeometry": [
+          "xOuterArc",
+          "xOuterRight",
+          "xOuterLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 37,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "precision": 0.0001,
+        "name": "xInner",
+        "sketchGeometry": [
+          "xInnerArc",
+          "xInnerRight",
+          "xInnerLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 38,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "xOuter",
+        "length": "lenArm",
+        "offset": "negHalf",
+        "name": "armOuterX"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 39,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "xInner",
+        "length": "lenArm",
+        "offset": "negHalf",
+        "name": "armInnerX"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 40,
+      "method": "sketch.create",
+      "params": {
+        "name": "sketchY",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            "rA"
+          ],
+          "xAxis": [
+            -1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 41,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": "rA",
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 42,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterRight",
+        "start": [
+          "tanO",
+          "tanO"
+        ],
+        "end": [
+          0,
+          "apexO"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 43,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterLeft",
+        "start": [
+          0,
+          "apexO"
+        ],
+        "end": [
+          "negTanO",
+          "tanO"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 44,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": "rAi",
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 45,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerRight",
+        "start": [
+          "tanI",
+          "tanI"
+        ],
+        "end": [
+          0,
+          "apexI"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 46,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerLeft",
+        "start": [
+          0,
+          "apexI"
+        ],
+        "end": [
+          "negTanI",
+          "tanI"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 47,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "precision": 0.0001,
+        "name": "yOuter",
+        "sketchGeometry": [
+          "yOuterArc",
+          "yOuterRight",
+          "yOuterLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 48,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "precision": 0.0001,
+        "name": "yInner",
+        "sketchGeometry": [
+          "yInnerArc",
+          "yInnerRight",
+          "yInnerLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 49,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "yOuter",
+        "length": "lenArm",
+        "offset": "negHalf",
+        "name": "armOuterY"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 50,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "yInner",
+        "length": "lenArm",
+        "offset": "negHalf",
+        "name": "armInnerY"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 51,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "armOuterX",
+        "b": "armOuterY",
+        "name": "crossOuter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 52,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "armInnerX",
+        "b": "armInnerY",
+        "name": "crossInner",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 53,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "crossOuter",
+        "b": "bowlOuter",
+        "name": "outerAll",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 54,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "crossInner",
+        "b": "bowlInner",
+        "name": "innerAll",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 55,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "outerAll",
+        "b": "innerAll",
+        "name": "siloBottom",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 56,
+      "method": "template.commit",
+      "params": {
+        "result": "siloBottom",
+        "resultKind": "solids"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 57,
+      "method": "template.instantiate",
+      "params": {
+        "template": "FutterSiloUnterteil",
+        "name": "SiloStandard"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 58,
+      "method": "template.instantiate",
+      "params": {
+        "template": "FutterSiloUnterteil",
+        "name": "SiloGross",
+        "arguments": {
+          "dPipe": "100",
+          "dOutlet": "25",
+          "overhang": "15",
+          "wall": "3",
+          "height": "80"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 59,
+      "method": "transform.move",
+      "params": {
+        "objects": "SiloGross",
+        "delta": [
+          200,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 60,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "SiloStandard",
+          "SiloGross"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 61,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "SiloStandard",
+          "SiloGross"
+        ]
+      }
+    }
+  ]
+}

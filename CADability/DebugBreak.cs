@@ -86,7 +86,8 @@ namespace CADability
         /// "-e:&lt;list&gt;" for edges, "-f:&lt;list&gt;" for faces and "-v:&lt;list&gt;" for vertices, where
         /// &lt;list&gt; is a comma separated list of numbers and/or ranges, e.g. "-e:123,456,1000-1010".
         /// "-b:&lt;category&gt;:&lt;list&gt;" addresses a named category used with <see cref="Hit(string, int)"/>,
-        /// e.g. "-b:Face.ModifySurface:406". All other arguments are ignored.
+        /// e.g. "-b:Face.ModifySurface:406". "-hcoffset:&lt;n&gt;" calls
+        /// <see cref="AdvanceHashCodeCounters(int)"/>. All other arguments are ignored.
         /// </summary>
         public static void ParseCommandLine(string[] args)
         {
@@ -96,6 +97,7 @@ namespace CADability
                 string arg = args[i];
                 if (string.IsNullOrEmpty(arg) || arg.Length < 3) continue;
                 if (arg[0] != '-' && arg[0] != '/') continue;
+                if (TryReadHashCodeOffset(arg)) continue;
                 if (arg[2] != ':' && arg[2] != '=') continue;
                 if (char.ToLowerInvariant(arg[1]) == 'b')
                 {
@@ -106,6 +108,63 @@ namespace CADability
                 if (set == null) continue;
                 AddList(set, arg.Substring(3));
             }
+        }
+
+        /// <summary>
+        /// The total offset the hashCode counters have been advanced by. 0 when the switch was not used.
+        /// </summary>
+        public static int HashCodeOffset { get; private set; }
+
+        /// <summary>
+        /// Advances the hashCode counters of Face, Edge, Vertex and BRepItem by <paramref name="offset"/>, so
+        /// that all geometry created from now on gets numbers that are that much higher.
+        /// <para>
+        /// This exists to make an invisible defect visible. Those counters are process wide, and
+        /// <c>CADability.Set&lt;T&gt;</c> enumerates in the slot order of its hash table (Hash.GetEnumerator
+        /// walks the table array), so its order depends on the hashCode VALUES - which is to say on how many
+        /// objects were created earlier in the same process. Wherever a BRep algorithm lets that order decide
+        /// anything, the same input file computes a different result depending on its own prehistory. Started
+        /// with "-d file" in a fresh process everything looks perfectly reproducible, which is precisely why
+        /// such a defect can hide for a long time and then only show up in a test suite, whose prehistory is a
+        /// different one.
+        /// </para>
+        /// <para>
+        /// Advancing every counter by the same amount rotates the occupied slots of each hash table, so each
+        /// offset produces a different enumeration order. Run the same file with 0, 1, 2, ... and any change in
+        /// the result is an order dependency - reproducible, and with two runs that differ in nothing else.
+        /// </para>
+        /// <para>
+        /// Call this before any geometry is built. Objects created earlier keep their low numbers; no number is
+        /// ever handed out twice, which is also why a negative offset is refused rather than applied.
+        /// </para>
+        /// </summary>
+        public static void AdvanceHashCodeCounters(int offset)
+        {
+            if (offset <= 0) return;
+            GeoObject.Face.hashCodeCounter += offset;
+            Edge.hashCodeCounter += offset;
+            Vertex.hashCodeCounter += offset;
+            BRepItem.hashCodeCounter += offset;
+            HashCodeOffset += offset;
+            Trace.WriteLine("hashCode counters advanced by " + offset.ToString(CultureInfo.InvariantCulture));
+        }
+
+        /// <summary>
+        /// Reads the "-hcoffset:&lt;n&gt;" argument and applies it. Returns true when the argument was this one,
+        /// so that the caller stops looking at it - unlike the watch options it is not a single letter.
+        /// </summary>
+        private static bool TryReadHashCodeOffset(string arg)
+        {
+            const string name = "hcoffset";
+            if (arg.Length < name.Length + 2) return false;
+            if (string.Compare(arg, 1, name, 0, name.Length, StringComparison.OrdinalIgnoreCase) != 0) return false;
+            char separator = arg[name.Length + 1];
+            if (separator != ':' && separator != '=') return false;
+            if (int.TryParse(arg.Substring(name.Length + 2), NumberStyles.Integer, CultureInfo.InvariantCulture, out int offset) && offset >= 0)
+                AdvanceHashCodeCounters(offset);
+            else
+                Trace.WriteLine("invalid hashCode offset in \"" + arg + "\", expected e.g. -hcoffset:5");
+            return true;
         }
 
         /// <summary>

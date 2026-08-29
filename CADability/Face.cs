@@ -3284,10 +3284,23 @@ namespace CADability.GeoObject
                 }
                 else
                 {
-                    res.outline[i].Vertex1 = res.outline[i].Vertex2 = new Vertex(surface.PointAt(p2d.SubCurves[i].StartPoint));
+                    if (i > 0) res.outline[i].Vertex1 = res.outline[i].Vertex2 = res.outline[i - 1].Vertex2;
+                    else res.outline[i].Vertex1 = res.outline[i].Vertex2 = new Vertex(surface.PointAt(p2d.SubCurves[i].StartPoint));
                 }
                 res.outline[i].Vertex1.AddEdge(res.outline[i], p2d.SubCurves[i].StartPoint);
                 res.outline[i].Vertex2.AddEdge(res.outline[i], p2d.SubCurves[i].EndPoint);
+            }
+            // there might be a pole, which must be connected to the correct vertices
+            for (int i = 0; i < res.outline.Length; i++)
+            {
+                if (res.outline[i].Curve3D == null)
+                {
+                    int prev = (i + res.outline.Length - 1) % res.outline.Length, next = (i + 1) % res.outline.Length;
+                    if (res.outline[prev].Vertex2 != res.outline[next].Vertex1)
+                    {
+                        res.outline[prev].Vertex2.MergeWith(res.outline[next].Vertex1);
+                    }
+                }
             }
             res.holes = new Edge[outline.NumHoles][];
             for (int i = 0; i < outline.NumHoles; ++i)
@@ -3654,10 +3667,30 @@ namespace CADability.GeoObject
             BoundingRect domain = surface.GetBounds(); // use the bounds of the surface (if any) because some InterpolatedDualSurfaceCurves might rely on it
             if (domain.IsInfinite || domain.IsInvalid()) surface.SetBounds(BoundingRect.EmptyBoundingRect);
             // find a domain for the surface
+            // A cone running into its apex is the special case: there are 3 curves, and the first two may well be
+            // the lines towards the apex and away from it. Their periodic parameter is then 0 and pi, and which
+            // of the two sides is meant is arbitrary. So the sorted curves have to begin with a curve that does
+            // extend in the periodic direction.
+            // so with the following cyclic permutation we make sure the first curve goes in the periodic direction
+            int startwith = 0;
+            if (surface.IsUPeriodic || surface.IsVPeriodic)
+            {
+                for (int i = 0; i < sortedCurves.Count; i++)
+                {
+                    bool ok = !(surface.GetProjectedCurve(sortedCurves[i], 0.0) is Line2D l2d &&
+                        ((surface.IsUPeriodic && Math.Abs(l2d.StartDirection.x) < Precision.eps) ||
+                        (surface.IsVPeriodic && Math.Abs(l2d.StartDirection.y) < Precision.eps)));
+                    if (ok) // not a line with 0 extension in periodic direction
+                    {
+                        startwith = i;
+                        break;
+                    }
+                }
+            }
             for (int i = 0; i < sortedCurves.Count; i++)
             {
-                surface.ExtendBoundsTo(sortedCurves[i].StartPoint);
-                surface.ExtendBoundsTo(sortedCurves[i].PointAt(0.5));
+                surface.ExtendBoundsTo(sortedCurves[(i + startwith) % sortedCurves.Count].StartPoint);
+                surface.ExtendBoundsTo(sortedCurves[(i + startwith) % sortedCurves.Count].PointAt(0.5));
             }
             for (int i = 0; i < sortedCurves.Count; i++)
             {
@@ -5617,9 +5650,6 @@ namespace CADability.GeoObject
             if (res.surface is ISurfaceImpl si)
             {
                 si.SetBounds(Domain);
-#if DEBUG
-                si.SetBounds(Domain);
-#endif
             }
             return res;
         }
@@ -7173,12 +7203,124 @@ namespace CADability.GeoObject
                     {
                         normals[i] = surface.GetNormal(triangleUVPoint[i]);
                         normals[i].NormIfNotNull();
-
                     }
-                    paintTo3D.Triangle(trianglePoint, normals, triangleIndex);
+                    SplitPoleNormals(normals, out GeoPoint[] points, out GeoVector[] pointNormals, out int[] indices);
+                    paintTo3D.Triangle(points, pointNormals, indices);
                 }
             }
         }
+        /// <summary>
+        /// The parameter values at which this face has a pole, i.e. at which the surface degenerates to a
+        /// single point. A pole shows up as an edge of the outline with no 3d curve, and it can only occur
+        /// there: a face is always cut open at a pole, so the outline is the complete list.
+        /// <para>
+        /// A pole is a whole parameter line, not a point: on a u-periodic surface (cone, sphere) it is a line
+        /// of constant v, so only the v value of its vertex identifies it, and the u value is meaningless.
+        /// On a v-periodic surface it is the other way round.
+        /// </para>
+        /// </summary>
+        /// <param name="poleIsConstantV">true when the poles are lines of constant v, so that the v value of
+        /// a parameter point decides whether it lies on one</param>
+        /// <returns>the parameter values of the poles, empty when the face has none</returns>
+        private List<double> PoleParameters(out bool poleIsConstantV)
+        {
+            poleIsConstantV = surface.IsUPeriodic;
+            List<double> res = new List<double>();
+            if (outline == null) return res;
+            for (int i = 0; i < outline.Length; i++)
+            {
+                if (outline[i].Curve3D != null) continue; // no 3d curve: the surface degenerates along this edge
+                GeoPoint2D uv = outline[i].Vertex1.GetPositionOnFace(this);
+                res.Add(poleIsConstantV ? uv.y : uv.x);
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Prepares the triangulation for <see cref="IPaintTo3D.Triangle"/> so that no vertex is left without
+        /// a usable normal at a pole.
+        /// <para>
+        /// A pole vertex has no normal of its own - at the apex of a cone the u value, and with it the
+        /// direction, is arbitrary - but every triangle meeting the pole has one. So each such triangle gets
+        /// its own copy of the vertex, carrying the normal its two other corners agree on. Passing a null
+        /// vector instead would leave it to the consumer: the shader based renderers happen to recover from
+        /// it, because they normalize the interpolated normal per fragment, but the fixed function OpenGL
+        /// path renders the tip with ambient light only, the STL export writes a facet normal that is not a
+        /// unit vector, and the winding correction of three of the renderers reads the normal of the FIRST
+        /// corner alone, where a null vector makes its decision arbitrary. None of them are wrong to do so -
+        /// <see cref="IPaintTo3D"/> does not give a null vector a meaning.
+        /// </para>
+        /// </summary>
+        /// <param name="normals">the surface normals at the triangulation points, poles included (and useless there)</param>
+        /// <param name="points">the vertices to draw, the triangulation points plus one copy per pole corner</param>
+        /// <param name="pointNormals">the normals belonging to <paramref name="points"/></param>
+        /// <param name="indices">the index triples, rewritten to address the copies</param>
+        private void SplitPoleNormals(GeoVector[] normals, out GeoPoint[] points, out GeoVector[] pointNormals, out int[] indices)
+        {
+            points = trianglePoint;
+            pointNormals = normals;
+            indices = triangleIndex;
+            List<double> poles = PoleParameters(out bool poleIsConstantV);
+            if (poles.Count == 0) return; // the common case, nothing to do
+
+            // The parameter value of a triangulation point is not bit-identical to the one of the pole vertex,
+            // so compare against the size of the parametric domain rather than exactly.
+            double lo = double.MaxValue, hi = double.MinValue;
+            for (int i = 0; i < triangleUVPoint.Length; ++i)
+            {
+                double p = poleIsConstantV ? triangleUVPoint[i].y : triangleUVPoint[i].x;
+                if (p < lo) lo = p;
+                if (p > hi) hi = p;
+            }
+            double eps = hi > lo ? (hi - lo) * 1e-6 : Precision.eps;
+
+            bool[] atPole = new bool[trianglePoint.Length];
+            bool anyAtPole = false;
+            for (int i = 0; i < trianglePoint.Length; ++i)
+            {
+                double p = poleIsConstantV ? triangleUVPoint[i].y : triangleUVPoint[i].x;
+                for (int k = 0; k < poles.Count; k++)
+                {
+                    if (Math.Abs(p - poles[k]) < eps)
+                    {
+                        atPole[i] = true;
+                        anyAtPole = true;
+                        break;
+                    }
+                }
+            }
+            if (!anyAtPole) return; // a pole edge outside the triangulated area
+
+            List<GeoPoint> pts = new List<GeoPoint>(trianglePoint);
+            List<GeoVector> nrm = new List<GeoVector>(normals);
+            // ind is rewritten below, so the corners have to be read from the unchanged triangleIndex:
+            // once a corner has been redirected to one of the copies appended here, its index is beyond
+            // the end of normals and atPole, which keep one entry per triangulation point.
+            int[] ind = (int[])triangleIndex.Clone();
+            for (int i = 0; i < triangleIndex.Length; i += 3)
+            {
+                for (int k = 0; k < 3; ++k)
+                {
+                    int vi = triangleIndex[i + k];
+                    if (!atPole[vi]) continue;
+                    // The two other corners of this triangle decide the direction here. Using the pole
+                    // vertex' own u instead - the normal a little way off the pole on ITS parameter line -
+                    // would be worse than no normal at all: the pole is often subdivided into no more than
+                    // its two end points, so that u can be most of the way around the cone from where the
+                    // triangle actually is.
+                    GeoVector n = normals[triangleIndex[i + (k + 1) % 3]] + normals[triangleIndex[i + (k + 2) % 3]];
+                    if (n.IsNullVector()) continue; // both other corners are on the pole too: 3d degenerate
+                    n.Norm();
+                    pts.Add(trianglePoint[vi]);
+                    nrm.Add(n);
+                    ind[i + k] = pts.Count - 1;
+                }
+            }
+            points = pts.ToArray();
+            pointNormals = nrm.ToArray();
+            indices = ind;
+        }
+
         public delegate bool PaintTo3DDelegate(Face toPaint, IPaintTo3D paintTo3D);
         public static PaintTo3DDelegate OnPaintTo3D;
         /// <summary>
@@ -9520,7 +9662,7 @@ namespace CADability.GeoObject
                         if (!edg.Forward(edg.SecondaryFace)) edg.SecondaryCurve2D.Reverse();
                     }
                 }
-                else if (edg.Curve3D is CurveOnSurface cons && cons.Surface==Surface)
+                else if (edg.Curve3D is CurveOnSurface cons && cons.Surface == Surface)
                 {
                     // Handle CurveOnSurface case
                     cons.SurfaceModified(m);
@@ -9528,6 +9670,7 @@ namespace CADability.GeoObject
             }
             area = null;
             SimpleShape ss = Area; // force area recalc
+            ClearTriangulation(); // we might also reverse the existing triangulation
 #if DEBUG
             GeoPoint2D dbgv2 = surface.PositionOf(Vertices[0].Position);
             GeoPoint2D dbgv3 = m * dbgv1;
@@ -10117,7 +10260,11 @@ namespace CADability.GeoObject
                 if (((outline[i].PrimaryFace == outline[j].PrimaryFace) && (outline[i].SecondaryFace == outline[j].SecondaryFace)) ||
                     ((outline[i].SecondaryFace == outline[j].PrimaryFace) && (outline[i].PrimaryFace == outline[j].SecondaryFace)))
                 {
-                    if (combineEdges(outline[i], outline[j]))
+                    GeoVector dir1 = (outline[i].Forward(this) ? outline[i].Curve3D.EndDirection : -outline[i].Curve3D.StartDirection);
+                    GeoVector dir2 = (outline[j].Forward(this) ? outline[j].Curve3D.StartDirection : -outline[j].Curve3D.EndDirection);
+                    // only combine edges if they connect taangentially
+                    // Counter example: two cylinders crossing, the two edges at the tangential point: we do not want to connect those.
+                    if (Precision.SameDirection(dir1, dir2, false) && combineEdges(outline[i], outline[j]))
                     {
                         --i; // outline[j] will be removed, iteration must stay at i
                         vertices = null; // collect vertices next time Vertices (get) is called
@@ -10134,7 +10281,10 @@ namespace CADability.GeoObject
                     if (((holes[k][i].PrimaryFace == holes[k][j].PrimaryFace) && (holes[k][i].SecondaryFace == holes[k][j].SecondaryFace)) ||
                         ((holes[k][i].SecondaryFace == holes[k][j].PrimaryFace) && (holes[k][i].PrimaryFace == holes[k][j].SecondaryFace)))
                     {
-                        if (combineEdges(holes[k][i], holes[k][j]))
+                        GeoVector dir1 = (holes[k][i].Forward(this) ? holes[k][i].Curve3D.EndDirection : -holes[k][i].Curve3D.StartDirection);
+                        GeoVector dir2 = (holes[k][j].Forward(this) ? holes[k][j].Curve3D.StartDirection : -holes[k][j].Curve3D.EndDirection);
+                        // see above: only combine edges if they connect taangentially
+                        if (Precision.SameDirection(dir1, dir2, false) && combineEdges(holes[k][i], holes[k][j]))
                         {
                             --i; // holes[k][j] will be removed, iteration must stay at i
                             vertices = null; // collect vertices next time Vertices (get) is called
@@ -10940,6 +11090,7 @@ namespace CADability.GeoObject
             if (du != 0.0 || dv != 0.0) otherDomain.Move(new GeoVector2D(du, dv));
             BoundingRect commonDomain = otherDomain;
             commonDomain.MinMax(Domain);
+            this.surface.SetBounds(commonDomain); // so the ProjectedCurves find the correct domain when Surface is beeing replaced by ReplaceFace
             for (int i = 0; i < loops.Count; i++)
             {
                 List<ICurve2D> segments = new List<ICurve2D>();
@@ -11131,7 +11282,7 @@ namespace CADability.GeoObject
                 {
                     return false;
                 }
-                // die Richtung der 2d Kurve ist so, dass auf der rechten Seite das Innere liegt
+                // the orientation of the 2d curve is such that the interior of the face is on the left side
                 ICurve2D c2d = edg.Curve2D(this);
                 GeoPoint sp, ep;
                 sp = surface.PointAt(c2d.StartPoint);
@@ -11150,13 +11301,9 @@ namespace CADability.GeoObject
                 surface.DerivativeAt(c2d.StartPoint, out loc, out diru, out dirv);
                 GeoVector normal = diru ^ dirv;
                 if (normal.Length > Precision.eps)
-                {
+                {   // check correct orientation of 2d and 3d curve
                     ModOp fromUnitPlane = new ModOp(diru, dirv, normal, loc);
-                    ModOp toUnitPlane = fromUnitPlane.GetInverse();
                     GeoVector forward = fromUnitPlane * new GeoVector(c2d.StartDirection);
-                    GeoVector toRight = fromUnitPlane * new GeoVector(c2d.StartDirection.ToRight());
-                    double d = normal * (toRight ^ forward);
-                    if (d < 0) return false;
                     GeoVector forward3d;
                     if (edg.Curve3D != null)
                     {
@@ -11168,8 +11315,7 @@ namespace CADability.GeoObject
                         {
                             forward3d = -edg.Curve3D.EndDirection;
                         }
-                        //edg.Orient();
-                        d = forward3d * forward;
+                        double d = forward3d * forward;
                         if (d < 0) return false;
                     }
                 }

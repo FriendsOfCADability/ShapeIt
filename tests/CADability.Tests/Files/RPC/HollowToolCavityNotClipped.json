@@ -28,7 +28,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "786.902170428",
-      "area": "673.059945821",
+      "area": "673.099944734",
       "edgeLength": "142.657297629",
       "extent": "0, 0, 0, 9, 10, 10",
       "surfaces": "PlaneSurface:6 SphericalSurface:2"
@@ -66,7 +66,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "113.097839125",
-      "area": "113.074473936",
+      "area": "113.099725523",
       "edgeLength": "26.657297629",
       "extent": "11, 2, 2, 17, 8, 8",
       "surfaces": "SphericalSurface:2"
@@ -137,8 +137,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "29.3211371923",
-      "area": "62.8241923171",
+      "volume": "29.3211372492",
+      "area": "62.8325010658",
       "edgeLength": "29.0175417436",
       "extent": "11, 2.17157287525, 2.17157287525, 13, 7.82842712475, 7.82842712475",
       "surfaces": "PlaneSurface:1 SphericalSurface:2"
@@ -155,7 +155,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "886.902171335",
-      "area": "713.058722992",
+      "area": "713.099956961",
       "edgeLength": "146.657297629",
       "extent": "9, 0, 0, 19, 10, 10",
       "surfaces": "PlaneSurface:6 SphericalSurface:2"
@@ -189,7 +189,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "886.90311875",
-      "area": "712.707722319",
+      "area": "713.105084439",
       "edgeLength": "146.657297629",
       "extent": "9, 0, 0, 19, 10, 10",
       "surfaces": "PlaneSurface:6 SphericalSurface:2"
@@ -223,7 +223,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "1786.90218165",
-      "area": "1073.04747735",
+      "area": "1073.10014026",
       "edgeLength": "182.657297629",
       "extent": "0, 0, 0, 19, 10, 10",
       "surfaces": "PlaneSurface:6 SphericalSurface:2"

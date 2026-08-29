@@ -17,7 +17,9 @@
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
 		<IsPublishable>True</IsPublishable>
 		<DebugType>portable</DebugType>
-		<Optimize>False</Optimize>
+		<!-- Was False, which left the shipped build unoptimized and made every measurement taken in the
+		     application unrepresentative. -->
+		<Optimize>True</Optimize>
 	</PropertyGroup>
 
 	<ItemGroup>

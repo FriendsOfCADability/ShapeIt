@@ -1,0 +1,300 @@
+{
+  "Description": "Two identical cones touching TANGENTIALLY at one point of their mantles, then united, intersected and\nsubtracted both ways.\nconeA is a cone of base radius 10 at z = 0 with its apex at (0,0,24), so its slant is 26.\nconeB is coneA rotated by 180 degrees about the surface NORMAL of coneA at one point of its mantle:\n  P = (7.5, 0, 6)    a point of the ruling from the apex (0,0,24) to the rim point (10,0,0),\n                     three quarters of the way down\n  n = (24, 0, 10)    the outward normal there - perpendicular to the ruling (24*10 + 10*(-24) = 0)\n                     and to the circumferential direction (0,1,0)\nRotating about the normal at P fixes P and fixes the tangent plane at P, so coneB touches coneA at P\nand both are tangent to the same plane there. That is the point of the case. A cone touches its tangent\nplane along a whole ruling, so both cones touch that plane along a ruling, and the two rulings are\ndifferent lines crossing at P. The intersection curve of the two mantles therefore has a NODE at P -\ntwo branches crossing - which is the degenerate situation a surface/surface intersection has to survive.\nThe angle is 180 degrees on purpose: the rotation is then an involution, coneB = f(coneA) AND\nconeA = f(coneB), so the pair is symmetric and the two differences must come out equal. The apex of\nconeB lands at 2P - apex = (15,0,-12), outside coneA, so the tangency is the only degeneracy in the\ncase - at three quarters instead of one half of the ruling, which would have put that apex exactly on\nthe rim circle of coneA.",
+  "Expected": "Both operands are cones of radius 10 and height 24, and they are congruent - coneB is a rigid image of\nconeA - so every measured quantity must come out the same for both:\n  volume  1/3*pi*10^2*24 = 800*pi = 2513.2741228718\n  area    lateral pi*10*26 = 260*pi plus base pi*10^2 = 100*pi, together 360*pi = 1130.9733552923\n  edgeLength  base circle 2*pi*10 plus the two seams of the mantle, 2*26: 114.8318530718\n\nA solid cone is CONVEX, and so is a rigid image of it. That forces the shape of the results:\n  coneUnion    one connected solid - the two overlap in a neighbourhood of P\n  coneInter    one CONVEX solid, never several parts and never empty\n  coneAminusB  one solid\n  coneBminusA  one solid, CONGRUENT to coneAminusB (see the involution above)\nall of them closed and consistent.\n\nThe volumes are pinned by three exact identities:\n  1  volume(coneUnion) + volume(coneInter) = volume(coneA) + volume(coneB) = 1600*pi = 5026.5482457437\n  2  volume(coneAminusB) = 800*pi - volume(coneInter)\n  3  volume(coneAminusB) = volume(coneBminusA), from the involution - the sharpest of the three,\n     because it needs no computed value at all\n\nThe one remaining unknown was computed independently by Monte Carlo integration over the bounding box of\nconeA, using the exact cone volume as a control variate:\n  volume(coneInter)    1281.5 +/- 0.9 (1 sigma, 8e6 samples)\n  volume(coneUnion)    1600*pi - that = 3745.1\n  volume(coneAminusB)  800*pi - that  = 1231.9 +/- 1.0 (measured directly, 6e6 samples), same for coneBminusA\nconeAminusB reaches x = +-10 and y = +-10 (Monte Carlo hits at 9.96 and 9.99, which are lower bounds\nbecause random points never land exactly on the boundary), and z from 0 to 24.\nSo the results are checkable against real values to about a tenth of a percent, not merely captured.",
+  "CaseStatus": "Ok",
+  "RelativeTolerance": 0.002,
+  "Repeat": 8,
+  "Verify": [
+    "coneA",
+    "coneB",
+    "coneUnion",
+    "coneInter",
+    "coneAminusB",
+    "coneBminusA"
+  ],
+  "Status": "OK since 2026-08-24. The tangential contact no longer breaks the boolean operations.\n\nHistory, because the case earned it. As recorded it broke three of four operations: union returned an\nEMPTY shell without reporting an error, intersect and coneB minus coneA hit the assertion\n\"loops.Count should never be 0\", and the one difference that did return was 7.9 percent too small with\nits extent clipped to x <= 5 although the body reaches x = +-10. After the first repair all four\nreturned and every value was right - but only in about half the runs: coneInter came out at 1280.86 in\n4 of 8 runs and at 1628.35 to 1629.40 in the other 4, with an area larger than that of the UNION, which\na subset of both operands cannot have. That is gone as well.\n\nWhat the recorded result is checked against, all of it independent of the code under test:\n  coneUnion   3745.5587   Monte Carlo 3745.1                      1.2e-4\n  coneInter   1280.8636   Monte Carlo 1281.5 +- 0.9               5.0e-4\n  coneAminusB 1232.2620   Monte Carlo 1231.9 +- 1.0               2.9e-4\n  coneBminusA 1232.1995   Monte Carlo 1231.9 +- 1.0               2.4e-4\n  union + intersect = 5026.4222 against the exact 1600*pi = 5026.5482       2.5e-5\n  the two differences against each other, forced equal by the involution    5.1e-5\n  each difference against 800*pi - volume(coneInter) = 1232.4106            1.2e-4\nand the areas of coneA and coneB against the exact 360*pi = 1130.9733552923, which they now meet exactly\nand identically - they are congruent, so anything else would have been wrong.\nEvery result is closed and consistent, coneInter is a single convex solid, and both differences are\n2 solids, which is correct - see the note on coneAminusB#1.\n\nWHY RelativeTolerance IS 2e-3 HERE instead of the default 1e-4. Two fields still scatter between runs,\nand both are the AREA:\n  coneBminusA#0.area  742.331062072 or 742.207975478   1.7e-4, in about 4 of 8 runs\n  coneUnion.area      1504.99669263 or 1504.04185676   6.3e-4, about 1 of 8\nVolume, face and edge counts, the Euler characteristic and the extent are identical in every run, so the\nboolean operation is reproducible; only the measurement moves. Both fields sit on TRIMMED conical faces,\nwhose parameter domain is not a rectangle, so ShellMetrics has to fall back on the triangulation as the\npartition there - and the mesh is what varies. The untrimmed operands coneA and coneB do not scatter at\nall: their domains are rectangles and are integrated without a mesh, which is also why their areas now\nagree exactly with each other and with 360*pi.\nThe value has to cover the 6.3e-4 of coneUnion, which shows up in only one run in eight - 5e-4 was tried\non 2026-08-26 and failed on the eighth run. 2e-3 leaves a factor of 3.\nTighten it once the remaining scatter on trimmed curved faces is understood.\n\nRE-RECORDED 2026-08-28 after the second BRep fix of that day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). The case failed against its old baseline both inside the suite and on its own,\nso the change is systematic and not the batch contamination. It is a PARTITION change: faces on\nperiodic surfaces that used to be one face are now split into two.\nWhat moved:\n  coneInter        4 -> 6 faces, 5 -> 9 edges, 3 -> 5 vertices, ConicalSurface:2 -> :4,\n                   edgeLength 138.590785318 -> 151.742245523\n  coneUnion        12 -> 14 faces, ConicalSurface:6 -> :8, edgeLength 342.405718455 -> 355.405951665\n  coneAminusB#1    4 -> 6 faces, ConicalSurface:2 -> :4, edgeLength 129.598958303 -> 142.599191514\n  coneBminusA#1    the same\nThe volumes moved only inside the scatter this case has always had on trimmed conical faces (see the\nparagraph on RelativeTolerance above): coneInter +1.7e-5, coneBminusA#0 +5.3e-5, coneAminusB#1 -2.0e-4,\nconeUnion +9.4e-8.\n\nAND THE SYMMETRY CHECKS GOT BETTER, which is the interesting part - the two differences are congruent\nby construction, so how well they agree is a measurement of the code and not of the case:\n  coneAminusB#1 against coneBminusA#1   98.2219053136 vs 98.2213808468, now 5.3e-6, was 2.0e-4\n  coneAminusB#0 against coneBminusA#0   1134.02078277 vs 1134.03832972, now 1.5e-5, was 3.8e-5\nThe involution is met 37 times more closely than before. The independent Monte Carlo values still hold:\nconeInter 1280.8852 against 1281.5 +- 0.9, coneUnion 3745.5590 against 3745.1, and\nunion + intersect = 5026.4442 against the exact 1600*pi = 5026.5482, 2.1e-5.",
+  "Baseline": {
+    "coneA": {
+      "verified": "2026-08-26 GH: area 1130.97335529 against the exact 360*pi = 1130.9733552923 - exact. Volume 2487.80579418 against the exact 800*pi = 2513.2741228718, still 1.01 percent low: the volume is summed over the triangulation and a cone with an apex meshes poorly there, which is a defect of its own and not of the boolean. edgeLength is exact, so the BRep itself is right.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "4",
+      "poleEdges": "2",
+      "vertices": "3",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2487.80579418",
+      "area": "1130.97335529",
+      "edgeLength": "114.831853072",
+      "extent": "-10, -10, 0, 10, 10, 24",
+      "surfaces": "ConicalSurface:2 PlaneSurface:1"
+    },
+    "coneAminusB": {
+      "solids": "2"
+    },
+    "coneAminusB#0": {
+      "verified": "2026-08-24 GH: the main body. Together with coneAminusB#1 it gives 1232.2620 against 1231.9 +- 1.0 by Monte Carlo (2.9e-4) and against 800*pi - volume(coneInter) = 1232.4106 (1.2e-4).",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "7",
+      "poleEdges": "2",
+      "vertices": "5",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1134.02078277",
+      "area": "741.016715056",
+      "edgeLength": "110.97490708",
+      "extent": "-10, -7.82508045057, -1.07524822683E-14, 5, 7.82508045057, 24",
+      "surfaces": "ConicalSurface:2 PlaneSurface:2"
+    },
+    "coneAminusB#1": {
+      "verified": "2026-08-24 GH: the pair of lobes, 98.2412. A voxel study of A minus B (grids of 60, 100 and 140 per axis, same structure at all three) finds a main body of about 1135 and two symmetric lobes of about 49 each: 98.24 = 2 x 49. The lobes meet the rest only at the tangency point, so they are one non-manifold solid and the split into 2 solids is right. RE-RECORDED 2026-08-28: 98.2219053136 (was 98.2412485112); the lobes are unchanged in substance and now agree with coneBminusA#1 to 5.3e-6 instead of 2.0e-4. 6 faces instead of 4.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "98.2219053136",
+      "area": "392.219074802",
+      "edgeLength": "142.599191514",
+      "extent": "-6.9, -10, -8.881784197E-16, 10, 10, 6",
+      "surfaces": "ConicalSurface:4 PlaneSurface:2"
+    },
+    "coneB": {
+      "verified": "2026-08-26 GH: congruent to coneA and now measures the same area to the last recorded digit, 1130.97335529 - which it always had to and did not while the area was summed over the flat triangles (1150.25 against 1124.81 then). The volume still differs, -1.49 against -1.01 percent, for the reason given on coneA.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "4",
+      "poleEdges": "2",
+      "vertices": "3",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2475.762056",
+      "area": "1130.97335529",
+      "edgeLength": "114.831853072",
+      "extent": "-9.08284023669, -10, -12, 15, 10, 12",
+      "surfaces": "ConicalSurface:2 PlaneSurface:1"
+    },
+    "coneBminusA": {
+      "solids": "2"
+    },
+    "coneBminusA#0": {
+      "verified": "2026-08-26 GH: must be congruent to coneAminusB#0 by the involution, and is: 1133.9778 against 1134.0208, 3.8e-5. Its area is the one field that still scatters between runs, 742.331062072 or 742.207975478 (1.7e-4), see Status. RE-RECORDED 2026-08-28: 1134.03832972 (was 1133.97781029), now 1.5e-5 from coneAminusB#0 instead of 3.8e-5; the area settled on 742.207975478, the lower of the two values it used to alternate between.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "7",
+      "poleEdges": "2",
+      "vertices": "5",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1134.03832972",
+      "area": "742.207975478",
+      "edgeLength": "110.97490708",
+      "extent": "-9.08284023669, -7.82508045057, -12, 15, 7.82508045057, 4.51084514156E-15",
+      "surfaces": "ConicalSurface:2 PlaneSurface:2"
+    },
+    "coneBminusA#1": {
+      "verified": "2026-08-24 GH: congruent to coneAminusB#1, 98.2217 against 98.2412.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "98.2213808468",
+      "area": "392.219074862",
+      "edgeLength": "142.599191514",
+      "extent": "-6.90000000043, -10, -1.04027275682E-09, 7.5, 10, 12",
+      "surfaces": "ConicalSurface:4 PlaneSurface:2"
+    },
+    "coneInter": {
+      "verified": "2026-08-24 GH: volume 1280.8636 against 1281.5 +- 0.9 by Monte Carlo, 5.0e-4. One convex solid with no pole edges, as it must be - the intersection of two convex bodies. This is the operation that used to fail with an assertion and later flaked in about half the runs. RE-RECORDED 2026-08-28: 1280.8851945 (was 1280.86356431), still 5.0e-4 from the Monte Carlo value; now 6 faces instead of 4 and 5 vertices instead of 3, a partition change with the geometry unmoved.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "9",
+      "poleEdges": "0",
+      "vertices": "5",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1280.8851945",
+      "area": "759.266698811",
+      "edgeLength": "151.742245523",
+      "extent": "-6.9, -8.90446301378, -1.28807552065E-14, 10, 8.90446299831, 12",
+      "surfaces": "ConicalSurface:4 PlaneSurface:2"
+    },
+    "coneUnion": {
+      "verified": "2026-08-24 GH: volume 3745.5587 against 3745.1 computed independently by Monte Carlo, 1.2e-4. Together with coneInter it satisfies the exact identity union + intersect = 1600*pi = 5026.5482 to 2.5e-5.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "21",
+      "poleEdges": "4",
+      "vertices": "9",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3745.55901113",
+      "area": "1504.9966458",
+      "edgeLength": "355.405951665",
+      "extent": "-10, -10, -12, 15, 10, 24",
+      "surfaces": "ConicalSurface:8 PlaneSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.cone",
+      "params": {
+        "name": "coneA",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "radiusStart": 10,
+        "end": [
+          0,
+          0,
+          24
+        ],
+        "radiusEnd": 0
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "transform.rotate",
+      "params": {
+        "objects": "coneA",
+        "name": "coneB",
+        "angle": 180,
+        "axis": {
+          "origin": [
+            7.5,
+            0,
+            6
+          ],
+          "direction": [
+            24,
+            0,
+            10
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coneA",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 0.001
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coneB",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 0.001
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coneA",
+        "b": "coneB",
+        "name": "coneUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "coneA",
+        "b": "coneB",
+        "name": "coneInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "coneA",
+        "b": "coneB",
+        "name": "coneAminusB",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "coneB",
+        "b": "coneA",
+        "name": "coneBminusA",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coneUnion",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 0.001
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "coneA",
+          "coneB",
+          "coneUnion"
+        ]
+      }
+    }
+  ]
+}

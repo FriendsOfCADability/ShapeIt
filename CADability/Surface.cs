@@ -533,8 +533,8 @@ namespace CADability.GeoObject
 
             if (!ext.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, ext, ref uv);
 
-            if (uPole) ext.MinMaxHeight(uv.y); // only adjust the height of ext
-            else if (vPole) ext.MinMaxWidth(uv.x); // only adjust the width of ext
+            if (uPole) ext.MinMaxWidth(uv.x); // only adjust the width of ext
+            else if (vPole) ext.MinMaxHeight(uv.y); // only adjust the height of ext
             else ext.MinMax(uv); // adjust both width and height
 
             surface.SetBounds(ext);
@@ -4165,6 +4165,7 @@ namespace CADability.GeoObject
                         }
                         return prime;
                     }), observedX, observedY);
+                SolverTrace.Record("MathNet.LM");
                 mres = lm.FindMinimum(iom, new DenseVector(new double[] { 0, 0, 0, 1, 1, 1, 0, 0, 0 }));
                 if (true)
                 {
@@ -4261,6 +4262,7 @@ namespace CADability.GeoObject
                         }
                         return prime;
                     }), observedX, observedY);
+                SolverTrace.Record("MathNet.LM");
                 mres = lm.FindMinimum(iom, new DenseVector(new double[] { 0, 0, 0, 1, 0, 0, 0 }));
                 if (true)
                 {
@@ -4415,6 +4417,7 @@ namespace CADability.GeoObject
                         }
                         return prime;
                     }), observedX, observedY);
+                SolverTrace.Record("MathNet.LM");
                 mres = lm.FindMinimum(iom, new DenseVector(new double[] { 0, 0, 0, 1, 1, 1, 0, 0, 0 }));
                 if (true)
                 {
@@ -4513,6 +4516,7 @@ namespace CADability.GeoObject
                         }
                         return prime;
                     }), observedX, observedY);
+                SolverTrace.Record("MathNet.LM");
                 mres = lm.FindMinimum(iom, new DenseVector(new double[] { 0, 0, 0, 1, 0, 0, 0 }));
                 if (true)
                 {
@@ -5309,7 +5313,7 @@ namespace CADability.GeoObject
             otherBounds.Inflate(1e-6);
 #if DEBUG
             // for debugging there are 3 views:
-            // dc: the two surfaces with their domains as faces end the accumulated 3d points
+            // dc: the two surfaces with their domains as faces and the accumulated 3d points
             // dc21: the uv area of this surface/ donmain and accumulated 2d points
             // dc22: same for the other surface
             DebuggerContainer dc = new DebuggerContainer();
@@ -5361,8 +5365,9 @@ namespace CADability.GeoObject
                 GeoVector dir = (GetNormal(seeduvthis).Normalized ^ other.GetNormal(seeduvother).Normalized);
                 if (Precision.IsNullVector(dir))
                 {
-                    ++numTangentialSeeds;
-                    continue; // tangential surfaces, cannot proceed
+                    SurfaceContact sc = Surfaces.ContactAt(this,seeduvthis,other, seeduvother,Precision.eps);
+                    if (sc==null) continue; // tangential surfaces, cannot proceed
+                    if (sc.Type != ContactType.Crossing) continue; // probably tangential only in isolated single point or on a tangential curve
                 }
                 dir.Norm();
                 //DerivationAt(uvthis, out GeoPoint p3d, out GeoVector duthis, out GeoVector dvthis);
@@ -5591,6 +5596,8 @@ namespace CADability.GeoObject
                 // we are testing here with a new and hopefully more robust and faster approach
                 try
                 {
+                    IDualSurfaceCurve[] intCurves = Surfaces.GetIntersectionCurves(this, thisBounds, other, otherBounds, seeds);
+                    if (intCurves != null && intCurves.Length > 0) return intCurves;
                     IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, out int numTangentialSeeds);
                     if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
                     if (seeds.Count == numTangentialSeeds && seeds.Count == 2)

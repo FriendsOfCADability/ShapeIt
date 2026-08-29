@@ -12,23 +12,26 @@ using System.Windows.Forms;
 namespace ShapeIt
 {
     /// <summary>
-    /// Renders a collection of GeoObjects to a PNG bitmap using the existing
-    /// PaintToOpenGLModern instance that is attached to the main CadCanvas.
+    /// Renders a collection of GeoObjects to a PNG bitmap with a PaintToOpenGLModern.
     ///
     /// Each object is rendered with an explicit color override so the LLM can
     /// tell objects apart regardless of any stored color attribute.
     ///
-    /// All OpenGL calls are marshalled to the UI thread via Control.Invoke so
-    /// the method is safe to call from the MCP HTTP handler thread.
+    /// Where the painter comes from and on which thread the OpenGL calls happen is
+    /// <see cref="OffscreenPainter"/>'s business: the canvas of the active view when the application has a
+    /// user interface, a hidden window of its own when it has not.
     /// </summary>
     internal static class WorkspaceRenderer
     {
         /// <summary>
         /// Renders <paramref name="coloredObjects"/> into a <paramref name="width"/> ×
         /// <paramref name="height"/> bitmap and returns it as a base-64 encoded PNG string,
-        /// or <c>null</c> if no suitable painter is available.
+        /// or <c>null</c> if no image could be produced.
         /// </summary>
-        /// <param name="frame">The application frame (owns the active view and canvas).</param>
+        /// <param name="frame">
+        /// The application frame, which owns the active view and its canvas. May be null: without a user
+        /// interface there is no frame, and the painter is then created without one.
+        /// </param>
         /// <param name="coloredObjects">
         /// Geometry paired with the color to use for rendering. The color is applied as an
         /// override so it takes precedence over any color attribute stored on the object.
@@ -38,31 +41,46 @@ namespace ShapeIt
         /// </param>
         /// <param name="width">Output bitmap width in pixels.</param>
         /// <param name="height">Output bitmap height in pixels.</param>
+        /// <param name="unavailableReason">
+        /// Why no image was produced, null when one was. Worth reporting to the caller: "there is no
+        /// picture" and "there is no picture because this machine has no usable OpenGL" are different
+        /// answers, and only one of them is worth retrying.
+        /// </param>
         public static string? RenderToPngBase64(
-            IFrame frame,
+            IFrame? frame,
             IEnumerable<(IGeoObject obj, CADability.Substitutes.Color color)> coloredObjects,
             GeoVector viewDirection,
             int width,
-            int height)
+            int height,
+            out string? unavailableReason)
         {
-            // Resolve the painter from the active view's canvas.
-            // Must be PaintToOpenGLModern – GDI cannot do proper 3-D hidden-line rendering.
-            var canvas = frame.ActiveView?.Canvas;
-            if (canvas?.PaintTo3D is not PaintToOpenGLModern painter)
+            unavailableReason = null;
+            var list = new List<(IGeoObject obj, CADability.Substitutes.Color color)>(coloredObjects);
+            if (list.Count == 0)
+            {
+                unavailableReason = "nothing to render";
                 return null;
+            }
 
-            // CadCanvas is a Windows Forms Control; we need it for Control.Invoke.
-            if (canvas is not Control control)
-                return null;
+            BoundingBox boundingBox = BoundingBox.EmptyBoundingBox;
+            foreach (var item in list)
+            {
+                boundingBox.MinMax(item.obj.GetExtent(0.0));
+            }
 
             System.Drawing.Bitmap? bitmap = null;
-
-            control.Invoke((Action)(() =>
+            bool rendered = OffscreenPainter.Run(frame, painter =>
             {
-                bitmap = RenderOnUIThread(painter, coloredObjects, viewDirection, width, height);
-            }));
+                (painter as IPaintTo3D).Precision = boundingBox.Size / 1000.0;
+                bitmap = RenderOnPainterThread(painter, list, viewDirection, width, height);
+            }, out unavailableReason);
 
-            if (bitmap == null) return null;
+            if (!rendered) return null;
+            if (bitmap == null)
+            {
+                unavailableReason = "the objects have no extent";
+                return null;
+            }
 
             using (bitmap)
             using (var ms = new MemoryStream())
@@ -72,9 +90,9 @@ namespace ShapeIt
             }
         }
 
-        // ── called exclusively on the UI thread ──────────────────────────────
+        // ── called exclusively on the thread that owns the OpenGL context ────
 
-        private static System.Drawing.Bitmap? RenderOnUIThread(
+        private static System.Drawing.Bitmap? RenderOnPainterThread(
             PaintToOpenGLModern painter,
             IEnumerable<(IGeoObject obj, CADability.Substitutes.Color color)> coloredObjects,
             GeoVector viewDirection,

@@ -284,6 +284,8 @@ namespace CADability
             {
                 get
                 {
+                    // The BSpline always runs in the direction of the 3d curve. A reversed projected curve is
+                    // marked by the "reversed" flag instead, which PointAt and DirectionAt take into account.
                     if (approxBSpline != null) return approxBSpline;
                     // we need a BSpline here, which is precise and has the same parametrisation as the curve3d
                     Func<double, GeoPoint2D> curve = (pos =>
@@ -303,39 +305,6 @@ namespace CADability
                         }
                     });
                     approxBSpline = BSpline2D.Approximate(curve, Precision.eps, 0, 1);
-                    return approxBSpline;
-                    // following is old code
-                    GeoPoint2D[] bp;
-                    if (onSurface1) bp = curve3d.basePoints.Select(bp => bp.psurface1).ToArray();
-                    else bp = curve3d.basePoints.Select(bp => bp.psurface2).ToArray();
-                    approxBSpline = new BSpline2D(bp, 3, false);
-                    if (Precision.IsColinear(bp)) return approxBSpline; // cannot do better, saves alot of time
-                    SortedList<double, GeoPoint2D> throughPoints = new SortedList<double, GeoPoint2D>();
-                    for (int i = 0; i < bp.Length; i++) throughPoints[curve3d.PositionOf(curve3d.basePoints[i].p3d)] = bp[i];
-                    double prec = new BoundingRect(bp).Size * 1e-3;
-                    do
-                    {
-                        SortedList<double, GeoPoint2D> refinedPoints = new SortedList<double, GeoPoint2D>();
-
-                        for (int i = 0; i < throughPoints.Count - 1; i++)
-                        {
-                            double par = throughPoints.Keys[i] + 0.5 * (throughPoints.Keys[i + 1] - throughPoints.Keys[i]);
-                            curve3d.ApproximatePosition(par, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p3d);
-                            GeoPoint2D uv = onSurface1 ? uv1 : uv2;
-                            double dist = approxBSpline.Distance(uv);
-                            // we cannot use the distance of the BSpline to this real curve, since calculating this distance would need the BSpline again
-                            if (dist > prec)
-                            {
-                                refinedPoints[par] = uv;
-                            }
-                        }
-                        if (refinedPoints.Count == 0) break; // all ok
-                        foreach (var kvp in refinedPoints) throughPoints[kvp.Key] = kvp.Value;
-                        bp = throughPoints.Values.ToArray();
-                        approxBSpline = new BSpline2D(bp, 3, false);
-                        if (bp.Length > 100) break; // something is wrong
-                    } while (true);
-
                     return approxBSpline;
                 }
             }
@@ -533,6 +502,7 @@ namespace CADability
             {
                 reversed = !reversed;
                 base.ClearTriangulation();
+                approxBSpline = null;
             }
             public override ICurve2D Clone()
             {
@@ -2103,13 +2073,6 @@ namespace CADability
                 // setting approxBSpline changes the "speed" of the parameter, makes it more even
                 approxBSpline = bsp;
                 hashedPositions.Clear(); // don't use hased positions, they are no more correct
-                //for (int i = 0; i < BasePoints.Length; i++)
-                //{
-                //    double pos = bsp.PositionOfThroughPoint(i);
-                //    GeoPoint pp = bsp.PointAtParam(pos);
-                //    GeoPoint po = (bsp as ICurve).PointAt(pos);
-                //    hashedPositions[pos] = basePoints[i];
-                //}
                 Func<double, GeoPoint> curve = (pos) => // input parameter for BSpline.Approximate
                 {
                     ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
@@ -2117,44 +2080,6 @@ namespace CADability
                 };
                 approxBSpline = BSpline.Approximate(curve);
                 hashedPositions.Clear(); // don't use hashed positions, they are no more correct
-                return approxBSpline;
-
-                approxBSpline = BSpline.Construct();
-                approxBSpline.ThroughPoints(basePoints.Select(bp => bp.p3d).ToArray(), 3, false);
-                // this BSpline has non uniform knot values. They are calculated by the distance of the base points
-                SortedDictionary<double, GeoPoint> bpl = new SortedDictionary<double, GeoPoint>();
-                int n = 10;
-                for (int i = 0; i < n; i++)
-                {
-                    if (i == 0) bpl[0] = basePoints[0].p3d;
-                    else if (i == n - 1) bpl[1] = basePoints.Last().p3d;
-                    else
-                    {
-                        double pos = i / (double)9;
-                        ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
-                        bpl[pos] = p; // p is calculated with the above approxBSpline as a start value
-                    }
-                }
-                bpl = RefineByAngle(bpl, Math.PI / 2.0);
-                approxBSpline.ThroughPoints(bpl.Values.ToArray(), 3, false); // new BSpline with refined points
-                GeoPoint[] knpnts = approxBSpline.KnotPoints; // this are the points on the BSpline at the knot values, we want to use them as uniformly distributed base points
-                basePoints = new SurfacePoint[knpnts.Length];
-                for (int i = 0; i < knpnts.Length; i++)
-                {
-                    GeoPoint2D uv1 = surface1.PositionOf(knpnts[i]);
-                    GeoPoint2D uv2 = surface2.PositionOf(knpnts[i]);
-                    basePoints[i] = new SurfacePoint(knpnts[i], uv1, uv2);
-                }
-                AdjustBasePointsPeriodic();
-                double[] knots = approxBSpline.Knots;
-                hashedPositions.Clear();
-                for (int i = 0; i < knots.Length; i++)
-                {
-                    hashedPositions[knots[i]] = basePoints[i];
-                }
-#if DEBUG
-                CheckSurfaceParameters();
-#endif
                 return approxBSpline;
             }
         }
@@ -2849,6 +2774,7 @@ namespace CADability
                 else
                 {
                     GeoVector v = surface1.GetNormal(basePoints[0].psurface1) ^ surface2.GetNormal(basePoints[0].psurface2);
+                    if (v.Length < 1e-5) return adir; // if the two surfaces are tangential at the start point, then the cross product is zero and we take the direction of the approximating BSpline)
                     if (!forwardOriented) v.Reverse();
                     v.Length = adir.Length; // make the same lengt as the approximating BSpline would have. This is very close
                     return v;
@@ -2867,6 +2793,7 @@ namespace CADability
                 else
                 {
                     GeoVector v = surface1.GetNormal(basePoints[basePoints.Length - 1].psurface1) ^ surface2.GetNormal(basePoints[basePoints.Length - 1].psurface2);
+                    if (v.Length < 1e-5) return adir; // if the two surfaces are tangential at the end point, then the cross product is zero and we take the direction of the approximating BSpline
                     if (!forwardOriented) v.Reverse();
                     v.Length = adir.Length; // make the same lengt as the approximating BSpline would have. This is very close to the factual length
                     return v;
@@ -3479,10 +3406,13 @@ namespace CADability
         {
             if ((StartPoint | other.StartPoint) < precision && (EndPoint | other.EndPoint) < precision)
             {
-                // gleiche Richtung
+                // same direction
                 for (double par = 0.25; par < 1.0; par += 0.25)
                 {
-                    if ((PointAt(par) | other.PointAt(par)) > precision) return false;
+                    if ((PointAt(par) | other.PointAt(par)) > precision)
+                    {   // the curves may run with different "speed", so we need to test the distance (which is more expensive)
+                        if (other.DistanceTo(PointAt(par))>precision) return false;
+                    }
                 }
                 return true;
             }
@@ -3490,7 +3420,10 @@ namespace CADability
             {
                 for (double par = 0.25; par < 1.0; par += 0.25)
                 {
-                    if ((PointAt(par) | other.PointAt(1 - par)) > precision) return false;
+                    if ((PointAt(par) | other.PointAt(1 - par)) > precision) 
+                    {   // the curves may run with different "speed", so we need to test the distance (which is more expensive)
+                        if (other.DistanceTo(PointAt(par)) > precision) return false;
+                    }
                 }
                 return true;
             }

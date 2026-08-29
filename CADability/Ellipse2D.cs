@@ -299,6 +299,7 @@ namespace CADability.Curve2D
                 }), observedX, observedY);
 
             BoundingRect ext = new BoundingRect(pnts);
+            SolverTrace.Record("MathNet.LM");
             NonlinearMinimizationResult mres = lm.FindMinimum(iom, new DenseVector(new double[] { 2.0 / ext.Width, 0, -ext.GetCenter().x, 0, 2.0 / ext.Height, -ext.GetCenter().y }));
             if (mres.ReasonForExit == ExitCondition.Converged || mres.ReasonForExit == ExitCondition.RelativeGradient)
             {
@@ -751,6 +752,7 @@ namespace CADability.Curve2D
                 }));
             try
             {
+                SolverTrace.Record("MathNet.Newton");
                 MinimizationResult mres = nm.FindMinimum(iof, new DenseVector(new double[] { position }));
                 return mres.MinimizingPoint[0];
             }

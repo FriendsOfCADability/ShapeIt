@@ -10,6 +10,10 @@
   //   NeedsFixup   the project file does not follow the marker convention yet (missing Operand1/Operand2
   //                styles or no text object naming the operation)
   //   Skip         deliberately excluded
+  // Repeat runs a case more than once inside the same test run and requires every run to produce the same
+  // summary. Set it on cases that have been seen to move: without it such a case silently compares one throw
+  // of the dice against a baseline that recorded another. An unstable case fails the run and is not
+  // regenerated - freezing one of its outcomes would only make the next run look like a regression.
   // RelativeTolerance applies to the floating point values only (volume, area, lengths, coordinates); counts,
   // the Euler characteristic, the surface histogram and the status are always compared exactly.
   // It is 1e-4 rather than tighter because a case was still seen to differ once in five runs. Volume, area
@@ -46,8 +50,8 @@
     },
     {
       "Name": "DifferenceBug18",
-      "Status": "NeedsFixup",
-      "Comment": "one solid and one free shell, no markers, no text object"
+      "Status": "Ok",
+      "Comment": "used to be one solid and one free shell without markers and without a text object"
     },
     {
       "Name": "UniteBug15",
@@ -75,14 +79,14 @@
     },
     {
       "Name": "UniteBug3",
-      "Status": "KnownFail",
-      "Comment": "runs through but returns no shell at all"
+      "Status": "Ok",
+      "Comment": "returned no shell at all until the approxBSpline cache fix in InterpolatedDualSurfaceCurve.Reverse"
     },
     {
       "Name": "UniteBug8",
-      "Status": "KnownFail",
+      "Status": "Ok",
       "Operation": "Union",
-      "Comment": "operands are marked, the text object is missing; Debug.Assert 'loops.Count should never be 0'"
+      "Comment": "operands are marked, the text object is missing; the Debug.Assert 'loops.Count should never be 0' is gone"
     },
     {
       "Name": "UniteBug9",
@@ -91,13 +95,63 @@
     },
     {
       "Name": "UniteBug14",
-      "Status": "KnownFail",
-      "Comment": "NullReferenceException inside the boolean operation"
+      "Status": "Ok",
+      "Comment": "used to throw a NullReferenceException inside the boolean operation"
     },
     {
       "Name": "UniteBug16",
+      "Status": "Ok",
+      "Comment": "used to hit the Debug.Assert 'loops.Count should never be 0'; the intersection point close to the end of an edge did create a vertex but was not used to split that edge"
+    },
+
+    // --- sentinels for reproducibility. These four were caught disagreeing with a baseline that had just been
+    //     generated from them, in the same code and on the same machine - only under a different test filter.
+    //     "Repeat" turns that into something the suite notices by itself instead of by accident.
+    {
+      "Name": "UniteBug1",
+      "Status": "Ok",
+      "Repeat": 3,
+      "Comment": "flipped between one valid shell and no shell at all depending on what ran before it"
+    },
+    {
+      "Name": "UniteBug4",
+      "Status": "Ok",
+      "Repeat": 3,
+      "Comment": "edge and holeLoop counts move between runs, same family as UniteBug5/6/7"
+    },
+    {
+      "Name": "UniteBug5",
+      "Status": "Ok",
+      "Repeat": 3,
+      "Comment": "edge and holeLoop counts have been seen to move between runs"
+    },
+    {
+      "Name": "UniteBug6",
+      "Status": "Ok",
+      "Repeat": 3,
+      "Comment": "edge and holeLoop counts and the volume move between runs, same family as UniteBug5/7"
+    },
+    {
+      "Name": "UniteBug7",
+      "Status": "Ok",
+      "Repeat": 3,
+      "Comment": "edge and holeLoop counts and the volume have been seen to move between runs"
+    },
+    {
+      "Name": "DifferenceBug15",
+      "Status": "Ok",
+      "Repeat": 2,
+      "Comment": "volume of the second shell moved by 0.2 percent between runs; only 2 repeats, the case is slow"
+    },
+    {
+      "Name": "UniteBug20",
       "Status": "KnownFail",
-      "Comment": "Debug.Assert 'loops.Count should never be 0'"
+      "Comment": "runs through but returns no shell at all; unchanged since the file was added"
+    },
+    {
+      "Name": "UniteBug21",
+      "Status": "CorruptInput",
+      "Comment": "Operand1 already fails Shell.CheckConsistency(), so the Debug.Assert in the operation is a consequence, not a BRep bug"
     }
   ]
 }

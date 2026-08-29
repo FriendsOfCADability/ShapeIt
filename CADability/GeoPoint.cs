@@ -1087,6 +1087,16 @@ namespace CADability
         {
             return Geometry.DistPL(p, this);
         }
+
+#if DEBUG
+        public Line Debug
+        {
+            get
+            {
+                return Line.TwoPoints(Location, Location + 100 * Direction);
+            }
+        }
+#endif
         #region ISerializable Members
         /// <summary>
         /// Constructor required by deserialization

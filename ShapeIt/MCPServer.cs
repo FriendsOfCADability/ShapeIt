@@ -203,6 +203,17 @@ namespace ShapeIt
         public bool stopExecution = false;
 
         /// <summary>
+        /// Serializes everything that builds geometry. The template preview computes on a background thread
+        /// while this server keeps serving calls on the UI thread; both mutate <see cref="namedItems"/> and
+        /// both construct BRep objects, which is not safe concurrently.
+        /// <para>
+        /// Acquire it on the thread that is about to do the work, never inside a callback that is already
+        /// running on the UI thread: holding it there would block the UI for the whole duration of a preview.
+        /// </para>
+        /// </summary>
+        public readonly object GeometryLock = new object();
+
+        /// <summary>
         /// Dispatches a JSON-RPC method call. The transport layer should parse JSON-RPC envelope and pass:
         /// - method: the method name
         /// - id: JSON-RPC id (already parsed)
@@ -318,7 +329,16 @@ namespace ShapeIt
             return responseJson;
         }
 
-        public void ProcessMethod(JsonElement root, bool executeTemplate = false)
+        /// <summary>
+        /// Executes one complete JSON-RPC request block and returns the response.
+        /// <para>
+        /// The whole block is needed, not just the parameters: while a template is being recorded every
+        /// request is stored verbatim so that template.instantiate can replay it. That is why this overload
+        /// exists at all, and why every caller that wants recording to work has to use it. Callers that only
+        /// care about the side effect can ignore the return value.
+        /// </para>
+        /// </summary>
+        public string ProcessMethod(JsonElement root, bool executeTemplate = false)
         {
             string? method = null;
             int? id = null;
@@ -345,7 +365,7 @@ namespace ShapeIt
 
             if (method != null)
             {
-                ProcessMethod(method, id ?? 0, @params);
+                string response = ProcessMethod(method, id ?? 0, @params);
                 if (method == "template.begin" && !executeTemplate)
                 {
                     currentTemplatName = RequireString(@params, "name");
@@ -363,8 +383,21 @@ namespace ShapeIt
                 {
                     recordingTemplate.Add(root.Clone());
                 }
+                return response;
             }
 
+            // A block without "method" is not a request. Answering with an error rather than silently doing
+            // nothing matters now that an HTTP caller waits for this response.
+            return new JsonObject
+            {
+                ["jsonrpc"] = "2.0",
+                ["id"] = id ?? 0,
+                ["error"] = new JsonObject
+                {
+                    ["code"] = -32600,
+                    ["message"] = "Invalid request: no 'method'"
+                }
+            }.ToJsonString();
         }
 
         /// <summary>
@@ -4566,8 +4599,60 @@ namespace ShapeIt
 
         #region Inspection and assertions
 
+        /// <summary>
+        /// Replaces {expression} placeholders in a diagnostic message with their current values, so an
+        /// assertion can name the numbers that made it fail: "Gesamthoehe ({height} mm) muss groesser als der
+        /// halbe Durchmesser ({dPipe/2} mm) sein". Anything between the braces goes through the ordinary
+        /// expression evaluator, so arithmetic on the parameters works, not just plain names.
+        /// <para>
+        /// A placeholder that cannot be evaluated is left standing as written: a mistyped name must not hide
+        /// the assertion it belongs to. "{{" and "}}" produce a literal brace.
+        /// </para>
+        /// </summary>
+        private string ExpandMessagePlaceholders(string message)
+        {
+            if (string.IsNullOrEmpty(message) || message.IndexOf('{') < 0) return message;
+            StringBuilder result = new StringBuilder(message.Length + 32);
+            for (int i = 0; i < message.Length; i++)
+            {
+                char c = message[i];
+                if (c == '{' && i + 1 < message.Length && message[i + 1] == '{') { result.Append('{'); i++; continue; }
+                if (c == '}' && i + 1 < message.Length && message[i + 1] == '}') { result.Append('}'); i++; continue; }
+                if (c != '{') { result.Append(c); continue; }
+                int end = message.IndexOf('}', i + 1);
+                if (end < 0) { result.Append(c); continue; } // unbalanced brace: keep the text as written
+                result.Append(EvaluateForMessage(message.Substring(i + 1, end - i - 1)));
+                i = end;
+            }
+            return result.ToString();
+        }
+
+        /// <summary>One placeholder. Numbers are trimmed to four decimals - a message is read by a human,
+        /// the full precision belongs in inspect.properties.</summary>
+        private string EvaluateForMessage(string expression)
+        {
+            try
+            {
+                object value = Evaluator.Evaluate(expression, namedItems.Dict);
+                switch (value)
+                {
+                    case null: return "{" + expression + "}";
+                    case double d: return d.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+                    case float f: return f.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+                    default: return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
+                }
+            }
+            catch (Exception)
+            {
+                return "{" + expression + "}";
+            }
+        }
+
         private void AssertCheckImpl(JsonElement objects, string? condition, int minCount, int maxCount, string message, string name)
         {
+            // Expanded once, up front: every throw below uses the message, and evaluating it here means the
+            // values are the ones that held when the assertion failed.
+            message = ExpandMessagePlaceholders(message);
             List<object> selected = IterateSelector<object>(objects).ToList();
             // "this.", FaceWrapperForEval with properties
             if (minCount >= 0) // default: -1
@@ -4759,14 +4844,19 @@ namespace ShapeIt
                 objects.Add(entry);
             }
 
-            string? imageBase64 = geoObjs.Count > 0
-                ? WorkspaceRenderer.RenderToPngBase64(frame, geoObjs, viewDirection, imageWidth, imageHeight)
-                : null;
+            string? imageBase64 = null;
+            string? imageUnavailable = "nothing to render";
+            if (geoObjs.Count > 0)
+                imageBase64 = WorkspaceRenderer.RenderToPngBase64(frame, geoObjs, viewDirection,
+                    imageWidth, imageHeight, out imageUnavailable);
 
             var result = new JsonObject();
             result["objects"] = objects;
             result["sceneBoundingBox"] = BoundingBoxToJson(sceneBB); // null when nothing has an extent
             result["image"] = imageBase64;
+            // Say why there is no picture instead of returning a silent null: a machine without a usable
+            // OpenGL driver is a normal outcome, and the client should not keep asking for an image there.
+            if (imageBase64 == null && imageUnavailable != null) result["imageUnavailable"] = imageUnavailable;
             if (imageBase64 != null)
             {
                 try
@@ -5271,46 +5361,91 @@ namespace ShapeIt
             return res;
         }
 
+        /// <summary>
+        /// Runs a template with the given parameter values. Errors are swallowed and answered with null, and
+        /// a failing step only stops the run when the user cancels its dialog - that is what the interactive
+        /// path has always done, so it stays that way.
+        /// </summary>
         public object? ExecuteTemplate(string template, Dictionary<string, object> parameterValues)
         {
             try
             {
-                if (templates.TryGetValue(template, out var jsons))
+                return ExecuteTemplateCore(template, parameterValues, System.Threading.CancellationToken.None, stopOnError: false);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Runs a template and lets failures through, so the caller can tell "these parameters are invalid"
+        /// from "the result is empty". The live preview needs that distinction to show the message of a failed
+        /// assert.check instead of silently keeping the old shape.
+        /// <para>
+        /// Cancellation is checked between the recorded steps. A single long step - typically a boolean
+        /// operation - still runs to its end, because the BRep core has no cancellation of its own.
+        /// </para>
+        /// </summary>
+        /// <exception cref="OperationCanceledException">the token was cancelled between two steps</exception>
+        /// <exception cref="JsonRpcException">a step failed; the message is the one the step reported</exception>
+        public object? ExecuteTemplate(string template, Dictionary<string, object> parameterValues,
+            System.Threading.CancellationToken cancellationToken)
+            => ExecuteTemplateCore(template, parameterValues, cancellationToken, stopOnError: true);
+
+        private object? ExecuteTemplateCore(string template, Dictionary<string, object> parameterValues,
+            System.Threading.CancellationToken cancellationToken, bool stopOnError)
+        {
+            if (!templates.TryGetValue(template, out var jsons)) return null;
+            using (new NamedItemClone(this))
+            {
+                foreach (var element in jsons)
                 {
-                    using (new NamedItemClone(this))
+                    cancellationToken.ThrowIfCancellationRequested();
+                    string methodName = RequireString(element, "method");
+                    if (methodName == "template.commit")
                     {
-                        foreach (var element in jsons)
+                        if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
+                        JsonElement result = RequireProperty(parameters, "result");
+                        var resultKind = GetOptionalString(parameters, "resultKind");
+                        var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
+
+                        return TemplateCommitImpl(result, resultKind, suffixInternalNames);
+                    }
+                    else
+                    {
+                        string response = ProcessMethod(element, true);
+                        if (stopOnError)
                         {
-                            string methodName = RequireString(element, "method");
-                            if (methodName == "template.commit")
+                            // ProcessMethod turns every failure into an error response rather than throwing,
+                            // so the only way to notice one is to read the response back.
+                            string? failure = JsonRpcErrorMessage(response);
+                            if (failure != null) throw new JsonRpcException("E_TEMPLATE_FAILED", failure);
+                        }
+                        if (stopExecution) return null;
+                        if (methodName == "template.begin")
+                        {   // here we overwrite the workspace values of the parameters
+                            foreach (var item in parameterValues)
                             {
-                                if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
-                                JsonElement result = RequireProperty(parameters, "result");
-                                var resultKind = GetOptionalString(parameters, "resultKind");
-                                var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
-
-                                object? res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
-                                return res;
-
-                            }
-                            else
-                            {
-                                ProcessMethod(element, true);
-                                if (stopExecution) return null;
-                                if (methodName == "template.begin")
-                                {   // here we overwrite the workspace values of the parameters
-                                    foreach (var item in parameterValues)
-                                    {
-                                        namedItems[item.Key] = item.Value;
-                                    }
-                                }
+                                namedItems[item.Key] = item.Value;
                             }
                         }
                     }
                 }
-                return null;
             }
-            catch (Exception ex)
+            return null;
+        }
+
+        /// <summary>The message of a JSON-RPC error response, null when the call succeeded.</summary>
+        private static string? JsonRpcErrorMessage(string response)
+        {
+            try
+            {
+                using JsonDocument document = JsonDocument.Parse(response);
+                if (!document.RootElement.TryGetProperty("error", out JsonElement error)) return null;
+                return error.TryGetProperty("message", out JsonElement m) ? m.GetString() ?? "unknown error" : "unknown error";
+            }
+            catch (Exception)
             {
                 return null;
             }

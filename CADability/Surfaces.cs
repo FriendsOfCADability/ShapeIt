@@ -1,4 +1,4 @@
-using CADability.Attribute;
+﻿using CADability.Attribute;
 using CADability.Curve2D;
 using MathNet.Numerics.Optimization;
 using MathNet.Numerics.LinearAlgebra;
@@ -15,7 +15,7 @@ using CADability.Substitutes;
 
 namespace CADability.GeoObject
 {
-    public class Surfaces
+    public partial class Surfaces
     {
         internal static ICurve Intersect(PlaneSurface surface1, BoundingRect bounds1, CylindricalSurface surface2, BoundingRect bounds2, List<GeoPoint> points)
         {
@@ -976,6 +976,7 @@ namespace CADability.GeoObject
                 functionTolerance: 1e-6,
                 maximumIterations: 100);
 
+            SolverTrace.Record("MathNet.LM");
             var result = solver.FindMinimum(objective, initial, lower, upper, scales, fixedParams);
 
             // Prüfen, ob konvergiert
@@ -1366,6 +1367,7 @@ namespace CADability.GeoObject
                     GeoPoint loc = testPoint;
                     GeoVector dir = crv.DirectionAt(u);
                     testPoint = pln.Intersect(testPoint, dir);
+                    if (!testPoint.IsValid) break;
                     uv = surface.PositionOf(testPoint);
                     u = crv.PositionOf(testPoint);
                     double newdist = surface.PointAt(uv) | testPoint;
@@ -1570,6 +1572,7 @@ namespace CADability.GeoObject
                 {
                     IObjectiveModel model = ObjectiveFunction.NonlinearModel(Residual, Jacobian, observedX, observedY);
                     LevenbergMarquardtMinimizer lm = new LevenbergMarquardtMinimizer(maximumIterations: 100);
+                    SolverTrace.Record("MathNet.LM");
                     result = lm.FindMinimum(model, new DenseVector(new double[] { s1Start.x, s1Start.y, s2Start.x, s2Start.y }), scales: scales);
                 }
                 catch

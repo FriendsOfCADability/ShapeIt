@@ -167,6 +167,7 @@ namespace CADability
             try
             {
                 var start = new DenseVector(new double[] { uv1.x, uv1.y, uv2.x, uv2.y, uv3.x, uv3.y });
+                SolverTrace.Record("MathNet.LM");
                 NonlinearMinimizationResult mres = lm.FindMinimum(iom, start);
 
                 if (!IsGoodExit(mres.ReasonForExit)) return false;
@@ -202,6 +203,7 @@ namespace CADability
             try
             {
                 var start = new DenseVector(new double[] { uv1.x, uv1.y, uv2.x, uv2.y, uv3.x, uv3.y });
+                SolverTrace.Record("MathNet.LM");
                 NonlinearMinimizationResult mres = lm.FindMinimum(iom, start);
 
                 if (!IsGoodExit(mres.ReasonForExit)) return false;
@@ -236,6 +238,7 @@ namespace CADability
             try
             {
                 var start = new DenseVector(new double[] { uv1.x, uv1.y, uv2.x, uv2.y, uv3.x, uv3.y });
+                SolverTrace.Record("MathNet.LM");
                 NonlinearMinimizationResult mres = lm.FindMinimum(iom, start);
 
                 if (!IsGoodExit(mres.ReasonForExit)) return false;

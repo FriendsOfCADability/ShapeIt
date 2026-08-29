@@ -1,0 +1,216 @@
+{
+  "Description": "A sphere touching a torus from inside the tube, at a point where the torus is a saddle, so that the\nintersection curve gets a NODE.\nThe torus has major radius 20 and minor radius 8 about the z axis; its inner equator has radius 12. The\nsphere has radius 14 and its centre is at (26, 0, 0), so it touches the torus at exactly (12, 0, 0),\nthe inner equator point at azimuth 0.\n\nWhether a tangential contact produces crossing branches or an isolated point is decided by the\nDIFFERENCE of the two curvatures. At (12, 0, 0) the torus has the principal curvatures 1/r = 1/8 along\nthe tube and -1/(R-r) = -1/12 around the axis, the sphere has 1/14 in every direction, and\n  1/8 - 1/14 > 0   while   -1/12 - 1/14 < 0\nso the difference is INDEFINITE and the surfaces cross: two branches, one node. Had the sphere radius\nbeen smaller than the tube radius 8, the same construction would have given an isolated contact point\ninstead - which is why 14 was chosen and not, say, 6.\n\nThis is the sphere/torus contact the plane case TorusPlaneTangentInnerEquator cannot show: the plane is\nthe limit of a sphere of infinite radius, and any radius between 8 and 12 in the other direction gives\nthe same node. The sphere is big enough to swallow the whole tube cross section at azimuth 0 - the\nmeridian disc there is entirely inside the sphere and touches it at that one point - so the contact is\nas enclosed as it can be.\n\nThe contact sits at y = 0 and at the innermost meridian of the tube, that is on BOTH face splits of a\ntorus about the z axis through the origin, exactly as in TorusPlaneTangentInnerEquator.",
+  "Expected": "V(torus) = 2*pi^2*20*64 = 2560*pi^2 = 25266.1872672626, area 4*pi^2*160 = 6316.5468168156,\nextent -28,-28,-8 .. 28,28,8.\nV(sphere r=14) = 4/3*pi*2744 = 11494.0403227324, area 4*pi*196 = 2463.0086404143,\nextent 12,-14,-14 .. 40,14,14.\n\nThe intersection was integrated in cylindrical coordinates - the sphere centre is on the x axis, so for\neach point of the meridian disc the azimuth interval is 2*acos((rho^2+z^2+480)/(52*rho)) - by Simpson on\n1600 x 3200 points:\n  torusSphereInter          3990.1046   (converged: 3990.103995 / 3990.104503 / 3990.104630;\n                                         Monte Carlo 3988.0 +- 3.7 with 3e6 samples)\n  torusMinusSphere          25266.1873 - 3990.1046 = 21276.0827\n  sphereMinusTorus          11494.0403 - 3990.1046 =  7503.9357\n  torusSphereUnion          25266.1873 + 11494.0403 - 3990.1046 = 32770.1230\nThe identity union + intersect = 36760.2276 (= the sum of the two operands) is exact.\n\nAs in TorusPlaneTangentInnerEquator the ring is cut through at the contact: torusMinusSphere is pinched\nto a single point at (12, 0, 0) and must come out as one body of genus 0, non manifold at that point,\nnot as a closed ring and not with a piece missing.",
+  "CaseStatus": "Ok",
+  "Repeat": 4,
+  "Verify": [
+    "saddleTorus",
+    "saddleSphere",
+    "torusSphereInter",
+    "torusMinusSphere",
+    "sphereMinusTorus",
+    "torusSphereUnion"
+  ],
+  "Status": "OK since 2026-08-28. FIXED on 2026-08-28 by the second repair of the same day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). Two things changed at once and both were needed:\nthe geometry became RIGHT where it was wrong, and the face partition became REPRODUCIBLE - the case is\nstable over 4 runs now, so it finally carries a baseline. Before that it could not be pinned at all:\na face on a periodic surface was split in one run and left whole in the next, and a regenerate run\nrefused to record anything. The volume never moved even then, which is why the geometry could be\njudged while the partition still wandered.\n\nThe geometry of this case was right before the fix as well; only torusMinusSphere kept changing its\npartition from run to run, which was enough to keep the whole case unpinned. Every volume is within\n1.2e-5 of a value integrated independently in cylindrical coordinates - the sphere centre lies on the\nx axis, so the azimuth interval of each point of the meridian disc is\n2*acos((rho^2+z^2+480)/(52*rho)):\n  torusSphereInter  3990.05585337  against 3990.1046  (Simpson, converged to 7 digits; Monte Carlo\n                    3988.0 +- 3.7)                                        1.2e-5\n  torusMinusSphere  21275.9797563  against 21276.0827                     4.8e-6\n  sphereMinusTorus  7503.95867387  against 7503.9357                      3.1e-6\n  torusSphereUnion  32770.0093493  against 32770.1230                     3.5e-6\nand the topology says the same: torusMinusSphere has euler 1, the ring cut open at the single contact\npoint (12,0,0) exactly as in TorusPlaneTangentInnerEquator, the union keeps euler 0, and the\nintersection is a single manifold solid.",
+  "Baseline": {
+    "saddleSphere": {
+      "verified": "2026-08-28 GH: operand. volume 1.3e-4 below 4/3*pi*2744 = 11494.0403227324, area 2.2e-4 above 4*pi*196 = 2463.0086404143.",
+      "consistent": "true",
+      "faces": "2",
+      "edges": "4",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "11492.4943267",
+      "area": "2463.54579053",
+      "edgeLength": "124.400722268",
+      "extent": "12, -14, -14, 40, 14, 14",
+      "surfaces": "SphericalSurface:2"
+    },
+    "saddleTorus": {
+      "verified": "2026-08-28 GH: operand. area 6316.5468167 against the exact 4*pi^2*R*r = 6316.5468168156 - exact; the volume is 4.8e-4 below 2*pi^2*20*64 = 25266.1872672626.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "25254.0118484",
+      "area": "6316.5468167",
+      "edgeLength": "351.858377202",
+      "extent": "-28, -28, -8, 28, 28, 8",
+      "surfaces": "ToroidalSurface:4"
+    },
+    "sphereMinusTorus": {
+      "verified": "2026-08-28 GH: CALCULATED. 7503.95867387 against 11494.0403227324 - 3990.1046 = 7503.9357, 3.1e-6.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "13",
+      "poleEdges": "0",
+      "vertices": "9",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7503.95867387",
+      "area": "2801.22424503",
+      "edgeLength": "225.760220027",
+      "extent": "12, -14, -14, 40, 14, 14",
+      "surfaces": "SphericalSurface:3 ToroidalSurface:2"
+    },
+    "torusMinusSphere": {
+      "verified": "2026-08-28 GH: CALCULATED. 21275.9797563 against 25266.1872672626 - 3990.1046 = 21276.0827, 4.8e-6. euler 1: the sphere swallows the whole tube cross section at azimuth 0 and touches it at the single point (12,0,0), so the ring is cut open there and genus 1 becomes genus 0. This is the object whose partition wandered before the fix of 2026-08-28 (9 faces or 8) and kept the case unpinned.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "22",
+      "poleEdges": "0",
+      "vertices": "13",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "21275.9797563",
+      "area": "5975.05530132",
+      "edgeLength": "464.705157994",
+      "extent": "-28, -28, -8, 24.3076923077, 28, 8",
+      "surfaces": "SphericalSurface:4 ToroidalSurface:6"
+    },
+    "torusSphereInter": {
+      "verified": "2026-08-28 GH: CALCULATED, not captured. 3990.05585337 against 3990.1046, integrated in cylindrical coordinates by Simpson and confirmed by Monte Carlo 3988.0 +- 3.7. A single manifold solid, euler 2.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "13",
+      "poleEdges": "0",
+      "vertices": "9",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3990.05585337",
+      "area": "1322.72680582",
+      "edgeLength": "171.016260009",
+      "extent": "12, -13.8973412808, -7.98660078143, 28, 13.8973412808, 7.97197862429",
+      "surfaces": "SphericalSurface:4 ToroidalSurface:2"
+    },
+    "torusSphereUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. 32770.0093493 against 25266.1873 + 11494.0403 - 3990.1046 = 32770.1230, and union + intersect = 36760.07 against the exact sum of the operands 36760.2276.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "22",
+      "poleEdges": "0",
+      "vertices": "13",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "32770.0093493",
+      "area": "7453.75729978",
+      "edgeLength": "519.449118011",
+      "extent": "-28, -28, -14, 40, 28, 14",
+      "surfaces": "SphericalSurface:3 ToroidalSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.torus",
+      "params": {
+        "name": "saddleTorus",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 20,
+        "minorRadius": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.sphere",
+      "params": {
+        "name": "saddleSphere",
+        "center": [
+          26,
+          0,
+          0
+        ],
+        "radius": 14
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "saddleTorus",
+        "b": "saddleSphere",
+        "name": "torusSphereInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "saddleTorus",
+        "b": "saddleSphere",
+        "name": "torusMinusSphere",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "saddleSphere",
+        "b": "saddleTorus",
+        "name": "sphereMinusTorus",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "saddleTorus",
+        "b": "saddleSphere",
+        "name": "torusSphereUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "saddleTorus",
+          "saddleSphere",
+          "torusSphereInter",
+          "torusMinusSphere"
+        ]
+      }
+    }
+  ]
+}

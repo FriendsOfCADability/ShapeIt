@@ -560,6 +560,7 @@ namespace CADability.Attribute
             // jetzt so implementiert: wenn ein Attribut verlangt wird und ein Objekt nicht das
             // passende Interface hat, dann wird es nicht akzeptiert
             // wenn z.B. der Layer eines Objektes null ist, dann wird dieses von keinem Filter anerkannt
+            if (go.Owner is Edge edg && edg.Owner is Face fce) go = fce; // curves of edges dont have attributes themselfs so we want the attribute of the owning face
             if (acceptedLayers.Count > 0)
             {
                 ILayer ilayer = go as ILayer;

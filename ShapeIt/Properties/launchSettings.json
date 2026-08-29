@@ -2,7 +2,7 @@
   "profiles": {
     "ShapeIt": {
       "commandName": "Project",
-      "commandLineArgs": "-x \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\HemisphereOnCylinderThreeWays.json\" ",
+      "commandLineArgs": "-d \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\BRep\\UniteBug1.cdb.json\" -hcoffset:0 -e:1713 -e:1609",
       "nativeDebugging": false,
       "hotReloadEnabled": true
     }

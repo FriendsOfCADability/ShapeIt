@@ -1,0 +1,280 @@
+{
+  "Description": "Two cones that share a common INSCRIBED SPHERE. By the theorem of Monge, two surfaces of revolution of\nsecond order circumscribing the same sphere intersect in TWO PLANE CONICS, and those two conics cross\nat the two points where both surfaces touch the sphere at the same place - and there the two cones are\ntangent to each other and to the sphere. So this is an inner tangential contact with a NODE of the\nintersection curve, at two points at once.\n\nThe common sphere has radius 10 and sits at the origin, never built - it only fixes the geometry:\n  coneWide  half angle 45 deg, axis +z, apex (0, 0, 14.1421356237) = 10/sin 45, opening downwards,\n            height 30, base radius 30\n  coneNarrow half angle 30 deg, axis (0, sin 45, cos 45), apex 20*axis = (0, 14.1421356237, 14.1421356237),\n            opening back towards the origin, height 45, base radius 45*tan 30 = 25.9807621135\nA cone of half angle alpha whose apex is at distance d from the centre touches the sphere of radius rho\nwhen rho = d*sin alpha, which is what both apex distances 10/sin 45 and 10/sin 30 = 20 are for.\nBoth touch the sphere along a circle, and the two circles cross at\n  (7.0710678119, 0, 7.0710678119) and (-7.0710678119, 0, 7.0710678119)\nwhich are therefore the two tangential contact points of the cones (residual on both mantles < 1e-14).\n\nThe two half angles are DIFFERENT on purpose. With equal half angles the two contact points are mirror\nimages in the plane of the two axes and can never lie in the seam plane. With 45 and 30 degrees they can,\nand here they do: both axes lie in the yz plane, and the contacts come out at y = 0, exactly on the two\nseam edges of coneWide, which - being a cone about the z axis through the origin - is split into its two\nhalf mantles precisely in the xz plane. Contact, node and face boundary again coincide.\nSee ConeCylinderCommonInsphere for the same construction placed in the interior of the faces.",
+  "Expected": "Exact operand volumes: coneWide pi/3*30^2*30 = 9000*pi = 28274.3338823081,\nconeNarrow pi/3*(45*tan30)^2*45 = pi/3*675*45 = 10125*pi = 31808.6256178783.\nThe contacts are properly inside both mantles: at axial distance 10 of 30 from the apex of coneWide and\n15 of 45 from the apex of coneNarrow, so neither an apex nor a base plane takes part in the degeneracy.\n\nThere is no closed form for the intersection, so it was integrated by Monte Carlo over the box\n60x60x31, 4e6 samples:\n  intersect       15123 +- 19\n  union           44960 +- 19    ( = 28274.334 + 31808.626 - intersect )\n  wide - narrow   13151 +- 19\n  narrow - wide   16686 +- 19\nThe identity union + intersect = 28274.3338823081 + 31808.6256178783 = 60082.9595001864 is exact and is\nthe sharpest check, together with difference = operand - intersect for both ways round.\n\nBoth cones are convex, so intersect must be a single convex solid - never several parts, never empty -\nand all four results must be closed and consistent.",
+  "CaseStatus": "Ok",
+  "RelativeTolerance": 0.002,
+  "Repeat": 4,
+  "Verify": [
+    "coneWide",
+    "coneNarrow",
+    "insphereUnion",
+    "insphereInter",
+    "insphereWideMinusNarrow",
+    "insphereNarrowMinusWide"
+  ],
+  "Status": "OK since 2026-08-28. FIXED on 2026-08-28 by the second repair of the same day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). Two things changed at once and both were needed:\nthe geometry became RIGHT where it was wrong, and the face partition became REPRODUCIBLE - the case is\nstable over 4 runs now, so it finally carries a baseline. Before that it could not be pinned at all:\na face on a periodic surface was split in one run and left whole in the next, and a regenerate run\nrefused to record anything. The volume never moved even then, which is why the geometry could be\njudged while the partition still wandered.\n\nWHAT WAS WRONG, and how the repair shows in the numbers. The intersection used to be 84 mm3 too big -\n15223.55 measured by inspect.properties at precision 1e-5 against a true 15139.4 - and its extent gave\nthe reason away: it reached z = 14.1421356237, the APEX of coneWide, although that apex lies outside\nconeNarrow and the true intersection stops at z = 11.1535. A region around the apex of the wide cone\nwas taken into the intersection although it belongs to the difference.\nNow:\n  insphereInter  volume 15139.3924347, and its extent ends at z = 11.1464 instead of 14.1421\n  insphereWideMinusNarrow comes out as THREE solids instead of two, and the new third one is\n  83.2227237821 with its extent reaching exactly z = 14.1421356237 - the piece around the apex, back\n  where it belongs, and its volume is the 84 mm3 that were missing. That is the clearest possible\n  confirmation that this was the defect and that it is gone.\n\nThe independent values: deterministic quadrature 15137.72 / 15138.82 / 15139.18 on 800, 1600 and 2400\nintervals (converging to about 15139.4), Monte Carlo 15144 +- 11 over four seeds. The recorded 15139.39\nagrees with both to better than 1e-4, where the old result was off by 5.5e-3.\n\nTHE 83 mm3 PIECE, INVESTIGATED 2026-08-28. This is the one object of the case that keeps it from being\ngreen in a full suite run: insphereWideMinusNarrow#2 is recorded as 83.2227237821 when the case runs\nalone and comes out as 83.6939595286 when it runs inside the suite (area 204.52 against 202.81). The\ninvestigation says the BREP IS RIGHT AND DETERMINISTIC and the recorded number is a measurement.\n\n1. The true volume is 84.1259. The piece contains the apex of coneWide, and coneWide is convex, so the\n   piece is star shaped as seen from that apex and its volume is an integral over the directions,\n   V = 1/3 * integral of rmax(omega)^3 dOmega, where rmax is the smaller of the distance to the base\n   plane and the distance to the entry into coneNarrow - both from a quadratic. Simpson over the 45\n   degree cap of directions converges cleanly:\n     200x400   84.128842\n     400x800   84.126662\n     800x1600  84.126117\n     1600x3200 84.125981      -> 84.12594\n   An independent voxel flood fill from the apex (h = 0.20 / 0.12 / 0.08: 83.888 / 83.948 / 83.956,\n   rising, and voxel counting underestimates) confirms the same body and the same magnitude.\n\n2. ShapeIt agrees, when asked precisely enough. inspect.properties at precision 1e-5 gives\n   84.12580837 - 1.6e-6 from the computed value - and repeating the whole construction three times in\n   one session gives 84.1258097435 every time, with bounding boxes identical to the last digit. So the\n   boolean produces the same body every time and that body is correct.\n\n3. The recorded value is a triangulation. ShellMetrics measures volume and area at\n   PrecisionFor(shell) = size * 1e-3 (BRepSummary.cs), and at that precision this body - a sharp cone\n   tip - measures 1.07 or 0.51 percent low. Which of the two you get depends on what was triangulated\n   BEFORE, because Face.AssureTriangles (Face.cs, line 7159) reuses an existing mesh:\n     if (trianglePoint != null && precision >= trianglePrecision / 2.0) return;\n   so a request is served by any mesh that is at most twice as coarse. Minimal reproduction, one\n   session, the same body built twice:\n     fresh solid, asked at 1e-3 straight away          83.2227237821\n     fresh solid, asked at 1.5e-3 first, then at 1e-3  83.6939595286\n     either of them, asked at 1e-5                     84.1258097435\n   Same BRep, same requested precision, two different volumes - the request history decides.\n\nWHAT THAT MEANS FOR THE CORPUS. The comment on ShellMetrics.PrecisionFor was written against exactly\nthis failure (\"a case really did come out with a 10% different area depending on whether it ran alone\nor in a full suite\") and it closed the precision == 0.0 path, but not this one: passing a deterministic\nprecision does not guarantee a deterministic mesh. Two things follow, and they are separate:\n  REPRODUCIBILITY  a measurement meant for a baseline has to force its own triangulation instead of\n                   accepting one that happens to exist.\n  ACCURACY         1e-3 relative is too coarse for a body with a tip: 1 percent error here, and the\n                   same reason the operand cones in ConesTangentAtMantlePoint measure 0.9 percent low.\n                   1e-5 costs more but lands on 1.6e-6.\nUntil that is decided the case stays as it is: it passes alone and fails in a full run, on this one\nfield. Widening RelativeTolerance would hide it, but 0.6 percent on a volume is more than the 0.55\npercent error this very case uncovered in the boolean, so that is not the right trade.",
+  "Baseline": {
+    "coneNarrow": {
+      "verified": "2026-08-28 GH: operand. area 6361.72512351 exact; volume 0.53 percent below 10125*pi = 31808.6256178783, same cause as coneWide.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "4",
+      "poleEdges": "2",
+      "vertices": "3",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "31641.1325594",
+      "area": "6361.72512351",
+      "edgeLength": "267.164991235",
+      "extent": "-25.9807621135, -36.0488426006, -36.0488426006, 25.9807621135, 14.1421356237, 14.1421356237",
+      "surfaces": "ConicalSurface:2 PlaneSurface:1"
+    },
+    "coneWide": {
+      "verified": "2026-08-28 GH: operand. area 6826.02803257 against the exact pi*30*sqrt(1800) + pi*900 = 6826.06 (5e-6); the volume is 0.93 percent below 9000*pi = 28274.3338823081 because a cone with an apex triangulates poorly - a defect of the measurement, not of the boolean, and the same one recorded on ConesTangentAtMantlePoint.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "4",
+      "poleEdges": "2",
+      "vertices": "3",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "28010.4134012",
+      "area": "6826.02803257",
+      "edgeLength": "273.348372958",
+      "extent": "-30, -30, -15.8578643763, 30, 30, 14.1421356237",
+      "surfaces": "ConicalSurface:2 PlaneSurface:1"
+    },
+    "insphereInter": {
+      "verified": "2026-08-28 GH: CALCULATED. 15139.3924347 against 15139.4 from a deterministic quadrature (15137.72 / 15138.82 / 15139.18 on 800 / 1600 / 2400 intervals) and 15144 +- 11 by Monte Carlo. The extent is the second half of the check: it ends at z = 11.1464, against a true 11.1535, and no longer at the apex of coneWide, 14.1421356237. Before the fix of 2026-08-28 this body was 84 mm3 (0.55 percent) too big.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "10",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "15139.3924347",
+      "area": "3657.52765016",
+      "edgeLength": "376.938807593",
+      "extent": "-24.8648137681, -24.7487373416, -15.8578643865, 24.8648137681, 11.1192762393, 11.1464279588",
+      "surfaces": "ConicalSurface:6 PlaneSurface:2"
+    },
+    "insphereNarrowMinusWide": {
+      "solids": "2"
+    },
+    "insphereNarrowMinusWide#0": {
+      "verified": "2026-08-28 GH: CALCULATED. Both parts together give 16248.751403 + 419.40637279 = 16668.16 against 31808.6256178783 - 15139.4 = 16669.23, 6.4e-5. euler 0: the wide cone bores a tunnel through the narrow one, whose wall touches the outer wall at the two tangential contacts.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "14",
+      "poleEdges": "0",
+      "vertices": "10",
+      "holeLoops": "1",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "16248.751403",
+      "area": "6658.72677096",
+      "edgeLength": "427.428923258",
+      "extent": "-25.9807621135, -36.0488426006, -36.0488426006, 25.9807621135, 6.10365985075, 8.95167441582",
+      "surfaces": "ConicalSurface:3 PlaneSurface:2"
+    },
+    "insphereNarrowMinusWide#1": {
+      "verified": "2026-08-28 GH: the small part at the apex end, 419.40637279.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "6",
+      "poleEdges": "2",
+      "vertices": "5",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "419.40637279",
+      "area": "455.224993005",
+      "edgeLength": "79.2797607526",
+      "extent": "-7.59653889823, -8.56525049079E-12, 3.00113024224, 7.59653889823, 14.1421356237, 14.1421356237",
+      "surfaces": "ConicalSurface:3"
+    },
+    "insphereUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. 44941.0159872 against 60082.9595001864 - 15139.4 = 44943.56, 5.7e-5, and union + intersect = 60080.41 against the exact sum of the operands 9000*pi + 10125*pi = 60082.9595, 4.2e-5.",
+      "consistent": "true",
+      "faces": "13",
+      "edges": "26",
+      "poleEdges": "4",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "44941.0159872",
+      "area": "9536.70252427",
+      "edgeLength": "766.414797999",
+      "extent": "-30, -36.0488426006, -36.0488426006, 30, 30, 14.1421356237",
+      "surfaces": "ConicalSurface:10 PlaneSurface:3"
+    },
+    "insphereWideMinusNarrow": {
+      "solids": "3"
+    },
+    "insphereWideMinusNarrow#0": {
+      "verified": "2026-08-28 GH: the main body. The three parts together give 12360.2393543 + 690.525248884 + 83.2227237821 = 13133.99 against the calculated 28274.3338823081 - 15139.4 = 13134.93, 7e-5.",
+      "consistent": "true",
+      "faces": "7",
+      "edges": "15",
+      "poleEdges": "0",
+      "vertices": "10",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "12360.2393543",
+      "area": "5075.14018947",
+      "edgeLength": "434.251466178",
+      "extent": "-30, -16.7851433251, -15.8578643783, 30, 30, 7.07106781185",
+      "surfaces": "ConicalSurface:6 PlaneSurface:1"
+    },
+    "insphereWideMinusNarrow#1": {
+      "verified": "2026-08-28 GH: the lobe below, unchanged by the fix (690.525248884 before and after).",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "3",
+      "poleEdges": "0",
+      "vertices": "2",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "690.525248884",
+      "area": "801.219108642",
+      "edgeLength": "145.358046491",
+      "extent": "-22.8001860078, -30, -15.8578643865, 22.8001860078, -19.4974746729, -10.6066017178",
+      "surfaces": "ConicalSurface:1 PlaneSurface:2"
+    },
+    "insphereWideMinusNarrow#2": {
+      "verified": "2026-08-28 GH: THE PIECE THAT WAS MISSING. 83.2227237821, extent reaching z = 14.1421356237, the apex of coneWide. Before the fix of 2026-08-28 this volume was counted as part of insphereInter, which made the intersection 84 mm3 too big and this difference 83 too small. It appearing here as its own solid is what says the defect is repaired.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "4",
+      "poleEdges": "2",
+      "vertices": "3",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "83.2227237821",
+      "area": "204.523666411",
+      "edgeLength": "57.0354089148",
+      "extent": "-7.07106783967, -5.13791275028, 7.0710677827, 7.07106781185, 2.98337067668, 14.1421356237",
+      "surfaces": "ConicalSurface:3"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.cone",
+      "params": {
+        "name": "coneWide",
+        "start": [
+          0,
+          0,
+          -15.8578643763
+        ],
+        "radiusStart": 30,
+        "end": [
+          0,
+          0,
+          14.1421356237
+        ],
+        "radiusEnd": 0
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.cone",
+      "params": {
+        "name": "coneNarrow",
+        "start": [
+          0,
+          -17.6776695297,
+          -17.6776695297
+        ],
+        "radiusStart": 25.9807621135,
+        "end": [
+          0,
+          14.1421356237,
+          14.1421356237
+        ],
+        "radiusEnd": 0
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "coneWide",
+        "b": "coneNarrow",
+        "name": "insphereInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coneWide",
+        "b": "coneNarrow",
+        "name": "insphereUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "coneWide",
+        "b": "coneNarrow",
+        "name": "insphereWideMinusNarrow",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "coneNarrow",
+        "b": "coneWide",
+        "name": "insphereNarrowMinusWide",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "coneWide",
+          "coneNarrow",
+          "insphereInter",
+          "insphereUnion"
+        ]
+      }
+    }
+  ]
+}

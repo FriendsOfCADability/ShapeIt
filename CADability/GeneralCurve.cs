@@ -911,6 +911,7 @@ namespace CADability.GeoObject
                     functionTolerance: 1e-14, // changed from 1e-10 to 1e-14 for better precision in InterpolatedDualSurfaceCurve ApproximateBSpline, otherwise we would get BSplines 
                     maximumIterations: 100);
 
+                SolverTrace.Record("MathNet.LM");
                 var result = minimizer.FindMinimum(objective, initialGuess, lowerBound, upperBound);
 
                 if (result.ReasonForExit == ExitCondition.Converged ||

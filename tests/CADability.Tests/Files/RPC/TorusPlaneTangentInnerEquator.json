@@ -1,0 +1,188 @@
+{
+  "Description": "The most degenerate plane/torus contact that exists: the plane x = 12 touching the torus with major\nradius 20 and minor radius 8 about the z axis at the SINGLE point (12, 0, 0) of its inner equator.\n\nThe inner equator is where the torus has negative Gaussian curvature and where its two principal\ncurvatures have opposite signs, 1/r = 1/8 along the tube and -1/(R-r) = -1/12 around the axis. A plane\ntangent there therefore CROSSES the surface: the intersection curve has a NODE at (12, 0, 0), two\nbranches crossing at one point, and the contact is a single tangential point rather than the two of the\nVillarceau case.\n\nEverything that can coincide does coincide here, which is why the case exists:\n  - the contact is at y = 0, exactly in the xz plane where the torus is split into its half faces,\n  - it is at the innermost point of the tube, the extreme meridian, where the second face split of a\n    torus sits,\n  - and it is the point of the torus closest to its own axis, so the two branches of the intersection\n    curve cross exactly on the face boundary in BOTH parameter directions.\nThe cutting body is a box from x = 12 to x = 52 covering the whole torus in y and z, so its face x = 12\nis the tangent plane and all its other faces are far away.",
+  "Expected": "V(torus) = 2*pi^2*R*r^2 = 2*pi^2*20*64 = 2560*pi^2 = 25266.1872672626,\narea 4*pi^2*R*r = 4*pi^2*160 = 6316.5468168156, extent -28,-28,-8 .. 28,28,8.\nV(box) = 40*80*40 = 128000.\n\nThe part of the torus with x >= 12 has no closed form; it was integrated in cylindrical coordinates,\nwhere the measure of the azimuth for a point of the meridian disc at distance rho from the axis is\n2*acos(12/rho), giving\n  V = 4 * integral over the meridian disc of rho*acos(12/rho) ... = 7352.7245\nby Simpson on 1600 x 3200 points, converged to 7 digits (7352.723888 / 7352.724341 / 7352.724455 for\n400x800, 800x1600, 1600x3200) and confirmed by Monte Carlo, 7356.4 +- 4.1 with 3e6 samples. So:\n  tangentPlaneInter (torus and box)   7352.7245\n  tangentPlaneRest  (torus minus box) 25266.1872672626 - 7352.7245 = 17913.4628\n  tangentPlaneUnion 128000 + 17913.4628 = 145913.4628\n\nThe SHAPE matters more than the volume here. The plane touches the tube at the one point where the ring\nis narrowest in x, so the remaining part, torus minus box, is pinched to a single point at (12, 0, 0):\nthe ring is cut open there without any face being removed, and the result is a body of genus 0 that is\nnon manifold at exactly one point. That is the correct answer, and the failure to look for is a result\nthat either keeps the ring closed or loses a piece of it.\nThe other part, the intersection, is a single solid touching the plane at that same point.",
+  "CaseStatus": "Ok",
+  "Repeat": 4,
+  "Verify": [
+    "tangentTorus",
+    "tangentBox",
+    "tangentPlaneInter",
+    "tangentPlaneRest",
+    "tangentPlaneUnion"
+  ],
+  "Status": "PASSES, first measured 2026-08-28, stable over 4 runs - which is the surprise of this group: the most\ndegenerate configuration of all of them is the one that works. The contact sits on the seam of the\ntorus in BOTH parameter directions at once and the plane still gets cut correctly.\n\n  tangentPlaneInter 7352.60327988 against the integrated 7352.7245                     1.6e-5\n  tangentPlaneRest  17913.2917929 against 25266.1872672626 - 7352.7245 = 17913.4628     9.5e-6\n  tangentPlaneUnion 145913.327279 against 128000 + 17913.4628 = 145913.4628             9.3e-7\n  inter + rest = 25265.8951 against the exact torus volume 2*pi^2*20*64 = 25266.1873    1.2e-5\nand the extents are right where they have to be: the intersection reaches x = 12 exactly and the\nremaining part reaches x = 12.0000000035, so both meet in the tangent plane; y = +-25.2982212813 is\nsqrt(28^2 - 12^2) = sqrt(640) to the last digit.\n\nThe topology is the point of the case and it is right: tangentPlaneRest has euler 1, not 0 and not 2 -\nthe ring has been cut open at one single point, so its genus dropped from 1 to 0 and the body is non\nmanifold exactly there. tangentPlaneUnion keeps euler 0 and one hole loop, the ring is still closed\nthrough the box. Nothing is lost and nothing is welded shut.\n\nRE-RECORDED 2026-08-28 after the second fix of the same day. The topology of every object is\nunchanged - same faces, edges, vertices, euler and surface histogram - and the volumes moved by at most\n1.4e-6. One field did change: the extent of tangentPlaneInter in z, from +-7.9999410261 to\n+-7.95304469067. The true value is exactly +-8, reached at the extreme meridian of the tube, so the\nrecorded extent got WORSE, from 7e-6 off to 6e-3 off. Since the topology is identical this is the\ntriangulation and not the BRep: the mesh no longer places a vertex at the extreme meridian. Worth\nknowing when the extents of other cases start to drift.",
+  "Baseline": {
+    "tangentBox": {
+      "verified": "2026-08-28 GH: operand, exact: 40*80*40 = 128000, area 16000, edgeLength 640.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "128000",
+      "area": "16000",
+      "edgeLength": "640",
+      "extent": "12, -40, -20, 52, 40, 20",
+      "surfaces": "PlaneSurface:6"
+    },
+    "tangentPlaneInter": {
+      "verified": "2026-08-28 GH: CALCULATED, not captured. 7352.61372249 against 7352.7245, integrated in cylindrical coordinates by Simpson (converged to 7 digits over 400x800, 800x1600 and 1600x3200 points) and confirmed by Monte Carlo 7356.4 +- 4.1. y = +-25.2982212815 is sqrt(28^2 - 12^2) = sqrt(640) to the last digit. The z extent +-7.95304469067 is 6e-3 below the true +-8 - a mesh artefact, see Status.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "5",
+      "poleEdges": "0",
+      "vertices": "3",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7352.61372249",
+      "area": "2351.71844694",
+      "edgeLength": "190.602994205",
+      "extent": "11.9999999996, -25.2982212815, -7.95304469067, 28, 25.2982212815, 7.95304469067",
+      "surfaces": "PlaneSurface:2 ToroidalSurface:2"
+    },
+    "tangentPlaneRest": {
+      "verified": "2026-08-28 GH: CALCULATED. 17913.3080799 against 25266.1872672626 - 7352.7245 = 17913.4628, 8.6e-6. euler 1 is the essential field: the tangential contact cuts the ring open at the single point (12,0,0), genus 1 becomes genus 0 and the body is non manifold there. Its maximum x is 12.0000000005, the tangent plane.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "14",
+      "poleEdges": "0",
+      "vertices": "7",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "17913.3080799",
+      "area": "5093.02416254",
+      "edgeLength": "416.138219742",
+      "extent": "-28, -28, -8, 12.0000000005, 28, 8",
+      "surfaces": "PlaneSurface:2 ToroidalSurface:6"
+    },
+    "tangentPlaneUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. 145913.297026 against 128000 + 17913.4628 = 145913.4628. euler 0 with one hole loop: the ring stays closed.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "15",
+      "holeLoops": "1",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "145913.297026",
+      "area": "19963.5272019",
+      "edgeLength": "1056.13821973",
+      "extent": "-28, -40, -20, 52, 40, 20",
+      "surfaces": "PlaneSurface:6 ToroidalSurface:6"
+    },
+    "tangentTorus": {
+      "verified": "2026-08-28 GH: operand. area 6316.5468167 against the exact 4*pi^2*R*r = 6316.5468168156 - exact. The volume is 4.8e-4 below 2*pi^2*20*64 = 25266.1872672626, the triangulation of the tube.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "25254.0118484",
+      "area": "6316.5468167",
+      "edgeLength": "351.858377202",
+      "extent": "-28, -28, -8, 28, 28, 8",
+      "surfaces": "ToroidalSurface:4"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.torus",
+      "params": {
+        "name": "tangentTorus",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 20,
+        "minorRadius": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "tangentBox",
+        "origin": [
+          12,
+          -40,
+          -20
+        ],
+        "sizeX": 40,
+        "sizeY": 80,
+        "sizeZ": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "tangentTorus",
+        "b": "tangentBox",
+        "name": "tangentPlaneInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "tangentTorus",
+        "b": "tangentBox",
+        "name": "tangentPlaneRest",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tangentTorus",
+        "b": "tangentBox",
+        "name": "tangentPlaneUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "tangentTorus",
+          "tangentBox",
+          "tangentPlaneInter",
+          "tangentPlaneRest"
+        ]
+      }
+    }
+  ]
+}

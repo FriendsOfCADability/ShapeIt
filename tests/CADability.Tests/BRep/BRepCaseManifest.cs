@@ -40,6 +40,14 @@ namespace CADability.Tests.BRep
         public double? SecondaryParameter { get; set; }
         public int? TimeoutSeconds { get; set; }
         public double? RelativeTolerance { get; set; }
+        /// <summary>
+        /// How often to run this case within one test run, default 1. Everything the operation and the summary
+        /// do is supposed to be a function of the input file alone, so a second run has to produce the same
+        /// fingerprint. Where it does not, the case is not a regression test but a coin toss, and comparing it
+        /// against a baseline says nothing - which is why a repeat that disagrees fails the suite and also stops
+        /// the case from being regenerated. Worth setting on the cases that have been seen to move.
+        /// </summary>
+        public int? Repeat { get; set; }
         /// <summary>Free text: what the bug is, which issue it belongs to.</summary>
         public string? Comment { get; set; }
     }

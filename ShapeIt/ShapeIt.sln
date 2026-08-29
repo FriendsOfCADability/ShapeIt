@@ -25,6 +25,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShapeIt.Avalonia", "..\Shap
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShapeIt.Browser", "..\ShapeIt.Browser\ShapeIt.Browser.csproj", "{FDF02564-C71B-47FE-B1C8-54DA9B826498}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShapeIt.Profiler", "..\ShapeIt.Profiler\ShapeIt.Profiler.csproj", "{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -161,6 +163,18 @@ Global
 		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Release|x64.ActiveCfg = Release|Any CPU
 		{FDF02564-C71B-47FE-B1C8-54DA9B826498}.Release|x86.ActiveCfg = Release|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Debug|x64.Build.0 = Debug|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Debug|x86.Build.0 = Debug|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Release|x64.ActiveCfg = Release|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Release|x64.Build.0 = Release|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Release|x86.ActiveCfg = Release|Any CPU
+		{6E3B1A94-2D77-4C0B-9F5E-8B1C7A0D3F62}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

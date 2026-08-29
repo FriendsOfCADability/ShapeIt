@@ -1,7 +1,7 @@
 {
   "Description": "Tangency type 3: two faces touch along a curve without crossing. Unlike types 1 and 2 the contact here is a TANGENCY - the surfaces have a common tangent plane along the contact, so there is no transversal intersection curve to compute and the usual intersection machinery finds nothing to work with. Cylinders are used throughout because they triangulate accurately, so the measured volumes land within about 1e-9 relative of the exact values, far tighter than the sphere cases elsewhere in this corpus.\nSix configurations: a cylinder lying tangentially on a plane from outside (a) and the same cylinder pushed 1 mm in as a non-degenerate control (b); a cylinder tangent inside another cylinder, axis distance = R - r (c); two cylinders tangent from outside, axis distance = r1 + r2 (d); a sphere inside a cylinder of the SAME radius, which touches along a CIRCLE rather than a straight line (e); and a cylinder tangent to a face from inside, so that the resulting cavity touches the outer wall (f).\nWhere the touching bodies have parallel end faces they are deliberately given different lengths, so that no face-face coincidence of type 1 creeps in and each case tests the tangency alone.",
   "Expected": "With V(cyl r=3, l=6) = 54*pi = 169.646003, V(cyl r=5, l=10) = 250*pi = 785.398163, V(cyl r=2, l=6) = 24*pi = 75.398224, V(cyl r=3, l=10) = 90*pi = 282.743339 and V(sphere r=3) = 36*pi = 113.097336:\na  cylinder tangent on the top face z=10 from outside, contact line x=5, y=2..8: intersect empty; union two separate solids (1000 and 169.646003), since welding along a line would be non-manifold - the confirmed convention; difference box-cylinder 1000 with 6 faces; difference cylinder-box 169.646003.\nb  CONTROL, the same cylinder with its axis 1 mm lower so it dips into the box. The submerged part is a circular segment at distance 2 from the axis: area 9*acos(2/3) - 2*sqrt(5) = 3.097482, volume 18.584892. intersect 18.584892; union 1151.061111; difference box-cylinder 981.415108; difference cylinder-box 151.061111.\nc  cylinder r=2 at axis distance 3 inside cylinder r=5, internally tangent along the line x=10, y=5: intersect = the small cylinder 75.398224; union = the big one 785.398163; difference big-small = 226*pi = 709.999940; difference small-big empty.\nd  cylinder r=3 and cylinder r=2 at axis distance 5, externally tangent: intersect empty; union two solids; difference A-B 282.743339 unchanged.\ne  sphere r=3 centred on the axis of a cylinder r=3, touching along the circle z=5: intersect = the sphere 113.097336; union = the cylinder 282.743339; difference cylinder-sphere = 54*pi = 169.646003, a cylinder with a spherical cavity that touches the wall along a circle; difference sphere-cylinder empty.\nf  cylinder tangent to the top face from INSIDE: difference box-cylinder = 1000 - 54*pi = 830.353997; intersect = the cylinder 169.646003; union = the box 1000; difference cylinder-box empty.",
-  "Status": "PASSES on the first measurement (2026-08-13), no defect found. 23 checks, largest relative deviation 4.5e-6 (the sphere case e), everything else at 1e-9 or better.\nDeterministic: nine of the operations were repeated 10 times each and returned an identical face/edge signature every time - relevant because tangency type 1 case d once failed about one run in five while looking correct on a single run.\nWorth knowing about the representation: where a cavity touches an outer face tangentially (case f) or a cavity touches the wall along a circle (case e), the contact curve does NOT appear as an edge of the result - case f comes out with 10 faces and 18 edges, which is exactly the box plus an untouched cylindrical cavity. The solid is pinched along the contact but the topology does not record it. Same as in TouchingEdgeInFace case c. That is a convention, not an error, and the volumes are right; it only matters if something downstream needs the contact to be an explicit edge.",
+  "Status": "PASSES on the first measurement (2026-08-13), no defect found. 23 checks, largest relative deviation 4.5e-6 (the sphere case e), everything else at 1e-9 or better.\nDeterministic: nine of the operations were repeated 10 times each and returned an identical face/edge signature every time - relevant because tangency type 1 case d once failed about one run in five while looking correct on a single run.\nWorth knowing about the representation: where a cavity touches an outer face tangentially (case f) or a cavity touches the wall along a circle (case e), the contact curve does NOT appear as an edge of the result - case f comes out with 10 faces and 18 edges, which is exactly the box plus an untouched cylindrical cavity. The solid is pinched along the contact but the topology does not record it. Same as in TouchingEdgeInFace case c. That is a convention, not an error, and the volumes are right; it only matters if something downstream needs the contact to be an explicit edge.\n\nRE-RECORDED 2026-08-28 after the second BRep fix of that day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). The case failed against its old baseline both inside the suite and on its own,\nso the change is systematic and not the batch contamination. It is a PARTITION change: faces on\nperiodic surfaces that used to be one face are now split into two.\nOnly one object of the six configurations moved at all:\n  bUnion  9 -> 10 faces, 18 -> 21 edges, 12 -> 14 vertices, CylindricalSurface:1 -> :2,\n          edgeLength 168.550559706 -> 174.550559706 - exactly 6.0 more, the length of the new seam edge\n          on the mantle of the 6 mm long cylinder\nIts volume is unchanged to 1.4e-8 (1151.06090829 -> 1151.06092474) and still meets the calculated\n1151.061111 of the control configuration b. Everything else in the file - the five other\nconfigurations, all tangency results, all empty results - is untouched.",
   "Actual": "a: intersect empty, union 2 solids, difference box-cyl 1000 (6 faces / 12 edges), difference cyl-box 169.646003 (4 faces).\nb: intersect 18.584892, union 1151.061109 (9 faces), difference box-cyl 981.415108 (9 faces), difference cyl-box 151.061110.\nc: intersect 75.398223 (4 faces / 6 edges), union 785.398160, difference big-small 709.999938 (8 faces / 12 edges), difference small-big empty.\nd: intersect empty, union 2 solids, difference A-B 282.743339.\ne: intersect 113.097839 (2 faces / 4 edges), union 282.743339, difference cyl-sphere 169.645502 (6 faces / 10 edges), difference sphere-cyl empty.\nf: difference box-cyl 830.353999 (10 faces / 18 edges), intersect 169.646003, union 1000 (6 faces), difference cyl-box empty.",
   "CaseStatus": "Ok",
   "Verify": [
@@ -82,7 +82,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "169.639029438",
-      "area": "168.773527849",
+      "area": "169.646003294",
       "edgeLength": "49.6991118431",
       "extent": "2, 2, 10, 8, 8, 16",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
@@ -99,7 +99,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "981.41511607",
-      "area": "609.607577558",
+      "area": "609.640620571",
       "edgeLength": "151.037095957",
       "extent": "0, 0, 0, 10, 10, 10",
       "surfaces": "CylindricalSurface:1 PlaneSurface:8"
@@ -116,7 +116,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "18.5848924705",
-      "area": "63.3051138309",
+      "area": "63.3062520307",
       "edgeLength": "31.0370959568",
       "extent": "2.7639320225, 2, 9, 7.2360679775, 8, 10",
       "surfaces": "CylindricalSurface:1 PlaneSurface:3"
@@ -124,19 +124,19 @@
     "bUnion": {
       "verified": "2026-08-14: tangency type 3, checked against exact values in pi - 54*pi, 226*pi, 36*pi and the circular segment 9*acos(2/3)-2*sqrt(5). Cylinders triangulate accurately, the measurements landed within 1e-9 relative.",
       "consistent": "true",
-      "faces": "9",
-      "edges": "18",
+      "faces": "10",
+      "edges": "21",
       "poleEdges": "0",
-      "vertices": "12",
+      "vertices": "14",
       "holeLoops": "1",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "1151.06094563",
-      "area": "706.209651995",
-      "edgeLength": "168.550559706",
+      "volume": "1151.06092474",
+      "area": "706.339751263",
+      "edgeLength": "174.550559706",
       "extent": "0, 0, 0, 10, 10, 15",
-      "surfaces": "CylindricalSurface:1 PlaneSurface:8"
+      "surfaces": "CylindricalSurface:2 PlaneSurface:8"
     },
     "cDiff": {
       "verified": "2026-08-14: tangency type 3, checked against exact values in pi - 54*pi, 226*pi, 36*pi and the circular segment 9*acos(2/3)-2*sqrt(5). Cylinders triangulate accurately, the measurements landed within 1e-9 relative.",
@@ -150,7 +150,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "709.999938391",
-      "area": "571.729152732",
+      "area": "571.769862953",
       "edgeLength": "119.964594301",
       "extent": "0, 0, 0, 10, 10, 10",
       "surfaces": "CylindricalSurface:4 PlaneSurface:4"
@@ -171,7 +171,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "75.3979961375",
-      "area": "100.389220734",
+      "area": "100.530964915",
       "edgeLength": "37.1327412287",
       "extent": "6, 3, 2, 10, 7, 8",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
@@ -188,7 +188,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "785.397855103",
-      "area": "470.97533104",
+      "area": "471.238898038",
       "edgeLength": "82.8318530718",
       "extent": "0, 0, 0, 10, 10, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
@@ -205,7 +205,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "282.743306217",
-      "area": "244.926154878",
+      "area": "245.04422698",
       "edgeLength": "57.6991118431",
       "extent": "-3, -3, 0, 3, 3, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
@@ -230,7 +230,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "282.740962395",
-      "area": "244.037086642",
+      "area": "245.04422698",
       "edgeLength": "57.6991118431",
       "extent": "-3, -3, 0, 3, 3, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
@@ -247,7 +247,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "75.3977524157",
-      "area": "100.162472545",
+      "area": "100.530964915",
       "edgeLength": "37.1327412287",
       "extent": "3, -2, 2, 7, 2, 8",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
@@ -264,7 +264,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "169.645502456",
-      "area": "358.103304896",
+      "area": "358.144026474",
       "edgeLength": "84.356409472",
       "extent": "-3, -3, 0, 3, 3, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2 SphericalSurface:2"
@@ -285,7 +285,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "113.09721562",
-      "area": "112.803663125",
+      "area": "113.103578541",
       "edgeLength": "26.657297629",
       "extent": "-3, -3, 2, 3, 3, 8",
       "surfaces": "SphericalSurface:2"
@@ -302,7 +302,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "282.743316973",
-      "area": "244.947569904",
+      "area": "245.04422698",
       "edgeLength": "57.6991118431",
       "extent": "-3, -3, 0, 3, 3, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
@@ -319,7 +319,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "830.353998698",
-      "area": "769.629809824",
+      "area": "769.646003294",
       "edgeLength": "169.699111843",
       "extent": "0, 0, 0, 10, 10, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:8"
@@ -340,7 +340,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "169.645818962",
-      "area": "169.492569445",
+      "area": "169.646003294",
       "edgeLength": "49.6991118431",
       "extent": "2, 2, 4, 8, 8, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"

@@ -112,6 +112,7 @@ namespace CADability
         /// <returns></returns>
         public bool Solve(double[] startParameters, int maxIterations, double updateLengthTolerance, double errorTolerance, out double minError, out int numIterations, out double[] parameters)
         {
+            SolverTrace.Record("CADability.GaussNewton");
             double[] minLocation = startParameters.Clone() as double[];
             minError = double.MaxValue;
             numIterations = 0;
@@ -926,6 +927,7 @@ namespace CADability
                 MathNet.Numerics.Optimization.LevenbergMarquardtMinimizer minimizer = new MathNet.Numerics.Optimization.LevenbergMarquardtMinimizer(0.001, 1e-20, 1e-20, 1e-20, 20);
 
                 var obj = MathNet.Numerics.Optimization.ObjectiveFunction.NonlinearModel(oeFunc, ojfunc, MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(points.Length), MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(points.Length));
+                SolverTrace.Record("MathNet.LM");
                 var lmresult = minimizer.FindMinimum(obj, MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(new double[] { 0, 0, 0, 0, 0, 1, 1 }));
 
 #endif
@@ -1872,6 +1874,7 @@ namespace CADability
             MathNet.Numerics.Optimization.LevenbergMarquardtMinimizer minimizer = new MathNet.Numerics.Optimization.LevenbergMarquardtMinimizer(0.001, 1e-20, 1e-20, 1e-20, 20);
 
             var obj = MathNet.Numerics.Optimization.ObjectiveFunction.NonlinearModel(oeFunc, ojfunc, MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length), MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(pnts.Length));
+            SolverTrace.Record("MathNet.LM");
             var lmresult = minimizer.FindMinimum(obj, MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(new double[] { 0, 0, 0, 0, 0, 1, 1 }));
 
 #endif
@@ -1926,6 +1929,7 @@ namespace CADability
             GeoPoint pl2 = bsp.Poles[2];
             GeoPoint pl3 = bsp.Poles[3];
 
+            SolverTrace.Record("MathNet.LM");
             var lmresult = minimizer.FindMinimum(obj, MathNet.Numerics.LinearAlgebra.CreateVector.Dense<double>(new double[] { pl1.x, pl1.y, pl1.z, 1.0, pl2.x, pl2.y, pl2.z, 1.0, pl3.x, pl3.y, pl3.z, 1.0 }));
 
             poles[1] = new GeoPoint(lmresult.MinimizingPoint[0], lmresult.MinimizingPoint[1], lmresult.MinimizingPoint[2]);
@@ -2007,6 +2011,7 @@ namespace CADability
                 initialGuess[3 * i + 1] = bsp.Poles[i + 1].y;
                 initialGuess[3 * i + 2] = 1.0; //weight
             }
+            SolverTrace.Record("MathNet.LM");
             var lmresult = minimizer.FindMinimum(obj, initialGuess);
 
             for (int i = 0; i < deg - 1; i++)

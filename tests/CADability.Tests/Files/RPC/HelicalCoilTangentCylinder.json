@@ -1,18 +1,20 @@
 {
-  "Description": "Coil spring (circular wire, mean radius 10, wire radius 2) united with a coaxial cylinder whose lateral face is exactly tangent to the inner envelope of the wire (10 - 2 = 8).",
-  "Expected": "TWO separate solids with a total volume of 2368.661 + 4825.484 = 7194.145 - bodies that merely touch are not merged (decided by Gerhard, 2026-08-10). intersect must be empty.",
-  "Status": "union FIXED (re-checked 2026-08-10): returns two solids, reproducibly over three runs, no exception any more. intersect STILL WRONG.",
+  "Description": "A coil spring resting on a coaxial core, in two versions that differ by a tenth of a millimetre - which\nis the point of the case.\n\nThe wire is a circle of radius 2 whose centre runs on a helix of radius 10 with pitch 8, three turns\n(1080 degrees), so it fills the radial band 8..12 and reaches from z = -2 to z = 26.\n\n  core       a cylinder of radius 8, z from 0 to 24. Its lateral face is EXACTLY tangent to the inner\n             envelope of the wire, 10 - 2 = 8, so the two bodies touch along a helix and share no\n             volume at all.\n  thickCore  the same cylinder at radius 8.1. Now the two really overlap, in a thin sliver of the wire\n             that is nowhere thicker than 0.1 radially.\n\nThe pair is the interesting part: the same union, once exactly at the tangency and once a hair past it.\nThe first must NOT merge the bodies, the second must.",
+  "Expected": "THE OPERANDS, in closed form. A screw motion has the same Jacobian r as plain cylindrical coordinates -\nthe lift is a shear and does not change it - so sweeping a profile through an angle Theta gives\nV = Theta * A * rbar exactly:\n  volume(coil)      = 6*pi * 4*pi * 10 = 240*pi^2 = 2368.7050563\n  volume(core)      = pi*8^2*24        = 1536*pi  = 4825.4863159\n  volume(thickCore) = pi*8.1^2*24  = 1574.64*pi   = 4946.8774560\n\nAT THE TANGENCY, coilOnCore. The bodies touch along a helix and share no volume, so the union is TWO\nseparate solids - bodies that merely touch are not merged, which is this project's convention (decided\n2026-08-10). Their volumes are those of the operands, unchanged, and together\n  240*pi^2 + 1536*pi = 7194.1913722\nAn intersection here would have to be empty.\n\nA TENTH PAST IT, coilOnThickCore. Raising the radius to 8.1 cuts a sliver off the inside of the wire, so\nthe union is now ONE solid. The overlap is the part of the wire with r <= 8.1, clipped to z in [0,24]:\n  the unclipped part is 6*pi times the integral of r over the circular segment of the wire profile,\n  and the two ends that stick out past z = 0 and z = 24 are taken off with the same argument as in\n  HelicalCoilInsideCylinder - the integral over theta turns into the first moment of the segment:\n    overlap = 6*pi*M - (pi/2)*N = 12.5903904, of which only 0.1245969 is the end correction\n    with M = integral of r, and N = integral of r*|z|, over the segment {(r,z) in wire : r <= 8.1}\n  volume(coilOnThickCore) = 240*pi^2 + 1574.64*pi - 12.5903904 = 7302.9921219\n\nThe sliver is thin - at r = 8.1 the segment is 1.2489996 tall and 0.1 wide - so the two unions differ by\nabout 1.5 percent in volume while differing completely in topology. That is what makes the pair a test:\na merge that fails to happen and a merge that must.",
+  "Status": "OK since 2026-08-26.\n\nThe case was recorded while the union threw an exception; it was fixed on 2026-08-10 and has returned\ntwo solids ever since, which is correct - the bodies touch along a helix and share no volume. Its own\nStatus used to say \"intersect STILL WRONG\", but there has been no intersect call in the file for some\ntime, so that sentence pinned nothing. It is gone.\n\nWhat the case now tests is the PAIR: at radius 8 the union must not merge, at radius 8.1 it must. Both\nare checked against closed forms, see Expected.",
   "Actual": "solid.boolean intersect returns 2368.6613 - the complete coil, i.e. operand a - although the bodies only touch along a line and the intersection must be empty. See HelicalCoilDisjointCylinder.json for the canonical case.",
   "Actual (before the fix)": "solid.boolean union failed with 'Error in the application.'.",
-  "CaseStatus": "KnownFail",
+  "CaseStatus": "Ok",
   "Verify": [
     "coil",
     "core",
-    "coilOnCore"
+    "coilOnCore",
+    "thickCore",
+    "coilOnThickCore"
   ],
+  "Repeat": 3,
   "Baseline": {
     "coil": {
-      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the union is fixed and the intersection is still wrong. Do not promote to \"Ok\" without judging the result itself.",
       "consistent": "true",
       "faces": "14",
       "edges": "26",
@@ -23,30 +25,17 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "2364.91464324",
-      "area": "2330.56661655",
+      "area": "2403.50558451",
       "edgeLength": "468.123304588",
       "extent": "-12, -12, -2, 12, 12, 26",
-      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2"
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2",
+      "verified": "2026-08-26 GH: the operand. Volume 2364.91464324 against the exact 240*pi^2 = 2368.7050563, -0.16 percent - a helical sweep meshes badly at the precision ShellMetrics measures with, and the volume is summed over that mesh. It converges to the closed form when the triangulation is refined; see the note on the same body in HelicalCoilInsideCylinder."
     },
     "coilOnCore": {
-      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the union is fixed and the intersection is still wrong. Do not promote to \"Ok\" without judging the result itself.",
-      "consistent": "true",
-      "faces": "4",
-      "edges": "16",
-      "poleEdges": "0",
-      "vertices": "14",
-      "holeLoops": "0",
-      "euler": "2",
-      "closed": "true",
-      "openEdges": "0",
-      "volume": "2368.66505098",
-      "area": "2396.83806868",
-      "edgeLength": "405.291451516",
-      "extent": "-12, -12, -2, 12, 12, 26",
-      "surfaces": "HelicalSweepSurface:2 PlaneSurface:2"
+      "solids": "2",
+      "verified": "2026-08-26 GH: TWO solids, which is right - at radius exactly 8 the cylinder is tangent to the inner envelope of the wire, the two touch along a helix and share no volume, and this project does not merge bodies that merely touch."
     },
-    "core": {
-      "verified": "2026-08-14: NOT verified - this baseline pins the CURRENT, KNOWN WRONG result so that any change becomes visible. Per the file's own Status the union is fixed and the intersection is still wrong. Do not promote to \"Ok\" without judging the result itself.",
+    "coilOnCore#0": {
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -57,10 +46,79 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "4825.4561546",
-      "area": "1602.59956071",
+      "area": "1608.49543864",
       "edgeLength": "148.530964915",
       "extent": "-8, -8, 0, 8, 8, 24",
-      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2",
+      "verified": "2026-08-26 GH: the cylinder, unchanged. Its volume 4825.4561546 is bit-identical to the operand core - which is the sharpest statement this half of the case can make: the union did not touch it at all."
+    },
+    "coilOnCore#1": {
+      "consistent": "true",
+      "faces": "14",
+      "edges": "26",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2364.91464324",
+      "area": "2403.50558451",
+      "edgeLength": "468.123304588",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "HelicalSweepSurface:12 PlaneSurface:2",
+      "verified": "2026-08-26 GH: the spring, unchanged. Volume 2364.91464324, bit-identical to the operand coil."
+    },
+    "coilOnThickCore": {
+      "consistent": "true",
+      "faces": "14",
+      "edges": "39",
+      "poleEdges": "0",
+      "vertices": "27",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7302.92972299",
+      "area": "3658.46781076",
+      "edgeLength": "695.959059347",
+      "extent": "-12, -12, -2, 12, 12, 26",
+      "surfaces": "CylindricalSurface:8 HelicalSweepSurface:2 PlaneSurface:4",
+      "verified": "2026-08-26 GH: ONE solid, and the number that makes the pair worth having: 7302.92972299 against the 7302.9921219 derived in Expected, 8.5e-6. A tenth of a millimetre more radius, and the same union that leaves both bodies alone at radius 8 merges them into one. Note that it meets its closed form far better than the operand coil meets its own - the mesh of the result is not the mesh of the operand."
+    },
+    "core": {
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "4825.4561546",
+      "area": "1608.49543864",
+      "edgeLength": "148.530964915",
+      "extent": "-8, -8, 0, 8, 8, 24",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2",
+      "verified": "2026-08-26 GH: the operand at the tangency, radius exactly 8. Volume 4825.4561546 against the exact 1536*pi = 4825.4863159, 6.3e-6."
+    },
+    "thickCore": {
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "4946.84653599",
+      "area": "1633.69101172",
+      "edgeLength": "149.787601976",
+      "extent": "-8.1, -8.1, 0, 8.1, 8.1, 24",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2",
+      "verified": "2026-08-26 GH: the control, radius 8.1. Volume 4946.84653599 against the exact 1574.64*pi = 4946.8774560, 6.3e-6."
     }
   },
   "RPCCalls": [
@@ -171,10 +229,55 @@
     },
     {
       "jsonrpc": "2.0",
-      "id": 7,
+      "id": 8,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "thickCore",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          24
+        ],
+        "radius": 8.1
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coil",
+        "b": "thickCore",
+        "name": "coilOnThickCore",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coilOnThickCore",
+        "properties": [
+          "Volume"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
       "method": "document.commit_objects",
       "params": {
-        "objects": "coilOnCore"
+        "objects": [
+          "coilOnCore",
+          "coilOnThickCore"
+        ]
       }
     }
   ]

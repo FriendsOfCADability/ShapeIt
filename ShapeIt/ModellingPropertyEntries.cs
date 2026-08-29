@@ -991,22 +991,22 @@ namespace ShapeIt
             if (faces.Count > 0) // are there features defined by the selected faces?
             {
                 Shell facesShell = faces.First().Owner as Shell;
-                if (facesShell != null)
-                {
-                    HashSet<Face> connectedFaces = Shell.ConnectedSameGeometryFaces(faces); // add all faces which have the same surface and are connected
-                    try
-                    {
-                        if (facesShell.FeatureFromFaces(connectedFaces, out IEnumerable<Face> featureFaces, out List<Face> connection, out bool isGap))
-                        {
-                            // there is a feature. Multiple different features are not considered, we would need FeaturesFromFaces
-                            // which would return more than one feature
-                            IPropertyEntry fp = GetFeatureProperties(vw, featureFaces, connection, isGap);
-                            if (fp != null && fp.SubItems.Length > 0) subEntries.Add(fp);
-                        }
-                    }
-                    catch (Exception ex) { }
-                    ;
-                }
+                //if (facesShell != null)
+                //{
+                //    HashSet<Face> connectedFaces = Shell.ConnectedSameGeometryFaces(faces); // add all faces which have the same surface and are connected
+                //    try
+                //    {
+                //        if (facesShell.FeatureFromFaces(connectedFaces, out IEnumerable<Face> featureFaces, out List<Face> connection, out bool isGap))
+                //        {
+                //            // there is a feature. Multiple different features are not considered, we would need FeaturesFromFaces
+                //            // which would return more than one feature
+                //            IPropertyEntry fp = GetFeatureProperties(vw, featureFaces, connection, isGap);
+                //            if (fp != null && fp.SubItems.Length > 0) subEntries.Add(fp);
+                //        }
+                //    }
+                //    catch (Exception ex) { }
+                //    ;
+                //}
             }
             // Add the menus for Faces
             if (faces.Count > 1)
@@ -1201,17 +1201,17 @@ namespace ShapeIt
             if (facesShell != null)
             {
                 HashSet<Face> connectedFaces = Shell.ConnectedSameGeometryFaces(faces); // add all faces which have the same surface and are connected
-                if (facesShell.FeatureFromFaces(connectedFaces, out IEnumerable<Face> featureFaces, out List<Face> connection, out bool isGap))
-                {
-                    // there is a feature. Multiple different features are not considered, we would need FeaturesFromFaces
-                    // which would return more than one feature
-                    try
-                    {
-                        IPropertyEntry fp = GetFeatureProperties(vw, featureFaces, connection, isGap);
-                        if (fp != null && fp.SubItems.Length > 0) res.Add(fp);
-                    }
-                    catch (Exception ex) { } // TODO: there should be no exceptions, but sometimes are: check!
-                }
+                //if (facesShell.FeatureFromFaces(connectedFaces, out IEnumerable<Face> featureFaces, out List<Face> connection, out bool isGap))
+                //{
+                //    // there is a feature. Multiple different features are not considered, we would need FeaturesFromFaces
+                //    // which would return more than one feature
+                //    try
+                //    {
+                //        IPropertyEntry fp = GetFeatureProperties(vw, featureFaces, connection, isGap);
+                //        if (fp != null && fp.SubItems.Length > 0) res.Add(fp);
+                //    }
+                //    catch (Exception ex) { } // TODO: there should be no exceptions, but sometimes are: check!
+                //}
             }
             return res.ToArray();
         }

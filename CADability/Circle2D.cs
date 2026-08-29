@@ -658,6 +658,7 @@ namespace CADability.Curve2D
                     }
                     return prime;
                 }), observedX, observedY);
+            SolverTrace.Record("MathNet.LM");
             NonlinearMinimizationResult mres = lm.FindMinimum(iom, new DenseVector(new double[] { center2d.x, center2d.y, radius }));
             if (mres.ReasonForExit == ExitCondition.Converged || mres.ReasonForExit == ExitCondition.RelativeGradient)
             {

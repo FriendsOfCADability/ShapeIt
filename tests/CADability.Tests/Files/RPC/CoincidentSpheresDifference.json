@@ -1,0 +1,485 @@
+{
+  "Description": "Boolean operations between two solids that occupy the SAME space. The answers are forced and need no\ngeometry: the difference is empty, and intersection and union are the body itself.\n\nIt takes three calls to build the interesting pair - make a sphere twice - and the sphere is what makes\nit interesting. solid.sphere builds it from TWO faces, each bounded by four half circles like the seam\nof a tennis ball, neither containing a pole, and the parameter axes of the two faces are perpendicular\nto each other. Two identical spheres therefore have pairwise COINCIDENT faces, which is a special case\nin its own right.\n\nSo the case asks the question twice:\n  bigA / bigB   two identical spheres - the faces coincide pairwise\n  rotA / rotB   the same, but the second sphere is turned by 37 degrees about the axis (1,2,3). Neither\n                a standard axis nor a multiple of 90 degrees, so nothing about the sphere changes to\n                look at, while its faces no longer line up with those of the first at all\nThe second pair is the harder one and the results show it: intersection and union come back with 4 faces\nand 12 edges instead of 2 faces, because the two tennis ball seams cut each other.\n\nThree sizes and two controls sit alongside, all of them differences that must be empty:\n  r2Diff, r3Diff, r40Diff   the defect this case was written for used to alternate with the radius\n  boxDiff                   two coincident boxes - coincidence by itself is not the trigger\n  torDiff                   two coincident tori - a periodic surface by itself is not either",
+  "Expected": "  bigDiff, rotDiff, r2Diff, r3Diff, r40Diff, boxDiff, torDiff   EMPTY, recorded as \"exists\": \"false\",\n      which is what an empty boolean result looks like: nothing is stored under the name.\n  bigInter, bigUnion, rotInter, rotUnion   the sphere itself, 4/3*pi*7^3 = 1436.7550402\n\nThe other radii, for the record: 4/3*pi*2^3 = 33.5103216, 4/3*pi*3^3 = 113.0973355 and\n4/3*pi*40^3 = 268082.5731063.\n\nThe FACE COUNTS are the interesting part of the fingerprint here, more than the volumes:\n  bigInter, bigUnion   2 faces - the operands' faces coincide pairwise, so nothing has to be cut\n  rotInter, rotUnion   4 faces, 12 edges - the two tennis ball seams cross, and the result carries both\nIf rotInter ever comes back with 2 faces, the rotation has stopped taking effect and the second half of\nthe case is testing nothing.",
+  "Status": "OK since 2026-08-27. All three operations are right on both pairs.\n\nThe case was split off from HemisphereOnCylinderThreeWays, whose Status had carried the defect as a\nrecipe (\"run this case, then ...\") rather than as a case, which meant running that file never showed\nit. Reducing it was worth the trouble: what it is about turned out not to be what it looked like there.\nIt is not about two solids that are the same point set but BUILT differently - a box measured against\nthe union of its own two halves works fine - it is about the sphere.\n\nTHE HISTORY, because each step corrected the picture of the one before.\n\nAs found: difference threw \"The given key 'CADability.GeoObject.Face' was not present in the\ndictionary\", intersect failed on a Debug.Fail assertion, union worked. The difference only threw from\nabout radius 2.25 upward - 1.25 and 2.0 returned the correct empty result - and the position played no\npart, radius 7 at (3,4,5) throwing just as at the origin. That size threshold suggested an absolute\ntolerance somewhere; it was a red herring.\n\nFirst repair: intersect fixed, difference then threw at EVERY radius including the two that had worked.\n\nSecond repair: no more exceptions anywhere, but the difference returned a solid of 4 spherical faces\nenclosing about 1e-6 of volume at radius 2, 2.25, 3 and 40, while 1.25, 2.5, 5 and 7 came out empty.\nThe alternation looked like a mesh artefact and was not: the result was in principle correct - a sphere\nwith a hole that is exactly the sphere itself - because the difference branch never ran the emptiness\ntest at all. The whole BRep boolean works on faces, edges and vertices; the triangulation only enters\nthrough that one volume test. Which is also why the alternation had nothing to do with triangulation.\n\nThird repair, 2026-08-27: the test is there, and the difference comes back empty at every radius tried\n(1.25, 2, 2.25, 2.5, 3, 5, 7, 40), with the intersection giving the full sphere in each case.\n\nRE-RECORDED 2026-08-28 after the second BRep fix of that day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). The case failed against its old baseline both inside the suite and on its own,\nso the change is systematic and not the batch contamination. It is a PARTITION change: faces on\nperiodic surfaces that used to be one face are now split into two.\nWhat moved, for rotInter and rotUnion alike:\n  faces       4  -> 6      surfaces  SphericalSurface:4 -> :6\n  edges      12  -> 16     vertices  10 -> 12\n  edgeLength 93.7444510817 -> 124.400722268\nWhat did NOT move: the volume is the same to 1.5e-7 (1436.75084457 -> 1436.75105845) and the area to\n2.4e-6, both far inside the tolerance, and extent, euler, closed and consistent are unchanged. So the\nbodies are the same bodies, cut into more faces.",
+  "CaseStatus": "Ok",
+  "Repeat": 3,
+  "Verify": [
+    "bigDiff",
+    "bigInter",
+    "bigUnion",
+    "rotDiff",
+    "rotInter",
+    "rotUnion",
+    "r2Diff",
+    "r3Diff",
+    "r40Diff",
+    "boxDiff",
+    "torDiff"
+  ],
+  "Baseline": {
+    "bigDiff": {
+      "exists": "false"
+    },
+    "bigInter": {
+      "consistent": "true",
+      "faces": "2",
+      "edges": "4",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1436.75608685",
+      "area": "615.78169774",
+      "edgeLength": "62.2003611342",
+      "extent": "-7, -7, -7, 7, 7, 7",
+      "surfaces": "SphericalSurface:2"
+    },
+    "bigUnion": {
+      "consistent": "true",
+      "faces": "2",
+      "edges": "4",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1436.75640696",
+      "area": "615.781694155",
+      "edgeLength": "62.2003611342",
+      "extent": "-7, -7, -7, 7, 7, 7",
+      "surfaces": "SphericalSurface:2"
+    },
+    "boxDiff": {
+      "exists": "false"
+    },
+    "r2Diff": {
+      "exists": "false"
+    },
+    "r3Diff": {
+      "exists": "false"
+    },
+    "r40Diff": {
+      "exists": "false"
+    },
+    "rotDiff": {
+      "exists": "false"
+    },
+    "rotInter": {
+      "consistent": "true",
+      "faces": "6",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1436.75105845",
+      "area": "615.765663598",
+      "edgeLength": "124.400722268",
+      "extent": "-7, -7, -7, 7, 7, 7",
+      "surfaces": "SphericalSurface:6"
+    },
+    "rotUnion": {
+      "consistent": "true",
+      "faces": "6",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1436.75056864",
+      "area": "615.765317835",
+      "edgeLength": "124.400722268",
+      "extent": "-7, -7, -7, 7, 7, 7",
+      "surfaces": "SphericalSurface:6"
+    },
+    "torDiff": {
+      "exists": "false"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.sphere",
+      "params": {
+        "name": "bigA",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 7
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.sphere",
+      "params": {
+        "name": "bigB",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 7
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "bigA",
+        "b": "bigB",
+        "name": "bigDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "bigA",
+        "b": "bigB",
+        "name": "bigInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "bigA",
+        "b": "bigB",
+        "name": "bigUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.sphere",
+      "params": {
+        "name": "rotA",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 7
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.sphere",
+      "params": {
+        "name": "rotB",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 7
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "transform.rotate",
+      "params": {
+        "objects": "rotB",
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            1,
+            2,
+            3
+          ]
+        },
+        "angle": 37
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "rotA",
+        "b": "rotB",
+        "name": "rotDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "rotA",
+        "b": "rotB",
+        "name": "rotInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "rotA",
+        "b": "rotB",
+        "name": "rotUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.sphere",
+      "params": {
+        "name": "r2A",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.sphere",
+      "params": {
+        "name": "r2B",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 2
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "r2A",
+        "b": "r2B",
+        "name": "r2Diff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.sphere",
+      "params": {
+        "name": "r3A",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.sphere",
+      "params": {
+        "name": "r3B",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 3
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "r3A",
+        "b": "r3B",
+        "name": "r3Diff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.sphere",
+      "params": {
+        "name": "r40A",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.sphere",
+      "params": {
+        "name": "r40B",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "r40A",
+        "b": "r40B",
+        "name": "r40Diff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "solid.box",
+      "params": {
+        "name": "boxA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 14,
+        "sizeY": 14,
+        "sizeZ": 14
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "solid.box",
+      "params": {
+        "name": "boxB",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 14,
+        "sizeY": 14,
+        "sizeZ": 14
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "boxA",
+        "b": "boxB",
+        "name": "boxDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.torus",
+      "params": {
+        "name": "torA",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 20,
+        "minorRadius": 5
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "solid.torus",
+      "params": {
+        "name": "torB",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 20,
+        "minorRadius": 5
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "torA",
+        "b": "torB",
+        "name": "torDiff",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "bigInter",
+          "rotInter"
+        ]
+      }
+    }
+  ]
+}

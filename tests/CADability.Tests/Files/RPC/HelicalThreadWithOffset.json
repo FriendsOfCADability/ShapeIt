@@ -22,7 +22,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "248.813759848",
-      "area": "861.266343211",
+      "area": "861.567280999",
       "edgeLength": "472.450560047",
       "extent": "-6.5, -6.5, -1.2, 6.5, 6.5, 13.2",
       "surfaces": "CylindricalSurface:8 HelicalSweepSurface:16 PlaneSurface:2"
@@ -39,7 +39,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "248.813811139",
-      "area": "861.263697984",
+      "area": "861.567280999",
       "edgeLength": "472.450560047",
       "extent": "-6.5, -6.5, 0.3, 6.5, 6.5, 14.7",
       "surfaces": "CylindricalSurface:8 HelicalSweepSurface:16 PlaneSurface:2"
@@ -56,7 +56,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "248.813736615",
-      "area": "861.266554374",
+      "area": "861.567280999",
       "edgeLength": "472.450560047",
       "extent": "-6.5, -6.5, -0.45, 6.5, 6.5, 13.95",
       "surfaces": "CylindricalSurface:8 HelicalSweepSurface:16 PlaneSurface:2"
@@ -72,9 +72,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "1465.64715432",
-      "area": "880.99057167",
-      "edgeLength": "513.691767599",
+      "volume": "1465.64714449",
+      "area": "881.39455139",
+      "edgeLength": "513.69178674",
       "extent": "-6.5, -6.5, 0, 6.5, 6.5, 15",
       "surfaces": "CylindricalSurface:10 HelicalSweepSurface:2 PlaneSurface:4"
     }

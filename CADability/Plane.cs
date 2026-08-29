@@ -535,8 +535,8 @@ namespace CADability
             ModOp toloc = this.coordSys.GlobalToLocal;
             GeoPoint sp = toloc * LinePoint;
             GeoVector dir = toloc * LineDir;
-            //if (dir.z == 0.0) throw new DivideByZeroException();
-            if (dir.z == 0.0) throw new PlaneException(PlaneException.tExceptionType.IntersectionFailed);
+            // if (dir.z == 0.0) throw new PlaneException(PlaneException.tExceptionType.IntersectionFailed);
+            if (dir.z == 0.0) return GeoPoint.Invalid;
             double l = -sp.z / dir.z; // Exception wenn dir.z==0.0
                                       //GeoPoint dbg = LinePoint + l*LineDir;
             return LinePoint + l * LineDir;

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using CADability;
 using CADability.GeoObject;
+using CADability.Shapes;
 
 namespace ShapeIt
 {
@@ -204,12 +205,11 @@ namespace ShapeIt
         /// <summary>
         /// The precision volume, area and extent are computed with. It must not be 0.0, which is what the rest of
         /// the code passes: <see cref="Face.AssureTriangles"/> then reuses whatever triangulation happens to exist
-        /// - however coarse it was made - and invents "extent size / 10" when there is none. Volume and area
-        /// would then depend on what ran before in the same process, and a case really did come out with a 10%
-        /// different area depending on whether it ran alone or in a full suite.
+        /// - however coarse it was made - and invents "extent size / 10" when there is none.
         /// <para>
         /// The precision is derived from the exact geometry only - vertex positions and edge curves, never from a
-        /// triangulation - so it is the same number in every run.
+        /// triangulation - so it is the same number in every run. Asking for an explicit precision is only half
+        /// the story though, see <see cref="Describe"/> for why the measurement runs on a copy of the shell.
         /// </para>
         /// </summary>
         public static double PrecisionFor(Shell shell)
@@ -221,9 +221,36 @@ namespace ShapeIt
             return Math.Max(size, 1e-6) * RelativeTriangulationPrecision;
         }
 
+        /// <summary>
+        /// Measures a shell. The triangulation dependent values - volume, area and extent - are taken from a
+        /// CLONE of the shell, not from the shell itself.
+        /// <para>
+        /// The reason is the reuse rule in <see cref="Face.AssureTriangles"/>: "precision >= trianglePrecision
+        /// / 2.0" keeps an existing mesh as long as it is at least half as fine as the one being asked for. A
+        /// face that the boolean operation already triangulated at ext.Size * 1e-4, or that CheckConsistency
+        /// meshed on the way past, is therefore never re-meshed for the summary - so the numbers described
+        /// whatever mesh happened to be lying around, and that depends on what ran before in the same process.
+        /// That is what made a case come out with a different area depending on whether it ran alone or in a
+        /// full suite, and it is why regenerating the baselines under one test filter produced baselines that
+        /// no longer matched under another.
+        /// </para>
+        /// <para>
+        /// Face.Clone does not copy trianglePoint/triangleIndex/trianglePrecision, so the copy carries no mesh
+        /// and is triangulated exactly once, at exactly <see cref="PrecisionFor"/>. The copy is created lazily
+        /// and shared by all three values: the first of them meshes it, the other two reuse that mesh. A clone
+        /// that throws makes those three values report "error:..." like any other guarded value, rather than
+        /// silently falling back to the original shell and reintroducing the drift unnoticed.
+        /// </para>
+        /// <para>
+        /// Everything else - the counts, the Euler characteristic, the surface histogram, the edge lengths - is
+        /// read off the original shell: none of it touches a triangulation, and cloning for it would only cost
+        /// time.
+        /// </para>
+        /// </summary>
         public static void Describe(BRepSummary summary, string prefix, Shell shell)
         {
             double precision = PrecisionFor(shell);
+            Lazy<Shell> measured = new Lazy<Shell>(() => (Shell)shell.Clone());
             Add(summary, prefix + "consistent", () => shell.CheckConsistency() ? "true" : "false");
             Add(summary, prefix + "faces", () => shell.Faces.Length.ToString(CultureInfo.InvariantCulture));
             Add(summary, prefix + "edges", () => RealEdgeCount(shell).ToString(CultureInfo.InvariantCulture));
@@ -235,10 +262,10 @@ namespace ShapeIt
             // pole edges do not count as edges, they must not make a shell count as open either.
             Add(summary, prefix + "closed", () => shell.OpenEdgesExceptPoles.Length == 0 ? "true" : "false");
             Add(summary, prefix + "openEdges", () => shell.OpenEdgesExceptPoles.Length.ToString(CultureInfo.InvariantCulture));
-            Add(summary, prefix + "volume", () => BRepSummary.Format(shell.Volume(precision)));
-            Add(summary, prefix + "area", () => BRepSummary.Format(SurfaceArea(shell)));
+            Add(summary, prefix + "volume", () => BRepSummary.Format(measured.Value.Volume(precision)));
+            Add(summary, prefix + "area", () => BRepSummary.Format(SurfaceArea(measured.Value)));
             Add(summary, prefix + "edgeLength", () => BRepSummary.Format(TotalEdgeLength(shell)));
-            Add(summary, prefix + "extent", () => FormatExtent(shell.GetExtent(precision)));
+            Add(summary, prefix + "extent", () => FormatExtent(measured.Value.GetExtent(precision)));
             Add(summary, prefix + "surfaces", () => SurfaceHistogram(shell));
         }
 
@@ -304,22 +331,175 @@ namespace ShapeIt
         public static int EulerCharacteristic(Shell shell)
             => shell.Vertices.Length - RealEdgeCount(shell) + shell.Faces.Length - HoleLoopCount(shell);
 
-        /// <summary>The 3d surface area, summed over the triangulation of all faces (the same source Volume uses).</summary>
+        /// <summary>
+        /// The 3d surface area. The triangulation is used only to PARTITION the parameter domain of each
+        /// face; the area of a part is then integrated over its uv triangle as the surface integral of
+        /// |Su x Sv|, with the three point rule (the edge midpoints of the uv triangle, weight 1/3 each),
+        /// which is exact for quadratic integrands.
+        /// <para>
+        /// Summing the flat triangles instead - which is what this did until 2026-08-25 - underestimates a
+        /// curved face by an amount that only falls with the square of the mesh size, and it makes the
+        /// number depend on how finely the face happened to be triangulated. Measured on a band of a sphere
+        /// against the exact area, flat sum versus this quadrature:
+        /// </para>
+        /// <para>
+        /// 8x4 mesh: -7.622% / +0.00263%, 20x10: -1.260% / +0.00007%, 48x24: -0.220% / 0.00000%
+        /// </para>
+        /// <para>
+        /// So the value is now essentially independent of the mesh, which also removes the mesh as a source
+        /// of run to run scatter in this field.
+        /// </para>
+        /// </summary>
         public static double SurfaceArea(Shell shell)
         {
             double precision = PrecisionFor(shell);
             double sum = 0.0;
             foreach (Face face in shell.Faces)
             {
-                face.GetTriangulation(precision, out GeoPoint[] points, out _, out int[] indices, out _);
+                face.GetTriangulation(precision, out GeoPoint[] points, out GeoPoint2D[] uvPoints, out int[] indices, out _);
+                if (indices == null) continue;
+                double flat = 0.0;
                 for (int i = 0; i < indices.Length; i += 3)
                 {
                     GeoVector a = points[indices[i + 1]] - points[indices[i]];
                     GeoVector b = points[indices[i + 2]] - points[indices[i]];
-                    sum += 0.5 * (a ^ b).Length;
+                    flat += 0.5 * (a ^ b).Length;
                 }
+                sum += IntegratedFaceArea(face, points, uvPoints, indices, flat);
             }
             return sum;
+        }
+
+        /// <summary>
+        /// The area of one face: the integral of |Su x Sv| over its parameter domain. Which route is taken
+        /// depends on what the domain looks like, because the triangulation is not always a usable partition
+        /// of it.
+        /// <list type="bullet">
+        /// <item>A PLANAR face has a constant |Su x Sv|, so the area is that times the exact domain area -
+        /// no quadrature and no mesh at all. This is what makes a trimmed disc come out as pi*r^2 instead of
+        /// the inscribed polygon the mesh would give.</item>
+        /// <item>A face whose domain is the full bounding RECTANGLE is integrated over that rectangle
+        /// directly. This is the case for the mantle of a cone or cylinder and for a torus, and it is what
+        /// closes the gap a pole leaves: the triangulation drops the triangles along a singular line because
+        /// they are degenerate in 3d, which costs the flat sum nothing but leaves a hole in the parameter
+        /// domain. Measured on the mantle of a cone the triangles cover only 87.6 percent of the rectangle.</item>
+        /// <item>Otherwise the uv triangles are used as the partition. They form a polygon inscribed in the
+        /// true domain, so they fall slightly short along a curved boundary; that is corrected by scaling
+        /// with domain/covered, which is safe as long as the shortfall is a thin boundary strip. Beyond
+        /// <c>maxDomainShortfall</c> the extrapolation is refused and the flat triangle sum is used - the
+        /// old, slightly low value, but never a new error.</item>
+        /// </list>
+        /// </summary>
+        private static double IntegratedFaceArea(Face face, GeoPoint[] points, GeoPoint2D[] uvPoints, int[] indices, double flat)
+        {
+            ISurface surface = face.Surface;
+            if (surface == null) return flat;
+            SimpleShape shape;
+            double domain;
+            BoundingRect rect;
+            try
+            {
+                shape = face.Area;
+                domain = shape.Area;
+                rect = shape.GetExtent();
+            }
+            catch (Exception) { return flat; }
+            if (!(domain > 0.0)) return flat;
+
+            if (surface is PlaneSurface)
+            {   // constant integrand: exact, and it needs neither the mesh nor a quadrature
+                double scale = Jacobian(surface, rect.GetCenter());
+                return scale > 0.0 ? scale * domain : flat;
+            }
+
+            if (Math.Abs(domain - rect.Width * rect.Height) <= 1e-6 * domain)
+            {   // the domain IS the rectangle, so the mesh is not needed and the pole gap cannot bite
+                double overRectangle = IntegrateOverRectangle(surface, rect);
+                if (overRectangle > 0.0) return overRectangle;
+                return flat;
+            }
+
+            if (uvPoints == null || uvPoints.Length != points.Length) return flat;
+            double covered = 0.0, integrated = 0.0;
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                GeoPoint2D uv1 = uvPoints[indices[i]], uv2 = uvPoints[indices[i + 1]], uv3 = uvPoints[indices[i + 2]];
+                double duv = 0.5 * Math.Abs((uv2.x - uv1.x) * (uv3.y - uv1.y) - (uv3.x - uv1.x) * (uv2.y - uv1.y));
+                if (duv <= 0.0) continue;
+                double part = IntegrateArea(surface, uv1, uv2, uv3, duv);
+                if (!(part > 0.0) || double.IsNaN(part) || double.IsInfinity(part)) return flat;
+                covered += duv;
+                integrated += part;
+            }
+            if (!(covered > 0.0)) return flat;
+            double shortfall = (domain - covered) / domain;
+            if (shortfall < -1e-6 || shortfall > maxDomainShortfall) return flat;
+            return integrated * domain / covered;
+        }
+
+        /// <summary>How much of the parameter domain the uv triangles may leave uncovered before the
+        /// correction by domain/covered is refused as an extrapolation.</summary>
+        private const double maxDomainShortfall = 0.02;
+
+        /// <summary>|Su x Sv| at a parameter point, 0 when the surface cannot be differentiated there.</summary>
+        private static double Jacobian(ISurface surface, GeoPoint2D uv)
+        {
+            try
+            {
+                surface.DerivativeAt(uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
+                double res = (du ^ dv).Length;
+                return double.IsNaN(res) || double.IsInfinity(res) ? 0.0 : res;
+            }
+            catch (Exception) { return 0.0; }
+        }
+
+        /// <summary>
+        /// The integral of |Su x Sv| over a rectangle of the parameter plane, by a tensor product of the two
+        /// point Gauss rule over a grid of cells, refined until the value settles. The integrand of a natural
+        /// quadric is smooth and low order, so this converges in very few steps.
+        /// </summary>
+        private static double IntegrateOverRectangle(ISurface surface, BoundingRect rect)
+        {
+            const double g = 0.5773502691896257; // 1/sqrt(3), the two point Gauss node
+            double previous = 0.0;
+            for (int n = 2; n <= 64; n *= 2)
+            {
+                double du = rect.Width / n, dv = rect.Height / n;
+                double sum = 0.0;
+                for (int i = 0; i < n; i++)
+                {
+                    double uc = rect.Left + (i + 0.5) * du;
+                    for (int j = 0; j < n; j++)
+                    {
+                        double vc = rect.Bottom + (j + 0.5) * dv;
+                        for (int a = -1; a <= 1; a += 2)
+                        {
+                            for (int b = -1; b <= 1; b += 2)
+                            {
+                                sum += Jacobian(surface, new GeoPoint2D(uc + a * g * du / 2.0, vc + b * g * dv / 2.0));
+                            }
+                        }
+                    }
+                }
+                sum *= du * dv / 4.0;
+                if (n > 2 && Math.Abs(sum - previous) <= 1e-9 * Math.Abs(sum)) return sum;
+                previous = sum;
+            }
+            return previous;
+        }
+
+        /// <summary>
+        /// The area of the surface patch over one uv triangle: the integral of |Su x Sv| over that triangle,
+        /// evaluated with the three point rule at the midpoints of its edges, which is exact for a quadratic
+        /// integrand. Returns 0 when the surface cannot be differentiated at one of the three points.
+        /// </summary>
+        private static double IntegrateArea(ISurface surface, GeoPoint2D uv1, GeoPoint2D uv2, GeoPoint2D uv3, double duv)
+        {
+            if (duv <= 0.0) return 0.0;
+            double acc = Jacobian(surface, new GeoPoint2D(uv1, uv2))
+                       + Jacobian(surface, new GeoPoint2D(uv2, uv3))
+                       + Jacobian(surface, new GeoPoint2D(uv3, uv1));
+            return duv * acc / 3.0;
         }
 
         public static double TotalEdgeLength(Shell shell)

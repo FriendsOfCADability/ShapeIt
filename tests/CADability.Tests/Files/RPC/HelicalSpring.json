@@ -16,8 +16,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "57318.5956775",
-      "area": "13967.4072605",
+      "volume": "57318.5763053",
+      "area": "13989.7832668",
       "edgeLength": "1480.24159262",
       "extent": "0, 0, 0, 80, 30, 60",
       "surfaces": "CylindricalSurface:4 HelicalSweepSurface:2 PlaneSurface:9"
@@ -34,7 +34,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "3572.03012652",
-      "area": "3501.13002603",
+      "area": "3617.35412492",
       "edgeLength": "712.114972661",
       "extent": "28.0105260388, 3.02367925886, 21, 52, 26.9973682017, 59",
       "surfaces": "HelicalSweepSurface:20 PlaneSurface:2"

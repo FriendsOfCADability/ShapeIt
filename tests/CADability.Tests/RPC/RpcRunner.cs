@@ -51,6 +51,13 @@ namespace CADability.Tests.Rpc
         /// <summary>Number of parts of a result that is a list of solids.</summary>
         public const string SolidsKey = "solids";
 
+        /// <summary>
+        /// Diagnostic seam, called after every top level call with its id, its method and how long it took in
+        /// milliseconds. The profiling host uses it to break a run down per call; the tests leave it null, and
+        /// a null observer costs nothing but two timestamp reads.
+        /// </summary>
+        public static Action<int, string, long>? CallObserver;
+
         public static RpcRunResult Run(RpcCase testCase)
         {
             RpcRunResult result = new RpcRunResult();
@@ -78,7 +85,10 @@ namespace CADability.Tests.Rpc
                     JsonElement parameters = call.TryGetProperty("params", out JsonElement p) ? p : default;
                     if (method.Length == 0) { result.Calls.Add((id, "", "call has no method")); continue; }
 
+                    long startTicks = Stopwatch.GetTimestamp();
                     string response = server.ProcessMethod(method, id, parameters);
+                    CallObserver?.Invoke(id, method,
+                        (Stopwatch.GetTimestamp() - startTicks) * 1000L / Stopwatch.Frequency);
                     result.Calls.Add((id, method, ErrorOf(response)));
                 }
                 Collect(testCase, server, project, result);

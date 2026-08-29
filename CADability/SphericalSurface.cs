@@ -353,105 +353,137 @@ namespace CADability.GeoObject
         {
             return GetDualSurfaceCurves(new BoundingRect(umin, vmin, umax, vmax), pl, BoundingRect.EmptyBoundingRect, null, null); // ist dort schon richtig implementiert
 
-            //Unreachable code
-            /*
-            // hier könnte man die oben beschriebene 2D Schnittkure erzeugen
-            Plane pln = new Plane(toUnit * pl.Location, toUnit * pl.DirectionX, toUnit * pl.DirectionY);
-            bool rotated = false;
-            ModOp mm1 = ModOp.Identity;
-            if (Precision.IsPerpendicular(GeoVector.ZAxis, pln.Normal, true))
+        }
+        /// <summary>
+        /// Intersects this sphere with the plane <paramref name="pl"/> and clips the resulting circle with the rectangular
+        /// u/v domain given by <paramref name="umin"/>, <paramref name="umax"/>, <paramref name="vmin"/>, <paramref name="vmax"/>.
+        /// The circle is parametrized as <c>center + cos(t)*r*pl.DirectionX + sin(t)*r*pl.DirectionY</c>, i.e. it runs
+        /// counterclockwise (positive) in respect to the plane, and each arc is described by its startpoint and its endpoint.
+        /// </summary>
+        /// <param name="pl">the intersecting plane</param>
+        /// <param name="umin">minimum u of the domain</param>
+        /// <param name="umax">maximum u of the domain</param>
+        /// <param name="vmin">minimum v of the domain</param>
+        /// <param name="vmax">maximum v of the domain</param>
+        /// <param name="center">center of the intersection circle (only meaningful when <paramref name="segments"/> is not empty)</param>
+        /// <param name="segments">pairs of start- and endpoints of the arcs inside the u/v domain, i.e. 0, 2 or 4 points.
+        /// A circle which is completely inside the domain is returned as a single pair of identical points.</param>
+        private void GetPlaneIntersection(PlaneSurface pl, double umin, double umax, double vmin, double vmax, out GeoPoint center, out GeoPoint[] segments)
+        {
+            center = Location;
+            segments = new GeoPoint[0];
+            if (!IsRealSphere) return; // the intersection with a plane would be an ellipse, not a circle
+            Plane pln = pl.Plane; // an orthonormal system, the normal is DirectionX ^ DirectionY
+            double radius = RadiusX;
+            double dist = pln.Distance(Location); // signed distance of the sphere's center from the plane
+            double h2 = radius * radius - dist * dist;
+            if (h2 <= Precision.eps * Precision.eps) return; // no intersection or only a tangential touching point, which is no arc
+            double circleRadius = Math.Sqrt(h2);
+            GeoPoint circleCenter = Location - dist * pln.Normal; // the foot point of the sphere's center is the center of the intersection circle
+            GeoVector majax = circleRadius * pln.DirectionX;
+            GeoVector minax = circleRadius * pln.DirectionY;
+            // the intersection circle: pointAt(t) == circleCenter + cos(t)*majax + sin(t)*minax
+
+            // the same circle expressed in the system of the unit sphere: unitPointAt(t) == c0 + cos(t)*ea + sin(t)*eb.
+            // toUnit is affine, so the parameter t is preserved and all these points reside on the unit sphere.
+            GeoPoint c0 = toUnit * circleCenter;
+            GeoVector ea = toUnit * majax;
+            GeoVector eb = toUnit * minax;
+            GeoVector cv = c0 - GeoPoint.Origin;
+
+            GeoPoint PointAtPar(double t) => circleCenter + Math.Cos(t) * majax + Math.Sin(t) * minax;
+            GeoPoint UnitPointAtPar(double t) => c0 + Math.Cos(t) * ea + Math.Sin(t) * eb;
+
+            bool fullU = umax - umin >= 2.0 * Math.PI - 1e-8; // the full u range is covered, there are no u boundaries
+            bool IsInside(double t)
             {
-                Angle be = new Angle();
-                be.Degree = 90;
-                rotated = true;
-                if (Precision.IsPerpendicular(GeoVector.YAxis, pln.Normal, true))
+                GeoPoint2D uv = PositionOfUnit(UnitPointAtPar(t));
+                if (uv.y < vmin || uv.y > vmax) return false;
+                if (fullU) return true;
+                double u = uv.x - Math.Floor((uv.x - umin) / (2.0 * Math.PI)) * 2.0 * Math.PI; // u in [umin, umin+2*pi)
+                return u <= umax;
+            }
+            // solutions of a*cos(t) + b*sin(t) == c, normalized to [0, 2*pi)
+            double[] SolveTrig(double a, double b, double c)
+            {
+                double r = Math.Sqrt(a * a + b * b);
+                if (r < 1e-13) return new double[0]; // no dependency on t: either no or infinitely many solutions
+                double q = c / r;
+                if (q > 1.0) { if (q > 1.0 + 1e-9) return new double[0]; q = 1.0; } // no solution or tangential
+                if (q < -1.0) { if (q < -1.0 - 1e-9) return new double[0]; q = -1.0; }
+                double phi = Math.Atan2(b, a);
+                double dt = Math.Acos(q); // r*cos(t-phi) == c
+                double t1 = phi - dt, t2 = phi + dt;
+                t1 -= Math.Floor(t1 / (2.0 * Math.PI)) * 2.0 * Math.PI;
+                t2 -= Math.Floor(t2 / (2.0 * Math.PI)) * 2.0 * Math.PI;
+                return new double[] { t1, t2 };
+            }
+
+            // all parameters where the circle crosses one of the four boundaries of the u/v domain
+            List<double> pars = new List<double>();
+            foreach (double v in new double[] { vmin, vmax })
+            {   // a latitude boundary v is the plane z == sin(v) in the system of the unit sphere
+                if (v < -Math.PI / 2.0 || v > Math.PI / 2.0) continue; // this boundary doesn't exist on the sphere
+                pars.AddRange(SolveTrig(ea.z, eb.z, Math.Sin(v) - c0.z));
+            }
+            if (!fullU)
+            {
+                foreach (double u in new double[] { umin, umax })
+                {   // a longitude boundary u is a half plane containing the z-axis
+                    GeoVector nrm = new GeoVector(Math.Sin(u), -Math.Cos(u), 0.0); // normal of the plane of this meridian
+                    GeoVector hlf = new GeoVector(Math.Cos(u), Math.Sin(u), 0.0); // points into the half plane of u, the opposite half is u+pi
+                    foreach (double t in SolveTrig(nrm * ea, nrm * eb, -(nrm * cv)))
+                    {
+                        if (hlf * (UnitPointAtPar(t) - GeoPoint.Origin) >= 0.0) pars.Add(t); // discard the solutions on the meridian u+pi
+                    }
+                }
+            }
+            pars.Sort();
+            pars.RemoveDuplicatesWithTolerance(1e-9);
+            if (pars.Count > 1 && pars[0] + 2.0 * Math.PI - pars[pars.Count - 1] < 1e-9) pars.RemoveAt(pars.Count - 1); // duplicate at the seam
+
+            List<GeoPoint> res = new List<GeoPoint>();
+            if (pars.Count == 0)
+            {   // no boundary is crossed: the circle is either completely inside or completely outside
+                if (IsInside(0.0))
                 {
-                    ModOp mm = ModOp.Rotate(GeoVector.YAxis, be.Radian);
-                    mm1 = mm.GetInverse();
-                    pln.Modify(mm);
+                    res.Add(PointAtPar(0.0));
+                    res.Add(PointAtPar(0.0)); // a full circle: startpoint and endpoint are identical
+                }
+            }
+            else
+            {
+                bool[] inside = new bool[pars.Count]; // inside[i]: the arc from pars[i] to pars[i+1] is inside the u/v domain
+                int numInside = 0;
+                for (int i = 0; i < pars.Count; i++)
+                {
+                    double t0 = pars[i];
+                    double t1 = (i == pars.Count - 1) ? pars[0] + 2.0 * Math.PI : pars[i + 1];
+                    if (IsInside((t0 + t1) / 2.0))
+                    {
+                        inside[i] = true;
+                        ++numInside;
+                    }
+                }
+                if (numInside == pars.Count)
+                {   // the boundaries are only touched, the full circle is inside
+                    res.Add(PointAtPar(pars[0]));
+                    res.Add(PointAtPar(pars[0]));
                 }
                 else
                 {
-                    ModOp mm = ModOp.Rotate(GeoVector.XAxis, be.Radian);
-                    mm1 = mm.GetInverse();
-                    pln.Modify(mm);
-                }
-            }
-            GeoPoint l = pln.Intersect(GeoPoint.Origin, GeoVector.ZAxis);
-            Angle a = new Angle(pln.Normal.x, pln.Normal.y);
-            ModOp m = ModOp.Rotate(GeoVector.ZAxis, -a);
-            GeoVector normal = m * pln.Normal;
-            ModOp m1 = m.GetInverse();
-
-            GeoVector norm1 = m1 * normal;
-            GeoVector2D dirl2D = new GeoVector2D(-normal.z, normal.x);
-
-            GeoPoint2D lz2D = new GeoPoint2D(0, l.z);
-            GeoPoint2D cnt2D;
-            Geometry.IntersectLL(lz2D, dirl2D, GeoPoint2D.Origin, new GeoVector2D(normal.x, normal.z), out cnt2D);
-
-            double r = 1.0;
-            GeoPoint2D[] tmp;
-            tmp = Geometry.IntersectLC(lz2D, dirl2D, GeoPoint2D.Origin, r);
-            if (tmp.Length <= 1)
-                return new IDualSurfaceCurve[0];
-
-            GeoPoint p1 = new GeoPoint(tmp[0].x, 0, tmp[0].y);
-            GeoPoint p2 = new GeoPoint(tmp[1].x, 0, tmp[1].y);
-            double d = Geometry.Dist(p1, p2);
-            GeoPoint p3 = new GeoPoint(cnt2D.x, d / 2, cnt2D.y);
-            GeoPoint p4 = new GeoPoint(cnt2D.x, -d / 2, cnt2D.y);
-
-            GeoPoint cnt = m1 * new GeoPoint(cnt2D.x, 0, cnt2D.y);
-            GeoVector majax = new GeoVector(cnt, m1 * p1);
-            GeoVector minax = new GeoVector(cnt, m1 * p3);
-
-            GeoPoint center = toSphere * cnt;
-            GeoVector majaxis = toSphere * majax;
-            GeoVector minaxis = toSphere * minax;
-            if (rotated)
-            {
-                center = toSphere * (mm1 * cnt);
-                majaxis = toSphere * (mm1 * majax);
-                minaxis = toSphere * (mm1 * minax);
-            }
-            Ellipse elli = Ellipse.Construct();
-            elli.SetEllipseCenterAxis(center, majaxis, minaxis);
-            elli.StartParameter = 0.0;
-            elli.SweepParameter = SweepAngle.Full;
-            GeoPoint2D centerOnPl = pl.PositionOf(center);
-            GeoPoint2D p1OnPl = pl.PositionOf(center + majaxis);
-            GeoPoint2D p2OnPl = pl.PositionOf(center - minaxis);
-            Ellipse2D elli2d = Geometry.Ellipse2P2T(p1OnPl, p2OnPl, p2OnPl - centerOnPl, p1OnPl - centerOnPl);
-            ICurve2D c2dpl = elli2d.Trim(0.0, 1.0);
-            GeoPoint2D[] pnts = new GeoPoint2D[50];
-            pnts[0] = this.PositionOf(elli.PointAt(0));
-            d = 0;
-            bool ok = true;
-            for (int i = 1; i < pnts.Length; i++)
-            {
-                GeoPoint b = elli.PointAt(i * 1.0 / (pnts.Length - 1));
-                GeoPoint2D z = this.PositionOf(b);
-                if (Math.Abs(z.x - pnts[i - 1].x) >= Math.PI)
-                {
-                    if (ok)
+                    for (int i = 0; i < pars.Count; i++)
                     {
-                        ok = false;
-                        if (z.x > pnts[i - 1].x)
-                            d = -2 * Math.PI;
-                        else
-                            d = +2 * Math.PI;
+                        if (!inside[i] || inside[(i + pars.Count - 1) % pars.Count]) continue; // not the beginning of an arc
+                        int j = i;
+                        while (inside[j]) j = (j + 1) % pars.Count; // the end of the arc, boundaries which are only touched are skipped
+                        res.Add(PointAtPar(pars[i]));
+                        res.Add(PointAtPar(pars[j]));
                     }
-                    z.x += d;
                 }
-                pnts[i] = z;
             }
-            BSpline2D.AdjustPeriodic(pnts, 2 * Math.PI, 2 * Math.PI);
-            BSpline2D c2d = new BSpline2D(pnts, 2, false);
-            DualSurfaceCurve dsc = new DualSurfaceCurve(elli, this, c2d, pl, c2dpl);
-            return new IDualSurfaceCurve[] { dsc };
-            */
-            //            return base.GetPlaneIntersection(pl, umin, umax, vmin, vmax);
+            center = circleCenter;
+            segments = res.ToArray();
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetSafeParameterSteps (double, double, double, double, out double[], out double[])"/>
@@ -795,18 +827,25 @@ namespace CADability.GeoObject
                 {
                     if (Precision.SameDirection(this.ZAxis, othersphere.ZAxis, false))
                     {
-                        GeoPoint2D[] src = new GeoPoint2D[3];
-                        GeoPoint2D[] dst = new GeoPoint2D[3];
-                        src[0] = GeoPoint2D.Origin;
-                        src[1] = new GeoPoint2D(1.0, 0.0);
-                        src[2] = new GeoPoint2D(0.0, 1.0);
-                        for (int i = 0; i < 3; ++i)
+                        if (Precision.SameDirection(this.XAxis, othersphere.XAxis, false) && Precision.SameDirection(this.YAxis, othersphere.YAxis, false))
                         {
-                            dst[i] = othersphere.PositionOf(PointAt(src[i]));
+                            firstToSecond = ModOp2D.Identity;
                         }
-                        firstToSecond = ModOp2D.Fit(src, dst, true);
+                        else
+                        {
+                            GeoPoint2D[] src = new GeoPoint2D[3];
+                            GeoPoint2D[] dst = new GeoPoint2D[3];
+                            src[0] = GeoPoint2D.Origin;
+                            src[1] = new GeoPoint2D(1.0, 0.0);
+                            src[2] = new GeoPoint2D(0.0, 1.0);
+                            for (int i = 0; i < 3; ++i)
+                            {
+                                dst[i] = othersphere.PositionOf(PointAt(src[i]));
+                            }
+                            firstToSecond = ModOp2D.Fit(src, dst, true);
+                        }
                     }
-                    else firstToSecond = ModOp2D.Null; // it is the same surface but in 2d
+                    else firstToSecond = ModOp2D.Null; // it is the same surface but with different axis orientation
 
                     return true;
                 }
@@ -900,64 +939,24 @@ namespace CADability.GeoObject
                     Ellipse elli2 = Make3dCurve(l2d2) as Ellipse;
                     return [new DualSurfaceCurve(elli1, this, l2d1, other, other.GetProjectedCurve(elli1, 0.0)), new DualSurfaceCurve(elli2, this, l2d2, other, other.GetProjectedCurve(elli2, 0.0))];
                 }
-                GeoPoint2D center2d;
-                double radius;
-                Plane unitPlane = toUnit * (other as PlaneSurface).Plane;
-                if (Geometry.IntersectSpherePlane(unitPlane, out center2d, out radius) && radius > Precision.eps)
+                GetPlaneIntersection(pls, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, out GeoPoint acrCenter, out GeoPoint[] arcSegments);
+                List<DualSurfaceCurve> res = new List<DualSurfaceCurve>();
+                for (int i = 0; i < arcSegments.Length; i += 2)
                 {
                     Ellipse elli = Ellipse.Construct();
-                    elli.SetCirclePlaneCenterRadius(unitPlane, unitPlane.ToGlobal(center2d), radius);
-                    elli.Modify(toSphere); // Schnittkreis oder Ellipse (bei elliptischer Kugel)
-                    GeoPoint2D spos = PositionOf(elli.StartPoint);
-                    // GeoPoint2D mpos = PositionOf(elli.PointAt(0.5));
-                    if (thisBounds.ContainsPeriodic(spos, UPeriod, VPeriod))
-                    {   // damit die Naht der Ellipse außerhalb des thisBounds liegt
-                        elli.Modify(ModOp.Rotate(elli.Center, elli.Plane.Normal, SweepAngle.Opposite));
-                    }
-
-                    ICurve2D pc = this.GetProjectedCurve(elli, 0.0); // new ProjectedCurve(elli, this, true, thisBounds);
-                    if (thisBounds.ContainsPeriodic(pc.StartPoint, UPeriod, VPeriod))
-                    {   // das sollte somit nie drankommen, wile die Naht oben schon abgecheckt ist
-                        if (pc.GetExtent() <= thisBounds)
-                        {
-                            // es ist ganz drinnen
-                        }
-                        else
-                        {
-                            Shapes.SimpleShape ss = new Shapes.SimpleShape(thisBounds);
-                            double[] parts = ss.Clip(pc, true);
-                            if (parts.Length > 2)
-                            {
-                                // von 0 bis 1. Wert ist innerhalb
-                                GeoPoint ep = PointAt(pc.PointAt(parts[1]));
-                                GeoPoint sp = PointAt(pc.PointAt(parts[2]));
-                                elli.StartPoint = sp;
-                                elli.SweepParameter = elli.SweepParameter / 2.0; // nur damit es ein Bogen wird
-                                elli.EndPoint = ep;
-
-                            }
-                        }
+                    if (arcSegments[i] == arcSegments[i + 1])
+                    {
+                        elli.SetCirclePlaneCenterRadius(pls.Plane, acrCenter, arcSegments[i] | acrCenter);
                     }
                     else
                     {
-                        Shapes.SimpleShape ss = new Shapes.SimpleShape(thisBounds);
-                        double[] parts = ss.Clip(pc, true);
-                        if (parts.Length > 1)
-                        {
-                            // von 0 bis 1. Wert ist innerhalb
-                            GeoPoint ep = PointAt(pc.PointAt(parts[parts.Length - 1]));
-                            GeoPoint sp = PointAt(pc.PointAt(parts[0]));
-                            elli.StartPoint = sp;
-                            elli.SweepParameter = elli.SweepParameter / 2.0; // nur damit es ein Bogen wird
-                            elli.EndPoint = ep;
-
-                        }
+                        elli.SetArcPlaneCenterStartEndPoint(pls.Plane, pls.Plane.Project(acrCenter), pls.Plane.Project(arcSegments[i]), pls.Plane.Project(arcSegments[i + 1]), pls.Plane, true);
                     }
-                    pc = this.GetProjectedCurve(elli, 0.0); // new ProjectedCurve(elli, this, true, thisBounds);
+                    ICurve2D pc = this.GetProjectedCurve(elli, 0.0);
                     ICurve2D opc = other.GetProjectedCurve(elli, 0.0);
-                    return new IDualSurfaceCurve[] { new DualSurfaceCurve(elli, this, pc, other, opc) };
+                    res.Add(new DualSurfaceCurve(elli, this, pc, other, opc));
                 }
-                return new IDualSurfaceCurve[0];
+                return res.ToArray();
             }
             else if (other is ICylinder cyl)
             {

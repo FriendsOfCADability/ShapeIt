@@ -156,8 +156,12 @@ namespace ShapeIt
             bool debugBRep = false;
             bool nofile = false;
             bool debugRPC = false;
+            int repeatCount = 1;
             // "-e:<list>", "-f:<list>", "-v:<list>": break in the debugger when an edge, face or vertex
             // with one of the given hashCodes is created, e.g. "-e:29196" or "-e:1468,1469,2000-2010"
+            // "-hcoffset:<n>": start the hashCode counters at n instead of 0, which changes the enumeration
+            // order of every CADability.Set and thereby exposes algorithms that depend on it. Run the same
+            // file with "-d file -hcoffset:0", "-hcoffset:1", ... - any change in the result is such a case.
             DebugBreak.ParseCommandLine(args);
             for (int i = 0; i < args.Length; i++)
             {
@@ -177,6 +181,14 @@ namespace ShapeIt
                 {   // so I can leave the file name in the command line, but don't want to open it, e.g. for debugging
                     nofile = true;
                 }
+                else if (args[i].StartsWith("-c:"))
+                {   // "-c:8": run the RPC case 8 times instead of once, to make a flaky result show itself
+                    if (!int.TryParse(args[i].Substring(3), out repeatCount) || repeatCount < 1)
+                    {
+                        Trace.WriteLine($"invalid repeat count in \"{args[i]}\", expected e.g. -c:8");
+                        repeatCount = 1;
+                    }
+                }
             }
 
             if (debugBRep)
@@ -187,7 +199,7 @@ namespace ShapeIt
             }
             if (debugRPC)
             {
-                DebugRPC(fileName);
+                DebugRPC(fileName, repeatCount);
             }
 
             ShowLogo();
@@ -373,7 +385,10 @@ namespace ShapeIt
         /// </para>
         /// </summary>
         /// <param name="filename">The RPC case file to run, given on the command line as -r &lt;file&gt;.</param>
-        private void DebugRPC(string filename)
+        /// <param name="repeatCount">How often to run it, from "-c:&lt;n&gt;". Every run starts from a fresh
+        /// project and a fresh server, so the runs are independent - which is the point: a result that
+        /// differs between them is not reproducible, and the summary at the end says which runs agree.</param>
+        private void DebugRPC(string filename, int repeatCount = 1)
         {
             if (string.IsNullOrEmpty(filename)) return;
             if (!File.Exists(filename))
@@ -381,9 +396,25 @@ namespace ShapeIt
                 Trace.WriteLine($"DebugRPC: file not found: {filename}");
                 return;
             }
+            if (repeatCount < 1) repeatCount = 1;
             string caseName = System.IO.Path.GetFileNameWithoutExtension(filename);
+            List<SortedDictionary<string, string>> results = new List<SortedDictionary<string, string>>();
+            for (int run = 1; run <= repeatCount; run++)
+            {
+                if (repeatCount > 1) Trace.WriteLine($"DebugRPC {caseName}: ---------- run {run} of {repeatCount} ----------");
+                results.Add(DebugRPCOnce(filename, caseName));
+            }
+            if (repeatCount > 1) ReportRepeatedRuns(caseName, results);
+        }
 
+        /// <summary>
+        /// One run of an RPC case file. Returns the fingerprint of what it produced, see
+        /// <see cref="Fingerprint"/>.
+        /// </summary>
+        private SortedDictionary<string, string> DebugRPCOnce(string filename, string caseName)
+        {
             // The calls need a project: document.commit_objects adds the solids to its active model.
+            if (CadFrame.Project!=null) CadFrame.Project.IsModified = false; // to avoid messagebox asking for saving modified project
             CadFrame.GenerateNewProject();
             MCPServer server = new MCPServer(CadFrame, CadFrame.Project);
             // Run unattended: errors end up in the protocol instead of in a modal message box.
@@ -400,7 +431,7 @@ namespace ShapeIt
                 if (!doc.RootElement.TryGetProperty("RPCCalls", out JsonElement calls) || calls.ValueKind != JsonValueKind.Array)
                 {
                     Trace.WriteLine($"DebugRPC {caseName}: no array 'RPCCalls' in {filename}");
-                    return;
+                    return new SortedDictionary<string, string>(StringComparer.Ordinal);
                 }
                 total = calls.GetArrayLength();
                 foreach (JsonElement call in calls.EnumerateArray())
@@ -433,6 +464,125 @@ namespace ShapeIt
                 Trace.WriteLine($"  {(string.IsNullOrEmpty(name) ? "(unnamed)" : name)}: {go.GetType().Name}"
                     + $", extent ({extent.Xmin:F3},{extent.Ymin:F3},{extent.Zmin:F3})-({extent.Xmax:F3},{extent.Ymax:F3},{extent.Zmax:F3})");
             }
+            try
+            {
+                return Fingerprint(server);
+            }
+            catch (Exception e)
+            {   // the fingerprint is a diagnostic, it must never take the application down at startup
+                Trace.WriteLine($"DebugRPC {caseName}: could not build the fingerprint: {e.Message}");
+                return new SortedDictionary<string, string>(StringComparer.Ordinal);
+            }
+        }
+
+        /// <summary>
+        /// The invariants of everything the run left in the workspace, keyed "name.field". Taken from the
+        /// NAMED items rather than from the model: a case need not commit anything - several do not - and
+        /// the regression harness compares the same names with the same <see cref="ShellMetrics"/> code, so
+        /// a difference seen here is a difference the test would report as well.
+        /// </summary>
+        private static SortedDictionary<string, string> Fingerprint(MCPServer server)
+        {
+            SortedDictionary<string, string> res = new SortedDictionary<string, string>(StringComparer.Ordinal);
+            foreach (string name in server.namedItems.Keys)
+            {
+                List<Shell> shells = new List<Shell>();
+                object item = server.namedItems[name];
+                AddShells(item, shells);
+                if (shells.Count == 0) continue;
+                // Canonical order, never the order the operation happened to return: that order has been
+                // seen to vary between runs all by itself and would drown the difference we are looking for.
+                Shell[] sorted = ShellMetrics.SortCanonically(shells);
+                BRepSummary summary = new BRepSummary();
+                if (sorted.Length == 1) ShellMetrics.Describe(summary, name + ".", sorted[0]);
+                else
+                {
+                    summary.Add(name + ".solids", sorted.Length);
+                    for (int i = 0; i < sorted.Length; i++) ShellMetrics.Describe(summary, name + "#" + i + ".", sorted[i]);
+                }
+                foreach (KeyValuePair<string, string> entry in summary.Entries) res[entry.Key] = entry.Value;
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Groups the runs by what they produced and names the fields that move. With "-c:8" this is the
+        /// line to read: one group means the case is reproducible and stepping through it is worth
+        /// something, several groups mean it is not, and say which runs to compare against each other.
+        /// </summary>
+        private static void ReportRepeatedRuns(string caseName, List<SortedDictionary<string, string>> results)
+        {
+            List<List<int>> groups = new List<List<int>>();      // run numbers, 1 based
+            List<SortedDictionary<string, string>> distinct = new List<SortedDictionary<string, string>>();
+            for (int i = 0; i < results.Count; i++)
+            {
+                int found = -1;
+                for (int g = 0; g < distinct.Count && found < 0; g++)
+                {
+                    if (SameResult(distinct[g], results[i])) found = g;
+                }
+                if (found < 0)
+                {
+                    distinct.Add(results[i]);
+                    groups.Add(new List<int>());
+                    found = distinct.Count - 1;
+                }
+                groups[found].Add(i + 1);
+            }
+
+            Trace.WriteLine("DebugRPC " + caseName + ": " + results.Count + " runs, " + distinct.Count
+                + " distinct result(s)" + (distinct.Count == 1 ? " - reproducible" : " - NOT reproducible"));
+            for (int g = 0; g < groups.Count; g++)
+            {
+                Trace.WriteLine("  result " + (char)('A' + g) + ": run(s) " + string.Join(", ", groups[g]));
+            }
+            if (distinct.Count < 2) return;
+
+            // which fields actually move
+            SortedSet<string> keys = new SortedSet<string>(StringComparer.Ordinal);
+            foreach (SortedDictionary<string, string> result in distinct)
+            {
+                foreach (string key in result.Keys) keys.Add(key);
+            }
+            Trace.WriteLine("  fields that differ between the results:");
+            foreach (string key in keys)
+            {
+                List<string> values = new List<string>();
+                bool differs = false;
+                foreach (SortedDictionary<string, string> result in distinct)
+                {
+                    string value = result.TryGetValue(key, out string found) ? found : "(missing)";
+                    if (values.Count > 0 && value != values[0]) differs = true;
+                    values.Add(value);
+                }
+                if (differs) Trace.WriteLine("    " + key + ": " + string.Join(" | ", values));
+            }
+        }
+
+        /// <summary>Collects the shells of a named workspace item, which may be a solid, a shell or a list
+        /// of either. A solid without a shell is skipped rather than throwing: this is a diagnostic.</summary>
+        private static void AddShells(object item, List<Shell> shells)
+        {
+            if (item is Solid solid)
+            {
+                if (solid.Shells != null && solid.Shells.Length > 0 && solid.Shells[0] != null) shells.Add(solid.Shells[0]);
+            }
+            else if (item is Shell shell) shells.Add(shell);
+            else if (item is System.Collections.IEnumerable list)
+            {
+                foreach (object o in list) AddShells(o, shells);
+            }
+        }
+
+        /// <summary>Two runs count as the same result when every recorded field is identical.</summary>
+        private static bool SameResult(SortedDictionary<string, string> a, SortedDictionary<string, string> b)
+        {
+            if (a.Count != b.Count) return false;
+            foreach (KeyValuePair<string, string> entry in a)
+            {
+                if (!b.TryGetValue(entry.Key, out string other) || other != entry.Value) return false;
+            }
+            return true;
         }
 
         /// <summary>

@@ -49,7 +49,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <DefineConstants>NET4X;xTESTNEWCONTEXTMENU</DefineConstants>
     <Optimize>True</Optimize>
-    <DebugType>full</DebugType>
+    <!-- Portable PDBs, not the legacy Windows format: the host process is .NET 8 (CoreCLR), and its
+         profiling and diagnostic tools resolve managed frames only from a portable PDB. -->
+    <DebugType>portable</DebugType>
     <DebugSymbols>true</DebugSymbols>
     <DocumentationFile />
   </PropertyGroup>
@@ -63,12 +65,17 @@
     <DocumentationFile />
   </PropertyGroup>
 
+  <!-- These two groups are evaluated after the Release group above and therefore win. They used to set
+       DebugType to "none", so a Release build wrote no PDB at all - which is why a CPU profile of a Release
+       build shows no CADability methods, only unnamed frames inside CADability.dll. -->
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DebugType>none</DebugType>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <DebugType>none</DebugType>
+    <DebugType>portable</DebugType>
+    <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   
   <ItemGroup>

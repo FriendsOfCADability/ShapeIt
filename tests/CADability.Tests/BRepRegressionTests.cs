@@ -196,6 +196,7 @@ namespace CADability.Tests
             List<string> mismatches = new List<string>();
             List<string> invalidResults = new List<string>();
             List<string> unexpectedSuccesses = new List<string>();
+            List<string> unstable = new List<string>();
             List<string> verifiedMismatches = new List<string>();
             List<string> regeneratedVerified = new List<string>();
 
@@ -219,9 +220,30 @@ namespace CADability.Tests
                 }
 
                 int timeout = entry.TimeoutSeconds ?? manifest.Defaults.TimeoutSeconds;
+                double tolerance = entry.RelativeTolerance ?? manifest.Defaults.RelativeTolerance;
                 BRepRunResult run = BRepRunner.Run(testCase, timeout);
                 BRepSummary summary = BRepSummary.Describe(testCase, run);
                 bool valid = run.IsValid;
+
+                // "Repeat" runs the very same case again in the same process. Both the operation and the summary
+                // are supposed to be a function of the input file alone, so a repeat has to produce the same
+                // fingerprint. Where it does not, the case is not a regression test but a coin toss: comparing it
+                // against a baseline then says nothing, and whichever outcome the baseline happened to catch will
+                // look like a regression the next time. Worth setting on the cases that have been seen to move.
+                int repeat = Math.Max(1, entry.Repeat ?? 1);
+                List<string> unstableHere = new List<string>();
+                // compare through the text form, so a repeat is held against exactly what would be written to the
+                // baseline file - not against some internal state the file would never have carried
+                Dictionary<string, string> firstRun = repeat > 1 ? BRepSummary.ParseText(summary.ToText()) : null!;
+                for (int again = 1; again < repeat; again++)
+                {   // read fresh again, the operation consumed the operands of the previous run
+                    BRepCase repeated = BRepCaseReader.Read(file, entry.Operation, entry.Parameter ?? double.NaN, entry.SecondaryParameter ?? double.NaN);
+                    BRepSummary repeatedSummary = BRepSummary.Describe(repeated, BRepRunner.Run(repeated, timeout));
+                    foreach (string difference in repeatedSummary.DiffAgainst(firstRun, tolerance, repeated.Scale))
+                        unstableHere.Add($"run {again + 1} of {repeat}: {difference}");
+                }
+                if (unstableHere.Count > 0)
+                    unstable.Add($"{name}:\n    " + string.Join("\n    ", unstableHere));
 
                 string baselinePath = Path.Combine(BaselineDir(), name + ".txt");
                 string oldBaseline = File.Exists(baselinePath) ? File.ReadAllText(baselinePath) : "";
@@ -229,18 +251,24 @@ namespace CADability.Tests
 
                 report.AppendLine($"{name,-22} {entry.Status,-10} {(isVerified ? "verified" : ""),-9} {run.Status,-9} "
                     + $"shells={run.Shells.Length} valid={valid} {run.ElapsedMilliseconds} ms"
+                    + (repeat > 1 ? unstableHere.Count > 0 ? $"  UNSTABLE over {repeat} runs" : $"  stable over {repeat} runs" : "")
                     + (run.Error != null ? "  " + run.Error.GetType().Name + ": " + BRepSummary.FirstLine(run.Error.Message) : ""));
 
                 if (Regenerate || oldBaseline.Length == 0)
                 {
-                    // keep the hand written comments - that is where the "# verified" note lives
-                    File.WriteAllText(baselinePath, BRepSummary.ExtractComments(oldBaseline) + summary.ToText());
-                    generated.Add(name);
-                    if (isVerified) regeneratedVerified.Add(name);
+                    // A baseline taken from a case that does not reproduce would just freeze one of its outcomes
+                    // and make the next run look like a regression, so refuse to write it. The instability is
+                    // reported below and fails the run anyway.
+                    if (unstableHere.Count == 0)
+                    {
+                        // keep the hand written comments - that is where the "# verified" note lives
+                        File.WriteAllText(baselinePath, BRepSummary.ExtractComments(oldBaseline) + summary.ToText());
+                        generated.Add(name);
+                        if (isVerified) regeneratedVerified.Add(name);
+                    }
                 }
                 else
                 {
-                    double tolerance = entry.RelativeTolerance ?? manifest.Defaults.RelativeTolerance;
                     List<string> diff = summary.DiffAgainst(BRepSummary.ParseText(oldBaseline), tolerance, testCase.Scale);
                     if (diff.Count > 0)
                     {
@@ -259,8 +287,14 @@ namespace CADability.Tests
             Write(report.ToString());
 
             List<string> failures = new List<string>();
-            // verified baselines first: those results were judged correct by hand, so a difference there is the
-            // most serious thing this test can report
+            // instability first: for a case that does not reproduce, every other statement below - baseline
+            // matched, baseline differs, result valid - is about one throw of the dice and means nothing
+            if (unstable.Count > 0)
+                failures.Add($"{unstable.Count} case(s) marked \"Repeat\" did not reproduce within this run. "
+                    + "Their baselines are not written and not meaningful until this is fixed:\n  "
+                    + string.Join("\n  ", unstable));
+            // then the verified baselines: those results were judged correct by hand, so a difference there is
+            // the most serious thing this test can report
             if (verifiedMismatches.Count > 0)
                 failures.Add($"{verifiedMismatches.Count} VERIFIED baseline(s) changed:\n  "
                     + string.Join("\n  ", verifiedMismatches));

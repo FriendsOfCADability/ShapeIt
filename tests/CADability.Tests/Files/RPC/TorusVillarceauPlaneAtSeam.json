@@ -1,0 +1,228 @@
+{
+  "Description": "A torus cut by one of its VILLARCEAU PLANES - the only plane/torus contact that produces crossing\nintersection curves.\nThe torus has major radius 20 and minor radius 10 about the z axis. A plane through its centre inclined\nby alpha with sin alpha = r/R = 0.5, that is 30 degrees, is BITANGENT to it: it touches the torus at two\npoints and cuts it in two circles of radius R = 20, the Villarceau circles, which cross exactly at those\ntwo tangential contact points\n  (15, 0, -8.6602540378) and (-15, 0, 8.6602540378)\nThat is an inner tangential contact of a plane and a torus with a NODE of the intersection curve at both\ncontacts - the plane and the torus have the same tangent plane there and the two circles cross.\n\nA torus can only do this where its Gaussian curvature is negative, and both contacts indeed sit on the\ninner half of the tube: no plane can touch a convex piece of a surface and still cross it.\n\nThe plane is not rotated about the z axis, so both contacts land at y = 0 - in the xz plane, which is\nexactly where a torus about the z axis through the origin is split into its half faces. Contact point,\nnode and seam coincide. TorusVillarceauPlaneOblique is the same case rotated by 37 degrees, where they\ndo not.\n\nThe cutting body is a slab: a 70 x 70 rectangle in the Villarceau plane, extruded 30 mm along the\ninward normal. The torus fits into it completely - every torus point is at most 30 mm from the centre\nand at most 20 mm below the plane - so the slab acts as an exact half space for this torus.",
+  "Expected": "V(torus) = 2*pi^2*R*r^2 = 2*pi^2*20*100 = 4000*pi^2 = 39478.4176043574,\narea 4*pi^2*R*r = 4*pi^2*200 = 7895.6835208715, extent -30,-30,-10 .. 30,30,10.\nV(slab) = 70*70*30 = 147000.\n\nThe Villarceau plane passes through the centre of the torus, and the point reflection p -> -p maps the\ntorus onto itself while exchanging the two sides of the plane. The two parts are therefore CONGRUENT and\neach is exactly half the torus:\n  villarceauInter (the part inside the slab)   2000*pi^2 = 19739.2088021787\n  villarceauRest  (the part outside)           2000*pi^2 = 19739.2088021787\nNot a captured number but an exact one, and the two must agree with each other to the last digit.\n  villarceauUnion  147000 + 19739.2088021787 = 166739.2088021787\n\nEach half is a single solid that hangs together through the two contact points only, in the same way as\nthe two halves in EqualCylindersCrossedAtSeam: at the two contacts the cut degenerates to a point. Both\nhalves are bounded by a piece of the torus and by the plane region between the two Villarceau circles,\nwhich is a pair of crescents meeting at the two nodes - the ordinary annulus of a horizontal section,\ndegenerated. A half must not come out as a manifold body with a smooth boundary there, and must not be\nreported as two separate solids of a quarter torus each.",
+  "CaseStatus": "Ok",
+  "Repeat": 4,
+  "Verify": [
+    "villarceauTorus",
+    "villarceauSlab",
+    "villarceauInter",
+    "villarceauRest",
+    "villarceauUnion"
+  ],
+  "Status": "OK since 2026-08-28. FIXED on 2026-08-28 by the second repair of the same day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). Two things changed at once and both were needed:\nthe geometry became RIGHT where it was wrong, and the face partition became REPRODUCIBLE - the case is\nstable over 4 runs now, so it finally carries a baseline. Before that it could not be pinned at all:\na face on a periodic surface was split in one run and left whole in the next, and a regenerate run\nrefused to record anything. The volume never moved even then, which is why the geometry could be\njudged while the partition still wandered.\n\nWHAT WAS WRONG: the union did nothing at all. villarceauUnion came back as TWO solids of 147000 and\n39463.13 - the slab and the torus, both unchanged and both complete - although the two bodies overlap\nin half a torus, and no error was reported. Now it is ONE solid of 166739.027086 against the exact\n147000 + 2000*pi^2 = 166739.2088021787, 1.1e-6.\nThe two halves were already right before the fix and still are:\n  villarceauInter  19738.9967157   against the exact 2000*pi^2 = 19739.2088021787   1.1e-5\n  villarceauRest   19739.016747    against the same exact half                      9.7e-6\n  and against each other 1.0e-6, as the point reflection through the torus centre demands\nBoth have euler 1 - the pinch at the two tangential contacts - and so has the union.\n\nRun this together with TorusVillarceauPlaneOblique: the two differ by a rotation of 37 degrees about\nthe z axis and nothing else, so their halves must measure the same, and they do to 5e-6. While the\nunion defect was open it hit only this one, the version whose contacts lie on the seam.",
+  "Baseline": {
+    "villarceauInter": {
+      "verified": "2026-08-28 GH: CALCULATED, not captured. 19738.9967157 against the exact 2000*pi^2 = 19739.2088021787: the Villarceau plane passes through the centre of the torus and the point reflection p -> -p maps the torus onto itself while exchanging the sides, so each part is exactly half. euler 1 is the pinch at the two tangential contacts, where the section degenerates from an annulus into two crescents meeting in two points.",
+      "consistent": "true",
+      "faces": "7",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "19738.9967157",
+      "area": "5477.82108488",
+      "edgeLength": "439.719651108",
+      "extent": "-30, -30, -10, 17.3151334214, 30, 9.9968969478",
+      "surfaces": "PlaneSurface:2 ToroidalSurface:5"
+    },
+    "villarceauRest": {
+      "verified": "2026-08-28 GH: CALCULATED. 19739.016747 against the same exact half, and against villarceauInter to 1.0e-6 - the sharpest check here, because it needs no computed value at all.",
+      "consistent": "true",
+      "faces": "7",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "19739.016747",
+      "area": "5477.96451774",
+      "edgeLength": "439.719651108",
+      "extent": "-17.3151334214, -30, -9.9968969478, 30, 30, 10",
+      "surfaces": "PlaneSurface:2 ToroidalSurface:5"
+    },
+    "villarceauSlab": {
+      "verified": "2026-08-28 GH: operand, exact: 70*70*30 = 147000, area 18200.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "147000",
+      "area": "18200",
+      "edgeLength": "680",
+      "extent": "-45.3108891325, -35, -43.4807621135, 30.3108891325, 35, 17.5",
+      "surfaces": "PlaneSurface:6"
+    },
+    "villarceauTorus": {
+      "verified": "2026-08-28 GH: operand. area 7895.68352087 against the exact 4*pi^2*R*r = 7895.6835208715 - exact. The volume is 3.9e-4 below 4000*pi^2 = 39478.4176043574, the triangulation of the tube.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "39463.130533",
+      "area": "7895.68352087",
+      "edgeLength": "376.991118431",
+      "extent": "-30, -30, -10, 30, 30, 10",
+      "surfaces": "ToroidalSurface:4"
+    },
+    "villarceauUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. 166739.027086 against 147000 + 2000*pi^2 = 166739.2088021787, 1.1e-6. This is the result the case was written for: before the fix of 2026-08-28 the union returned its two operands unchanged as two separate solids, 147000 and 39463.13, without reporting an error.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "1",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "166739.027086",
+      "area": "20616.8809598",
+      "edgeLength": "1119.7196511",
+      "extent": "-45.3108891325, -35, -43.4807621135, 30.3108891325, 35, 17.5",
+      "surfaces": "PlaneSurface:7 ToroidalSurface:5"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.torus",
+      "params": {
+        "name": "villarceauTorus",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 20,
+        "minorRadius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.create",
+      "params": {
+        "name": "villarceauSketch",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            0,
+            1,
+            0
+          ],
+          "normal": [
+            0.5,
+            0,
+            0.8660254037844386
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.add_rectangle",
+      "params": {
+        "sketch": {
+          "name": "villarceauSketch"
+        },
+        "center": [
+          0,
+          0
+        ],
+        "width": 70,
+        "height": 70
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.extrude",
+      "params": {
+        "name": "villarceauSlab",
+        "profile": "villarceauSketch",
+        "direction": [
+          -0.5,
+          0,
+          -0.8660254037844386
+        ],
+        "length": 30
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "villarceauTorus",
+        "b": "villarceauSlab",
+        "name": "villarceauInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "villarceauTorus",
+        "b": "villarceauSlab",
+        "name": "villarceauRest",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "villarceauTorus",
+        "b": "villarceauSlab",
+        "name": "villarceauUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "villarceauTorus",
+          "villarceauSlab",
+          "villarceauInter",
+          "villarceauRest"
+        ]
+      }
+    }
+  ]
+}

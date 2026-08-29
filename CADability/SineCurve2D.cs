@@ -378,6 +378,7 @@ namespace CADability.Curve2D
                 functionTolerance: 1e-15,
                 maximumIterations: 50);
 
+            SolverTrace.Record("MathNet.LM");
             var res = lm.FindMinimum(objective, initialGuess);
 
             double a = res.MinimizingPoint[0];

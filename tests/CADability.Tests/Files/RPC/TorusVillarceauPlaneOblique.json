@@ -1,0 +1,228 @@
+{
+  "Description": "The oblique twin of TorusVillarceauPlaneAtSeam: the same torus (major radius 20, minor radius 10 about\nthe z axis) cut by a Villarceau plane, but this one turned by 37 degrees about the z axis so that\nnothing lands on a seam.\n\nA plane through the torus centre inclined by alpha with sin alpha = r/R = 0.5 is bitangent to the torus\nand cuts it in two circles of radius 20 that cross at the two contact points. Turning the plane about\nthe torus axis carries the whole picture around with it, so the geometry is unchanged and only the\nposition on the faces moves. With the normal\n  n = (0.5*cos 37, 0.5*sin 37, cos 30) = (0.3993177550, 0.3009075116, 0.8660254038)\nthe two contacts are at\n  (11.9795326, 9.0272254, -8.6602540) and (-11.9795326, -9.0272254, 8.6602540)\nthat is at the azimuths 37 and 217 degrees, in the INTERIOR of the half faces of a torus that is split\nin the xz plane, and away from the extreme meridians of the tube as well.\n\nEverything else - the slab of 70 x 70 x 30 as an exact half space, the two crescents of the section\nmeeting at the two nodes, the exact half volume - is as described in TorusVillarceauPlaneAtSeam.\nRunning both is the whole point: if only the seam version fails, the defect is in the face splitting; if\nboth fail, it is the tangential contact itself.",
+  "Expected": "V(torus) = 4000*pi^2 = 39478.4176043574, area 4*pi^2*200 = 7895.6835208715,\nextent -30,-30,-10 .. 30,30,10. V(slab) = 70*70*30 = 147000.\n\nThe plane passes through the centre, the point reflection p -> -p maps the torus onto itself and\nexchanges the sides, so both parts are congruent and exactly half the torus:\n  villarceauOblInter  2000*pi^2 = 19739.2088021787\n  villarceauOblRest   2000*pi^2 = 19739.2088021787\n  villarceauOblUnion  147000 + 19739.2088021787 = 166739.2088021787\nBoth halves must also be congruent to the halves of TorusVillarceauPlaneAtSeam - same volume, same area,\nsame edge length - since the two cases differ by a rotation about the z axis and nothing else. That is\nthe strongest check available here and it needs no computed value at all.",
+  "CaseStatus": "Ok",
+  "Repeat": 4,
+  "Verify": [
+    "villarceauOblTorus",
+    "villarceauOblSlab",
+    "villarceauOblInter",
+    "villarceauOblRest",
+    "villarceauOblUnion"
+  ],
+  "Status": "OK since 2026-08-28. FIXED on 2026-08-28 by the second repair of the same day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). Two things changed at once and both were needed:\nthe geometry became RIGHT where it was wrong, and the face partition became REPRODUCIBLE - the case is\nstable over 4 runs now, so it finally carries a baseline. Before that it could not be pinned at all:\na face on a periodic surface was split in one run and left whole in the next, and a regenerate run\nrefused to record anything. The volume never moved even then, which is why the geometry could be\njudged while the partition still wandered.\n\nThe geometry of this case was right all along - it is what proved the union defect of\nTorusVillarceauPlaneAtSeam to be a SEAM problem, since the same union came out correctly here while it\nreturned its bare operands there. Only the partition had to be made reproducible.\n  villarceauOblInter  19738.9255392  against the exact 2000*pi^2 = 19739.2088021787   1.4e-5\n  villarceauOblRest   19738.9386536  against the same exact half                      1.4e-5\n  villarceauOblUnion  166738.95477   against 147000 + 19739.2088021787                1.5e-6\nand the two halves are congruent to the halves of the seam version to 5e-6, which they must be: the\ntwo cases differ by a rotation about the z axis and nothing else. Both have euler 1, the pinch at the\ntwo tangential contacts.",
+  "Baseline": {
+    "villarceauOblInter": {
+      "verified": "2026-08-28 GH: CALCULATED, not captured. 19738.9255392 against the exact 2000*pi^2 = 19739.2088021787 - half the torus, forced by the point reflection through its centre. euler 1 is the pinch at the two contacts, at the azimuths 37 and 217 degrees, in the interior of the faces.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "20",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "19738.9255392",
+      "area": "5477.35191945",
+      "edgeLength": "439.78505905",
+      "extent": "-30, -30, -10.0000026314, 24.3542623061, 27.0571416578, 10.0000026314",
+      "surfaces": "PlaneSurface:2 ToroidalSurface:7"
+    },
+    "villarceauOblRest": {
+      "verified": "2026-08-28 GH: CALCULATED. 19738.9386536 against the same exact half, and against villarceauOblInter to 6.6e-7.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "20",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "19738.9386536",
+      "area": "5477.21363451",
+      "edgeLength": "439.78505905",
+      "extent": "-24.3542623061, -27.0571416578, -10.0000026314, 30, 30, 10.0000026314",
+      "surfaces": "PlaneSurface:2 ToroidalSurface:7"
+    },
+    "villarceauOblSlab": {
+      "verified": "2026-08-28 GH: operand, exact: 70*70*30 = 147000, area 18200.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "147000",
+      "area": "18200",
+      "edgeLength": "680",
+      "extent": "-57.2504108633, -55.2210166449, -43.4807621134, 45.2708782134, 46.193791297, 17.4999999996",
+      "surfaces": "PlaneSurface:6"
+    },
+    "villarceauOblTorus": {
+      "verified": "2026-08-28 GH: operand, identical to the torus of TorusVillarceauPlaneAtSeam to the last digit, as it must be - the two cases build the same torus.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "39463.130533",
+      "area": "7895.68352087",
+      "edgeLength": "376.991118431",
+      "extent": "-30, -30, -10, 30, 30, 10",
+      "surfaces": "ToroidalSurface:4"
+    },
+    "villarceauOblUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. 166738.95477 against 147000 + 2000*pi^2 = 166739.2088021787, 1.5e-6.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "32",
+      "poleEdges": "0",
+      "vertices": "20",
+      "holeLoops": "1",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "166738.95477",
+      "area": "20616.0324484",
+      "edgeLength": "1119.78505904",
+      "extent": "-57.2504108633, -55.2210166449, -43.4807621134, 45.2708782134, 46.193791297, 17.4999999996",
+      "surfaces": "PlaneSurface:7 ToroidalSurface:7"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.torus",
+      "params": {
+        "name": "villarceauOblTorus",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 20,
+        "minorRadius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.create",
+      "params": {
+        "name": "villarceauOblSketch",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            -0.6018150232,
+            0.79863551,
+            0
+          ],
+          "normal": [
+            0.399317755,
+            0.3009075116,
+            0.8660254038
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.add_rectangle",
+      "params": {
+        "sketch": {
+          "name": "villarceauOblSketch"
+        },
+        "center": [
+          0,
+          0
+        ],
+        "width": 70,
+        "height": 70
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.extrude",
+      "params": {
+        "name": "villarceauOblSlab",
+        "profile": "villarceauOblSketch",
+        "direction": [
+          -0.399317755,
+          -0.3009075116,
+          -0.8660254038
+        ],
+        "length": 30
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "villarceauOblTorus",
+        "b": "villarceauOblSlab",
+        "name": "villarceauOblInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "villarceauOblTorus",
+        "b": "villarceauOblSlab",
+        "name": "villarceauOblRest",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "villarceauOblTorus",
+        "b": "villarceauOblSlab",
+        "name": "villarceauOblUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "villarceauOblTorus",
+          "villarceauOblSlab",
+          "villarceauOblInter",
+          "villarceauOblRest"
+        ]
+      }
+    }
+  ]
+}

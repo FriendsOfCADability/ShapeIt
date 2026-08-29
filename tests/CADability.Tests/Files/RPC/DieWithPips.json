@@ -1,10 +1,30 @@
 {
-  "Description": "TODO: what does this case build, and why does it exist?",
-  "Expected": "TODO: what is the right result, and how do you know?",
-  "CaseStatus": "KnownFail",
+  "Description": "A playing die: a 10 mm cube with all twelve edges rounded at radius 1, and 21 pips cut into its faces\nwith spherical tools. It exercises two things at once that the smaller cases keep apart - edge rounding,\nwhich has to produce cylindrical faces along the edges and spherical ones in the corners, and a boolean\ndifference against many spheres at once.\n\nThe pips are a real die, not decoration: 1 on top (z = 10) against 6 at the bottom, 2 at x = 10 against\n5 at x = 0, 3 at y = 10 against 4 at y = 0, so opposite faces sum to 7 and the tools add up to\n1+2+3+4+5+6 = 21. Every sphere has radius 0.75 and sits with its centre 0.25 OUTSIDE its face, so what\nis removed is a spherical cap of height 0.5 rather than a hemisphere - the pip is a shallow dimple, and\nthe sphere cuts the face rather than merely touching it.\n\nThe pips are placed so they stay clear of the rounded edges: the flat part of a face runs from 1 to 9,\nthe cap meets the face in a circle of radius sqrt(0.5) = 0.707, and the outermost pip centres are at 2.5\nand 7.5. So this case is about many clean cuts, not about a cut running into a fillet.",
+  "Expected": "Every number below is computed, not captured.\n\nTHE ROUNDED CUBE. Rounding all edges and corners of a cube at radius r makes it the Minkowski sum of the\ninner cube of edge a = 10 - 2r = 8 with a ball of radius r = 1, so Steiner's formula gives it exactly:\n  volume  a^3 + 2*(3a^2)*r + pi*(3a)*r^2 + 4/3*pi*r^3 = 896 + 76/3*pi = 975.5870138909\n  area    6a^2 + 12*(2*pi*r/4)*a + 4*pi*r^2         = 384 + 52*pi   = 547.3628179867\nThe three terms after the first are the six flat faces, the twelve quarter cylinders along the edges and\nthe eight corner octants, which together make exactly one sphere.\n\nONE PIP. A sphere of radius R = 0.75 whose centre lies 0.25 outside the face leaves a cap of height\nh = R - 0.25 = 0.5:\n  volume     pi*h^2*(3R-h)/3 = 7*pi/48 = 0.4581489286\n  area       the cap replaces a disc of the flat face by a spherical cap:\n             2*pi*R*h - pi*rho^2 with rho^2 = R^2 - (R-h)^2 = 0.5, i.e. 0.75*pi - 0.5*pi = pi/4 exactly\n\nTHE DIE, 21 pips:\n  volume  896 + 76/3*pi - 21*7*pi/48 = 896 + 76/3*pi - 49/16*pi = 965.9658863893\n  area    384 + 52*pi + 21*pi/4      = 384 + 57.25*pi           = 563.8561794180\n  holeLoops must be 21, one inner loop per pip, and euler must be 2: the pips are dimples, they do not\n  pierce the body, so none of them is a handle.\n  extent 0, 0, 0, 10, 10, 10 - the rounding takes nothing off the bounding box.\n\nedgeLength is NOT predictable here and is only captured. The minimal model - 6 planes, 12 cylinders,\n8 corner octants, 21 caps - would have 322.9996535444, but the spherical faces come out split at their\nseams (65 spherical faces instead of 29), and each split adds an arc. That is legitimate freedom of the\nrepresentation, and it is why the surface histogram and the face count are recorded but not derived.",
+  "CaseStatus": "Ok",
   "Verify": [
     "die"
   ],
+  "Repeat": 3,
+  "Baseline": {
+    "die": {
+      "consistent": "true",
+      "faces": "83",
+      "edges": "184",
+      "poleEdges": "0",
+      "vertices": "124",
+      "holeLoops": "21",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "965.96590308",
+      "area": "563.856826194",
+      "edgeLength": "387.282353932",
+      "extent": "-5.27355936697E-16, -4.4408920985E-16, -5.55111512313E-16, 10, 10, 10",
+      "surfaces": "CylindricalSurface:12 PlaneSurface:6 SphericalSurface:65",
+      "verified": "2026-08-26 GH: checked against the values computed in Expected - volume 965.96590308 against 965.9658863893 (1.7e-8) and area 563.856826194 against 563.8561794180 (1.1e-6), both closed forms. holeLoops 21 is one loop per pip and euler 2 says none of them pierces the body; closed, consistent, extent exactly the 10 mm cube. The face count and the surface histogram are captured, not derived: the spherical faces come out split at their seams, 65 instead of the minimal 29, which is also why edgeLength is 387.28 rather than the 322.9996535444 of the unsplit model - 36 extra seam arcs."
+    }
+  },
   "RPCCalls": [
     {
       "jsonrpc": "2.0",
@@ -410,7 +430,7 @@
         "properties": [
           "Volume"
         ],
-        "precision": 0.00001
+        "precision": 1e-05
       }
     },
     {

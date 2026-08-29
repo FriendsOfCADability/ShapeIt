@@ -1,0 +1,248 @@
+{
+  "Description": "Two cylinders of the SAME radius whose axes cross at a right angle - the textbook case of an INNER\nTANGENTIAL CONTACT with crossing intersection curves.\ncylZ is a cylinder of radius 10 about the z axis, cylY the same cylinder about the y axis. Because the\nradii are equal, the intersection of the two infinite mantles degenerates into TWO ELLIPSES, lying in\nthe planes z = y and z = -y, and those two ellipses CROSS at the two points\n  (10, 0, 0) and (-10, 0, 0)\nAt each of them both surfaces have the same tangent plane (x = +-10) and the intersection curve has a\nNODE - two branches crossing at one point - which is the degeneracy this case is about.\n\nThe axes are chosen so that the nodes land on the WORST POSSIBLE spot of the topology: a cylinder about\nthe z axis through the origin is split into its two half mantles exactly in the xz plane, so its seam\nedges are the lines x = +-10, y = 0. The two nodes sit exactly ON those seams - tangential contact,\ncrossing of the two intersection branches and face boundary all in the same point.\nSee EqualCylindersObliqueNode for the same contact placed in the interior of the faces.\n\nThe two cylinders are deliberately of DIFFERENT and ASYMMETRIC length, z from -20 to 30 and y from -20\nto 25. That has no effect on the contact - the axes still cross at the origin and the intersection body\nstays inside |y|, |z| <= 10 - but it makes the two halves each difference falls into differ in volume.\nWith symmetric cylinders those halves are congruent, and then the canonical order of the parts of a\nmulti solid result is not determined and the recorded extents flip from run to run.",
+  "Expected": "V(cylZ) = pi*100*50 = 15707.9632679490, area 2*pi*10*50 + 2*pi*100 = 3769.9111843078,\nedgeLength 4*pi*10 + 2*50 = 225.6637061436, extent -10,-10,-20 .. 10,10,30.\nV(cylY) = pi*100*45 = 14137.1669411541, area 3455.7519189488, edgeLength 215.6637061436,\nextent -10,-20,-10 .. 10,25,10.\n\nThe intersection is the STEINMETZ SOLID of two equal cylinders, whose volume and area are known exactly:\n  volume  16*r^3/3     = 5333.3333333333\n  area    16*r^2       = 1600.0000000000  (no cap is reached, the body stays inside |y|,|z| <= 10)\n  extent  -10,-10,-10 .. 10,10,10\nIt is a single solid bounded by four cylindrical faces meeting at the two nodes, with no planar face.\n\nFrom that everything else follows exactly:\n  union        15707.9632679490 + 14137.1669411541 - 5333.3333333333 = 24511.7968757697\n  cylZ - cylY  15707.9632679490 - 5333.3333333333 = 10374.6299346156\n  cylY - cylZ  14137.1669411541 - 5333.3333333333 =  8803.8336078207\n\nThe SHAPE of the differences is the interesting part. In the plane z = 0 the cross section of cylZ is\nthe full disc of radius 10 and cylY removes all of it, so cylZ minus cylY falls apart into a lower and\nan upper half connected ONLY through the two node points (10,0,0) and (-10,0,0):\n  pi*100*20 - 5333.3333333333/2 = 3616.5186405129   and   pi*100*30 - 2666.6666666667 = 6758.1112941027\nand likewise cylY minus cylZ, split in the plane y = 0 into\n  3616.5186405129   and   pi*100*25 - 2666.6666666667 = 5187.3149673078\nWhat must NOT happen is that a half is dropped or that two halves are welded into a manifold body.",
+  "CaseStatus": "Ok",
+  "Repeat": 4,
+  "Verify": [
+    "cylZ",
+    "cylY",
+    "crossUnion",
+    "crossInter",
+    "crossZminusY",
+    "crossYminusZ"
+  ],
+  "Status": "OK since 2026-08-28. All four operations return and every value meets its calculated expectation to\nabout 1e-6. Stable over 4 runs.\n\nHISTORY, because the case earned it. As written, two of the four operations did not return at all: the\nunion (call id 4) and cylY minus cylZ (call id 6) both hit the assertion \"loops.Count should never be\n0\" in BooleanOperation.Result. The defect was not symmetric - cylZ minus cylY returned and was exactly\nright - so it depended on the order in which the faces of the two operands were visited, not on the\ngeometry. The intersection was right from the start as well, which means the two crossing ellipses and\ntheir two nodes were always computed properly; what failed was what got built from them.\nIn the running application the same two calls FROZE the process: there the assertion is a modal dialog\nraised on the UI thread inside BooleanOperation.Result, so the message loop stopped and the MCP server\nanswered nothing more - no CPU load, no error, no dialog window to be found. That is how the case was\nfound in the first place. The harness suppresses the dialog and turns the assertion into a failed call,\nwhich is why the case could live in the suite while the defect was open.\n\nFIXED by the additional plane test in CylindricalSurface (Precision.IsPointOnPlane next to the radius\ntest when a tangential touch point of a cylinder and an ellipse is accepted): a point at the right\ndistance from the ellipse centre is only a touch point if it also lies in the plane of the ellipse.\nWith that, the union comes out as one solid of 24511.7664512 against the exact 24511.7968757697 and\ncylY minus cylZ as the two expected parts. Nothing else in the case moved - crossInter, crossZminusY\nand both operands match their earlier records to the last recorded digit, so the fix added the missing\nresults without disturbing the ones that already worked.\n\nRE-RECORDED 2026-08-28 after the second fix of the same day. No value moved - volume, area and extent\nof every object are the same to the last recorded digit, and both differences and the union still meet\ntheir calculated expectations. What changed is the PARTITION of two objects: crossInter is now cut into\n5 faces instead of 4 (7 edges, 4 vertices, edgeLength 172.749 instead of 152.697) and crossZminusY#0\ninto 5 instead of 4. The added seam edge is 20.05 long, the length of a seam of the z cylinder over the\nheight of the Steinmetz body. That is a partition that is less tidy than the earlier one but not wrong:\neuler stays 2, the bodies stay closed and consistent, and the geometry is untouched.",
+  "Baseline": {
+    "crossInter": {
+      "verified": "2026-08-28 GH: CALCULATED, not captured. volume against the closed form of the Steinmetz solid 16*r^3/3 = 5333.3333333333 (2.0e-6 low, triangulation) and area against the exact 16*r^2 = 1600 (6e-11). The body is bounded by cylindrical faces only, with no planar face, as the geometry demands. Re-recorded after the second fix of 2026-08-28: 5 faces, 7 edges and 4 vertices instead of the earlier 4/4/2, an extra seam split of 20.05 length. Volume, area and extent are unchanged, so this is the partition and not the geometry - but note that the two tangential nodes are no longer the only two vertices of the body.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "7",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5333.32257333",
+      "area": "1599.99999991",
+      "edgeLength": "172.748739416",
+      "extent": "-10, -10, -10, 10, 10, 10",
+      "surfaces": "CylindricalSurface:5"
+    },
+    "crossUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. 24511.7664512 against 15707.9632679490 + 14137.1669411541 - 5333.3333333333 = 24511.7968757697, 1.2e-6. One solid, euler 2, closed and consistent, extent -10,-20,-20 .. 10,25,30 = the union of the two operand extents. This is the result that used to be missing entirely: before the fix call id 4 raised \"loops.Count should never be 0\" and stored nothing.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "24511.7664512",
+      "area": "5622.48897955",
+      "edgeLength": "554.127947944",
+      "extent": "-10, -20, -20, 10, 25, 30",
+      "surfaces": "CylindricalSurface:8 PlaneSurface:4"
+    },
+    "crossYminusZ": {
+      "verified": "2026-08-28 GH: WRONG, recorded as wrong. The right answer is two solids of 3616.5186405129 and 5187.3149673078, adding up to 8803.8336078207. Call id 6 raises the same assertion. The mirrored operation crossZminusY does work.",
+      "solids": "2"
+    },
+    "crossYminusZ#0": {
+      "verified": "2026-08-28 GH: CALCULATED. pi*100*25 - 2666.6666666667 = 5187.3149673078, met to 9.2e-7. This result was missing before the fix, for the same assertion as crossUnion.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5187.31020577",
+      "area": "1884.12022474",
+      "edgeLength": "169.2321209",
+      "extent": "-10, -1.83697019872E-15, -10, 10, 25, 10",
+      "surfaces": "CylindricalSurface:3 PlaneSurface:1"
+    },
+    "crossYminusZ#1": {
+      "verified": "2026-08-28 GH: CALCULATED. pi*100*20 - 2666.6666666667 = 3616.5186405129, met to 6.6e-7. Congruent to crossZminusY#1 under the exchange of y and z, and its area agrees with it to 1.7e-5. Note that this body is cut into more faces than its mirror image (8 edges against 6): the two cylinders carry their seams differently relative to the nodes, which is a partition difference and not a geometric one - volume, area, euler and consistency all agree.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3616.51624159",
+      "area": "1570.2291575",
+      "edgeLength": "159.2321209",
+      "extent": "-10, -20, -10, 10, 5.3290705182E-14, 10",
+      "surfaces": "CylindricalSurface:3 PlaneSurface:1"
+    },
+    "crossZminusY": {
+      "solids": "2"
+    },
+    "crossZminusY#0": {
+      "verified": "2026-08-28 GH: CALCULATED. The upper half, pi*100*30 - 5333.3333333333/2 = 6758.1112941027, met to 1.2e-6. Re-recorded after the second fix of 2026-08-28: 5 faces instead of 4, same volume to 9e-8.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleEdges": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "6758.10418699",
+      "area": "2198.01090979",
+      "edgeLength": "219.2321209",
+      "extent": "-10, -10, -1.74082970261E-13, 10, 10, 30",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:1"
+    },
+    "crossZminusY#1": {
+      "verified": "2026-08-28 GH: CALCULATED. The lower half, pi*100*20 - 2666.6666666667 = 3616.5186405129, met to 9.2e-7. The two halves touch only at the two nodes, and their extents meet at z = 0 to 1e-13 - the cut through the full cross section is exactly where it belongs.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3616.51531953",
+      "area": "1570.20258271",
+      "edgeLength": "179.18032466",
+      "extent": "-10, -10, -20, 10, 10, 1.01064309961E-14",
+      "surfaces": "CylindricalSurface:3 PlaneSurface:1"
+    },
+    "cylY": {
+      "verified": "2026-08-28 GH: operand. area 3455.75191895 and edgeLength 215.663706144 are exact; the volume is 8.4e-6 below pi*100*45 = 14137.1669411541.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "14137.0481198",
+      "area": "3455.75191895",
+      "edgeLength": "215.663706144",
+      "extent": "-10, -20, -10, 10, 25, 10",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    },
+    "cylZ": {
+      "verified": "2026-08-28 GH: operand. area 3769.91118431 and edgeLength 225.663706144 are exact; the volume is 1.2e-5 below pi*100*50 = 15707.9632679490, which is the triangulation and not the boolean.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "15707.7814842",
+      "area": "3769.91118431",
+      "edgeLength": "225.663706144",
+      "extent": "-10, -10, -20, 10, 10, 30",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "cylZ",
+        "start": [
+          0,
+          0,
+          -20
+        ],
+        "end": [
+          0,
+          0,
+          30
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "cylY",
+        "start": [
+          0,
+          -20,
+          0
+        ],
+        "end": [
+          0,
+          25,
+          0
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "cylZ",
+        "b": "cylY",
+        "name": "crossInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "cylZ",
+        "b": "cylY",
+        "name": "crossUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cylZ",
+        "b": "cylY",
+        "name": "crossZminusY",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cylY",
+        "b": "cylZ",
+        "name": "crossYminusZ",
+        "rebind": false
+      }
+    }
+  ]
+}

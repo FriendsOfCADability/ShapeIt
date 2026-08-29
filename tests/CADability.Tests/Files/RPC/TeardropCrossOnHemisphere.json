@@ -1,0 +1,704 @@
+{
+  "Description": "The real part this corpus was built alongside: a bowl closed at the bottom by a hemisphere, with four teardrop shaped outlets. Pour something in at the top and it runs out of the four arms.\n  bowl    - outer D80, wall 2. Sphere r=40 about (0,0,40) gives the hemisphere z 0..40, a cylinder r=40 carries it on to z=60. Lowest point at the origin, inner floor at z=2, total height above XY 60.\n  arms    - two teardrop tubes crossing at the origin, outer D20, wall 2, each 120 long along X and Y. The profile is a 270 degree arc of radius 10 plus two tangent lines meeting at 90 degrees, tip towards +Z; the bore is the same shape with radius 8, which makes the wall exactly 2 mm on the arc, on the flanks and at the tip.\nThe arms sit on sketch planes at z=10, i.e. raised by their own outer radius, so their outer surface rests ON the XY plane instead of dipping below it. That is the whole point of this case: it puts the arms' mutual contact point and the apex of the sphere on the SAME point, the origin. Three surfaces are then mutually tangent there, all with normal -Z.\nThe construction is the plain one - build every full volume, union them, subtract the bores once at the end. Nothing else is in this file; the probes that characterised the defect are described under Status but deliberately not executed here.",
+  "Expected": "Tropfenkreuz is ONE closed, consistent solid, wall 2 mm throughout, extent -60, -60, 0, 60, 60, 60. The four bores are open at the arm ends and meet the bowl interior, so there is a path from the top opening to each of the four outlets.\nThe bodies it is built from, exact where a closed form exists:\n  bowlOuter   2/3*pi*40^3 + pi*40^2*20 = 234572.251468\n  bowlInner   2/3*pi*38^3 + pi*38^2*40 = 296382.039730\n  armOuterX/Y 120*(75*pi + 100)        =  40274.333882   each\n  armInnerX/Y 120*(48*pi +  64)        =  25775.573685   each\ncrossOuter and crossInner are unions of two crossing prisms and have no closed form; they are captured.\nouterAll and innerAll must be one solid each, and the closing difference must succeed.\nFor scale: the same part with the arms NOT raised (sketch planes at z=0, arms reaching down to z=-10) builds correctly end to end and comes out at 49187.178510, with the arm end cross sections measuring exactly 27*pi+36 = 120.823002 of wall and 48*pi+64 = 214.796447 of bore.",
+  "Status": "FIXED on 2026-08-18. Keep as a regression guard - this is the hardest contact in the corpus.\n\nThe defect, measured 2026-08-17: raising the arms by their own outer radius puts the point where the two arms touch each other and the apex of the sphere on the SAME point, the origin. Three surfaces are then mutually tangent there, all with normal -Z, and the construction fell apart in four different ways:\n  union(crossOuter, bowlOuter)              reported success and returned a solid with 23 faces, the correct extent and a plausible volume - and that solid was internally damaged. Any later operation on it died, including an intersect with a plain box. Nothing in the result envelope said so.\n  union(bowlOuter, [armOuterX, armOuterY])  solid[] with count 2, unmerged but not damaged\n  union(bowlOuter+armOuterX, armOuterY)     \"Value cannot be null. (Parameter 'key')\"\n  union(hollowBowl, hollowCross)            \"Function does not accept floating point Not-a-Number values\" - the distributive route, (a u b) - (c u d) = (a-c-d) u (b-c-d), which avoids forming outerAll at all. Both of its halves built correctly; the final union between them produced the NaN.\n\nWhat bounded the defect at the time, and what the case still covers implicitly: a single tangential contact was always handled - sphere plus ONE teardrop arm, bowl plus ONE arm, sphere plus a plain cylinder tangent at the origin, and crossOuter itself with the two arms touching each other. It took the combination: two bodies touching each other tangentially at a point that is also the tangential contact point of a third. The same part with the arms centred on z=0 built fine, because there the arms touch at (0,0,-10) while the sphere's apex is at (0,0,0) - two separate points instead of one.\n\nRelated observation from the same session, not covered here: two plain crossing cylinders r=10 with axes along X and Y at z=10 - tangent to each other at BOTH (0,0,0) and (0,0,20) - did not merge either. Worth a case of its own if that turns out to be a different root cause.",
+  "Actual": "2026-08-18, after the fix: Tropfenkreuz is one closed, consistent solid with 41 faces, 116 edges, euler -6, extent -60,-60,0 .. 60,60,60.\nMeasured independently over the MCP server before the baseline was recorded: volume 43261.162427, arm end cross section 120.823002 of wall against the exact 27*pi+36 = 120.823002, and 214.796447 of bore against the exact 48*pi+64 = 214.796447. The baseline below reads 43261.180407 because ShellMetrics computes with its own precision (size/1000); the two agree to 4.2e-7.\n\nBefore the fix: the closing difference threw \"Object reference not set to an instance of an object\", because its operand outerAll was the silently damaged solid described under Status.",
+  "CaseStatus": "Ok",
+  "Repeat": 8,
+  "Verify": [
+    "bowlOuter",
+    "bowlInner",
+    "crossOuter",
+    "crossInner",
+    "outerAll",
+    "innerAll",
+    "Tropfenkreuz"
+  ],
+  "Baseline": {
+    "Tropfenkreuz": {
+      "verified": "2026-08-18 GH: the result of the fix. Checked independently over the MCP server, not just captured: the arm end cross sections are exactly 27*pi+36 of wall and 48*pi+64 of bore, so the wall is 2 mm and the bore is open. euler -6 is genus 4, which is what a bowl with four arm openings has.",
+      "consistent": "true",
+      "faces": "41",
+      "edges": "116",
+      "poleEdges": "0",
+      "vertices": "74",
+      "holeLoops": "5",
+      "euler": "-6",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "43261.2970631",
+      "area": "44136.9149268",
+      "edgeLength": "3257.88889825",
+      "extent": "-60, -60, 0, 60, 60, 60",
+      "surfaces": "CylindricalSurface:12 PlaneSurface:21 SphericalSurface:8"
+    },
+    "bowlInner": {
+      "verified": "2026-08-18 GH: calculated, 2/3*pi*38^3 + pi*38^2*40 = 296382.039730 against the recorded 296384.790066, i.e. 9.3e-6.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "296384.790066",
+      "area": "23161.1219836",
+      "edgeLength": "726.351634996",
+      "extent": "-38, -38, 2, 38, 38, 80",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:1 SphericalSurface:3"
+    },
+    "bowlOuter": {
+      "verified": "2026-08-18 GH: calculated, 2/3*pi*40^3 + pi*40^2*20 = 234572.251468 against the recorded 234575.032391, i.e. 1.2e-5 - the usual triangulation error on spherical faces.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "234575.032391",
+      "area": "20107.7593944",
+      "edgeLength": "720.370142101",
+      "extent": "-40, -40, 0, 40, 40, 60",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:1 SphericalSurface:3"
+    },
+    "crossInner": {
+      "verified": "2026-08-18 GH: captured.",
+      "consistent": "true",
+      "faces": "16",
+      "edges": "32",
+      "poleEdges": "0",
+      "vertices": "18",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "48737.2634408",
+      "area": "12672.6569819",
+      "edgeLength": "1017.0896927",
+      "extent": "-60, -60, 2, 60, 60, 21.313708499",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:12"
+    },
+    "crossOuter": {
+      "verified": "2026-08-18 GH: captured; the union of two crossing prisms has no closed form.",
+      "consistent": "true",
+      "faces": "16",
+      "edges": "32",
+      "poleEdges": "0",
+      "vertices": "18",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "75053.1833039",
+      "area": "15784.6749856",
+      "edgeLength": "1091.36211588",
+      "extent": "-60, -60, 0, 60, 60, 24.1421356237",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:12"
+    },
+    "innerAll": {
+      "verified": "2026-08-18 GH: captured.",
+      "consistent": "true",
+      "faces": "23",
+      "edges": "58",
+      "poleEdges": "0",
+      "vertices": "37",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "328656.348752",
+      "area": "30782.6920925",
+      "edgeLength": "1621.39416097",
+      "extent": "-60, -60, 2, 60, 60, 80",
+      "surfaces": "CylindricalSurface:6 PlaneSurface:13 SphericalSurface:4"
+    },
+    "outerAll": {
+      "verified": "2026-08-18 GH: this is the name that used to hold the silently damaged solid - 23 faces, correct extent, plausible volume, and unusable. It now has 58 edges where the damaged one had 60. A change here is the first thing to look at if the three-way tangency breaks again.",
+      "consistent": "true",
+      "faces": "23",
+      "edges": "58",
+      "poleEdges": "0",
+      "vertices": "37",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "281188.440018",
+      "area": "28922.8897828",
+      "edgeLength": "1676.49473729",
+      "extent": "-60, -60, 0, 60, 60, 60",
+      "surfaces": "CylindricalSurface:6 PlaneSurface:13 SphericalSurface:4"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.sphere",
+      "params": {
+        "name": "outerSphere",
+        "center": [
+          0,
+          0,
+          40
+        ],
+        "radius": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "outerCollar",
+        "start": [
+          0,
+          0,
+          40
+        ],
+        "end": [
+          0,
+          0,
+          60
+        ],
+        "radius": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "outerSphere",
+        "b": "outerCollar",
+        "name": "bowlRaw",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.box",
+      "params": {
+        "name": "capTool",
+        "origin": [
+          -60,
+          -60,
+          60
+        ],
+        "sizeX": 120,
+        "sizeY": 120,
+        "sizeZ": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "bowlRaw",
+        "b": "capTool",
+        "name": "bowlOuter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.sphere",
+      "params": {
+        "name": "innerSphere",
+        "center": [
+          0,
+          0,
+          40
+        ],
+        "radius": 38
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "innerCollar",
+        "start": [
+          0,
+          0,
+          40
+        ],
+        "end": [
+          0,
+          0,
+          80
+        ],
+        "radius": 38
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "innerSphere",
+        "b": "innerCollar",
+        "name": "bowlInner",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "sketch.create",
+      "params": {
+        "name": "sketchX",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            10
+          ],
+          "xAxis": [
+            0,
+            1,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 10,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterRight",
+        "start": [
+          7.0710678118654755,
+          7.0710678118654755
+        ],
+        "end": [
+          0,
+          14.142135623730951
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xOuterLeft",
+        "start": [
+          0,
+          14.142135623730951
+        ],
+        "end": [
+          -7.0710678118654755,
+          7.0710678118654755
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 8,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerRight",
+        "start": [
+          5.656854249492381,
+          5.656854249492381
+        ],
+        "end": [
+          0,
+          11.313708498984761
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "name": "xInnerLeft",
+        "start": [
+          0,
+          11.313708498984761
+        ],
+        "end": [
+          -5.656854249492381,
+          5.656854249492381
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "precision": 0.0001,
+        "name": "xOuter",
+        "sketchGeometry": [
+          "xOuterArc",
+          "xOuterRight",
+          "xOuterLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchX"
+        },
+        "precision": 0.0001,
+        "name": "xInner",
+        "sketchGeometry": [
+          "xInnerArc",
+          "xInnerRight",
+          "xInnerLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "xOuter",
+        "length": 120,
+        "offset": -60,
+        "name": "armOuterX"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "xInner",
+        "length": 120,
+        "offset": -60,
+        "name": "armInnerX"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "sketch.create",
+      "params": {
+        "name": "sketchY",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            10
+          ],
+          "xAxis": [
+            -1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 10,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterRight",
+        "start": [
+          7.0710678118654755,
+          7.0710678118654755
+        ],
+        "end": [
+          0,
+          14.142135623730951
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yOuterLeft",
+        "start": [
+          0,
+          14.142135623730951
+        ],
+        "end": [
+          -7.0710678118654755,
+          7.0710678118654755
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "sketch.add_arc",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerArc",
+        "center": [
+          0,
+          0
+        ],
+        "radius": 8,
+        "startAngle": 135,
+        "sweepAngle": 270
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerRight",
+        "start": [
+          5.656854249492381,
+          5.656854249492381
+        ],
+        "end": [
+          0,
+          11.313708498984761
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "sketch.add_line",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "name": "yInnerLeft",
+        "start": [
+          0,
+          11.313708498984761
+        ],
+        "end": [
+          -5.656854249492381,
+          5.656854249492381
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "precision": 0.0001,
+        "name": "yOuter",
+        "sketchGeometry": [
+          "yOuterArc",
+          "yOuterRight",
+          "yOuterLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "sketch.connect",
+      "params": {
+        "sketch": {
+          "name": "sketchY"
+        },
+        "precision": 0.0001,
+        "name": "yInner",
+        "sketchGeometry": [
+          "yInnerArc",
+          "yInnerRight",
+          "yInnerLeft"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "yOuter",
+        "length": 120,
+        "offset": -60,
+        "name": "armOuterY"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "yInner",
+        "length": 120,
+        "offset": -60,
+        "name": "armInnerY"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "armOuterX",
+        "b": "armOuterY",
+        "name": "crossOuter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "armInnerX",
+        "b": "armInnerY",
+        "name": "crossInner",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "crossOuter",
+        "b": "bowlOuter",
+        "name": "outerAll",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "crossInner",
+        "b": "bowlInner",
+        "name": "innerAll",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "outerAll",
+        "b": "innerAll",
+        "name": "Tropfenkreuz",
+        "rebind": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<!-- CADability and the MCP server pull in System.Windows.Forms types even when no window is ever
+		     created, so the host has to be a WinForms host as well. -->
+		<UseWindowsForms>true</UseWindowsForms>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<AssemblyName>ShapeIt.Profiler</AssemblyName>
+		<RootNamespace>ShapeIt.Profiler</RootNamespace>
+		<Platforms>AnyCPU;x64</Platforms>
+		<IsPackable>false</IsPackable>
+		<!-- A profiling host is only worth anything when it is built the way the shipped application is:
+		     optimized, and with portable PDBs so the profiler can name the frames. -->
+		<DebugType>portable</DebugType>
+		<DebugSymbols>true</DebugSymbols>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+		<Optimize>True</Optimize>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- Linked, not copied: the RPC harness has exactly one home, in the test project. Anything else
+		     would leave the profiler measuring a fork of the code that the regression tests run. -->
+		<Compile Include="..\tests\CADability.Tests\RPC\RpcCase.cs" Link="Rpc\RpcCase.cs" />
+		<Compile Include="..\tests\CADability.Tests\RPC\RpcRunner.cs" Link="Rpc\RpcRunner.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\CADability\CADability.csproj" />
+		<ProjectReference Include="..\ShapeIt\ShapeIt.csproj" />
+	</ItemGroup>
+
+</Project>

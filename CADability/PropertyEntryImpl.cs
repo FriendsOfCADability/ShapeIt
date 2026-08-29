@@ -134,7 +134,6 @@ namespace CADability.UserInterface
         /// <param name="button"></param>
         public virtual void ButtonClicked(PropertyEntryButton button)
         {
-            throw new NotImplementedException();
         }
 
         /// <summary>

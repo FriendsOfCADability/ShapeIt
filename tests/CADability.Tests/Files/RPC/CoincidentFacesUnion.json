@@ -1,0 +1,396 @@
+{
+  "Description": "Uniting two boxes that touch over a whole face, in six arrangements that differ only in HOW the two\ncontact faces relate to each other. Everything is axis aligned, so every expected volume is an exact\ninteger and no triangulation noise enters.\n\nThe three that used to fail all have a contact face that is EXACTLY CONGRUENT - same plane, same\nrectangle, nothing sticking out on either side:\n  same      two 10-cubes stacked, meeting in the full 10x10 square at z = 10\n  sameLow   the same, but the upper box is only 5 high - so the SOLIDS differ while the contact face\n            is still congruent. This is what rules out \"identical bodies\" as the trigger.\n  sideX     two 10-cubes side by side, meeting at x = 10 - so it is not a peculiarity of the z axis.\n\nThe three controls have a contact face that is not congruent, and they always worked:\n  partial   the upper box is shifted by 5 in x, so the two faces overlap only in half of their area\n  inside    the upper box is 6x6 and sits inside the 10x10 face\n  shrink    the upper box is 10 x 9.999 instead of 10 x 10 - one ten-thousandth narrower, and that is\n            already enough to take the other path\nshrink is the entry that carries the case. It differs from same by 1e-4 in a single edge length, so a\ndifference in behaviour between the two cannot be a tolerance - it is exact congruence or nothing.\n\nOnly the union is tested here. Difference and intersection on a contact of this kind are covered by\nTouchingCoincidentFaces, which is about the orientation of the touching faces rather than their extent.",
+  "Expected": "Every result is ONE solid, and every volume is exact:\n  sameUnion     1000 + 1000     = 2000     a 10 x 10 x 20 box,  6 faces\n  sameLowUnion  1000 + 500      = 1500     a 10 x 10 x 15 box,  6 faces\n  sideXUnion    1000 + 1000     = 2000     a 20 x 10 x 10 box,  6 faces\n  partialUnion  1000 + 1000     = 2000     not a box,          10 faces\n  insideUnion   1000 + 6*6*4    = 1144     a box with a step,  11 faces\n  shrinkUnion   1000 + 10*9.999*10 = 1999.9  a box with a 0.001 step,  8 faces\nThe bodies only touch, they never overlap, so in every one of the six the volume is simply the sum of\nthe two operands.\n\nThe FACE COUNT is the sharper half of the check for the first three. Six faces means the contact face\nhas disappeared from the boundary completely and the result really is a single box - not two shells\nstuck together with an internal wall left in them. If sameUnion ever comes back with more than 6 faces,\nor as two solids, that is the defect returning.",
+  "Status": "OK since 2026-08-28.\n\nWritten after the union of two boxes with a congruent contact face started returning TWO solids instead\nof one - 1000 and 1000, unmerged. It was found through TouchingCoincidentFaces, whose case a is the\nsame arrangement, but that file runs 29 calls before reaching it; this one gets there in three.\n\nThe cause was a missing Math.Abs on the volume in the final check of the union: the shell that comes out\nof a congruent-face contact had its volume with the opposite sign, so the check took it for empty and\ndiscarded the merge. The same slip made pAB in HemisphereOnCylinderThreeWays come back empty, where the\ntwo operands are the same point set and therefore ALL face pairs are congruent - two symptoms that\nlooked unrelated until the sign was found.\n\nThe six arrangements were what narrowed it down, and they are kept for that reason rather than for\ncoverage: sameLow rules out identical bodies, sideX rules out an axis playing a role, and shrink shows\nthat one ten-thousandth of an edge length decides which path is taken - so it is exact congruence, not\na tolerance.",
+  "CaseStatus": "Ok",
+  "Repeat": 3,
+  "Verify": [
+    "sameUnion",
+    "sameLowUnion",
+    "sideXUnion",
+    "partialUnion",
+    "insideUnion",
+    "shrinkUnion"
+  ],
+  "Baseline": {
+    "insideUnion": {
+      "consistent": "true",
+      "faces": "11",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1144",
+      "area": "696",
+      "edgeLength": "184",
+      "extent": "0, 0, 0, 10, 10, 14",
+      "surfaces": "PlaneSurface:11",
+      "verified": "2026-08-28 GH: control - the 6x6 face of the upper box lies inside the 10x10 one. Always worked. 1000 + 6*6*4 = 1144, eleven faces."
+    },
+    "partialUnion": {
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2000",
+      "area": "1100",
+      "edgeLength": "220",
+      "extent": "0, 0, 0, 15, 10, 20",
+      "surfaces": "PlaneSurface:10",
+      "verified": "2026-08-28 GH: control - the upper box is shifted by 5, so the faces overlap only partly. Always worked. 2000, ten faces."
+    },
+    "sameLowUnion": {
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1500",
+      "area": "800",
+      "edgeLength": "140",
+      "extent": "0, 0, 0, 10, 10, 15",
+      "surfaces": "PlaneSurface:6",
+      "verified": "2026-08-28 GH: same congruent contact face, but the upper box is only 5 high - the two SOLIDS differ, which rules out identical bodies as the trigger. 1500, six faces."
+    },
+    "sameUnion": {
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2000",
+      "area": "1000",
+      "edgeLength": "160",
+      "extent": "0, 0, 0, 10, 10, 20",
+      "surfaces": "PlaneSurface:6",
+      "verified": "2026-08-28 GH: the arrangement the case was written for - two 10-cubes stacked, contact face exactly congruent. Volume 2000 and SIX faces, so the contact face is gone from the boundary and the result is one 10x10x20 box. It used to come back as two unmerged solids of 1000 each."
+    },
+    "shrinkUnion": {
+      "consistent": "true",
+      "faces": "8",
+      "edges": "18",
+      "poleEdges": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1999.9",
+      "area": "999.98",
+      "edgeLength": "180",
+      "extent": "0, 0, 0, 10, 10, 20",
+      "surfaces": "PlaneSurface:8",
+      "verified": "2026-08-28 GH: the control that carries the case - the upper box is 10 x 9.999, one ten-thousandth narrower, and that is already enough to take the other path. It always worked while its congruent twin sameUnion did not, so the trigger is exact congruence and not a tolerance. 1000 + 999.9 = 1999.9, eight faces."
+    },
+    "sideXUnion": {
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2000",
+      "area": "1000",
+      "edgeLength": "160",
+      "extent": "0, 0, 0, 20, 10, 10",
+      "surfaces": "PlaneSurface:6",
+      "verified": "2026-08-28 GH: same congruent contact face, but at x = 10 instead of z = 10 - rules out a peculiarity of one axis. 2000, six faces."
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "sameA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "sameB",
+        "origin": [
+          0,
+          0,
+          10
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "sameA",
+        "b": "sameB",
+        "name": "sameUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.box",
+      "params": {
+        "name": "sameLowA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.box",
+      "params": {
+        "name": "sameLowB",
+        "origin": [
+          0,
+          0,
+          10
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 5
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "sameLowA",
+        "b": "sameLowB",
+        "name": "sameLowUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "sideXA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.box",
+      "params": {
+        "name": "sideXB",
+        "origin": [
+          10,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "sideXA",
+        "b": "sideXB",
+        "name": "sideXUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.box",
+      "params": {
+        "name": "partialA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.box",
+      "params": {
+        "name": "partialB",
+        "origin": [
+          5,
+          0,
+          10
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "partialA",
+        "b": "partialB",
+        "name": "partialUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.box",
+      "params": {
+        "name": "insideA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.box",
+      "params": {
+        "name": "insideB",
+        "origin": [
+          2,
+          2,
+          10
+        ],
+        "sizeX": 6,
+        "sizeY": 6,
+        "sizeZ": 4
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "insideA",
+        "b": "insideB",
+        "name": "insideUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.box",
+      "params": {
+        "name": "shrinkA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.box",
+      "params": {
+        "name": "shrinkB",
+        "origin": [
+          0,
+          0,
+          10
+        ],
+        "sizeX": 10,
+        "sizeY": 9.999,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "shrinkA",
+        "b": "shrinkB",
+        "name": "shrinkUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "sameUnion",
+          "shrinkUnion"
+        ]
+      }
+    }
+  ]
+}

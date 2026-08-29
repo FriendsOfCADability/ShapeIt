@@ -240,7 +240,10 @@ namespace CADability
     {
         public enum ItemType { Vertex, Edge, Face };
         public ItemType Type;
-        static int hashCodeCounter = 0;
+        // Interlocked below: geometry may be built on a background thread - the template preview - while the
+        // UI thread builds geometry of its own. A torn ++ would hand the same identity to two objects, which
+        // surfaces as a rare and irreproducible BRep failure rather than as an obvious crash.
+        internal static int hashCodeCounter = 0;
         int hashCode;
         // nur eines der drei folgenden ist gesetzt
         public Edge edge;
@@ -256,21 +259,21 @@ namespace CADability
             this.root = root;
             this.Type = ItemType.Edge;
             this.edge = edge;
-            hashCode = ++hashCodeCounter;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
         }
         public BRepItem(OctTree<BRepItem> root, Face face)
         {
             this.root = root;
             this.Type = ItemType.Face;
             this.face = face;
-            hashCode = ++hashCodeCounter;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
         }
         public BRepItem(OctTree<BRepItem> root, Vertex vertex)
         {
             this.Type = ItemType.Vertex;
             this.root = root;
             this.vertex = vertex;
-            hashCode = ++hashCodeCounter;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
         }
         public BRepItem(OctTree<BRepItem> root, Vertex vertex, Edge edge, Face face)
         {
@@ -280,7 +283,7 @@ namespace CADability
             isIntersection = true;
             this.edge = edge;
             this.face = face;
-            hashCode = ++hashCodeCounter;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
         }
         bool FaceHitTest(ref BoundingBox cube, Face face, double precision)
         {
@@ -3417,7 +3420,7 @@ namespace CADability
             public EdgeOnFace()
             {
                 outgoing = new List<EdgeOnFace>();
-                hashCode = ++hashCodeCounter;
+                hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
             }
 
             public EdgeOnFace(Edge edge, Face face, bool isIntersection) : this()

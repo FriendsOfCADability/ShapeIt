@@ -196,7 +196,7 @@ namespace ShapeIt
                 if (parts.Length != 1) return null;
                 Solid[] boxMinusSphere = BooleanOperation.Subtract(Solid.MakeSolid(parts[0]), sphere);
                 if (boxMinusSphere.Length != 1) return null;
-                Shell part = boxMinusSphere[0].Shell.Clone() as Shell;
+                Shell part = (boxMinusSphere[0].Shell.Clone() as Shell)!;
                 foreach (var vertex in boxMinusSphere[0].Shell.Vertices)
                 {
                     if (Math.Abs((vertex.Position | cp.Point) - radius) < Precision.eps && vertex.Edges.Any(e => e.Curve3D is Line))

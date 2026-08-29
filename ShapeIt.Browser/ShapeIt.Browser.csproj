@@ -64,6 +64,7 @@
                       ..\ShapeIt\MCPServerForm.cs;
                       ..\ShapeIt\Program.cs;
                       ..\ShapeIt\WorkspaceRenderer.cs;
+                      ..\ShapeIt\OffscreenPainter.cs;
                       ..\ShapeIt\MCPServer.Old.cs;
                       ..\ShapeIt\MCPServerDispatcher.cs;
                       ..\ShapeIt\Properties\Settings.Designer.cs">

@@ -234,7 +234,8 @@ namespace CADability.Forms.NET8
         }
         Substitutes.DialogResult IUIService.ShowMessageBox(string text, string caption, Substitutes.MessageBoxButtons buttons)
         {
-            return (Substitutes.DialogResult)MessageBox.Show(Application.OpenForms[0], text, caption, (System.Windows.Forms.MessageBoxButtons)buttons);
+            IWin32Window? owner = Application.OpenForms.Count == 0 ? null : Application.OpenForms[0];
+            return (Substitutes.DialogResult)MessageBox.Show(owner, text, caption, (System.Windows.Forms.MessageBoxButtons)buttons);
         }
         Substitutes.DialogResult IUIService.ShowColorDialog(ref Substitutes.Color color)
         {

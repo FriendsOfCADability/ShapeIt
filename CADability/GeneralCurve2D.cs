@@ -901,56 +901,93 @@ namespace CADability.Curve2D
         /// <returns>true, if a minimum could be found</returns>
         public bool PositionOf(GeoPoint2D p, ref double u)
         {
-            // Minimize |curve(u) - p|^2 using Levenberg-Marquardt.
-            // Residuals: r_i(u) = curve_i(u) - p_i  (i = 0,1 for x,y)
-            // Jacobian:  J[i,0] = d(curve_i)/du = DirectionAt(u)_i
-            try
+            // Minimize |curve(u) - p|^2 on [0,1]. At a minimum the connection to the curve stands
+            // perpendicular on its direction, so this is the scalar root of
+            //     f(u) = (curve(u) - p) * DirectionAt(u)
+            // and the Gauss-Newton step on it is f(u) / |DirectionAt(u)|^2 - the very step
+            // Levenberg-Marquardt used to compute here, only without building a 1x1 matrix problem to
+            // get it. The curvature term of the exact Newton step is dropped, which is what LM did too:
+            // no second derivative is available on this class, only PointAt and DirectionAt.
+            //
+            // This was a MathNet LevenbergMarquardtMinimizer before. For a single variable that meant
+            // five dense vectors, two closures, an objective model, a Jacobian matrix and an LU
+            // factorization per call - and BSpline2D.Approximate calls it a few hundred thousand times
+            // per boolean operation. What is left here allocates nothing at all.
+            const int maxIterations = 40;
+            const int maxHalvings = 10;
+            const double parameterTolerance = 1e-14;
+
+            double position = Math.Max(0.0, Math.Min(1.0, u));
+            // Carried from iteration to iteration: the accepted candidate of the previous round is the
+            // current point of this one, and PointAt is the expensive call here - on a ProjectedCurve it
+            // is a surface projection.
+            GeoVector2D toCurrent = PointAt(position) - p;
+            double currentDistance = toCurrent * toCurrent;
+            bool converged = false;
+
+            for (int i = 0; i < maxIterations; i++)
             {
-                var observedX = Vector<double>.Build.Dense(new[] { 0.0, 1.0 });
-                var observedY = Vector<double>.Build.Dense(new[] { p.x, p.y });
+                GeoVector2D direction = DirectionAt(position);
+                double directionSquared = direction * direction;
+                // A stationary parameterization gives no direction to step in; there is nothing this
+                // iteration could do with it, and neither could LM.
+                if (directionSquared < 1e-30) break;
 
-                double Coord(double x, double y, int idx) => idx == 0 ? x : y;
+                double step = (toCurrent * direction) / directionSquared;
+                if (double.IsNaN(step) || double.IsInfinity(step)) break;
 
-                Func<Vector<double>, double, double> scalarModel = (parameters, xi) =>
+                // Backtracking. The undamped step assumes the direction stays what it is between here
+                // and the root, and on a curve that bends away it overshoots. Halve until the distance
+                // actually drops. This is what LM's damping parameter provided, only decided on the
+                // value that matters here instead of on a trust region around it - and it makes the
+                // whole iteration monotone, so the result can never be worse than the start value.
+                double next = position;
+                double nextDistance = currentDistance;
+                GeoVector2D nextVector = toCurrent;
+                bool improved = false;
+                for (int halving = 0; halving <= maxHalvings; halving++)
                 {
-                    double pu = Math.Max(0.0, Math.Min(1.0, parameters[0]));
-                    GeoPoint2D pt = PointAt(pu);
-                    return Coord(pt.x, pt.y, (int)Math.Round(xi));
-                };
+                    // Once the step is down at the tolerance, the distance only changes by rounding, and
+                    // halving further just buys another PointAt for nothing. Without this the last
+                    // iteration of every converging sequence pays for the full run of halvings.
+                    if (Math.Abs(step) < parameterTolerance) break;
 
-                Func<Vector<double>, double, Vector<double>> jacobian = (parameters, xi) =>
-                {
-                    double pu = Math.Max(0.0, Math.Min(1.0, parameters[0]));
-                    GeoVector2D dir = DirectionAt(pu);
-                    return Vector<double>.Build.Dense(new[] { Coord(dir.x, dir.y, (int)Math.Round(xi)) });
-                };
+                    double candidate = position - step;
+                    if (candidate < 0.0) candidate = 0.0;
+                    else if (candidate > 1.0) candidate = 1.0;
 
-                var objective = ObjectiveFunction.NonlinearModel(scalarModel, jacobian, observedX, observedY);
-                var initialGuess = Vector<double>.Build.Dense(new[] { u });
-                var lowerBound = Vector<double>.Build.Dense(new[] { 0.0 });
-                var upperBound = Vector<double>.Build.Dense(new[] { 1.0 });
-
-                var minimizer = new LevenbergMarquardtMinimizer(
-                    gradientTolerance: 1e-14,
-                    stepTolerance: 1e-14,
-                    functionTolerance: 1e-14,
-                    maximumIterations: 100);
-
-                var result = minimizer.FindMinimum(objective, initialGuess, lowerBound, upperBound);
-
-                if (result.ReasonForExit == ExitCondition.Converged ||
-                    result.ReasonForExit == ExitCondition.RelativeGradient ||
-                    result.ReasonForExit == ExitCondition.RelativePoints)
-                {
-                    u = Math.Max(0.0, Math.Min(1.0, result.MinimizingPoint[0]));
-                    return true;
+                    GeoVector2D toCandidate = PointAt(candidate) - p;
+                    double candidateDistance = toCandidate * toCandidate;
+                    if (candidateDistance <= currentDistance)
+                    {
+                        next = candidate;
+                        nextDistance = candidateDistance;
+                        nextVector = toCandidate;
+                        improved = true;
+                        break;
+                    }
+                    step *= 0.5;
                 }
-                return false;
+
+                // No step of any length got closer: as far as this iteration can tell, this is the
+                // minimum. That includes the case of a constrained one, where the step only ever
+                // points out of [0,1] and the clamp keeps returning the boundary.
+                if (!improved) { converged = true; break; }
+
+                double moved = Math.Abs(next - position);
+                position = next;
+                currentDistance = nextDistance;
+                toCurrent = nextVector;
+                if (moved < parameterTolerance)
+                {
+                    converged = true;
+                    break;
+                }
             }
-            catch
-            {
-                return false;
-            }
+
+            if (!converged) return false;
+            u = position;
+            return true;
         }
 
         /// <summary>

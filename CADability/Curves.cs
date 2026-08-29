@@ -1347,6 +1347,7 @@ namespace CADability.GeoObject
                 maxIterations);
 
             // Run the minimization
+            SolverTrace.Record("MathNet.LM");
             NonlinearMinimizationResult result =
                 lm.FindMinimum(objectiveModel, initialGuess); //, lowerBound, upperBound, scales, isFixed);
 

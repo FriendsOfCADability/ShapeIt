@@ -155,6 +155,7 @@ public static class SurfaceIntersectionFootPoint
         NonlinearMinimizationResult result;
         try
         {
+            SolverTrace.Record("MathNet.LM");
             result = lm.FindMinimum(objective, initialGuess);
         }
         catch

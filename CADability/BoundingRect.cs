@@ -679,6 +679,64 @@ namespace CADability
             if (rect.Top <= Bottom) return false;
             return true;
         }
+        /// <summary>
+        /// Clips the infinite line, which is defined by <paramref name="location"/> and <paramref name="direction"/>,
+        /// to this rectangle. The line is considered as the set of points location + t*direction, t being any real number.
+        /// Returns the parameters t of the two points where the line enters and leaves this rectangle.
+        /// </summary>
+        /// <param name="location">A point on the line</param>
+        /// <param name="direction">The direction of the line, must not be a null vector</param>
+        /// <param name="startParameter">Parameter of the point where the line enters this rectangle</param>
+        /// <param name="endParameter">Parameter of the point where the line leaves this rectangle</param>
+        /// <returns>true, if the line intersects this rectangle, false otherwise</returns>
+        public bool ClipLine(GeoPoint2D location, GeoVector2D direction, out double startParameter, out double endParameter)
+        {   // Liang-Barsky: the line is clipped against the four half planes defined by the sides of the rectangle
+            startParameter = endParameter = 0.0;
+            if (IsEmpty() || direction.IsNullVector()) return false;
+            double tmin = double.NegativeInfinity;
+            double tmax = double.PositiveInfinity;
+            // the "p" values are the (signed) rates at which the line approaches a boundary,
+            // the "q" values are the (signed) distances of location from that boundary
+            double[] p = new double[] { -direction.x, direction.x, -direction.y, direction.y };
+            double[] q = new double[] { location.x - Left, Right - location.x, location.y - Bottom, Top - location.y };
+            for (int i = 0; i < 4; i++)
+            {
+                if (p[i] == 0.0)
+                {   // the line is parallel to this boundary: it is either completely inside or completely outside the half plane
+                    if (q[i] < 0.0) return false;
+                }
+                else
+                {
+                    double t = q[i] / p[i];
+                    if (p[i] < 0.0) { if (t > tmin) tmin = t; } // here the line enters the half plane
+                    else { if (t < tmax) tmax = t; } // here the line leaves the half plane
+                    if (tmin > tmax) return false;
+                }
+            }
+            if (double.IsInfinity(tmin) || double.IsInfinity(tmax)) return false; // only possible with an unbounded rectangle
+            startParameter = tmin;
+            endParameter = tmax;
+            return true;
+        }
+        /// <summary>
+        /// Clips the infinite line, which is defined by <paramref name="location"/> and <paramref name="direction"/>,
+        /// to this rectangle. The line is considered as the set of points location + t*direction, t being any real number.
+        /// Returns the two points where the line enters and leaves this rectangle. If the line only touches a corner of
+        /// the rectangle, both points are identical.
+        /// </summary>
+        /// <param name="location">A point on the line</param>
+        /// <param name="direction">The direction of the line, must not be a null vector</param>
+        /// <param name="startPoint">The point where the line enters this rectangle</param>
+        /// <param name="endPoint">The point where the line leaves this rectangle</param>
+        /// <returns>true, if the line intersects this rectangle, false otherwise</returns>
+        public bool ClipLine(GeoPoint2D location, GeoVector2D direction, out GeoPoint2D startPoint, out GeoPoint2D endPoint)
+        {
+            startPoint = endPoint = GeoPoint2D.Origin;
+            if (!ClipLine(location, direction, out double startParameter, out double endParameter)) return false;
+            startPoint = location + startParameter * direction;
+            endPoint = location + endParameter * direction;
+            return true;
+        }
 #if DEBUG
         internal DebuggerContainer Debug
         {

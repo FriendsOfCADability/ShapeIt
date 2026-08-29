@@ -554,7 +554,7 @@ namespace CADability.GeoObject
                     for (int i = 0; i < ip2d.Length; i++)
                     {
                         GeoPoint ip = PointAt(ip2d[i]);
-                        if (Precision.IsEqual(ip | elli.Center, elli.Radius))
+                        if (Precision.IsEqual(ip | elli.Center, elli.Radius) && Precision.IsPointOnPlane(ip,elli.Plane))
                         {
                             uvOnFaces = [ip2d[i]];
                             uOnCurve3Ds = [elli.PositionOf(ip)];

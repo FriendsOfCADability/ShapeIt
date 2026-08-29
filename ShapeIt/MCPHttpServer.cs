@@ -502,38 +502,52 @@ namespace ShapeIt
 
             string argumentsJson = paramsNode?["arguments"]?.ToJsonString() ?? "{}";
 
+            // The complete JSON-RPC block, not just the arguments: MCPServer.ProcessMethod(JsonElement) needs
+            // it because template recording stores every request verbatim, and only that overload records.
+            // Going through it also makes this path identical to the one MainForm.DebugRPC and the
+            // regression harness take, so a session can be replayed from a file exactly as it ran here.
+            var rpcBlock = new JsonObject
+            {
+                ["method"] = toolName,
+                ["id"]     = id,
+                ["params"] = JsonNode.Parse(argumentsJson)
+            };
+            string rpcBlockJson = rpcBlock.ToJsonString();
+
             if (RpcCallLogger != null)
             {
-                var rpcBlock = new JsonObject
-                {
-                    ["method"] = toolName,
-                    ["id"]     = id,
-                    ["params"] = JsonNode.Parse(argumentsJson)
-                };
                 string rpcJson = rpcBlock.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
                 uiContext.Post(_ => RpcCallLogger(rpcJson), null);
             }
             string rpcResponse = "";
             Exception? invocationError = null;
 
-            // All CAD operations must run on the UI thread
-            uiContext.Send(_ =>
+            // Taken here, on the pool thread, and not inside the callback below: a template preview may be
+            // computing on its own thread, and waiting for it from the UI thread would freeze the window.
+            // This way only the waiting request stalls, which is what a background request should do.
+            lock (Server.GeometryLock)
             {
-                try
+                // All CAD operations must run on the UI thread
+                uiContext.Send(_ =>
                 {
-                    Server.SuppressDialogs = true;
-                    var paramsElement = JsonDocument.Parse(argumentsJson).RootElement;
-                    rpcResponse = Server.ProcessMethod(toolName, id, paramsElement);
-                }
-                catch (Exception ex)
-                {
-                    invocationError = ex;
-                }
-                finally
-                {
-                    Server.SuppressDialogs = false;
-                }
-            }, null);
+                    try
+                    {
+                        Server.SuppressDialogs = true;
+                        // The JsonElement stays valid only as long as its document lives, and the recorder
+                        // keeps a clone of it, so the document has to outlive the call itself.
+                        using JsonDocument doc = JsonDocument.Parse(rpcBlockJson);
+                        rpcResponse = Server.ProcessMethod(doc.RootElement);
+                    }
+                    catch (Exception ex)
+                    {
+                        invocationError = ex;
+                    }
+                    finally
+                    {
+                        Server.SuppressDialogs = false;
+                    }
+                }, null);
+            }
 
             if (invocationError != null)
                 return MakeError(id, -32603, invocationError.Message);

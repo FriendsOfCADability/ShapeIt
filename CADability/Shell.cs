@@ -5199,14 +5199,15 @@ namespace CADability.GeoObject
                                 (double du, double dv) = SurfaceHelper.AdjustPeriodic(edge.SecondaryFace.Surface, ext, secondoutline);
                                 firstToSecond *= ModOp2D.Translate(du, dv);
                                 ext.MinMax(secondoutline.Extent);
-                                if (edge.SecondaryFace.Surface.IsUPeriodic && ext.Width >= edge.SecondaryFace.Surface.UPeriod * 0.75)
-                                {   // special case for cylinder etc.
-                                    if (ext.Width >= edge.SecondaryFace.Surface.UPeriod * 0.75)
-                                    {
-                                        if (ext.Width > w * 1.1 || ext.Width > edge.SecondaryFace.Surface.UPeriod * 0.95) continue;
-                                    }
-                                }
-                                if (edge.SecondaryFace.Surface.IsVPeriodic && ext.Height >= edge.SecondaryFace.Surface.VPeriod * 0.75) continue;
+                                // trimmed to half period because of ConesCommonInsphereAtSeam.json
+                                if (edge.SecondaryFace.Surface.IsUPeriodic && ext.Width >= edge.SecondaryFace.Surface.UPeriod * 0.5) continue;
+                                //{   // special case for cylinder etc.
+                                //    if (ext.Width >= edge.SecondaryFace.Surface.UPeriod * 0.75)
+                                //    {
+                                //        if (ext.Width > w * 1.1 || ext.Width > edge.SecondaryFace.Surface.UPeriod * 0.95) continue;
+                                //    }
+                                //}
+                                if (edge.SecondaryFace.Surface.IsVPeriodic && ext.Height >= edge.SecondaryFace.Surface.VPeriod * 0.5) continue;
                             }
                             if (edge.PrimaryFace.Surface is SurfaceOfRevolution) continue; // this must be fixed (e.g. in "1_Assembly_Light.stp")
                             toRemove = edge.SecondaryFace.CombineWith(edge.PrimaryFace, firstToSecond);

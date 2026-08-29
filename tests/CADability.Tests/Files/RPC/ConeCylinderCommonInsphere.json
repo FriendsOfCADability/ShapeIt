@@ -1,0 +1,262 @@
+{
+  "Description": "A cone and a cylinder that share a common INSCRIBED SPHERE - the pipe fitter's construction. As in\nConesCommonInsphereAtSeam the two surfaces intersect in two plane conics that cross at the two points\nwhere both are tangent to the sphere, so the intersection curve has a NODE there and the two mantles\ntouch tangentially.\n\nThe sphere of radius 10 at the origin is never built. The cylinder about the z axis with radius 10\ncircumscribes it by construction and touches it along the equator z = 0. The cone has half angle 30 deg,\nso its apex has to sit at distance 10/sin 30 = 20 from the origin; its axis is deliberately skew to\neverything:\n  n = (sin 60 cos 37, sin 60 sin 37, cos 60) = (0.6916386401, 0.5211870984, 0.5)\n  apex 20*n = (13.8327728013, 10.4237419686, 10), opening back through the sphere, height 45,\n  base radius 45*tan 30 = 25.9807621135\nThe cone touches the sphere along a circle in the plane n*p = 10*sin 30 = 5; the cylinder along z = 0.\nThe two circles cross at the two points of the equator with n*p = 5, at the azimuths 91.7356 and\n-17.7356 degrees:\n  (-0.3028657, 9.9954126, 0) and (9.5247261, -3.0462423, 0)\nBoth are exactly on the cylinder (radius 10.0000000000) and on the cone (residual 3e-12).\n\nThe azimuth 37 degrees of the cone axis is what makes this the OBLIQUE counterpart of\nConesCommonInsphereAtSeam: the cylinder about the z axis is split into half mantles in the xz plane, so\nits seams are at 0 and 180 degrees and both nodes lie well inside the faces. The contacts are also at\naxial distance 15 of 45 from the apex, so no apex, seam or base plane can help to find them.",
+  "Expected": "Exact operand volumes: cylinder pi*100*90 = 9000*pi = 28274.3338823081, cone pi/3*675*45 = 10125*pi =\n31808.6256178783. The cone lies within |z| <= 45 - its base circle spans z from -35 to 10 - so the\ncylinder caps play no part in the tangential contact, although the cone's base plane does cut the\ncylinder mantle transversally, which is a plain non degenerate intersection.\n\nMonte Carlo over the cylinder's bounding box 20x20x90, 4e6 samples:\n  intersect        8425 +- 8\n  union           51658 +- 8   ( = 28274.334 + 31808.626 - intersect )\n  cylinder - cone 19849 +- 8\n  cone - cylinder 23383 +- 8\nExact identities: union + intersect = 60082.9595001864 and difference = operand - intersect for both\nways round.",
+  "CaseStatus": "Ok",
+  "RelativeTolerance": 0.002,
+  "Repeat": 4,
+  "Verify": [
+    "insphereCyl",
+    "insphereCone",
+    "coneCylUnion",
+    "coneCylInter",
+    "coneCylCylMinusCone",
+    "coneCylConeMinusCyl"
+  ],
+  "Status": "OK since 2026-08-28. FIXED on 2026-08-28 by the second repair of the same day (Shell.cs, Surface.cs and the new\nSurfaceContacts.cs). Two things changed at once and both were needed:\nthe geometry became RIGHT where it was wrong, and the face partition became REPRODUCIBLE - the case is\nstable over 4 runs now, so it finally carries a baseline. Before that it could not be pinned at all:\na face on a periodic surface was split in one run and left whole in the next, and a regenerate run\nrefused to record anything. The volume never moved even then, which is why the geometry could be\njudged while the partition still wandered.\n\nUnlike its seam counterpart ConesCommonInsphereAtSeam this case never had a geometric defect - the\nvolumes were already right while the partition still wandered - so the fix only had to make it\nreproducible. It did:\n  coneCylInter  8436.83532065 against 8436.7 +- 1 from a deterministic quadrature (radial solve of the\n                cone quadratic at 1440 azimuths, Simpson over z on 600/1200/2400 intervals:\n                8435.93 / 8437.35 / 8436.76)\n  union + intersect = 60082.39 against the exact sum of the operands 60082.9595001864, 9.5e-6\n  coneCylCylMinusCone 11481.7096012 + 8355.69594105 = 19837.41 against 28274.3339 - 8436.8 = 19837.5\n  coneCylConeMinusCyl 23063.4567413 + 307.650862246 = 23371.11 against 31808.6256 - 8436.8 = 23371.8\n\nNOTE on the construction, for whoever debugs this: with a half angle of 30 degrees and an axis inclined\nby 60 degrees the cone has a HORIZONTAL RULING, because 60 + 30 = 90. Its highest point is therefore\nnot the apex alone but a whole line at z = 10, and the intersection legitimately reaches z = 10\nalthough the apex itself lies outside the cylinder. That was checked and is not a defect, but it is\neasy to mistake for one.",
+  "Baseline": {
+    "coneCylConeMinusCyl": {
+      "solids": "2"
+    },
+    "coneCylConeMinusCyl#0": {
+      "verified": "2026-08-28 GH: CALCULATED. The two parts give 23063.4567413 + 307.650862246 = 23371.11 against 31808.6256178783 - 8436.8 = 23371.8.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "11",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "23063.4567413",
+      "area": "6198.59379384",
+      "edgeLength": "356.583873093",
+      "extent": "-36.0554082877, -35.2027626247, -34.641016152, 9.52472335465, 9.99541228981, 9.99999999998",
+      "surfaces": "ConicalSurface:2 CylindricalSurface:2 PlaneSurface:1"
+    },
+    "coneCylConeMinusCyl#1": {
+      "verified": "2026-08-28 GH: the small part, see #0.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "9",
+      "poleEdges": "2",
+      "vertices": "7",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "307.650862246",
+      "area": "417.21619387",
+      "edgeLength": "77.4506788438",
+      "extent": "-0.30287482046, -3.04625097741, -2.67949193221, 13.8327728013, 10.4237419686, 10",
+      "surfaces": "ConicalSurface:2 CylindricalSurface:2"
+    },
+    "coneCylCylMinusCone": {
+      "solids": "2"
+    },
+    "coneCylCylMinusCone#0": {
+      "verified": "2026-08-28 GH: CALCULATED. The two parts give 11481.7096012 + 8355.69594105 = 19837.41 against 28274.3338823081 - 8436.8 = 19837.5. The split into two solids is correct: at the plane of the two contacts the cone covers the whole cross section of the cylinder and touches its wall at the two nodes, so the cylinder is cut through there.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "11",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "11481.7096012",
+      "area": "3157.42444335",
+      "edgeLength": "236.376992585",
+      "extent": "-10, -10, -1.28457244841E-11, 10.0000000028, 10, 45",
+      "surfaces": "ConicalSurface:2 CylindricalSurface:2 PlaneSurface:1"
+    },
+    "coneCylCylMinusCone#1": {
+      "verified": "2026-08-28 GH: the second part of the cylinder, see #0.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "11",
+      "poleEdges": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "8355.69594105",
+      "area": "2872.62133439",
+      "edgeLength": "236.229356989",
+      "extent": "-10.0000000001, -10, -45, 10.0000000099, 10, -1.28451323652E-11",
+      "surfaces": "ConicalSurface:1 CylindricalSurface:2 PlaneSurface:2"
+    },
+    "coneCylInter": {
+      "verified": "2026-08-28 GH: CALCULATED. 8436.83532065 against 8436.7 +- 1 from a deterministic quadrature (8435.93 / 8437.35 / 8436.76 on 600 / 1200 / 2400 intervals over z). Confirmed independently by inspect.properties at precision 1e-5, which gave 8436.852327 for the same body. The two tangential nodes sit at the azimuths 91.7356 and -17.7356 of the cylinder, in the interior of its half mantles.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "16",
+      "poleEdges": "0",
+      "vertices": "10",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "8436.83532065",
+      "area": "2505.29651136",
+      "edgeLength": "262.778904636",
+      "extent": "-10.0000000001, -9.99999900279, -35, 10.0000000099, 9.99896055243, 10",
+      "surfaces": "ConicalSurface:3 CylindricalSurface:4 PlaneSurface:1"
+    },
+    "coneCylUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. union + intersect = 51645.5503661 + 8436.83532065 = 60082.39 against the exact sum of the operands 9000*pi + 10125*pi = 60082.9595001864, 9.5e-6.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "26",
+      "poleEdges": "2",
+      "vertices": "17",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "51645.5503661",
+      "area": "10135.9519262",
+      "edgeLength": "643.861996872",
+      "extent": "-36.0554082877, -35.2027626247, -45, 13.8327728013, 10.4237419686, 45",
+      "surfaces": "ConicalSurface:4 CylindricalSurface:4 PlaneSurface:3"
+    },
+    "insphereCone": {
+      "verified": "2026-08-28 GH: operand. area 6361.72512351 exact; the volume is 0.64 percent below 10125*pi = 31808.6256178783, the usual triangulation error of a cone with an apex.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "4",
+      "poleEdges": "2",
+      "vertices": "3",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "31606.5889208",
+      "area": "6361.72512351",
+      "edgeLength": "267.164991235",
+      "extent": "-36.0554082877, -35.2027626247, -35, 13.8327728013, 10.4237419686, 10",
+      "surfaces": "ConicalSurface:2 PlaneSurface:1"
+    },
+    "insphereCyl": {
+      "verified": "2026-08-28 GH: operand, exact but for the triangulation: volume 2.4e-5 below 9000*pi = 28274.3338823081, area 6283.18530718 = 2*pi*10*90 + 2*pi*100 exactly.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "28273.6560547",
+      "area": "6283.18530718",
+      "edgeLength": "305.663706144",
+      "extent": "-10, -10, -45, 10, 10, 45",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "insphereCyl",
+        "start": [
+          0,
+          0,
+          -45
+        ],
+        "end": [
+          0,
+          0,
+          45
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.cone",
+      "params": {
+        "name": "insphereCone",
+        "start": [
+          -17.2909660016,
+          -13.0296774607,
+          -12.5
+        ],
+        "radiusStart": 25.9807621135,
+        "end": [
+          13.8327728013,
+          10.4237419686,
+          10
+        ],
+        "radiusEnd": 0
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "insphereCyl",
+        "b": "insphereCone",
+        "name": "coneCylInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "insphereCyl",
+        "b": "insphereCone",
+        "name": "coneCylUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "insphereCyl",
+        "b": "insphereCone",
+        "name": "coneCylCylMinusCone",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "insphereCone",
+        "b": "insphereCyl",
+        "name": "coneCylConeMinusCyl",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "insphereCyl",
+          "insphereCone",
+          "coneCylInter",
+          "coneCylUnion"
+        ]
+      }
+    }
+  ]
+}

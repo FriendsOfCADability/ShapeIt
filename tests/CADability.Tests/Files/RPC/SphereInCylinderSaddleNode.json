@@ -1,0 +1,235 @@
+{
+  "Description": "A sphere and a cylinder tangent to each other with a crossing intersection curve - the pair that is easy\nto overlook, because the obvious sphere/cylinder tangencies do something else.\nA sphere of radius 16 has its centre at (-1.9534089267, -5.6731114536, 7), that is at distance 6 from\nthe axis of a cylinder of radius 10 about the z axis. Because 6 + 10 = 16, the sphere touches the\ncylinder at exactly one point,\n  (3.2556815446, 9.4551857560, 7)\nand the surfaces CROSS there: at the height of the sphere centre the two circles - the cylinder's of\nradius 10 and the sphere's of radius 16 - are internally tangent, while at every other height they meet\ntransversally in two points, so the intersection curve has a NODE at the contact.\n\nThe curvature argument says the same thing and says when it works. The cylinder has the principal\ncurvatures 1/10 and 0, the sphere 1/16 in every direction, and\n  1/10 - 1/16 > 0   while   0 - 1/16 < 0\nis indefinite. The condition is simply sphere radius > cylinder radius, with the sphere bulging outwards\nthrough the wall. That is the whole family: a sphere of the SAME radius as the cylinder touches it along\na circle instead, a smaller sphere tangent from inside touches in an isolated point and does not cross,\nand two tangent spheres never cross at all, because the difference of two definite forms of the same\nsign cannot be indefinite. A cone behaves like the cylinder here, with its local radius of curvature\ntaking the place of 10.\n\nThe contact is at the azimuth 71 degrees and at z = 7, so it lies in the interior of a half mantle - the\ncylinder about the z axis through the origin is split in the xz plane - and far from both end faces.\nThis is the oblique member of the group; the seam variants are\nEqualCylindersCrossedAtSeam, ConesCommonInsphereAtSeam, TorusVillarceauPlaneAtSeam,\nTorusPlaneTangentInnerEquator and TorusSphereSaddleAtSeam.",
+  "Expected": "V(cylinder r=10, l=60) = 6000*pi = 18849.5559215388, area 2*pi*10*60 + 2*pi*100 = 4398.2297150257,\nextent -10,-10,-30 .. 10,10,30.\nV(sphere r=16) = 4/3*pi*4096 = 17157.2846788051, area 4*pi*256 = 3216.9908772759,\nextent -17.9534089267,-21.6731114536,-9 .. 14.0465910733,10.3268885464,23.\nThe sphere spans z from -9 to 23 and is therefore nowhere near the cylinder's end faces: the contact is\nthe only degeneracy in the case.\n\nThe intersection is a solid of revolution problem only in the cross section, so it was integrated over z\nas the area of the lens of the two circles (radius 10 at the axis and radius sqrt(256-(z-7)^2) at\ndistance 6), by Simpson on 400000 intervals:\n  cylSphereInter      7975.6460   (Monte Carlo 7970.4 +- 3.6 with 3e6 samples, 1.4 sigma)\n  cylMinusSphere      18849.5559 - 7975.6460 = 10873.9100\n  sphereMinusCyl      17157.2847 - 7975.6460 =  9181.6387\n  cylSphereUnion      18849.5559 + 17157.2847 - 7975.6460 = 28031.1946\nThe identity union + intersect = 36006.8406 is exact.\n\ncylMinusSphere must be TWO solids. At z = 7, the height of the sphere centre, the cross section of the\nsphere is a circle of radius 16 at distance 6 from the axis and therefore CONTAINS the disc of radius\n10 of the cylinder, touching it at the contact point: the cylinder is cut through at that height and\nthe two parts, 7636.07 below and 3237.84 above, hang together at that one point alone.\nsphereMinusCyl is one solid pinched at the same point, euler 1 - its annular cross section there\ncloses to a point. The intersection and the union are single manifold solids with euler 2. The\nfailures to look for are a half of cylMinusSphere going missing and a sliver face at the contact.",
+  "CaseStatus": "Ok",
+  "Repeat": 4,
+  "Verify": [
+    "saddleCyl",
+    "bigSphere",
+    "cylSphereInter",
+    "cylMinusSphere",
+    "sphereMinusCyl",
+    "cylSphereUnion"
+  ],
+  "Status": "PASSES, first measured 2026-08-28, stable over 4 runs. Every volume is within 5e-6 of an independently\ncomputed value:\n  cylSphereInter  7975.60851249 against 7975.6460 (integrated over z as the lens area of the two\n                  circles, Simpson on 400000 intervals; Monte Carlo 7970.4 +- 3.6)      4.7e-6\n  cylMinusSphere  7636.06766911 + 3237.84431926 = 10873.9120 against 10873.9100         1.8e-7\n  sphereMinusCyl  9181.66000941 against 9181.6387                                       2.3e-6\n  cylSphereUnion  28031.1893069 against 28031.1946                                      1.9e-7\n  union + intersect = 36006.7978 against the exact sum of the operands 36006.8406       1.2e-6\n\nCORRECTION to the first version of the Expected text, which claimed all four results are single solids:\ncylMinusSphere is TWO solids and that is right. At z = 7, the height of the sphere centre, the sphere's\ncross section is a circle of radius 16 at distance 6 from the axis, so it CONTAINS the cylinder's disc\nof radius 10 and touches it at the one contact point. The cylinder is therefore cut through at that\nheight and hangs together at the contact point alone - 7636.07 below it and 3237.84 above it, meeting\nat z = 7 in both extents. sphereMinusCyl comes out with euler 1, pinched at the same point, and the\nintersection and the union are single manifold solids with euler 2, as expected.",
+  "Baseline": {
+    "bigSphere": {
+      "verified": "2026-08-28 GH: operand. volume 1.5e-4 below 4/3*pi*4096 = 17157.2846788051 and area 2.2e-4 above 4*pi*256 = 3216.9908772759, both from the triangulation of the two hemispherical faces.",
+      "consistent": "true",
+      "faces": "2",
+      "edges": "4",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "17154.7590782",
+      "area": "3217.69337347",
+      "edgeLength": "142.172254021",
+      "extent": "-17.9534089267, -21.6731114536, -9, 14.0465910733, 10.3268885464, 23",
+      "surfaces": "SphericalSurface:2"
+    },
+    "cylMinusSphere": {
+      "solids": "2"
+    },
+    "cylMinusSphere#0": {
+      "verified": "2026-08-28 GH: the lower part. Together with #1 it gives 10873.9120 against the calculated 18849.5559215388 - 7975.6460 = 10873.9100, 1.8e-7. The split into two solids is CORRECT: at z = 7 the sphere covers the whole cross section of the cylinder and touches its wall at one point, so the cylinder is cut through there. Both extents meet at z = 7 exactly.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "10",
+      "poleEdges": "0",
+      "vertices": "7",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7636.06766911",
+      "area": "2455.69789293",
+      "edgeLength": "195.135219845",
+      "extent": "-10, -10, -30, 10, 10, 7",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:1 SphericalSurface:2"
+    },
+    "cylMinusSphere#1": {
+      "verified": "2026-08-28 GH: the upper part, see #0.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "10",
+      "poleEdges": "0",
+      "vertices": "7",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3237.84431926",
+      "area": "1576.8826206",
+      "edgeLength": "178.036560126",
+      "extent": "-10, -10, 7, 10, 10, 30",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:1 SphericalSurface:2"
+    },
+    "cylSphereInter": {
+      "verified": "2026-08-28 GH: CALCULATED. 7975.60851249 against 7975.6460, integrated over z as the area of the lens of the two circles (radius 10 at the axis, radius sqrt(256-(z-7)^2) at distance 6), Simpson on 400000 intervals. Monte Carlo 7970.4 +- 3.6 agrees within 1.4 sigma. One manifold solid, euler 2; its extent touches the cylinder wall (x = 10, y = -9.9999) at the contact.",
+      "consistent": "true",
+      "faces": "7",
+      "edges": "14",
+      "poleEdges": "0",
+      "vertices": "9",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7975.60851249",
+      "area": "2115.12169143",
+      "edgeLength": "213.94168281",
+      "extent": "-10, -9.99990331309, -9, 10, 9.99813643284, 23",
+      "surfaces": "CylindricalSurface:3 SphericalSurface:4"
+    },
+    "cylSphereUnion": {
+      "verified": "2026-08-28 GH: CALCULATED. 28031.1893069 against 18849.5559215388 + 17157.2846788051 - 7975.6460 = 28031.1946. Together with the intersection it meets the exact identity union + intersect = 36006.8406 to 1.2e-6.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "24",
+      "poleEdges": "0",
+      "vertices": "17",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "28031.1893069",
+      "area": "5498.24208304",
+      "edgeLength": "459.376270602",
+      "extent": "-17.9534089267, -21.6731114536, -30, 14.0465910733, 10.3268885464, 30",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:2 SphericalSurface:3"
+    },
+    "saddleCyl": {
+      "verified": "2026-08-28 GH: operand. area 4398.22971503 and edgeLength 245.663706144 exact, volume 1.2e-5 below 6000*pi = 18849.5559215388.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleEdges": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "18849.3377811",
+      "area": "4398.22971503",
+      "edgeLength": "245.663706144",
+      "extent": "-10, -10, -30, 10, 10, 30",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    },
+    "sphereMinusCyl": {
+      "verified": "2026-08-28 GH: CALCULATED. 9181.66000941 against 17157.2846788051 - 7975.6460 = 9181.6387, 2.3e-6. euler 1: the body is pinched at the contact point, where the annular cross section at z = 7 closes to a point.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "18",
+      "poleEdges": "0",
+      "vertices": "13",
+      "holeLoops": "0",
+      "euler": "1",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "9181.66000941",
+      "area": "3580.7468492",
+      "edgeLength": "300.14643953",
+      "extent": "-17.9534089267, -21.6731114536, -8.48165735134, 14.0465910733, 10.3268885464, 22.4918900088",
+      "surfaces": "CylindricalSurface:3 SphericalSurface:3"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "saddleCyl",
+        "start": [
+          0,
+          0,
+          -30
+        ],
+        "end": [
+          0,
+          0,
+          30
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.sphere",
+      "params": {
+        "name": "bigSphere",
+        "center": [
+          -1.9534089267,
+          -5.6731114536,
+          7
+        ],
+        "radius": 16
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "saddleCyl",
+        "b": "bigSphere",
+        "name": "cylSphereInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "saddleCyl",
+        "b": "bigSphere",
+        "name": "cylMinusSphere",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "bigSphere",
+        "b": "saddleCyl",
+        "name": "sphereMinusCyl",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "saddleCyl",
+        "b": "bigSphere",
+        "name": "cylSphereUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.summary",
+      "params": {
+        "objects": [
+          "saddleCyl",
+          "bigSphere",
+          "cylSphereInter",
+          "cylSphereUnion"
+        ]
+      }
+    }
+  ]
+}

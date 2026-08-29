@@ -203,6 +203,27 @@ namespace CADability
             }
             public double ToNorm(double x) { return Interpolate(orig, mapped, x); }
             public double ToOrig(double y) { return Interpolate(mapped, orig, y); }
+            /// <summary>
+            /// The local d(normalized)/d(original) of the mapping at <paramref name="x"/>, i.e. the
+            /// average 3d scale this axis was normalized with in the interval containing x. Compared
+            /// against the true local scale it tells how faithful the normalization is here.
+            /// </summary>
+            public double Slope(double x)
+            {
+                int n = orig.Length;
+                int i;
+                if (x <= orig[0]) i = 0;
+                else if (x >= orig[n - 1]) i = n - 2;
+                else
+                {
+                    i = Array.BinarySearch(orig, x);
+                    if (i < 0) i = ~i - 1;
+                    if (i > n - 2) i = n - 2;
+                }
+                double f = orig[i + 1] - orig[i];
+                if (f == 0.0) return 0.0;
+                return (mapped[i + 1] - mapped[i]) / f;
+            }
             private static double Interpolate(double[] from, double[] to, double x)
             {
                 int n = from.Length;
@@ -238,6 +259,13 @@ namespace CADability
         /// by circumcenter insertion where possible without splitting boundary segments.
         /// </summary>
         public double MinAngle3D = 20.0 * Math.PI / 180.0;
+        /// <summary>
+        /// How far the true local 3d scale may deviate from the average scale the normalized uv
+        /// space was built with before shape refinement is suspended there, see
+        /// <see cref="NormalizationMismatch"/>. Only the shape criterion is affected; accuracy is
+        /// governed by the deflection criteria, which do not depend on the normalization.
+        /// </summary>
+        public double MaxNormalizationMismatch = 4.0;
 
         /// <summary>true when the input polygons intersect themselves or each other (invalid input)</summary>
         public bool innerIntersection;
@@ -257,6 +285,12 @@ namespace CADability
         private readonly List<double> singularValue = new List<double>();   // the singular parameter value (only valid when singularKind != 0)
         private readonly List<int> aliasOf = new List<int>();               // duplicate input points map to their first occurrence
         private readonly List<int> vertexTri = new List<int>();             // some triangle containing this vertex (hint, may be stale)
+        // the singular parameter lines of the surface, determined once in ComputeVertexData, so that
+        // Steiner points landing on one of them can be classified the same way input points are
+        private double[] uSingularities, vSingularities;
+        private double uSingEps, vSingEps;
+        // the one 3d point every parameter of a singular line maps to, keyed as in ComputeVertexData
+        private readonly Dictionary<double, GeoPoint> singularPoint = new Dictionary<double, GeoPoint>();
         private int inputVertexCount;
         private int superBase = -1;
 
@@ -438,62 +472,17 @@ namespace CADability
 
         private void ComputeVertexData()
         {
-            double[] usng = null, vsng = null;
-            try { usng = surface.GetUSingularities(); } catch (Exception) { }
-            try { vsng = surface.GetVSingularities(); } catch (Exception) { }
-            double uEps = extent.Width * 1e-7;
-            double vEps = extent.Height * 1e-7;
-            // all vertices on the same singular line get the identical 3d point (evaluated once)
-            Dictionary<double, GeoPoint> singularPoint = new Dictionary<double, GeoPoint>();
+            try { uSingularities = surface.GetUSingularities(); } catch (Exception) { }
+            try { vSingularities = surface.GetVSingularities(); } catch (Exception) { }
+            uSingEps = extent.Width * 1e-7;
+            vSingEps = extent.Height * 1e-7;
 
             for (int i = 0; i < inputVertexCount; ++i)
             {
                 GeoPoint2D p = uv[i];
                 nuv.Add(ToNorm(p));
-                byte sKind = 0;
-                double sValue = 0.0;
-                GeoPoint pt = GeoPoint.Origin;
-                bool ptSet = false;
-                if (usng != null)
-                {
-                    for (int k = 0; k < usng.Length; ++k)
-                    {
-                        if (Math.Abs(p.x - usng[k]) < uEps)
-                        {
-                            sKind = 1;
-                            sValue = usng[k];
-                            if (!singularPoint.TryGetValue(usng[k], out pt))
-                            {
-                                pt = surface.PointAt(p);
-                                singularPoint[usng[k]] = pt;
-                            }
-                            ptSet = true;
-                            break;
-                        }
-                    }
-                }
-                if (sKind == 0 && vsng != null)
-                {
-                    for (int k = 0; k < vsng.Length; ++k)
-                    {
-                        if (Math.Abs(p.y - vsng[k]) < vEps)
-                        {
-                            sKind = 2;
-                            sValue = vsng[k];
-                            // offset the key to distinguish u- from v-singularities with equal parameter value
-                            double key = vsng[k] + 1e100;
-                            if (!singularPoint.TryGetValue(key, out pt))
-                            {
-                                pt = surface.PointAt(p);
-                                singularPoint[key] = pt;
-                            }
-                            ptSet = true;
-                            break;
-                        }
-                    }
-                }
-                if (!ptSet) pt = surface.PointAt(p);
-                pnt.Add(pt);
+                byte sKind = SingularityAt(p, out double sValue);
+                pnt.Add(SurfacePoint(p, sKind, sValue));
                 singular.Add(sKind != 0);
                 singularKind.Add(sKind);
                 singularValue.Add(sValue);
@@ -505,6 +494,51 @@ namespace CADability
             double diag3 = bb.DiagonalLength;
             eps3 = diag3 > 0.0 ? diag3 * 1e-9 : 0.0;
         }
+
+        /// <summary>
+        /// Classifies a parameter point against the singular lines of the surface: 0 none, 1 on a
+        /// u-singularity, 2 on a v-singularity, with the singular parameter value in
+        /// <paramref name="value"/>. Applied to Steiner points as well as to the input points -
+        /// a point that lands on a singular line is one, no matter how it was created.
+        /// </summary>
+        private byte SingularityAt(GeoPoint2D p, out double value)
+        {
+            if (uSingularities != null)
+            {
+                for (int k = 0; k < uSingularities.Length; ++k)
+                {
+                    if (Math.Abs(p.x - uSingularities[k]) < uSingEps) { value = uSingularities[k]; return 1; }
+                }
+            }
+            if (vSingularities != null)
+            {
+                for (int k = 0; k < vSingularities.Length; ++k)
+                {
+                    if (Math.Abs(p.y - vSingularities[k]) < vSingEps) { value = vSingularities[k]; return 2; }
+                }
+            }
+            value = 0.0;
+            return 0;
+        }
+
+        /// <summary>
+        /// The 3d point of a parameter point. All points of one singular line must map to the
+        /// identical 3d point - the degeneracy tests compare 3d points, so evaluating the surface
+        /// twice at two parameters of the same pole and getting two slightly different points would
+        /// defeat them. So it is evaluated once per singular line and cached.
+        /// </summary>
+        private GeoPoint SurfacePoint(GeoPoint2D p, byte sKind, double sValue)
+        {
+            if (sKind == 0) return surface.PointAt(p);
+            // offset the key of a v-singularity to distinguish it from a u-singularity of equal value
+            double key = sKind == 1 ? sValue : sValue + 1e100;
+            if (!singularPoint.TryGetValue(key, out GeoPoint pt))
+            {
+                pt = surface.PointAt(p);
+                singularPoint[key] = pt;
+            }
+            return pt;
+        }
         #endregion
 
         #region delaunay triangulation of the input points
@@ -513,9 +547,14 @@ namespace CADability
             uv.Add(orig);
             nuv.Add(norm);
             pnt.Add(GeoPoint.Origin); // filled after successful insertion
-            singular.Add(false);
-            singularKind.Add(0);
-            singularValue.Add(0.0);
+            // A Steiner point can land on a singular line just like an input point can, and everything
+            // that keys off `singular` - the deflection measured along the iso-parameter path, the
+            // suspended shape criterion, the removal of 3d-degenerate triangles - is wrong for it
+            // otherwise. Classifying it here is what makes those consistent for the whole mesh.
+            byte sKind = SingularityAt(orig, out double sValue);
+            singular.Add(sKind != 0);
+            singularKind.Add(sKind);
+            singularValue.Add(sValue);
             aliasOf.Add(uv.Count - 1);
             vertexTri.Add(-1);
             return uv.Count - 1;
@@ -1261,7 +1300,7 @@ namespace CADability
         }
 
         // evaluates the refinement criteria in priority order and proposes a Steiner point
-        private int EvaluateTriangle(int t, double qualityMinLenN, out GeoPoint2D normPos, out GeoPoint2D origPos)
+        private int EvaluateTriangle(int t, double qualityMinLenN, double qualityMinLen3d, out GeoPoint2D normPos, out GeoPoint2D origPos)
         {
             normPos = GeoPoint2D.Origin;
             origPos = GeoPoint2D.Origin;
@@ -1332,36 +1371,38 @@ namespace CADability
                 }
             }
 
-            // 4) 3d shape quality: refine skinny triangles by circumcenter insertion. Skipped
-            //    at singularities (a uv-thin triangle at a pole is fine in 3d) and when the
+            // 4) 3d shape quality: refine skinny triangles by circumcenter insertion. Skipped at
+            //    singularities (a uv-thin triangle at a pole is fine in 3d and cannot be improved
+            //    anyway), where the normalization does not describe the surface, and when the
             //    triangle is already at the sizing floor
-            if (!degenerate3d && SingularVertexCount(tr) < 2)
+            if (!degenerate3d && SingularVertexCount(tr) == 0)
             {
                 double minAng = Min3DAngle(pa, pb, pc);
                 if (minAng < MinAngle3D)
                 {
                     double shortestN = double.MaxValue;
-                    // The per-axis arc length normalization is only an average: close to a
-                    // singularity (cone apex, sphere pole) the true local metric deviates from
-                    // it by orders of magnitude. There a circumcenter in normalized uv would
-                    // produce yet another 3d sliver and the refinement cascades. Detect the
-                    // mismatch by comparing 3d and normalized edge lengths: when their ratio
-                    // varies strongly across the triangle, shape refinement is pointless here
-                    // and the sizing is left to the deflection criteria.
+                    double shortest3d = double.MaxValue;
+                    // Anisotropy within the triangle: the circumcenter of a triangle whose edges are
+                    // stretched very differently by the parametrization is not the point that
+                    // improves it in 3d. Cheap, but it only sees this one triangle, and the spread
+                    // it measures shrinks as the triangles do - so it cannot be the only guard.
                     double minRatio = double.MaxValue, maxRatio = 0.0;
                     for (int i = 0; i < 3; ++i)
                     {
                         double l = nuv[tr.v[i]] | nuv[tr.v[Next(i)]];
+                        double l3 = pnt[tr.v[i]] | pnt[tr.v[Next(i)]];
                         if (l < shortestN) shortestN = l;
+                        if (l3 < shortest3d) shortest3d = l3;
                         if (l > 0)
                         {
-                            double r = (pnt[tr.v[i]] | pnt[tr.v[Next(i)]]) / l;
+                            double r = l3 / l;
                             if (r < minRatio) minRatio = r;
                             if (r > maxRatio) maxRatio = r;
                         }
                     }
                     bool anisotropic = minRatio <= 0 || maxRatio > 4.0 * minRatio;
-                    if (!anisotropic && shortestN > qualityMinLenN)
+                    if (!anisotropic && shortestN > qualityMinLenN && shortest3d > qualityMinLen3d
+                        && NormalizationMismatch(Centroid(tr)) <= MaxNormalizationMismatch)
                     {
                         GeoPoint2D cc;
                         if (Circumcenter(nuv[tr.v[0]], nuv[tr.v[1]], nuv[tr.v[2]], out cc))
@@ -1376,11 +1417,60 @@ namespace CADability
             return KindNone;
         }
 
+        /// <summary>The centroid of a triangle in original uv.</summary>
+        private GeoPoint2D Centroid(Tri tr)
+        {
+            return new GeoPoint2D((uv[tr.v[0]].x + uv[tr.v[1]].x + uv[tr.v[2]].x) / 3.0,
+                                  (uv[tr.v[0]].y + uv[tr.v[1]].y + uv[tr.v[2]].y) / 3.0);
+        }
+
+        /// <summary>
+        /// How badly the normalized uv space misrepresents the surface at <paramref name="p"/>: the
+        /// worst ratio, over both axes, between the true local 3d scale and the average scale the
+        /// axis was normalized with. 1 means the normalization is locally faithful, large values
+        /// mean a circumcenter computed in normalized uv says nothing about 3d.
+        /// <para>
+        /// This is what a per-axis arc length normalization cannot express: on a cone the
+        /// parametrization is polar - u is an angle, v the radius - so |dS/du| depends on v, and
+        /// <see cref="BuildAxisMap"/> can only store one average per u interval. Near the apex the
+        /// true scale is far below that average, a circumcenter lands where it does not improve the
+        /// 3d angle, and the triangle is refined again: the shape criterion never converges and
+        /// stops only at the vertex cap. Measuring the mismatch at a POSITION rather than from the
+        /// triangle's own edges is the point - the per-triangle spread shrinks with the triangle,
+        /// so refinement switches that guard off just when it is needed most.
+        /// </para>
+        /// </summary>
+        private double NormalizationMismatch(GeoPoint2D p)
+        {
+            double worst = 1.0;
+            try
+            {
+                worst = Math.Max(worst, ScaleMismatch(surface.UDirection(p).Length, uMap.Slope(p.x)));
+                worst = Math.Max(worst, ScaleMismatch(surface.VDirection(p).Length, vMap.Slope(p.y)));
+            }
+            catch (Exception)
+            {   // a surface that cannot be differentiated here: treat it as unusable for shape refinement
+                return double.MaxValue;
+            }
+            return worst;
+        }
+
+        private static double ScaleMismatch(double local, double mapped)
+        {
+            if (mapped <= 0.0 || local <= 0.0) return double.MaxValue;
+            return local > mapped ? local / mapped : mapped / local;
+        }
+
         private void Refine()
         {
-            // sizing floor for the quality criterion: never refine for shape reasons far below
-            // the boundary sampling density (deflection refinement is not limited by this)
+            // Sizing floor for the quality criterion: never refine for shape reasons far below the
+            // boundary sampling density (deflection refinement is not limited by this). Kept in both
+            // spaces on purpose. The normalized one bounds the mesh in the space the circumcenter is
+            // computed in; the 3d one is what actually bounds it near a singularity, where a fixed
+            // length in normalized uv covers a 3d distance that goes to zero, so the normalized
+            // floor alone permits arbitrarily many triangles in a vanishingly small piece of surface.
             List<double> boundaryLens = new List<double>();
+            List<double> boundaryLens3d = new List<double>();
             for (int t = 0; t < tris.Count; ++t)
             {
                 if (!tris[t].alive) continue;
@@ -1390,16 +1480,23 @@ namespace CADability
                     if ((tr.constrained & (1 << e)) != 0 && tr.n[e] < 0)
                     {
                         boundaryLens.Add(nuv[tr.v[e]] | nuv[tr.v[Next(e)]]);
+                        boundaryLens3d.Add(pnt[tr.v[e]] | pnt[tr.v[Next(e)]]);
                     }
                 }
             }
-            double qualityMinLenN;
+            double qualityMinLenN, qualityMinLen3d;
             if (boundaryLens.Count > 0)
             {
                 boundaryLens.Sort();
+                boundaryLens3d.Sort();
                 qualityMinLenN = boundaryLens[boundaryLens.Count / 2] * 0.1;
+                qualityMinLen3d = boundaryLens3d[boundaryLens3d.Count / 2] * 0.1;
             }
-            else qualityMinLenN = diagN * 1e-3;
+            else
+            {
+                qualityMinLenN = diagN * 1e-3;
+                qualityMinLen3d = 0.0;
+            }
 
             int maxVerts = Math.Max(20000, inputVertexCount * 50); // hard safety cap
             Stack<int> work = new Stack<int>();
@@ -1413,7 +1510,7 @@ namespace CADability
                 int t = work.Pop();
                 if (t >= tris.Count || !tris[t].alive) continue;
                 GeoPoint2D np, op;
-                int kind = EvaluateTriangle(t, qualityMinLenN, out np, out op);
+                int kind = EvaluateTriangle(t, qualityMinLenN, qualityMinLen3d, out np, out op);
                 if (kind == KindNone) continue;
                 if (uv.Count >= maxVerts) break;
                 int vi = AddSteinerVertex(op, np);
@@ -1425,7 +1522,7 @@ namespace CADability
                     // never be split. The vertex remains unused and is dropped from the output.
                     continue;
                 }
-                pnt[vi] = surface.PointAt(op);
+                pnt[vi] = SurfacePoint(op, singularKind[vi], singularValue[vi]);
                 switch (kind)
                 {
                     case KindEdge: ++SteinerByEdgeDeflection; break;
