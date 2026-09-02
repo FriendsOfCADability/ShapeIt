@@ -2309,12 +2309,20 @@ namespace CADability.GeoObject
                                 // beides gleiche Richtung
                                 Line2D res = new Line2D(new GeoPoint2D(uv.x, uv.y), new GeoPoint2D(uv.x, uv.y + Math.Abs(e.SweepParameter)));
                                 if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+#if DEBUG
+                                //ICurve dbgr = Make3dCurve(res);
+                                //System.Diagnostics.Debug.Assert(Precision.SameNotOppositeDirection(dbgr.StartDirection, e.StartDirection) && Precision.IsEqual(dbgr.StartPoint, e.StartPoint));
+#endif
                                 return res;
                             }
                             else
                             {
                                 Line2D res = new Line2D(new GeoPoint2D(uv.x, uv.y), new GeoPoint2D(uv.x, uv.y - Math.Abs(e.SweepParameter)));
                                 if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+#if DEBUG
+                                //ICurve dbgr = Make3dCurve(res);
+                                //System.Diagnostics.Debug.Assert(Precision.SameNotOppositeDirection(dbgr.StartDirection, e.StartDirection) && Precision.IsEqual(dbgr.StartPoint, e.StartPoint));
+#endif
                                 return res;
                             }
                         }

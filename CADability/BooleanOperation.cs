@@ -902,21 +902,45 @@ namespace CADability
             if (normalsCrossedStart.Length > 10 * Precision.eps || normalsCrossedEnd.Length > 10 * Precision.eps)
             {   // simple case: not tangential, the crossproduct of the normals to the face.
                 // The result is same direction of cross product and intersection curve
-                if (normalsCrossedStart.Length > normalsCrossedEnd.Length)
-                {
+                // maybe one of the uv points is a pole, which has an unstable normal. In this case we use the other point
+                bool ipsp = IsPole(fc1.Surface, uv1sp) || IsPole(fc2.Surface, uv2sp); // startpoint is a pole
+                bool ipep = IsPole(fc1.Surface, uv1ep) || IsPole(fc2.Surface, uv2ep); // endpoint is a pole
+                if (ipsp && ipep)
+                {   // bath startpoint and endpoint are poles: check in the middle
+                    GeoPoint mp = intersectionCurve.PointAt(0.5);
+                    GeoVector ncm = fc1.Surface.GetNormal(fc1.Surface.PositionOf(mp)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(mp));
+                    if (ncm.Length > 100 * Precision.eps)
+                    {
+                        return (ncm * intersectionCurve.DirectionAt(0.5)) > 0;
+                    } // else fall through to tangential case
+                }
+                else if (ipsp)
+                {   // startpoint is pole: check at the endpoint
+                    return (normalsCrossedEnd * intersectionCurve.EndDirection) > 0;
+                }
+                else if (IsPole(fc1.Surface, uv1ep) || IsPole(fc2.Surface, uv2ep))
+                {   // endpoint is pole: check at the startpoint
                     return (normalsCrossedStart * intersectionCurve.StartDirection) > 0;
                 }
                 else
-                {
-                    return (normalsCrossedEnd * intersectionCurve.EndDirection) > 0;
+                {   // choose the better cross product, but both should be the same result
+                    if (normalsCrossedStart.Length > normalsCrossedEnd.Length)
+                    {
+                        return (normalsCrossedStart * intersectionCurve.StartDirection) > 0;
+                    }
+                    else
+                    {
+                        return (normalsCrossedEnd * intersectionCurve.EndDirection) > 0;
+                    }
                 }
             }
             // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
+            // the middle point is never a pole, because a curve never crosses a pole
             GeoPoint m = intersectionCurve.PointAt(0.5);
             GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m));
             if (normalsCrossedMiddle.Length > 100 * Precision.eps)
             {
-                return (normalsCrossedMiddle * intersectionCurve.StartDirection) > 0;
+                return (normalsCrossedMiddle * intersectionCurve.DirectionAt(0.5)) > 0;
             }
             else
             {
@@ -1049,6 +1073,15 @@ namespace CADability
                 }
             }
             return null;
+        }
+
+        private bool IsPole(ISurface surface, GeoPoint2D uv)
+        {
+            double[] us = surface.GetUSingularities();
+            for (int i = 0; i < us.Length; i++) { if (Math.Abs(uv.x - us[i]) < 1e-6) { return true; } }
+            double[] vs = surface.GetVSingularities();
+            for (int i = 0; i < vs.Length; i++) { if (Math.Abs(uv.y - vs[i]) < 1e-6) { return true; } }
+            return false;
         }
 
         private IEnumerable<Vertex> GetFaceEdgeIntersection(Face face, Edge edge, out bool curveIsInSurface)

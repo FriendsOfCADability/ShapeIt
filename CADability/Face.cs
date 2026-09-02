@@ -6510,11 +6510,13 @@ namespace CADability.GeoObject
                         int next = i + 1;
                         if (i == polylines[j].Length - 1)
                             next = 0;
-                        GeoPoint2D sp = new GeoPoint2D(polylines[j][i].x / ext.Width, polylines[j][i].y / ext.Height);
-                        GeoPoint2D ep = new GeoPoint2D(polylines[j][next].x / ext.Width, polylines[j][next].y / ext.Height);
+                        //GeoPoint2D sp = new GeoPoint2D(polylines[j][i].x / ext.Width, polylines[j][i].y / ext.Height);
+                        //GeoPoint2D ep = new GeoPoint2D(polylines[j][next].x / ext.Width, polylines[j][next].y / ext.Height);
+                        GeoPoint2D sp = new GeoPoint2D(polylines[j][i].x, polylines[j][i].y);
+                        GeoPoint2D ep = new GeoPoint2D(polylines[j][next].x, polylines[j][next].y);
 
                         Line2D l2d = new Line2D(sp, ep);
-                        dc.Add(l2d);
+                        dc.Add(l2d, Color.Blue, j * 1000 + i);
                     }
                 }
                 // double dbga = this.area.Area;
@@ -6523,7 +6525,6 @@ namespace CADability.GeoObject
 
                 //Triangulation t = new Triangulation(polylines.ToArray(), surface, precision * 5.0, 0.17);
                 // precision*5: inside the face we don't need the same hight precision as on the bounds
-                if (!t.innerIntersection)
                 {
                     GeoPoint2D[] tmpTriUv;
                     GeoPoint[] tmpTriPoint;
@@ -6585,10 +6586,10 @@ namespace CADability.GeoObject
                         ln = Line.Construct();
                         ln.SetTwoPoints(cnt3d, cnt3d + n);
                         dc3d.Add(ln, Color.Red, triangleIndex[i]);
-                    }
 #endif
+                    }
                 }
-                else
+                if (t.innerIntersection)
                 {   // there are inner intersections: we need to split the outline and holes to make several non intersecting areas
 #if DEBUG
                     DebuggerContainer dc1 = new DebuggerContainer();
@@ -6607,13 +6608,6 @@ namespace CADability.GeoObject
                             dc1.Add(l2d);
                         }
                     }
-                    //lock (lockTriangulationData)
-                    //{
-                    //    triangleUVPoint = new GeoPoint2D[0];
-                    //    trianglePoint = new GeoPoint[0];
-                    //    triangleIndex = new int[0];
-                    //}
-                    //return;
 #endif
                     List<GeoPoint2D> sumTriUv = new List<GeoPoint2D>();
                     List<GeoPoint> sumTriPoint = new List<GeoPoint>();
@@ -6650,30 +6644,9 @@ namespace CADability.GeoObject
                             {
                                 bc.MinMax(tmpTriPoint[k]);
                             }
-                            if (bc.Xmax > 10)
-                            { }
 #endif
                         }
                     }
-                    //HashSet<int> invalidIndices = new HashSet<int>();
-                    //for (int j = 0; j < sumTriUv.Count; j++)
-                    //{
-                    //    GeoPoint2D pp = sumTriUv[j];
-                    //    if (!this.Contains(ref pp, true))
-                    //    {
-                    //        invalidIndices.Add(j);
-                    //    }
-                    //}
-                    //if (invalidIndices.Count > 0)
-                    //{
-                    //    for (int j = sumTriInd.Count - 1; j >= 0; j -= 3)
-                    //    {
-                    //        if (invalidIndices.Contains(sumTriInd[j]) || invalidIndices.Contains(sumTriInd[j] - 1) || invalidIndices.Contains(sumTriInd[j - 2]))
-                    //        {
-                    //            sumTriInd.RemoveRange(j - 2, 3);
-                    //        }
-                    //    }
-                    //}
                     lock (lockTriangulationData)
                     {
                         triangleUVPoint = sumTriUv.ToArray();

@@ -267,6 +267,14 @@ namespace CADability
         /// </summary>
         public double MaxNormalizationMismatch = 4.0;
 
+        /// <summary>
+        /// Input vertices closer to each other than this fraction of the (normalized) uv extent are
+        /// treated as a single vertex. Loops that touch in a point deliver that point twice, computed
+        /// from two different curves and therefore differing in the last digits; without merging, the
+        /// exact predicates see two loops crossing each other. Set to 0 to switch the merging off.
+        /// </summary>
+        public double VertexMergeTolerance = 1e-9;
+
         /// <summary>true when the input polygons intersect themselves or each other (invalid input)</summary>
         public bool innerIntersection;
         /// <summary>true when the inside/outside classification found contradictions (invalid input)</summary>
@@ -493,7 +501,62 @@ namespace CADability
             for (int i = 0; i < inputVertexCount; ++i) bb.MinMax(pnt[i]);
             double diag3 = bb.DiagonalLength;
             eps3 = diag3 > 0.0 ? diag3 * 1e-9 : 0.0;
+            MergeCoincidentInputVertices();
         }
+
+        /// <summary>
+        /// Maps input vertices that are closer to each other than <see cref="VertexMergeTolerance"/>
+        /// onto a single representative (via <see cref="aliasOf"/>).
+        /// <para>
+        /// Two loops that meet in a single point (e.g. the tips of two holes touching) are described
+        /// by two vertices which are mathematically identical but, coming from two different curves,
+        /// usually differ in the last few digits. The exact predicates take that difference seriously:
+        /// the two tips then overlap by a fraction of an ulp and the loops cross each other. The
+        /// constraint insertion cannot enforce crossing segments, drops one of them
+        /// (<see cref="innerIntersection"/>) and the resulting gap in the boundary lets the
+        /// inside/outside flood fill leak into the neighbouring region. Merging the vertices first
+        /// turns the situation into the well defined one it was meant to be: a single vertex where
+        /// four constraint edges meet and the sectors around it alternate inside/outside.
+        /// </para>
+        /// </summary>
+        private void MergeCoincidentInputVertices()
+        {
+            BoundingRect next = BoundingRect.EmptyBoundingRect;
+            for (int i = 0; i < inputVertexCount; ++i) next.MinMax(nuv[i]);
+            double tol = VertexMergeTolerance * Math.Sqrt(next.Width * next.Width + next.Height * next.Height);
+            if (!(tol > 0.0)) return;
+            double tol2 = tol * tol;
+            // uniform grid with a cell size of tol: a partner closer than tol lies in the cell of
+            // the point itself or in one of its 8 neighbours
+            Dictionary<long, List<int>> grid = new Dictionary<long, List<int>>();
+            for (int i = 0; i < inputVertexCount; ++i)
+            {
+                GeoPoint2D p = nuv[i];
+                long cx = (long)Math.Floor(p.x / tol), cy = (long)Math.Floor(p.y / tol);
+                int rep = -1;
+                for (long dx = -1; dx <= 1 && rep < 0; ++dx)
+                {
+                    for (long dy = -1; dy <= 1 && rep < 0; ++dy)
+                    {
+                        if (!grid.TryGetValue(CellKey(cx + dx, cy + dy), out List<int> cell)) continue;
+                        for (int k = 0; k < cell.Count; ++k)
+                        {
+                            double ddx = nuv[cell[k]].x - p.x, ddy = nuv[cell[k]].y - p.y;
+                            if (ddx * ddx + ddy * ddy <= tol2) { rep = cell[k]; break; }
+                        }
+                    }
+                }
+                if (rep >= 0) aliasOf[i] = aliasOf[rep];
+                else
+                {   // this vertex becomes a representative others may merge into
+                    long key = CellKey(cx, cy);
+                    if (!grid.TryGetValue(key, out List<int> cell)) { cell = new List<int>(); grid[key] = cell; }
+                    cell.Add(i);
+                }
+            }
+        }
+
+        private static long CellKey(long cx, long cy) { return ((cx & 0xffffffffL) << 32) | (cy & 0xffffffffL); }
 
         /// <summary>
         /// Classifies a parameter point against the singular lines of the surface: 0 none, 1 on a
@@ -615,6 +678,7 @@ namespace CADability
             for (int i = 0; i < order.Length; ++i)
             {
                 int vi = order[i];
+                if (aliasOf[vi] != vi) continue; // merged onto another vertex beforehand
                 int coincident;
                 if (!TryInsertVertex(vi, lastTri, false, newTris, out coincident))
                 {
