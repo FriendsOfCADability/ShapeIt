@@ -22,7 +22,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using IOPath = System.IO.Path;
 using System.Xml.Linq;
-using Wintellect.PowerCollections;
 using static CADability.Projection;
 using Path = CADability.GeoObject.Path;
 using Point = CADability.Substitutes.Point;
@@ -409,7 +408,7 @@ namespace ShapeIt
             }
             IEnumerable<Layer> visiblaLayers = new List<Layer>();
             if (vw is ModelView mv) visiblaLayers = mv.GetVisibleLayers();
-            if (vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), PickMode.singleFaceAndCurve, null).Count > 0) return CursorPosition.OverObject;
+            if (vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(visiblaLayers), PickMode.singleFaceAndCurve, null).Count > 0) return CursorPosition.OverObject;
             else return CursorPosition.EmptySpace;
         }
 
@@ -695,9 +694,9 @@ namespace ShapeIt
             if (vw is ModelView mv) visiblaLayers = mv.GetVisibleLayers();
             HashSet<IGeoObject> objects = new HashSet<IGeoObject>();
             PickMode pm = multiple ? PickMode.onlyEdges : PickMode.singleEdge; // first edges, they should have a higher priority in resourceIdOfEntryToSelect (see below)
-            GeoObjectList edges = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null); // returns all edges under the cursor
+            GeoObjectList edges = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(visiblaLayers), pm, null); // returns all edges under the cursor
             pm = multiple ? PickMode.children : PickMode.singleChild;
-            GeoObjectList facesAndCurves = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), pm, null); // returns all the faces curves or text objects under the cursor
+            GeoObjectList facesAndCurves = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(visiblaLayers), pm, null); // returns all the faces curves or text objects under the cursor
             // now an edge may be behind a face. In this case we don't want to select this edge, except when multiple picking is on, i.e. a rectangle selection
             if (multiple)
             {
@@ -765,7 +764,7 @@ namespace ShapeIt
             }
             IEnumerable<Layer> visiblaLayers = new List<Layer>();
             if (vw is ModelView mv) visiblaLayers = mv.GetVisibleLayers();
-            if (vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visiblaLayers), PickMode.singleFaceAndCurve, null).Count > 0) return "Hand";
+            if (vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(visiblaLayers), PickMode.singleFaceAndCurve, null).Count > 0) return "Hand";
             else return "Arrow";
         }
 

@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-using Wintellect.PowerCollections;
 
 namespace CADability
 {

@@ -1303,7 +1303,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			roots[Item.ItemType.styledItem] = new List<int>();
 			roots[Item.ItemType.itemDefinedTransformation] = new List<int>();
 			roots[Item.ItemType.constructiveGeometryRepresentationRelationship] = new List<int>();
-			Set<Item> productDefinitions = new Set<Item>();
+			HashSet<Item> productDefinitions = new HashSet<Item>();
 
 			using (tk = new Tokenizer(filename))
 			{
@@ -1327,7 +1327,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						}
 					}
 #if DEBUG
-					Set<Item> allRootItems = new Set<Item>(definitions);
+					HashSet<Item> allRootItems = new HashSet<Item>(definitions);
 
 					definitionStack = new Stack<int>();
 					for (int i = 0; i < definitions.Count; i++)
@@ -1362,7 +1362,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							//}
 						}
 					}
-					Set<string> allRootTypes = new Set<string>();
+					HashSet<string> allRootTypes = new HashSet<string>();
 					foreach (Item item in allRootItems)
 					{
 						if (item != null)
@@ -1982,9 +1982,9 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			if (item.usedBy.Count == 0) res.Add(item.type.ToString() + "(" + item.definingIndex.ToString() + ")"); // a root
 			return res.ToArray();
 		}
-		Set<Item.ItemType> ignoreInSubTree;
+		HashSet<Item.ItemType> ignoreInSubTree;
 
-		private string SubTree(Item item, int deepth, string name, string prefix, Set<Item> used)
+		private string SubTree(Item item, int deepth, string name, string prefix, HashSet<Item> used)
 		{
 			if (ignoreInSubTree.Contains(item.type)) return "";
 			StringBuilder res = new StringBuilder();
@@ -2036,7 +2036,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		}
 		private string SubTree(int itemId, int deepth)
 		{
-			ignoreInSubTree = new Set<Item.ItemType>(); // break the subtree debug at these types:
+			ignoreInSubTree = new HashSet<Item.ItemType>(); // break the subtree debug at these types:
 			ignoreInSubTree.Add(Item.ItemType.advancedFace);
 			ignoreInSubTree.Add(Item.ItemType.closedShell);
 			ignoreInSubTree.Add(Item.ItemType.openShell);
@@ -2059,7 +2059,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			if (item.type == Item.ItemType.faceBound) return "";
 			if (item.type == Item.ItemType.cartesianPoint) return "";
 
-			return SubTree(definitions[itemId], deepth, "root", "", new Set<Item>());
+			return SubTree(definitions[itemId], deepth, "root", "", new HashSet<Item>());
 		}
 		private HashSet<Item> ReferencedBy(Item item)
 		{

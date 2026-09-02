@@ -6,7 +6,6 @@ using CADability.Substitutes;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Wintellect.PowerCollections;
 
 namespace CADability.Shapes
 {
@@ -881,7 +880,7 @@ internal class Cluster : IQuadTreeInsertable
             get
             {
                 GeoObjectList res = new GeoObjectList();
-                Set<ICurve2D> c2d = new Set<ICurve2D>();
+                HashSet<ICurve2D> c2d = new HashSet<ICurve2D>();
                 foreach (Cluster cl in clusterSet)
                 {
                     GeoPoint p = new GeoPoint(cl.center);

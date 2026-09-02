@@ -57,6 +57,14 @@ namespace CADability.Tests.BRep
         public int TimeoutSeconds { get; set; } = 120;
         // 1e-4 and not tighter: the operations are not bit-reproducible across runs, see the readme.
         public double RelativeTolerance { get; set; } = 1e-4;
+        /// <summary>
+        /// Fallback for <see cref="CaseEntry.Repeat"/>, default 1. Raising it repeats every case and turns the
+        /// run into a stability survey over the whole set - useful before a change that is expected to move
+        /// iteration order, to tell "this case flickers" apart from "this change broke it". It multiplies the
+        /// runtime of the BRep suite, so it belongs at 1 in normal operation, with the cases that were actually
+        /// seen to move carrying their own <c>Repeat</c>.
+        /// </summary>
+        public int Repeat { get; set; } = 1;
     }
 
     /// <summary>

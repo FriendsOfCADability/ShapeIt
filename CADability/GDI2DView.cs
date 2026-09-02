@@ -7,7 +7,6 @@ using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
-using Wintellect.PowerCollections;
 using MouseEventArgs = CADability.Substitutes.MouseEventArgs;
 using DragEventArgs = CADability.Substitutes.DragEventArgs;
 using MouseButtons = CADability.Substitutes.MouseButtons;
@@ -1436,7 +1435,7 @@ namespace CADability
             spf.SnapLocalOrigin = Frame.GetBooleanSetting("Snap.SnapLocalOrigin", false);
             spf.SnapGlobalOrigin = Frame.GetBooleanSetting("Snap.SnapGlobalOrigin", false);
             spf.IgnoreList = ToIgnore;
-            model.AdjustPoint(spf, projection, new Set<Layer>(visibleLayers.Checked));
+            model.AdjustPoint(spf, projection, new HashSet<Layer>(visibleLayers.Checked));
             WorldPoint = spf.SnapPoint; // ist auch gesetzt, wenn nicht gefangen (gemäß DrawingPlane)
             lastSnapObject = spf.BestObject;
             lastSnapMode = spf.DidSnap;
@@ -1453,7 +1452,7 @@ namespace CADability
             spf.SnapLocalOrigin = Frame.GetBooleanSetting("Snap.SnapLocalOrigin", false);
             spf.SnapGlobalOrigin = Frame.GetBooleanSetting("Snap.SnapGlobalOrigin", false);
             spf.IgnoreList = ToIgnore;
-            model.AdjustPoint(spf, projection, new Set<Layer>(visibleLayers.Checked));
+            model.AdjustPoint(spf, projection, new HashSet<Layer>(visibleLayers.Checked));
             WorldPoint = spf.SnapPoint;
             lastSnapObject = spf.BestObject;
             lastSnapMode = spf.DidSnap;

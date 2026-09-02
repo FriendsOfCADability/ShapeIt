@@ -7,7 +7,6 @@ using CADability.Shapes;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
-using Wintellect.PowerCollections;
 using MathNet.Numerics.LinearAlgebra.Factorization;
 using System.Linq;
 using MathNet.Numerics;

@@ -9,7 +9,6 @@ using System.Linq;
 using System.Net;
 using System.Runtime.Serialization;
 using System.Threading;
-using Wintellect.PowerCollections;
 
 namespace CADability.GeoObject
 {
@@ -1156,7 +1155,7 @@ namespace CADability.GeoObject
         }
         public bool Approximate(GeoPoint[] vertex, double precision)
         {
-            Set<int> selectedPoints = new Set<int>();
+            HashSet<int> selectedPoints = new HashSet<int>();
             selectedPoints.Add(0);
             selectedPoints.Add(vertex.Length - 1);
             bool closed = (vertex[0] | vertex[vertex.Length - 1]) < precision / 10.0;
@@ -1169,7 +1168,7 @@ namespace CADability.GeoObject
                 int i = 0;
                 int[] indices = selectedPoints.ToArray();
                 Array.Sort(indices);
-                foreach (int k in indices) // Set<T>: The items are enumerated in sorted order. Stimmt aber nicht!
+                foreach (int k in indices) // HashSet<T>: The items are enumerated in sorted order. Stimmt aber nicht!
                 {
                     tp[i] = vertex[k];
                     ++i;

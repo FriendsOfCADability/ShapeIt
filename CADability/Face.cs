@@ -532,10 +532,10 @@ namespace CADability.GeoObject
                 // We try here to remove smaller parts
                 double vprec = Math.Min(precision, minCurveLength / 10.0);
                 BoundingBox vertexExtent = BoundingBox.EmptyBoundingBox;
-                Set<Vertex> allVertices = new Set<Vertex>();
+                HashSet<Vertex> allVertices = new HashSet<Vertex>();
                 for (int i = 0; i < loops.Count; i++)
                 {
-                    Set<Vertex> vertices = new Set<Vertex>();
+                    HashSet<Vertex> vertices = new HashSet<Vertex>();
                     for (int j = 0; j < loops[i].Count; j++)
                     {
                         vertexExtent.MinMax(loops[i][j].vertex1.Position);
@@ -582,7 +582,7 @@ namespace CADability.GeoObject
                             if (!vertexUsage.ContainsKey(loops[i][j].vertex2)) vertexUsage[loops[i][j].vertex2] = 0;
                             ++vertexUsage[loops[i][j].vertex2];
                         }
-                        Set<Vertex> selfIntersections = new Set<Vertex>();
+                        HashSet<Vertex> selfIntersections = new HashSet<Vertex>();
                         foreach (KeyValuePair<Vertex, int> item in vertexUsage)
                         {
                             if (item.Value > 2) selfIntersections.Add(item.Key);
@@ -668,7 +668,7 @@ namespace CADability.GeoObject
                             List<StepEdgeDescriptor> toInsert = new List<StepEdgeDescriptor>();
                             for (int k = 0; k < loops[i][j].createdEdges.Count; k++)
                             {
-                                Set<Vertex> toUse = new Set<Vertex>();
+                                HashSet<Vertex> toUse = new HashSet<Vertex>();
                                 toUse.Add(loops[i][j].vertex1);
                                 toUse.Add(loops[i][j].vertex2);
                                 loops[i][j].createdEdges[k].UseVertices(toUse, vertexDist);
@@ -682,7 +682,7 @@ namespace CADability.GeoObject
                     }
                     if (needsResort)
                     {
-                        Set<StepEdgeDescriptor> loopcurves = new Set<StepEdgeDescriptor>(loops[i]);
+                        HashSet<StepEdgeDescriptor> loopcurves = new HashSet<StepEdgeDescriptor>(loops[i]);
                         loops[i].Clear();
                         StepEdgeDescriptor se = loopcurves.GetAny();
                         loopcurves.Remove(se);
@@ -2136,7 +2136,7 @@ namespace CADability.GeoObject
                     List<ICurve2D> crvs2d = new List<ICurve2D>(); // all 2d curves (split and unsplit)
                     List<ICurve> crvs3d = new List<ICurve>(); // synchronous list of 3d curves
                     List<int> loopSpan = new List<int>(); // indices in crvs2d where a new loop begins
-                    allVertices = new Set<Vertex>();
+                    allVertices = new HashSet<Vertex>();
                     double minLength = double.MaxValue;
                     for (int i = 0; i < loops.Count; i++)
                     {
@@ -2468,11 +2468,11 @@ namespace CADability.GeoObject
                     // *** check 2d split curves and directions
 #endif
                     // now we make two or four sets of curves (corresponding to the non periodic sub-patches of the surface) and make faces from each set
-                    Set<int>[,] part = new Set<int>[2, 2];
-                    part[0, 0] = new Set<int>();
-                    part[0, 1] = new Set<int>();
-                    part[1, 0] = new Set<int>();
-                    part[1, 1] = new Set<int>();
+                    HashSet<int>[,] part = new HashSet<int>[2, 2];
+                    part[0, 0] = new HashSet<int>();
+                    part[0, 1] = new HashSet<int>();
+                    part[1, 0] = new HashSet<int>();
+                    part[1, 1] = new HashSet<int>();
                     // distribute the 2d curves into the appropriate patch
                     for (int i = 0; i < crvs2d.Count; i++)
                     {
@@ -2484,7 +2484,7 @@ namespace CADability.GeoObject
                     }
                     // and for each set we calculate a list of parameters for the counterclockwise rectangle, starting at the lower left point of the bounding rectangle
                     // for each patch collect the parts of the 2d curves of this patch together with the appropriate parts of the bounding rectangle
-                    Set<Face> res = new Set<Face>();
+                    HashSet<Face> res = new HashSet<Face>();
                     Dictionary<DoubleVertexKey, Edge> seams = new Dictionary<DoubleVertexKey, Edge>();
                     for (int ui = 0; ui < 2; ui++)
                         for (int vi = 0; vi < 2; vi++)
@@ -2511,15 +2511,15 @@ namespace CADability.GeoObject
                                 top = vmax;
                             }
                             BoundingRect patch = new BoundingRect(left, bottom, right, top);
-                            Set<int> s = part[ui, vi];
+                            HashSet<int> s = part[ui, vi];
                             if (s.Count == 0) continue;
                             List<List<ICurve2D>> looplist = new List<List<ICurve2D>>();
-                            Set<ICurve2D> seamLines = new Set<ICurve2D>();
+                            HashSet<ICurve2D> seamLines = new HashSet<ICurve2D>();
                             BoundingRect precisionExt = ext;
                             precisionExt.Inflate(ext.Width * 10, ext.Height * 10); // this is for precision only
                                                                                    // we get problems with almost tangential intersections
-                            Set<int> entering = new Set<int>();
-                            Set<int> leaving = new Set<int>();
+                            HashSet<int> entering = new HashSet<int>();
+                            HashSet<int> leaving = new HashSet<int>();
                             for (int i = 0; i < crvs2d.Count; i++)
                             {
                                 int ni = NextInSameLoop(i, loopSpan);
@@ -2851,7 +2851,7 @@ namespace CADability.GeoObject
                                 {
                                     Edge onOtherFace = loops[i][j].createdEdges[0]; // this edges belongs to an other Face not to this split faces
                                     List<Edge> replacementEdges = new List<Edge>();
-                                    Set<Vertex> toUse = new Set<Vertex>();
+                                    HashSet<Vertex> toUse = new HashSet<Vertex>();
                                     toUse.Add(onOtherFace.Vertex1);
                                     toUse.Add(onOtherFace.Vertex2);
                                     for (int k = 0; k < loops[i][j].createdEdges.Count - 1; k++)
@@ -3961,7 +3961,7 @@ namespace CADability.GeoObject
                 if (boutline.Segments[0] == segments[segments.Length - 1])
                 {
                     Array.Reverse(outline);
-                    Set<Edge> exchanged = new Set<Edge>();
+                    HashSet<Edge> exchanged = new HashSet<Edge>();
                     // ganz vertrackt: bei periodic edges wird immer eine bestimmte 2D Curve zuerst geliefert
                     // auch das muss umgedreht werden.
                     for (int i = 0; i < outline.Length; ++i)
@@ -4432,7 +4432,7 @@ namespace CADability.GeoObject
                             if (boutline.Segments[0] == segments[segments.Length - 1])
                             {
                                 Array.Reverse(outline);
-                                Set<Edge> exchanged = new Set<Edge>();
+                                HashSet<Edge> exchanged = new HashSet<Edge>();
                                 // ganz vertrackt: bei periodic edges wird immer eine bestimmte 2D Curve zuerst geliefert
                                 // auch das muss umgedreht werden.
                                 for (int i = 0; i < outline.Length; ++i)
@@ -4664,11 +4664,11 @@ namespace CADability.GeoObject
             }
         }
 
-        public Set<Edge> AllEdgesSet
+        public HashSet<Edge> AllEdgesSet
         {
             get
             {
-                Set<Edge> res = new Set<Edge>(outline);
+                HashSet<Edge> res = new HashSet<Edge>(outline);
                 for (int i = 0; i < holes.Length; i++)
                 {
                     res.AddMany(holes[i]);
@@ -4741,7 +4741,7 @@ namespace CADability.GeoObject
             {
                 if (vertices == null)
                 {
-                    Set<Vertex> res = new Set<Vertex>();
+                    HashSet<Vertex> res = new HashSet<Vertex>();
                     foreach (Edge edge in AllEdges)
                     {
                         edge.MakeVertices();
@@ -4755,7 +4755,7 @@ namespace CADability.GeoObject
         }
         public void RecalcVertices()
         {
-            Set<Vertex> res = new Set<Vertex>();
+            HashSet<Vertex> res = new HashSet<Vertex>();
             foreach (Edge edge in AllEdges)
             {
                 edge.MakeVertices();
@@ -4768,7 +4768,7 @@ namespace CADability.GeoObject
         {
             get
             {
-                Set<Vertex> res = new Set<Vertex>();
+                HashSet<Vertex> res = new HashSet<Vertex>();
                 foreach (Edge edge in outline)
                 {
                     edge.MakeVertices();
@@ -5743,7 +5743,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         internal Edge[] FindEdgeChain(Vertex from, Vertex to)
         {
-            Set<Edge> fromEdges = from.AllEdges.Intersection(this.AllEdgesSet); // use this intersection, because there might be intersection edges, which don't belong to this outline and holes edges
+            HashSet<Edge> fromEdges = from.AllEdges.Intersection(this.AllEdgesSet); // use this intersection, because there might be intersection edges, which don't belong to this outline and holes edges
             Edge startWith = null;
             foreach (Edge edge in fromEdges)
             {
@@ -5884,21 +5884,6 @@ namespace CADability.GeoObject
         /// <param name="startVertex"></param>
         /// <param name="stopVertices"></param>
         /// <returns></returns>
-        internal List<Edge> FindConnection(Vertex startVertex, Set<Vertex> stopVertices)
-        {
-            List<Edge> res = new List<Edge>();
-            Edge startWith = startVertex.FindOutgoing(this);
-            if (startWith == null) return res;
-            Edge next = startWith;
-            res.Add(startWith);
-            do
-            {
-                if (stopVertices.Contains(next.EndVertex(this))) break;
-                next = GetNextEdge(next);
-                res.Add(next);
-            } while (next != startWith);
-            return res;
-        }
         internal List<Edge> FindConnection(Vertex startVertex, HashSet<Vertex> stopVertices)
         {
             List<Edge> res = new List<Edge>();
@@ -9137,7 +9122,7 @@ namespace CADability.GeoObject
             }
             return false;
         }
-        internal ModOp2D MakeRegularSurface(double maxError, Set<Edge> recalcEdges)
+        internal ModOp2D MakeRegularSurface(double maxError, HashSet<Edge> recalcEdges)
         {
             if (surface is NurbsSurface)
             {
@@ -9422,7 +9407,7 @@ namespace CADability.GeoObject
 
 #endif
                 Array.Reverse(outline);
-                Set<Edge> seam = new Set<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
+                HashSet<Edge> seam = new HashSet<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
                 for (int i = 0; i < outline.Length; ++i)
                 {
                     if (outline[i].IsSeam()) seam.Add(outline[i]);
@@ -9566,7 +9551,7 @@ namespace CADability.GeoObject
                 }
             }
             Array.Reverse(outline);
-            Set<Edge> seam = new Set<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
+            HashSet<Edge> seam = new HashSet<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
             for (int i = 0; i < outline.Length; ++i)
             {
                 if (outline[i].IsSeam()) seam.Add(outline[i]);
@@ -9716,7 +9701,7 @@ namespace CADability.GeoObject
                     }
                 }
                 Array.Reverse(outline);
-                Set<Edge> seam = new Set<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
+                HashSet<Edge> seam = new HashSet<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
                 for (int i = 0; i < outline.Length; ++i)
                 {
                     if (outline[i].IsSeam()) seam.Add(outline[i]);
@@ -9766,7 +9751,7 @@ namespace CADability.GeoObject
             else
             {
                 Array.Reverse(outline);
-                Set<Edge> seam = new Set<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
+                HashSet<Edge> seam = new HashSet<Edge>(); // die Saumkurven ansammeln (jede kommt zweimal vor
                 for (int i = 0; i < outline.Length; ++i)
                 {
                     if (outline[i].IsSeam()) seam.Add(outline[i]);
@@ -10064,7 +10049,7 @@ namespace CADability.GeoObject
             }
             // jetzt werden neue faces erzeugt, indem man einmal die neuen Edges nur vorwärts und einmal nur rückwärts benutzt
             // die neuen Kanten:
-            Set<Edge> intersectionEdges = new Set<Edge>();
+            HashSet<Edge> intersectionEdges = new HashSet<Edge>();
             // TODO: wenn splitPoints.Count nicht gerade ist, dann andere Position nehmen: 
             // whileschleife, die nicht abbricht oder so...
             for (int i = 0; i < splitPoints.Count - 1; i = i + 2)
@@ -10085,7 +10070,7 @@ namespace CADability.GeoObject
                 e.Orient();
             }
             // wie werden die periodic edges verwendet? Hier erstmal alle sammeln
-            Set<Edge> periodicEdges = new Set<Edge>();
+            HashSet<Edge> periodicEdges = new HashSet<Edge>();
             for (int i = 0; i < all.Length; ++i)
             {
                 if (all[i].IsPeriodicEdge) periodicEdges.Add(all[i]);
@@ -10095,7 +10080,7 @@ namespace CADability.GeoObject
             // gegeben, obwohl beide faces gleich sind. Deshalb werden in der 1. Schleife alle periodic Edges
             // so umgedreht, dass sie für den 1. teil richtig sind. Für den 2. Teil werden dann alle amgedreht
             // so dass man in der 2. Schleife davon ausgehen kann, dass sie schon richtig sind
-            Set<Edge> intersectionEdgesCopy = new Set<Edge>(intersectionEdges);
+            HashSet<Edge> intersectionEdgesCopy = new HashSet<Edge>(intersectionEdges);
             while (intersectionEdges.Count > 0)
             {
                 List<Edge> outline = new List<Edge>();
@@ -10881,7 +10866,7 @@ namespace CADability.GeoObject
         {
             get
             {
-                Set<int> n = new Set<int>();
+                HashSet<int> n = new HashSet<int>();
                 for (int i = 0; i < outline.Length; i++)
                 {
                     if (outline[i].PrimaryFace != this) n.Add(outline[i].PrimaryFace.hashCode);
@@ -10967,17 +10952,17 @@ namespace CADability.GeoObject
         /// <param name="other">the other face</param>
         /// <param name="toOtherSurface">the ModOp2D, which transforms the 2d system of this surface to the other surface when appropriate, otherwise ModOp2D.Null</param>
         /// <returns>the removed edges</returns>
-        internal Set<Edge> CombineWith(Face other, ModOp2D toOtherSurface)
+        internal HashSet<Edge> CombineWith(Face other, ModOp2D toOtherSurface)
         {
             this.vertices = null;
             other.vertices = null;
             Vertex[] dbg1 = this.Vertices;
             Vertex[] dbg2 = other.Vertices;
 
-            Set<Edge> onThis = new Set<Edge>(Edges);
-            Set<Edge> onOther = new Set<Edge>(other.Edges);
-            Set<Edge> usableEdges = onThis.SymmetricDifference(onOther); // all edges of the resulting face, which belong to one of the faces but not to both
-            Set<Edge> commonEdges = onThis.Intersection(onOther); // these will be removed
+            HashSet<Edge> onThis = new HashSet<Edge>(Edges);
+            HashSet<Edge> onOther = new HashSet<Edge>(other.Edges);
+            HashSet<Edge> usableEdges = onThis.SymmetricDifference(onOther); // all edges of the resulting face, which belong to one of the faces but not to both
+            HashSet<Edge> commonEdges = onThis.Intersection(onOther); // these will be removed
             List<List<Edge>> loops = new List<List<Edge>>(); // the loops, one of them is the outline, the others are holes
             if (this.surface is IRestrictedDomain rd)
             {
@@ -11046,7 +11031,7 @@ namespace CADability.GeoObject
                             }
                         }
                     }
-                    if (next == null) return new Set<CADability.Edge>(); // should never happen
+                    if (next == null) return new HashSet<CADability.Edge>(); // should never happen
                     startWith = next;
                 }
                 loops.Add(loop);
@@ -11085,7 +11070,7 @@ namespace CADability.GeoObject
                     outerLoop = i;
                 }
             }
-            if (outerLoop < 0) return new Set<CADability.Edge>(); // sollte nicht vorkommen
+            if (outerLoop < 0) return new HashSet<CADability.Edge>(); // sollte nicht vorkommen
             outline = loops[outerLoop].ToArray();
             List<Edge[]> lholes = new List<Edge[]>();
             for (int i = 0; i < loops.Count; i++)
@@ -11127,7 +11112,7 @@ namespace CADability.GeoObject
                     if (boutline.Segments[0] == segments[segments.Length - 1])
                     {
                         Array.Reverse(outline);
-                        Set<Edge> exchanged = new Set<Edge>();
+                        HashSet<Edge> exchanged = new HashSet<Edge>();
                         // ganz vertrackt: bei periodic edges wird immer eine bestimmte 2D Curve zuerst geliefert
                         // auch das muss umgedreht werden.
                         for (int i = 0; i < outline.Length; ++i)

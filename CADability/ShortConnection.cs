@@ -582,7 +582,7 @@ namespace CADability
                 // 1. Überkreuzungen sind eigentlich immer schlecht. Diese hier beseitigen
                 didChange = false;
                 // 1.1: alle Überkreuzungen ansammeln durch betrachten der Listen im QuadTree
-                Set<crossing> crossings = new Set<crossing>();
+                HashSet<crossing> crossings = new HashSet<crossing>();
                 int dbgnum = 0;
                 foreach (List<connection> list in connectionTree.AllLists)
                 {
@@ -611,7 +611,7 @@ namespace CADability
                 sortedCrossings.Sort(); // implementiert IComparable
                 // mit den besten beginnend alle entflechten. Aber wenn einer der betreffenden vertices bereits in einer
                 // Entflechtung beteiligt war, dann nicht verwenden, die Überkreuzung könnte bereits behoben sein.
-                Set<vertex> usedVertices = new Set<vertex>();
+                HashSet<vertex> usedVertices = new HashSet<vertex>();
                 foreach (crossing crossing in sortedCrossings)
                 {
                     if (!usedVertices.Add(crossing.first.from) &&
@@ -906,7 +906,7 @@ namespace CADability
                 }
             }
             improvementList.Sort();
-            Set<vertex> usedVertices = new Set<vertex>();
+            HashSet<vertex> usedVertices = new HashSet<vertex>();
             bool didImprove = false;
             for (int i = 0; i < improvementList.Count; i++)
             {
@@ -1367,7 +1367,7 @@ namespace CADability
 
         BoundingRect[] forbiddenArea;
         BoundingRect[] forbiddenAreaShrunk; // etwas kleiner, damit HitTest funktioniert
-        Set<GeoPoint2D> forbiddenPoints;
+        HashSet<GeoPoint2D> forbiddenPoints;
         double forbiddenPointsOffset;
 
         /// <summary>
@@ -1391,7 +1391,7 @@ namespace CADability
                     forbiddenAreaShrunk[i].Inflate(-eps);
                 }
             }
-            forbiddenPoints = new Set<GeoPoint2D>();
+            forbiddenPoints = new HashSet<GeoPoint2D>();
             forbiddenPointsOffset = 0.0;
             for (int i = 0; i < forbiddenArea.Length; i++)
             {
@@ -1474,7 +1474,7 @@ namespace CADability
             if (xyOffset != forbiddenPointsOffset)
             {   // forbiddenPoints are vertex-points of one forbiddenArea which reside in another forbiddenArea
                 // should only be calculated once, but xyOffset should be respected
-                forbiddenPoints = new Set<GeoPoint2D>();
+                forbiddenPoints = new HashSet<GeoPoint2D>();
                 BoundingRect[] fbaoff = new BoundingRect[forbiddenArea.Length];
                 for (int i = 0; i < forbiddenArea.Length; i++)
                 {

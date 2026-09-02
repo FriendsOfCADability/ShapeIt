@@ -230,7 +230,7 @@ namespace CADability.Tests
                 // fingerprint. Where it does not, the case is not a regression test but a coin toss: comparing it
                 // against a baseline then says nothing, and whichever outcome the baseline happened to catch will
                 // look like a regression the next time. Worth setting on the cases that have been seen to move.
-                int repeat = Math.Max(1, entry.Repeat ?? 1);
+                int repeat = Math.Max(1, entry.Repeat ?? manifest.Defaults.Repeat);
                 List<string> unstableHere = new List<string>();
                 // compare through the text form, so a repeat is held against exactly what would be written to the
                 // baseline file - not against some internal state the file would never have carried

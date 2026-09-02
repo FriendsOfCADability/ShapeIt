@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using Wintellect.PowerCollections;
 
 namespace CADability.Forms
 {
@@ -59,15 +58,15 @@ namespace CADability.Forms
         DisplayList displayList;
         Graphics oldGraphics;
         bool thinLinesOnly;
-        private static Set<string> fontFamilyNames;
-        internal static Set<string> FontFamilyNames
+        private static HashSet<string> fontFamilyNames;
+        internal static HashSet<string> FontFamilyNames
         {
             get
             {
                 if (fontFamilyNames == null)
                 {
                     FontFamily[] ff = FontFamily.Families;
-                    fontFamilyNames = new Set<string>();
+                    fontFamilyNames = new HashSet<string>();
                     for (int i = 0; i < ff.Length; i++)
                     {
                         fontFamilyNames.Add(ff[i].Name.ToUpper());

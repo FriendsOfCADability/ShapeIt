@@ -1679,7 +1679,7 @@ namespace CADability
             int numSamples = 10;
             for (int i = 0; i < allParts.Count; i++)
             {
-                Set<ICurve2D> toCheckWith = new Set<ICurve2D>();
+                HashSet<ICurve2D> toCheckWith = new HashSet<ICurve2D>();
                 for (int j = 1; j < numSamples - 1; j++) // Start- und Endpunkt ignorieren
                 {
                     double pos = (double)j / (double)numSamples;

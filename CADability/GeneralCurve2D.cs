@@ -11,7 +11,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Runtime.Serialization;
-using Wintellect.PowerCollections;
 
 namespace CADability.Curve2D
 {
@@ -356,7 +355,7 @@ namespace CADability.Curve2D
     //        else if (curve is Path2D)
     //        {   // Overkill, aber so am schnellsten programmiert
     //            Path2D p2d = (curve as Path2D);
-    //            Set<double> pars = new Set<double>();
+    //            HashSet<double> pars = new HashSet<double>();
     //            for (int i = 0; i < p2d.SubCurvesCount; i++)
     //            {
     //                TempTriangulatedCurve2D ttc = new TempTriangulatedCurve2D(p2d.SubCurves[i]);

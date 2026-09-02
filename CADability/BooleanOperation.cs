@@ -1,4 +1,4 @@
-using CADability.Attribute;
+﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.Shapes;
@@ -5949,52 +5949,5 @@ namespace CADability
             }
             return null;
         }
-    }
-
-    public static class BOExtension
-    {
-        /// <summary>
-        /// Check whether the Face face is totaly covered by the corresponding face(s) in the provided dict.
-        /// </summary>
-        /// <param name="dict"></param>
-        /// <param name="face"></param>
-        /// <param name="precision"></param>
-        /// <returns></returns>
-        public static bool ContainsSameFace(this Dictionary<Face, HashSet<Face>> dict, Face face, double precision)
-        {
-            if (dict.TryGetValue(face, out HashSet<Face> commonWith))
-            {
-                Set<Edge> edges = face.AllEdgesSet;
-                Set<Vertex> vertices = new Set<Vertex>();
-                foreach (Edge edg in edges)
-                {
-                    vertices.Add(edg.Vertex1);
-                    vertices.Add(edg.Vertex2);
-                }
-                Set<Vertex> otherVertices = new Set<Vertex>();
-                Set<Edge> otherEdges = new Set<Edge>();
-                foreach (Face fce in commonWith)
-                {
-                    otherVertices.AddMany(fce.Vertices);
-                    otherEdges.AddMany(fce.Edges);
-                }
-                foreach (Edge edg in edges)
-                {
-                    bool edgeFound = false;
-                    foreach (Edge edg1 in Vertex.ConnectingEdges(edg.Vertex1, edg.Vertex2))
-                    {
-                        if (BRepOperation.SameEdge(edg, edg1, precision))
-                        {
-                            edgeFound = true;
-                            break;
-                        }
-                    }
-                    if (!edgeFound) return false;
-                }
-                return true;
-            }
-            return false;
-        }
-
     }
 }

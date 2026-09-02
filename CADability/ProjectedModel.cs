@@ -554,7 +554,7 @@ namespace CADability
         public void AdjustPoint(SnapPointFinder spf)
         {	
 	        // find relevant objects in octtree
-            GeoObjectList objectsFromRect = model.GetObjectsFromRect(spf.pickArea, new Set<Layer>(GetVisibleLayers()), PickMode.children, null);
+            GeoObjectList objectsFromRect = model.GetObjectsFromRect(spf.pickArea, new HashSet<Layer>(GetVisibleLayers()), PickMode.children, null);
             foreach (IGeoObject geo in objectsFromRect)
             {
 	            if (spf.IgnoreList != null && spf.IgnoreList.Contains(geo)) continue;
@@ -758,7 +758,7 @@ namespace CADability
                     return res;
                 case PickMode.normal:
                     {
-                        Set<IGeoObject> set = new Set<IGeoObject>(new GeoObjectComparer());
+                        HashSet<IGeoObject> set = new HashSet<IGeoObject>(new GeoObjectComparer());
                         foreach (IGeoObject go in oct)
                         {
                             if (go.HitTest(projection, pickrect, false))

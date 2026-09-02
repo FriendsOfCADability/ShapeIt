@@ -1,4 +1,4 @@
-{
+﻿{
   // Per-case expectations for the BRep regression harness (BRepRegressionTests).
   // A file that is not listed here defaults to status "Ok": it has to follow the marker convention,
   // it has to run and it has to keep matching its baseline.
@@ -20,9 +20,15 @@
   // and extent used to depend on what ran before in the same process - Face.AssureTriangles(0.0) reuses
   // whatever triangulation exists, however coarse - which is why the summary now asks for an explicit
   // precision (size/1000, see ShellMetrics.PrecisionFor). That removed the effect for the cases we saw.
+  // "Repeat" in Defaults is the fallback for cases that do not carry their own. Raising it to 3 repeats
+  // every case and turns one run into a stability survey over the whole set - worth doing before a change
+  // that is expected to move iteration order (the PowerCollections replacement, for instance), because it
+  // separates "this case flickers anyway" from "this change broke it". It multiplies the runtime of the BRep
+  // suite, so put it back to 1 afterwards and give the cases that actually moved their own "Repeat".
   "Defaults": {
     "TimeoutSeconds": 120,
-    "RelativeTolerance": 1e-4
+    "RelativeTolerance": 1e-4,
+    "Repeat": 1
   },
 
   // The two switches for a manual run - usable from the Visual Studio test explorer, no environment
@@ -65,7 +71,8 @@
     {
       "Name": "DifferenceBug9",
       "Status": "Ok",
-      "Comment": "works since the no-empty-loops fix in BooleanOperation; result not verified by hand yet"
+      "Repeat": 3,
+      "Comment": "works since the no-empty-loops fix in BooleanOperation; result not verified by hand yet. Found unstable by the 2026-09-02 survey"
     },
     {
       "Name": "DifferenceBug16",
@@ -107,6 +114,18 @@
     // --- sentinels for reproducibility. These four were caught disagreeing with a baseline that had just been
     //     generated from them, in the same code and on the same machine - only under a different test filter.
     //     "Repeat" turns that into something the suite notices by itself instead of by accident.
+    //
+    //     2026-09-02: a survey with Defaults.Repeat = 3 over all cases (8 minutes) found six that do not
+    //     reproduce within one run - DifferenceBug9, DifferenceBug14, DifferenceBug15, UniteBug1, UniteBug6,
+    //     UniteBug7. UniteBug4 and UniteBug5 came out stable in that survey but keep their Repeat: they were
+    //     seen to move before, and three runs cannot prove stability, only disprove it. For the same reason
+    //     the list below is a lower bound - a case that flickers one run in five can pass a survey of three.
+    {
+      "Name": "DifferenceBug14",
+      "Status": "Ok",
+      "Repeat": 3,
+      "Comment": "found unstable by the 2026-09-02 survey; both shells move between runs"
+    },
     {
       "Name": "UniteBug1",
       "Status": "Ok",

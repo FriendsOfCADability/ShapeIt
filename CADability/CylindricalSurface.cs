@@ -8,7 +8,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
-using Wintellect.PowerCollections;
 
 namespace CADability.GeoObject
 {
@@ -1810,21 +1809,21 @@ namespace CADability.GeoObject
                         seedsUvThis.Add(PositionOf(touchingPoints[i], thisBounds));
                         seedsUvOther.Add(torus.PositionOf(touchingPoints[i], otherBounds));
                     }
-                    Dictionary<int, Set<int>> thisSeeds = new Dictionary<int, Set<int>>();
+                    Dictionary<int, HashSet<int>> thisSeeds = new Dictionary<int, HashSet<int>>();
                     double eps = thisBounds.Size * 1e-6;
                     for (int i = 0; i < thisParts.Count; i++)
                     {
-                        thisSeeds[i] = new Set<int>();
+                        thisSeeds[i] = new HashSet<int>();
                         for (int j = 0; j < seedsUvThis.Count; j++)
                         {
                             if (thisParts[i].ContainsEps(seedsUvThis[j], eps)) thisSeeds[i].Add(j);
                         }
                     }
-                    Dictionary<int, Set<int>> otherSeeds = new Dictionary<int, Set<int>>();
+                    Dictionary<int, HashSet<int>> otherSeeds = new Dictionary<int, HashSet<int>>();
                     eps = otherBounds.Size * 1e-6;
                     for (int i = 0; i < otherParts.Count; i++)
                     {
-                        otherSeeds[i] = new Set<int>();
+                        otherSeeds[i] = new HashSet<int>();
                         for (int j = 0; j < seedsUvOther.Count; j++)
                         {
                             if (otherParts[i].ContainsEps(seedsUvOther[j], eps)) otherSeeds[i].Add(j);
@@ -1835,7 +1834,7 @@ namespace CADability.GeoObject
                     {
                         for (int j = 0; j < otherParts.Count; j++)
                         {
-                            Set<int> commonPoints = thisSeeds[i].Intersection(otherSeeds[j]);
+                            HashSet<int> commonPoints = thisSeeds[i].Intersection(otherSeeds[j]);
                             if (commonPoints.Count > 1)
                             {
                                 List<GeoPoint> seedsij = new List<GeoPoint>();

@@ -3,7 +3,6 @@ using CADability.Attribute;
 using CADability.GeoObject;
 using CADability.Substitutes;
 using System.Collections.Generic;
-using Wintellect.PowerCollections;
 using static CADability.Projection;
 using Point = CADability.Substitutes.Point;
 
@@ -40,8 +39,8 @@ namespace ShapeIt
             PickArea pickArea = vw.Projection.GetPickSpace(new Rectangle(location.X - pickRadius, location.Y - pickRadius, pickRadius * 2, pickRadius * 2));
             IEnumerable<Layer> visibleLayers = new List<Layer>();
             if (vw is ModelView mv) visibleLayers = mv.GetVisibleLayers();
-            GeoObjectList edges = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visibleLayers), PickMode.singleEdge, null);
-            GeoObjectList facesAndCurves = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(visibleLayers), PickMode.singleChild, null);
+            GeoObjectList edges = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(visibleLayers), PickMode.singleEdge, null);
+            GeoObjectList facesAndCurves = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(visibleLayers), PickMode.singleChild, null);
             GeoObjectList objects = new GeoObjectList();
             foreach (IGeoObject go in edges)
             {

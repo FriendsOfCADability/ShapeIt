@@ -11,7 +11,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
-using Wintellect.PowerCollections;
 using static CADability.InterpolatedDualSurfaceCurve.SurfacePoint;
 using static CADability.ProjectedEdge;
 

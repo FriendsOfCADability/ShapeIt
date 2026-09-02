@@ -1,7 +1,6 @@
 ﻿using CADability.GeoObject;
 using CADability.Substitutes;
 using System.Collections.Generic;
-using Wintellect.PowerCollections;
 
 namespace CADability.Curve2D
 {
@@ -13,7 +12,7 @@ namespace CADability.Curve2D
 
     public class Reduce2D : IEqualityComparer<ICurve2D>
     {
-        Set<ICurve2D> curves;
+        HashSet<ICurve2D> curves;
         QuadTree<ICurve2D> quadtree;
 
         private int curveId;
@@ -22,7 +21,7 @@ namespace CADability.Curve2D
         /// </summary>
         public Reduce2D()
         {
-            curves = new Set<ICurve2D>(this);
+            curves = new HashSet<ICurve2D>(this);
             Precision = CADability.Precision.eps;
             FlattenPolylines = 0.0;
             curveId = 0;

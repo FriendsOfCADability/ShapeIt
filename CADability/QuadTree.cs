@@ -344,7 +344,7 @@ namespace CADability
                     }
                 }
             }
-            public void GetObjectsFromRect(BoundingRect r, Set<IQuadTreeInsertable> List)
+            public void GetObjectsFromRect(BoundingRect r, HashSet<IQuadTreeInsertable> List)
             {
                 if (!BoundingRect.Disjoint(r, Rect))
                 {
@@ -594,7 +594,7 @@ namespace CADability
         public ICollection GetObjectsFromRect(BoundingRect r)
         {
             QuadTreeInsertableHashtable List = new QuadTreeInsertableHashtable();
-            // Set<IQuadTreeInsertable> List = new Set<IQuadTreeInsertable>(); // Hashtable schneller als Set
+            // HashSet<IQuadTreeInsertable> List = new HashSet<IQuadTreeInsertable>(); // Hashtable schneller als Set
             mRoot.GetObjectsFromRect(r, List);
             return List.Keys;
             // return List;
@@ -1226,7 +1226,7 @@ namespace CADability
         /// <returns>Enumerator for those objects</returns>
         public IEnumerable<T> AllObjects()
         {
-            Set<T> elimiinateDouble = new Set<T>();
+            HashSet<T> elimiinateDouble = new HashSet<T>();
             foreach (T obj in root.AllObjects())
             {
                 if (!elimiinateDouble.Contains(obj))
@@ -1243,7 +1243,7 @@ namespace CADability
         /// <returns>Enumerator for those objects</returns>
         public IEnumerable<T> ObjectsFromRect(BoundingRect r)
         {
-            Set<T> elimiinateDouble = new Set<T>();
+            HashSet<T> elimiinateDouble = new HashSet<T>();
             foreach (T obj in root.ObjectsFromRect(r))
             {
                 if (!elimiinateDouble.Contains(obj))
@@ -1260,7 +1260,7 @@ namespace CADability
         /// <returns>Enumerator for those objects</returns>
         public IEnumerable<T> ObjectsInsideRect(BoundingRect r)
         {
-            Set<T> elimiinateDouble = new Set<T>();
+            HashSet<T> elimiinateDouble = new HashSet<T>();
             foreach (T obj in root.ObjectsFromRect(r))
             {
                 if (!elimiinateDouble.Contains(obj))
@@ -1278,7 +1278,7 @@ namespace CADability
         /// <returns>Enumertor for those objects</returns>
         public IEnumerable<T> ObjectsCloseTo(T CloseToThis)
         {
-            Set<T> elimiinateDouble = new Set<T>();
+            HashSet<T> elimiinateDouble = new HashSet<T>();
             foreach (T obj in root.ObjectsCloseTo(CloseToThis))
             {
                 if (!elimiinateDouble.Contains(obj))
@@ -1299,7 +1299,7 @@ namespace CADability
         /// <returns>Enumertor for those objects</returns>
         public IEnumerable<T> ObjectsCloseTo(IQuadTreeInsertable CloseToThis, bool eliminateMultiple)
         {
-            Set<T> elimiinateDouble = new Set<T>();
+            HashSet<T> elimiinateDouble = new HashSet<T>();
             foreach (T obj in root.ObjectsCloseTo(CloseToThis))
             {
                 if (!eliminateMultiple || !elimiinateDouble.Contains(obj))
@@ -1325,7 +1325,7 @@ namespace CADability
         /// <returns>Array of all appropriate objects</returns>
         public T[] GetObjectsFromRect(BoundingRect r)
         {
-            Set<T> all = new Set<T>();
+            HashSet<T> all = new HashSet<T>();
             foreach (T obj in root.ObjectsFromRect(r))
             {
                 all.Add(obj);
@@ -1339,7 +1339,7 @@ namespace CADability
         /// <returns>Array of all appropriate objects</returns>
         public T[] GetObjectsInsideRect(BoundingRect r)
         {
-            Set<T> all = new Set<T>();
+            HashSet<T> all = new HashSet<T>();
             foreach (T obj in root.ObjectsFromRect(r))
             {
                 if (obj.GetExtent() < r) all.Add(obj);
@@ -1355,7 +1355,7 @@ namespace CADability
         /// <returns>Array of all appropriate objects</returns>
         public T[] GetObjectsCloseTo(T CloseToThis)
         {
-            Set<T> all = new Set<T>();
+            HashSet<T> all = new HashSet<T>();
             foreach (T obj in root.ObjectsCloseTo(CloseToThis))
             {
                 all.Add(obj);
@@ -1364,7 +1364,7 @@ namespace CADability
         }
         public T[] GetObjectsCloseTo(IQuadTreeInsertable CloseToThis)
         {
-            Set<T> all = new Set<T>();
+            HashSet<T> all = new HashSet<T>();
             foreach (T obj in root.ObjectsCloseTo(CloseToThis))
             {
                 all.Add(obj);

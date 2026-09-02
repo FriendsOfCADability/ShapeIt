@@ -786,7 +786,7 @@ namespace CADability.Actions
 			if (selectedObjects.Count > 0)
 			{   // es wird in ein nicht leeres Array zugefügt, da können auch welche drin sein, die 
 				// neu zugefügt werden, deshalb mit set mischen
-				Set<IGeoObject> set = new Set<IGeoObject>((IGeoObject[])selectedObjects, new GeoObjectComparer());
+				HashSet<IGeoObject> set = new HashSet<IGeoObject>((IGeoObject[])selectedObjects, new GeoObjectComparer());
 				for (int i = 0; i < selObj.Count; ++i)
 				{
 					if (!set.Contains(selObj[i]))
@@ -1029,7 +1029,7 @@ namespace CADability.Actions
 			IActionInputView pm = vw as IActionInputView;
 			FilterList filterList = Frame.Project.FilterList;
 			// folgendes liefert keine Kanten, dazu müsste man einen extra PickMode machen
-			return vw.Model.GetObjectsFromRect(pa, new Set<Layer>(pm.GetVisibleLayers()), PickMode.singleChild, filterList);
+			return vw.Model.GetObjectsFromRect(pa, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.singleChild, filterList);
 		}
 
 		private GeoObjectList ObjectsUnderCursor(MouseEventArgs e, IView vw, bool single)
@@ -1050,36 +1050,36 @@ namespace CADability.Actions
 				case PickMode.children:
 					if (single)
 					{
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.singleChild, filterList, selectedObjects);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.singleChild, filterList, selectedObjects);
 					}
 					else
 					{
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.children, filterList);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.children, filterList);
 					}
 					break;
 				case PickMode.normal:
 					if (single)
 					{
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.single, filterList, selectedObjects);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.single, filterList, selectedObjects);
 					}
 					else
 					{
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.normal, filterList);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.normal, filterList);
 					}
 					// fromquadtree = pm.GetObjectsFromRect(pickrect, PickMode.single, filterList);
 					break;
 				case PickMode.onlyFaces:
 					if (single)
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.singleFace, filterList, selectedObjects);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.singleFace, filterList, selectedObjects);
 					else
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.onlyFaces, filterList);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.onlyFaces, filterList);
 					// fromquadtree = pm.GetObjectsFromRect(pickrect, PickMode.singleFace, filterList);
 					break;
 				case PickMode.onlyEdges:
 					if (single)
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.singleEdge, filterList, selectedObjects);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.singleEdge, filterList, selectedObjects);
 					else
-						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), PickMode.onlyEdges, filterList);
+						fromquadtree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), PickMode.onlyEdges, filterList);
 					// fromquadtree = pm.GetObjectsFromRect(pickrect, PickMode.singleEdge, filterList);
 					break;
 			}
@@ -1141,7 +1141,7 @@ namespace CADability.Actions
 			if (winrect.Width == 0) winrect.Inflate(1, 0);
 			if (winrect.Height == 0) winrect.Inflate(0, 1);
 			pickArea = vw.Projection.GetPickSpace(winrect);
-			GeoObjectList fromocttree = vw.Model.GetObjectsFromRect(pickArea, new Set<Layer>(pm.GetVisibleLayers()), pickMode, filterList);
+			GeoObjectList fromocttree = vw.Model.GetObjectsFromRect(pickArea, new HashSet<Layer>(pm.GetVisibleLayers()), pickMode, filterList);
 			bool onlyInside = (FirstPoint.X < SecondPoint.X);
 			foreach (IGeoObject go in fromocttree)
 			{
@@ -1216,8 +1216,8 @@ namespace CADability.Actions
 			if (directFeedback) objectsUnderCursorFeedback = this.FeedbackObjectsUnderCursor(e, vw);
 			if (ObjectsUnderCursor.Count > 0)
 			{
-				Set<IGeoObject> s1 = new Set<IGeoObject>();
-				Set<IGeoObject> s2 = new Set<IGeoObject>();
+				HashSet<IGeoObject> s1 = new HashSet<IGeoObject>();
+				HashSet<IGeoObject> s2 = new HashSet<IGeoObject>();
 				foreach (IGeoObject go in selectedObjects)
 				{
 					s1.Add(go);

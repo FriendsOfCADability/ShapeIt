@@ -7,7 +7,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Threading;
-using Wintellect.PowerCollections;
 
 namespace CADability.Shapes
 {
@@ -4072,8 +4071,8 @@ namespace CADability.Shapes
         internal static Border[] ClosedBordersFromList(GeoObjectList l, Plane pln, double precision)
         {
             QuadTree<ICurve2D> qt = new QuadTree<ICurve2D>();
-            Set<ICurve2D> forwardUsed = new Set<ICurve2D>(); // schon vorwärts verwendet
-            Set<ICurve2D> backwardUsed = new Set<ICurve2D>(); // schon rückwärts verwendet
+            HashSet<ICurve2D> forwardUsed = new HashSet<ICurve2D>(); // schon vorwärts verwendet
+            HashSet<ICurve2D> backwardUsed = new HashSet<ICurve2D>(); // schon rückwärts verwendet
             for (int i = 0; i < l.Count; ++i)
             {
                 if (l[i] is ICurve)
@@ -4088,7 +4087,7 @@ namespace CADability.Shapes
                 {
                     forwardUsed.Add(c2d);
                     Path2D collect = new Path2D(new ICurve2D[] { c2d.Clone() });
-                    Set<ICurve2D> usedInThisPath = new Set<ICurve2D>();
+                    HashSet<ICurve2D> usedInThisPath = new HashSet<ICurve2D>();
                     usedInThisPath.Add(c2d);
                     bool connected = false;
                     do
@@ -4130,7 +4129,7 @@ namespace CADability.Shapes
                 {
                     backwardUsed.Add(c2d);
                     Path2D collect = new Path2D(new ICurve2D[] { c2d.CloneReverse(true) });
-                    Set<ICurve2D> usedInThisPath = new Set<ICurve2D>();
+                    HashSet<ICurve2D> usedInThisPath = new HashSet<ICurve2D>();
                     usedInThisPath.Add(c2d);
                     bool connected = false;
                     do

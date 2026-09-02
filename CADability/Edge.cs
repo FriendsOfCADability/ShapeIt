@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.Serialization;
 using System.Threading;
-using Wintellect.PowerCollections;
 using CADability.Substitutes;
 
 namespace CADability
@@ -951,7 +950,7 @@ namespace CADability
         }
 #endif
 
-        internal bool MakeRegular(Set<Face> affectedFaces)
+        internal bool MakeRegular(HashSet<Face> affectedFaces)
         {
             // Wenn beide Surfaces gesetzt sind, dann soll durch die beiden Vertices und ggf. innere Punkte
             // eine exakte Darstellung der 3d und 2d Kurven gefunden werden.
@@ -1060,90 +1059,6 @@ namespace CADability
             return false;
         }
 
-        /// <summary>
-        /// Use the vertices in the provided Set. If the endpoints of the curve don't coincide with one of the vertices, create a new one and add it to the set.
-        /// </summary>
-        /// <param name="toUse"></param>
-        internal void UseVertices(Set<Vertex> toUse, double precision = 1e-6)
-        {
-            if (curve3d != null)
-            {
-                GeoPoint sp = curve3d.StartPoint;
-                GeoPoint ep = curve3d.EndPoint;
-                Vertex oldV1 = v1;
-                if (v1 != null) v1.RemoveEdge(this);
-                v1 = null;
-                double bestDist = double.MaxValue;
-                foreach (Vertex v0 in toUse)
-                {
-                    double d = sp | v0.Position;
-                    if (d < precision && d < bestDist)
-                    {
-                        v1 = v0;
-                        bestDist = d;
-                    }
-                }
-                if (v1 == null)
-                {
-                    if (oldV1 == null)
-                    {
-                        oldV1 = new Vertex(sp);
-                    }
-                    v1 = oldV1;
-                    toUse.Add(v1);
-                }
-                if (v1 != null) v1.AddEdge(this);
-                Vertex oldV2 = v2;
-                if (v2 != null) v2.RemoveEdge(this);
-                v2 = null;
-                bestDist = double.MaxValue;
-                foreach (Vertex v0 in toUse)
-                {
-                    double d = ep | v0.Position;
-                    if (d < precision && d < bestDist)
-                    {
-                        v2 = v0;
-                        bestDist = d;
-                    }
-                }
-                if (v2 == null)
-                {
-                    if (oldV2 == null)
-                    {
-                        oldV2 = new Vertex(ep);
-                    }
-                    v2 = oldV2;
-                    toUse.Add(v2);
-                }
-                if (v2 != null) v2.AddEdge(this);
-            }
-            else
-            {   // singulär
-                GeoPoint p = primaryFace.Surface.PointAt(curveOnPrimaryFace.EndPoint);
-                Vertex oldV1 = v1;
-                double bestDist = double.MaxValue;
-                foreach (Vertex v0 in toUse)
-                {
-                    double d = p | v0.Position;
-                    if (d < precision && d < bestDist)
-                    {
-                        v1 = v2 = v0;
-                        bestDist = d;
-                    }
-                }
-                if (v1 == null)
-                {
-                    if (oldV1 == null)
-                    {
-                        oldV1 = new Vertex(p);
-                    }
-                    v1 = v2 = oldV1;
-                    toUse.Add(v1);
-                }
-                if (v1 != null) v1.AddEdge(this);
-            }
-
-        }
         /// <summary>
         /// Use the vertices in the provided Set. If the endpoints of the curve don't coincide with one of the vertices, create a new one and add it to the set.
         /// </summary>
@@ -3531,7 +3446,7 @@ namespace CADability
         /// <param name="available"></param>
         /// <param name="onThisFace"></param>
         /// <returns></returns>
-        internal List<Edge> FindLoop(Set<Edge> available, Face onThisFace)
+        internal List<Edge> FindLoop(HashSet<Edge> available, Face onThisFace)
         {
             List<Edge> res = new List<Edge>();
             res.Add(this);

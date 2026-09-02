@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using CADability.Substitutes;
 
-using Wintellect.PowerCollections;
 
 namespace CADability
 {
@@ -15,10 +14,10 @@ namespace CADability
     internal abstract class IPrintItemImpl : IQuadTreeInsertable
     {
         bool printing, printed;
-        Set<IPrintItemImpl> coveredObjects; // die liegen alle unter mir
+        HashSet<IPrintItemImpl> coveredObjects; // die liegen alle unter mir
         public IPrintItemImpl()
         {
-            coveredObjects = new Set<IPrintItemImpl>();
+            coveredObjects = new HashSet<IPrintItemImpl>();
             printing = false;
             printed = false;
         }
@@ -1717,7 +1716,7 @@ namespace CADability
                             foreach (IGeoObject go in lp.Model)
                             {
                                 // Sammeln der Geoobjekte
-                                //Set<Layer> visibleLayers = new Set<Layer>();
+                                //HashSet<Layer> visibleLayers = new HashSet<Layer>();
                                 //foreach (Layer layer in lp.visibleLayers.Keys)
                                 //{
                                 //    visibleLayers.Add(layer);

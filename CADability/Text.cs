@@ -897,15 +897,15 @@ namespace CADability.GeoObject
         private AlignMode alignment;
         private LineAlignMode lineAlignment;
         // private IGeoObject[] cachedDisplayItems;
-        private static Set<string> fontFamilyNames;
-        internal static Set<string> FontFamilyNames
+        private static HashSet<string> fontFamilyNames;
+        internal static HashSet<string> FontFamilyNames
         {
             get
             {
                 if (fontFamilyNames == null)
                 {
                     string[] ff = (FrameImpl.MainFrame as IUIService).GetFontFamilies();
-                    fontFamilyNames = new Set<string>();
+                    fontFamilyNames = new HashSet<string>();
                     for (int i = 0; i < ff.Length; i++)
                     {
                         fontFamilyNames.Add(ff[i].ToUpper());

@@ -13,7 +13,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.ComTypes;
-using Wintellect.PowerCollections;
 
 namespace CADability.GeoObject
 {
@@ -2148,7 +2147,7 @@ namespace CADability.GeoObject
             Dictionary<double, List<IntersectionPoint>> uIntersections; // intersection points for fixed u already determined
             Dictionary<double, List<IntersectionPoint>> vIntersections;
             QuadTree<UVPatch> patches;
-            Set<IntersectionPoint> intersectionPoints; // intersection points found so far
+            HashSet<IntersectionPoint> intersectionPoints; // intersection points found so far
             List<IntersectionPoint> onPatchVertex; // discarded intersection points, since they occur twice and lie exactly
                                                    // on the corner of a patch. Possibly curves have to be rejoined at them
             public ComputeIntersectionCurve(ParallelepipedHull ParallelepipedHull, ISurfaceImpl toIntersectWith, double umin, double umax, double vmin, double vmax)
@@ -2159,7 +2158,7 @@ namespace CADability.GeoObject
                 vIntersections = new Dictionary<double, List<IntersectionPoint>>();
                 uvSize = new BoundingRect(umin, vmin, umax, vmax);
                 patches = new QuadTree<UVPatch>(uvSize);
-                intersectionPoints = new Set<IntersectionPoint>();
+                intersectionPoints = new HashSet<IntersectionPoint>();
                 onPatchVertex = new List<IntersectionPoint>();
             }
             List<IntersectionPoint> FixedParameterIntersections(double uv, bool uParameter)
@@ -2581,7 +2580,7 @@ namespace CADability.GeoObject
             {
                 get
                 {
-                    Set<UVPatch> allPatches = new Set<UVPatch>();
+                    HashSet<UVPatch> allPatches = new HashSet<UVPatch>();
                     foreach (IntersectionPoint ip in intersectionPoints)
                     {
                         allPatches.Add(ip.onPatch1);
@@ -2674,7 +2673,7 @@ namespace CADability.GeoObject
             Dictionary<double, Position> relevantPositions = new Dictionary<double, Position>();
             TetraederHull th = new TetraederHull(curve); // this must be stored in the curve!!!
                                                          // collect all relevant ParEpis
-            Set<ParEpi> relevantCubes = new Set<ParEpi>();
+            HashSet<ParEpi> relevantCubes = new HashSet<ParEpi>();
             for (int i = 0; i < th.TetraederBase.Length - 1; ++i)
             {
                 ParEpi[] cubes;
@@ -4514,7 +4513,7 @@ namespace CADability.GeoObject
                     dc3d2.Add(other.FixedV(v, uVal2.Min, uVal2.Max) as IGeoObject, Color.Black);
                 }
 #endif
-                Set<LinkedIntersectionPoint> allIps = new Set<LinkedIntersectionPoint>();
+                HashSet<LinkedIntersectionPoint> allIps = new HashSet<LinkedIntersectionPoint>();
                 List<double> uknots1 = new List<double>(uVal1); // these will hopefully come sorted
                 List<double> vknots1 = new List<double>(vVal1);
                 List<double> uknots2 = new List<double>(uVal2);
@@ -4657,7 +4656,7 @@ namespace CADability.GeoObject
                 // remove duplicates
                 double prec = (octtree.Extend.Size + otherBS.octtree.Extend.Size) * 1e-6;
                 OctTree<LinkedIntersectionPoint> ipocttree = new OctTree<LinkedIntersectionPoint>(octtree.Extend + otherBS.octtree.Extend, octtree.precision);
-                Set<LinkedIntersectionPoint> toRemove = new Set<LinkedIntersectionPoint>();
+                HashSet<LinkedIntersectionPoint> toRemove = new HashSet<LinkedIntersectionPoint>();
                 foreach (LinkedIntersectionPoint lip in allIps)
                 {
                     if (ipocttree.IsEmpty) ipocttree.AddObject(lip);
@@ -4688,9 +4687,13 @@ namespace CADability.GeoObject
                     lip.AddToGrid(surf1ips, surf2ips, uknots1, vknots1, uknots2, vknots2);
                 }
 #if DEBUG
-                for (int i = 0; i < allIps.Debug.Length; i++)
+                // Kept as a breakpoint placeholder: the loop body is intentionally empty.
+                // PowerCollections' CollectionBase<T>.Debug (a T[] for inspection) has no HashSet
+                // counterpart, so the array is materialized explicitly.
+                LinkedIntersectionPoint[] allIpsDebug = allIps.ToArray();
+                for (int i = 0; i < allIpsDebug.Length; i++)
                 {
-                    if (allIps.Debug[i].mode == LinkedIntersectionPoint.emode.seed)
+                    if (allIpsDebug[i].mode == LinkedIntersectionPoint.emode.seed)
                     {
 
                     }
@@ -5432,7 +5435,7 @@ namespace CADability.GeoObject
                     }
                     if (points.Count > allIps.Count)
                     {   // an inner loop, this is not allowed. Split where the segment meets inward
-                        Set<LinkedIntersectionPoint> connected = new Set<LinkedIntersectionPoint>();
+                        HashSet<LinkedIntersectionPoint> connected = new HashSet<LinkedIntersectionPoint>();
                         st = startPoints[i];
                         LinkedIntersectionPoint last = null;
                         while (st != null)
@@ -5653,7 +5656,7 @@ namespace CADability.GeoObject
             Dictionary<double, List<GeoPoint3d2d2d>> ouInts = new Dictionary<double, List<GeoPoint3d2d2d>>();
             Dictionary<double, List<GeoPoint3d2d2d>> ovInts = new Dictionary<double, List<GeoPoint3d2d2d>>();
 #if DEBUG
-            Set<ParEpi> usedForIntersection = new Set<ParEpi>();
+            HashSet<ParEpi> usedForIntersection = new HashSet<ParEpi>();
             SortedSet<double> uVal = new SortedSet<double>();
             SortedSet<double> vVal = new SortedSet<double>();
             SortedSet<double> ouVal = new SortedSet<double>();
