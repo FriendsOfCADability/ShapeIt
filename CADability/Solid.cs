@@ -719,9 +719,10 @@ namespace CADability.GeoObject
         /// <returns>union or null</returns>
         static public Solid Unite(Solid solid1, Solid solid2)
         {
-            BRepOperation bro = new BRepOperation(solid1.shells[0], solid2.shells[0], BRepOperation.Operation.union);
-            Shell[] res = bro.Result();
-            if (res.Length == 1)
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(solid1.shells[0], solid2.shells[0], BooleanOperation.Operation.union);
+            Shell[] res = bo.Execute();
+            if (res != null && res.Length == 1)
             {
                 return MakeSolid(res[0]);
             }
@@ -740,8 +741,10 @@ namespace CADability.GeoObject
         static public Solid[] Intersect(Solid solid1, Solid solid2)
         {
             // hier fehlt noch der Löcherkäse: Solids mit mehreren Shells
-            BRepOperation bro = new BRepOperation(solid1.shells[0], solid2.shells[0], BRepOperation.Operation.intersection);
-            Shell[] res = bro.Result();
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(solid1.shells[0], solid2.shells[0], BooleanOperation.Operation.intersection);
+            Shell[] res = bo.Execute();
+            if (res == null) return new Solid[0];
             Solid[] sres = new Solid[res.Length];
             for (int i = 0; i < res.Length; i++)
             {
@@ -760,14 +763,16 @@ namespace CADability.GeoObject
         static public Solid[] Subtract(Solid first, Solid second)
         {
             // hier fehlt noch der Löcherkäse: Solids mit mehreren Shells
-            BRepOperation bro = new BRepOperation(first.shells[0], second.shells[0], BRepOperation.Operation.difference);
-            Shell[] res = bro.Result();
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetShells(first.shells[0], second.shells[0], BooleanOperation.Operation.difference);
+            Shell[] res = bo.Execute();
+            if (res == null) return new Solid[0];
             Solid[] sres = new Solid[res.Length];
             for (int i = 0; i < res.Length; i++)
             {
                 sres[i] = MakeSolid(res[i]);
             }
-            if (sres.Length == 1 && bro.Unchanged) sres[0].flags |= Flags.unchanged;
+            if (sres.Length == 1 && bo.Unchanged) sres[0].flags |= Flags.unchanged;
             return sres;
         }
         /// <summary>
@@ -804,15 +809,9 @@ namespace CADability.GeoObject
         }
         public Solid[] SplitByPlane(Plane pln)
         {
-            BRepOperation brepOp = new BRepOperation(Shells[0], pln);
-            Shell[] parts = brepOp.Result();
-            Solid[] res = new Solid[parts.Length];
-            for (int i = 0; i < parts.Length; i++)
-            {
-                res[i] = Solid.Construct();
-                res[i].SetShell(parts[i]);
-            }
-            return res;
+            // Both sides of the plane, as before. BooleanOperation sizes the splitting face around the
+            // solid's own extent, where the previous implementation placed it around the 2d origin.
+            return BooleanOperation.SplitSolidByPlane(this, pln) ?? new Solid[0];
         }
         public GeoPoint[] GetLineIntersection(GeoPoint location, GeoVector direction)
         {

@@ -5943,7 +5943,7 @@ namespace CADability
                 Solid[] sres = new Solid[res.Length];
                 for (int i = 0; i < res.Length; i++)
                 {
-                    sres[i] = Solid.MakeSolid(res[0]);
+                    sres[i] = Solid.MakeSolid(res[i]);
                 }
                 return sres;
             }
