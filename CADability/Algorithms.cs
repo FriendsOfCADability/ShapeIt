@@ -2877,28 +2877,6 @@ namespace Wintellect.PowerCollections
             }
         }
 
-        /// <summary>
-        /// Computes the cartestian product of two collections: all possible pairs of items, with the first item taken from the first collection and 
-        /// the second item taken from the second collection. If the first collection has N items, and the second collection has M items, the cartesian
-        /// product will have N * M pairs.
-        /// </summary>
-        /// <typeparam name="TFirst">The type of items in the first collection.</typeparam>
-        /// <typeparam name="TSecond">The type of items in the second collection.</typeparam>
-        /// <param name="first">The first collection.</param>
-        /// <param name="second">The second collection.</param>
-        /// <returns>An IEnumerable&lt;Pair&lt;TFirst, TSecond&gt;&gt; that enumerates the cartesian product of the two collections.</returns>
-        public static IEnumerable<Pair<TFirst, TSecond>> CartesianProduct<TFirst, TSecond>(IEnumerable<TFirst> first, IEnumerable<TSecond> second)
-        {
-            if (first == null)
-                throw new ArgumentNullException("first");
-            if (second == null)
-                throw new ArgumentNullException("second");
-
-            foreach (TFirst itemFirst in first)
-                foreach (TSecond itemSecond in second)
-                    yield return new Pair<TFirst, TSecond>(itemFirst, itemSecond);
-        }
-
         #endregion Set operations 
 
         #region String representations (not yet coded)

@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using CADability.Substitutes;
 using System.Linq;
-using Wintellect.PowerCollections;
 
 namespace CADability
 {
@@ -247,7 +246,7 @@ namespace CADability
             }
             // alle Schraffurlinien wurden erzeugt, jetzt mit Anfangs/Endpunkt checken, welche Kurvenpaare zusammen gehören
             double eps = extent.Size / 10000;
-            Dictionary<Pair<int, int>, List<Position>> connections = new Dictionary<Pair<int, int>, List<Position>>();
+            Dictionary<(int First, int Second), List<Position>> connections = new Dictionary<(int First, int Second), List<Position>>();
             for (int i = 0; i < allHatchLines.Count; i++)
             {
                 GeoPoint2D sp = (allHatchLines[i] as Line).StartPoint.To2D();
@@ -309,17 +308,17 @@ namespace CADability
                         if (dist < 3 * maxWidth) // von 2 auf 3 erhöht
                         {
                             List<Position> positionlist;
-                            if (!connections.TryGetValue(new Pair<int, int>(ind1, ind2), out positionlist))
+                            if (!connections.TryGetValue((ind1, ind2), out positionlist))
                             {
                                 positionlist = new List<Position>();
-                                connections[new Pair<int, int>(ind1, ind2)] = positionlist;
+                                connections[(ind1, ind2)] = positionlist;
                             }
                             positionlist.Add(new Position(pos1, pos2, dist));
                         }
                     }
                 }
             }
-            foreach (KeyValuePair<Pair<int, int>, List<Position>> kv in connections)
+            foreach (KeyValuePair<(int First, int Second), List<Position>> kv in connections)
             {
                 kv.Value.Sort(delegate (Position b1, Position b2)
                 {

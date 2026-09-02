@@ -3,7 +3,6 @@ using CADability.GeoObject;
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using Wintellect.PowerCollections;
 
 namespace CADability
 {
@@ -1010,12 +1009,12 @@ namespace CADability
 				return false;
 			}
 
-			internal void AddList(List<Pair<BoundingRect, U[]>> res)
+			internal void AddList(List<(BoundingRect First, U[] Second)> res)
 			{
 				if (objectList != null)
 				{
 					if (objectList.Count > 0)
-						res.Add(new Pair<BoundingRect, U[]>(this.rect, objectList.ToArray()));
+						res.Add((this.rect, objectList.ToArray()));
 				}
 				else if (TopRight != null)
 				{
@@ -1380,9 +1379,9 @@ namespace CADability
             }
             return res.ToArray();
         }
-        public Pair<BoundingRect, T[]>[] GetAllLists()
+        public (BoundingRect First, T[] Second)[] GetAllLists()
         {
-            List<Pair<BoundingRect, T[]>> res = new List<Pair<BoundingRect, T[]>>();
+            List<(BoundingRect First, T[] Second)> res = new List<(BoundingRect First, T[] Second)>();
             root.AddList(res);
             return res.ToArray();
         }

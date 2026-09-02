@@ -6,7 +6,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.Serialization;
-using Wintellect.PowerCollections;
 
 namespace CADability
 {
@@ -1147,7 +1146,7 @@ namespace CADability
                 // wenn Curve ein Path ist, dann enthält l alle Unterobjekte, und die müssen raus
                 // selbstüberschneidende Path Objekte werden noch Probleme machen
                 l.RemoveChildrenOf(Curve as IGeoObject);
-                List<Pair<double, ICurve>> resCurves = new List<Pair<double, ICurve>>();
+                List<(double First, ICurve Second)> resCurves = new List<(double First, ICurve Second)>();
                 foreach (IGeoObject go in l)
                 {
                     if (go.Layer != null && !IsLayerVisible(go.Layer)) continue; // 04.16 wg. Nürnberger
@@ -1188,7 +1187,7 @@ namespace CADability
                                 }
                                 if (add)
                                 {
-                                    resCurves.Add(new Pair<double, ICurve>(Curve.PositionOf(pl.ToGlobal(pp[i].p), 0.5), cv));
+                                    resCurves.Add((Curve.PositionOf(pl.ToGlobal(pp[i].p), 0.5), cv));
                                 }
                             }
                         }
@@ -1201,7 +1200,7 @@ namespace CADability
                         (go as Face).Intersect(Curve, out ip, out uvOnFace, out uOnCurve);
                         for (int i = 0; i < uOnCurve.Length; i++)
                         {
-                            resCurves.Add(new Pair<double, ICurve>(uOnCurve[i], null));
+                            resCurves.Add((uOnCurve[i], null));
                         }
                     }
                 }
@@ -1210,11 +1209,11 @@ namespace CADability
                     double[] sintp = Curve.GetSelfIntersections();
                     for (int i = 0; i < sintp.Length; i++)
                     {
-                        resCurves.Add(new Pair<double, ICurve>(sintp[i], Curve));
+                        resCurves.Add((sintp[i], Curve));
                     }
                 }
-                resCurves.Sort(new Comparison<Pair<double, ICurve>>(
-                                        delegate (Pair<double, ICurve> pi1, Pair<double, ICurve> pi2)
+                resCurves.Sort(new Comparison<(double First, ICurve Second)>(
+                                        delegate ((double First, ICurve Second) pi1, (double First, ICurve Second) pi2)
                                         {
                                             return pi1.First.CompareTo(pi2.First);
                                         }));

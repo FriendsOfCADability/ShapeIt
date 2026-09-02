@@ -9,7 +9,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Wintellect.PowerCollections;
 using System.Threading;
 using System.Diagnostics;
 using CADability.Substitutes;
@@ -1593,10 +1592,12 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					{
 						Item item = definitions[roots[Item.ItemType.presentationLayerAssignment][i]];
 						object o = CreateEntity(item);
-						if (o is Pair<Layer, GeoObjectList>)
+						// A boxed tuple has to be tested as ValueTuple<,>: naming the elements inside the
+						// pattern would make it a positional pattern and ask the type for Deconstruct.
+						if (o is ValueTuple<Layer, GeoObjectList> layerAndList)
 						{
-							Layer layer = ((Pair<Layer, GeoObjectList>)o).First;
-							GeoObjectList list = ((Pair<Layer, GeoObjectList>)o).Second;
+							Layer layer = layerAndList.Item1;
+							GeoObjectList list = layerAndList.Item2;
 							for (int j = 0; j < list.Count; j++)
 							{
 								list[j].Layer = layer;
@@ -2950,7 +2951,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							object axis = CreateEntity(item.parameter["ref_direction"]);
 							if (loc is GeoPoint2D cnt2d && axis is GeoVector2D dir2d)
 							{
-								item.val = new Pair<GeoPoint2D, GeoVector2D>(cnt2d, dir2d);
+								item.val = (cnt2d, dir2d);
 							}
 							else
 							{
@@ -3786,10 +3787,10 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 								elli.SetCirclePlaneCenterRadius(fcs.plane, fcs.Location, r);
 								item.val = elli;
 							}
-							else if (o is Pair<GeoPoint2D, GeoVector2D> sys2)
+							else if (o is ValueTuple<GeoPoint2D, GeoVector2D> sys2)
 							{
 								double r = item.parameter["radius"].fval;
-								item.val = new Circle2D(sys2.First, r);
+								item.val = new Circle2D(sys2.Item1, r);
 							}
 							else
 							{
@@ -3808,11 +3809,11 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 								elli.SetEllipseArcCenterAxis(fcs.Location, majorRadius * fcs.DirectionX.Normalized, minorRadius * fcs.DirectionY.Normalized, 0.0, 2 * Math.PI);
 								item.val = elli;
 							}
-							else if (o is Pair<GeoPoint2D, GeoVector2D> sys2)
+							else if (o is ValueTuple<GeoPoint2D, GeoVector2D> sys2)
 							{
 								double majorRadius = item.parameter["semi_axis_1"].fval;
 								double minorRadius = item.parameter["semi_axis_2"].fval;
-								item.val = new Ellipse2D(sys2.First, majorRadius * sys2.Second, minorRadius * sys2.Second.ToLeft());
+								item.val = new Ellipse2D(sys2.Item1, majorRadius * sys2.Item2, minorRadius * sys2.Item2.ToLeft());
 							}
 							else
 							{
@@ -4292,7 +4293,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 									}
 								}
 							}
-							item.val = new Pair<Layer, GeoObjectList>(layer, list);
+							item.val = (layer, list);
 						}
 						break;
 					case Item.ItemType.surfaceStyleUsage:

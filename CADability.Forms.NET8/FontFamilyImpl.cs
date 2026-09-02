@@ -5,7 +5,6 @@ using System.Drawing.Drawing2D;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Wintellect.PowerCollections;
 
 namespace CADability.Forms.NET8
 {
@@ -82,7 +81,7 @@ namespace CADability.Forms.NET8
         }
 
         static IntPtr hDC = Gdi.CreateCompatibleDC(IntPtr.Zero);
-        static readonly Dictionary<KerningKey, Dictionary<Pair<char, char>, double>> kerning = []; // Kerningtabellen
+        static readonly Dictionary<KerningKey, Dictionary<(char First, char Second), double>> kerning = []; // Kerningtabellen
         private static void AddToPath2D(List<ICurve2D> addto, List<GeoPoint2D> points, bool spline, bool close, int FontPrecision)
         {
             if (spline)
@@ -160,7 +159,7 @@ namespace CADability.Forms.NET8
             if (!kerning.ContainsKey(new KerningKey(ff.Name, fontStyle)))
             {
                 KerningKey kk = new KerningKey(ff.Name, fontStyle);
-                Dictionary<Pair<char, char>, double> pairs = new Dictionary<Pair<char, char>, double>();
+                Dictionary<(char First, char Second), double> pairs = new Dictionary<(char First, char Second), double>();
                 kerning[kk] = pairs;
                 int num = Gdi.GetKerningPairs(hDC, 0, null);
                 if (num > 0)
@@ -169,7 +168,7 @@ namespace CADability.Forms.NET8
                     int ok = Gdi.GetKerningPairs(hDC, num, kp);
                     for (int i = 0; i < kp.Length; ++i)
                     {
-                        pairs[new Pair<char, char>((char)kp[i].wFirst, (char)kp[i].wSecond)] = kp[i].iKernAmount / (double)em;
+                        pairs[((char)kp[i].wFirst, (char)kp[i].wSecond)] = kp[i].iKernAmount / (double)em;
                     }
                 }
             }

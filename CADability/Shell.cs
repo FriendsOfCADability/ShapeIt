@@ -2946,13 +2946,13 @@ namespace CADability.GeoObject
                 if (trianglePoint != null)
                 {
                     alltrianglePoints.AddRange(trianglePoint);
-                    HashSet<Pair<int, int>> openEdges = new HashSet<Pair<int, int>>();
+                    HashSet<(int First, int Second)> openEdges = new HashSet<(int First, int Second)>();
                     for (int i = 0; i < triangleIndex.Length; i += 3)
                     {
                         // jede innere Kante kommt einmal vorwärts und einmal rückwärts vor
-                        if (!openEdges.Remove(new Pair<int, int>(triangleIndex[i + 1], triangleIndex[i]))) openEdges.Add(new Pair<int, int>(triangleIndex[i], triangleIndex[i + 1]));
-                        if (!openEdges.Remove(new Pair<int, int>(triangleIndex[i + 2], triangleIndex[i + 1]))) openEdges.Add(new Pair<int, int>(triangleIndex[i + 1], triangleIndex[i + 2]));
-                        if (!openEdges.Remove(new Pair<int, int>(triangleIndex[i], triangleIndex[i + 2]))) openEdges.Add(new Pair<int, int>(triangleIndex[i + 2], triangleIndex[i]));
+                        if (!openEdges.Remove((triangleIndex[i + 1], triangleIndex[i]))) openEdges.Add((triangleIndex[i], triangleIndex[i + 1]));
+                        if (!openEdges.Remove((triangleIndex[i + 2], triangleIndex[i + 1]))) openEdges.Add((triangleIndex[i + 1], triangleIndex[i + 2]));
+                        if (!openEdges.Remove((triangleIndex[i], triangleIndex[i + 2]))) openEdges.Add((triangleIndex[i + 2], triangleIndex[i]));
                         allFaces.Add(new Tripel<int, int, int>(triangleIndex[i] + baseIndex, triangleIndex[i + 1] + baseIndex, triangleIndex[i + 2] + baseIndex));
                     }
                     HashSet<int> openVertices = new HashSet<int>();
@@ -3057,7 +3057,7 @@ namespace CADability.GeoObject
             if (splitted) edges = null;
             List<Face> fcs = new List<Face>();
             OctTree<Vertex> vertexOctTree = new OctTree<Vertex>(ext, ext.Size * 1e-8);
-            Dictionary<Pair<Face, Vertex>, Vertex> orgToOffsetVtx = new Dictionary<Pair<Face, Vertex>, Vertex>();
+            Dictionary<(Face First, Vertex Second), Vertex> orgToOffsetVtx = new Dictionary<(Face First, Vertex Second), Vertex>();
             // 1. alle Offset-Faces erzeugen, gleichzeitig die Vertices sammeln
             foreach (Face face in Faces)
             {
@@ -3073,7 +3073,7 @@ namespace CADability.GeoObject
                         GeoPoint p = v.Position + dist * normal.Normalized;
                         Vertex vn = new Vertex(p);
                         offsetvtx[v] = vn;
-                        orgToOffsetVtx[new Pair<Face, Vertex>(face, v)] = vn;
+                        orgToOffsetVtx[(face, v)] = vn;
                     }
                 }
                 Face offsetFace = face.GetOffset(dist, offsetvtx);
@@ -3237,10 +3237,10 @@ namespace CADability.GeoObject
                         //}
                         // DebuggerContainer dc = gsc.ParallelepipedHull.Debug;
 #endif
-                        Vertex v1 = orgToOffsetVtx[new Pair<Face, Vertex>(edg.PrimaryFace, startHere)];
-                        Vertex v2 = orgToOffsetVtx[new Pair<Face, Vertex>(edg.PrimaryFace, endHere)];
-                        Vertex v3 = orgToOffsetVtx[new Pair<Face, Vertex>(edg.SecondaryFace, endHere)];
-                        Vertex v4 = orgToOffsetVtx[new Pair<Face, Vertex>(edg.SecondaryFace, startHere)];
+                        Vertex v1 = orgToOffsetVtx[(edg.PrimaryFace, startHere)];
+                        Vertex v2 = orgToOffsetVtx[(edg.PrimaryFace, endHere)];
+                        Vertex v3 = orgToOffsetVtx[(edg.SecondaryFace, endHere)];
+                        Vertex v4 = orgToOffsetVtx[(edg.SecondaryFace, startHere)];
                         // die entstandene Fläche muss tangential an die beiden Ausgangsflächen anschließen. Sie kann dies auf zweierlei Art tun: in die gleiche
                         // Richtung oder in die Gegenrichtung. Ausrundungsflächen, die rückläufig sind, müssen nicht in Betracht gezogen werden. Sie fallen beim Berechnen
                         // der SelfIntersection ohnehin weg, und erzeugen dort nur zusätzlichen Aufwand, indem sie unnötige Schnittkanten berechnen lassen.
@@ -3457,7 +3457,7 @@ namespace CADability.GeoObject
                 List<Vertex> vl = new List<Vertex>();
                 foreach (Face f in v.Faces)
                 {
-                    Vertex vf = orgToOffsetVtx[new Pair<Face, Vertex>(f, v)];
+                    Vertex vf = orgToOffsetVtx[(f, v)];
                     if (vf != null)
                     {
                         bool found = false;

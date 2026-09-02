@@ -3826,12 +3826,12 @@ namespace CADability
             return res;
         }
 
-        private static List<Pair<int, int>> GetPairList(int n)
+        private static List<(int First, int Second)> GetPairList(int n)
         {
-            List<Pair<int, int>> res = new List<Pair<int, int>>();
+            List<(int First, int Second)> res = new List<(int First, int Second)>();
             for (int i = 0; i <= n; i++)
             {
-                Pair<int, int> p = new Pair<int, int>(i, n - i);
+                (int First, int Second) p = (i, n - i);
                 res.Add(p);
             }
             return res;
@@ -3842,7 +3842,7 @@ namespace CADability
             List<Tripel<int, int, int>> res = new List<CADability.Tripel<int, int, int>>();
             for (int i = 0; i <= n; i++)
             {
-                List<Pair<int, int>> pairs = GetPairList(n - i);
+                List<(int First, int Second)> pairs = GetPairList(n - i);
                 for (int j = 0; j < pairs.Count; j++)
                 {
                     Tripel<int, int, int> t = new Tripel<int, int, int>(i, pairs[j].First, pairs[j].Second);

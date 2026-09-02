@@ -2,7 +2,6 @@
 using CADability.Substitutes;
 using System;
 using System.Collections.Generic;
-using Wintellect.PowerCollections;
 
 namespace CADability.Shapes
 {
@@ -139,7 +138,7 @@ namespace CADability.Shapes
                     return ranges.Count > 0;
                 }
             }
-            public Pair<double, double> removeInterval(double startHere)
+            public (double First, double Second) removeInterval(double startHere)
             {
                 int ind = -1;
                 if (startHere == -1)
@@ -159,14 +158,14 @@ namespace CADability.Shapes
                 }
                 if (ind >= 0 && ind < ranges.Count)
                 {
-                    Pair<double, double> res = new Pair<double, double>(ranges[ind], ranges[ind + 1]);
+                    (double First, double Second) res = (ranges[ind], ranges[ind + 1]);
                     ranges.RemoveRange(ind, 2);
                     return res;
                 }
-                return new Pair<double, double>(-1, -1);
+                return (-1, -1);
             }
 
-            internal Pair<double, double> removeIntervalEnd(double endHere)
+            internal (double First, double Second) removeIntervalEnd(double endHere)
             {
                 int ind = -1;
                 if (endHere == -1)
@@ -186,11 +185,11 @@ namespace CADability.Shapes
                 }
                 if (ind >= 0 && ind < ranges.Count)
                 {
-                    Pair<double, double> res = new Pair<double, double>(ranges[ind], ranges[ind + 1]);
+                    (double First, double Second) res = (ranges[ind], ranges[ind + 1]);
                     ranges.RemoveRange(ind, 2);
                     return res;
                 }
-                return new Pair<double, double>(-1, -1);
+                return (-1, -1);
             }
         }
         class CriticalPosition : ApplicationException
@@ -834,7 +833,7 @@ namespace CADability.Shapes
 #endif
             // Stücke zusammensammeln:
             bool onBdr1;
-            Pair<double, double> act;
+            (double First, double Second) act;
             if (bdr1parts.hasInterval)
             {
                 onBdr1 = true;

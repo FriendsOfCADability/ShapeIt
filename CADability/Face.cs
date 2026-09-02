@@ -1186,7 +1186,7 @@ namespace CADability.GeoObject
                 //        }
                 //    }
                 //}
-                List<Pair<StepEdgeDescriptor, List<StepEdgeDescriptor>>> splittedByPoles = new List<Pair<StepEdgeDescriptor, List<StepEdgeDescriptor>>>();
+                List<(StepEdgeDescriptor First, List<StepEdgeDescriptor> Second)> splittedByPoles = new List<(StepEdgeDescriptor First, List<StepEdgeDescriptor> Second)>();
                 if (poles.Count > 0)
                 {
                     // check whether a loop-curve goes through a pole. In this case we have to split the loop-curve into parts in order to be able to insert 
@@ -1225,7 +1225,7 @@ namespace CADability.GeoObject
                                         }
                                         if (!se.forward) toInsert.Reverse();
                                         loops[i].InsertRange(j, toInsert);
-                                        splittedByPoles.Add(new Pair<StepEdgeDescriptor, List<StepEdgeDescriptor>>(se, toInsert));
+                                        splittedByPoles.Add((se, toInsert));
                                     }
                                 }
                             }
@@ -11573,7 +11573,7 @@ namespace CADability.GeoObject
             }
             // collect pairs of edge, which are geomatrically identical
             // we collect the edges rather than combining them immediately, because we are iterating over the edges
-            List<Pair<Edge, Edge>> edgePairs = new List<Pair<Edge, Edge>>();
+            List<(Edge First, Edge Second)> edgePairs = new List<(Edge First, Edge Second)>();
             foreach (Edge edg in face1.Edges)
             {
                 if (vertexPairs.ContainsKey(edg.Vertex1) && vertexPairs.ContainsKey(edg.Vertex2))
@@ -11589,7 +11589,7 @@ namespace CADability.GeoObject
                         {
                             if (edg.Curve3D.DistanceTo(other[i].Curve3D.PointAt(0.5)) < precision)
                             {   // ther middle points also have the same position
-                                edgePairs.Add(new Pair<Edge, Edge>(edg, other[i]));
+                                edgePairs.Add((edg, other[i]));
                             }
                         }
                     }

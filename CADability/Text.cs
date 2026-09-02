@@ -491,7 +491,7 @@ namespace CADability.GeoObject
         readonly Dictionary<DictKey, DictVal> cache; // Cache von CompundShapes und Breiten für einzelne zeichen
         readonly Dictionary<DictKey, CenterLineVal> centerLineCache; // Cache für die CenterLines, Größe 1
         readonly Dictionary<FontKey, FontCharacteristics> fontCharacteristicsCache; // Cache für die FontCharacteristics
-        readonly Dictionary<KerningKey, Dictionary<Pair<char, char>, double>> kerning; // Kerningtabellen
+        readonly Dictionary<KerningKey, Dictionary<(char First, char Second), double>> kerning; // Kerningtabellen
         readonly IntPtr hDC; // fester DeviceContext (für die ganze Lebensdauer)
         public FontCache()
         {
@@ -500,7 +500,7 @@ namespace CADability.GeoObject
             cache = new Dictionary<DictKey, DictVal>();
             centerLineCache = new Dictionary<DictKey, CenterLineVal>();
             fontCharacteristicsCache = new Dictionary<FontKey, FontCharacteristics>();
-            kerning = new Dictionary<KerningKey, Dictionary<Pair<char, char>, double>>();
+            kerning = new Dictionary<KerningKey, Dictionary<(char First, char Second), double>>();
             hDC = Gdi.CreateCompatibleDC(IntPtr.Zero);
         }
         ~FontCache()
@@ -564,11 +564,11 @@ namespace CADability.GeoObject
         }
         public double GetKerning(string font, int fontStyle, char a, char b)
         {
-            Dictionary<Pair<char, char>, double> pairs;
+            Dictionary<(char First, char Second), double> pairs;
             double res = 0.0;
             if (kerning.TryGetValue(new KerningKey(font, fontStyle), out pairs))
             {
-                pairs.TryGetValue(new Pair<char, char>(a, b), out res);
+                pairs.TryGetValue((a, b), out res);
             }
             return res;
         }

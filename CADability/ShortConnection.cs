@@ -454,7 +454,7 @@ namespace CADability
             // es entstehen 4 Stücke wenn die 3 Verbindungen entfernt werden
             // wenn der Anfang fest ist, bleibt eines der Anfang, es gibt dann 6 Möglichkeiten, wenn nicht, gibt es 24 Möglichkeiten
             // 1. Anfangs und Endpunkte der Stücke suchen
-            Pair<int, int>[] segments = new Pair<int, int>[4];
+            (int First, int Second)[] segments = new (int First, int Second)[4];
             int index = 0;
             int start = startWith.id; // id ist auch der Index im Array
             vertex v;
@@ -462,12 +462,12 @@ namespace CADability
             {
                 if (v.id == i || v.id == j || v.id == k)
                 {
-                    segments[index] = new Pair<int, int>(start, v.id);
+                    segments[index] = (start, v.id);
                     ++index;
                     start = v.next.id; // Start für die nächste Runde
                 }
             }
-            segments[index] = new Pair<int, int>(start, v.id); // das letzte Stück
+            segments[index] = (start, v.id); // das letzte Stück
             if (index != 3) return false; // kann nicht vorkommen
             // jetzt gibt es 4 Segmente und es können drei neue Verbindungen überprüft werden
             double orgLength = vertices[i].toNext.Length + vertices[j].toNext.Length + vertices[k].toNext.Length;
