@@ -7,7 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ShapeIt
+namespace CADability.GeoObject
 {
     public class BlendEdges
     {

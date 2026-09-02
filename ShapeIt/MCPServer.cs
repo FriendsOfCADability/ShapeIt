@@ -19,7 +19,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using System.Xml.Linq;
-using static ShapeIt.ShellExtensions;
+using static CADability.GeoObject.ShellExtensions;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using Plane = CADability.Plane;
 using MathNet.Numerics.LinearAlgebra.Factorization;

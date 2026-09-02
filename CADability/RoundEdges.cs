@@ -7,9 +7,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static ShapeIt.ShellExtensions;
+using static CADability.GeoObject.ShellExtensions;
 
-namespace ShapeIt
+namespace CADability.GeoObject
 {
     public class RoundEdges : BlendEdges
     {
@@ -682,8 +682,8 @@ namespace ShapeIt
                 for (int i = 0; i < pnts.Length; i++) pnts[i] = topSurface.PerpendicularFoot(sc.Spine.PointAt(spos[i])).Select(p => topSurface.PointAt(p)).MinBy(p => p | sc.Spine.PointAt(spos[i]));
                 // lt and rt must be close to the beginning and end of pnts, so lets substitute them there for better precision
                 // and easier trimming
-                if ((lt | pnts[0]) + (rt | pnts[^1]) < (lt | pnts[^1]) + (rt | pnts[0])) { pnts[0] = lt; pnts[^1] = rt; }
-                else { pnts[0] = rt; pnts[^1] = lt; }
+                if ((lt | pnts[0]) + (rt | pnts[pnts.Length - 1]) < (lt | pnts[pnts.Length - 1]) + (rt | pnts[0])) { pnts[0] = lt; pnts[pnts.Length - 1] = rt; }
+                else { pnts[0] = rt; pnts[pnts.Length - 1] = lt; }
                 topCurve = new InterpolatedDualSurfaceCurve(topSurface, edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, pnts, null, null, true);
             }
             else
@@ -703,8 +703,8 @@ namespace ShapeIt
                 for (int i = 0; i < pnts.Length; i++) pnts[i] = bottomSurface.PerpendicularFoot(scb.Spine.PointAt(spos[i])).Select(p => bottomSurface.PointAt(p)).MinBy(p => p | scb.Spine.PointAt(spos[i]));
                 // lb and rb must be close to the beginning and end of pnts, so lets substitute them there for better precision
                 // and easier trimming
-                if ((lb | pnts[0]) + (rb | pnts[^1]) < (lb | pnts[^1]) + (rb | pnts[0])) { pnts[0] = lb; pnts[^1] = rb; }
-                else { pnts[0] = rb; pnts[^1] = lb; }
+                if ((lb | pnts[0]) + (rb | pnts[pnts.Length - 1]) < (lb | pnts[pnts.Length - 1]) + (rb | pnts[0])) { pnts[0] = lb; pnts[pnts.Length - 1] = rb; }
+                else { pnts[0] = rb; pnts[pnts.Length - 1] = lb; }
                 bottomCurve = new InterpolatedDualSurfaceCurve(bottomSurface, edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, pnts, null, null, true);
             }
             else

@@ -1886,7 +1886,7 @@ namespace CADability.GeoObject
             Shell sh = edges[0].PrimaryFace.Owner as Shell;
             if (sh != null)
             {
-                Shell res = BRepOperation.RoundEdges(sh, edges, radius);
+                Shell res = new RoundEdges(sh, edges, radius).Execute();
                 affectedShell = sh;
                 if (res != null) return res;
             }
@@ -1898,7 +1898,9 @@ namespace CADability.GeoObject
             Shell sh = primaryFace.Owner as Shell;
             if (sh != null)
             {
-                Shell res = BRepOperation.ChamferEdges(primaryFace, edges, primaryDist, secondaryDist);
+                // primaryFace is passed on so that primaryDist keeps being measured on the face the
+                // caller named, whichever side of each edge it happens to be.
+                Shell res = new ChamferEdges(sh, edges, primaryDist, secondaryDist, primaryFace).Execute();
                 affectedShellsOrSolids = new IGeoObject[] { sh };
                 if (res != null) return new IGeoObject[] { res };
             }

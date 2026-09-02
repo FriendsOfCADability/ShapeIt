@@ -8,15 +8,35 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ShapeIt
+namespace CADability.GeoObject
 {
     public class ChamferEdges : BlendEdges
     {
         double length1, length2;
-        public ChamferEdges(Shell shell, IEnumerable<Edge> edges, double length1, double length2) : base(shell, edges)
+        Face? primaryFace;
+        /// <param name="primaryFace">
+        /// The face <paramref name="length1"/> is measured on. Optional: without it the distances follow
+        /// the topology of each edge - <paramref name="length1"/> lands on the edge's PrimaryFace - which
+        /// is fine for a symmetric chamfer but may swap the two distances for an asymmetric one. Pass the
+        /// face the caller means, and the distances are swapped per edge wherever that face happens to be
+        /// the edge's secondary one.
+        /// </param>
+        public ChamferEdges(Shell shell, IEnumerable<Edge> edges, double length1, double length2, Face? primaryFace = null) : base(shell, edges)
         {
             this.length1 = Math.Abs(length1); // distances may not be negative
             this.length2 = Math.Abs(length2); // distances may not be negative
+            this.primaryFace = primaryFace;
+        }
+
+        /// <summary>
+        /// The two distances for this edge, ordered so that the first one belongs to the edge's
+        /// PrimaryFace - which is what <see cref="MakeChamferShell"/> expects.
+        /// </summary>
+        private (double first, double second) lengthsFor(Edge edge)
+        {
+            if (primaryFace != null && edge.SecondaryFace == primaryFace && edge.PrimaryFace != primaryFace)
+                return (length2, length1);
+            return (length1, length2);
         }
 
         public Shell? Execute()
@@ -90,7 +110,8 @@ namespace ShapeIt
 
             foreach (var (edgeToRound, isConvex) in edgesToRound)
             {
-                Shell? chamferShell = MakeChamferShell(edgeToRound, length1, length2, isConvex);
+                (double first, double second) = lengthsFor(edgeToRound);
+                Shell? chamferShell = MakeChamferShell(edgeToRound, first, second, isConvex);
                 if (chamferShell != null)
                 {
                     chamferShell.CopyAttributes(edgeToRound.PrimaryFace);

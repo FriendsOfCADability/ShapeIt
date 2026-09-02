@@ -5,14 +5,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using static CADability.GeoObject.Surfaces;
 
-namespace ShapeIt
+namespace CADability.GeoObject
 {
     /// <summary>
     /// Extensions for multiple surfaces
     /// </summary>
-    internal static class Surfaces
+    public partial class Surfaces
     {
         /// <summary>
         /// Find two points on the surfaces, where the connection is perpendicular to both surfaces. Currently used by parametrics to identify faces where we can

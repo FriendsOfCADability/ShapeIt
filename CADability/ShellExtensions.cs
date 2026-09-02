@@ -16,7 +16,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ShapeIt
+namespace CADability.GeoObject
 {
 
     /// <summary>
@@ -135,7 +135,7 @@ namespace ShapeIt
             return false;
         }
     }
-    internal static class ShellExtensions
+    public static class ShellExtensions
     {
         public static int GetFaceDistances(this Shell shell, Face distanceFrom, GeoPoint touchingPoint, out List<Face> distanceTo, out List<double> distance, out List<GeoPoint> pointsFrom, out List<GeoPoint> pointsTo)
         {
