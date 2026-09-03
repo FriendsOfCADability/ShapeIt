@@ -5111,12 +5111,16 @@ namespace CADability
         }
         internal void ConnectOpenEdges(Edge[] openEdges)
         {
-            OrderedMultiDictionary<DoubleVertexKey, Edge> dict = new OrderedMultiDictionary<DoubleVertexKey, Edge>(true);
+            // Pure grouping by vertex pair: every entry is looked at on its own, the order of the keys
+            // plays no role, so a plain dictionary of lists does the job.
+            Dictionary<DoubleVertexKey, List<Edge>> dict = new Dictionary<DoubleVertexKey, List<Edge>>();
             for (int i = 0; i < openEdges.Length; ++i)
             {
-                dict.Add(new DoubleVertexKey(openEdges[i].Vertex1, openEdges[i].Vertex2), openEdges[i]);
+                DoubleVertexKey key = new DoubleVertexKey(openEdges[i].Vertex1, openEdges[i].Vertex2);
+                if (!dict.TryGetValue(key, out List<Edge> sameKey)) dict[key] = sameKey = new List<Edge>();
+                sameKey.Add(openEdges[i]);
             }
-            foreach (KeyValuePair<DoubleVertexKey, ICollection<Edge>> kv in dict)
+            foreach (KeyValuePair<DoubleVertexKey, List<Edge>> kv in dict)
             {
                 if (kv.Value.Count == 2)
                 {

@@ -1411,43 +1411,6 @@ namespace CADability.Shapes
                 if (n > 10000) return GeoPoint2D.Origin;
             }
         }
-        private CompoundShape.SignatureOld CalculateSignatureOld()
-        {
-            double lprec = outline.Length * 1e-4; // wir nehemen die Gesamtlänge, da die rotationsinvariant ist
-            double aprec = Math.PI * 1e-3; // ungefähr 1/10 Grad
-            while (true)
-            {
-                RangeCounter rcl = new RangeCounter(lprec, 0.0);
-                RangeCounter rca = new RangeCounter(aprec, 0.0);
-                outline.CalcRanges(rcl, rca);
-                for (int i = 0; i < holes.Length; i++)
-                {
-                    holes[i].CalcRanges(rcl, rca);
-                }
-                bool aok = rca.isOk();
-                bool lok = rcl.isOk();
-                if (aok && lok)
-                {
-                    List<int> acnt = new List<int>();
-                    List<double> aval = new List<double>();
-                    foreach (KeyValuePair<double, int> item in rca)
-                    {
-                        acnt.Add(item.Value);
-                        aval.Add(item.Key);
-                    }
-                    List<int> lcnt = new List<int>();
-                    List<double> lval = new List<double>();
-                    foreach (KeyValuePair<double, int> item in rcl)
-                    {
-                        lcnt.Add(item.Value);
-                        lval.Add(item.Key);
-                    }
-                    return new CompoundShape.SignatureOld(aval.ToArray(), acnt.ToArray(), lval.ToArray(), lcnt.ToArray(), aprec, lprec);
-                }
-                if (!aok) aprec *= 1.7; // größere Intervalle, dann gibt es irgendwann nur noch eine Kategorie, in die alles fällt, damit endet diese Schleife sicher
-                if (!lok) lprec *= 1.7;
-            }
-        }
         public bool isCongruent(SimpleShape other, CompoundShape.Signature otherSig, out ModOp2D thisToOther, double precision)
         {
             List<int> longestSides = new List<int>(); // es kann ja mehrere von der gleichen Länge geben
@@ -1735,67 +1698,6 @@ namespace CADability.Shapes
     [Serializable()]
     public class CompoundShape : ISerializable, IJsonSerialize, IQuadTreeInsertable
     {
-        [Serializable()]
-        internal class SignatureOld : ISerializable
-        {
-            double[] angleValues; // synchrone Arrays über die Winkel und wie oft sie vorkommen
-            int[] angleCount;
-            double[] lengthValues; // analog mit Längen
-            int[] lengthCount;
-            double anglePrecision; // mit der Winkelgenauigkeit wurde gerechnet
-            double lengthPrecision; // mit der Längengenauigkeit wurde gerechnet
-
-            public SignatureOld(double[] angleValues, int[] angleCount, double[] lengthValues, int[] lengthCount, double anglePrecision, double lengthPrecision)
-            {
-                this.angleValues = angleValues;
-                this.angleCount = angleCount;
-                this.lengthValues = lengthValues;
-                this.lengthCount = lengthCount;
-                this.anglePrecision = anglePrecision;
-                this.lengthPrecision = lengthPrecision;
-            }
-            public bool isEqual(SignatureOld other)
-            {   // simpler Gleichheitstest: Werte dürfen sich nur um Genauigkeit unterscheiden, Anzahlen müssen genau stimmen
-                if (angleCount.Length != other.angleCount.Length) return false;
-                if (lengthCount.Length != other.lengthCount.Length) return false;
-
-                for (int i = 0; i < angleCount.Length; i++)
-                {
-                    if (Math.Abs(angleValues[i] - other.angleValues[i]) > anglePrecision + other.anglePrecision || angleCount[i] != other.angleCount[i])
-                    {
-                        return false;
-                    }
-                }
-                for (int i = 0; i < lengthCount.Length; i++)
-                {
-                    if (Math.Abs(lengthValues[i] - other.lengthValues[i]) > lengthPrecision + other.lengthPrecision || lengthCount[i] != other.lengthCount[i])
-                    {
-                        return false;
-                    }
-                }
-                return true;
-            }
-
-            protected SignatureOld(SerializationInfo info, StreamingContext context)
-            {
-                angleValues = (double[])info.GetValue("AngleValues", typeof(double[]));
-                angleCount = (int[])info.GetValue("AngleCount", typeof(int[]));
-                lengthValues = (double[])info.GetValue("LengthValues", typeof(double[]));
-                lengthCount = (int[])info.GetValue("LengthCount", typeof(int[]));
-                anglePrecision = (double)info.GetValue("AnglePrecision", typeof(double));
-                lengthPrecision = (double)info.GetValue("LengthPrecision", typeof(double));
-            }
-            void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
-            {
-                info.AddValue("AngleValues", angleValues);
-                info.AddValue("AngleCount", angleCount);
-                info.AddValue("LengthValues", lengthValues);
-                info.AddValue("LengthCount", lengthCount);
-                info.AddValue("AnglePrecision", anglePrecision);
-                info.AddValue("LengthPrecision", lengthPrecision);
-            }
-        }
-
         [Serializable()]
         public class Signature : ISerializable
         {

@@ -7970,7 +7970,7 @@ namespace CADability.GeoObject
             go.Style = EdgeStyle;
             go.Layer = this.Layer;
         }
-        internal static bool CheckOutlineDirection(Face fc, Edge[] outline, double uperiod, double vperiod, OrderedMultiDictionary<double, int>[] selections)
+        internal static bool CheckOutlineDirection(Face fc, Edge[] outline, double uperiod, double vperiod, SortedSet<(double Key, int Value)>[] selections)
         {
             try
             {
@@ -7984,7 +7984,7 @@ namespace CADability.GeoObject
                     // zu entscheiden, welche Möglichkeit die beste ist, und wenn man die falsche nimmt, läuft
                     // die Kurve aus dem Ruder. Selections gibtdie Liste der berechneten Abstände und ihre Codierungen an
                     // 
-                    selections = new OrderedMultiDictionary<double, int>[outline.Length - 1];
+                    selections = new SortedSet<(double Key, int Value)>[outline.Length - 1];
                 }
                 // Beste Reglung: so wier hier verfahren (ohne das Verschieben in u bei zwei gleichen Linien
                 // wenn man am Ende nicht zusammen ist, dann eine neue Routine aufrufen, alle Kurven in ihrer Periode
@@ -8144,7 +8144,7 @@ namespace CADability.GeoObject
                     ++counter;
                     if (counter == 100 && (uperiod != 0.0 || vperiod != 0.0))
                     {   // neu anfangen mit dem Versuch alle Kurven in das Standardintervall der Periode zu bringen
-                        selections = new OrderedMultiDictionary<double, int>[outline.Length - 1];
+                        selections = new SortedSet<(double Key, int Value)>[outline.Length - 1];
                         if (uperiod != 0.0)
                         {
                             for (int i = 0; i < clonedSegments.Length; i++)
@@ -8184,45 +8184,45 @@ namespace CADability.GeoObject
                         }
                         if (selections[0] == null)
                         {
-                            OrderedMultiDictionary<double, int> dist = new Wintellect.PowerCollections.OrderedMultiDictionary<double, int>(true);
+                            SortedSet<(double Key, int Value)> dist = new SortedSet<(double Key, int Value)>();
                             if (segments[0] != null && segments[1] != null)
                             {
                                 if (uperiod != 0.0)
                                 {   // segments[0] verschieben
                                     GeoVector2D offset = new GeoVector2D(uperiod, 0.0);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint + offset, segments[1].StartPoint), 4);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint + offset, segments[1].StartPoint), 5);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint + offset, segments[1].EndPoint), 6);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint + offset, segments[1].EndPoint), 7);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint - offset, segments[1].StartPoint), 8);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint - offset, segments[1].StartPoint), 9);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint - offset, segments[1].EndPoint), 10);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint - offset, segments[1].EndPoint), 11);
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint + offset, segments[1].StartPoint), 4));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint + offset, segments[1].StartPoint), 5));
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint + offset, segments[1].EndPoint), 6));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint + offset, segments[1].EndPoint), 7));
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint - offset, segments[1].StartPoint), 8));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint - offset, segments[1].StartPoint), 9));
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint - offset, segments[1].EndPoint), 10));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint - offset, segments[1].EndPoint), 11));
                                 }
                                 if (vperiod != 0.0)
                                 {   // segments[0] verschieben
                                     GeoVector2D offset = new GeoVector2D(0.0, vperiod);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint + offset, segments[1].StartPoint), 12);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint + offset, segments[1].StartPoint), 13);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint + offset, segments[1].EndPoint), 14);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint + offset, segments[1].EndPoint), 15);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint - offset, segments[1].StartPoint), 16);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint - offset, segments[1].StartPoint), 17);
-                                    dist.Add(Geometry.Dist(segments[0].StartPoint - offset, segments[1].EndPoint), 18);
-                                    dist.Add(Geometry.Dist(segments[0].EndPoint - offset, segments[1].EndPoint), 19);
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint + offset, segments[1].StartPoint), 12));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint + offset, segments[1].StartPoint), 13));
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint + offset, segments[1].EndPoint), 14));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint + offset, segments[1].EndPoint), 15));
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint - offset, segments[1].StartPoint), 16));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint - offset, segments[1].StartPoint), 17));
+                                    dist.Add((Geometry.Dist(segments[0].StartPoint - offset, segments[1].EndPoint), 18));
+                                    dist.Add((Geometry.Dist(segments[0].EndPoint - offset, segments[1].EndPoint), 19));
                                 }
                                 // hinten angestellt, denn es soll die vorherigen bei Gleichheit überschreiben
                                 // leider genügt das mit der Gleichheit nicht wg. Rechengenauigkeit, deshalb -Precision.eps
-                                dist.Add(Geometry.Dist(segments[0].StartPoint, segments[1].StartPoint) - Precision.eps, 0);
-                                dist.Add(Geometry.Dist(segments[0].EndPoint, segments[1].StartPoint) - Precision.eps, 1);
-                                dist.Add(Geometry.Dist(segments[0].StartPoint, segments[1].EndPoint) - Precision.eps, 2);
-                                dist.Add(Geometry.Dist(segments[0].EndPoint, segments[1].EndPoint) - Precision.eps, 3);
+                                dist.Add((Geometry.Dist(segments[0].StartPoint, segments[1].StartPoint) - Precision.eps, 0));
+                                dist.Add((Geometry.Dist(segments[0].EndPoint, segments[1].StartPoint) - Precision.eps, 1));
+                                dist.Add((Geometry.Dist(segments[0].StartPoint, segments[1].EndPoint) - Precision.eps, 2));
+                                dist.Add((Geometry.Dist(segments[0].EndPoint, segments[1].EndPoint) - Precision.eps, 3));
                                 // das "-Precision.eps" fehlte am 18.1.11, wieder reingemacht wg. NEED_REGULARIZATION.stp
                                 selections[0] = dist;
                             }
                         }
-                        if (selections[0] == null || selections[0].TotalCount == 0 || selections[0].FirstItem.Key > precision) return false;
-                        switch (selections[0].FirstItem.Value % 4) // das ist der Fall für den kleinsten Abstand
+                        if (selections[0] == null || selections[0].Count == 0 || selections[0].Min.Key > precision) return false;
+                        switch (selections[0].Min.Value % 4) // das ist der Fall für den kleinsten Abstand
                         {
                             case 0:
                                 segments[0].Reverse();
@@ -8237,7 +8237,7 @@ namespace CADability.GeoObject
                                 segments[1].Reverse();
                                 break;
                         }
-                        switch (selections[0].FirstItem.Value / 4)
+                        switch (selections[0].Min.Value / 4)
                         {
                             case 0: break; // nix, kein offset
                             case 1:
@@ -8297,45 +8297,45 @@ namespace CADability.GeoObject
                     {
                         if (selections[i - 1] == null)
                         {
-                            OrderedMultiDictionary<double, int> dist = new Wintellect.PowerCollections.OrderedMultiDictionary<double, int>(true);
+                            SortedSet<(double Key, int Value)> dist = new SortedSet<(double Key, int Value)>();
                             if (segments[i - 1] != null && segments[i] != null)
                             {
                                 if (uperiod != 0.0)
                                 {   // segments[0] verschieben
                                     GeoVector2D offset = new GeoVector2D(uperiod, 0.0);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint + offset), 2);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint + offset), 3);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint - offset), 4);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint - offset), 5);
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint + offset), 2));
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint + offset), 3));
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint - offset), 4));
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint - offset), 5));
                                 }
                                 if (vperiod != 0.0)
                                 {   // segments[0] verschieben
                                     GeoVector2D offset = new GeoVector2D(0.0, vperiod);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint + offset), 6);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint + offset), 7);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint - offset), 8);
-                                    dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint - offset), 9);
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint + offset), 6));
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint + offset), 7));
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint - offset), 8));
+                                    dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint - offset), 9));
                                 }
                                 // hinten angestellt, denn es soll die vorherigen bei Gleichheit überschreiben
-                                dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint) - Precision.eps, 0);
-                                dist.Add(Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint) - Precision.eps, 1);
+                                dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].StartPoint) - Precision.eps, 0));
+                                dist.Add((Geometry.Dist(segments[i - 1].EndPoint, segments[i].EndPoint) - Precision.eps, 1));
                                 selections[i - 1] = dist;
                                 //System.Diagnostics.Trace.WriteLine("Adding: " + (i - 1).ToString());
                             }
                         }
-                        if (selections[i - 1].TotalCount == 0 || selections[i - 1].FirstItem.Key > precision)
+                        if (selections[i - 1].Count == 0 || selections[i - 1].Min.Key > precision)
                         {
                             // System.Diagnostics.Trace.WriteLine("Removing: " + (i - 1).ToString());
                             selections[i - 1] = null;
-                            selections[i - 2].Remove(selections[i - 2].FirstItem.Key, selections[i - 2].FirstItem.Value);
+                            selections[i - 2].Remove(selections[i - 2].Min);
                             broken = true;
                             break;
                         }
-                        if (selections[i - 1].FirstItem.Value % 2 == 1)
+                        if (selections[i - 1].Min.Value % 2 == 1)
                         {
                             segments[i].Reverse();
                         }
-                        switch (selections[i - 1].FirstItem.Value / 2)
+                        switch (selections[i - 1].Min.Value / 2)
                         {
                             case 0: break; // nix, kein offset
                             case 1:
@@ -8422,7 +8422,7 @@ namespace CADability.GeoObject
                     else
                     {
                         if (segments.Length < 2) return false; // eine nicht geschlossene Kurve
-                        selections[segments.Length - 2].Remove(selections[segments.Length - 2].FirstItem.Key, selections[segments.Length - 2].FirstItem.Value);
+                        selections[segments.Length - 2].Remove(selections[segments.Length - 2].Min);
                     }
                 }
             }

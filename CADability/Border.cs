@@ -4169,24 +4169,6 @@ namespace CADability.Shapes
             return res.ToArray();
         }
 
-        internal void CalcRanges(RangeCounter rcLength, RangeCounter rcAngle)
-        {
-            if (segment.Length == 1)
-            {
-                rcLength.Add(segment[0].Length);
-                return; // hier macht ein Winkel keinen Sinn
-            }
-            GeoVector2D lastDir = segment[segment.Length - 1].MiddleDirection;
-            for (int i = 0; i < segment.Length; ++i)
-            {
-                GeoVector2D dir = segment[i].MiddleDirection;
-                SweepAngle sw = new SweepAngle(lastDir, dir);
-                lastDir = dir;
-                rcAngle.Add(sw.Radian);
-                rcLength.Add(segment[i].Length);
-            }
-        }
-
         internal double[] Code()
         {   // Liefert Folge von Paaren: Längen und Abknick-Winkel
             double[] res = new double[segment.Length * 2];

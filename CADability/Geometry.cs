@@ -6,7 +6,7 @@ using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
 using CADability.Substitutes;
-using Wintellect.PowerCollections;
+using System.Linq;
 
 namespace CADability
 {
@@ -815,7 +815,9 @@ namespace CADability
                 int numsolerror = 0; // Anzahl der Lösungen für Fehlerkorrektur
                 double[] res = null;
 
-                OrderedMultiDictionary<double, double> best = null;
+                // (Fehler, Nullstelle) - Liste statt OrderedMultiDictionary, damit gleiche Paare
+                // erhalten bleiben; ein Set wuerde sie verschlucken. Sortiert wird erst beim Auswerten.
+                List<(double Key, double Value)> best = null;
                 for (int i = 0; i < n; i++)
                 {
                     double y = r[i];
@@ -921,14 +923,14 @@ namespace CADability
                             }
                         }
                         numsol = res.Length - numsol;
-                        OrderedMultiDictionary<double, double> tmp = new OrderedMultiDictionary<double, double>(true);
+                        List<(double Key, double Value)> tmp = new List<(double Key, double Value)>();
                         double er = 0;
                         for (int j = 0; j < res.Length; j++)
                         {
                             double x = res[j];
                             double ee = Math.Abs(x * x * x * x + b * x * x * x + c * x * x + d * x + e);
                             er += ee;
-                            tmp.Add(ee, x);
+                            tmp.Add((ee, x));
                         }
                         if (er < error && numsol >= numsolerror)
                         {
@@ -940,9 +942,10 @@ namespace CADability
                 }
                 if (best != null)
                 {
-                    if (best.LastItem.Key > 1e-8) // Fehler nach Größe der Ableitung testen!
+                    best.Sort(); // nach Fehler, bei gleichem Fehler nach Nullstelle - wie zuvor der Baum
+                    if (best[best.Count - 1].Key > 1e-8) // Fehler nach Größe der Ableitung testen!
                     {   // Polynom durch die beste Nullstelle teilen, dann 3. Grad bestimmen
-                        double x0 = best.FirstItem.Value;
+                        double x0 = best[0].Value;
                         // a*x*x*x+(a*x0+b)*x*x + (a*x0*x0+b*x0+c)*x + (a*x0*x0*x0+b*x0*x0+c*x0+d)
                         n = ragle3(1, x0 + b, x0 * x0 + b * x0 + c, x0 * x0 * x0 + b * x0 * x0 + c * x0 + d, r);
                         List<double> rr = new List<double>();
@@ -953,7 +956,7 @@ namespace CADability
                         }
                         return rr.ToArray();
                     }
-                    return best.SortedValues.ToArray();
+                    return best.Select(p => p.Value).ToArray();
                 }
                 else return new double[] { };
             }

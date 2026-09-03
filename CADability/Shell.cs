@@ -4504,13 +4504,13 @@ namespace CADability.GeoObject
                 {
                     if (edg == openEdge) continue;
                     if (!openEdges.Contains(edg)) continue;
-                    if ((edg.PrimaryFace == openEdge.PrimaryFace || edg.SecondaryFace == openEdge.PrimaryFace) && BRepOperation.SameEdge(edg, openEdge, Precision.eps))
+                    if ((edg.PrimaryFace == openEdge.PrimaryFace || edg.SecondaryFace == openEdge.PrimaryFace) && BooleanOperation.SameEdge(edg, openEdge, Precision.eps))
                     {
                         edg.RemoveFace(openEdge.PrimaryFace);
                         openEdge.PrimaryFace.ReplaceEdge(openEdge, edg);
                         break;
                     }
-                    else if (edg.SecondaryFace == null && openEdge.SecondaryFace == null && BRepOperation.SameEdge(edg, openEdge, Precision.eps))
+                    else if (edg.SecondaryFace == null && openEdge.SecondaryFace == null && BooleanOperation.SameEdge(edg, openEdge, Precision.eps))
                     {
                         openEdge.MergeWith(edg);
                         edg.DisconnectFromFace(openEdge.SecondaryFace);
@@ -4633,13 +4633,17 @@ namespace CADability.GeoObject
             HashSet<Face> facesset = new HashSet<Face>(faces); // die Faces ändern sich ggf.
                                                        // zuerst mal degenerierte Edges entfernen:
             Edge[] alledges = this.Edges;
-            OrderedMultiDictionary<DoubleVertexKey, Edge> dict = new OrderedMultiDictionary<DoubleVertexKey, Edge>(true);
+            // Pure grouping by vertex pair: the order of the keys plays no role here, every entry is
+            // examined on its own.
+            Dictionary<DoubleVertexKey, List<Edge>> dict = new Dictionary<DoubleVertexKey, List<Edge>>();
             foreach (Edge e in alledges)
             {
-                dict.Add(new DoubleVertexKey(e.Vertex1, e.Vertex2), e);
+                DoubleVertexKey key = new DoubleVertexKey(e.Vertex1, e.Vertex2);
+                if (!dict.TryGetValue(key, out List<Edge> sameKey)) dict[key] = sameKey = new List<Edge>();
+                sameKey.Add(e);
             }
             // Wenn eine Verbindung zweier Vertices öfter vorkommt, dann testen, ob geometrisch identisch
-            foreach (KeyValuePair<DoubleVertexKey, ICollection<Edge>> kv in dict)
+            foreach (KeyValuePair<DoubleVertexKey, List<Edge>> kv in dict)
             {
                 if (kv.Value.Count > 1)
                 {
@@ -4711,21 +4715,29 @@ namespace CADability.GeoObject
                         // nach dem Startvertex sortieren und eine zusammenhängende outline erzeugen.
                         // beim Iterieren über alledges ist allerdings noch zu beachten, dass bereits entfernte nicht mehr verwendet werden
                         removededges.AddMany(cmn); // die nicht mehr testen, schon entfernt
-                        OrderedMultiDictionary<Vertex, Edge> sortedEdges = new OrderedMultiDictionary<Vertex, Edge>(false);
+                        // SortedDictionary and not Dictionary: the loop below starts at the smallest key,
+                        // which is what OrderedMultiDictionary.FirstItem used to give. That only rotates
+                        // the resulting outline, but there is no reason to change it here.
+                        SortedDictionary<Vertex, List<Edge>> sortedEdges = new SortedDictionary<Vertex, List<Edge>>();
+                        void addEdge(Vertex startVertex, Edge edge)
+                        {
+                            if (!sortedEdges.TryGetValue(startVertex, out List<Edge> atVertex)) sortedEdges[startVertex] = atVertex = new List<Edge>();
+                            atVertex.Add(edge);
+                        }
                         foreach (Edge ee in prim)
                         {
-                            if (!cmn.Contains(ee)) sortedEdges.Add(ee.StartVertex(e.PrimaryFace), ee);
+                            if (!cmn.Contains(ee)) addEdge(ee.StartVertex(e.PrimaryFace), ee);
                         }
                         foreach (Edge ee in secd)
                         {
-                            if (!cmn.Contains(ee)) sortedEdges.Add(ee.StartVertex(e.SecondaryFace), ee);
+                            if (!cmn.Contains(ee)) addEdge(ee.StartVertex(e.SecondaryFace), ee);
                         }
                         List<List<Edge>> outlines = new List<List<Edge>>();
                         while (sortedEdges.Count > 0)
                         {
                             List<Edge> ol = new List<Edge>();
-                            KeyValuePair<Vertex, Edge> first = sortedEdges.FirstItem;
-                            Edge toAdd = first.Value;
+                            KeyValuePair<Vertex, List<Edge>> first = sortedEdges.First();
+                            Edge toAdd = first.Value[0];
                             Vertex endVertex = first.Key;
                             while (toAdd != null)
                             {
@@ -4741,7 +4753,8 @@ namespace CADability.GeoObject
                                     toAdd.ReplaceFace(e.SecondaryFace, e.PrimaryFace);
                                 }
                                 ol.Add(toAdd);
-                                toAdd = sortedEdges.Item(endVertex); // kann auch null geben
+                                // kann auch null geben
+                                toAdd = sortedEdges.TryGetValue(endVertex, out List<Edge> atEnd) ? atEnd[0] : null;
                             }
                             outlines.Add(ol);
                         }

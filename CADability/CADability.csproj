@@ -106,6 +106,7 @@
     <Compile Remove="SelectActionContextMenu.cs" />
     <Compile Remove="ToolsTrim.cs" />
     <Compile Remove="TriangulationSmoothing.cs" />
+    <Compile Remove="ShortConnection.cs" />
     <Content Remove="@(RemoveFiles)" />
     <None Remove="@(RemoveFiles)" />
   </ItemGroup>

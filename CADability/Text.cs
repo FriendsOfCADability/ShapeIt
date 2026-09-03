@@ -10,7 +10,7 @@ using CADability.Substitutes;
 using System.Runtime.Serialization;
 using System.Threading;
 
-using Wintellect.PowerCollections;
+using System.Linq;
 
 namespace CADability.GeoObject
 {
@@ -520,16 +520,17 @@ namespace CADability.GeoObject
                 {
                     found = new DictVal();
                     Path2D[] paths = GetOutline2D(font, fontStyle, c, out width);
-                    OrderedMultiDictionary<BoundingRect, SimpleShape> sortedshapes = new OrderedMultiDictionary<BoundingRect, SimpleShape>(true);
+                    // (Ausdehnung, Form): wird nur nach Ausdehnung sortiert gebraucht, keine Nachschlage-Struktur.
+                    List<(BoundingRect Extent, SimpleShape Shape)> sortedshapes = new List<(BoundingRect Extent, SimpleShape Shape)>();
                     for (int i = 0; i < paths.Length; ++i)
                     {
                         if (paths[i].IsClosed)
                         {
                             SimpleShape ss = new SimpleShape(paths[i].MakeBorder());
-                            sortedshapes.Add(ss.GetExtent(), ss);
+                            sortedshapes.Add((ss.GetExtent(), ss));
                         }
                     }
-                    List<SimpleShape> sortedList = sortedshapes.SortedValues;
+                    List<SimpleShape> sortedList = sortedshapes.OrderBy(p => p.Extent).Select(p => p.Shape).ToList();
                     CompoundShape res = new CompoundShape(); // leer
                     while (sortedList.Count > 0)
                     {
@@ -609,16 +610,17 @@ namespace CADability.GeoObject
                     }
                     else
                     {
-                        OrderedMultiDictionary<BoundingRect, SimpleShape> sortedshapes = new OrderedMultiDictionary<BoundingRect, SimpleShape>(true);
+                        // (Ausdehnung, Form): wird nur nach Ausdehnung sortiert gebraucht, keine Nachschlage-Struktur.
+                        List<(BoundingRect Extent, SimpleShape Shape)> sortedshapes = new List<(BoundingRect Extent, SimpleShape Shape)>();
                         for (int i = 0; i < paths.Length; ++i)
                         {
                             if (paths[i].IsClosed)
                             {
                                 SimpleShape ss = new SimpleShape(paths[i].MakeBorder());
-                                sortedshapes.Add(ss.GetExtent(), ss);
+                                sortedshapes.Add((ss.GetExtent(), ss));
                             }
                         }
-                        List<SimpleShape> sortedList = sortedshapes.SortedValues;
+                        List<SimpleShape> sortedList = sortedshapes.OrderBy(p => p.Extent).Select(p => p.Shape).ToList();
                         CompoundShape res = new CompoundShape(); // empty
                         while (sortedList.Count > 0)
                         {
@@ -707,16 +709,17 @@ namespace CADability.GeoObject
                     dc.Add(paths[i], Color.Red, i);
                 }
 #endif
-                OrderedMultiDictionary<BoundingRect, SimpleShape> sortedshapes = new OrderedMultiDictionary<BoundingRect, SimpleShape>(true);
+                // (Ausdehnung, Form): wird nur nach Ausdehnung sortiert gebraucht, keine Nachschlage-Struktur.
+                List<(BoundingRect Extent, SimpleShape Shape)> sortedshapes = new List<(BoundingRect Extent, SimpleShape Shape)>();
                 for (int i = 0; i < paths.Length; ++i)
                 {
                     if (paths[i].IsClosed)
                     {
                         SimpleShape ss = new SimpleShape(paths[i].MakeBorder());
-                        sortedshapes.Add(ss.GetExtent(), ss);
+                        sortedshapes.Add((ss.GetExtent(), ss));
                     }
                 }
-                List<SimpleShape> sortedList = sortedshapes.SortedValues;
+                List<SimpleShape> sortedList = sortedshapes.OrderBy(p => p.Extent).Select(p => p.Shape).ToList();
                 CompoundShape ccs = new CompoundShape(); // leer
                 while (sortedList.Count > 0)
                 {
