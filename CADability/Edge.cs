@@ -3009,8 +3009,8 @@ namespace CADability
                 }
             }
             Edge[] resa = res.ToArray();
-            if (primaryFace != null) primaryFace.ReplaceEdge(this, resa);
-            if (secondaryFace != null) secondaryFace.ReplaceEdge(this, resa);
+            if (primaryFace != null && primaryFace.AllEdgesSet.Contains(this)) primaryFace.ReplaceEdge(this, resa);
+            if (secondaryFace != null && secondaryFace.AllEdgesSet.Contains(this)) secondaryFace.ReplaceEdge(this, resa);
             if (v1 != null) v1.RemoveEdge(this); // diese beiden braucht man in Shell.ReplaceFace.
             // diese Kante soll ja rausgelöst und ersetzt werden
             if (v2 != null) v2.RemoveEdge(this);

@@ -16,7 +16,7 @@ namespace CADability.Shapes
     /// The holes don't overlap (disjunct) and reside totally inside the outline.
     /// </summary>
     [Serializable()]
-    public class SimpleShape : ISerializable, IQuadTreeInsertable, IComparable<SimpleShape>, IJsonSerialize
+    public class SimpleShape : ISerializable, IQuadTreeInsertable, IJsonSerialize
     {
         // Ist nicht wie Border unveränderlich und über ein Builder Objekt herzustellen?
         private Border outline;
@@ -1303,14 +1303,6 @@ namespace CADability.Shapes
                 holes[i].Move(dx, dy);
             }
         }
-
-        #region IComparable<SimpleShape> Members
-        // wird halt gebraucht für OrderedMultiDictionary, obwohl es dort egal ist
-        int IComparable<SimpleShape>.CompareTo(SimpleShape other)
-        {
-            return (GetExtent() as IComparable<BoundingRect>).CompareTo(other.GetExtent());
-        }
-        #endregion
 
         internal bool IsPointOnBorder(GeoPoint2D p, double precision)
         {

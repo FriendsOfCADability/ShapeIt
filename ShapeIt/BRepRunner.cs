@@ -92,6 +92,11 @@ namespace ShapeIt
                         Shell? shell = chamfer.Execute();
                         return shell == null ? Array.Empty<Shell>() : new[] { shell };
                     }
+                case BRepOperationKind.OffsetShell:
+                    {
+                        Shell[] result = ShellExtensions.GetOffsetNew(testCase.Operands[0], testCase.Parameter);
+                        return result;
+                    }
                 default:
                     throw new InvalidOperationException($"cannot execute operation {testCase.Operation}");
             }

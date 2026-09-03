@@ -922,8 +922,9 @@ namespace CADability.GeoObject
             faces.UnionWith(sphercalWegdes); // the spherical faces on the vertices
                                              // faces contains all the faces for the offset shell, the edges are properly connected but some parts are standing out
             Shell.ConnectFaces(faces.ToArray(), Precision.eps);
-            BRepOperation bo = new BRepOperation(faces);
-            Shell[] res = bo.Result();
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetFaces(faces);
+            Shell[] res = bo.Execute();
             return res;
         }
         public static Shell RoundEdgesOld(this Shell shell, IEnumerable<Edge> edges, double radius)

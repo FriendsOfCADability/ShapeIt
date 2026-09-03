@@ -21,7 +21,8 @@ namespace ShapeIt
         /// <summary>Unite all solids of the model, one after the other.</summary>
         UniteAll,
         RoundEdges,
-        ChamferEdges
+        ChamferEdges,
+        OffsetShell
     }
 
     /// <summary>
@@ -327,6 +328,7 @@ namespace ShapeIt
                 case BRepOperationKind.RoundEdges:
                 case BRepOperationKind.ChamferEdges: return OperandLayout.Single;
                 case BRepOperationKind.UniteAll: return OperandLayout.All;
+                case BRepOperationKind.OffsetShell: return OperandLayout.Single;
                 default: return OperandLayout.None;
             }
         }
@@ -389,6 +391,8 @@ namespace ShapeIt
                 case "fillet": parsed.Kind = BRepOperationKind.RoundEdges; break;
                 case "chamferedges":
                 case "chamfer": parsed.Kind = BRepOperationKind.ChamferEdges; break;
+                case "offsetshell":
+                case "offset": parsed.Kind = BRepOperationKind.OffsetShell; break;
                 default: return false;
             }
             if (parts.Length > 1)
