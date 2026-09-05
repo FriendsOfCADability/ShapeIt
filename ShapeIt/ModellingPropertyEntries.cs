@@ -1244,8 +1244,9 @@ namespace ShapeIt
                         {
                             for (int j = i + 1; j < solids.Count; j++)
                             {
-                                CollisionDetection cd = new CollisionDetection(solids[i].Shells[0], solids[j].Shells[0]);
-                                if (cd.GetResult(Precision.eps, out GeoPoint _))
+                                BooleanOperation bo = new BooleanOperation();
+                                bo.SetShells(solids[i].Shells[0], solids[j].Shells[0], BooleanOperation.Operation.testonly);
+                                if (bo.GetCollision(out _))
                                 {
                                     Solid union = NewBooleanOperation.Unite(solids[i], solids[j]);
                                     if (union != null && union.Shells.Length > 0 && !union.Shells[0].HasOpenEdgesExceptPoles())

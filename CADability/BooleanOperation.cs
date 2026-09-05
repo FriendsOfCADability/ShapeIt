@@ -1865,6 +1865,39 @@ namespace CADability
             }
         }
 
+        public bool GetCollision(out GeoPoint commonPoint)
+        {
+            if (operation != Operation.testonly) throw new ApplicationException("Colloision detection only works with operation testonly");
+            BoundingBox ext;
+            ext = shell1.GetExtent(0.0);
+            ext.MinMax(shell2.GetExtent(0.0));
+            precision = ext.Size * 1e-6;
+            double extsize = ext.Size;
+            ext.Expand(extsize * 1e-3);
+            ext = ext.Modify(new GeoVector(extsize * 1e-4, extsize * 1e-4, extsize * 1e-4));
+            facesOctTree = new OctTree<Face>(ext, extsize * 1e-6);
+            verticesOctTree = new OctTree<Vertex>(ext, extsize * 1e-6);
+            facesOctTree.AddMany(shell1.Faces);
+            facesOctTree.AddMany(shell2.Faces);
+            AddToVertexOctTree(shell1);
+            AddToVertexOctTree(shell2);
+
+            edgesToSplit = new Dictionary<Edge, List<Vertex>>();
+            faceToIntersectionEdges = new Dictionary<Face, HashSet<Edge>>();
+            faceToOverlappingFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
+            faceToOppositeFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
+            FaceEdgeIntersections = new Dictionary<(Edge, Face), (List<Vertex>, bool)>();
+
+            CreateFaceIntersections();
+            if (edgesToSplit.Any())
+            {
+                Vertex v = edgesToSplit.First().Value.First();
+                commonPoint = v.Position;
+                return true;
+            }
+            commonPoint = GeoPoint.Invalid;
+            return false;
+        }
         public Shell[] Execute()
         {   // we expect the shell sare in a proper state: outward oriented, no full periodic faces
             // don't know, whether we need the followin:

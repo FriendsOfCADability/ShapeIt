@@ -452,8 +452,11 @@ namespace CADability
             // mit BRepOperation gibts z.Z. ein Problem: 23.4. mal wieder freigegeben
             //BRepOperation bro = new BRepOperation(clone1.Shells[0], clone2.Shells[0], BRepOperation.Operation.testonly);
             //return bro.Intersect(out collisionPoint);
-            CollisionDetection cd = new CollisionDetection(clone1.Shells[0], clone2.Shells[0]);
-            return cd.GetResult(precision, out collisionPoint);
+            //CollisionDetection cd = new CollisionDetection(clone1.Shells[0], clone2.Shells[0]);
+            //return cd.GetResult(precision, out collisionPoint);
+            // when needed use BooleanOperation.GetCollision
+            collisionPoint = GeoPoint.Invalid;
+            return false;
         }
         /// <summary>
         /// List of all drives defined in this context.
