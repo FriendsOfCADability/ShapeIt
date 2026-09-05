@@ -10,7 +10,6 @@ using System.Diagnostics;
 using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
-using Wintellect.PowerCollections;
 using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
 using CADability.Substitutes;

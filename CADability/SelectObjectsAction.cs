@@ -17,7 +17,6 @@ namespace CADability.Actions
 	using CADability.Substitutes;
 	using System.Collections.Generic;
 	using UserInterface;
-	using Wintellect.PowerCollections;
 
 	/// <summary>
 	/// Diese Klasse fasst die Settings für das Markieren zusammen. Im einzelnen sind das:

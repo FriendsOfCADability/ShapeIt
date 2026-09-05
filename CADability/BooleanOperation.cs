@@ -11,7 +11,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using Wintellect.PowerCollections;
 using Point = CADability.GeoObject.Point;
 
 

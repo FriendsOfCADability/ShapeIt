@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
-using Wintellect.PowerCollections;
 using CADability.Substitutes;
 using MathNet.Numerics.Integration;
 

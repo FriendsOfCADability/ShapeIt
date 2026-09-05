@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Input;
@@ -350,7 +350,7 @@ namespace ShapeIt.Browser
                     if (normalEmpty && !modellingHit && !IsActionRunning() && _view != null)
                     {
                         int ex = (int)_touchStart.X, ey = (int)_touchStart.Y;
-                        var anyLayer = new Wintellect.PowerCollections.Set<CADability.Attribute.Layer>(System.Array.Empty<CADability.Attribute.Layer>());
+                        var anyLayer = new System.Collections.Generic.HashSet<CADability.Attribute.Layer>(System.Array.Empty<CADability.Attribute.Layer>());
                         foreach (int rad in new[] { 25, 50 })
                         {
                             var pa = _view.Projection.GetPickSpace(new Rectangle(ex - rad, ey - rad, rad * 2, rad * 2));
@@ -377,7 +377,7 @@ namespace ShapeIt.Browser
             try
             {
                 pjw = _view!.Projection.Width; pjh = _view.Projection.Height;
-                var emptyLayers = new Wintellect.PowerCollections.Set<CADability.Attribute.Layer>(System.Array.Empty<CADability.Attribute.Layer>());
+                var emptyLayers = new System.Collections.Generic.HashSet<CADability.Attribute.Layer>(System.Array.Empty<CADability.Attribute.Layer>());
                 foreach (int rad in new[] { 20, 40, 80, 160, 320, 640 })
                 {
                     var pa = _view.Projection.GetPickSpace(new Rectangle(ex - rad, ey - rad, rad * 2, rad * 2));
