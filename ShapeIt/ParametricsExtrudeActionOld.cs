@@ -97,7 +97,7 @@ namespace ShapeIt
             {
                 fc.UserData.Add("ShapeIt.HashCode", new FaceDontClone(fc)); // set the HashCode as UserData to find corresponding faces in the result
             }
-            (Shell[] lower, Shell[] upper) = BRepOperation.SplitByFace(shell, crossSection);
+            (Shell[] lower, Shell[] upper) = BooleanOperation.SplitByFace(shell, crossSection);
             foreach (Face fc in shell.Faces)
             {
                 fc.UserData.Remove("ShapeIt.HashCode"); // no more usage

@@ -3656,19 +3656,19 @@ namespace CADability.GeoObject
             return res;
         }
 
-        public Shell[] GetOffset(double dist, bool allowOpenEdges = true, Dictionary<Edge, Edge> parallelEdges = null)
-        {
+        //public Shell[] GetOffset(double dist, bool allowOpenEdges = true, Dictionary<Edge, Edge> parallelEdges = null)
+        //{
 
-            AssertOutwardOrientation();
-            SplitPeriodicFaces();
-            RecalcVertices();
-            RecalcEdges(); // muss noch ausgebaut werden. Es muss aber stimmig sein, sonst Probleme beim Schneiden
-                           // Edges, deren Krümmungsradius unter dist liegt. aufschneiden, an den Stellen, wo der Krümmungsradius genau dist ist.
-                           // das hilft selbstüberschneidungen zu vermeiden
-            Shell res = GetRawOffset(dist, parallelEdges);
-            BRepSelfIntersection si = new BRepSelfIntersection(res, this, dist);
-            return si.Result(allowOpenEdges);
-        }
+        //    AssertOutwardOrientation();
+        //    SplitPeriodicFaces();
+        //    RecalcVertices();
+        //    RecalcEdges(); // muss noch ausgebaut werden. Es muss aber stimmig sein, sonst Probleme beim Schneiden
+        //                   // Edges, deren Krümmungsradius unter dist liegt. aufschneiden, an den Stellen, wo der Krümmungsradius genau dist ist.
+        //                   // das hilft selbstüberschneidungen zu vermeiden
+        //    Shell res = GetRawOffset(dist, parallelEdges);
+        //    BRepSelfIntersection si = new BRepSelfIntersection(res, this, dist);
+        //    return si.Result(allowOpenEdges);
+        //}
         public Solid MakeThick(double innerDist, double outerDist)
         {
             if (innerDist == outerDist) return null;
