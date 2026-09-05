@@ -214,7 +214,6 @@ namespace CADability
         private bool oriented; // obsolete, if false (forwardOnPrimaryFace, forwardOnSecondaryFace) have not yet been calculated
         enum EdgeKind { unknown, sameSurface, tangential, sharp }
         private EdgeKind kind = EdgeKind.unknown;
-        internal BRepOperation.EdgeInfo edgeInfo; // only used for BRepOperation
         // TODO: überprüfen, ob isPartOf und startAtOriginal, endAtOriginal noch gebraucht wird (evtl. zu einem Objekt machen)
         // TODO: ist owner nicht immer primaryFace?
         public void FreeCachedMemory()

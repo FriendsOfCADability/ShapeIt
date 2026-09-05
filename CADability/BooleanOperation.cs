@@ -48,6 +48,317 @@ namespace CADability
      *      - the shell may have inner holes, but it is a single shell
     */
 
+    // Moved here from BRepIntersection.cs: these three are needed by BooleanOperation itself
+    // (it derives from OctTree<BRepItem>) and carry no dependency back into BRepOperation, so they
+    // belong here rather than in the file that is being replaced. Same namespace, so nothing else
+    // had to change.
+    internal class VertexIsOnCubeBoundsException : ApplicationException
+    {
+        public VertexIsOnCubeBoundsException() : base() { }
+    }
+#if DEBUG
+    public class BRepItem : IOctTreeInsertable, IDebuggerVisualizer
+#else
+    public class BRepItem : IOctTreeInsertable
+#endif
+    {
+        public enum ItemType { Vertex, Edge, Face };
+        public ItemType Type;
+        // Interlocked below: geometry may be built on a background thread - the template preview - while the
+        // UI thread builds geometry of its own. A torn ++ would hand the same identity to two objects, which
+        // surfaces as a rare and irreproducible BRep failure rather than as an obvious crash.
+        internal static int hashCodeCounter = 0;
+        int hashCode;
+        // nur eines der drei folgenden ist gesetzt
+        public Edge edge;
+        public Face face;
+        public Vertex vertex;
+        public bool isIntersection; // ein Vertex ist durch Schnitt entstanden, edge und face sind auch gesetzt
+        public bool isSeam; // w. Aufteilung von geschlossenen Flächen nicht mehr von Bedeutung
+
+        OctTree<BRepItem> root; // Rückverweis auf den OctTree
+
+        public BRepItem(OctTree<BRepItem> root, Edge edge)
+        {
+            this.root = root;
+            this.Type = ItemType.Edge;
+            this.edge = edge;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
+        }
+        public BRepItem(OctTree<BRepItem> root, Face face)
+        {
+            this.root = root;
+            this.Type = ItemType.Face;
+            this.face = face;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
+        }
+        public BRepItem(OctTree<BRepItem> root, Vertex vertex)
+        {
+            this.Type = ItemType.Vertex;
+            this.root = root;
+            this.vertex = vertex;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
+        }
+        public BRepItem(OctTree<BRepItem> root, Vertex vertex, Edge edge, Face face)
+        {
+            this.Type = ItemType.Vertex;
+            this.root = root;
+            this.vertex = vertex;
+            isIntersection = true;
+            this.edge = edge;
+            this.face = face;
+            hashCode = System.Threading.Interlocked.Increment(ref hashCodeCounter);
+        }
+        bool FaceHitTest(ref BoundingBox cube, Face face, double precision)
+        {
+            // edges are inserted into the octtree before the faces. So we can check, whether the edges are already in the octtree
+            // this is faster than face.HitTest()
+            OctTree<BRepItem>.Node<BRepItem> node = root.FindExactNode(cube);
+            if (node != null && node.list != null)
+            {
+                // if node.list==null, we are not at a leaf yet. we could dive down in the octtre to find an edge
+                // not sure what is faster
+                foreach (BRepItem bi in node.list)
+                {
+                    if (bi.Type == BRepItem.ItemType.Edge)
+                    {
+                        if (bi.edge.PrimaryFace == face) return true;
+                        if (bi.edge.SecondaryFace == face) return true;
+                    }
+                }
+                // we only need to test the interior, the edges have already been tested
+                return face.HitTestWithoutEdges(ref cube, precision);
+            }
+            return face.HitTest(ref cube, precision);
+        }
+        #region IOctTreeInsertable Members
+        BoundingBox IOctTreeInsertable.GetExtent(double precision)
+        {
+            switch (Type)
+            {
+                case ItemType.Edge:
+                    if (edge.Curve3D != null)
+                        return (edge.Curve3D as IOctTreeInsertable).GetExtent(precision);
+                    else
+                        return new BoundingBox();
+                case ItemType.Vertex:
+                    return new BoundingBox(vertex.Position);
+                case ItemType.Face:
+                    return face.GetExtent(precision);
+            }
+            return BoundingBox.EmptyBoundingBox;
+        }
+        bool IOctTreeInsertable.HitTest(ref BoundingBox cube, double precision)
+        {
+            switch (Type)
+            {
+                case ItemType.Edge:
+                    if (edge.Curve3D != null)
+                        return (edge.Curve3D as IOctTreeInsertable).HitTest(ref cube, precision);
+                    else
+                        return false;
+                case ItemType.Vertex:
+                    // a vertex may not reside on the bounds of the cube.
+                    // if this is the case, we need a different center for the octtree
+                    // that is what the exception is for
+                    if (cube.IsOnBounds(vertex.Position, root.precision)) throw new VertexIsOnCubeBoundsException();
+                    return cube.Contains(vertex.Position);
+                case ItemType.Face:
+                    return FaceHitTest(ref cube, face, precision);
+            }
+            return false;
+        }
+        bool IOctTreeInsertable.HitTest(Projection projection, BoundingRect rect, bool onlyInside)
+        {
+            throw new ApplicationException("should not be called");
+        }
+        double IOctTreeInsertable.Position(GeoPoint fromHere, GeoVector direction, double precision)
+        {
+            throw new ApplicationException("should not be called");
+        }
+        bool IOctTreeInsertable.HitTest(Projection.PickArea area, bool onlyInside)
+        {
+            throw new Exception("The method or operation is not implemented.");
+        }
+        #endregion
+
+        #region IDebuggerVisualizer Members
+#if DEBUG
+        public int innerHashCode
+        {
+            get
+            {
+                if (edge != null) return edge.GetHashCode();
+                if (face != null) return face.GetHashCode();
+                if (vertex != null) return vertex.GetHashCode();
+                return -1;
+            }
+        }
+        GeoObjectList IDebuggerVisualizer.GetList()
+        {
+            GeoObjectList res = new GeoObjectList();
+            if (edge != null)
+            {
+                if (edge.Curve3D != null) res.Add(edge.Curve3D as IGeoObject);
+            }
+            if (face != null) res.Add(face);
+            if (vertex != null)
+            {
+                Point pnt = Point.Construct();
+                pnt.Symbol = PointSymbol.Circle;
+                pnt.Location = vertex.Position;
+                if (isIntersection) pnt.ColorDef = new ColorDef("DebugI", Color.Red);
+                else pnt.ColorDef = new ColorDef("DebugN", Color.Blue);
+            }
+            return res;
+        }
+#endif
+        #endregion
+    }
+
+    internal class IntersectionVertex : IComparable<IntersectionVertex>
+    {
+        public Vertex v; // uv Werte sind gesetzt
+                         // Edge/Face Schnitt
+                         // eines der beiden Objekte auf shell1 das andere auf shell2
+        public Edge edge;
+        public Face face;
+        public double uOnEdge; // u-Parameter auf dem Edge
+        public bool edgeIsOn1; // wenn true: Kante ist von shell1, face von shell2, sonst umgekehrt
+        public bool isOnFaceBorder; // wenn true: der Schnittpunkt ist auf dem Rand von face. Das ist von Bedeutung, wenn man wissen will ob die Verbindung von zwei solchen Punkten
+                                    // sicher innerhalb des Faces liegt, oder noch extra getestet werden muss
+
+        int IComparable<IntersectionVertex>.CompareTo(IntersectionVertex other)
+        {
+            return v.GetHashCode().CompareTo(other.v.GetHashCode());
+        }
+        // hier braucht es noch einen Marker für jede egde (wenn gesetzt), ob man in Richtung dieser egde in das Solid eintaucht, oder hearuskommt
+        // das geht auch bei edge/edge!
+    }
+
+    internal class DoubleVertexKey : IComparable<DoubleVertexKey>
+    {
+        public Vertex vertex1, vertex2;
+        public DoubleVertexKey(Vertex f1, Vertex f2)
+        {
+            if (f1.GetHashCode() < f2.GetHashCode())
+            {
+                vertex1 = f1;
+                vertex2 = f2;
+            }
+            else
+            {
+                vertex1 = f2;
+                vertex2 = f1;
+            }
+        }
+        public override int GetHashCode()
+        {
+            return vertex1.GetHashCode() + vertex2.GetHashCode();
+        }
+        public override bool Equals(object obj)
+        {
+            DoubleVertexKey other = obj as DoubleVertexKey;
+            if (other == null) return false;
+            return this.vertex1.GetHashCode() == other.vertex1.GetHashCode() && this.vertex2.GetHashCode() == other.vertex2.GetHashCode();
+        }
+        #region IComparable<DoubleVertexKey> Members
+        int IComparable<DoubleVertexKey>.CompareTo(DoubleVertexKey other)
+        {
+            int res = vertex1.GetHashCode().CompareTo(other.vertex1.GetHashCode());
+            if (res == 0) res = vertex2.GetHashCode().CompareTo(other.vertex2.GetHashCode());
+            return res;
+        }
+        #endregion
+    }
+    class DoubleFaceKey : IComparable<DoubleFaceKey>
+    {   // dient als key in einem Dictionary von nodes, in dem zwei Faces von verschiedenen Shells enthalten sind
+        public Face face1, face2;
+        public DoubleFaceKey(Face f1, Face f2)
+        {   // es ist wichtig, dass f1 und f2 nicht vertauscht werden (das waren sie früher)
+            face1 = f1;
+            face2 = f2;
+            // eins davon kann auch null sein
+        }
+        public override int GetHashCode()
+        {
+            if (face1 == null) return face2.GetHashCode();
+            else if (face2 == null) return face1.GetHashCode();
+            else return face1.GetHashCode() + face2.GetHashCode();
+        }
+        public override bool Equals(object obj)
+        {
+            DoubleFaceKey other = obj as DoubleFaceKey;
+            if (other == null) return false;
+            int hc11, hc12, hc21, hc22;
+            if (face1 == null) hc11 = face2.GetHashCode();
+            else if (face2 == null) hc11 = face1.GetHashCode();
+            else hc11 = Math.Min(face1.GetHashCode(), face2.GetHashCode());
+            if (face1 == null) hc12 = face2.GetHashCode();
+            else if (face2 == null) hc12 = face1.GetHashCode();
+            else hc12 = Math.Max(face1.GetHashCode(), face2.GetHashCode());
+
+            if (other.face1 == null) hc21 = other.face2.GetHashCode();
+            else if (other.face2 == null) hc21 = other.face1.GetHashCode();
+            else hc21 = Math.Min(other.face1.GetHashCode(), other.face2.GetHashCode());
+            if (other.face1 == null) hc22 = other.face2.GetHashCode();
+            else if (other.face2 == null) hc22 = other.face1.GetHashCode();
+            else hc22 = Math.Max(other.face1.GetHashCode(), other.face2.GetHashCode());
+
+            return hc11 == hc21 && hc12 == hc22;
+        }
+        #region IComparable<DoubleFaceKey> Members
+        int IComparable<DoubleFaceKey>.CompareTo(DoubleFaceKey other)
+        {
+            int hc11, hc12, hc21, hc22;
+            if (face1 == null) hc11 = face2.GetHashCode();
+            else if (face2 == null) hc11 = face1.GetHashCode();
+            else hc11 = Math.Min(face1.GetHashCode(), face2.GetHashCode());
+            if (face1 == null) hc12 = face2.GetHashCode();
+            else if (face2 == null) hc12 = face1.GetHashCode();
+            else hc12 = Math.Max(face1.GetHashCode(), face2.GetHashCode());
+
+            if (other.face1 == null) hc21 = other.face2.GetHashCode();
+            else if (other.face2 == null) hc21 = other.face1.GetHashCode();
+            else hc21 = Math.Min(other.face1.GetHashCode(), other.face2.GetHashCode());
+            if (other.face1 == null) hc22 = other.face2.GetHashCode();
+            else if (other.face2 == null) hc22 = other.face1.GetHashCode();
+            else hc22 = Math.Max(other.face1.GetHashCode(), other.face2.GetHashCode());
+
+            int res = hc11.CompareTo(hc21);
+            if (res == 0) res = hc12.CompareTo(hc22);
+            return res;
+        }
+        #endregion
+#if DEBUG
+        GeoObjectList Debug
+        {
+            get
+            {
+                return new GeoObjectList(face1, face2);
+            }
+        }
+#endif
+    }
+
+    class EdgeComparerByVertexAndFace : IEqualityComparer<Edge>
+    {
+        public bool Equals(Edge x, Edge y)
+        {
+            if ((x.Vertex1.GetHashCode() != y.Vertex1.GetHashCode()) && (x.Vertex1.GetHashCode() != y.Vertex2.GetHashCode())) return false;
+            if ((x.Vertex2.GetHashCode() != y.Vertex1.GetHashCode()) && (x.Vertex2.GetHashCode() != y.Vertex2.GetHashCode())) return false;
+            if ((x.PrimaryFace.GetHashCode() != y.PrimaryFace.GetHashCode()) && (x.PrimaryFace.GetHashCode() != y.SecondaryFace.GetHashCode())) return false;
+            if ((x.SecondaryFace.GetHashCode() != y.PrimaryFace.GetHashCode()) && (x.SecondaryFace.GetHashCode() != y.SecondaryFace.GetHashCode())) return false;
+            return true;
+        }
+        private int rotateLeft(int x, int n) { return (x << n) | (x >> (32 - n)); }
+        public int GetHashCode(Edge obj)
+        {
+            return obj.Vertex1.GetHashCode() | rotateLeft(obj.Vertex2.GetHashCode(), 8) | rotateLeft(obj.PrimaryFace.GetHashCode(), 16) | rotateLeft(obj.SecondaryFace.GetHashCode(), 24);
+        }
+    }
+
+
     /// <summary>
     /// 
     /// </summary>
