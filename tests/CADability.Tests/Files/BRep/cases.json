@@ -60,6 +60,11 @@
       "Comment": "used to be one solid and one free shell without markers and without a text object"
     },
     {
+      "Name": "DifferenceBug20",
+      "Status": "Ok",
+      "Comment": "added with d99fd343 (the manifold edge fix in BooleanOperation) and correct from the start; checked by GH, see the verified note in its baseline"
+    },
+    {
       "Name": "UniteBug15",
       "Status": "Ok",
       "Operation": "Union",
@@ -99,16 +104,14 @@
       "Repeat": 3,
       "Comment": "works since the no-empty-loops fix in BooleanOperation; result not verified by hand yet. Found unstable by the 2026-09-02 survey. Volume and area moved with the CDT triangulation, see the 2026-09-07 note above"
     },
-    {
-      "Name": "DifferenceBug16",
-      "Status": "KnownFail",
-      "Comment": "runs through but returns no shell at all"
-    },
-    {
-      "Name": "DifferenceBug17",
-      "Status": "KnownFail",
-      "Comment": "Debug.Assert inside the boolean operation"
-    },
+    // DifferenceBug16 and DifferenceBug17 were removed on 2026-09-09: their data is invalid, so what the
+    // operation made of them said nothing about the BRep code. Both were "KnownFail" with no resulting shell.
+    // The files are in the history (last present in d99fd343) if they are ever wanted back.
+    //
+    // UniteBug18 explains the other gap in the numbering: deleted in 8c457bf5, and the version the history
+    // holds fails on its own input - operand1 does not pass Shell.CheckConsistency() and the union returns no
+    // shell. An authoring bug rather than a BRep bug, so there is nothing here worth recording.
+
     {
       "Name": "UniteBug3",
       "Status": "Ok",
@@ -189,8 +192,8 @@
     },
     {
       "Name": "UniteBug20",
-      "Status": "KnownFail",
-      "Comment": "runs through but returns no shell at all; unchanged since the file was added"
+      "Status": "Ok",
+      "Comment": "returned no shell at all from the day the file was added until GH fixed it on 2026-09-09; verified, see the note in its baseline"
     },
     {
       "Name": "UniteBug21",
