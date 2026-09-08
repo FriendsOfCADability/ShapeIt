@@ -6597,6 +6597,18 @@ namespace CADability.GeoObject
                     List<GeoPoint> sumTriPoint = new List<GeoPoint>();
                     List<int> sumTriInd = new List<int>();
                     GeoPoint2D[][][] multiPolyLines = SubdevidePolylines(polylines.ToArray(), eps);
+#if DEBUG
+                    DebuggerContainer dcm = new DebuggerContainer();
+                    for (int j = 0; j < multiPolyLines.Length; ++j)
+                    {
+                        for (int k = 0; k < multiPolyLines[j].Length; ++k)
+                        {
+                            Polyline2D p2d = new Polyline2D(multiPolyLines[j][k]);
+                            Color clr = new Color();
+                            dcm.Add(p2d, Color.Red, j * 100 + k);
+                        }
+                    }
+#endif
                     for (int i = 0; i < multiPolyLines.Length; ++i)
                     {
                         GeoPoint2D[] tmpTriUv;
@@ -7004,62 +7016,18 @@ namespace CADability.GeoObject
                 triangleIndex = sumTriInd.ToArray();
             }
         }
+        /// <summary>
+        /// Splits the polylines that approximate the outline and the holes of this face into
+        /// groups of loops that no longer intersect each other or themselves, so that each group
+        /// can be handed to <see cref="CDTriangulation"/>. The incoming polylines may intersect,
+        /// which happens whenever two curves that touch tangentially are approximated with
+        /// different points. <paramref name="polylines"/>[0] is the counterclockwise outline, the
+        /// following entries are the clockwise holes; the result follows the same convention.
+        /// Loops with an area of less than <paramref name="eps"/> are omitted.
+        /// </summary>
         private GeoPoint2D[][][] SubdevidePolylines(GeoPoint2D[][] polylines, double eps)
         {
-            CompoundShape cs;
-            Border bdr = new Border(polylines[0]);
-            double[] sis = bdr.GetSelfIntersection(Precision.eps);
-            if (sis.Length > 0)
-            {
-                // multiple of three values: parameter1, parameter2, crossproduct of intersection direction
-                // there can only be one intersection
-                cs = new CompoundShape();
-                List<double> splitpos = new List<double>();
-                for (int i = 0; i < sis.Length; i += 3)
-                {
-                    ICurve2D[] part1 = bdr.GetPart(sis[i], sis[i + 1], sis[i + 2] < 0);
-                    Border bdr1 = new Border(part1);
-                    cs.UniteDisjunct(bdr1);
-                }
-            }
-            else
-            {
-                cs = new CompoundShape(new SimpleShape(new Border(polylines[0])));
-            }
-            double shrink = cs.GetExtent().Size * 1e-6;
-            for (int i = 1; i < polylines.Length; ++i)
-            {
-                Array.Reverse(polylines[i]);
-                if (polylines[i].Length > 0)
-                {
-                    SimpleShape hole = new SimpleShape(new Border(polylines[i]));
-                    cs = cs - hole.Shrink(shrink); // Löcher etwas verkleinern... hilft bei "ASW02880-330000-002 05.stp"
-                                                   // also bei Faces, die Löcher haben, die den Rand berühren
-                                                   // cs.Subtract(hole);
-                }
-            }
-            List<GeoPoint2D[][]> res = new List<GeoPoint2D[][]>();
-            for (int i = 0; i < cs.SimpleShapes.Length; ++i)
-            {
-                List<GeoPoint2D[]> pol = new List<GeoPoint2D[]>();
-                SimpleShape ss = cs.SimpleShapes[i];
-                GeoPoint2D[] outline = ss.Outline.Vertices;
-                if (GeoPoint2D.Area(outline) > eps)
-                {
-                    pol.Add(outline);
-                    for (int j = 0; j < ss.NumHoles; ++j)
-                    {
-                        GeoPoint2D[] hole = ss.Holes[j].Vertices;
-                        Array.Reverse(hole);
-                        if (GeoPoint2D.Area(hole) < -eps && !GeoPoint2D.InnerIntersection(hole))
-                        {
-                            pol.Add(hole);
-                        }
-                    }
-                    res.Add(pol.ToArray());
-                }
-            }
-            return res.ToArray();
+            return PolygonRegion.Subdivide(polylines, eps);
         }
         private void ClearTriangulation()
         {

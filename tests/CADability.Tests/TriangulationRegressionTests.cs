@@ -101,6 +101,49 @@ namespace CADability.Tests
         }
 
         /// <summary>
+        /// The outline of this face consists of a circle with a radial slit and the intersection
+        /// of the plane with a helical sweep surface, which runs tangentially along that circle.
+        /// Wherever the two curves come closer to each other than the sagitta of the circle's
+        /// polygon, the two polygons cross, so the outline intersects itself several times.
+        /// Face.Triangulate notices this and lets SubdevidePolylines split the polygon into
+        /// triangulatable pieces. The old implementation could only cut a single self
+        /// intersection out of a border and united the rest as if it were disjoint, so it
+        /// returned overlapping pieces: at a precision of 0.1 the mesh covered 1246 square units
+        /// instead of the 403 the face really has.
+        /// </summary>
+        [TestMethod]
+        [DeploymentItem(@"Files/Faces/TriangulationBug1.cdb.json")]
+        public void tangential_self_intersection_of_the_outline()
+        {
+            string path = System.IO.Path.Combine(this.TestContext.DeploymentDirectory, "TriangulationBug1.cdb.json");
+            Assert.IsTrue(File.Exists(path), "TriangulationBug1.cdb.json missing");
+            foreach (double precision in new[] { 0.2, 0.1, 0.05, 0.01 })
+            {
+                // a face keeps the finest triangulation it ever computed, so reload it every time
+                Project pr;
+                using (FileStream stream = File.Open(path, FileMode.Open)) pr = new JsonSerialize().FromStream(stream) as Project;
+                Assert.IsNotNull(pr, "could not load the project");
+                int found = 0;
+                foreach (IGeoObject go in pr.GetActiveModel())
+                {
+                    if (!(go is Face face)) continue;
+                    ++found;
+                    string what = "helical cut, precision " + precision.ToString();
+                    face.GetTriangulation(precision, out GeoPoint[] p3d, out GeoPoint2D[] uv, out int[] idx, out BoundingBox bb);
+                    Assert.IsTrue(idx.Length > 0, what + ": no triangles produced");
+                    AssertStructurallyValid(uv, idx, what);
+                    double mesh = MeshArea2d(uv, idx);
+                    double exact = face.Area.Area;
+                    Assert.IsTrue(mesh < exact * 1.01,
+                        what + ": mesh covers area outside the face: " + mesh.ToString("F6") + " vs " + exact.ToString("F6"));
+                    Assert.IsTrue(mesh > exact * 0.97,
+                        what + ": mesh is missing parts of the face: " + mesh.ToString("F6") + " vs " + exact.ToString("F6"));
+                }
+                Assert.AreEqual(1, found, "expected exactly one face in the project");
+            }
+        }
+
+        /// <summary>
         /// A ring so thin that the polygons approximating its two circles intersect each other (the
         /// chords of the outer circle reach inside the inner one). Face.Triangulate detects this
         /// (innerIntersection) and retriangulates the pieces the outline and the holes split into.
