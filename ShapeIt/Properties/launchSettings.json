@@ -2,7 +2,7 @@
   "profiles": {
     "ShapeIt": {
       "commandName": "Project",
-      "commandLineArgs": "-r \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\HelicalCoilInsideCylinder.json\"",
+      "commandLineArgs": "-d \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\BRep\\UniteBug20.cdb.json\"",
       "nativeDebugging": false,
       "hotReloadEnabled": true
     }

@@ -4169,6 +4169,8 @@ namespace CADability
             // Collect all faces that are reachable from trimmedFaces
             HashSet<Face> allFaces = new HashSet<Face>(trimmedFaces);
             bool added = true;
+            bool edgeOnBothShellsAllowed = false;
+            HashSet<Edge> alreadyConnectedEdges = new HashSet<Edge>();
             while (added)
             {
                 added = false;
@@ -4176,8 +4178,14 @@ namespace CADability
                 {
                     foreach (Edge edg in fce.Edges)
                     {
-                        if (edgeOnBothShells.Contains(edg)) continue; // this coondition may be too strong,
-                                                                      // we need it in TouchingEdgesAndVertices.json, id==30
+                        if (edgeOnBothShells.Contains(edg))
+                        {
+                            if (!edgeOnBothShellsAllowed) continue;
+                            if (alreadyConnectedEdges.Contains(edg)) continue;
+                            // this coondition may be too strong,
+                            // we need it in TouchingEdgesAndVertices.json, id==30
+                            // but it seems somehow inconsistent: we try to find the correct face by another edge
+                        }
                         HashSet<Edge> connecting = new HashSet<Edge>(Vertex.ConnectingEdges(edg.Vertex1, edg.Vertex2));
                         connecting.Remove(edg);
                         if (!allFaces.Contains(edg.PrimaryFace))
@@ -4265,6 +4273,28 @@ namespace CADability
                             }
                         }
                     }
+                }
+                if (!added && !edgeOnBothShellsAllowed && edgeOnBothShells.Any())
+                {
+                    edgeOnBothShellsAllowed = true;
+                    HashSet<Edge> edgesInAllFaces = new HashSet<Edge>();
+                    foreach (Face afc in allFaces) edgesInAllFaces.UnionWith(afc.AllEdges);
+                    foreach (Edge aedg in edgesInAllFaces)
+                    {
+                        if (alreadyConnectedEdges.Contains(aedg)) continue;
+                        HashSet<Edge> con = Vertex.ConnectingEdges(aedg.Vertex1, aedg.Vertex2).ToHashSet();
+                        con.Remove(aedg);
+                        con.IntersectWith(edgesInAllFaces);
+                        if (con.Count == 1)
+                        {
+                            if (SameEdge(con.First(), aedg, precision))
+                            {
+                                alreadyConnectedEdges.Add(aedg);
+                                alreadyConnectedEdges.Add(con.First());
+                            }
+                        }
+                    }
+                    added = true; // to go more rounds now with those (manifold) edges on both shells
                 }
             }
 
