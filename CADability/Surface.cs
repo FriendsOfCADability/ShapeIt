@@ -2976,7 +2976,7 @@ namespace CADability.GeoObject
             GeoPoint SvM = PointAt(new GeoPoint2D(uv.x, uv.y - hv));
 
             duu = (1 / (hu * hu)) * (SuP.ToVector() - 2 * location.ToVector() + SuM.ToVector());
-            dvv = (1 / (hu * hu)) * (SvP.ToVector() - 2 * location.ToVector() + SvM.ToVector());
+            dvv = (1 / (hv * hv)) * (SvP.ToVector() - 2 * location.ToVector() + SvM.ToVector());
 
             GeoPoint SuvPP = PointAt(new GeoPoint2D(uv.x + hu, uv.y + hv));
             GeoPoint SuvPM = PointAt(new GeoPoint2D(uv.x + hu, uv.y - hv));
@@ -3354,6 +3354,234 @@ namespace CADability.GeoObject
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// Refines an approximate intersection point of this surface with the provided <paramref name="curve"/>. The
+        /// provided parameters must already be close to the solution, a Newton iteration makes them exact. Transversal
+        /// intersections as well as tangential contacts are handled:
+        /// <list type="bullet">
+        /// <item>For a transversal intersection the system S(u,v)-C(t)==0 is solved (three equations for the three
+        /// unknowns u, v and t). Its Jacobian is regular as long as the curve is not tangential to the surface, so the
+        /// iteration converges quadratically.</item>
+        /// <item>Close to a tangential contact this system degenerates: the curve direction lies in the tangent plane,
+        /// which makes the Jacobian singular and the iteration stall. Then the point where the distance between curve
+        /// and surface is stationary is calculated instead, i.e. the point where the connection of the two closest
+        /// points is perpendicular to the surface and the curve direction is perpendicular to the surface normal. At a
+        /// tangential contact this system has a regular Jacobian and its solution is the contact point.</item>
+        /// </list>
+        /// Both iterations are damped by a line search, so the result is never worse than the provided starting values
+        /// (except for differences which are below the achievable numeric precision).
+        /// </summary>
+        /// <param name="curve">The curve which intersects this surface</param>
+        /// <param name="uOnCurve">Approximate position on the curve (0..1), refined by this method</param>
+        /// <param name="uvOnSurface">Approximate uv position on this surface, refined by this method</param>
+        /// <param name="intersectionPoint">The intersection or contact point, the middle between curve point and surface
+        /// point. It is also set when the method returns false, then it is the point of the closest approach.</param>
+        /// <returns>true, if curve and surface meet at the returned parameters within <see cref="Precision.eps"/></returns>
+        public virtual bool RefineCurveIntersection(ICurve curve, ref double uOnCurve, ref GeoPoint2D uvOnSurface, out GeoPoint intersectionPoint)
+        {
+            GeoPoint2D uv = uvOnSurface;
+            double u = uOnCurve;
+            DerivativeAt(uv, out GeoPoint startPoint, out GeoVector du, out GeoVector dv);
+            // the 3d length which corresponds to one unit in the parameter spaces, used to weight the tangency condition
+            double lengthScale = Math.Max(Math.Max(du.Length, dv.Length), curve.DirectionAt(u).Length);
+            if (lengthScale < 1e-30) lengthScale = 1.0; // totally degenerate, don't divide by zero
+            // the iteration cannot get better than the rounding error of the point calculation, which depends on the size
+            // of the geometry and on the distance from the origin
+            double numericPrecision = 1e-13 * Math.Max(lengthScale, startPoint.ToVector().Length);
+            // a transversal intersection is the normal case and its system converges faster and further, so it is tried first
+            double distance = NewtonCurveIntersection(curve, false, ref uv, ref u, lengthScale, numericPrecision, out intersectionPoint);
+            if (distance > numericPrecision || IsTangentialTo(curve, uv, u))
+            {   // either the curve touches the surface tangentially, then the system above cannot reach the solution (and
+                // even when the distance looks good, the position of the contact point is undetermined), or there is no
+                // intersection close by. Both cases are covered by the tangential system, which converges to the point of
+                // the closest approach. It starts at the best position found so far.
+                GeoPoint2D tangentialUv = uv;
+                double tangentialU = u;
+                double tangentialDistance = NewtonCurveIntersection(curve, true, ref tangentialUv, ref tangentialU, lengthScale, numericPrecision, out GeoPoint tangentialPoint);
+                if (tangentialDistance <= Math.Max(distance, numericPrecision))
+                {   // the tangential system found the contact point (or at least didn't make the distance worse, then it
+                    // is the better result because it also satisfies the tangency condition)
+                    uv = tangentialUv;
+                    u = tangentialU;
+                    distance = tangentialDistance;
+                    intersectionPoint = tangentialPoint;
+                }
+            }
+            uvOnSurface = uv;
+            uOnCurve = u;
+            return distance <= Precision.eps;
+        }
+
+        /// <summary>
+        /// Checks whether the curve is (almost) tangential to this surface at the provided parameters, i.e. whether the
+        /// direction of the curve lies in the tangent plane of the surface. Only when this is not the case, the system
+        /// S(u,v)-C(t)==0 determines the intersection point exactly. At a tangential contact the distance may already
+        /// look good while the position of the contact point is still far off, because there the distance grows with the
+        /// square of the displacement.
+        /// </summary>
+        /// <param name="curve">The curve which intersects this surface</param>
+        /// <param name="uvOnSurface">Position on this surface</param>
+        /// <param name="uOnCurve">Position on the curve</param>
+        /// <returns>true, if curve and surface are (almost) tangential here</returns>
+        private bool IsTangentialTo(ICurve curve, GeoPoint2D uvOnSurface, double uOnCurve)
+        {
+            GeoVector normal = GetNormal(uvOnSurface);
+            GeoVector direction = curve.DirectionAt(uOnCurve);
+            double scale = normal.Length * direction.Length;
+            if (scale < 1e-30) return true; // degenerate, the tangential system handles this better
+            return Math.Abs((normal * direction) / scale) < 1e-4; // the sine of the angle between curve and tangent plane
+        }
+
+        /// <summary>
+        /// The Newton iteration used by <see cref="RefineCurveIntersection"/>. With <paramref name="tangential"/>==false
+        /// the system S(u,v)-C(t)==0 is solved, which is the transversal intersection. With <paramref name="tangential"/>
+        /// ==true the system (S-C)*Su==0, (S-C)*Sv==0, (Su^Sv)*Ct==0 is solved, which describes a point where the distance
+        /// between curve and surface is stationary, i.e. a tangential contact.
+        /// The parameters are only modified when the iteration improves them.
+        /// </summary>
+        /// <param name="curve">The curve which intersects this surface</param>
+        /// <param name="tangential">true: solve for a tangential contact, false: solve for a transversal intersection</param>
+        /// <param name="uvOnSurface">Starting value on this surface, refined by this method</param>
+        /// <param name="uOnCurve">Starting value on the curve, refined by this method</param>
+        /// <param name="lengthScale">3d length of one parameter unit, makes the equations comparable</param>
+        /// <param name="numericPrecision">Residual below which no further improvement is possible</param>
+        /// <param name="intersectionPoint">The middle between the curve point and the surface point of the result</param>
+        /// <returns>the distance between curve point and surface point at the result</returns>
+        private double NewtonCurveIntersection(ICurve curve, bool tangential, ref GeoPoint2D uvOnSurface, ref double uOnCurve,
+            double lengthScale, double numericPrecision, out GeoPoint intersectionPoint)
+        {
+            const int maxIterations = 30; // Newton converges quadratically, this is only a safeguard
+            const int maxLineSearchSteps = 16;
+            GeoPoint2D uv = uvOnSurface;
+            double u = uOnCurve;
+            DenseMatrix jacobian = new DenseMatrix(3, 3);
+            DenseVector residual = new DenseVector(3);
+
+            // Calculates residual and Jacobian of the system at the provided parameters and returns the norm of the
+            // residual, which is the merit function of the line search. All components of the residual are lengths.
+            double Evaluate(GeoPoint2D uvp, double up, out GeoPoint surfacePoint, out GeoPoint curvePoint)
+            {
+                if (tangential)
+                {
+                    Derivative2At(uvp, out surfacePoint, out GeoVector su, out GeoVector sv, out GeoVector suu, out GeoVector svv, out GeoVector suv);
+                    IReadOnlyList<GeoVector> cd = curve.PointAndDerivativesAt(up, 2); // point, 1st and 2nd derivative
+                    curvePoint = new GeoPoint(cd[0].x, cd[0].y, cd[0].z);
+                    GeoVector ct = cd[1];
+                    GeoVector ctt = cd[2];
+                    GeoVector d = surfacePoint - curvePoint;
+                    GeoVector normal = su ^ sv;
+                    GeoVector normalU = (suu ^ sv) + (su ^ suv); // the derivatives of the normal vector
+                    GeoVector normalV = (suv ^ sv) + (su ^ svv);
+                    // each equation is divided by its natural scale, which turns the first two into components of the
+                    // distance vector and the third one into the sine of the angle between curve and tangent plane,
+                    // multiplied by lengthScale. Scaling the rows doesn't change the Newton step, it only makes the merit
+                    // function and the singular value decomposition well behaved.
+                    double fu = su.Length; if (fu < 1e-30) fu = 1.0;
+                    double fv = sv.Length; if (fv < 1e-30) fv = 1.0;
+                    double fn = normal.Length * ct.Length / lengthScale; if (fn < 1e-30) fn = 1.0;
+                    residual[0] = (d * su) / fu;
+                    residual[1] = (d * sv) / fv;
+                    residual[2] = (normal * ct) / fn;
+                    jacobian[0, 0] = (su * su + d * suu) / fu;
+                    jacobian[0, 1] = (su * sv + d * suv) / fu;
+                    jacobian[0, 2] = -(ct * su) / fu;
+                    jacobian[1, 0] = (su * sv + d * suv) / fv;
+                    jacobian[1, 1] = (sv * sv + d * svv) / fv;
+                    jacobian[1, 2] = -(ct * sv) / fv;
+                    jacobian[2, 0] = (normalU * ct) / fn;
+                    jacobian[2, 1] = (normalV * ct) / fn;
+                    jacobian[2, 2] = (normal * ctt) / fn;
+                }
+                else
+                {
+                    DerivativeAt(uvp, out surfacePoint, out GeoVector su, out GeoVector sv);
+                    curvePoint = curve.PointAt(up);
+                    GeoVector ct = curve.DirectionAt(up);
+                    GeoVector d = surfacePoint - curvePoint;
+                    residual[0] = d.x;
+                    residual[1] = d.y;
+                    residual[2] = d.z;
+                    jacobian[0, 0] = su.x; jacobian[0, 1] = sv.x; jacobian[0, 2] = -ct.x;
+                    jacobian[1, 0] = su.y; jacobian[1, 1] = sv.y; jacobian[1, 2] = -ct.y;
+                    jacobian[2, 0] = su.z; jacobian[2, 1] = sv.z; jacobian[2, 2] = -ct.z;
+                }
+                return Math.Sqrt(residual[0] * residual[0] + residual[1] * residual[1] + residual[2] * residual[2]);
+            }
+
+            double merit = Evaluate(uv, u, out GeoPoint sp, out GeoPoint cp);
+            double distance = sp | cp;
+            intersectionPoint = new GeoPoint(sp, cp);
+            for (int i = 0; i < maxIterations; i++)
+            {
+                if (merit <= numericPrecision) break; // this is as good as it gets
+                if (!SolveNewtonStep(jacobian, residual, out double stepU, out double stepV, out double stepT)) break;
+                bool improved = false;
+                double factor = 1.0;
+                for (int j = 0; j < maxLineSearchSteps; j++)
+                {   // the full Newton step is only accepted when it decreases the residual, otherwise it is halved. This
+                    // keeps the iteration from running away when the starting values are not good enough.
+                    GeoPoint2D nextUv = new GeoPoint2D(uv.x + factor * stepU, uv.y + factor * stepV);
+                    double nextU = u + factor * stepT;
+                    double nextMerit = Evaluate(nextUv, nextU, out GeoPoint nextSp, out GeoPoint nextCp);
+                    if (nextMerit < merit)
+                    {
+                        uv = nextUv;
+                        u = nextU;
+                        merit = nextMerit;
+                        distance = nextSp | nextCp;
+                        intersectionPoint = new GeoPoint(nextSp, nextCp);
+                        improved = true;
+                        break;
+                    }
+                    factor /= 2.0;
+                }
+                if (!improved) break; // no more progress in this direction
+            }
+            uvOnSurface = uv;
+            uOnCurve = u;
+            return distance;
+        }
+
+        /// <summary>
+        /// Solves jacobian*step == -residual, the Newton step of <see cref="NewtonCurveIntersection"/>. A singular value
+        /// decomposition is used: singular values which are too small compared to the biggest one are ignored, which
+        /// yields the minimum norm solution of the regular part of the system. This way a degenerate situation (e.g. a
+        /// curve which lies inside the surface or a singular point of the surface) doesn't produce an arbitrary step but
+        /// leaves the parameters where they are in the degenerate direction.
+        /// </summary>
+        /// <param name="jacobian">The Jacobian of the system</param>
+        /// <param name="residual">The residual of the system</param>
+        /// <param name="stepU">Step in u direction on the surface</param>
+        /// <param name="stepV">Step in v direction on the surface</param>
+        /// <param name="stepT">Step on the curve</param>
+        /// <returns>false, if there is no usable step</returns>
+        private static bool SolveNewtonStep(Matrix<double> jacobian, Vector<double> residual, out double stepU, out double stepV, out double stepT)
+        {
+            stepU = stepV = stepT = 0.0;
+            try
+            {
+                Svd<double> svd = jacobian.Svd(true);
+                double maxSingularValue = svd.S.AbsoluteMaximum();
+                if (maxSingularValue < 1e-30) return false; // there is no information left in the system
+                Vector<double> transformedResidual = svd.U.TransposeThisAndMultiply(residual);
+                for (int i = 0; i < transformedResidual.Count; i++)
+                {
+                    if (svd.S[i] > 1e-10 * maxSingularValue) transformedResidual[i] = -transformedResidual[i] / svd.S[i];
+                    else transformedResidual[i] = 0.0; // degenerate direction, don't move there
+                }
+                Vector<double> step = svd.VT.TransposeThisAndMultiply(transformedResidual);
+                if (double.IsNaN(step[0]) || double.IsNaN(step[1]) || double.IsNaN(step[2])) return false;
+                stepU = step[0];
+                stepV = step[1];
+                stepT = step[2];
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         /// <summary>
