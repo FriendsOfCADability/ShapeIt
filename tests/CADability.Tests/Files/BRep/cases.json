@@ -66,13 +66,38 @@
       "Comment": "operands are marked, only the text object is missing"
     },
 
+    // --- 2026-09-07: ALL baselines were rewritten, because the counts are no longer taken from the faces as
+    //     they happen to be split but from the patches (see readme.md, "Patches"). Old and new counts cannot
+    //     be compared, so the rebaseline also swallowed the differences that were open at that moment. They
+    //     are written down here instead, measured against the 2026-08-30 baselines under the old metric, and
+    //     NONE of them has been judged by hand:
+    //
+    //       DifferenceBug9    volume 50417.2552869 -> 50409.1487716, area 56629.0629903 -> 56607.5314873
+    //       DifferenceBug15   out1 volume 6780.1005555 -> 6785.89055668, area 4750.77126117 -> 4751.42503815
+    //       UniteBug4         edges 126 -> 128, vertices 84 -> 85, holeLoops 22 -> 23, euler -20 -> -22
+    //       UniteBug5         edges 387 -> 389, vertices 258 -> 259, holeLoops 66 -> 67, euler -64 -> -66
+    //       UniteBug6         edges 775 -> 773, vertices 516 -> 515, holeLoops 134 -> 133, euler -134 -> -132,
+    //                         volume 3838.21564295 -> 3844.5216561, and in1 volume 3571.62653334 -> 3584.43831996
+    //
+    //     Two different things are in that list. The volume and area values are a measurement artefact: they
+    //     are summed over the triangulation, and Triangulation.cs was replaced by the CDT triangulator in the
+    //     meantime, so the same unchanged INPUT measures differently - which is exactly what in1 of UniteBug6
+    //     shows, an operand the operation never touched. The euler values are not: euler is read off the
+    //     shell as it is and is unaffected by the metric change, so UniteBug4/5/6 really did change genus.
+    //
+    //     RESOLVED the same day for UniteBug4, UniteBug5 and UniteBug6: GH checked them - the union of
+    //     touching cylindrical rings - and the genus change is the consequence of a triangulation bug that
+    //     had been fixed a few days before. All three came out identical over 8 repeats inside the suite and
+    //     over 8 different hashCode offsets, so their baselines now carry a "verified" note.
+    //     STILL OPEN: DifferenceBug9 and DifferenceBug15, where only volume and area moved.
+
     // --- currently broken (this is why the files exist). The baseline freezes the current behaviour,
     //     so a change shows up either way: a different failure, or - the good case - success.
     {
       "Name": "DifferenceBug9",
       "Status": "Ok",
       "Repeat": 3,
-      "Comment": "works since the no-empty-loops fix in BooleanOperation; result not verified by hand yet. Found unstable by the 2026-09-02 survey"
+      "Comment": "works since the no-empty-loops fix in BooleanOperation; result not verified by hand yet. Found unstable by the 2026-09-02 survey. Volume and area moved with the CDT triangulation, see the 2026-09-07 note above"
     },
     {
       "Name": "DifferenceBug16",
@@ -136,19 +161,19 @@
       "Name": "UniteBug4",
       "Status": "Ok",
       "Repeat": 3,
-      "Comment": "edge and holeLoop counts move between runs, same family as UniteBug5/6/7"
+      "Comment": "verified 2026-09-07, see the baseline. Used to move between runs; came out identical over 8 repeats and 8 hashCode offsets that day. Repeat stays as insurance - three runs cannot prove stability, only disprove it"
     },
     {
       "Name": "UniteBug5",
       "Status": "Ok",
       "Repeat": 3,
-      "Comment": "edge and holeLoop counts have been seen to move between runs"
+      "Comment": "verified 2026-09-07, same ring scenario as UniteBug4/6. Was stable over 8 repeats and 8 hashCode offsets that day; Repeat stays as insurance"
     },
     {
       "Name": "UniteBug6",
       "Status": "Ok",
       "Repeat": 3,
-      "Comment": "edge and holeLoop counts and the volume move between runs, same family as UniteBug5/7"
+      "Comment": "verified 2026-09-07, same ring scenario as UniteBug4/5. Was stable over 8 repeats and 8 hashCode offsets that day; Repeat stays as insurance"
     },
     {
       "Name": "UniteBug7",
@@ -160,7 +185,7 @@
       "Name": "DifferenceBug15",
       "Status": "Ok",
       "Repeat": 2,
-      "Comment": "volume of the second shell moved by 0.2 percent between runs; only 2 repeats, the case is slow"
+      "Comment": "volume of the second shell moved by 0.2 percent between runs; only 2 repeats, the case is slow. Volume and area also moved with the CDT triangulation, see the 2026-09-07 note above"
     },
     {
       "Name": "UniteBug20",

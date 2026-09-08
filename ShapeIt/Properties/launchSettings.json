@@ -2,7 +2,7 @@
   "profiles": {
     "ShapeIt": {
       "commandName": "Project",
-      "commandLineArgs": "-x \"C:\\Users\\gerha\\Documents\\Zeichnungen\\ShellOffsetTest.cdb.json\" -f:442",
+      "commandLineArgs": "-r \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\HelicalCoilInsideCylinder.json\"",
       "nativeDebugging": false,
       "hotReloadEnabled": true
     }

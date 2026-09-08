@@ -182,6 +182,80 @@ namespace CADability.Tests
         }
 
         /// <summary>
+        /// The counts in a baseline are supposed to say what the shell IS, not how it happens to be cut into
+        /// faces. This holds that claim against the one operation that legitimately changes exactly that and
+        /// nothing else: <see cref="Shell.CombineConnectedFaces"/>, which merges every pair of neighbouring
+        /// faces that lie on a common surface.
+        /// <para>
+        /// It is worth its own test because the harness cannot notice the problem by itself. A metric that
+        /// counts the raw faces simply reports a different number, and it looks exactly like a regression -
+        /// which is how ChamferBug1, UniteBug4 and UniteBug5 came to differ from their baselines without
+        /// anything being wrong with their results.
+        /// </para>
+        /// </summary>
+        [TestMethod]
+        public void CountsDoNotDependOnHowFacesAreSplit()
+        {
+            List<BRepCase> cases = RequireCases();
+            StringBuilder report = new StringBuilder().AppendLine();
+            List<string> differences = new List<string>();
+
+            foreach (BRepCase testCase in cases)
+            {
+                CaseEntry entry = manifest.Get(testCase.Name);
+                // the operands of a CorruptInput case are broken to begin with, so what CombineConnectedFaces
+                // makes of them says nothing about the metric
+                if (entry.Status == CaseStatus.CorruptInput || entry.Status == CaseStatus.NeedsFixup
+                    || entry.Status == CaseStatus.Skip) continue;
+
+                for (int i = 0; i < testCase.Operands.Count; i++)
+                {
+                    Shell original = testCase.Operands[i];
+                    string what = $"{testCase.Name} operand{i + 1}";
+                    int merged;
+                    Shell combined;
+                    try
+                    {
+                        combined = (Shell)original.Clone();
+                        merged = combined.CombineConnectedFaces();
+                    }
+                    catch (Exception e)
+                    {
+                        report.AppendLine($"{what,-32} CombineConnectedFaces threw {e.GetType().Name}, not compared");
+                        continue;
+                    }
+                    string before = Fingerprint(original), after = Fingerprint(combined);
+                    report.AppendLine($"{what,-32} {original.Faces.Length,4} -> {combined.Faces.Length,4} faces "
+                        + $"({merged} combined)   {before}");
+                    if (!string.Equals(before, after, StringComparison.Ordinal))
+                        differences.Add($"{what}: the shell has {original.Faces.Length} face(s), the same shell with "
+                            + $"its faces combined has {combined.Faces.Length}, and the counts do not agree:"
+                            + $"\n      as read  {before}\n      combined {after}");
+                    double lengthBefore = ShellPartition.Of(original).EdgeLength;
+                    double lengthAfter = ShellPartition.Of(combined).EdgeLength;
+                    if (Math.Abs(lengthBefore - lengthAfter) > 1e-6 * Math.Max(lengthBefore, 1.0))
+                        differences.Add($"{what}: edgeLength {BRepSummary.Format(lengthBefore)} as read, "
+                            + $"{BRepSummary.Format(lengthAfter)} with the faces combined");
+                }
+            }
+            Write(report.ToString());
+
+            if (differences.Count > 0)
+                Assert.Fail($"{differences.Count} shell(s) are counted differently once their faces are combined, "
+                    + "so the baseline counts still depend on how the shell happens to be split:\n  "
+                    + string.Join("\n  ", differences) + "\n" + report);
+        }
+
+        /// <summary>The split invariant counts of a shell, in one line, for an exact comparison.</summary>
+        private static string Fingerprint(Shell shell)
+        {
+            ShellPartition partition = ShellPartition.Of(shell);
+            return $"faces={partition.Patches} edges={partition.Edges} vertices={partition.Vertices} "
+                + $"holeLoops={partition.HoleLoops} poleVertices={partition.PoleVertices} "
+                + $"surfaces={partition.Surfaces}";
+        }
+
+        /// <summary>
         /// The actual regression test: run every runnable case and compare its summary against the baseline.
         /// </summary>
         [TestMethod]

@@ -196,30 +196,55 @@ namespace ShapeIt
     /// <summary>
     /// Computes the invariants of a shell. Every single value is guarded: these shells may be broken, and a
     /// summary that throws is useless - "error:&lt;type&gt;" is a perfectly good baseline value.
+    /// <para>
+    /// The counts - faces, edges, vertices, holeLoops, poleVertices, edgeLength and the surface histogram - are
+    /// taken from the <see cref="ShellPartition"/>, not from the shell as it happens to be cut up. Where a face
+    /// is split, and whether it is merged back afterwards, is not part of the meaning of a shell: CADability
+    /// forces a periodic surface apart as soon as the whole cycle is used, and how far
+    /// <see cref="Shell.CombineConnectedFaces"/> gets afterwards is an implementation detail. Counting the raw
+    /// faces would report all of that as a difference.
+    /// </para>
     /// </summary>
     public static class ShellMetrics
     {
-        /// <summary>The triangulation precision, relative to the size of the shell.</summary>
-        private const double RelativeTriangulationPrecision = 1e-3;
+        /// <summary>
+        /// The triangulation precision, relative to the size of the shell.
+        /// <para>
+        /// size/4000 since 2026-09-07, size/1000 before that. The volume is still summed over the triangulation,
+        /// so the mesh decides how close the number is; measured by halving the precision step by step, the
+        /// recorded volume of the two NURBS shells of DifferenceBug15 sat 1.6e-4 and 7.6e-4 away from the value
+        /// the sequence converges to - more than the 1e-4 the baselines are compared with, which is exactly why
+        /// that case kept showing up in the diff. Four times finer brings the residual movement to about 1e-5.
+        /// Quadrics were never the problem: the 3/4 sag correction in <see cref="Shell.SignedVolume"/> is tuned
+        /// for them and DifferenceBug9 was within 3e-6 even at size/1000.
+        /// </para>
+        /// </summary>
+        private const double RelativeTriangulationPrecision = 2.5e-4;
+
+        /// <summary>
+        /// The size of the shell, from the exact geometry only - vertex positions and edge curves, never from a
+        /// triangulation - so it is the same number in every run. This is the absolute floor for comparing
+        /// coordinates near zero, and the base <see cref="PrecisionFor"/> derives the mesh precision from.
+        /// </summary>
+        public static double SizeOf(Shell shell)
+        {
+            BoundingBox box = BoundingBox.EmptyBoundingBox;
+            foreach (Vertex vertex in shell.Vertices) box.MinMax(vertex.Position);
+            foreach (Edge edge in shell.Edges) if (edge.Curve3D != null) box.MinMax(edge.Curve3D.GetExtent());
+            double size = box.IsEmpty ? 1.0 : box.Size;
+            return Math.Max(size, 1e-6);
+        }
 
         /// <summary>
         /// The precision volume, area and extent are computed with. It must not be 0.0, which is what the rest of
         /// the code passes: <see cref="Face.AssureTriangles"/> then reuses whatever triangulation happens to exist
         /// - however coarse it was made - and invents "extent size / 10" when there is none.
         /// <para>
-        /// The precision is derived from the exact geometry only - vertex positions and edge curves, never from a
-        /// triangulation - so it is the same number in every run. Asking for an explicit precision is only half
-        /// the story though, see <see cref="Describe"/> for why the measurement runs on a copy of the shell.
+        /// Asking for an explicit precision is only half the story, see <see cref="Describe"/> for why the
+        /// measurement runs on a copy of the shell.
         /// </para>
         /// </summary>
-        public static double PrecisionFor(Shell shell)
-        {
-            BoundingBox box = BoundingBox.EmptyBoundingBox;
-            foreach (Vertex vertex in shell.Vertices) box.MinMax(vertex.Position);
-            foreach (Edge edge in shell.Edges) if (edge.Curve3D != null) box.MinMax(edge.Curve3D.GetExtent());
-            double size = box.IsEmpty ? 1.0 : box.Size;
-            return Math.Max(size, 1e-6) * RelativeTriangulationPrecision;
-        }
+        public static double PrecisionFor(Shell shell) => SizeOf(shell) * RelativeTriangulationPrecision;
 
         /// <summary>
         /// Measures a shell. The triangulation dependent values - volume, area and extent - are taken from a
@@ -251,22 +276,23 @@ namespace ShapeIt
         {
             double precision = PrecisionFor(shell);
             Lazy<Shell> measured = new Lazy<Shell>(() => (Shell)shell.Clone());
+            Lazy<ShellPartition> patches = new Lazy<ShellPartition>(() => ShellPartition.Of(shell));
             Add(summary, prefix + "consistent", () => shell.CheckConsistency() ? "true" : "false");
-            Add(summary, prefix + "faces", () => shell.Faces.Length.ToString(CultureInfo.InvariantCulture));
-            Add(summary, prefix + "edges", () => RealEdgeCount(shell).ToString(CultureInfo.InvariantCulture));
-            Add(summary, prefix + "poleEdges", () => DescribePoleEdges(shell));
-            Add(summary, prefix + "vertices", () => shell.Vertices.Length.ToString(CultureInfo.InvariantCulture));
-            Add(summary, prefix + "holeLoops", () => HoleLoopCount(shell).ToString(CultureInfo.InvariantCulture));
+            Add(summary, prefix + "faces", () => patches.Value.Patches.ToString(CultureInfo.InvariantCulture));
+            Add(summary, prefix + "edges", () => patches.Value.Edges.ToString(CultureInfo.InvariantCulture));
+            Add(summary, prefix + "poleVertices", () => DescribePoleVertices(shell, patches.Value.PoleVertices));
+            Add(summary, prefix + "vertices", () => patches.Value.Vertices.ToString(CultureInfo.InvariantCulture));
+            Add(summary, prefix + "holeLoops", () => patches.Value.HoleLoops.ToString(CultureInfo.InvariantCulture));
             Add(summary, prefix + "euler", () => EulerCharacteristic(shell).ToString(CultureInfo.InvariantCulture));
             // Shell.IsClosed reports a pole edge as open, because it has no secondary face. For the same reason
             // pole edges do not count as edges, they must not make a shell count as open either.
             Add(summary, prefix + "closed", () => shell.OpenEdgesExceptPoles.Length == 0 ? "true" : "false");
             Add(summary, prefix + "openEdges", () => shell.OpenEdgesExceptPoles.Length.ToString(CultureInfo.InvariantCulture));
-            Add(summary, prefix + "volume", () => BRepSummary.Format(measured.Value.Volume(precision)));
+            Add(summary, prefix + "volume", () => BRepSummary.Format(IntegratedVolume(measured.Value)));
             Add(summary, prefix + "area", () => BRepSummary.Format(SurfaceArea(measured.Value)));
-            Add(summary, prefix + "edgeLength", () => BRepSummary.Format(TotalEdgeLength(shell)));
+            Add(summary, prefix + "edgeLength", () => BRepSummary.Format(patches.Value.EdgeLength));
             Add(summary, prefix + "extent", () => FormatExtent(measured.Value.GetExtent(precision)));
-            Add(summary, prefix + "surfaces", () => SurfaceHistogram(shell));
+            Add(summary, prefix + "surfaces", () => patches.Value.Surfaces);
         }
 
         private static void Add(BRepSummary summary, string key, Func<string> compute)
@@ -284,6 +310,23 @@ namespace ShapeIt
 
         /// <summary>Edges that really are edges of the solid, i.e. everything except the poles.</summary>
         public static int RealEdgeCount(Shell shell) => shell.Edges.Count(e => !IsPoleEdge(e));
+
+        /// <summary>
+        /// The number of pole VERTICES - one for the apex of a cone, two for a sphere - followed by the same
+        /// broken data diagnostics <see cref="DescribePoleEdges"/> produces.
+        /// <para>
+        /// The vertices are counted rather than the edges because the edges are not split invariant: a cone
+        /// whose mantle is one face has one pole edge, the same cone split in two has two, and both sit on the
+        /// single apex vertex. Which of the two a shell shows says nothing about the result.
+        /// </para>
+        /// </summary>
+        public static string DescribePoleVertices(Shell shell, int poleVertices)
+        {
+            string diagnostics = DescribePoleEdges(shell);
+            int firstBracket = diagnostics.IndexOf('(');
+            return poleVertices.ToString(CultureInfo.InvariantCulture)
+                + (firstBracket < 0 ? "" : " " + diagnostics.Substring(firstBracket));
+        }
 
         /// <summary>
         /// The number of pole edges. In CADability an edge without a 3d curve always starts and ends at the same
@@ -385,8 +428,9 @@ namespace ShapeIt
         /// domain. Measured on the mantle of a cone the triangles cover only 87.6 percent of the rectangle.</item>
         /// <item>Otherwise the uv triangles are used as the partition. They form a polygon inscribed in the
         /// true domain, so they fall slightly short along a curved boundary; that is corrected by scaling
-        /// with domain/covered, which is safe as long as the shortfall is a thin boundary strip. Beyond
-        /// <c>maxDomainShortfall</c> the extrapolation is refused and the flat triangle sum is used - the
+        /// with domain/covered, which is safe as long as the mismatch is a thin boundary strip - it may go
+        /// either way, the triangles can also stick out past a concave boundary. Beyond
+        /// <c>maxDomainMismatch</c> the extrapolation is refused and the flat triangle sum is used - the
         /// old, slightly low value, but never a new error.</item>
         /// </list>
         /// </summary>
@@ -414,7 +458,7 @@ namespace ShapeIt
 
             if (Math.Abs(domain - rect.Width * rect.Height) <= 1e-6 * domain)
             {   // the domain IS the rectangle, so the mesh is not needed and the pole gap cannot bite
-                double overRectangle = IntegrateOverRectangle(surface, rect);
+                double overRectangle = IntegrateOverRectangle(surface, rect, Jacobian);
                 if (overRectangle > 0.0) return overRectangle;
                 return flat;
             }
@@ -432,14 +476,30 @@ namespace ShapeIt
                 integrated += part;
             }
             if (!(covered > 0.0)) return flat;
-            double shortfall = (domain - covered) / domain;
-            if (shortfall < -1e-6 || shortfall > maxDomainShortfall) return flat;
+            double mismatch = (domain - covered) / domain;
+            if (Math.Abs(mismatch) > maxDomainMismatch) return flat;
             return integrated * domain / covered;
         }
 
-        /// <summary>How much of the parameter domain the uv triangles may leave uncovered before the
-        /// correction by domain/covered is refused as an extrapolation.</summary>
-        private const double maxDomainShortfall = 0.02;
+        /// <summary>
+        /// How far the uv triangles may miss the parameter domain, in either direction, before the correction
+        /// by domain/covered is refused as an extrapolation.
+        /// <para>
+        /// Until 2026-09-07 an OVER-coverage of more than 1e-6 was rejected outright while a shortfall of up to
+        /// 2 percent was accepted. That asymmetry was not intended and it was expensive: the triangles of a
+        /// trimmed face routinely stick out past the true boundary by a few parts per million - noise between
+        /// the triangle sum and SimpleShape.Area, nothing more - so all eight cylindrical faces of
+        /// DifferenceBug9 fell back to the flat triangle sum. Its recorded area was 0.79 percent short because
+        /// of it, and it never converged: 56607 at size/1000 climbing to 56997 at size/8000, while the
+        /// quadrature gives 57056.7267257 at every one of those meshes, to twelve digits.
+        /// </para>
+        /// <para>
+        /// The correction is the same first order argument in both directions - scale the integrated density by
+        /// the ratio of true to covered measure - so the limit is now the same in both, and it is the 2 percent
+        /// that was always meant to be the limit.
+        /// </para>
+        /// </summary>
+        private const double maxDomainMismatch = 0.02;
 
         /// <summary>|Su x Sv| at a parameter point, 0 when the surface cannot be differentiated there.</summary>
         private static double Jacobian(ISurface surface, GeoPoint2D uv)
@@ -454,11 +514,11 @@ namespace ShapeIt
         }
 
         /// <summary>
-        /// The integral of |Su x Sv| over a rectangle of the parameter plane, by a tensor product of the two
+        /// The integral of a density over a rectangle of the parameter plane, by a tensor product of the two
         /// point Gauss rule over a grid of cells, refined until the value settles. The integrand of a natural
         /// quadric is smooth and low order, so this converges in very few steps.
         /// </summary>
-        private static double IntegrateOverRectangle(ISurface surface, BoundingRect rect)
+        private static double IntegrateOverRectangle(ISurface surface, BoundingRect rect, Func<ISurface, GeoPoint2D, double> density)
         {
             const double g = 0.5773502691896257; // 1/sqrt(3), the two point Gauss node
             double previous = 0.0;
@@ -476,7 +536,7 @@ namespace ShapeIt
                         {
                             for (int b = -1; b <= 1; b += 2)
                             {
-                                sum += Jacobian(surface, new GeoPoint2D(uc + a * g * du / 2.0, vc + b * g * dv / 2.0));
+                                sum += density(surface, new GeoPoint2D(uc + a * g * du / 2.0, vc + b * g * dv / 2.0));
                             }
                         }
                     }
@@ -500,6 +560,265 @@ namespace ShapeIt
                        + Jacobian(surface, new GeoPoint2D(uv2, uv3))
                        + Jacobian(surface, new GeoPoint2D(uv3, uv1));
             return duv * acc / 3.0;
+        }
+
+        /// <summary>
+        /// The enclosed volume, integrated over the parameter domain of every face rather than summed over its
+        /// triangles.
+        /// <para>
+        /// By the divergence theorem the volume of a closed body is <c>1/3 * closed integral of r.n dA</c>, and
+        /// for a parametrized face <c>n dA = (Su x Sv) du dv</c>, so one face contributes
+        /// </para>
+        /// <para><c>1/3 * integral over D of S(u,v).(Su x Sv) du dv</c></para>
+        /// <para>
+        /// Everything under that integral comes from <see cref="ISurface.PointAt"/> and
+        /// <see cref="ISurface.DerivativeAt"/>. The 3d boundary curves of the face never appear - they only
+        /// decide the region D, and D lives in the parameter plane, where the face carries its own 2d outline.
+        /// An <c>InterpolatedDualSurfaceCurve</c>, which has no closed form in 3d, therefore costs nothing
+        /// here, and a NurbsSurface is no different from a plane.
+        /// </para>
+        /// <para>
+        /// The point is that the mesh stops deciding the answer. <see cref="Shell.SignedVolume"/> sums
+        /// tetrahedra over FLAT triangles, misses the curvature by O(h^2) and patches that with the 3/4 sag
+        /// correction, so a different triangulation gives a different volume - which is how the same unchanged
+        /// operand came out 3.6e-3 apart after the CDT triangulator replaced the old one. Here the mesh only
+        /// supplies the partition and the sample points.
+        /// </para>
+        /// <para>
+        /// How much of it survives depends on the face, and it is worth being precise about that:
+        /// </para>
+        /// <list type="bullet">
+        /// <item>a PLANAR face is exact and needs no mesh at all - the integrand is constant there, so the
+        /// value is that constant times the area of the domain;</item>
+        /// <item>a face whose domain is the full RECTANGLE is exact as well, by a Gauss rule over that
+        /// rectangle refined until it settles. This covers the mantles of cylinder, cone and torus, and it is
+        /// also what closes the gap a pole leaves in the triangulation;</item>
+        /// <item>everything else - a trimmed quadric, a NURBS face, any patch with a curved uv outline - uses
+        /// the uv triangles as a partition of the domain. They are an inscribed polygon, so they fall a thin
+        /// strip short along the curved boundary, and that is corrected only to FIRST order, by domain/covered.
+        /// This is the one route where the mesh still shows.</item>
+        /// </list>
+        /// <para>
+        /// Measured on the three solids of VolumeTests, whose volumes are known in closed form: the cone
+        /// frustum and the torus segment come out exact to eight digits and bit identical on five different
+        /// meshes, the hemisphere - whose spherical faces have curved uv outlines - stays within 6.5e-4 across
+        /// the same five, against 0.77 percent for the triangle sum.
+        /// </para>
+        /// <para>
+        /// What no quadrature can remove is the domain D itself, whose boundary is only as good as the 2d
+        /// curves of the face, and a ProjectedCurve is an approximation. That is the floor, and it is the same
+        /// one the triangulation already lives with.
+        /// </para>
+        /// <para>
+        /// The value is independent of where the origin sits only for a CLOSED shell, since the shift by a
+        /// vector a adds <c>1/3 * a . closed integral of n dA</c>, which vanishes exactly then. For an open
+        /// shell the number is as meaningless as the triangle sum is, and for the same reason.
+        /// </para>
+        /// </summary>
+        public static double IntegratedVolume(Shell shell) => IntegratedVolume(shell, PrecisionFor(shell));
+
+        /// <summary>
+        /// <see cref="IntegratedVolume(Shell)"/> with the mesh precision given explicitly. The mesh is only the
+        /// partition and the sample points here, so the answer is not supposed to depend on it - which is what
+        /// <c>VolumeTests.IntegratedVolumeMatchesAnalyticOnEveryMesh</c> uses this overload to check.
+        /// </summary>
+        public static double IntegratedVolume(Shell shell, double precision)
+        {
+            double sum = 0.0;
+            foreach (Face face in shell.Faces)
+            {
+                face.GetTriangulation(precision, out GeoPoint[] points, out GeoPoint2D[] uvPoints, out int[] indices, out _);
+                if (indices == null) continue;
+                sum += IntegratedFaceVolume(face, points, uvPoints, indices, precision);
+            }
+            return sum;
+        }
+
+        /// <summary>
+        /// The contribution of one face, by the same routes <see cref="IntegratedFaceArea"/> takes: the face is
+        /// planar, or its domain is the full rectangle, or the uv triangles are used as a partition of the
+        /// domain, or, when none of that can be trusted, the flat tetrahedron sum is kept as the fallback.
+        /// <para>
+        /// Only the last of those still sees the mesh, and only through the first order correction by
+        /// domain/covered - the triangles fall a thin strip short along a curved boundary. It is the route a
+        /// trimmed quadric and a NURBS face take.
+        /// </para>
+        /// </summary>
+        private static double IntegratedFaceVolume(Face face, GeoPoint[] points, GeoPoint2D[] uvPoints, int[] indices, double precision)
+        {
+            ISurface surface = face.Surface;
+            double flat = FallbackVolume(face, precision);
+            if (surface == null) return flat;
+            double orientation = OrientationOf(surface, points, uvPoints, indices);
+            if (orientation == 0.0) return flat;
+
+            SimpleShape shape;
+            double domain;
+            BoundingRect rect;
+            try { shape = face.Area; domain = shape.Area; rect = shape.GetExtent(); }
+            catch (Exception) { return flat; }
+            if (!(domain > 0.0)) return flat;
+
+            if (surface is PlaneSurface)
+            {   // On a plane the integrand is CONSTANT. S(u,v) = P + u*e1 + v*e2 and Su x Sv = e1 x e2, and both
+                // e1 and e2 are perpendicular to their own cross product, so the u and v terms drop out and only
+                // P.(e1 x e2) is left. The integral is that times the area of the domain, which SimpleShape
+                // gives exactly - no mesh, no quadrature, nothing left to converge. That matters more than it
+                // sounds: a flat cap with a curved outline is exactly where the domain correction below is only
+                // first order, and it was what kept the hemisphere of VolumeTests from being mesh independent.
+                double density = FluxDensity(surface, rect.GetCenter());
+                return density == 0.0 ? flat : orientation * density * domain;
+            }
+
+            if (Math.Abs(domain - rect.Width * rect.Height) <= 1e-6 * domain)
+            {   // the domain IS the rectangle: no mesh needed, and the gap a pole leaves cannot bite
+                double overRectangle = IntegrateOverRectangle(surface, rect, FluxDensity);
+                return double.IsNaN(overRectangle) || double.IsInfinity(overRectangle) ? flat : orientation * overRectangle;
+            }
+
+            if (uvPoints == null || uvPoints.Length != points.Length) return flat;
+            double covered = 0.0, integrated = 0.0;
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                GeoPoint2D uv1 = uvPoints[indices[i]], uv2 = uvPoints[indices[i + 1]], uv3 = uvPoints[indices[i + 2]];
+                double duv = 0.5 * Math.Abs((uv2.x - uv1.x) * (uv3.y - uv1.y) - (uv3.x - uv1.x) * (uv2.y - uv1.y));
+                if (duv <= 0.0) continue;
+                double part = IntegrateFlux(surface, uv1, uv2, uv3, duv);
+                if (double.IsNaN(part) || double.IsInfinity(part)) return flat;
+                covered += duv;
+                integrated += part;
+            }
+            if (!(covered > 0.0)) return flat;
+            double mismatch = (domain - covered) / domain;
+            if (Math.Abs(mismatch) > maxDomainMismatch) return flat;
+            // Correct upwards when the triangles fall SHORT of the domain, and only then. Unlike
+            // IntegratedFaceArea, which scales in both directions, because the two integrands do not behave
+            // alike: |Su x Sv| varies little over a face, so trading measure for measure is fair either way,
+            // while S.(Su x Sv) grows with the distance from the origin, so a boundary strip carries a quite
+            // different density from the face average and a global factor is a blunt instrument.
+            //
+            // Both halves were measured, and each one the other way round is clearly worse:
+            //   under-coverage, the uv triangles inscribed in a curved boundary and provably missing material -
+            //     the hemisphere of VolumeTests is -3.08 percent at the coarsest mesh without the correction
+            //     and -0.06 percent with it;
+            //   over-coverage, where nothing is missing and the excess sits outside the domain - the NURBS face
+            //     of DifferenceBug15 covers 0.285 percent too much, and scaling it down moves the shell from
+            //     29051.96 to 29007.13, away from the 29052.49 the triangle sum converges to.
+            if (mismatch > 0.0) integrated *= domain / covered;
+            return orientation * integrated;
+        }
+
+        /// <summary>
+        /// <c>S(u,v).(Su x Sv) / 3</c>, the integrand of the volume. 0 where the surface cannot be
+        /// differentiated, which is what a pole does.
+        /// </summary>
+        private static double FluxDensity(ISurface surface, GeoPoint2D uv)
+        {
+            try
+            {
+                surface.DerivativeAt(uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
+                GeoVector normal = du ^ dv;
+                double res = (location.x * normal.x + location.y * normal.y + location.z * normal.z) / 3.0;
+                return double.IsNaN(res) || double.IsInfinity(res) ? 0.0 : res;
+            }
+            catch (Exception) { return 0.0; }
+        }
+
+        /// <summary>
+        /// The integral of <see cref="FluxDensity"/> over one uv triangle, with the six point rule that is
+        /// exact for a quartic integrand.
+        /// <para>
+        /// The area gets away with three points, exact up to quadratic, because its integrand is |Su x Sv|.
+        /// This one carries an extra factor of S and is correspondingly higher order, so it is given a rule
+        /// with the headroom to match: exact for a plane, and small enough an error on a trimmed quadric that
+        /// the mesh no longer shows in the result.
+        /// </para>
+        /// </summary>
+        private static double IntegrateFlux(ISurface surface, GeoPoint2D uv1, GeoPoint2D uv2, GeoPoint2D uv3, double duv)
+        {
+            if (duv <= 0.0) return 0.0;
+            double acc = 0.0;
+            for (int k = 0; k < triangleRule.GetLength(0); k++)
+            {
+                double a = triangleRule[k, 0], b = triangleRule[k, 1], c = triangleRule[k, 2];
+                acc += triangleRule[k, 3] * FluxDensity(surface,
+                    new GeoPoint2D(a * uv1.x + b * uv2.x + c * uv3.x, a * uv1.y + b * uv2.y + c * uv3.y));
+            }
+            return duv * acc;
+        }
+
+        /// <summary>
+        /// Barycentric coordinates and weights of the six point Dunavant rule of degree 4 on a triangle. The
+        /// weights are normalized to 1, so the caller multiplies by the area of the triangle.
+        /// </summary>
+        private static readonly double[,] triangleRule =
+        {
+            { 0.108103018168070, 0.445948490915965, 0.445948490915965, 0.223381589678011 },
+            { 0.445948490915965, 0.108103018168070, 0.445948490915965, 0.223381589678011 },
+            { 0.445948490915965, 0.445948490915965, 0.108103018168070, 0.223381589678011 },
+            { 0.816847572980459, 0.091576213509771, 0.091576213509771, 0.109951743655322 },
+            { 0.091576213509771, 0.816847572980459, 0.091576213509771, 0.109951743655322 },
+            { 0.091576213509771, 0.091576213509771, 0.816847572980459, 0.109951743655322 },
+        };
+
+        /// <summary>
+        /// Whether <c>Su x Sv</c> points the way the triangulation winds this face (+1) or the other way (-1),
+        /// 0 when it cannot be decided.
+        /// <para>
+        /// The face itself will not say: <c>orientedOutward</c> is private and the surface of a face may be
+        /// stored reversed. The triangulation is the right reference anyway, because it is what
+        /// <see cref="Shell.SignedVolume"/> reads the orientation from - so both agree on the sign of every
+        /// face by construction, and a shell that comes out negative there comes out negative here.
+        /// </para>
+        /// <para>
+        /// Decided by majority over a sample of triangles rather than by the first one: a single triangle can
+        /// be degenerate or sit almost edge on to the surface normal, and one wrong face would put the whole
+        /// volume out by twice its contribution.
+        /// </para>
+        /// </summary>
+        private static double OrientationOf(ISurface surface, GeoPoint[] points, GeoPoint2D[] uvPoints, int[] indices)
+        {
+            if (indices == null || uvPoints == null || points == null || uvPoints.Length != points.Length) return 0.0;
+            int agree = 0, disagree = 0;
+            int step = Math.Max(3, indices.Length / (3 * 16) * 3); // at most about 16 samples, always whole triangles
+            for (int i = 0; i < indices.Length; i += step)
+            {
+                GeoVector fromMesh = (points[indices[i + 1]] - points[indices[i]])
+                                   ^ (points[indices[i + 2]] - points[indices[i]]);
+                if (Precision.IsNullVector(fromMesh)) continue;
+                GeoPoint2D uv = new GeoPoint2D(uvPoints[indices[i]], uvPoints[indices[i + 1]], uvPoints[indices[i + 2]]);
+                GeoVector fromSurface;
+                try
+                {
+                    surface.DerivativeAt(uv, out GeoPoint _, out GeoVector du, out GeoVector dv);
+                    fromSurface = du ^ dv;
+                }
+                catch (Exception) { continue; }
+                if (Precision.IsNullVector(fromSurface)) continue;
+                double dot = fromMesh.Normalized * fromSurface.Normalized;
+                if (dot > 0.1) ++agree;
+                else if (dot < -0.1) ++disagree;
+            }
+            if (agree == 0 && disagree == 0) return 0.0;
+            return agree >= disagree ? 1.0 : -1.0;
+        }
+
+        /// <summary>
+        /// What one face contributes when its parameter domain cannot be used as the region to integrate over:
+        /// exactly what <see cref="Shell.SignedVolume"/> would have made of it, tetrahedra over the flat
+        /// triangles plus the 3/4 sag correction.
+        /// <para>
+        /// Going through SignedVolume rather than summing the tetrahedra here is the point. The sag correction
+        /// is what makes that sum usable on a curved face, so dropping it would leave the fallback WORSE than
+        /// the method this replaces - and a fallback that loses against the thing it falls back from is not a
+        /// fallback. This way the value can only ever improve on <see cref="Shell.SignedVolume"/>, never
+        /// regress below it.
+        /// </para>
+        /// </summary>
+        private static double FallbackVolume(Face face, double precision)
+        {
+            try { return Shell.SignedVolume(new[] { face }, precision); }
+            catch (Exception) { return 0.0; }
         }
 
         public static double TotalEdgeLength(Shell shell)
@@ -533,8 +852,9 @@ namespace ShapeIt
         /// show up as a difference: biggest volume first, ties broken by face count and area.
         /// </summary>
         public static Shell[] SortCanonically(IEnumerable<Shell> shells)
-        {
-            return shells.OrderByDescending(s => Safe(() => s.Volume(PrecisionFor(s))))
+        {   // the key has to be the same quantity the summary reports, or two shells of nearly equal size
+            // could be ordered by one measure and described by the other
+            return shells.OrderByDescending(s => Safe(() => IntegratedVolume(s)))
                          .ThenByDescending(s => s.Faces.Length)
                          .ThenByDescending(s => Safe(() => SurfaceArea(s)))
                          .ToArray();

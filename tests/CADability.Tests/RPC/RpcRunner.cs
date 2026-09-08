@@ -180,9 +180,8 @@ namespace CADability.Tests.Rpc
         {
             BRepSummary summary = new BRepSummary();
             ShellMetrics.Describe(summary, "", shell);
-            // PrecisionFor is size/1000, so this is the size of the shell - the absolute floor for the
-            // comparison of coordinates near zero.
-            double scale = ShellMetrics.PrecisionFor(shell) * 1000.0;
+            // the size of the shell - the absolute floor for the comparison of coordinates near zero
+            double scale = ShellMetrics.SizeOf(shell);
             result.Objects[name] = new RpcObjectSummary { Name = name, Summary = summary, Scale = scale };
         }
 
