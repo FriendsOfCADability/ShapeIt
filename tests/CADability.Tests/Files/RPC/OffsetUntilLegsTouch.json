@@ -1,0 +1,101 @@
+{
+  "Description": "A thick U, 20 mm deep in y: the outer block is 60 x 20 x 40, the slot between the legs is 20 wide (x from 20 to 40), open at the top, and leaves a 12 mm base. Growing closes the slot from both sides, so the offset distance decides what happens: at +8 a gap of 4 is left, at +10 the two inner walls meet EXACTLY - a tangential contact along a whole face, which is what this file exists for - and at +12 the slot is filled completely, because every point in it lies within 10 of a wall. Shrinking by -4 is the harmless counterpart. The U is a prism, so the correct values follow from its profile.",
+  "Expected": "The profile in the x-z plane has area 1840 and perimeter 256, with 6 convex and 2 reflex right angles, so the dilated profile is A(r) = 1840 + 256r + (1.5*pi-2)r^2 with perimeter L(r) = 256 + (3*pi-4)r, and the prism of height 20 gives V = 20*A(d) + 2*int_0^d A(sqrt(d^2-t^2))dt and surface = 2*1840 + 20*L(d) + 2*int_0^(pi/2) L(d*cos u)*d du. uBase itself is exact: V = 1840*20 = 36800, A = 2*1840 + 256*20 = 8800, 10 planar faces. uGrown8 is exact as well, the dilated profile does not touch itself yet: V = 138259.4424, A = 16796.3178. From +10 on the formula stops being valid. uGrown10 is the exact contact: the correct result is still ONE closed, consistent solid with euler 2, the two inner walls having merged into a single planar contact and the void between them collapsed to zero volume - nothing may be left over as a stray face, an open edge or a second body. uGrown12 has the slot filled and must be closed and consistent too, with a volume above uGrown10 and below the dilation of the full 60x20x40 block, which is 20*A_rect(12) + 2*int with A_rect(r) = 2400 + 200r + pi*r^2. uShrunk4 stays an open U and is exact as well: the eroded profile is 880 + 2*(16-4*pi) = 912-8*pi = 886.8673 - the two reflex corners are rounded, which ADDS material there - with perimeter 224-2*(8-2*pi) = 220.5664, and the height is 20-8 = 12, so V = 10642.4076 and A = 2*886.8673 + 12*220.5664 = 4420.5310, on 10 planar and 2 cylindrical faces.",
+  "CaseStatus": "KnownFail",
+  "Repeat": 4,
+  "Verify": [
+    "uBase",
+    "uGrown8",
+    "uGrown10",
+    "uGrown12",
+    "uShrunk4"
+  ],
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "uBlock",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 60,
+        "sizeY": 20,
+        "sizeZ": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "uSlot",
+        "origin": [
+          20,
+          -5,
+          12
+        ],
+        "sizeX": 20,
+        "sizeY": 30,
+        "sizeZ": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "uBlock",
+        "b": "uSlot",
+        "name": "uBase",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.offset",
+      "params": {
+        "solid": "uBase",
+        "distance": 8,
+        "name": "uGrown8"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.offset",
+      "params": {
+        "solid": "uBase",
+        "distance": 10,
+        "name": "uGrown10"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.offset",
+      "params": {
+        "solid": "uBase",
+        "distance": 12,
+        "name": "uGrown12"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.offset",
+      "params": {
+        "solid": "uBase",
+        "distance": -4,
+        "name": "uShrunk4"
+      }
+    }
+  ],
+  "Status": "KNOWN FAIL (2026-09-09), written together with the case. The exact contact at +10 is what breaks, which is what the file exists for, so no baseline is recorded yet. The two neighbours at +8 and +12 pass through the same code and work, so the defect really is the degeneracy and not the U.",
+  "Actual": "First measurement (2026-09-09, four repeats, identical every time): call 5 (uGrown10) fails with a Debug.Fail out of the BRep core - 'an intersection point far enough from both ends to get a vertex of its own must also split the edge, but this one has no parameter strictly inside 0..1: CreateOrFindVertex and SplitEdges disagree about the same point' - so uGrown10 is recorded as exists:false. The other three are fine: uBase is exactly 36800 / 8800 on 10 planar faces; uGrown8 gives V = 138281.5428 / A = 16797.3731 against the computed 138259.4424 / 16796.3178 (+1.6e-4 resp. +6.3e-5, same sign and order as the mesh bias measured in SolidOffsetGrowAndShrink), with 22 cylinders and 12 spheres exactly as the 8-corner prism demands; uGrown12 has the slot filled - 7 planar faces left instead of 10 - stays closed and consistent with V = 212014.6634, below the 215124.9 of the dilated full block; and uShrunk4 hits its closed form on the nose, 10642.4071 / 4420.5310 against 10642.4076 / 4420.5310."
+}

@@ -1,0 +1,213 @@
+{
+  "Description": "The quadric surfaces, which the first solid.offset case never reached: a ball of radius 20, a torus with major radius 30 and minor radius 8, and a truncated cone from radius 20 at z=0 to radius 8 at z=30. Each is grown and shrunk, and each result is known in closed form, because the offset of a quadric is the same quadric with a changed radius. The fourth body combines all three with a plane: the cone, a torus laid around its base circle and a ball set on its top, so the offset has to deal with the intersection curves between cone, sphere and torus, not just with the isolated surfaces.",
+  "Expected": "BALL: +5 is a ball of radius 25, V = 4/3*pi*25^3 = 65449.8469, A = 4*pi*625 = 7853.9816; -5 is radius 15, V = 14137.1669, A = 2827.4334. TORUS: only the minor radius changes, so +3 gives 30/11 with V = 2*pi^2*30*121 = 71653.3280 and A = 4*pi^2*30*11 = 13027.8778, and -3 gives 30/5 with V = 14804.4066 and A = 5921.7626. CONE: with tan(beta) = 12/30, shrinking by 4 gives the same half angle with radii 20-4/cos(beta)-4*tan(beta) = 14.0919 and 8+4*tan(beta)-4/cos(beta) = 5.2919 over a height of 22, so V = pi*22/3*(R1^2+R1*R2+R2^2) = 6938.1575 and A = pi*(R1+R2)*s+pi*R1^2+pi*R2^2 with s = 23.6947 = 2154.7459. Growing by 4 is the Steiner formula of the convex cone: V0 = 19603.5382, A0 = 4299.9220, mean curvature integral M = pi*h + pi*R1*(pi/2+beta) + pi*R2*(pi/2-beta) = 246.7670, so V = V0+A0*4+M*16+4*pi/3*64 = 41019.5807 and A = A0+2*M*4+4*pi*16 = 6475.1199. The grown cone must show a toroidal face at each of the two circular edges and no sphere, since no vertex exists. COMBINED: no closed form; the invariants are that both offsets come out as one closed, consistent solid and that the surface histogram still carries all four kinds - ConicalSurface, SphericalSurface, ToroidalSurface and PlaneSurface - with the rounded convex edges adding further toroidal faces.",
+  "CaseStatus": "KnownFail",
+  "Repeat": 2,
+  "Verify": [
+    "ballGrown",
+    "ballShrunk",
+    "torusGrown",
+    "torusShrunk",
+    "coneGrown",
+    "coneShrunk",
+    "combined",
+    "combinedGrown",
+    "combinedShrunk"
+  ],
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.sphere",
+      "params": {
+        "name": "ball",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.offset",
+      "params": {
+        "solid": "ball",
+        "distance": 5,
+        "name": "ballGrown"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.offset",
+      "params": {
+        "solid": "ball",
+        "distance": -5,
+        "name": "ballShrunk"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.torus",
+      "params": {
+        "name": "ring",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 30,
+        "minorRadius": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.offset",
+      "params": {
+        "solid": "ring",
+        "distance": 3,
+        "name": "torusGrown"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.offset",
+      "params": {
+        "solid": "ring",
+        "distance": -3,
+        "name": "torusShrunk"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.cone",
+      "params": {
+        "name": "cone",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          30
+        ],
+        "radiusStart": 20,
+        "radiusEnd": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.offset",
+      "params": {
+        "solid": "cone",
+        "distance": 4,
+        "name": "coneGrown"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.offset",
+      "params": {
+        "solid": "cone",
+        "distance": -4,
+        "name": "coneShrunk"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.torus",
+      "params": {
+        "name": "collar",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 20,
+        "minorRadius": 6
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.sphere",
+      "params": {
+        "name": "knob",
+        "center": [
+          0,
+          0,
+          30
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "cone",
+        "b": "collar",
+        "name": "coneCollar",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "coneCollar",
+        "b": "knob",
+        "name": "combined",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.offset",
+      "params": {
+        "solid": "combined",
+        "distance": 3,
+        "name": "combinedGrown"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.offset",
+      "params": {
+        "solid": "combined",
+        "distance": -3,
+        "name": "combinedShrunk"
+      }
+    }
+  ],
+  "Status": "KNOWN FAIL (2026-09-09), written together with the case. Three of the six offsets do not survive and one of them fails silently, so no baseline is recorded yet. Note the runtime: one run takes about two minutes, which is why Repeat is 2 and not 4 here.",
+  "Actual": "First measurement (2026-09-09, two repeats, identical): three of the six offsets fail, and one of them without an error. (a) call 8, coneGrown +4: NullReferenceException. (b) call 9, coneShrunk -4, SUCCEEDS but stores nothing - it takes the empty-result path, so coneShrunk is exists:false, although the answer is a well defined truncated cone with radii 14.0919 and 5.2919 over a height of 22, V = 6938.1575. A silent empty result is worse than an exception here: a client cannot tell it from a body that legitimately shrank away. (c) call 14, combinedGrown +3: 'Error in the application'. (d) call 15, combinedShrunk -3: 'lenth of knots and poles not compatible with degree', the same NURBS error that OffsetClosesPinholeCavity runs into. What works is worth keeping: the TORUS offsets are exact to 1e-9 - V = 71653.3280 / 14804.4066 and A = 13027.8778 / 5921.7626 against the closed forms, euler 0; the BALL offsets are within 6e-5 of 4/3*pi*r^3 and 4*pi*r^2, the usual mesh bias of a spherical face; and the combined body itself unions correctly into one closed, consistent solid carrying exactly the four surface kinds ConicalSurface, PlaneSurface, SphericalSurface and ToroidalSurface, V = 36043.8086."
+}
