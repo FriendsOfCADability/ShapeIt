@@ -1,7 +1,7 @@
 {
   "Description": "A thick U, 20 mm deep in y: the outer block is 60 x 20 x 40, the slot between the legs is 20 wide (x from 20 to 40), open at the top, and leaves a 12 mm base. Growing closes the slot from both sides, so the offset distance decides what happens: at +8 a gap of 4 is left, at +10 the two inner walls meet EXACTLY - a tangential contact along a whole face, which is what this file exists for - and at +12 the slot is filled completely, because every point in it lies within 10 of a wall. Shrinking by -4 is the harmless counterpart. The U is a prism, so the correct values follow from its profile.",
-  "Expected": "The profile in the x-z plane has area 1840 and perimeter 256, with 6 convex and 2 reflex right angles, so the dilated profile is A(r) = 1840 + 256r + (1.5*pi-2)r^2 with perimeter L(r) = 256 + (3*pi-4)r, and the prism of height 20 gives V = 20*A(d) + 2*int_0^d A(sqrt(d^2-t^2))dt and surface = 2*1840 + 20*L(d) + 2*int_0^(pi/2) L(d*cos u)*d du. uBase itself is exact: V = 1840*20 = 36800, A = 2*1840 + 256*20 = 8800, 10 planar faces. uGrown8 is exact as well, the dilated profile does not touch itself yet: V = 138259.4424, A = 16796.3178. From +10 on the formula stops being valid. uGrown10 is the exact contact: the correct result is still ONE closed, consistent solid with euler 2, the two inner walls having merged into a single planar contact and the void between them collapsed to zero volume - nothing may be left over as a stray face, an open edge or a second body. uGrown12 has the slot filled and must be closed and consistent too, with a volume above uGrown10 and below the dilation of the full 60x20x40 block, which is 20*A_rect(12) + 2*int with A_rect(r) = 2400 + 200r + pi*r^2. uShrunk4 stays an open U and is exact as well: the eroded profile is 880 + 2*(16-4*pi) = 912-8*pi = 886.8673 - the two reflex corners are rounded, which ADDS material there - with perimeter 224-2*(8-2*pi) = 220.5664, and the height is 20-8 = 12, so V = 10642.4076 and A = 2*886.8673 + 12*220.5664 = 4420.5310, on 10 planar and 2 cylindrical faces.",
-  "CaseStatus": "KnownFail",
+  "Expected": "The profile in the x-z plane has area 1840 and perimeter 256, with 6 convex and 2 reflex right angles, so the dilated profile is A(r) = 1840 + 256r + (1.5*pi-2)r^2 with perimeter L(r) = 256 + (3*pi-4)r, and the prism of height 20 gives V = 20*A(d) + 2*int_0^d A(sqrt(d^2-t^2))dt and surface = 2*1840 + 20*L(d) + 2*int_0^(pi/2) L(d*cos u)*d du. uBase itself is exact: V = 1840*20 = 36800, A = 2*1840 + 256*20 = 8800, 10 planar faces. uGrown8 is exact as well, the dilated profile does not touch itself yet: V = 138259.4424, A = 16796.3178. uGrown10 is the exact contact, and the volume formula still holds there: the two offset strips meet in a line of measure zero, so V = 174053.6825. The area formula does NOT hold, because it counts the two coincident inner walls, which cancel each other: each is 18 long (from z=22, the rounded base corner, to z=40, the leg top) over the prism height of 20, so 2*18*20 = 720 has to come off the naive 19012.3884, leaving about 18292. Topologically the correct result is still ONE closed, consistent solid with euler 2 and 7 planar faces like uGrown12 - nothing may be left over from the contact as a stray face, an open edge or a second body. uGrown12 has the slot filled and must be closed and consistent too, with a volume above uGrown10 and below the dilation of the full 60x20x40 block, which is 20*A_rect(12) + 2*int with A_rect(r) = 2400 + 200r + pi*r^2. uShrunk4 stays an open U and is exact as well: the eroded profile is 880 + 2*(16-4*pi) = 912-8*pi = 886.8673 - the two reflex corners are rounded, which ADDS material there - with perimeter 224-2*(8-2*pi) = 220.5664, and the height is 20-8 = 12, so V = 10642.4076 and A = 2*886.8673 + 12*220.5664 = 4420.5310, on 10 planar and 2 cylindrical faces.",
+  "CaseStatus": "Ok",
   "Repeat": 4,
   "Verify": [
     "uBase",
@@ -10,6 +10,95 @@
     "uGrown12",
     "uShrunk4"
   ],
+  "Status": "PASSES (2026-09-09, commit 4ca4bc89 'fixed a bug with Shell.GetOffset when opposite faces cover each other'). Keep as a regression guard for the degenerate contact. Written while the defect was open: growing by exactly 10, where the two inner walls of the slot meet face to face, ended in a Debug.Fail out of the BRep core ('CreateOrFindVertex and SplitEdges disagree about the same point'), while the neighbours at +8 and +12 went through. The fix handles faces that are completely covered by an opposite oriented face.",
+  "Actual": "All 7 calls succeed, identical over four repeats, every result closed and consistent. uGrown10 comes out exactly as it should: one solid, euler 2, 7 planar faces like the fully closed uGrown12, so the contact left nothing behind; V = 174082.30 against the computed 174053.68 (+1.6e-4, the same relative deviation uGrown8 shows, i.e. the mesh bias and not a difference in shape); A = 18293.70 against the naive formula 19012.39 minus the two cancelled walls, 2*18*20 = 720, which predicts 18292.39 - 1.3 apart. uBase and uShrunk4 hit their closed forms exactly, uGrown8 sits at the same +1.6e-4 as uGrown10, and uGrown12 stays below the dilated full block.",
+  "Baseline": {
+    "uBase": {
+      "verified": "2026-09-09: the input body, exact - profile area 1840 times the depth 20, V = 36800, A = 2*1840+256*20 = 8800 on 10 planar faces.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "36800",
+      "area": "8800",
+      "edgeLength": "672",
+      "extent": "0, 0, 0, 60, 20, 40",
+      "surfaces": "PlaneSurface:10"
+    },
+    "uGrown10": {
+      "verified": "2026-09-09 THE POINT OF THIS CASE: the two inner walls meet exactly. The result is one closed, consistent solid with euler 2 and 7 planar faces - the two coincident walls have cancelled and nothing is left over. V = 174053.6825 by the same formula as uGrown8 (still valid at r=10, the strips meet in a line of measure zero), recorded 1.6e-4 above it, exactly the deviation uGrown8 shows. The area confirms the cancellation: the naive formula gives 19012.3884, the two cancelled walls are 2*18*20 = 720 of it, and 18293.70 was recorded.",
+      "consistent": "true",
+      "faces": "41",
+      "edges": "79",
+      "poleVertices": "0",
+      "vertices": "40",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "174082.29582",
+      "area": "18293.7010611",
+      "edgeLength": "1769.88694547",
+      "extent": "-10, -10, -10, 70, 30, 50",
+      "surfaces": "CylindricalSurface:22 PlaneSurface:7 SphericalSurface:12"
+    },
+    "uGrown12": {
+      "verified": "2026-09-09: the slot is filled - every point in it lies within 10 of a wall - so 7 planar faces are left and the body is simply connected. The volume must lie between uGrown10 and the dilation of the full 60x20x40 block, 48000+8800*12+120*pi*144+4*pi/3*1728 = 215124.95, and 212014.66 does.",
+      "consistent": "true",
+      "faces": "41",
+      "edges": "81",
+      "poleVertices": "0",
+      "vertices": "42",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "212014.663369",
+      "area": "19893.0217317",
+      "edgeLength": "1833.3319434",
+      "extent": "-12, -12, -12, 72, 32, 52",
+      "surfaces": "CylindricalSurface:22 PlaneSurface:7 SphericalSurface:12"
+    },
+    "uGrown8": {
+      "verified": "2026-09-09: the dilated prism, V = 20*A(8) + 2*int_0^8 A(sqrt(64-t^2))dt = 138259.4424 and A = 2*1840 + 20*L(8) + 2*int_0^(pi/2) L(8 cos u)*8 du = 16796.3178 with A(r) = 1840+256r+(1.5*pi-2)r^2 and L(r) = 256+(3*pi-4)r. Recorded 1.6e-4 resp. 6.3e-5 above that, the mesh bias of the fillets and spheres (see the Actual of SolidOffsetGrowAndShrink). 22 cylinders and 12 spheres are what an 8-corner prism with two reflex edges must have.",
+      "consistent": "true",
+      "faces": "44",
+      "edges": "86",
+      "poleVertices": "0",
+      "vertices": "44",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "138281.542814",
+      "area": "16797.3730685",
+      "edgeLength": "1753.50955638",
+      "extent": "-8, -8, -8, 68, 28, 48",
+      "surfaces": "CylindricalSurface:22 PlaneSurface:10 SphericalSurface:12"
+    },
+    "uShrunk4": {
+      "verified": "2026-09-09: exact. The eroded profile is 880 + 2*(16-4*pi) = 912-8*pi = 886.8673 - eroding a reflex corner ADDS the corner piece - with perimeter 224-2*(8-2*pi) = 220.5664 and height 20-8 = 12, so V = 10642.4076 and A = 4420.5310; recorded 10642.4071 / 4420.5310.",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "30",
+      "poleVertices": "0",
+      "vertices": "20",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "10642.4071053",
+      "area": "4420.53096491",
+      "edgeLength": "561.132741229",
+      "extent": "4, 4, 4, 56, 16, 36",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:10"
+    }
+  },
   "RPCCalls": [
     {
       "jsonrpc": "2.0",
@@ -95,7 +184,5 @@
         "name": "uShrunk4"
       }
     }
-  ],
-  "Status": "KNOWN FAIL (2026-09-09), written together with the case. The exact contact at +10 is what breaks, which is what the file exists for, so no baseline is recorded yet. The two neighbours at +8 and +12 pass through the same code and work, so the defect really is the degeneracy and not the U.",
-  "Actual": "First measurement (2026-09-09, four repeats, identical every time): call 5 (uGrown10) fails with a Debug.Fail out of the BRep core - 'an intersection point far enough from both ends to get a vertex of its own must also split the edge, but this one has no parameter strictly inside 0..1: CreateOrFindVertex and SplitEdges disagree about the same point' - so uGrown10 is recorded as exists:false. The other three are fine: uBase is exactly 36800 / 8800 on 10 planar faces; uGrown8 gives V = 138281.5428 / A = 16797.3731 against the computed 138259.4424 / 16796.3178 (+1.6e-4 resp. +6.3e-5, same sign and order as the mesh bias measured in SolidOffsetGrowAndShrink), with 22 cylinders and 12 spheres exactly as the 8-corner prism demands; uGrown12 has the slot filled - 7 planar faces left instead of 10 - stays closed and consistent with V = 212014.6634, below the 215124.9 of the dilated full block; and uShrunk4 hits its closed form on the nose, 10642.4071 / 4420.5310 against 10642.4076 / 4420.5310."
+  ]
 }
