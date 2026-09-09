@@ -1549,7 +1549,7 @@ namespace CADability
             }
         }
 
-        public enum Operation { union, intersection, difference, clip, connectMultiple, testonly }
+        public enum Operation { union, intersection, difference, clip, connectMultiple, connectMultipleReversed, testonly }
         Operation operation;
         /// <summary>
         /// Prepare a brep operation for splitting a (closed) shell with a plane. Or for returning the compound shapes on the specified plane.
@@ -1678,11 +1678,12 @@ namespace CADability
         /// Connect all provided faces, remove the overhangs. Used by Shell.GetOffset.
         /// </summary>
         /// <param name="shellsToConnect"></param>
-        public void SetFaces(IEnumerable<Face> multipleFaces)
+        public void SetFaces(IEnumerable<Face> multipleFaces, bool reverseOrientation)
         {
-            operation = Operation.connectMultiple;
+            if (reverseOrientation) operation = Operation.connectMultipleReversed;
+            else operation = Operation.connectMultiple;
             this.multipleFaces = new List<Face>(multipleFaces); // we don't clone here, because we dont need it
-                                                                //foreach (Face face in multipleFaces) face.ReverseOrientation();
+            if (reverseOrientation) foreach (Face face in multipleFaces) face.ReverseOrientation();
 
             // fill the OctTree
             BoundingBox ext = BoundingBox.EmptyBoundingBox;
@@ -4149,6 +4150,7 @@ namespace CADability
                 // needed to decide whether an untouched part of a shell belongs to the result (see "combine shells and holes"), so we force
                 // the outline to be cached while the face is still intact
                 SimpleShape forceCalculation = fce.Area;
+                foreach (Vertex vtx in fce.Vertices) vtx.RemovePositionOnFace(fce);
                 fce.DisconnectAllEdges();
             }
 
@@ -4445,7 +4447,7 @@ namespace CADability
 
             for (int i = 0; i < res.Count; i++)
             {
-                if (operation == Operation.union) res[i].ReverseOrientation(); // both had been reversed and the intersection had been calculated
+                if (operation == Operation.union || operation == Operation.connectMultipleReversed) res[i].ReverseOrientation(); // both had been reversed and the intersection had been calculated
             }
             if (res.Count > 1)
             {   // an inward oriented shell (it encloses a negative volume) is a cavity and has to be added as a hole to the shell which contains

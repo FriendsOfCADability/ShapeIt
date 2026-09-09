@@ -521,7 +521,7 @@ namespace CADability.GeoObject
                     if (Precision.SameDirection(v1, v2, false))
                     {   // d.h. parallel
                         GeoVector v3 = c2.StartPoint - c1.StartPoint;
-                        if (!Precision.SameDirection(v1, v3, false))
+                        if (!Precision.SameDirection(v1, v3, false) && !v1.IsNullVector() && !v3.IsNullVector())
                         {
                             try
                             {

@@ -53,7 +53,7 @@ namespace CADability.Actions
         private bool Recalc()
         {
             if (toShell == null) return false;
-            Shell[] shell = ShellExtensions.GetOffsetNew(toShell, theDistance);
+            Shell[] shell = ShellExtensions.GetOffset(toShell, theDistance);
             // Shell[] shell = toShell.GetOffset(theDistance, true);
             if (shell != null && shell.Length == 1) base.ActiveObject = shell[0];
             return true;

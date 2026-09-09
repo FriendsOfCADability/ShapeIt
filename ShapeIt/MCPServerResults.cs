@@ -1,4 +1,4 @@
-// Central result envelope for MCP tool calls.
+﻿// Central result envelope for MCP tool calls.
 //
 // Most tool implementations (*Impl methods) only store their results in the namedItems
 // dictionary and do not build an explicit JSON result. Before this mechanism existed the
@@ -163,6 +163,50 @@ namespace ShapeIt
         private void NoteNameNotCreated(string name, string reason)
         {
             if (!string.IsNullOrEmpty(name)) emptyResultNames[name] = reason;
+        }
+
+        /// <summary>
+        /// Reports a result that is legitimately empty: marks the call as empty and explains in a
+        /// warning what came out empty and what happened to the name the result would have been
+        /// stored under. Nothing is stored - and when the caller omitted 'name', the result would
+        /// have replaced the input under its own name, so that entry is removed and appears in
+        /// "removed". Otherwise the client keeps working with a name that no longer holds what it
+        /// expects and the next call fails with an "unknown name" far away from the cause.
+        /// </summary>
+        /// <param name="cause">Complete sentence naming the tool and why its result is empty, e.g.
+        /// "'solid.offset' shrank the solid away completely - a valid outcome, not an error."</param>
+        /// <param name="name">The name the result would have been stored under: the requested one,
+        /// or the input's own name when 'name' was omitted. Null when there is neither.</param>
+        /// <param name="nameGiven">True when the caller passed 'name'. False means <paramref name="name"/>
+        /// is the input's own name, which the result would have replaced.</param>
+        private void ReportEmptyResult(string cause, string? name, bool nameGiven)
+        {
+            if (name == null)
+            {   // no name given and the input has none either: nothing to store, nothing to remove
+                NoteEmptyResult($"{cause} Nothing was stored in the workspace.");
+                return;
+            }
+            if (nameGiven)
+            {
+                if (namedItems.ContainsKey(name))
+                {   // the name was already in use: it keeps its previous value, which is not the
+                    // result of this call - saying so avoids the client mistaking it for one
+                    NoteEmptyResult($"{cause} Nothing was stored under the requested name '{name}', which still holds its previous value.");
+                    return;
+                }
+                NoteEmptyResult($"{cause} Nothing was stored under the requested name '{name}'.");
+                NoteNameNotCreated(name, $"The name was never created: {cause}");
+                return;
+            }
+            if (!namedItems.ContainsKey(name))
+            {
+                NoteEmptyResult($"{cause} Nothing was stored in the workspace.");
+                NoteNameNotCreated(name, $"The name was never created: {cause}");
+                return;
+            }
+            namedItems.Remove(name); // reported as "removed" through the change tracking
+            NoteEmptyResult($"{cause} Since no 'name' was given, the result would have replaced '{name}', which is therefore now removed from the workspace.");
+            NoteNameNotCreated(name, $"The name was removed: {cause} Since no 'name' was given, the result would have replaced '{name}', and an empty result leaves nothing behind.");
         }
 
         /// <summary>

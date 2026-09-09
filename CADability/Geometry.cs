@@ -1324,22 +1324,22 @@ namespace CADability
             try
             {
                 GeoVector xdir = l1Dir ^ l2Dir;
-                xdir.Norm();
-                Matrix m = DenseMatrix.OfRowArrays(l1Dir, l2Dir, xdir);
-                Vector b = new DenseVector(l2Start - l1Start);
-                Vector x = (Vector)m.Transpose().Solve(b);
-                if (x != null)
+                if (!xdir.IsNullVector())
                 {
-                    par1 = x[0];
-                    par2 = x[1];
-                    return Math.Abs(x[2]);
+                    xdir.Norm();
+                    Matrix m = DenseMatrix.OfRowArrays(l1Dir, l2Dir, xdir);
+                    Vector b = new DenseVector(l2Start - l1Start);
+                    Vector x = (Vector)m.Transpose().Solve(b);
+                    if (x != null)
+                    {
+                        par1 = x[0];
+                        par2 = x[1];
+                        return Math.Abs(x[2]);
+                    }
                 }
-                else
-                {
-                    par1 = double.MaxValue;
-                    par2 = double.MaxValue;
-                    return Geometry.DistPL(l2Start, l1Start, l1Dir);
-                }
+                par1 = double.MaxValue;
+                par2 = double.MaxValue;
+                return Geometry.DistPL(l2Start, l1Start, l1Dir);
             }
             catch (GeoVectorException)
             {
@@ -4144,7 +4144,7 @@ namespace CADability
                         double cl = circleToLine.Length;
                         if (cl < 1e-10 || // zero distance: line touches the circle at this point
                             (Math.Abs(perpToCircle / (cl * tangentToCircle.Length)) < 1e-5 &&
-                             Math.Abs(perpToLine   / (cl * unitLineDirection.Length)) < 1e-5))
+                             Math.Abs(perpToLine / (cl * unitLineDirection.Length)) < 1e-5))
                         {
                             res.Add(toWorld * onCircle);
                             res.Add(toWorld * onLine);
@@ -4160,7 +4160,7 @@ namespace CADability
                         cl = circleToLine.Length;
                         if (cl < 1e-10 || // zero distance: line touches the circle at this point
                             (Math.Abs(perpToCircle / (cl * tangentToCircle.Length)) < 1e-5 &&
-                             Math.Abs(perpToLine   / (cl * unitLineDirection.Length)) < 1e-5))
+                             Math.Abs(perpToLine / (cl * unitLineDirection.Length)) < 1e-5))
                         {
                             res.Add(toWorld * onCircle);
                             res.Add(toWorld * onLine);

@@ -2,7 +2,7 @@
   "profiles": {
     "ShapeIt": {
       "commandName": "Project",
-      "commandLineArgs": "-d \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\BRep\\UniteBug20.cdb.json\"",
+      "commandLineArgs": "-r \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\SolidOffsetGrowAndShrink.json\" -v:7060",
       "nativeDebugging": false,
       "hotReloadEnabled": true
     }

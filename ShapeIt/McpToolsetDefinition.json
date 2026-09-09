@@ -1,5 +1,5 @@
 {
-	"toolsetVersion": "shapeit.mcp.tools.v1.3",
+	"toolsetVersion": "shapeit.mcp.tools.v1.4",
 	"conventions": {
 		"names": "The workspace is a name-to-object map; a name is the only handle on an object, there are no object ids. Tools that create something from scratch therefore require 'name'. Tools that derive a result from an input object have an optional 'name': given, the result is stored under it and the input is left untouched; omitted, the result replaces the input under the input's own name. A name may hold a single object or a list; a list of one behaves like the object itself.",
 		"units": "Unless otherwise specified, length units are millimeters in numeric literals. Angles are degrees.",
@@ -3227,6 +3227,32 @@
 					"op",
 					"a",
 					"b"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "solid.offset",
+			"description": "Offsets solids by a signed distance: every face is replaced by its parallel surface, so a body grows outward (positive distance) or shrinks inward (negative distance). This is not a scaling - each face moves along its own normal, so a bore gets narrower when the body grows, and a convex fillet of radius r becomes r+distance. The convex edges when growing (or the concave edges when shrinking) are filleted and the vertices are filled with spherical patches. One call does not mean one body: 'solid' may name several solids, and shrinking can split a body into several separate solids or consume it completely. All parts of all inputs are collected under the one result name - a single part is stored as a solid, several as a list of solids; pick one out with workspace.select (target 'solids', filter 'contains' with a point inside the wanted part). A result that is empty because the bodies vanished succeeds with 'empty': true and stores nothing; growing can never come out empty, so an empty result there is reported as a failed operation. Faces and edges of the input that are held under workspace names are NOT rebound: every face of the offset body is a new surface at a new position, so re-select them with workspace.select after the offset.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"solid": {
+						"$ref": "#/types/NameRef",
+						"description": "The solid or solids to offset. Every named solid is offset by the same distance, and the results of all of them end up under the one result name."
+					},
+					"distance": {
+						"$ref": "#/types/ExpressionNumber",
+						"description": "Signed offset distance. Positive moves every face outward along its normal (the body grows), negative moves it inward (the body shrinks). Must not be 0."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the result. If omitted, the result is stored under the name of the first input solid and replaces it; any further input solids keep their previous value, so pass 'name' when offsetting several solids at once."
+					}
+				},
+				"required": [
+					"solid",
+					"distance"
 				],
 				"additionalProperties": false
 			}

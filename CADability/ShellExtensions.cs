@@ -689,7 +689,7 @@ namespace CADability.GeoObject
             }
             return result;
         }
-        public static Shell[] GetOffsetNew(this Shell shell, double offset)
+        public static Shell[] GetOffset(this Shell shell, double offset)
         {
             Dictionary<(Face, Edge), Edge> faceEdgeToParallelEdge = new Dictionary<(Face, Edge), Edge>(); // the parallel edges to the original edges, also depend on the face
             Dictionary<Vertex, List<Edge>> vertexToArcs = new Dictionary<Vertex, List<Edge>>(); // for each vertex there are the sides of the wedges, which build spherical wedges
@@ -878,7 +878,7 @@ namespace CADability.GeoObject
                 }
                 if (arcs.Count < 3) continue; // this is not a valid spherical face
                 GeoVector toOutside = GeoVector.NullVector;
-                foreach (Face face in vtx.Faces)
+                foreach (Face face in vtx.Faces.Intersect(shell.Faces)) // only use faces of this shell
                 {
                     GeoVector n = face.Surface.GetNormal(vtx.GetPositionOnFace(face));
                     toOutside += n.Normalized;
@@ -923,7 +923,7 @@ namespace CADability.GeoObject
                                              // faces contains all the faces for the offset shell, the edges are properly connected but some parts are standing out
             Shell.ConnectFaces(faces.ToArray(), Precision.eps);
             BooleanOperation bo = new BooleanOperation();
-            bo.SetFaces(faces);
+            bo.SetFaces(faces, offset>0);
             Shell[] res = bo.Execute();
             return res;
         }

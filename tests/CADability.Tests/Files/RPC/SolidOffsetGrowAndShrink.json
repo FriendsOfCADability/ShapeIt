@@ -1,0 +1,274 @@
+{
+  "Description": "Four independent bodies, each offset with solid.offset in both directions - the first regression case for that tool. Ids 1-3: a plain 40x30x20 block, grown by 3 and shrunk by 3; every edge is convex, nothing splits, and both results can be computed exactly. Ids 4-7: a cylinder r=20, h=60 with a transverse bore r=15 through its middle at z=30. Beside the bore only two crescent shaped webs of 5 mm thickness connect the upper half to the lower one, so shrinking by 4 has to consume them and break the body into TWO separate solids. Ids 8-14: a staircase built from three overlapping boxes - a prism over an 8-corner profile with 22 convex and 2 concave (reflex) vertical edges - offset in both directions, so one shape exercises both: growing rounds the 22 convex edges and trims at the 2 reflex ones, shrinking does exactly the opposite. Ids 15-19: a 40 mm cube with a 20 mm corner octant cut out, offset in both directions. Its vertices are the point of the case: at (40,20,20), (20,40,20) and (20,20,40) one concave and two convex edges meet, while (20,20,20) joins three concave edges - the vertex where GetOffset has to decide whether a spherical patch belongs there (it needs three arcs) or not.",
+  "Expected": "SIMPLE BLOCK (ids 2, 3), both exact. blockGrown is the Minkowski sum of the block with a ball of radius 3: V = a*b*c + A*r + pi*(a+b+c)*r^2 + 4/3*pi*r^3 = 24000 + 15600 + 810*pi + 36*pi = 42257.787385, A = 5200 + 576*pi = 7009.557368, extent -3,-3,-3 .. 43,33,23, surfaces PlaneSurface:6 CylindricalSurface:12 SphericalSurface:8 - one quarter cylinder per edge, one octant sphere per corner. blockShrunk is simply the block 34x24x14 at (3,3,3): V = 11424, A = 3256, extent 3,3,3 .. 37,27,17, surfaces PlaneSurface:6 and nothing else, because shrinking rounds concave edges and this body has none.\nPIERCED CYLINDER (id 7). The webs beside the bore are 5 mm thick, so their largest inscribed sphere has radius 2.5: an offset of -4 removes them completely and the result must be TWO solids ('solids': '2'). The two parts are mirror images of each other in the plane z=30, so their volumes and areas must be equal to each other - that is the strongest check here, since the volume of the pierced cylinder itself (two perpendicular cylinders of different radii) is not elementary. Each part is bounded by its flat end at z=56 resp. z=4, by the outer cylinder shrunk to r=16 and by the bore grown to r=19; the offset bore therefore reaches OUTSIDE the offset outer surface (19 > 16), which is why nothing is left near z=30. Extents follow from that: the upper part runs from z = 30 + sqrt(19^2-16^2) = 30 + sqrt(105) = 40.246951 to 56, the lower one from 4 to 19.753049, both within x,y = -16..16. Both parts closed and consistent.\nSTAIRCASE (ids 13, 14). The profile in the x-z plane is (0,0) (30,0) (30,10) (20,10) (20,20) (10,20) (10,30) (0,30), area 600, perimeter 120, extruded 20 in y: stairs has V = 12000 and A = 3600. stairsShrunk is exact, because a prism shrinks to the eroded profile times the shortened height. The eroded profile is the staircase moved in by 2 with its two reflex corners rounded to quarter circles of radius 2 - and the rounding ADDS material there rather than removing it: the sharp inner corner of the moved-in profile lies at distance 2*sqrt(2) from the original corner, so it survives the erosion, and what the arc cuts away is only the square minus the quarter disc. Area 376 + 2*(4-pi) = 384 - 2*pi = 377.716815, perimeter 104 - 2*(4-pi) = 102.283185, height 20-4 = 16. So V = 6144 - 32*pi = 6043.469035 and A = 2304 + 28*pi = 2391.964594, surfaces PlaneSurface:10 CylindricalSurface:2 - one quarter cylinder along each reflex edge and no sphere anywhere, since no vertex joins three concave edges. stairsGrown has no comparably simple volume (the reflex edges spoil the Steiner formula), but its topology is fixed: PlaneSurface:10 CylindricalSurface:22 SphericalSurface:12 - a fillet on each of the 22 convex edges, and a spherical patch only at the 12 vertices where three convex edges meet. The four vertices at the ends of the two reflex edges carry just two convex arcs and must NOT get a sphere; their two fillets have to meet each other.\nCORNER NOTCH (ids 18, 19). notched = 40^3 - 20^3 = 56000, A = 9600, 9 planar faces, 18 convex and 3 concave edges. notchShrunk is exact as well - the erosion of the 7/8 cube by a ball of radius 2 is the cube [2,38]^3 minus the corner octant dilated by 2: V = 46656 - (7776 + 166*pi/3) = 38880 - 166*pi/3 = 38706.165207, A = 7560 + 53*pi = 7726.504376, surfaces PlaneSurface:9 CylindricalSurface:3 SphericalSurface:1 - one fillet along each concave edge and exactly one spherical octant at (20,20,20), where three concave edges meet. notchGrown is computable too, if GetOffset really produces the Minkowski sum: the grown 40 cube 64000 + 9600*2 + 480*pi + 32*pi/3 = 83200 + 1472*pi/3 minus the part of the notch that stays further than 2 from the body, {x,y,z > 22} inside that grown cube, which is 7776 + 166*pi/3 - the same shape as in the erosion above. V = 75424 + 1306*pi/3 = 76791.64. It must read PlaneSurface:9 CylindricalSurface:18 SphericalSurface:10: the seven surviving cube corners plus (40,40,20), (40,20,40) and (20,40,40) have three convex edges each and get a sphere, while (40,20,20), (20,40,20) and (20,20,40) have only two convex edges next to their concave one and must not get one.\nAll ten verified results must be closed and consistent; a false in either field is a defect regardless of the measured values.",
+  "Status": "KNOWN FAIL (2026-09-09), written together with solid.offset. Kept without a baseline on purpose: two of the calls do not survive yet (see Actual), so there is nothing worth pinning. The values under Expected say what is right; once the results are accepted in the application (ShapeIt -r <file>), regenerate the baseline and set CaseStatus to Ok.",
+  "Actual": "SECOND MEASUREMENT (2026-09-09, after the SetFaces(faces, reverseOrientation) fix in BooleanOperation; four repeats, identical fingerprint every time). 18 of the 19 calls now succeed. Id 18 (notchGrown) is FIXED and matches the predicted topology exactly: 37 faces, PlaneSurface:9 CylindricalSurface:18 SphericalSurface:10, closed, consistent, extent -2..42. Id 13 (stairsGrown, +2) still fails with [-32603] 'Error in the application.' - an exception inside GetOffset, reproducible in all four runs; stairsGrown is therefore still recorded as 'exists': 'false'. Measured against the computed expectations: blockShrunk 11424 / 3256, notched 56000 / 9600 and stairs 12000 / 3600 are exact; stairsShrunk 6043.46903503 / 2391.9645943 matches the corrected closed form 6144-32*pi / 2304+28*pi to nine digits; notchShrunk 38706.3977549 / 7726.51799803 is 6e-6 resp. 2e-6 relative off the exact erosion values. Two open points, neither of them a failing call: (a) blockGrown 42260.0169234 / 7009.73103301 is 5.3e-5 resp. 2.5e-5 above the exact Minkowski values 42257.787385 / 7009.557368 - inside the harness tolerance of 1e-4, but two orders of magnitude worse than every other body here, and the bodies that differ are the ones with spherical patches. (b) notchGrown 76694.6547051 is 96.99 (1.3e-3) BELOW the computed Minkowski value 76791.64, so the grown body is missing material somewhere around the notch. (c) the two parts of piercedShrunk are mirror images and their areas agree to 1e-11, but their volumes differ by 1.376 (1.9e-4): 7145.3950907 for the lower part at z=4..19.63 against 7144.01904108 for the upper one at z=40.37..56, which looks like the position dependence of the volume integral rather than a difference in shape.",
+  "CaseStatus": "KnownFail",
+  "Repeat": 4,
+  "Verify": [
+    "blockGrown",
+    "blockShrunk",
+    "pierced",
+    "piercedShrunk",
+    "stairs",
+    "stairsGrown",
+    "stairsShrunk",
+    "notched",
+    "notchGrown",
+    "notchShrunk"
+  ],
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "block",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.offset",
+      "params": {
+        "solid": "block",
+        "distance": 3,
+        "name": "blockGrown"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.offset",
+      "params": {
+        "solid": "block",
+        "distance": -3,
+        "name": "blockShrunk"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "rod",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          60
+        ],
+        "radius": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "bore",
+        "start": [
+          -30,
+          0,
+          30
+        ],
+        "end": [
+          30,
+          0,
+          30
+        ],
+        "radius": 15
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "rod",
+        "b": "bore",
+        "name": "pierced",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.offset",
+      "params": {
+        "solid": "pierced",
+        "distance": -4,
+        "name": "piercedShrunk"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.box",
+      "params": {
+        "name": "stepA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 30,
+        "sizeY": 20,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.box",
+      "params": {
+        "name": "stepB",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 20,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.box",
+      "params": {
+        "name": "stepC",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 30
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "stepA",
+        "b": "stepB",
+        "name": "stairsAB",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "stairsAB",
+        "b": "stepC",
+        "name": "stairs",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.offset",
+      "params": {
+        "solid": "stairs",
+        "distance": 2,
+        "name": "stairsGrown"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.offset",
+      "params": {
+        "solid": "stairs",
+        "distance": -2,
+        "name": "stairsShrunk"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.box",
+      "params": {
+        "name": "cube",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 40,
+        "sizeZ": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.box",
+      "params": {
+        "name": "cornerTool",
+        "origin": [
+          20,
+          20,
+          20
+        ],
+        "sizeX": 30,
+        "sizeY": 30,
+        "sizeZ": 30
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cube",
+        "b": "cornerTool",
+        "name": "notched",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.offset",
+      "params": {
+        "solid": "notched",
+        "distance": 2,
+        "name": "notchGrown"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.offset",
+      "params": {
+        "solid": "notched",
+        "distance": -2,
+        "name": "notchShrunk"
+      }
+    }
+  ]
+}

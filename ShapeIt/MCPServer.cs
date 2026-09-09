@@ -6,6 +6,7 @@ using CADability.GeoObject;
 using CADability.Shapes;
 using CADability.Substitutes;
 using CdlToCSharp;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -22,7 +23,6 @@ using System.Xml.Linq;
 using static CADability.GeoObject.ShellExtensions;
 using static System.Runtime.InteropServices.JavaScript.JSType;
 using Plane = CADability.Plane;
-using MathNet.Numerics.LinearAlgebra.Factorization;
 
 namespace ShapeIt
 {
@@ -3729,8 +3729,8 @@ namespace ShapeIt
             {
                 for (int j = 0; j < minSamplesV; ++j)
                 {
-                    using var uu = new NamedItemOverride(namedItems, uMin + i * du,inspectPrecision, uParameter);
-                    using var vv = new NamedItemOverride(namedItems, vMin + j * dv,inspectPrecision, vParameter);
+                    using var uu = new NamedItemOverride(namedItems, uMin + i * du, inspectPrecision, uParameter);
+                    using var vv = new NamedItemOverride(namedItems, vMin + j * dv, inspectPrecision, vParameter);
                     double x = (double)Evaluator.Evaluate(xExpr, namedItems.Dict);
                     double y = (double)Evaluator.Evaluate(yExpr, namedItems.Dict);
                     double z = (double)Evaluator.Evaluate(zExpr, namedItems.Dict);
@@ -4030,42 +4030,56 @@ namespace ShapeIt
         };
 
         /// <summary>
-        /// Reports an empty boolean result: sets "empty" in the result envelope and explains in a
-        /// warning which operation was empty. Nothing is stored - and when the caller omitted 'name',
-        /// the result would have replaced operand 'a' under its own name, so 'a' has to be removed
-        /// and to appear in "removed". Otherwise the client keeps working with a name that is gone
-        /// and the next call fails with an "unknown name" far away from the cause.
+        /// Reports an empty boolean result: names the operation that came out empty, everything else
+        /// is the general handling in <see cref="ReportEmptyResult"/> - nothing is stored, and 'a' is
+        /// removed when the result would have replaced it.
         /// </summary>
         private void ReportEmptyBooleanResult(string op, string? name, bool nameGiven)
         {
             string cause = $"'solid.boolean' with op '{op}' produced an empty result"
                 + " - a valid outcome (e.g. intersecting disjoint solids, or subtracting a solid that fully contains the target), not an error.";
-            if (name == null)
-            {   // no name given and operand 'a' has none either: nothing to store, nothing to remove
-                NoteEmptyResult($"{cause} Nothing was stored in the workspace.");
-                return;
-            }
-            if (nameGiven)
+            ReportEmptyResult(cause, name, nameGiven);
+        }
+
+        /// <summary>
+        /// solid.offset: replaces every face of the solid by its parallel surface at the signed
+        /// distance and closes the gaps with fillets and spherical patches, see
+        /// ShellExtensions.GetOffset. Growing yields a single shell, shrinking may yield several
+        /// shells or none at all.
+        /// </summary>
+        private void SolidOffsetImpl(JsonElement solid, double distance, string? name)
+        {
+            if (Math.Abs(distance) < Precision.eps) throw new JsonRpcException("E_INVALID_PARAMS", "'distance' must not be 0.");
+            List<Solid> solidsToOffset = [];
+            solidsToOffset = IterateSelector<Solid>(solid).ToList();
+            if (solidsToOffset.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No solid found to offset.");
+            // Without a name the result replaces the input under the input's own name. That name has
+            // to come from the parameter: IterateSelector does not stash it in the object's UserData.
+            bool nameGiven = name != null;
+            if (name == null) name = FirstName(solid);
+            List<Solid> offsetSolids = [];
+            foreach (Solid sld in solidsToOffset)
             {
-                if (namedItems.ContainsKey(name))
-                {   // the name was already in use: it keeps its previous value, which is not the
-                    // result of this call - saying so avoids the client mistaking it for one
-                    NoteEmptyResult($"{cause} Nothing was stored under the requested name '{name}', which still holds its previous value.");
-                    return;
+                Shell[] offsets = sld.Shell.GetOffset(distance);
+                foreach (Shell shell in offsets)
+                {
+                    offsetSolids.AddIfNotNull(Solid.MakeSolid(shell));
                 }
-                NoteEmptyResult($"{cause} Nothing was stored under the requested name '{name}'.");
-                NoteNameNotCreated(name, $"The name was never created: {cause}");
-                return;
             }
-            if (!namedItems.ContainsKey(name))
+            if (offsetSolids.Count == 0)
             {
-                NoteEmptyResult($"{cause} Nothing was stored in the workspace.");
-                NoteNameNotCreated(name, $"The name was never created: {cause}");
+                // Only shrinking can legitimately end in nothing, the body is then consumed by its
+                // own offset. Growing always has to produce a body, so nothing coming back there is
+                // a failed operation, not an answer, and must not be dressed up as an empty result.
+                if (distance > 0) throw new JsonRpcException("E_OPERATION_FAILED", "Offsetting the solid failed.");
+                ReportEmptyResult("'solid.offset' with a negative distance shrank the solid away completely - a valid outcome, not an error.", name, nameGiven);
                 return;
             }
-            namedItems.Remove(name); // reported as "removed" through the change tracking
-            NoteEmptyResult($"{cause} Since no 'name' was given, the result would have replaced operand '{name}', which is therefore now removed from the workspace.");
-            NoteNameNotCreated(name, $"The name was removed: {cause} Since no 'name' was given, the result replaced operand '{name}', and an empty result leaves nothing behind.");
+            if (name != null)
+            {
+                if (offsetSolids.Count == 1) namedItems[name] = offsetSolids[0];
+                else namedItems[name] = offsetSolids;
+            }
         }
 
         private void PatternCircularSolidsImpl(JsonElement objects, Axis axis, int count, double angle, string name, bool suffix)

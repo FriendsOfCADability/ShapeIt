@@ -94,7 +94,7 @@ namespace ShapeIt
                     }
                 case BRepOperationKind.OffsetShell:
                     {
-                        Shell[] result = ShellExtensions.GetOffsetNew(testCase.Operands[0], testCase.Parameter);
+                        Shell[] result = ShellExtensions.GetOffset(testCase.Operands[0], testCase.Parameter);
                         return result;
                     }
                 default:

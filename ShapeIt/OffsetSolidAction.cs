@@ -55,7 +55,7 @@ namespace ShapeIt
         {
             feedback.Clear();
             Shell shell = solid.Shells[0].Clone() as Shell;
-            result = ShellExtensions.GetOffsetNew(shell, length);
+            result = ShellExtensions.GetOffset(shell, length);
             if (result.Length > 0)
             {
                 for (int i = 0; i < result.Length; i++)
