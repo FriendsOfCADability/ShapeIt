@@ -2,7 +2,7 @@
   "profiles": {
     "ShapeIt": {
       "commandName": "Project",
-      "commandLineArgs": "-r \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\SolidOffsetGrowAndShrink.json\" -v:7060",
+      "commandLineArgs": "-r \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\OffsetUntilLegsTouch.json\" -f:2973 -f.2977",
       "nativeDebugging": false,
       "hotReloadEnabled": true
     }
