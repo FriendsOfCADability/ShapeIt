@@ -1687,6 +1687,7 @@ namespace CADability.GeoObject
             res.endParam = this.endParam;
             res.maxDegree = this.maxDegree;
             if (this.throughPoints3d != null) res.throughPoints3d = (GeoPoint[])this.throughPoints3d.Clone();
+            if (this.throughPointsParam != null) res.throughPointsParam = (double[])this.throughPointsParam.Clone();
             if (this.direction3D != null) res.direction3D = (GeoVector[])this.direction3D.Clone();
             res.CopyAttributes(this);
             --res.isChanging;

@@ -112,7 +112,6 @@ namespace CADability.GeoObject
     [Serializable()]
     public class SweptCircle : ISurfaceImpl, ISerializable, IJsonSerialize, ISurfaceOfExtrusion
     {
-        // with help from https://chatgpt.com/c/686bffb7-52b0-8013-955c-8331d5ce2ad2
         private ICurve spine; // spine curve for the pipe
         private double radius; // radius of the pipe, when negative, the normal of the surface points towwards the spine curve
         private GeoVector normal; // when spine curve is planar, this is the normal vector to the plane. When n is the nullvector we use the Frenet frame

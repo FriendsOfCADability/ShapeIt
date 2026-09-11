@@ -925,6 +925,11 @@ namespace CADability.GeoObject
         }
         public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {   // hier sollten die Schnitte mit Ebene, Cylinder, Kegel und Kugel gelöst werden
+            // Two surfaces which are rotationally symmetric about the same axis intersect in circles, and those
+            // are found in one meridian section. This covers cylinder, cone, torus, surfaces of revolution and a
+            // sphere centered on the axis in one place; it returns null when there is no common axis.
+            IDualSurfaceCurve[] onCommonAxis = Surfaces.IntersectOnCommonAxis(this, thisBounds, other, otherBounds);
+            if (onCommonAxis != null) return onCommonAxis;
             // mit höheren Flächen sollte bei diesen (also z.B. Torus) implementiert werden
             if (other is PlaneSurface pls)
             {   // das Ergebnis sollte aus einer möglichst nicht geschlossenen Kurve bestehen
@@ -957,22 +962,6 @@ namespace CADability.GeoObject
                     res.Add(new DualSurfaceCurve(elli, this, pc, other, opc));
                 }
                 return res.ToArray();
-            }
-            else if (other is ICylinder cyl)
-            {
-                if (cyl.Axis.Distance(this.Location) < Precision.eps && Math.Abs(cyl.Radius - this.RadiusX) < Precision.eps)
-                {   // this sphere is touching the cylinder:
-                    Plane pln = new Plane(Location, cyl.Axis.Direction); // the plane through center of this sphere, perpendicular to the cylinder axis
-                    IDualSurfaceCurve[] cylcrv = other.GetPlaneIntersection(new PlaneSurface(pln), otherBounds.Left, otherBounds.Right, otherBounds.Bottom, otherBounds.Top, 0.0);
-                    if (cylcrv != null && cylcrv.Length == 1)
-                    {
-                        if (cylcrv[0].Curve3D is Ellipse elli)
-                        {
-                            ICurve2D pc = this.GetProjectedCurve(elli, 0.0);
-                            return new IDualSurfaceCurve[] { new DualSurfaceCurve(elli, this, pc, other, cylcrv[0].Curve2D1) };
-                        }
-                    }
-                }
             }
             else if (other is SphericalSurface sp && this.IsRealSphere && sp.IsRealSphere)
             {

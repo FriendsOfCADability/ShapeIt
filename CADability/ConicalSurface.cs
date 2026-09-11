@@ -3,6 +3,7 @@ using CADability.Shapes;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.Serialization;
 
 namespace CADability.GeoObject
@@ -957,24 +958,31 @@ namespace CADability.GeoObject
             {   // planar intersections of the cone are simple. If the other curve is also planar, we can do it in 2D
                 Plane pl = curve.GetPlane();
                 IDualSurfaceCurve[] dsc = GetPlaneIntersection(new PlaneSurface(pl), uvExtent.Left, uvExtent.Right, uvExtent.Bottom, uvExtent.Top, Precision.eps);
-                if (dsc != null && dsc.Length == 1)
+
+                if (dsc != null && dsc.Length > 0) // normally an ellipse or parabola, but also two lines
                 {
-                    ICurve2D c2dcone = dsc[0].Curve3D.GetProjectedCurve(pl);
-                    ICurve2D c2d = curve.GetProjectedCurve(pl);
-                    GeoPoint2DWithParameter[] ips2d = c2d.Intersect(c2dcone);
-                    if (ips2d != null)
+                    List<GeoPoint> lips = [];
+                    List<GeoPoint2D> luvOnFaces = [];
+                    List<double> luOnCurve3Ds = [];
+                    for (int j = 0; j < dsc.Length; j++)
                     {
-                        ips = new GeoPoint[ips2d.Length];
-                        uvOnFaces = new GeoPoint2D[ips2d.Length];
-                        uOnCurve3Ds = new double[ips2d.Length];
-                        for (int i = 0; i < ips2d.Length; i++)
+                        ICurve2D c2dcone = dsc[j].Curve3D.GetProjectedCurve(pl);
+                        ICurve2D c2d = curve.GetProjectedCurve(pl);
+                        GeoPoint2DWithParameter[] ips2d = c2d.Intersect(c2dcone);
+                        if (ips2d != null)
                         {
-                            ips[i] = pl.ToGlobal(ips2d[i].p);
-                            uvOnFaces[i] = this.PositionOf(ips[i]);
-                            uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
+                            for (int i = 0; i < ips2d.Length; i++)
+                            {
+                                lips.Add(pl.ToGlobal(ips2d[i].p));
+                                luvOnFaces.Add(this.PositionOf(lips.Last()));
+                                luOnCurve3Ds.Add(curve.PositionOf(lips.Last()));
+                            }
                         }
-                        return;
                     }
+                    ips = lips.ToArray();
+                    uvOnFaces = luvOnFaces.ToArray();
+                    uOnCurve3Ds = luOnCurve3Ds.ToArray();
+                    return;
                 }
             }
             base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
@@ -1339,6 +1347,11 @@ namespace CADability.GeoObject
         }
         public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {
+            // Two surfaces which are rotationally symmetric about the same axis intersect in circles, and those
+            // are found in one meridian section. This covers cylinder, cone, torus, surfaces of revolution and a
+            // sphere centered on the axis in one place; it returns null when there is no common axis.
+            IDualSurfaceCurve[] onCommonAxis = Surfaces.IntersectOnCommonAxis(this, thisBounds, other, otherBounds);
+            if (onCommonAxis != null) return onCommonAxis;
             if (other is PlaneSurface)
             {
                 IDualSurfaceCurve[] res = GetPlaneIntersection(other as PlaneSurface, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, Precision.eps);
@@ -1349,7 +1362,9 @@ namespace CADability.GeoObject
                 if (Precision.SameAxis(sr.Axis, (this as ISurfaceOfRevolution).Axis))
                 {   // two surfaces of revolution with the same axis
                     List<IDualSurfaceCurve> res = new List<IDualSurfaceCurve>();
-                    Intersect(sr.Curve, thisBounds, out GeoPoint[] ips, out GeoPoint2D[] uvOnFace, out double[] uOnCurve3D);
+                    BoundingRect fullBounds = new BoundingRect(0.0, thisBounds.Bottom, 2.0 * Math.PI, thisBounds.Top);
+                    // we must use the full bounds, because the curve of the other surface might be outside of the bounds of this surface, but still intersect it
+                    Intersect(sr.Curve, fullBounds, out GeoPoint[] ips, out GeoPoint2D[] uvOnFace, out double[] uOnCurve3D);
                     for (int i = 0; i < uvOnFace.Length; i++)
                     {
                         ICurve cv = FixedV(uvOnFace[i].y, thisBounds.Left, thisBounds.Right);

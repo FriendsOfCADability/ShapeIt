@@ -491,18 +491,21 @@ namespace CADability
                 }
                 if (sameOrientation)
                 {
-                    if (!faceToOverlappingFaces.TryGetValue(fc1, out var overlapping))
-                    {
-                        overlapping = new Dictionary<Face, ModOp2D>();
-                        faceToOverlappingFaces[fc1] = overlapping;
+                    if (multipleFaces == null || !fc1.AllEdgesSet.Intersect(fc2.AllEdgesSet).Any())
+                    {   // in case of multipleFaces, this might be splitted cylical faces
+                        if (!faceToOverlappingFaces.TryGetValue(fc1, out var overlapping))
+                        {
+                            overlapping = new Dictionary<Face, ModOp2D>();
+                            faceToOverlappingFaces[fc1] = overlapping;
+                        }
+                        overlapping[fc2] = firstToSecond;
+                        if (!faceToOverlappingFaces.TryGetValue(fc2, out overlapping))
+                        {
+                            overlapping = new Dictionary<Face, ModOp2D>();
+                            faceToOverlappingFaces[fc2] = overlapping;
+                        }
+                        overlapping[fc1] = firstToSecond.GetInverse();
                     }
-                    overlapping[fc2] = firstToSecond;
-                    if (!faceToOverlappingFaces.TryGetValue(fc2, out overlapping))
-                    {
-                        overlapping = new Dictionary<Face, ModOp2D>();
-                        faceToOverlappingFaces[fc2] = overlapping;
-                    }
-                    overlapping[fc1] = firstToSecond.GetInverse();
                 }
                 else
                 {
@@ -528,6 +531,8 @@ namespace CADability
                     foreach (Edge edgb in fc2.Edges)
                     {
                         if (edgb.Curve3D == null) continue;
+                        if (edga == edgb) continue; // same edge, no intersection
+                        if (edga.Curve3D.SameGeometry(edgb.Curve3D, precision)) continue; // same curve, no intersection
                         Curves.Intersect(edga.Curve3D, edgb.Curve3D, out double[] par1, out double[] par2, out GeoPoint[] ip);
                         for (int i = 0; i < ip.Length; i++)
                         {
@@ -719,6 +724,18 @@ namespace CADability
                 }
                 if (intersectionVertices.Count > 1)
                 {
+                    if (multipleFaces != null)
+                    {   // When there is an common edge of fc1 and fc2 which can be used as the intersection, we don't need to create new intersection edges
+                        List<Edge> commonEdges = fc1.AllEdges.Intersect(fc2.AllEdges).ToList();
+                        for (int i = 0; i < commonEdges.Count; i++)
+                        {
+                            if (intersectionVertices.Contains(commonEdges[i].Vertex1) && intersectionVertices.Contains(commonEdges[i].Vertex2))
+                            {
+                                intersectionVertices.ExceptWith(commonEdges[i].Vertices);
+                            }
+                        }
+                        if (intersectionVertices.Count < 2) return;
+                    }
                     CreateIntersectionEdges(fc1, fc2, intersectionVertices, null, null);
                 }
             }

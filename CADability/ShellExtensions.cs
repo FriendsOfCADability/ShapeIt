@@ -593,6 +593,11 @@ namespace CADability.GeoObject
                         bdr = new Border(new ICurve2D[] { c2, c3, c4, new Line2D(c4.EndPoint, c2.StartPoint) });
                     }
                     Face res = Face.MakeFace(toroidalSurface, new SimpleShape(bdr));
+                    // orientation for the toroidalSurface is difficult, so we fix it here
+                    res.Surface.DerivativeAt(bdr.Extent.GetCenter(), out GeoPoint loc, out GeoVector du, out GeoVector dv);
+                    GeoPoint locOnAxis = axis.Curve3D.PointAt(axis.Curve3D.PositionOf(loc));
+                    double dd = (du ^ dv) * (locOnAxis - loc);
+                    if (Math.Sign(dd) == Math.Sign(radius)) res.ReverseOrientation();
                     if (!dontUseForward) res.UseEdge(forward);
                     if (!dontUseBackward) res.UseEdge(backward);
                     return res;
@@ -600,6 +605,10 @@ namespace CADability.GeoObject
                 else
                 {
                     Face res = Face.MakeFace(toroidalSurface, new SimpleShape(bdr));
+                    res.Surface.DerivativeAt(bdr.Extent.GetCenter(), out GeoPoint loc, out GeoVector du, out GeoVector dv);
+                    GeoPoint locOnAxis = axis.Curve3D.PointAt(axis.Curve3D.PositionOf(loc));
+                    double dd = (du ^ dv) * (locOnAxis - loc);
+                    if (Math.Sign(dd) == Math.Sign(radius)) res.ReverseOrientation();
                     res.UseEdge(forward);
                     res.UseEdge(backward);
                     return res;

@@ -930,6 +930,11 @@ namespace CADability.GeoObject
         }
         public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {
+            // Two surfaces which are rotationally symmetric about the same axis intersect in circles, and those
+            // are found in one meridian section. This covers cylinder, cone, torus, surfaces of revolution and a
+            // sphere centered on the axis in one place; it returns null when there is no common axis.
+            IDualSurfaceCurve[] onCommonAxis = Surfaces.IntersectOnCommonAxis(this, thisBounds, other, otherBounds);
+            if (onCommonAxis != null) return onCommonAxis;
             if (seeds == null && extremePositions != null)
             {
                 if (extremePositions.Count > 0)

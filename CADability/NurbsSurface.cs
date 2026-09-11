@@ -452,7 +452,7 @@ namespace CADability.GeoObject
             this.uMults = um.ToArray();
             this.vKnots = vk.ToArray();
             this.vMults = vm.ToArray();
-            this.uPeriodic = true;
+            this.uPeriodic = !throughEllis[0].IsArc;
 
             Init();
 #if DEBUG
