@@ -9501,7 +9501,7 @@ namespace CADability.GeoObject
             BoundingRect modifiedBounds = Area.GetExtent();
             ModOp2D m = surface.ReverseOrientation();
             modifiedBounds.Modify(m);
-            if (surface is ISurfaceImpl si) si.usedArea.Modify(m);
+            // surface.usedArea has already been modified by ReverseOrientation
             ICurve2D[] segments = new ICurve2D[outline.Length];
             for (int i = 0; i < outline.Length; ++i)
             {
@@ -9614,7 +9614,11 @@ namespace CADability.GeoObject
             }
             for (int i = 0; i < sss.Length; i++)
             {
-                dc.Add(surface.Make3dCurve(sss[i]) as IGeoObject);
+                try
+                {
+                    dc.Add(surface.Make3dCurve(sss[i]) as IGeoObject);
+                }
+                catch { } // this might be a pole
             }
 #endif
         }
@@ -10185,6 +10189,7 @@ namespace CADability.GeoObject
                 if (((outline[i].PrimaryFace == outline[j].PrimaryFace) && (outline[i].SecondaryFace == outline[j].SecondaryFace)) ||
                     ((outline[i].SecondaryFace == outline[j].PrimaryFace) && (outline[i].PrimaryFace == outline[j].SecondaryFace)))
                 {
+                    if (outline[i].Curve3D == null || outline[j].Curve3D == null) continue;
                     GeoVector dir1 = (outline[i].Forward(this) ? outline[i].Curve3D.EndDirection : -outline[i].Curve3D.StartDirection);
                     GeoVector dir2 = (outline[j].Forward(this) ? outline[j].Curve3D.StartDirection : -outline[j].Curve3D.EndDirection);
                     // only combine edges if they connect taangentially
@@ -11194,7 +11199,7 @@ namespace CADability.GeoObject
             foreach (Edge edg in Edges)
             {
                 if (edg.PrimaryFace != this && edg.SecondaryFace != this) return false;
-                if (edg.SecondaryFace != null && edg.Forward(edg.PrimaryFace) == edg.Forward(edg.SecondaryFace)) return false; // wrong orientation of the two connected faces 
+                if (edg.Curve3D != null && edg.SecondaryFace != null && edg.Forward(edg.PrimaryFace) == edg.Forward(edg.SecondaryFace)) return false; // wrong orientation of the two connected faces 
             }
             // sind die 2d Kurven richtig orientiert?
             foreach (Edge edg in Edges)

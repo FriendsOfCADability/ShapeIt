@@ -1078,7 +1078,9 @@ namespace CADability
         }
         public override ICurve2D Clone()
         {
-            return new ProjectedCurve(curve3D, surface, startParam, endParam, periodicDomain);
+            ICurve2D res = new ProjectedCurve(curve3D, surface, startParam, endParam, periodicDomain);
+            res.UserData.CloneFrom(this.UserData);
+            return res;
         }
         public override void Copy(ICurve2D toCopyFrom)
         {

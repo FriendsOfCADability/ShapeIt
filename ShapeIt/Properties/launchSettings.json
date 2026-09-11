@@ -2,7 +2,7 @@
   "profiles": {
     "ShapeIt": {
       "commandName": "Project",
-      "commandLineArgs": "-r \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\OffsetQuadricSurfaces.json\" -e:3521",
+      "commandLineArgs": "-r \"C:\\Users\\gerha\\source\\repos\\ShapeIt\\tests\\CADability.Tests\\Files\\RPC\\OffsetClosesPinholeCavity.json\" ",
       "nativeDebugging": false,
       "hotReloadEnabled": true
     }
