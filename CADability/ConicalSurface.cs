@@ -1265,40 +1265,35 @@ namespace CADability.GeoObject
             return Geometry.DistPL(PointAt(mp), PointAt(sp), PointAt(ep));
         }
 
+        /// <summary>
+        /// Which of the two nappes of the cone this surface is used on. The parameter v is the signed distance
+        /// from the apex along a surface line, and it never changes its sign within a face: the used area lies
+        /// either completely on one side of the apex or completely on the other. Both nappes are oriented
+        /// outward, so the same offset has to move the apex in opposite directions on them.
+        /// <see cref="ISurfaceImpl.usedArea"/> is the only place that carries this information; when it is empty
+        /// - a surface that is not bound to a face - the positive nappe is assumed.
+        /// </summary>
+        private bool OnPositiveNappe => usedArea.IsEmpty() || usedArea.GetCenter().y + voffset >= 0.0;
         public override ISurface GetOffsetSurface(double offset)
         {
             return GetOffsetSurface(offset, out ModOp2D dumy);
         }
         public override ISurface GetOffsetSurface(double offset, out ModOp2D mod)
         {
-            // nur zum Überprüfen:
-            //GeoPoint2D uv00 = GeoPoint2D.Origin; 
-            //GeoPoint2D uv01 = new GeoPoint2D(Math.PI, 0);
-            //GeoPoint2D uv10 = new GeoPoint2D(0, 1);
-            //GeoPoint2D uv11 = new GeoPoint2D(Math.PI, 1);
-            //GeoPoint p00 = PointAt(uv00) + offset * GetNormal(uv00).Normalized;
-            //GeoPoint p01 = PointAt(uv01) + offset * GetNormal(uv01).Normalized;
-            //GeoPoint p10 = PointAt(uv10) + offset * GetNormal(uv10).Normalized;
-            //GeoPoint p11 = PointAt(uv11) + offset * GetNormal(uv11).Normalized;
-            //double par1, par2;
-            //double dd = Geometry.DistLL(p00, p10 - p00, p01, p11 - p01, out par1, out par2);
-            //GeoPoint apex = p00 + par1 * (p10 - p00);
+            // The offset surface of a cone is the same cone with its apex moved along the axis: moving the
+            // surface outward by "offset" perpendicular to itself grows the radius at a fixed axial position by
+            // offset/cos(semiAngle), which is exactly what shifting the apex by offset/sin(semiAngle) does. On
+            // the negative nappe "outward" points the other way round the axis, hence the sign.
             double oa2 = OpeningAngle / 2.0;
-            // sin(oa2) = offset/l
-            double l = offset / Math.Sin(oa2);
+            double signedOffset = OnPositiveNappe ? offset : -offset;
+            // sin(oa2) = signedOffset/l
+            double l = signedOffset / Math.Sin(oa2);
             GeoPoint apex = Location - l * ZAxis.Normalized;
             ConicalSurface res = new ConicalSurface(apex, XAxis.Normalized, YAxis.Normalized, ZAxis.Normalized, oa2, 0);
-            GeoPoint p0 = PointAt(GeoPoint2D.Origin) + offset * GetNormal(GeoPoint2D.Origin).Normalized;
-            GeoPoint2D uv0 = res.PositionOf(p0);
-            GeoPoint p1 = PointAt(new GeoPoint2D(0, 1)) + offset * GetNormal(new GeoPoint2D(0, 1)).Normalized;
-            GeoPoint2D uv1 = res.PositionOf(p1);
-            mod = ModOp2D.Translate(0, uv0.y) * ModOp2D.Scale(1.0, (uv1.y - uv0.y));
-#if DEBUG
-            SimpleShape ss = new SimpleShape(Border.MakeRectangle(0, Math.PI, 0, 100));
-            Face dbg1 = Face.MakeFace(this, ss);
-            Face dbg2 = Face.MakeFace(res, ss.GetModified(mod));
-            GeoObjectList dbgl = new GeoObject.GeoObjectList(dbg1, dbg2);
-#endif
+            // The offset surface uses the same u and a shifted v: a point at the distance (v+voffset) from the
+            // apex ends up at the distance (v+voffset) + signedOffset/tan(semiAngle) from the new apex, and the
+            // result has no voffset of its own, so that shift is part of the mapping as well.
+            mod = ModOp2D.Translate(0.0, voffset + signedOffset / Math.Tan(oa2));
             return res;
         }
         public override ICurve[] Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds)

@@ -689,6 +689,24 @@ namespace CADability.GeoObject
             }
             return result;
         }
+        /// <summary>
+        /// The 2d curve of <paramref name="edge"/> for the offset of <paramref name="face"/>: the curve it has on
+        /// the original face, moved into the (u,v) system of the offset surface. For every surface except the cone
+        /// that system is the same one and <paramref name="toOffsetUv"/> is the identity.
+        /// </summary>
+        private static ICurve2D OffsetCurve2D(Edge edge, Face face, ModOp2D toOffsetUv)
+        {
+            ICurve2D c2d = edge.Curve2D(face).Clone();
+            if (c2d is InterpolatedDualSurfaceCurve.ProjectedCurve pc) c2d = pc.ToBSpline(0.0);
+            if (c2d is Path2D)
+            {   // sine curve is not maintained (14.6.25) but was converted to Path2D
+                c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);
+                if (!edge.Forward(face)) c2d.Reverse();
+            }
+            if (!toOffsetUv.IsIdentity) c2d = c2d.GetModified(toOffsetUv);
+            c2d.UserData.Add("CADability.CurveToEdge", edge);
+            return c2d;
+        }
         public static Shell[] GetOffset(this Shell shell, double offset)
         {
             Dictionary<(Face, Edge), Edge> faceEdgeToParallelEdge = new Dictionary<(Face, Edge), Edge>(); // the parallel edges to the original edges, also depend on the face
@@ -704,65 +722,26 @@ namespace CADability.GeoObject
                                                                                // set UserData with the original face and edge references to 
             foreach (Face face in shell.Faces)
             {   // makeparallel faces with the provided offset
-                ISurface offsetSurface = face.Surface.GetOffsetSurface(offset);
+                // The offset surface usually uses the same (u,v) system as the original one, so the 2d curves of
+                // the face can be taken over unchanged. The cone is the exception: its v is shifted by the offset,
+                // and GetOffsetSurface tells by how much. Same pattern as Face.GetOffsetFace.
+                ModOp2D toOffsetUv = ModOp2D.Identity;
+                ISurface offsetSurface;
+                if (face.Surface is ConicalSurface conicalSurface) offsetSurface = conicalSurface.GetOffsetSurface(offset, out toOffsetUv);
+                else offsetSurface = face.Surface.GetOffsetSurface(offset);
                 if (offsetSurface == null) continue; // a sphere, cylinder or torus shrinking to 0
                 GeoPoint2D cnt = face.Domain.GetCenter();
                 // if the orentation is reversed (e.g. a cylinder will have a negativ radius) or the surface disappears, don't use it
                 if (offsetSurface != null) // 
                 {
                     List<ICurve2D> outline = new List<ICurve2D>();
-                    foreach (Edge edge in face.OutlineEdges)
-                    {
-                        if (offsetSurface is ConicalSurface) // or any other surface, where the u/v system of the offset differs from the u/v system of the original (which are those?)
-                        {
-                            ICurve2D c2d = offsetSurface.GetProjectedCurve(edge.Curve3D, Precision.eps);
-                            // what about orientation?
-                            if (!edge.Forward(face)) c2d.Reverse(); // not tested!
-                            if (c2d != null)
-                            {
-                                SurfaceHelper.AdjustPeriodic(offsetSurface, face.Domain, c2d);
-                                outline.Add(c2d);
-                                c2d.UserData.Add("CADability.CurveToEdge", edge);
-                            }
-                            ICurve dbg = offsetSurface.Make3dCurve(c2d);
-                        }
-                        else
-                        {   // surfaces and offset surfaces usually have the same u/v system, i.e. 2d curves on both are parallel with the distance "offset"
-                            ICurve2D c2d = edge.Curve2D(face).Clone();
-                            if (c2d is InterpolatedDualSurfaceCurve.ProjectedCurve pc) c2d = pc.ToBSpline(0.0);
-                            if (c2d is Path2D)
-                            {
-                                c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0); // sine curve is not maintained (14.6.25) but was converted to Path2D
-                                if (!edge.Forward(face)) c2d.Reverse();
-                            }
-                            outline.Add(c2d);
-                            c2d.UserData.Add("CADability.CurveToEdge", edge);
-                        }
-                    }
+                    foreach (Edge edge in face.OutlineEdges) outline.Add(OffsetCurve2D(edge, face, toOffsetUv));
                     Border outlineBorder = new Border(outline.ToArray(), true);
                     List<Border> holes = new List<Border>();
                     for (int i = 0; i < face.HoleCount; i++)
                     {
                         List<ICurve2D> hole = new List<ICurve2D>();
-                        foreach (Edge edge in face.HoleEdges(i))
-                        {
-                            if (offsetSurface is ConicalSurface) // or any other surface, where the u/v system of the offset differs from the u/v system of the original (which are those?)
-                            {
-                                ICurve2D c2d = offsetSurface.GetProjectedCurve(edge.Curve3D, Precision.eps);
-                                if (c2d != null)
-                                {
-                                    SurfaceHelper.AdjustPeriodic(offsetSurface, face.Domain, c2d);
-                                    hole.Add(c2d);
-                                    c2d.UserData.Add("CADability.CurveToEdge", edge);
-                                }
-                            }
-                            else
-                            {   // surfaces and offset surfaces usually have the same u/v system, i.e. 2d curves on both are parallel with the distance "offset"
-                                ICurve2D c2d = edge.Curve2D(face).Clone();
-                                hole.Add(c2d);
-                                c2d.UserData.Add("CADability.CurveToEdge", edge);
-                            }
-                        }
+                        foreach (Edge edge in face.HoleEdges(i)) hole.Add(OffsetCurve2D(edge, face, toOffsetUv));
                         Border holeBorder = new Border(hole.ToArray(), true);
                         holes.Add(holeBorder);
                     }
@@ -792,7 +771,7 @@ namespace CADability.GeoObject
                         }
                     }
                     faceToOffsetFace[face] = offsetFace;
-                    if (offsetSurface.GetNormal(cnt) * face.Surface.GetNormal(cnt) < 0)
+                    if (offsetSurface.GetNormal(toOffsetUv * cnt) * face.Surface.GetNormal(cnt) < 0)
                     {   // this face is reversed, e.g. a cylinder, which now has negative radius
                         // we still need to create it, because we need the edges for the fillets, but we do not use it in the result
                         inverseFaces.Add(offsetFace);
