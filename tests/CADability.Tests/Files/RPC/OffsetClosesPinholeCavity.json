@@ -1,7 +1,7 @@
 {
   "Description": "A hollow ball with a pinhole: a ball of radius 20 with a concentric spherical cavity of radius 12, and a bore of radius 2 from the cavity out through the wall along +z. The cavity is therefore not a cavity yet - the body has one single connected boundary. Growing by 3 has to close the bore, because the wall grows 3 from every side while the bore is only 2 wide, so the cavity becomes a real one and the result must be a hollow ball again. Shrinking by 3 is the counter-test: the wall thins from 8 to 2 and the bore widens, so the body stays a single open surface.",
   "Expected": "hollowBall is exact: V = 4/3*pi*(20^3-12^3) = 26272.0922, A = 4*pi*(400+144) = 6836.1056, two spherical faces and euler 4 - two closed components, the hull and the cavity. pinholed joins the two spheres through the bore, so it is ONE component: euler 2, with a cylindrical face for the bore. The point of the case is pinholeGrown: closed, consistent, and euler 4 again, the cavity back as a component of its own. Its volume is a little below 4/3*pi*(23^3-9^3) = 47911.3824, because the cavity keeps a small bulge along the bore axis: the nearest material to an axis point is the rim of the hole in the cavity wall, at sqrt(2^2+(12-t)^2) instead of 12-t, so the cavity reaches to t = 12-sqrt(3^2-2^2) = 9.7639 rather than 9. pinholeShrunk must stay one component (euler 2), outer radius 17, cavity radius 15, and therefore clearly below 4/3*pi*(17^3-15^3) = 6442.3593, since the bore, now 5 wide, takes a bite out of the 2 mm wall that is left.",
-  "CaseStatus": "KnownFail",
+  "CaseStatus": "Ok",
   "Repeat": 4,
   "Verify": [
     "hollowBall",
@@ -9,6 +9,78 @@
     "pinholeGrown",
     "pinholeShrunk"
   ],
+  "Status": "PASSES (2026-09-11). Keep as a regression guard for the topology change an offset can cause: growing turns a body with one single boundary into one with a real cavity. Written while that did not work at all - see Actual for the three stages it went through.",
+  "Actual": "THIRD MEASUREMENT (2026-09-11, after the DualSurfaceCurve and Face changes; four repeats, identical every time). All 7 calls succeed and pinholeGrown is right: euler 4, closed, consistent, hull and cavity as two spheres plus the two toroidal patches that the dilation of the hole rims produces, extent -23..22.8997. The details are in the verified notes of the baseline.\nSECOND MEASUREMENT (2026-09-11, commit b18bae66): call 6 came back EMPTY, reported as [9999] 'Offsetting the solid failed'. The NURBS error of the first measurement was gone by then, closing the pinhole simply produced no shell.\nFIRST MEASUREMENT (2026-09-09): call 6 failed with [-32603] 'lenth of knots and poles not compatible with degree', a NURBS construction error inside GetOffset.",
+  "Baseline": {
+    "hollowBall": {
+      "verified": "2026-09-11: the input body, exact: V = 4/3*pi*(20^3-12^3) = 26272.0922, A = 4*pi*(400+144) = 6836.1056, recorded 8e-5 resp. 9e-5 above (mesh bias of the two spherical faces). euler 4 and two spherical faces: hull and cavity are two closed components.",
+      "consistent": "true",
+      "faces": "2",
+      "edges": "0",
+      "poleVertices": "0",
+      "vertices": "0",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "26274.1878964",
+      "area": "6836.7188017",
+      "edgeLength": "0",
+      "extent": "-20, -20, -20, 20, 20, 20",
+      "surfaces": "SphericalSurface:2"
+    },
+    "pinholeGrown": {
+      "verified": "2026-09-11 THE POINT OF THIS CASE: growing by 3 closes the 2 mm bore, so the cavity becomes a cavity again - euler 4, closed and consistent, against euler 2 of the input. The four faces say exactly how: two spheres (hull 23, cavity 9) and two TORI. A torus is what the dilation of a circle is, and the two hole rims are circles of radius 2 - one on the outer sphere, one on the cavity sphere - so each grows into a torus of tube radius 3. The extent confirms it: max z = 19.8997+3 = 22.8997 instead of 23, the hull is not a full sphere but carries the toroidal cap where the bore used to be. The volume 47913.5936 sits 4.6e-5 above the plain sphere difference 4/3*pi*(23^3-9^3) = 47911.3824; the two geometric corrections (the cavity keeps a bulge along the bore axis, the hull is flattened at the cap) both point down by a few units, the mesh bias of the spherical faces points up by about as much, so the volume cannot separate them at this precision - the topology is the decisive check here.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "2",
+      "poleVertices": "2",
+      "vertices": "2",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "47913.5936209",
+      "area": "7667.36213797",
+      "edgeLength": "23.6609398407",
+      "extent": "-23, -23, -23, 23, 23, 22.8997487421",
+      "surfaces": "SphericalSurface:2 ToroidalSurface:2"
+    },
+    "pinholeShrunk": {
+      "verified": "2026-09-11: the counter-test - shrinking by 3 thins the wall from 8 to 2 and widens the bore, so the body stays ONE component (euler 2) with the bore still a cylindrical face. Outer radius 17, cavity 15, and max z = sqrt(17^2-5^2) = 16.2481 for the rim of the widened bore. V = 6281.7555 is clearly below the 4/3*pi*(17^3-15^3) = 6442.3593 of an unbored shell, as it must be.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "2",
+      "poleVertices": "0",
+      "vertices": "2",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "6281.75548321",
+      "area": "6364.58531804",
+      "edgeLength": "62.8318530718",
+      "extent": "-17, -17, -17, 17, 17, 16.2480768093",
+      "surfaces": "CylindricalSurface:1 SphericalSurface:2"
+    },
+    "pinholed": {
+      "verified": "2026-09-11: the bore joins hull and cavity into ONE component, euler 2, with the bore as a cylindrical face. The extent proves where the bore mouth sits: max z = sqrt(20^2-2^2) = 19.8997, the rim of the hole in the outer sphere.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "2",
+      "poleVertices": "0",
+      "vertices": "2",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "26173.3448489",
+      "area": "6912.90443605",
+      "edgeLength": "25.1327412287",
+      "extent": "-20, -20, -20, 20, 20, 19.8997487421",
+      "surfaces": "CylindricalSurface:1 SphericalSurface:2"
+    }
+  },
   "RPCCalls": [
     {
       "jsonrpc": "2.0",
@@ -101,7 +173,5 @@
         "name": "pinholeShrunk"
       }
     }
-  ],
-  "Status": "KNOWN FAIL (2026-09-09), written together with the case. The closing of the pinhole - the whole point of the file - is what does not work yet, so there is no baseline: the object that matters does not exist. Once GetOffset survives it, judge the result, regenerate and set CaseStatus to Ok.",
-  "Actual": "First measurement (2026-09-09, four repeats, identical every time): call 6 (pinholeGrown, +3) fails with [-32603] 'lenth of knots and poles not compatible with degree' - a NURBS construction error inside GetOffset - so pinholeGrown is recorded as exists:false. Everything around it builds: hollowBall has euler 4 and two spherical faces as expected, V = 26274.1879 / A = 6836.7188 against the exact 26272.0922 / 6836.1056 (+8.0e-5 resp. +9.0e-5, the mesh bias of spherical faces, see the Actual of SolidOffsetGrowAndShrink); pinholed is one single component (euler 2) with the bore as a cylindrical face, V = 26173.3240; pinholeShrunk stays one component and gives V = 6281.5053, below the 4/3*pi*(17^3-15^3) = 6442.3593 of an unbored shell, as it must be."
+  ]
 }
