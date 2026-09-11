@@ -6570,8 +6570,8 @@ namespace CADability.GeoObject
                         ln = Line.Construct();
                         ln.SetTwoPoints(cnt3d, cnt3d + n);
                         dc3d.Add(ln, Color.Red, triangleIndex[i]);
-#endif
                     }
+#endif
                 }
                 if (t.innerIntersection)
                 {   // there are inner intersections: we need to split the outline and holes to make several non intersecting areas
