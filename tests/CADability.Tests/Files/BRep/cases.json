@@ -65,6 +65,11 @@
       "Comment": "added with d99fd343 (the manifold edge fix in BooleanOperation) and correct from the start; checked by GH, see the verified note in its baseline"
     },
     {
+      "Name": "DifferenceBug21",
+      "Status": "Ok",
+      "Comment": "added on 2026-09-12 and correct from the start: an oblique cylinder drilled right through a box, checked by GH, see the verified note in its baseline"
+    },
+    {
       "Name": "UniteBug15",
       "Status": "Ok",
       "Operation": "Union",
@@ -199,7 +204,7 @@
       "Name": "UniteBug21",
       "Status": "Ok",
       "Repeat": 3,
-      "Comment": "CorruptInput until 2026-09-12: Operand1 (the helical thread) failed Shell.CheckConsistency(), and the Debug.Assert the union hit was a consequence of that, not a BRep bug. GH repaired the file; the input is consistent and the result is correct now, see the verified note in its baseline. Repeat because of the helical faces: the RPC case HelicalThreadOnRod is KnownFail purely for being irreproducible - its area spreads by 28 percent over three runs of identical calls - so a helical case has to prove it reproduces before its baseline means anything. 13 s per run"
+      "Comment": "CorruptInput until 2026-09-12: Operand1 (the helical thread) failed Shell.CheckConsistency(), and the Debug.Assert the union hit was a consequence of that, not a BRep bug. GH repaired the file; the input is consistent and the result is correct now, see the verified note in its baseline. Repeat because of the helical faces: the RPC case HelicalThreadOnRod is KnownFail purely for being irreproducible - its area spreads by 28 percent over three runs of identical calls - so a helical case has to prove it reproduces before its baseline means anything. 4.5 s per run inside the suite"
     }
   ]
 }
