@@ -1,3 +1,9 @@
+# verified 2026-09-12: union of a cone-and-cylinder body with a plain cylinder, checked visually in ShapeIt
+# by GH and judged correct. One closed, consistent shell of 6 patches, euler 2, and the volume adds up:
+# 5093.86104706 + 3574.93609024 - 7953.42909444 leaves 715.37 for the overlap of the two operands.
+# These are the values from before 11b89fd6, which dropped the usedArea update from Face.ReverseOrientation.
+# Without it the union measured 9164.61191831 - 495.81 MORE than both operands together, which no union can
+# be. The update is back (guarded against an empty usedArea) and its duplicate in ToroidalSurface is gone.
 case.operation    = Union
 case.markedEdges  = 0
 in0.consistent    = true

@@ -2411,7 +2411,6 @@ namespace CADability.GeoObject
             toTorus = toTorus * new ModOp(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0); // umkehrung von y
             toUnit = toTorus.GetInverse();
             ModOp2D res = new ModOp2D(-1, 0, 2.0 * Math.PI, 0, 1, 0);
-            if (!usedArea.IsEmpty()) usedArea.Modify(res);
             return res;
         }
 

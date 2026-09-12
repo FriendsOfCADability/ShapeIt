@@ -9501,7 +9501,7 @@ namespace CADability.GeoObject
             BoundingRect modifiedBounds = Area.GetExtent();
             ModOp2D m = surface.ReverseOrientation();
             modifiedBounds.Modify(m);
-            // surface.usedArea has already been modified by ReverseOrientation
+            if (surface is ISurfaceImpl si && !si.usedArea.IsEmpty()) si.usedArea.Modify(m);
             ICurve2D[] segments = new ICurve2D[outline.Length];
             for (int i = 0; i < outline.Length; ++i)
             {
