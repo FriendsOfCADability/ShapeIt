@@ -958,224 +958,429 @@ namespace CADability.GeoObject
             return v;
         }
 
-        public Face[] OuterShell(double vmin, double vmax)
+        /// <summary>
+        /// Maps a (maybe unwrapped) spine parameter into the parameter range of the spine. Only a closed spine is
+        /// periodic, for an open spine the parameter is returned unchanged.
+        /// </summary>
+        private double NormalizedSpineParameter(double u)
         {
-            if (CriticalPositions.Length == 0)
-            {
-                // there is no self intersection
-                BoundingRect b = new BoundingRect(0, vmin, 1, vmax);
-                return new Face[] { Face.MakeFace(this, b) };
-            }
-            else if (CriticalPositions.Length == 2)
-            {
-                if (spine.CurvatureAt((CriticalPositions[0] + CriticalPositions[1]) / 2.0).radius < radius)
-                {   // exclude the part between the two critical positions
-                    ICurve c1 = FixedU(CriticalPositions[0], 0, 2 * PI);
-                    ICurve c2 = FixedU(CriticalPositions[1], 0, 2 * PI);
-                    Curves.Intersect(c1, c2, out double[] _, out double[] _, out GeoPoint[] intersectionPoints);
-                    // the two circles should intersect at two points
-                    if (intersectionPoints.Length == 2)
-                    {
-                        GeoPoint cusp0, cusp1;
-                        double v0 = InverseV(CriticalPositions[0], intersectionPoints[0]);
-                        double v1 = InverseV(CriticalPositions[1], intersectionPoints[0]);
-                        double vm0 = (v0 + v1) / 2;
-                        // v0 and v1 should be almost identical
-                        double v2 = InverseV(CriticalPositions[0], intersectionPoints[1]);
-                        double v3 = InverseV(CriticalPositions[1], intersectionPoints[1]);
-                        double vm1 = (v2 + v3) / 2;
-                        double ivmin = Min(vm0, vm1);
-                        double ivmax = Max(vm0, vm1);
-                        if (vmin > vmax) vmax += 2 * PI;
-                        // vmin and vmax define the domain, when both ivmin and ivmax are outside, there is no folding
-                        if (ivmin < vmin) ivmin += 2 * PI;
-                        if (ivmin > vmax) ivmin -= 2 * PI;
-                        if (ivmax < vmin) ivmax += 2 * PI;
-                        if (ivmax > vmax) ivmax -= 2 * PI;
-                        // calculate the two cusp points. both PointAt should return the same 3d point
-                        cusp0 = new GeoPoint(PointAt(new GeoPoint2D(CriticalPositions[0], vm0)), PointAt(new GeoPoint2D(CriticalPositions[1], vm0)));
-                        cusp1 = new GeoPoint(PointAt(new GeoPoint2D(CriticalPositions[0], vm1)), PointAt(new GeoPoint2D(CriticalPositions[1], vm1)));
-                        // use v-values between lo and high and also ivmin and ivmax when inside lo to hi
-                        // v-values should be about pi/10 (18°) but also contain ivmin and ivmax
-                        List<double> vValues = new List<double>(); // v-values for the grid
-                        int cusp0Index = int.MaxValue, cusp1Index = int.MinValue;
-                        double lastv = vmin;
-                        if (ivmin > vmin && ivmin < vmax)
-                        {   // from vmin to first cusp
-                            int n = (int)Max(3, Ceiling((ivmin - lastv) / (PI / 10)));
-                            vValues.AddRange(Enumerable.Range(0, n - 1).Select(i => lastv + (ivmin - lastv) * i / (n - 1)));
-                            lastv = ivmin;
-                            cusp0Index = vValues.Count;
-                        }
-                        if (ivmax > vmin && ivmax < vmax)
-                        {   // from first cusp to second cusp
-                            int n = (int)Max(3, Ceiling((ivmax - lastv) / (PI / 10)));
-                            vValues.AddRange(Enumerable.Range(0, n - 1).Select(i => lastv + (ivmax - lastv) * i / (n - 1)));
-                            lastv = ivmax;
-                            cusp1Index = vValues.Count;
-                        }
-                        {   // from second cusp to vmax
-                            int n = (int)Max(3, Ceiling((vmax - lastv) / (PI / 10)));
-                            vValues.AddRange(Enumerable.Range(0, n).Select(i => lastv + (vmax - lastv) * i / (n - 1)));
-                        }
-                        double umiddle = (CriticalPositions[0] + CriticalPositions[1]) / 2.0;
-                        double[] sp = spine.GetSavePositions();
-                        int minu = 5;
-                        List<double> u0Values = new List<double>(); // uvalues for the first part
-                        if (sp.Count(x => x < umiddle) >= minu) u0Values.AddRange(sp.Where(x => x < umiddle));
-                        else u0Values.AddRange(Enumerable.Range(0, minu).Select(i => i * umiddle / (minu - 1)));
-                        List<double> u1Values = new List<double>(); // u-values for the second part
-                        if (sp.Count(x => x > umiddle) >= minu) u1Values.AddRange(sp.Where(x => x > umiddle));
-                        else u1Values.AddRange(Enumerable.Range(0, minu).Select(i => umiddle + i * (1 - umiddle) / (minu - 1)));
-                        GeoPoint[,] points0 = new GeoPoint[u0Values.Count, vValues.Count];
-                        GeoVector[,] du0 = new GeoVector[u0Values.Count, vValues.Count];
-                        GeoVector[,] dv0 = new GeoVector[u0Values.Count, vValues.Count];
-                        GeoVector[,] duv0 = new GeoVector[u0Values.Count, vValues.Count];
-                        GeoPoint[,] points1 = new GeoPoint[u1Values.Count, vValues.Count];
-                        GeoVector[,] du1 = new GeoVector[u1Values.Count, vValues.Count];
-                        GeoVector[,] dv1 = new GeoVector[u1Values.Count, vValues.Count];
-                        GeoVector[,] duv1 = new GeoVector[u1Values.Count, vValues.Count];
+            if (!spine.IsClosed) return u;
+            return u - Floor(u);
+        }
 
-                        SweptCircle swc0 = new SweptCircle(spine, radius);
-                        BoundingRect bounds0 = new BoundingRect(0, vmin, CriticalPositions[0], vmax);
-                        swc0.SetBounds(bounds0);
-                        SweptCircle swc1 = new SweptCircle(spine, radius);
-                        BoundingRect bounds1 = new BoundingRect(criticalPositions[1], vmin, 1, vmax);
-                        swc1.SetBounds(bounds1);
-                        for (int i = 0; i < vValues.Count; i++)
-                        {
-                            double v = vValues[i];
-                            {   // the case for the first half
-                                List<double> uvalues = u0Values;
-                                if (i >= cusp0Index && i <= cusp1Index)
-                                {   // find the intersection point
-                                    double uintsect;
-                                    if (i == cusp0Index || i == cusp1Index) uintsect = CriticalPositions[0]; // here we know the u-value, intersection is unsafe here
-                                    else
-                                    {
-                                        ICurve cv1 = FixedV(v, CriticalPositions[1], 1); // intersect this curve with the other half of the surface
-                                        swc0.Intersect(cv1, bounds0, out GeoPoint[] ips0, out GeoPoint2D[] uvOnFaces0, out double[] uOnCurve3Ds0);
-                                        if (ips0.Length == 1) // which it should be
-                                        {
-                                            uintsect = uvOnFaces0[0].x; // end here with u
-                                        }
-                                        else
-                                        {   // should not happen!
-                                            uintsect = CriticalPositions[0];
-                                        }
-                                    }
-                                    uvalues = new List<double>(Enumerable.Range(0, u0Values.Count).Select(j => j * (uintsect) / (u0Values.Count - 1)));
-                                }
-                                for (int j = 0; j < uvalues.Count; j++)
-                                {
-                                    swc0.Derivative2At(new GeoPoint2D(uvalues[j], v), out GeoPoint location, out GeoVector ddu, out GeoVector ddv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
-                                    points0[j, i] = location;
-                                    du0[j, i] = ddu;
-                                    dv0[j, i] = ddv;
-                                    duv0[j, i] = duv;
-                                }
-                            }
-                            {   // the case for the second half
-                                List<double> uvalues = u1Values;
-                                if (i >= cusp0Index && i <= cusp1Index)
-                                {   // find the intersection point
-                                    double uintsect;
-                                    if (i == cusp0Index || i == cusp1Index) uintsect = CriticalPositions[1]; // here we know the u-value, intersection is unsafe here
-                                    else
-                                    {
-                                        ICurve cv0 = FixedV(v, 0, CriticalPositions[0]); // intersect this curve with the other half of the surface
-                                        swc1.Intersect(cv0, bounds1, out GeoPoint[] ips0, out GeoPoint2D[] uvOnFaces0, out double[] uOnCurve3Ds0);
-                                        if (ips0.Length == 1) // which it should be
-                                        {
-                                            uintsect = uvOnFaces0[0].x; // end here with u
-                                        }
-                                        else
-                                        {   // should not happen!
-                                            uintsect = CriticalPositions[0];
-                                        }
-                                    }
-                                    uvalues = new List<double>(Enumerable.Range(0, u1Values.Count).Select(j => uintsect + j * (1 - uintsect) / (u1Values.Count - 1)));
-                                }
-                                for (int j = 0; j < uvalues.Count; j++)
-                                {
-                                    swc1.Derivative2At(new GeoPoint2D(uvalues[j], v), out GeoPoint location, out GeoVector ddu, out GeoVector ddv, out GeoVector duu, out GeoVector dvv, out GeoVector duv);
-                                    points1[j, i] = location;
-                                    du1[j, i] = ddu;
-                                    dv1[j, i] = ddv;
-                                    duv1[j, i] = duv;
-                                }
-                            }
-                        }
-                        GeoObjectList dbgl = new GeoObjectList();
-                        for (int k = 0; k < points1.GetLength(0); k++)
-                        {
-                            List<GeoPoint> p1 = new List<GeoPoint>();
-                            for (int l = 0; l < points1.GetLength(1); l++)
-                            {
-                                p1.Add(points1[k, l]);
-                            }
-                            dbgl.Add(Polyline.FromPoints(p1.ToArray()));
-                        }
-                        // it would be better to have a NURBS interpolator, which respects the derivations. But I dont have one
-                        NurbsSurface ns0 = new NurbsSurface(points0, 3, 3, false, false);
-                        NurbsSurface ns1 = new NurbsSurface(points1, 3, 3, false, false);
-                        //NurbsSurface ns00 = NurbsSurfaceInterpolator.BuildNurbsSurfaceOfDegree3(points0, du0, dv0, duv0);
-                        //NurbsSurface ns11 = NurbsSurfaceInterpolator.BuildNurbsSurfaceOfDegree3(points1, du1, dv1, duv1);
-                        GeoPoint2D cusp0uv = ns0.PositionOf(cusp0);
-                        GeoPoint2D cusp1uv = ns0.PositionOf(cusp1);
-                        ns0.GetNaturalBounds(out double left, out double right, out double bottom, out double top);
-                        BoundingRect br = new BoundingRect(left, bottom, right, top);
-                        // now this bounding rect should be 0 to 1. We could make a face with it directely, but on the right hand side we want to plit the line in parts outside the cusp and inside
-                        double vstart = bottom;
-                        double lo = Min(cusp0uv.y, cusp1uv.y);
-                        double hi = Max(cusp0uv.y, cusp1uv.y);
-                        List<ICurve2D> edges2d = new List<ICurve2D>();
-                        if (bottom < lo && lo < top)
-                        {
-                            edges2d.Add(new Line2D(new GeoPoint2D(right, vstart), new GeoPoint2D(right, lo)));
-                            vstart = lo;
-                        }
-                        if (hi < top)
-                        {
-                            edges2d.Add(new Line2D(new GeoPoint2D(right, vstart), new GeoPoint2D(right, hi)));
-                            vstart = hi;
-                        }
-                        edges2d.Add(new Line2D(new GeoPoint2D(right, vstart), br.GetUpperRight()));
-                        edges2d.Add(new Line2D(br.GetUpperRight(), br.GetUpperLeft()));
-                        edges2d.Add(new Line2D(br.GetUpperLeft(), br.GetLowerLeft()));
-                        edges2d.Add(new Line2D(br.GetLowerLeft(), br.GetLowerRight()));
-                        Face fc0 = Face.MakeFace(ns0, new SimpleShape(new Border(edges2d.ToArray())));
-                        // the same with the second part
-                        cusp0uv = ns1.PositionOf(cusp0);
-                        cusp1uv = ns1.PositionOf(cusp1);
-                        ns1.GetNaturalBounds(out left, out right, out bottom, out top);
-                        br = new BoundingRect(left, bottom, right, top);
-                        // the left hand side of the rectangle: here we must create lines from top to bottom
-                        vstart = top;
-                        lo = Min(cusp0uv.y, cusp1uv.y);
-                        hi = Max(cusp0uv.y, cusp1uv.y);
-                        edges2d = new List<ICurve2D>();
-                        if (bottom < hi && hi < top)
-                        {
-                            edges2d.Add(new Line2D(new GeoPoint2D(left, vstart), new GeoPoint2D(left, hi)));
-                            vstart = hi;
-                        }
-                        if (lo > bottom)
-                        {
-                            edges2d.Add(new Line2D(new GeoPoint2D(left, vstart), new GeoPoint2D(left, lo)));
-                            vstart = lo;
-                        }
-                        edges2d.Add(new Line2D(new GeoPoint2D(left, vstart), br.GetLowerLeft()));
-                        edges2d.Add(new Line2D(br.GetLowerLeft(), br.GetLowerRight()));
-                        edges2d.Add(new Line2D(br.GetLowerRight(), br.GetUpperRight()));
-                        edges2d.Add(new Line2D(br.GetUpperRight(), br.GetUpperLeft()));
-                        Face fc1 = Face.MakeFace(ns1, new SimpleShape(new Border(edges2d.ToArray())));
-                        // the two faces connect at the self intersection of the SweptCircle: the connection is on up to three edges. The outer edges are tangential, the inner edge is a real non tangential intersection
-                        return new Face[] { fc0, fc1 };
-                    }
+        /// <summary>
+        /// The signed curvature of the spine at <paramref name="u"/>, measured with respect to the "yAxis"
+        /// (normal ^ tangent) of this surface. Only meaningful when the spine is planar and
+        /// <paramref name="unitNormal"/> is the normalized normal vector of its plane.
+        /// </summary>
+        private double SpineCurvature(double u, GeoVector unitNormal)
+        {
+            IReadOnlyList<GeoVector> deriv = spine.PointAndDerivativesAt(NormalizedSpineParameter(u), 2);
+            double l = deriv[1].Length;
+            if (l < 1e-13) return 0.0;
+            return ((deriv[1] ^ deriv[2]) * unitNormal) / (l * l * l);
+        }
+
+        /// <summary>
+        /// Point and derivative of the parallel (offset) curve of the spine at the signed distance
+        /// <paramref name="dist"/>, measured in the direction of the "yAxis" of this surface and expressed in the
+        /// coordinate system of <paramref name="pln"/>. The intersection of this surface with a plane parallel to the
+        /// plane of the spine is exactly such an offset curve (with dist == radius*sin(v) at the height
+        /// |radius|*cos(v)), which is why the self intersection of the surface can be reduced to the self
+        /// intersection of these 2d curves.
+        /// </summary>
+        private void OffsetCurveAt(double u, double dist, GeoVector unitNormal, Plane pln, out GeoPoint2D point, out GeoVector2D dir)
+        {
+            IReadOnlyList<GeoVector> deriv = spine.PointAndDerivativesAt(NormalizedSpineParameter(u), 2);
+            double l = deriv[1].Length;
+            double curvature = ((deriv[1] ^ deriv[2]) * unitNormal) / (l * l * l);
+            GeoVector yAxis = (unitNormal ^ deriv[1]).Normalized;
+            point = pln.Project(GeoPoint.Origin + deriv[0] + dist * yAxis);
+            // the offset curve has the direction of the spine, scaled by (1-dist*curvature), which vanishes at its cusps
+            dir = pln.Project((1.0 - dist * curvature) * deriv[1]);
+        }
+
+        /// <summary>
+        /// Newton iteration for a double point of the offset curve at the distance <paramref name="dist"/>: two
+        /// different spine parameters which yield the same point on that offset curve. <paramref name="u1"/> and
+        /// <paramref name="u2"/> must already be close to the solution, they are only modified on success.
+        /// </summary>
+        private bool RefineDoublePoint(double dist, GeoVector unitNormal, Plane pln, ref double u1, ref double u2)
+        {
+            double p1 = u1, p2 = u2;
+            for (int i = 0; i < 30; i++)
+            {
+                OffsetCurveAt(p1, dist, unitNormal, pln, out GeoPoint2D pnt1, out GeoVector2D dir1);
+                OffsetCurveAt(p2, dist, unitNormal, pln, out GeoPoint2D pnt2, out GeoVector2D dir2);
+                GeoVector2D err = pnt1 - pnt2;
+                if (err.Length < Precision.eps * 1e-3)
+                {
+                    u1 = p1;
+                    u2 = p2;
+                    return true;
+                }
+                // solve dir1*du1 - dir2*du2 == -err
+                double det = dir2.x * dir1.y - dir1.x * dir2.y;
+                if (Abs(det) < 1e-13) return false; // the two sheets are tangential here, Newton does not work
+                p1 += (err.x * dir2.y - dir2.x * err.y) / det;
+                p2 += (err.x * dir1.y - dir1.x * err.y) / det;
+                if (p2 - p1 < 1e-8) return false; // the two branches collapsed into a single point
+                if (!spine.IsClosed && (p1 < 0.0 || p1 > 1.0 || p2 < 0.0 || p2 > 1.0)) return false;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Searches a double point of the offset curve at the distance <paramref name="dist"/> by intersecting a
+        /// polygonal approximation of that offset curve with itself. Of all double points which enclose
+        /// <paramref name="uVertex"/> the one with the smallest parameter range is returned: this is the one caused
+        /// by the fold around <paramref name="uVertex"/> and not by a global self penetration of the pipe.
+        /// </summary>
+        private bool FindDoublePoint(double dist, double uVertex, GeoVector unitNormal, Plane pln, out double u1, out double u2)
+        {
+            const int samples = 400;
+            GeoPoint2D[] pnts = new GeoPoint2D[samples + 1];
+            for (int i = 0; i <= samples; i++) OffsetCurveAt(i / (double)samples, dist, unitNormal, pln, out pnts[i], out GeoVector2D _);
+            u1 = u2 = 0.0;
+            bool found = false;
+            for (int i = 0; i < samples; i++)
+            {
+                for (int j = i + 3; j < samples; j++)
+                {   // neighboring segments are skipped: close to a cusp of the offset curve they intersect each other
+                    if (spine.IsClosed && samples - (j - i) < 3) continue;
+                    GeoVector2D dir1 = pnts[i + 1] - pnts[i];
+                    GeoVector2D dir2 = pnts[j + 1] - pnts[j];
+                    double det = dir1.x * dir2.y - dir1.y * dir2.x;
+                    if (Abs(det) < 1e-30) continue;
+                    GeoVector2D off = pnts[j] - pnts[i];
+                    double s = (off.x * dir2.y - off.y * dir2.x) / det;
+                    double t = (off.x * dir1.y - off.y * dir1.x) / det;
+                    if (s < 0.0 || s >= 1.0 || t < 0.0 || t >= 1.0) continue;
+                    double p1 = (i + s) / samples;
+                    double p2 = (j + t) / samples;
+                    if (p1 >= uVertex || p2 <= uVertex) continue; // the double point must enclose the fold
+                    if (found && p2 - p1 >= u2 - u1) continue;
+                    u1 = p1;
+                    u2 = p2;
+                    found = true;
                 }
             }
-            return null;
+            if (!found) return false;
+            return RefineDoublePoint(dist, unitNormal, pln, ref u1, ref u2);
+        }
+
+        /// <summary>
+        /// The angle by which the double curve is sampled: it runs from -halfWidth (the first swallowtail point) at
+        /// index 0 over 0 (the plane of the spine) at index steps to +halfWidth at index 2*steps. The samples are
+        /// dense at both ends, where the two branches separate like the square root of the distance to the
+        /// swallowtail point, so that the steps in u stay about equal.
+        /// </summary>
+        private static double DoubleCurveAngle(int index, int steps, double halfWidth)
+        {
+            double x = (index - steps) / (double)steps;
+            return Sign(x) * halfWidth * Cos(PI / 2.0 * (1.0 - Abs(x)));
+        }
+
+        /// <summary>
+        /// Bisects between an angle where the double curve exists inside the domain of the spine
+        /// (<paramref name="good"/>, with the corresponding parameters in <paramref name="u1"/> and
+        /// <paramref name="u2"/>) and an angle where it does not (<paramref name="bad"/>). Returns the last angle
+        /// where it exists and updates the parameters accordingly: this is where the double curve leaves the domain.
+        /// </summary>
+        private double BisectDoubleCurveEnd(double good, double bad, double dist0, GeoVector unitNormal, Plane pln,
+            ref double u1, ref double u2)
+        {
+            for (int i = 0; i < 30; i++)
+            {
+                double mid = (good + bad) / 2.0;
+                double p1 = u1, p2 = u2;
+                if (RefineDoublePoint(dist0 * Cos(mid), unitNormal, pln, ref p1, ref p2))
+                {
+                    good = mid;
+                    u1 = p1;
+                    u2 = p2;
+                }
+                else bad = mid;
+            }
+            return good;
+        }
+
+        /// <summary>
+        /// Follows the double curve with Newton from the angle at index <paramref name="fromIndex"/> to the end of
+        /// its v range in the given direction and appends the points to the two branches in marching order. The last
+        /// point is the swallowtail point, where the two branches meet, or, when the double curve leaves the domain
+        /// of the spine before, the point where it does so.
+        /// </summary>
+        private void MarchDoubleCurve(int direction, int fromIndex, int steps, double halfWidth, double vCenter,
+            double dist0, double uVertex, double u1, double u2, GeoVector unitNormal, Plane pln,
+            List<GeoPoint2D> branch1, List<GeoPoint2D> branch2)
+        {
+            double lastAngle = DoubleCurveAngle(fromIndex, steps, halfWidth);
+            for (int i = fromIndex + direction; i >= 1 && i <= 2 * steps - 1; i += direction)
+            {
+                double angle = DoubleCurveAngle(i, steps, halfWidth);
+                if (!RefineDoublePoint(dist0 * Cos(angle), unitNormal, pln, ref u1, ref u2))
+                {   // the double curve leaves the domain of the spine between the last two angles
+                    double end = BisectDoubleCurveEnd(lastAngle, angle, dist0, unitNormal, pln, ref u1, ref u2);
+                    branch1.Add(new GeoPoint2D(u1, vCenter + end));
+                    branch2.Add(new GeoPoint2D(u2, vCenter + end));
+                    return;
+                }
+                branch1.Add(new GeoPoint2D(u1, vCenter + angle));
+                branch2.Add(new GeoPoint2D(u2, vCenter + angle));
+                lastAngle = angle;
+            }
+            // the swallowtail point, where the two branches meet
+            branch1.Add(new GeoPoint2D(uVertex, vCenter + direction * halfWidth));
+            branch2.Add(new GeoPoint2D(uVertex, vCenter + direction * halfWidth));
+        }
+
+        /// <summary>
+        /// Moves a pair of branches into the given domain (v is periodic with 2*pi, u with 1 when the spine is
+        /// closed) and adds it to <paramref name="res"/>: first the branch with the bigger u with ascending v, then
+        /// the other one with descending v, so that both together enclose the hidden part of the surface.
+        /// </summary>
+        private void AddSelfIntersectionPair(List<GeoPoint2D> branch1, List<GeoPoint2D> branch2, BoundingRect bounds, List<ICurve2D> res)
+        {
+            if (branch1.Count < 2 || branch2.Count < 2) return;
+            BoundingRect ext = new BoundingRect(branch1.ToArray());
+            ext.MinMax(new BoundingRect(branch2.ToArray()));
+            double shiftV = Round(((bounds.Bottom + bounds.Top) / 2.0 - (ext.Bottom + ext.Top) / 2.0) / (2 * PI)) * 2 * PI;
+            double shiftU = 0.0;
+            if (spine.IsClosed) shiftU = Round((bounds.Left + bounds.Right) / 2.0 - (ext.Left + ext.Right) / 2.0);
+            if (shiftU != 0.0 || shiftV != 0.0)
+            {
+                GeoVector2D shift = new GeoVector2D(shiftU, shiftV);
+                for (int i = 0; i < branch1.Count; i++) branch1[i] = branch1[i] + shift;
+                for (int i = 0; i < branch2.Count; i++) branch2[i] = branch2[i] + shift;
+                ext.Move(shift);
+            }
+            if (!ext.Interferes(ref bounds)) return;
+            ICurve2D ascending = MakeCurve2D(branch2); // the branch with the bigger u, ascending v
+            ICurve2D descending = MakeCurve2D(branch1); // the branch with the smaller u, to be reversed
+            if (ascending == null || descending == null) return;
+            descending.Reverse();
+            res.Add(ascending);
+            res.Add(descending);
+        }
+
+        /// <summary>
+        /// The position of the maximum of the absolute curvature of the spine in the given interval, i.e. the vertex
+        /// of the spine. This is where the two branches of the self intersection meet in a swallowtail point.
+        /// </summary>
+        private double MaxCurvaturePosition(double from, double to, GeoVector unitNormal)
+        {
+            const int samples = 32;
+            double best = from, bestValue = double.MinValue;
+            for (int i = 0; i <= samples; i++)
+            {
+                double u = from + (to - from) * i / samples;
+                double c = Abs(SpineCurvature(u, unitNormal));
+                if (c > bestValue) { bestValue = c; best = u; }
+            }
+            double a = Max(from, best - (to - from) / samples);
+            double b = Min(to, best + (to - from) / samples);
+            const double gr = 0.6180339887498949; // golden section
+            double x1 = b - gr * (b - a), x2 = a + gr * (b - a);
+            double f1 = Abs(SpineCurvature(x1, unitNormal)), f2 = Abs(SpineCurvature(x2, unitNormal));
+            for (int i = 0; i < 60 && b - a > 1e-12; i++)
+            {
+                if (f1 > f2)
+                {
+                    b = x2; x2 = x1; f2 = f1;
+                    x1 = b - gr * (b - a); f1 = Abs(SpineCurvature(x1, unitNormal));
+                }
+                else
+                {
+                    a = x1; x1 = x2; f1 = f2;
+                    x2 = a + gr * (b - a); f2 = Abs(SpineCurvature(x2, unitNormal));
+                }
+            }
+            return (a + b) / 2.0;
+        }
+
+        /// <summary>
+        /// A 2d curve through the provided points: a cubic spline when there are enough points, a polyline otherwise.
+        /// Returns null when too few points remain after removing duplicates.
+        /// </summary>
+        private static ICurve2D MakeCurve2D(List<GeoPoint2D> points)
+        {
+            List<GeoPoint2D> pnts = new List<GeoPoint2D>(points.Count);
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (pnts.Count > 0 && (points[i] | pnts[pnts.Count - 1]) < 1e-9) continue;
+                pnts.Add(points[i]);
+            }
+            if (pnts.Count < 2) return null;
+            if (pnts.Count < 4) return new Polyline2D(pnts.ToArray());
+            return new BSpline2D(pnts.ToArray(), 3, false);
+        }
+
+        /// <summary>
+        /// The curves in the (u,v) system where this surface penetrates itself. When the curvature radius of the
+        /// spine falls below the radius of the swept circle, the surface folds over and two of its sheets cross each
+        /// other. This is the pipe analogon of the spindle torus, but since the curvature of the spine is not
+        /// constant, the two poles of the spindle torus unfold into two swallowtail points (at the vertex of the
+        /// spine, i.e. where its curvature is maximal) which are connected by a real double curve.
+        /// The result is a list of pairs: the curves 2*i and 2*i+1 are the two branches of one and the same 3d curve,
+        /// running in opposite directions, so that both together enclose the part of the surface which is hidden
+        /// inside the pipe (positively oriented, the hidden part is on the left hand side of both branches).
+        /// Note that this is not the same as the curve where the surface normal vanishes: that one is
+        /// sin(v) == curvatureRadius(u)/radius and lies completely inside the area enclosed by the double curve.
+        /// Only implemented for a planar spine, for a non planar one null is returned. Where the double curve leaves
+        /// the domain of the spine, it is clipped; should it leave and enter again, only the piece which is found
+        /// first is returned. Not covered is a global self penetration, where the spine comes closer to itself than
+        /// twice the radius.
+        /// </summary>
+        /// <param name="bounds">only self intersections within this domain are returned</param>
+        /// <returns>pairs of 2d curves or null, when the surface does not intersect itself</returns>
+        public override ICurve2D[] GetSelfIntersections(BoundingRect bounds)
+        {
+            if (spine.GetPlanarState() != PlanarState.Planar) return null; // only implemented for a planar spine
+            if (normal.IsNullVector()) return null;
+            double absRadius = Abs(radius);
+            if (absRadius < Precision.eps) return null;
+            GeoVector unitNormal = normal.Normalized;
+            Plane pln = new Plane(spine.PointAt(0.0), unitNormal); // to express the offset curves of the spine in 2d
+
+            // the surface is folded where the curvature radius of the spine is smaller than the radius of the circle.
+            // A fold may be narrow, so the initial grid must be fine enough to see it at all.
+            Func<double, double> f = u => Abs(absRadius * SpineCurvature(u, unitNormal)) - 1.0;
+            List<double> limits = new List<double>();
+            limits.Add(0.0);
+            limits.AddRange(AdaptiveRootFinder.FindRootsAdaptive(f, 0.0, 1.0, 200));
+            limits.Add(1.0);
+
+            List<ICurve2D> res = new List<ICurve2D>();
+            for (int i = 0; i < limits.Count - 1; i++)
+            {
+                if (limits[i + 1] - limits[i] < 1e-6) continue;
+                // between two consecutive roots the sign does not change, so the midpoint decides whether the
+                // surface is folded in this interval or not
+                if (Abs(absRadius * SpineCurvature((limits[i] + limits[i + 1]) / 2.0, unitNormal)) <= 1.0) continue;
+                double uVertex = MaxCurvaturePosition(limits[i], limits[i + 1], unitNormal);
+                double curvature = SpineCurvature(uVertex, unitNormal);
+                double sinMin = 1.0 / (absRadius * Abs(curvature)); // curvatureRadius_min/|radius|, less than 1 in a fold
+                if (!(sinMin < 1.0)) continue; // not folded in this interval (also catches a curvature of 0)
+                // the v values of the double curve are symmetric to vCenter, the half width of its v range is halfWidth
+                double vCenter = Sign(radius) * Sign(curvature) * PI / 2.0;
+                double halfWidth = Acos(sinMin);
+                double dist0 = absRadius * Sign(curvature); // the offset distance in the plane of the spine (v == vCenter)
+
+                // find a starting point: in the plane of the spine (angle 0) the two branches are farthest apart and
+                // therefore easiest to find. Only when the double curve is outside the domain of the spine there, we
+                // try closer to the swallowtail points, where it moves towards the vertex.
+                const int steps = 32;
+                int seed = -1;
+                double u1 = 0.0, u2 = 0.0;
+                for (int k = 0; k < steps && seed < 0; k += 2)
+                {
+                    for (int s = -1; s <= 1 && seed < 0; s += 2)
+                    {
+                        if (k == 0 && s > 0) continue; // the middle is tried only once
+                        double angle = DoubleCurveAngle(steps + s * k, steps, halfWidth);
+                        if (FindDoublePoint(dist0 * Cos(angle), uVertex, unitNormal, pln, out u1, out u2)) seed = steps + s * k;
+                    }
+                }
+                if (seed < 0) continue; // the double curve is not inside the domain of the spine
+
+                // from there follow it with Newton in both directions, which also works close to the swallowtail
+                // points, where the two branches come arbitrarily close to each other
+                List<GeoPoint2D> branch1 = new List<GeoPoint2D>(), branch2 = new List<GeoPoint2D>(); // ascending v
+                MarchDoubleCurve(-1, seed, steps, halfWidth, vCenter, dist0, uVertex, u1, u2, unitNormal, pln, branch1, branch2);
+                branch1.Reverse();
+                branch2.Reverse();
+                double seedAngle = DoubleCurveAngle(seed, steps, halfWidth);
+                branch1.Add(new GeoPoint2D(u1, vCenter + seedAngle));
+                branch2.Add(new GeoPoint2D(u2, vCenter + seedAngle));
+                MarchDoubleCurve(1, seed, steps, halfWidth, vCenter, dist0, uVertex, u1, u2, unitNormal, pln, branch1, branch2);
+                AddSelfIntersectionPair(branch1, branch2, bounds, res);
+            }
+            if (res.Count == 0) return null;
+            return res.ToArray();
+        }
+
+        /// <summary>
+        /// Appends a line to an outline, skipping it when start and end point coincide.
+        /// </summary>
+        private static void AddLine2D(List<ICurve2D> outline, GeoPoint2D from, GeoPoint2D to)
+        {
+            if ((from | to) > 1e-9) outline.Add(new Line2D(from, to));
+        }
+
+        /// <summary>
+        /// The outer boundary of the pipe as faces on this surface. Without a self intersection this is a single
+        /// face over the whole domain. Where the surface penetrates itself, the part hidden inside the double curve
+        /// (see <see cref="GetSelfIntersections(BoundingRect)"/>) is cut away and the surface is split at the vertex
+        /// of the spine, so that two neighboring faces meet along the double curve. They share up to three edges:
+        /// the split line below the fold, the double curve itself (tangential contact in the two swallowtail points,
+        /// transversal in between) and the split line above the fold.
+        /// </summary>
+        /// <param name="vmin">lower bound of the v range</param>
+        /// <param name="vmax">upper bound of the v range</param>
+        /// <returns>the faces of the outer shell, or null when the self intersection cannot be resolved</returns>
+        public Face[] OuterShell(double vmin, double vmax)
+        {
+            if (vmax <= vmin) vmax += 2 * PI;
+            BoundingRect domain = new BoundingRect(0.0, vmin, 1.0, vmax);
+            ICurve2D[] selfIntersections = GetSelfIntersections(domain);
+            if (selfIntersections == null || selfIntersections.Length == 0) return new Face[] { Face.MakeFace(this, domain) };
+
+            // one pair of branches per fold: [2*i] is the branch with the bigger u and ascends in v, [2*i+1] the one
+            // with the smaller u and descends. Both meet in the two swallowtail points, which lie at the vertex of
+            // the spine, and that is where the surface is split.
+            List<(double uVertex, ICurve2D ascending, ICurve2D descending)> folds = new List<(double, ICurve2D, ICurve2D)>();
+            for (int i = 0; i + 1 < selfIntersections.Length; i += 2)
+            {
+                ICurve2D ascending = selfIntersections[i], descending = selfIntersections[i + 1];
+                double uVertex = ascending.StartPoint.x;
+                // only a double curve which is a complete loop well inside the domain can be used to split here
+                if (Abs(ascending.EndPoint.x - uVertex) > 1e-6) return null;
+                if (ascending.StartPoint.y < vmin || ascending.EndPoint.y > vmax) return null;
+                BoundingRect ext = ascending.GetExtent();
+                ext.MinMax(descending.GetExtent());
+                if (ext.Left <= 0.0 || ext.Right >= 1.0) return null;
+                folds.Add((uVertex, ascending, descending));
+            }
+            if (folds.Count == 0) return null;
+            folds.Sort((a, b) => a.uVertex.CompareTo(b.uVertex));
+            for (int i = 1; i < folds.Count; i++)
+            {   // two folds must stay apart, otherwise the outlines would run into each other
+                if (folds[i - 1].ascending.GetExtent().Right >= folds[i].descending.GetExtent().Left) return null;
+            }
+
+            Face[] res = new Face[folds.Count + 1];
+            for (int i = 0; i < res.Length; i++)
+            {
+                double leftU = i == 0 ? 0.0 : folds[i - 1].uVertex;
+                double rightU = i == folds.Count ? 1.0 : folds[i].uVertex;
+                List<ICurve2D> outline = new List<ICurve2D>();
+                AddLine2D(outline, new GeoPoint2D(leftU, vmin), new GeoPoint2D(rightU, vmin));
+                if (i < folds.Count)
+                {   // on the right hand side go around the branch of the fold which bulges into this part
+                    ICurve2D bulge = folds[i].descending.CloneReverse(true); // the smaller u, now ascending
+                    AddLine2D(outline, new GeoPoint2D(rightU, vmin), bulge.StartPoint);
+                    outline.Add(bulge);
+                    AddLine2D(outline, bulge.EndPoint, new GeoPoint2D(rightU, vmax));
+                }
+                else AddLine2D(outline, new GeoPoint2D(rightU, vmin), new GeoPoint2D(rightU, vmax));
+                AddLine2D(outline, new GeoPoint2D(rightU, vmax), new GeoPoint2D(leftU, vmax));
+                if (i > 0)
+                {   // the same on the left hand side, where the outline runs downwards
+                    ICurve2D bulge = folds[i - 1].ascending.CloneReverse(true); // the bigger u, now descending
+                    AddLine2D(outline, new GeoPoint2D(leftU, vmax), bulge.StartPoint);
+                    outline.Add(bulge);
+                    AddLine2D(outline, bulge.EndPoint, new GeoPoint2D(leftU, vmin));
+                }
+                else AddLine2D(outline, new GeoPoint2D(leftU, vmax), new GeoPoint2D(leftU, vmin));
+
+                SweptCircle part = Clone() as SweptCircle; // every face gets its own surface with its own domain
+                BoundingRect ext = BoundingRect.EmptyBoundingRect;
+                for (int j = 0; j < outline.Count; j++) ext.MinMax(outline[j].GetExtent());
+                part.SetBounds(ext);
+                res[i] = Face.MakeFace(part, new SimpleShape(new Border(outline.ToArray())));
+            }
+            return res;
         }
         public List<GeoPoint2D> SelfIntParams(int samples = 100)
         {
