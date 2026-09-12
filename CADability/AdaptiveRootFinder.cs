@@ -74,12 +74,14 @@ namespace CADability
             double x1 = 0.5 * (x0 + x2);
             double f1 = f(x1);
 
-            // Sign-Check im Sub-Interval
-            if (f0 * f1 <= 0)
+            // Sign-Check im Sub-Interval. Beide Hälften müssen geprüft werden: wenn die Funktion zwischen x0 und x2
+            // einmal die Achse schneidet und wieder zurückkommt, liegt in jeder Hälfte eine Nullstelle.
+            bool leftRoot = f0 * f1 <= 0, rightRoot = f1 * f2 <= 0;
+            if (leftRoot)
                 roots.Add(Brent.FindRoot(f, x0, x1, tol));
-            else if (f1 * f2 <= 0)
+            if (rightRoot)
                 roots.Add(Brent.FindRoot(f, x1, x2, tol));
-            else
+            if (!leftRoot && !rightRoot)
             {
                 // erneuter Triple-Check
                 if (Math.Abs(f1) < Math.Abs(f0) && Math.Abs(f1) < Math.Abs(f2))
