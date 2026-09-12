@@ -44,11 +44,11 @@
     "Regenerate": false
   },
   "Cases": [
-    {
-      "Name": "DifferenceBug",
-      "Status": "CorruptInput",
-      "Comment": "markers were added later, the file is readable now - but Operand2 already fails Shell.CheckConsistency()"
-    },
+    // DifferenceBug was removed on 2026-09-12: its Operand2 never passed Shell.CheckConsistency() and the
+    // data cannot be repaired, so the case was "CorruptInput" from the day the markers were added - it never
+    // ran and never had a baseline. The file is in the history, present up to fe42b09b, if it is ever wanted
+    // back.
+
     {
       "Name": "DifferenceBug3",
       "Status": "Ok",
@@ -197,8 +197,9 @@
     },
     {
       "Name": "UniteBug21",
-      "Status": "CorruptInput",
-      "Comment": "Operand1 already fails Shell.CheckConsistency(), so the Debug.Assert in the operation is a consequence, not a BRep bug"
+      "Status": "Ok",
+      "Repeat": 3,
+      "Comment": "CorruptInput until 2026-09-12: Operand1 (the helical thread) failed Shell.CheckConsistency(), and the Debug.Assert the union hit was a consequence of that, not a BRep bug. GH repaired the file; the input is consistent and the result is correct now, see the verified note in its baseline. Repeat because of the helical faces: the RPC case HelicalThreadOnRod is KnownFail purely for being irreproducible - its area spreads by 28 percent over three runs of identical calls - so a helical case has to prove it reproduces before its baseline means anything. 13 s per run"
     }
   ]
 }
