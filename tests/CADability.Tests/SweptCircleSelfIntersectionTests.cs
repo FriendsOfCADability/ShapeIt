@@ -163,6 +163,67 @@ namespace CADability.Tests
                 "two of the three folds bend to the same side, so two of the centers must be equal");
         }
 
+        /// <summary>
+        /// The elliptical edge where a slanted bore meets a plane face (Files/BRep/OffsetTest1.cdb.json): with an
+        /// offset of 5 the curvature radius at the two ends of the major axis (b*b/a == 3.549) is smaller than the
+        /// radius of the fillet, so the pipe folds there. This is the case Shell.GetOffset has to cope with.
+        /// </summary>
+        private static Ellipse BoreEllipse(double startParameter, double sweepParameter)
+        {
+            Ellipse elli = Ellipse.Construct();
+            elli.SetEllipseCenterAxis(GeoPoint.Origin, 9.725291304852767 * GeoVector.XAxis, 5.8751106334728656 * GeoVector.YAxis);
+            elli.StartParameter = startParameter;
+            elli.SweepParameter = sweepParameter;
+            return elli;
+        }
+
+        [TestMethod]
+        public void closed_spine_with_two_folds_yields_two_complete_pairs()
+        {
+            SweptCircle sc = new SweptCircle(BoreEllipse(0.0, 2 * Math.PI), 5.0);
+            (double uVertex, ICurve2D ascending, ICurve2D descending)[] branches = sc.GetSelfIntersectionBranches(fullDomain);
+            Assert.AreEqual(2, branches.Length, "the two ends of the major axis both fold");
+            foreach ((double uVertex, ICurve2D ascending, ICurve2D descending) branch in branches)
+            {
+                AssertIsDoubleCurve(sc, branch.ascending, branch.descending);
+                // both branches meet in the swallowtail points, which lie at the vertex: nothing is cut off here
+                Assert.IsTrue((branch.ascending.StartPoint | branch.descending.EndPoint) < 1e-6, "the lower swallowtail point is missing");
+                Assert.IsTrue((branch.ascending.EndPoint | branch.descending.StartPoint) < 1e-6, "the upper swallowtail point is missing");
+                Assert.IsTrue(Math.Abs(branch.ascending.StartPoint.x - branch.uVertex) < 1e-3, "the swallowtail point is not at the vertex of the spine");
+                double sinMin = (5.8751106334728656 * 5.8751106334728656 / 9.725291304852767) / 5.0;
+                Assert.IsTrue(Math.Abs(Math.Abs(Math.Sin(branch.ascending.StartPoint.y)) - sinMin) < 1e-4, "wrong v of the swallowtail point");
+            }
+            // the vertices of the ellipse are at the parameters 0 and pi, i.e. at u == 0 (or 1) and u == 0.5. The
+            // fold at the seam of the closed spine must be found as a single one, unwrapped around u == 0
+            double[] vertices = new double[] { branches[0].uVertex, branches[1].uVertex };
+            Array.Sort(vertices);
+            Assert.IsTrue(Math.Abs(vertices[0]) < 1e-3 || Math.Abs(vertices[1] - 1.0) < 1e-3, $"no fold at the seam: {vertices[0]}, {vertices[1]}");
+            Assert.IsTrue(Math.Abs(vertices[0] - 0.5) < 1e-3 || Math.Abs(vertices[1] - 0.5) < 1e-3, $"no fold at u == 0.5: {vertices[0]}, {vertices[1]}");
+        }
+
+        [TestMethod]
+        public void double_curve_leaving_and_entering_the_domain_yields_two_pieces()
+        {
+            // half of the same ellipse, as the edge of the bore is split into two: the fold is at u == 0.1549, and
+            // at the widest point of its double curve the branch with the smaller u would be at u == -0.116, i.e.
+            // outside the domain. Both pieces which remain inside have to be found.
+            SweptCircle sc = new SweptCircle(BoreEllipse(2.6550498248872345, Math.PI), 5.0);
+            (double uVertex, ICurve2D ascending, ICurve2D descending)[] branches = sc.GetSelfIntersectionBranches(fullDomain);
+            Assert.AreEqual(2, branches.Length, "both pieces of the double curve must be found");
+            Assert.IsTrue(Math.Abs(branches[0].uVertex - branches[1].uVertex) < 1e-6, "both pieces belong to the same fold");
+            Assert.IsTrue(Math.Abs(branches[0].uVertex - 0.1549) < 1e-3, $"the fold is not at the vertex of the ellipse: {branches[0].uVertex}");
+            foreach ((double uVertex, ICurve2D ascending, ICurve2D descending) branch in branches)
+            {
+                AssertIsDoubleCurve(sc, branch.ascending, branch.descending);
+                // one end of the piece is the swallowtail point, the other one is where it leaves the domain
+                bool startsInSwallowtail = (branch.ascending.StartPoint | branch.descending.EndPoint) < 1e-6;
+                bool endsInSwallowtail = (branch.ascending.EndPoint | branch.descending.StartPoint) < 1e-6;
+                Assert.IsTrue(startsInSwallowtail != endsInSwallowtail, "a clipped piece has exactly one swallowtail point");
+                GeoPoint2D atBorder = startsInSwallowtail ? branch.descending.StartPoint : branch.descending.EndPoint;
+                Assert.IsTrue(Math.Abs(atBorder.x) < 1e-4, $"the piece does not end at the border of the domain: {atBorder}");
+            }
+        }
+
         [TestMethod]
         public void no_self_intersection_when_the_radius_is_small_enough()
         {

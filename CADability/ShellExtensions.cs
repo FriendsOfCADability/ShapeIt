@@ -419,11 +419,44 @@ namespace CADability.GeoObject
         /// <param name="forward"></param>
         /// <param name="backward"></param>
         /// <returns></returns>
-        public static Face MakeOffsetFillet(Edge axis, double radius, Edge forward, Edge backward, bool dontUseForward, bool dontUseBackward)
+        public static Face[] MakeOffsetFillet(Edge axis, double radius, Edge forward, Edge backward, bool dontUseForward, bool dontUseBackward)
         {
+            return MakeOffsetFillet(new (Edge, Edge, Edge)[] { (axis, forward, backward) }, radius, dontUseForward, dontUseBackward);
+        }
+
+        /// <summary>
+        /// Make the fillet like faces which fill the gap between the offset faces along a chain of edges. The edges
+        /// of the chain must be tangential continuations of each other, so that all their fillets are parts of one
+        /// and the same pipe surface: only then a self intersection of that pipe - which occurs where the curvature
+        /// radius of the chain falls below <paramref name="radius"/> - can be resolved, because both sheets which
+        /// penetrate each other belong to the same surface. The chain may be closed, e.g. the elliptical edge of a
+        /// slanted bore, which is usually split into two edges.
+        /// </summary>
+        /// <param name="chain">the edges to make the fillet for, in consecutive order, each one together with the
+        /// two edges of the offset faces which the fillet has to connect</param>
+        /// <param name="radius">the offset, negative for an inner offset</param>
+        /// <returns>the faces of the fillet: more than one where the pipe folds over itself</returns>
+        public static Face[] MakeOffsetFillet(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain, double radius,
+            bool dontUseForward = false, bool dontUseBackward = false)
+        {
+            Edge axis = chain[0].axis, forward = chain[0].forward, backward = chain[0].backward;
             ISurface surface = null;
             GeoVector toInside;
-            if (axis.Curve3D is Line line)
+            if (chain.Count > 1)
+            {
+                surface = ChainPipeSurface(chain, radius);
+                if (surface == null)
+                {   // the edges cannot be joined into a single spine, so every edge gets its own fillet. A self
+                    // intersection which runs across such a joint cannot be resolved then
+                    List<Face> single = new List<Face>();
+                    for (int i = 0; i < chain.Count; i++)
+                    {
+                        single.AddRange(MakeOffsetFillet(chain[i].axis, radius, chain[i].forward, chain[i].backward, dontUseForward, dontUseBackward));
+                    }
+                    return single.ToArray();
+                }
+            }
+            else if (axis.Curve3D is Line line)
             {
                 if (axis.Forward(axis.PrimaryFace))
                 {
@@ -468,78 +501,9 @@ namespace CADability.GeoObject
                 }
             }
             else
-            {
-                // make a NURBS surface defined by a certain number of circles
-                // the curvature of the axis plays a critical role:
-                // when it is always greater than the radius: we can simply make a NURBS from the circles
-                // when it is both greater and smaller than the radius: there is a folding of the surface
-                // when it is always smaller than the radius: we dont't have to produce a fillet here
-                if (axis.Curve3D.GetPlanarState() == PlanarState.Planar) { }
-
-                int n = 20; // number of intermediate points, need some adaptive algorithm
-                List<Ellipse> throughEllipses = new List<Ellipse>(n);
-                // we need only a half pipe at maximum: (not sure, wether this is correct for non planar curves)
-                (GeoPoint center, GeoVector normal, double radius) middleCurvature = axis.Curve3D.CurvatureAt(0.5);
-                GeoPoint middlePoint = axis.Curve3D.PointAt(0.5);
-                GeoPoint2D uvp = axis.PrimaryFace.Surface.PositionOf(middlePoint);
-                GeoPoint2D uvs = axis.SecondaryFace.Surface.PositionOf(middlePoint);
-                GeoVector toOutside = axis.PrimaryFace.Surface.GetNormal(uvp).Normalized + axis.SecondaryFace.Surface.GetNormal(uvs).Normalized;
-                Plane middlePlane = new Plane(middlePoint, axis.Curve3D.DirectionAt(0.5) ^ middleCurvature.normal, middleCurvature.normal);
-                Ellipse middleElli = Ellipse.Construct();
-                middleElli.SetCirclePlaneCenterRadius(middlePlane, middlePoint, Math.Abs(radius));
-                double mpos = middleElli.PositionOf(middlePoint + radius * toOutside.Normalized);
-                middleElli.Trim(mpos - 0.25, mpos + 0.25);
-                double startParameter = middleElli.StartParameter;
-                double sweepParameter = middleElli.SweepParameter;
-                double[] knots = new double[n];
-                for (int i = 0; i < n; i++)
-                {
-                    double par = (double)i / (n - 1);
-                    knots[i] = par;
-                    GeoVector dir = axis.Curve3D.DirectionAt(par);
-                    GeoPoint pos = axis.Curve3D.PointAt(par);
-                    (GeoPoint center, GeoVector normal, double radius) curvature = axis.Curve3D.CurvatureAt(0.0);
-                    Plane epln = new Plane(pos, dir ^ curvature.normal, curvature.normal);
-                    // the 0°-point of the circle is to the outside of the curvature, so self intersection can only occur between 90° and 270°
-                    Ellipse elli = Ellipse.Construct();
-                    elli.SetCirclePlaneCenterRadius(epln, pos, Math.Abs(radius));
-                    elli.StartParameter = startParameter;
-                    elli.SweepParameter = sweepParameter;
-                    throughEllipses.Add(elli);
-                }
-                surface = new NurbsSurface(throughEllipses.ToArray(), knots);
-                // the u-parameter of the NurbsSurface is the circular arc. It spans 180°, so the u parameter goes from 0 to 0.5 (the whole circle is from 0 to 1)
-                // the v-parameter goes from 0 to 1. It is not linear synchronous to the axis.Curve3d parameter, but to the length of the segments
-                if (axis.Curve3D is Ellipse ellipse)
-                {
-                    (GeoPoint center, GeoVector normal, double radius) c1 = ellipse.CurvatureAt(0.0);
-                    (GeoPoint center, GeoVector normal, double radius) c2 = ellipse.CurvatureAt(1.0);
-                    if (Math.Sign(c1.radius - Math.Abs(radius)) != Math.Sign(c2.radius - Math.Abs(radius)))
-                    {
-                        (double vmin, double vmax) vInterval = EllipticalPipeSelfIntersectionInterval(ellipse, Math.Abs(radius));
-                        if (vInterval.vmin < 0 && vInterval.vmax > 0)
-                        {   // self intersection at the beginning
-
-                        }
-                        if (vInterval.vmin < 1 && vInterval.vmax > 1)
-                        {   // self intersection at the end
-                            (double v1, double v2) = EllipticalPipeSelfIntersection(ellipse, Math.Abs(radius), 1.0);
-                        }
-                    }
-                    //    List<GeoPoint2D> uvCurve = new List<GeoPoint2D>();
-                    //List<GeoPoint2D> uvCurveOrg = new List<GeoPoint2D>();
-                    //for (int i = 0; i < selfInt3.Count; i++)
-                    //{
-                    //    GeoPoint pdbg = surface.PointAt(new GeoPoint2D(0.5, 0.5));
-                    //    GeoPoint2D uvstart = new GeoPoint2D((middleElli as ICurve).ParameterToPosition(selfInt2[i].x) / 2, selfInt2[i].y);
-                    //    pdbg = surface.PointAt(uvstart);
-                    //    uvCurveOrg.Add(uvstart);
-                    //    GeoPoint2D uv = surface.PositionOf(selfInt3[i], uvstart);
-                    //    if (uv.IsValid) uvCurve.Add(uv); else uvCurve.Add(uvstart);
-                    //}
-                    //BoundingRect outline = new BoundingRect(0, 0, 0.5, 1.0);
-
-                }
+            {   // the general case: a pipe around the edge. Where the curvature radius of the edge falls below
+                // the radius of the pipe, the surface folds over and penetrates itself; that is resolved below
+                surface = new SweptCircle(axis.Curve3D, Math.Abs(radius));
             }
             if (surface is ToroidalSurface toroidalSurface)
             {
@@ -600,7 +564,7 @@ namespace CADability.GeoObject
                     if (Math.Sign(dd) == Math.Sign(radius)) res.ReverseOrientation();
                     if (!dontUseForward) res.UseEdge(forward);
                     if (!dontUseBackward) res.UseEdge(backward);
-                    return res;
+                    return new Face[] { res };
                 }
                 else
                 {
@@ -611,75 +575,515 @@ namespace CADability.GeoObject
                     if (Math.Sign(dd) == Math.Sign(radius)) res.ReverseOrientation();
                     res.UseEdge(forward);
                     res.UseEdge(backward);
-                    return res;
+                    return new Face[] { res };
                 }
             }
-            else if (surface != null)
+            if (surface == null) return new Face[0];
+            // the fillet covers the area between the two curves where the pipe touches the offset faces
+            SimpleShape area = FilletArea(chain, surface, radius, out double uSeam);
+            if (area == null) return new Face[0];
+            List<Face> filletFaces = new List<Face>();
+            List<Edge> offsetEdges = new List<Edge>(); // the edges of the offset faces the fillet is connected to
+            for (int i = 0; i < chain.Count; i++) { offsetEdges.Add(chain[i].forward); offsetEdges.Add(chain[i].backward); }
+            // a pipe which folds over itself is split into several faces, everything else stays a single face
+            if (surface is SweptCircle sweptCircle)
             {
-                BoundingRect domain = new BoundingRect(surface.PositionOf(forward.Curve3D.PointAt(0.5))); // toroidal fillets may sweep over 180°. so it would be ambiguous which part to use
-                GeoPoint2D uv = surface.PositionOf(forward.Vertex2.Position);
-                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
-                domain.MinMax(uv);
-                uv = surface.PositionOf(forward.Vertex1.Position);
-                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
-                domain.MinMax(uv);
-                uv = surface.PositionOf(backward.Vertex1.Position);
-                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
-                domain.MinMax(uv);
-                uv = surface.PositionOf(backward.Vertex2.Position);
-                SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
-                domain.MinMax(uv);
-
-                // we need 4 edges to make this face. Two edges are already provided as parameters, the other two edges are arcs at the start- and endpoint of the axis
-                // maybe the two provided edges meet in a single point, then the ellipses are null and we only have 3 edges for the face
-                // is there a case with both ellipses==null?
-                GeoPoint center = axis.Vertex1.Position; // this is the startpoint of axis.Curve3D
-                GeoVector toOutside = (axis.PrimaryFace.Surface.GetNormal(axis.Vertex1.GetPositionOnFace(axis.PrimaryFace)).Normalized +
-                             axis.SecondaryFace.Surface.GetNormal(axis.Vertex1.GetPositionOnFace(axis.SecondaryFace)).Normalized);
-                Plane pln = new Plane(center, axis.Curve3D.StartDirection);
-                Ellipse elli1 = null;
-                double d1 = (center | forward.Vertex1.Position) + (center | backward.Vertex2.Position);
-                double d2 = (center | forward.Vertex2.Position) + (center | backward.Vertex1.Position);
-                Vertex v1 = d1 < d2 ? forward.Vertex1 : forward.Vertex2;
-                Vertex v2 = d1 < d2 ? backward.Vertex2 : backward.Vertex1;
-                if (!Precision.IsEqual(v1.Position, v2.Position))
-                {
-                    elli1 = Ellipse.Construct();
-                    elli1.SetArc3Points(v1.Position, center + radius * toOutside.Normalized, v2.Position, pln);
-                    if (Math.Abs(elli1.SweepParameter) > Math.PI) elli1.SetArc3Points(v1.Position, center - radius * toOutside.Normalized, v2.Position, pln);
-                }
-
-                center = axis.Vertex2.Position; // this is the endpoint of axis.Curve3D
-                toOutside = (axis.PrimaryFace.Surface.GetNormal(axis.Vertex2.GetPositionOnFace(axis.PrimaryFace)).Normalized +
-                             axis.SecondaryFace.Surface.GetNormal(axis.Vertex2.GetPositionOnFace(axis.SecondaryFace)).Normalized);
-                pln = new Plane(center, axis.Curve3D.EndDirection);
-                Ellipse elli2 = null;
-                v1 = forward.Vertex1 == v1 ? forward.Vertex2 : forward.Vertex1;
-                v2 = backward.Vertex1 == v2 ? backward.Vertex2 : backward.Vertex1;
-                if (!Precision.IsEqual(v1.Position, v2.Position))
-                {
-                    elli2 = Ellipse.Construct();
-                    elli2.SetArc3Points(v1.Position, center + radius * toOutside.Normalized, v2.Position, pln);
-                    if (Math.Abs(elli2.SweepParameter) > Math.PI) elli2.SetArc3Points(v1.Position, center - radius * toOutside.Normalized, v2.Position, pln);
-                }
-
-                List<ICurve2D> curve2Ds = new List<ICurve2D>();
-
-                curve2Ds.Add(surface.GetProjectedCurve(forward.Curve3D, Precision.eps));
-                if (elli1 != null) curve2Ds.Add(surface.GetProjectedCurve(elli1, Precision.eps));
-                curve2Ds.Add(surface.GetProjectedCurve(backward.Curve3D, Precision.eps));
-                if (elli2 != null) curve2Ds.Add(surface.GetProjectedCurve(elli2, Precision.eps));
-                for (int i = 0; i < curve2Ds.Count; ++i) SurfaceHelper.AdjustPeriodic(surface, domain, curve2Ds[i]);
-                SimpleShape ss = new SimpleShape(Border.FromUnorientedList(curve2Ds.ToArray(), true));
-                Face res = Face.MakeFace(surface, ss);
-                res.UseEdge(forward);
-                res.UseEdge(backward);
-                ICurve2D[] selfIntersection = surface.GetSelfIntersections(res.Domain);
-
-                return res;
+                // a closed chain is additionally split where its edges meet: a face which covers a whole period
+                // would be glued to itself along the seam, and such a face is hard to handle further on. The
+                // vertices of the chain cost nothing, the offset faces have their edges ending there anyway
+                List<double> atJunctions = double.IsNaN(uSeam) ? null : ChainJunctions(chain, sweptCircle, uSeam);
+                filletFaces.AddRange(sweptCircle.OuterShell(area, atJunctions, out double[] splitPositions));
+                List<double> splits = new List<double>(splitPositions);
+                if (!double.IsNaN(uSeam)) splits.Add(uSeam); // a closed chain is cut open at the seam
+                offsetEdges = SplitOffsetEdges(chain, surface, splits);
             }
-            return null;
+            else filletFaces.Add(Face.MakeFace(surface, area));
+            // the fillet uses the edges of the offset faces themselves, so that the two are really connected and
+            // not only close enough to be connected afterwards
+            for (int i = 0; i < filletFaces.Count; i++)
+            {
+                for (int j = 0; j < offsetEdges.Count; j++) filletFaces[i].UseEdge(offsetEdges[j]);
+            }
+            for (int i = filletFaces.Count - 1; i >= 0; --i)
+            {
+                if (filletFaces[i] == null) { filletFaces.RemoveAt(i); continue; }
+                foreach (Edge edg in filletFaces[i].Edges)
+                {   // where an edge is the projection of one of the curves the area was built from, the exact 3d
+                    // curve is used instead of the approximation MakeFace created from the 2d curve: only then it
+                    // is close enough to the edge of the offset face to be connected with it
+                    if (edg.PrimaryCurve2D is ProjectedCurve pc && pc.Surface == surface && edg.Curve3D != null)
+                    {
+                        ICurve exact = pc.Curve3DFromParams;
+                        if (exact != null && exact.Length > Precision.eps)
+                        {
+                            edg.Curve3D = exact;
+                            edg.Orient();
+                        }
+                    }
+                }
+            }
+            return filletFaces.ToArray();
         }
+        /// <summary>
+        /// Groups the edges which get a fillet into chains: two edges belong to the same chain when they meet in a
+        /// vertex where no other edge gets a fillet, when they continue each other tangentially there and when the
+        /// offset edges on both sides meet there as well. The fillets of such a chain are parts of one and the same
+        /// pipe surface. Every other edge forms a chain of its own.
+        /// </summary>
+        private static List<List<Edge>> FilletChains(Dictionary<Edge, (Edge forward, Edge backward)> filletEdges)
+        {
+            Dictionary<Vertex, List<Edge>> atVertex = new Dictionary<Vertex, List<Edge>>();
+            foreach (Edge edge in filletEdges.Keys)
+            {
+                foreach (Vertex vtx in new Vertex[] { edge.Vertex1, edge.Vertex2 })
+                {
+                    if (!atVertex.TryGetValue(vtx, out List<Edge> edges)) atVertex[vtx] = edges = new List<Edge>();
+                    if (!edges.Contains(edge)) edges.Add(edge);
+                }
+            }
+            Dictionary<Vertex, (Edge first, Edge second)> connections = new Dictionary<Vertex, (Edge, Edge)>();
+            foreach (KeyValuePair<Vertex, List<Edge>> item in atVertex)
+            {
+                if (item.Value.Count != 2) continue; // a vertex where more edges meet needs a spherical face
+                if (ContinuesTangentially(item.Value[0], item.Value[1], item.Key, filletEdges)) connections[item.Key] = (item.Value[0], item.Value[1]);
+            }
+            HashSet<Edge> used = new HashSet<Edge>();
+            List<List<Edge>> res = new List<List<Edge>>();
+            foreach (Edge edge in filletEdges.Keys)
+            {
+                if (used.Contains(edge)) continue;
+                List<Edge> chain = new List<Edge> { edge };
+                used.Add(edge);
+                Vertex at = edge.Vertex2;
+                while (connections.TryGetValue(at, out (Edge first, Edge second) pair))
+                {
+                    Edge next = pair.first == chain[chain.Count - 1] ? pair.second : pair.first;
+                    if (used.Contains(next)) break; // the chain is closed
+                    chain.Add(next);
+                    used.Add(next);
+                    at = next.Vertex1 == at ? next.Vertex2 : next.Vertex1;
+                }
+                at = edge.Vertex1;
+                while (connections.TryGetValue(at, out (Edge first, Edge second) pair))
+                {
+                    Edge previous = pair.first == chain[0] ? pair.second : pair.first;
+                    if (used.Contains(previous)) break;
+                    chain.Insert(0, previous);
+                    used.Add(previous);
+                    at = previous.Vertex1 == at ? previous.Vertex2 : previous.Vertex1;
+                }
+                res.Add(chain);
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Whether the two edges continue each other smoothly in the vertex <paramref name="vtx"/> and their offset
+        /// edges meet there: only then their fillets are two parts of one and the same pipe, which can be made in
+        /// one piece.
+        /// </summary>
+        private static bool ContinuesTangentially(Edge e1, Edge e2, Vertex vtx, Dictionary<Edge, (Edge forward, Edge backward)> filletEdges)
+        {
+            if (e1 == e2 || e1.Curve3D == null || e2.Curve3D == null) return false;
+            GeoVector d1 = vtx == e1.Vertex1 ? e1.Curve3D.StartDirection : e1.Curve3D.EndDirection;
+            GeoVector d2 = vtx == e2.Vertex1 ? e2.Curve3D.StartDirection : e2.Curve3D.EndDirection;
+            if (!Precision.SameDirection(d1, d2, false)) return false;
+            // the two offset edges of the one fillet must end where those of the other one start, otherwise the
+            // outline of the common fillet would have a gap at this vertex
+            (Edge forward, Edge backward) o1 = filletEdges[e1], o2 = filletEdges[e2];
+            GeoPoint p11 = CloserEndPoint(o1.forward.Curve3D, vtx.Position), p12 = CloserEndPoint(o1.backward.Curve3D, vtx.Position);
+            GeoPoint p21 = CloserEndPoint(o2.forward.Curve3D, vtx.Position), p22 = CloserEndPoint(o2.backward.Curve3D, vtx.Position);
+            return (Precision.IsEqual(p11, p21) && Precision.IsEqual(p12, p22))
+                || (Precision.IsEqual(p11, p22) && Precision.IsEqual(p12, p21));
+        }
+
+        /// <summary>
+        /// The pipe surface for a chain of edges: all their curves must be arcs of one and the same ellipse, then
+        /// the circle is swept along that ellipse, which is closed when the arcs cover it completely. Returns null
+        /// when the edges do not fit together this way; every edge needs its own fillet then.
+        /// </summary>
+        private static SweptCircle ChainPipeSurface(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain, double radius)
+        {
+            if (!(chain[0].axis.Curve3D is Ellipse first)) return null;
+            // a chain of circular arcs is left alone: its fillet is a torus, and the fold of a torus whose minor
+            // radius exceeds the major one is a pole, which the toroidal branch resolves on its own
+            if (first.IsCircle) return null;
+            double covered = 0.0;
+            for (int i = 0; i < chain.Count; i++)
+            {
+                if (!(chain[i].axis.Curve3D is Ellipse elli)) return null;
+                if (!Precision.IsEqual(elli.Center, first.Center)) return null;
+                if (Math.Abs(elli.MajorRadius - first.MajorRadius) > Precision.eps) return null;
+                if (Math.Abs(elli.MinorRadius - first.MinorRadius) > Precision.eps) return null;
+                if (!Precision.SameDirection(elli.Plane.Normal, first.Plane.Normal, false)) return null;
+                if (!Precision.SameDirection(elli.MajorAxis, first.MajorAxis, false)) return null;
+                covered += Math.Abs(elli.SweepParameter);
+            }
+            Ellipse spine = first.Clone() as Ellipse;
+            spine.SweepParameter = Math.Sign(first.SweepParameter) * 2.0 * Math.PI; // the whole ellipse first
+            if (covered < 2.0 * Math.PI - 1e-6)
+            {   // an open chain: it starts at the vertex of the first edge which the second one does not share and
+                // ends at the corresponding vertex of the last edge
+                Vertex startVertex = ChainEndVertex(chain, true);
+                Vertex endVertex = ChainEndVertex(chain, false);
+                spine.StartParameter = spine.StartParameter + spine.PositionOf(startVertex.Position) * spine.SweepParameter;
+                if (spine.PositionOf(chain[0].axis.Curve3D.PointAt(0.5)) > 0.5)
+                {   // the chain runs against the direction of the first edge
+                    spine.SweepParameter = -spine.SweepParameter;
+                }
+                double endPosition = spine.PositionOf(endVertex.Position);
+                if (endPosition < 1e-6 || endPosition > 1.0 - 1e-6) return null; // cannot tell where the chain ends
+                spine.SweepParameter = endPosition * spine.SweepParameter;
+            }
+            return new SweptCircle(spine, Math.Abs(radius));
+        }
+
+        /// <summary>
+        /// Whether the chain forms a closed loop, i.e. whether every one of its vertices is shared by two of its
+        /// edges. A closed chain has no ends where the fillet would be closed by an arc.
+        /// </summary>
+        private static bool ChainIsClosed(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain)
+        {
+            Dictionary<Vertex, int> count = new Dictionary<Vertex, int>();
+            for (int i = 0; i < chain.Count; i++)
+            {
+                foreach (Vertex vtx in new Vertex[] { chain[i].axis.Vertex1, chain[i].axis.Vertex2 })
+                {
+                    count.TryGetValue(vtx, out int n);
+                    count[vtx] = n + 1;
+                }
+            }
+            foreach (KeyValuePair<Vertex, int> item in count) if (item.Value != 2) return false;
+            return true;
+        }
+
+        /// <summary>The vertex where the chain starts or ends, i.e. the one which the neighbouring edge does not share.</summary>
+        private static Vertex ChainEndVertex(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain, bool atStart)
+        {
+            Edge edge = atStart ? chain[0].axis : chain[chain.Count - 1].axis;
+            if (chain.Count == 1) return atStart ? edge.Vertex1 : edge.Vertex2;
+            Edge neighbour = atStart ? chain[1].axis : chain[chain.Count - 2].axis;
+            if (edge.Vertex1 == neighbour.Vertex1 || edge.Vertex1 == neighbour.Vertex2) return edge.Vertex2;
+            return edge.Vertex1;
+        }
+
+        /// <summary>
+        /// The area in the (u,v) system of <paramref name="surface"/> which the fillet covers: between the two
+        /// curves where the pipe touches the offset faces, limited by the arcs around the two ends of the chain.
+        /// A closed chain has no ends, its area is cut open at a fold of the surface - where it is split anyway -
+        /// and the two sides of the cut become a seam.
+        /// </summary>
+        private static SimpleShape FilletArea(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain, ISurface surface,
+            double radius, out double uSeam)
+        {
+            uSeam = double.NaN;
+            BoundingRect domain = BoundingRect.EmptyBoundingRect;
+            List<ICurve2D> curves = new List<ICurve2D>();
+            void AddProjected(ICurve curve3d, BoundingRect window)
+            {
+                if (curve3d == null) return;
+                ICurve2D c2d;
+                if (window.IsEmpty())
+                {   // a cylinder or a torus: the curves are brought into a common period as usual
+                    c2d = surface.GetProjectedCurve(curve3d, Precision.eps);
+                    if (c2d != null && !domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, domain, c2d);
+                }
+                else
+                {   // a pipe: the projection window already places the curve at the right u, which is the parameter
+                    // of the spine and unique along the whole chain. Only v is adjusted here, a periodic adjustment
+                    // of u would move the curve into the wrong period of a closed spine
+                    c2d = new ProjectedCurve(curve3d, surface, true, window);
+                    if (c2d != null && !domain.IsEmpty() && surface.IsVPeriodic)
+                    {
+                        double vm = (domain.Bottom + domain.Top) / 2.0, vPeriod = surface.VPeriod, dv = 0.0;
+                        double mv = c2d.PointAt(0.5).y;
+                        while (Math.Abs(mv + dv - vm) > Math.Abs(mv + dv - vPeriod - vm)) dv -= vPeriod;
+                        while (Math.Abs(mv + dv - vm) > Math.Abs(mv + dv + vPeriod - vm)) dv += vPeriod;
+                        if (dv != 0.0) c2d.Move(0.0, dv);
+                    }
+                }
+                if (c2d == null) return;
+                if (domain.IsEmpty()) domain = c2d.GetExtent();
+                else domain.MinMax(c2d.GetExtent());
+                curves.Add(c2d);
+            }
+            if (!(surface is SweptCircle))
+            {   // the domain of a cylindrical or toroidal fillet is fixed by the four corners of the area: the
+                // surface needs it to project the following curves into the right period
+                domain = new BoundingRect(surface.PositionOf(chain[0].forward.Curve3D.PointAt(0.5)));
+                foreach (Edge offsetEdge in new Edge[] { chain[0].forward, chain[0].backward })
+                {
+                    foreach (GeoPoint p in new GeoPoint[] { offsetEdge.Curve3D.StartPoint, offsetEdge.Curve3D.EndPoint })
+                    {
+                        GeoPoint2D uv = surface.PositionOf(p);
+                        SurfaceHelper.AdjustPeriodic(surface, domain, ref uv);
+                        domain.MinMax(uv);
+                    }
+                }
+                surface.SetBounds(domain);
+            }
+            for (int i = 0; i < chain.Count; i++)
+            {
+                AddProjected(chain[i].forward.Curve3D, ProjectionWindow(surface, chain[i].axis, chain[i].forward.Curve3D));
+                AddProjected(chain[i].backward.Curve3D, ProjectionWindow(surface, chain[i].axis, chain[i].backward.Curve3D));
+            }
+            if (!ChainIsClosed(chain))
+            {
+                Ellipse startArc = EndArc(chain[0], ChainEndVertex(chain, true), radius);
+                Ellipse endArc = EndArc(chain[chain.Count - 1], ChainEndVertex(chain, false), radius);
+                AddProjected(startArc, ProjectionWindow(surface, chain[0].axis, startArc));
+                AddProjected(endArc, ProjectionWindow(surface, chain[chain.Count - 1].axis, endArc));
+                return MakeSimpleShape(curves);
+            }
+            // the chain is closed: everything is moved into one period [uSeam, uSeam+1]. The seam is put at a fold
+            // of the surface, because there the surface is split anyway, and only then the two sides of the double
+            // curve end up on two different faces, which can be sewn together along it
+            uSeam = 0.0;
+            if (surface is SweptCircle sweptCircle)
+            {
+                (double uVertex, ICurve2D ascending, ICurve2D descending)[] branches = sweptCircle.GetSelfIntersectionBranches(domain);
+                if (branches.Length > 0) uSeam = branches[0].uVertex;
+            }
+            List<ICurve2D> moved = new List<ICurve2D>();
+            for (int i = 0; i < curves.Count; i++) PlaceInPeriod(curves[i], uSeam, true, moved);
+            // the two ends of the area are closed with the circle of the pipe at the seam
+            List<GeoPoint2D> atSeam = new List<GeoPoint2D>(), atPeriod = new List<GeoPoint2D>();
+            for (int i = 0; i < moved.Count; i++)
+            {
+                CollectSeamPoint(moved[i].StartPoint, uSeam, atSeam, atPeriod);
+                CollectSeamPoint(moved[i].EndPoint, uSeam, atSeam, atPeriod);
+            }
+            if (atSeam.Count != 2 || atPeriod.Count != 2) return null; // the curves do not cover the period as expected
+            moved.Add(new Line2D(atSeam[0], atSeam[1]));
+            moved.Add(new Line2D(atPeriod[0], atPeriod[1]));
+            return MakeSimpleShape(moved);
+        }
+
+        /// <summary>
+        /// The parameters where the edges of a closed chain meet, expressed in the period which starts at
+        /// <paramref name="uSeam"/>. The seam itself is not among them, it is the border of the area anyway.
+        /// </summary>
+        private static List<double> ChainJunctions(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain,
+            SweptCircle surface, double uSeam)
+        {
+            List<double> res = new List<double>();
+            double period = surface.UPeriod;
+            for (int i = 0; i < chain.Count; i++)
+            {
+                if (chain[i].axis.Curve3D == null) continue;
+                double u = surface.Spine.PositionOf(chain[i].axis.Curve3D.StartPoint);
+                u -= Math.Floor((u - uSeam) / period) * period; // into the period which starts at the seam
+                if (u > uSeam + 1e-6 && u < uSeam + period - 1e-6) res.Add(u);
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Splits the edges of the offset faces where the fillet has been split at a fold of the pipe (and at the
+        /// seam of a closed chain): the fillet is connected to those faces along its whole length, so wherever it
+        /// ends, its neighbour has to end as well, otherwise the two cannot be sewn together.
+        /// </summary>
+        private static List<Edge> SplitOffsetEdges(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain, ISurface surface,
+            List<double> splitPositions)
+        {
+            List<Edge> res = new List<Edge>();
+            for (int i = 0; i < chain.Count; i++) { res.Add(chain[i].forward); res.Add(chain[i].backward); }
+            if (splitPositions.Count == 0) return res;
+            res.Clear();
+            for (int i = 0; i < chain.Count; i++)
+            {
+                foreach (Edge offsetEdge in new Edge[] { chain[i].forward, chain[i].backward })
+                {
+                    res.Add(offsetEdge);
+                    if (offsetEdge.Curve3D == null) continue;
+                    BoundingRect window = ProjectionWindow(surface, chain[i].axis, offsetEdge.Curve3D);
+                    ICurve2D c2d = window.IsEmpty() ? surface.GetProjectedCurve(offsetEdge.Curve3D, Precision.eps)
+                        : new ProjectedCurve(offsetEdge.Curve3D, surface, true, window);
+                    if (c2d == null) continue;
+                    BoundingRect ext = c2d.GetExtent();
+                    SortedList<double, Vertex> splitHere = new SortedList<double, Vertex>();
+                    for (int j = 0; j < splitPositions.Count; j++)
+                    {
+                        for (int period = -1; period <= 1; ++period)
+                        {
+                            if (period != 0 && !surface.IsUPeriodic) continue;
+                            double u = splitPositions[j] + period * (surface.IsUPeriodic ? surface.UPeriod : 0.0);
+                            if (u <= ext.Left + 1e-6 || u >= ext.Right - 1e-6) continue;
+                            // the point where the fillet ends, expressed on the edge of the offset face
+                            GeoPoint p = surface.PointAt(c2d.PointAt(ParameterAtU(c2d, u)));
+                            double position = offsetEdge.Curve3D.PositionOf(p);
+                            if (position <= 1e-6 || position >= 1.0 - 1e-6) continue;
+                            splitHere[position] = new Vertex(offsetEdge.Curve3D.PointAt(position));
+                        }
+                    }
+                    if (splitHere.Count > 0)
+                    {
+                        res.RemoveAt(res.Count - 1);
+                        res.AddRange(offsetEdge.Split(splitHere, Precision.eps));
+                    }
+                }
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// The part of the (u,v) system where the curves along one edge of the chain are expected. On a closed
+        /// spine the projection of a curve which comes close to the seam of the parameter range would otherwise
+        /// jump from one period into the other and the resulting 2d curve would be useless. Empty (i.e. no hint
+        /// needed) when the surface is not periodic in u.
+        /// </summary>
+        private static BoundingRect ProjectionWindow(ISurface surface, Edge axis, ICurve toProject)
+        {
+            if (!surface.IsUPeriodic || !(surface is SweptCircle sweptCircle) || axis.Curve3D == null || toProject == null)
+            {
+                return BoundingRect.EmptyBoundingRect;
+            }
+            double length = sweptCircle.Spine.Length;
+            if (length < Precision.eps) return BoundingRect.EmptyBoundingRect;
+            // the middle of the edge is far away from the seam, so its parameter can be determined safely. Only the
+            // center of the window is relevant: the projection maps every point into the period closest to it
+            double period = surface.UPeriod;
+            double uMiddle = sweptCircle.Spine.PositionOf(axis.Curve3D.PointAt(0.5));
+            uMiddle -= Math.Floor(uMiddle / period) * period;
+            double halfWidth = 0.5 * axis.Curve3D.Length / length * period + 0.01 * period;
+            double vMiddle = surface.PositionOf(toProject.PointAt(0.5)).y;
+            return new BoundingRect(uMiddle - halfWidth, vMiddle - 0.24 * surface.VPeriod,
+                uMiddle + halfWidth, vMiddle + 0.24 * surface.VPeriod);
+        }
+
+        private static SimpleShape MakeSimpleShape(List<ICurve2D> curves)
+        {
+            if (curves.Count < 3) return null;
+            List<ICurve2D> loop = SortToLoop(curves);
+            if (loop == null) return null;
+            Border bdr = Border.FromUnorientedList(loop.ToArray(), true);
+            if (bdr == null || bdr.Area < Precision.eps) return null;
+            return new SimpleShape(bdr);
+        }
+
+        /// <summary>
+        /// Brings the curves into the order in which they form a closed loop, reversing them where necessary:
+        /// starting with the first one, the curve whose end point is closest is appended. Returns null when the
+        /// loop does not close, i.e. when the curves do not describe a single closed outline.
+        /// </summary>
+        private static List<ICurve2D> SortToLoop(List<ICurve2D> curves)
+        {
+            BoundingRect ext = BoundingRect.EmptyBoundingRect;
+            for (int i = 0; i < curves.Count; i++) ext.MinMax(curves[i].GetExtent());
+            double maxGap = 1e-4 * Math.Max(ext.Width, ext.Height);
+            List<ICurve2D> sorted = new List<ICurve2D>(curves.Count) { curves[0] };
+            List<ICurve2D> rest = new List<ICurve2D>(curves.GetRange(1, curves.Count - 1));
+            while (rest.Count > 0)
+            {
+                GeoPoint2D at = sorted[sorted.Count - 1].EndPoint;
+                int best = -1;
+                bool reverse = false;
+                double bestDistance = double.MaxValue;
+                for (int i = 0; i < rest.Count; i++)
+                {
+                    if ((at | rest[i].StartPoint) < bestDistance) { bestDistance = at | rest[i].StartPoint; best = i; reverse = false; }
+                    if ((at | rest[i].EndPoint) < bestDistance) { bestDistance = at | rest[i].EndPoint; best = i; reverse = true; }
+                }
+                ICurve2D next = rest[best];
+                rest.RemoveAt(best);
+                if (reverse) next.Reverse();
+                sorted.Add(next);
+            }
+            if ((sorted[sorted.Count - 1].EndPoint | sorted[0].StartPoint) > maxGap) return null;
+            return sorted;
+        }
+
+        /// <summary>
+        /// Moves a 2d curve into the period [uSeam, uSeam+1] of a closed pipe surface, splitting it when it
+        /// contains the seam.
+        /// </summary>
+        private static void PlaceInPeriod(ICurve2D curve, double uSeam, bool maySplit, List<ICurve2D> res)
+        {
+            BoundingRect ext = curve.GetExtent();
+            if (ext.Right <= uSeam + 1e-6) res.Add(MovedByPeriod(curve, 1.0));
+            else if (ext.Left >= uSeam - 1e-6 || !maySplit) res.Add(curve);
+            else
+            {
+                ICurve2D[] parts = curve.Split(ParameterAtU(curve, uSeam));
+                if (parts == null || parts.Length != 2) res.Add(curve);
+                else
+                {
+                    PlaceInPeriod(parts[0], uSeam, false, res);
+                    PlaceInPeriod(parts[1], uSeam, false, res);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Moves a 2d curve by whole periods in u. Move is used and not GetModified, because a
+        /// <see cref="ProjectedCurve"/> can only be moved by whole periods (it stays a projected curve then),
+        /// whereas GetModified would replace it by a polygonal approximation, which would show up as a lot of tiny
+        /// edges in the resulting face.
+        /// </summary>
+        private static ICurve2D MovedByPeriod(ICurve2D curve, double periods)
+        {
+            ICurve2D res = curve.Clone();
+            try
+            {
+                res.Move(periods, 0.0);
+            }
+            catch (ApplicationException)
+            {
+                res = curve.GetModified(ModOp2D.Translate(periods, 0.0));
+            }
+            return res;
+        }
+
+        /// <summary>Collects the (unique) points at the two ends of the period, they are connected by the seam.</summary>
+        private static void CollectSeamPoint(GeoPoint2D p, double uSeam, List<GeoPoint2D> atSeam, List<GeoPoint2D> atPeriod)
+        {
+            List<GeoPoint2D> list = null;
+            if (Math.Abs(p.x - uSeam) < 1e-6) list = atSeam;
+            else if (Math.Abs(p.x - uSeam - 1.0) < 1e-6) list = atPeriod;
+            if (list == null) return;
+            for (int i = 0; i < list.Count; i++) if ((p | list[i]) < 1e-6) return;
+            list.Add(p);
+        }
+
+        /// <summary>The parameter of a 2d curve which is monotonous in u at the given u value.</summary>
+        private static double ParameterAtU(ICurve2D curve, double u)
+        {
+            double lo = 0.0, hi = 1.0;
+            bool ascending = curve.EndPoint.x > curve.StartPoint.x;
+            for (int i = 0; i < 60; i++)
+            {
+                double m = (lo + hi) / 2.0;
+                if (curve.PointAt(m).x < u == ascending) lo = m;
+                else hi = m;
+            }
+            return (lo + hi) / 2.0;
+        }
+
+        /// <summary>
+        /// The arc of the pipe around the end of the chain: it connects the ends of the two offset edges and is
+        /// also a part of the spherical face which fills the gap at this vertex.
+        /// </summary>
+        private static Ellipse EndArc((Edge axis, Edge forward, Edge backward) item, Vertex vtx, double radius)
+        {
+            Edge axis = item.axis;
+            GeoPoint center = vtx.Position;
+            GeoVector toOutside = axis.PrimaryFace.Surface.GetNormal(vtx.GetPositionOnFace(axis.PrimaryFace)).Normalized +
+                                  axis.SecondaryFace.Surface.GetNormal(vtx.GetPositionOnFace(axis.SecondaryFace)).Normalized;
+            Plane pln = new Plane(center, vtx == axis.Vertex1 ? axis.Curve3D.StartDirection : axis.Curve3D.EndDirection);
+            GeoPoint p1 = CloserEndPoint(item.forward.Curve3D, center);
+            GeoPoint p2 = CloserEndPoint(item.backward.Curve3D, center);
+            if (Precision.IsEqual(p1, p2)) return null; // the two offset edges meet in a single point
+            Ellipse arc = Ellipse.Construct();
+            arc.SetArc3Points(p1, center + radius * toOutside.Normalized, p2, pln);
+            if (Math.Abs(arc.SweepParameter) > Math.PI) arc.SetArc3Points(p1, center - radius * toOutside.Normalized, p2, pln);
+            return arc;
+        }
+
+        private static GeoPoint CloserEndPoint(ICurve curve, GeoPoint p)
+        {
+            return (curve.StartPoint | p) < (curve.EndPoint | p) ? curve.StartPoint : curve.EndPoint;
+        }
+
         static List<Face> ConnectedList(Face startWith, HashSet<Face> visited = null, List<Face> result = null)
         {
             if (visited == null)
@@ -718,10 +1122,35 @@ namespace CADability.GeoObject
         }
         public static Shell[] GetOffset(this Shell shell, double offset)
         {
+            Face[] faces = shell.GetOffsetParts(offset, out bool allEdgesAreConnected);
+            if (allEdgesAreConnected)
+            {
+                Shell s = Shell.MakeShell(faces);
+                if (!s.HasOpenEdgesExceptPoles())
+                    return new Shell[] { s }; // the offset is a perfectly closed shell, no need to do a boolean operation
+            }
+            BooleanOperation bo = new BooleanOperation();
+            bo.SetFaces(faces, offset > 0);
+            return bo.Execute();
+        }
+
+        /// <summary>
+        /// The faces the offset of this shell is made of: the offset of every face of the shell, a fillet along
+        /// every convex edge (concave for a negative offset) and a spherical patch at every vertex where three or
+        /// more of those fillets meet. The faces are already connected where they share an edge, but parts which
+        /// stand out still have to be trimmed against each other, which is what <see cref="GetOffset"/> does with a
+        /// boolean operation afterwards. Exposed separately because it is the part of the offset which can be
+        /// tested and looked at on its own.
+        /// </summary>
+        /// <param name="offset">the distance, positive to the outside</param>
+        /// <param name="allEdgesAreConnected">true when every edge of the shell got a fillet or needs none, i.e.
+        /// when the faces should already form a closed shell</param>
+        public static Face[] GetOffsetParts(this Shell shell, double offset, out bool allEdgesAreConnected)
+        {
             Dictionary<(Face, Edge), Edge> faceEdgeToParallelEdge = new Dictionary<(Face, Edge), Edge>(); // the parallel edges to the original edges, also depend on the face
             Dictionary<Vertex, List<Edge>> vertexToArcs = new Dictionary<Vertex, List<Edge>>(); // for each vertex there are the sides of the wedges, which build spherical wedges
             Dictionary<Face, Face> faceToOffsetFace = new Dictionary<Face, Face>(); // for each face of the original shell we have a face with the required offset here
-            Dictionary<Edge, Face> edgeToFillet = new Dictionary<Edge, Face>(); // for each convex edge we create a "fillet" face
+            List<Face> filletFaces = new List<Face>(); // the "fillet" faces along the convex edges
             HashSet<Face> inverseFaces = new HashSet<Face>();
             List<Face> sphercalWegdes = new List<Face>(); // the sphreical faces fill the gaps between the fillets
                                                           // for the brep operation we need edge-face pairs, which should not be tested for intersection, because they connect adjacent parts like the offset faces with the fillets
@@ -729,6 +1158,7 @@ namespace CADability.GeoObject
                                                           // and retrieve them after the brep operation is done.
             HashSet<(Edge, Face)> dontIntersect = new HashSet<(Edge, Face)>(); // NOT USED ANY MORE, these pairs will be connected and there is no need to calculate the intersection
                                                                                // set UserData with the original face and edge references to 
+            DebuggerContainer dc = new DebuggerContainer();
             foreach (Face face in shell.Faces)
             {   // makeparallel faces with the provided offset
                 // The offset surface usually uses the same (u,v) system as the original one, so the 2d curves of
@@ -758,7 +1188,6 @@ namespace CADability.GeoObject
                     Face offsetFace = Face.MakeFace(offsetSurface, ss);
                     offsetFace.UserData.Add("ShapeIt.OriginalFace", new FaceReference(offsetFace));
 #if DEBUG
-                    DebuggerContainer dc = new DebuggerContainer();
                     dc.Add(face);
                     dc.Add(offsetFace);
                     foreach (Vertex vtx in face.Vertices)
@@ -788,53 +1217,55 @@ namespace CADability.GeoObject
                 }
             }
 
+            // the edges which need a fillet: convex edges (concave for an inner offset) whose two offset faces exist
+            allEdgesAreConnected = true;
+            Dictionary<Edge, (Edge forward, Edge backward)> filletEdges = new Dictionary<Edge, (Edge, Edge)>();
             foreach (Edge sedge in shell.Edges)
             {
                 AdjacencyType toCheckFor = offset > 0 ? AdjacencyType.Convex : AdjacencyType.Concave;
-                if (sedge.Adjacency() == toCheckFor && faceEdgeToParallelEdge.TryGetValue((sedge.PrimaryFace, sedge), out Edge e1) && faceEdgeToParallelEdge.TryGetValue((sedge.SecondaryFace, sedge), out Edge e2))
+                if (sedge.Adjacency() == toCheckFor && faceEdgeToParallelEdge.TryGetValue((sedge.PrimaryFace, sedge), out Edge e1)
+                    && faceEdgeToParallelEdge.TryGetValue((sedge.SecondaryFace, sedge), out Edge e2))
                 {
-                    Face fillet = MakeOffsetFillet(sedge, offset, e1, e2, inverseFaces.Contains(e1.PrimaryFace), inverseFaces.Contains(e2.PrimaryFace));
-                    if (fillet != null)
+                    filletEdges[sedge] = (e1, e2);
+                }
+                else if (sedge.Adjacency() != AdjacencyType.SameSurface && sedge.Adjacency() != AdjacencyType.Tangent) allEdgesAreConnected = false;
+            }
+            // edges which continue each other tangentially share a single fillet: only then the pipe which folds
+            // over itself at a tightly curved edge can be resolved, because both sheets belong to the same surface
+            foreach (List<Edge> chain in FilletChains(filletEdges))
+            {
+                List<(Edge axis, Edge forward, Edge backward)> withOffsetEdges = new List<(Edge, Edge, Edge)>(chain.Count);
+                for (int i = 0; i < chain.Count; i++) withOffsetEdges.Add((chain[i], filletEdges[chain[i]].forward, filletEdges[chain[i]].backward));
+                Face[] fillets = MakeOffsetFillet(withOffsetEdges, offset,
+                    inverseFaces.Contains(filletEdges[chain[0]].forward.PrimaryFace), inverseFaces.Contains(filletEdges[chain[0]].backward.PrimaryFace));
+                if (fillets == null) continue;
+                // only where the chain ends several fillets meet in a vertex and a spherical patch is needed: at
+                // the junctions inside a chain the fillet simply continues, and a closed chain has no ends at all
+                HashSet<Vertex> chainVertices = new HashSet<Vertex>();
+                if (!ChainIsClosed(withOffsetEdges))
+                {
+                    chainVertices.Add(ChainEndVertex(withOffsetEdges, true));
+                    chainVertices.Add(ChainEndVertex(withOffsetEdges, false));
+                }
+                foreach (Face fillet in fillets)
+                {
+                    if (fillet == null) continue;
+                    fillet.UserData.Add("ShapeIt.OriginalFace", new FaceReference(fillet));
+                    filletFaces.Add(fillet);
+                    foreach (Edge edg in fillet.AllEdges)
                     {
-                        fillet.UserData.Add("ShapeIt.OriginalFace", new FaceReference(fillet));
-                        dontIntersect.Add((e1, fillet));
-                        dontIntersect.Add((e2, fillet));
-                        edgeToFillet[sedge] = fillet;
-                        Face primaryOffset = faceToOffsetFace[sedge.PrimaryFace];
-                        Face secondaryOffset = faceToOffsetFace[sedge.SecondaryFace]; // must both exist!
-                                                                                      // look for the arcs in the fillet and add them to vertexToArcs
-                        foreach (Edge edg in fillet.AllEdges)
+                        if (edg.Curve3D is IGeoObject go && !go.UserData.ContainsData("ShapeIt.OriginalEdge"))
                         {
-                            if (edg.Curve3D is IGeoObject go)
+                            go.UserData.Add("ShapeIt.OriginalEdge", new EdgeReference(edg));
+                        }
+                        // the arcs at the ends of the chain are the sides of the spherical faces at those vertices
+                        if (edg.Curve3D is Ellipse elli && elli.IsCircle && Math.Abs(elli.Radius - Math.Abs(offset)) < Precision.eps)
+                        {
+                            foreach (Vertex vtx in chainVertices)
                             {
-                                go.UserData.Add("ShapeIt.OriginalEdge", new EdgeReference(edg));
-                            }
-                            if (edg.Curve3D is Ellipse elli && elli.IsCircle && Math.Abs(elli.Radius - Math.Abs(offset)) < Precision.eps)
-                            {
-                                if (Precision.IsEqual(elli.Center, sedge.Vertex1.Position))
-                                {
-                                    if (!vertexToArcs.TryGetValue(sedge.Vertex1, out List<Edge> arcs))
-                                    {
-                                        vertexToArcs[sedge.Vertex1] = arcs = new List<Edge>();
-                                    }
-                                    arcs.Add(edg);
-                                }
-                                if (Precision.IsEqual(elli.Center, sedge.Vertex2.Position))
-                                {
-                                    if (!vertexToArcs.TryGetValue(sedge.Vertex2, out List<Edge> arcs))
-                                    {
-                                        vertexToArcs[sedge.Vertex2] = arcs = new List<Edge>();
-                                    }
-                                    arcs.Add(edg);
-                                }
-                            }
-                            if (Precision.IsEqual(edg.Vertex1.Position, e1.Vertex2.Position) && Precision.IsEqual(edg.Vertex2.Position, e1.Vertex1.Position)) // edges must be reverse oriented, i.e. we can use Vertex1, Vertex2
-                            {
-                                dontIntersect.Add((edg, primaryOffset));
-                            }
-                            if (Precision.IsEqual(edg.Vertex1.Position, e2.Vertex2.Position) && Precision.IsEqual(edg.Vertex2.Position, e2.Vertex1.Position))
-                            {
-                                dontIntersect.Add((edg, secondaryOffset));
+                                if (!Precision.IsEqual(elli.Center, vtx.Position)) continue;
+                                if (!vertexToArcs.TryGetValue(vtx, out List<Edge> arcs)) vertexToArcs[vtx] = arcs = new List<Edge>();
+                                if (!arcs.Contains(edg)) arcs.Add(edg);
                             }
                         }
                     }
@@ -906,13 +1337,15 @@ namespace CADability.GeoObject
             }
             HashSet<Face> faces = new HashSet<Face>(faceToOffsetFace.Values); // the raw offset faces
             faces.ExceptWith(inverseFaces); // these faces will not appear in the result
-            faces.UnionWith(edgeToFillet.Values); // the fillets on the edges
+            faces.UnionWith(filletFaces); // the fillets on the edges
             faces.UnionWith(sphercalWegdes); // the spherical faces on the vertices
                                              // faces contains all the faces for the offset shell, the edges are properly connected but some parts are standing out
-            Shell.ConnectFaces(faces.ToArray(), Precision.eps);
-            BooleanOperation bo = new BooleanOperation();
-            bo.SetFaces(faces, offset>0);
-            Shell[] res = bo.Execute();
+            Face[] res = faces.ToArray();
+            // the parts are built independently and only meet exactly in theory: where a fillet has been split at a
+            // fold, the 2d operations which cut it leave the common point a few 1e-6 apart, so the tolerance for
+            // connecting them has to be relative to the size of the shell
+            BoundingBox ext = shell.GetExtent(0.0);
+            Shell.ConnectFaces(res, Math.Max(Precision.eps, ext.Size * 1e-6));
             return res;
         }
         public static Shell RoundEdgesOld(this Shell shell, IEnumerable<Edge> edges, double radius)
