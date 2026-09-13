@@ -1714,6 +1714,9 @@ namespace CADability
             ext = ext.Modify(new GeoVector(extsize * 1e-4, extsize * 1e-4, extsize * 1e-4));
             triangulationPrecision = ext.Size * 1e-4;
             foreach (Face face in multipleFaces) face.PreCalcTriangulation(triangulationPrecision);
+            OctTree<Vertex> vertexOcttree = new OctTree<Vertex>(ext, extsize * 1e-6);
+            foreach (Face face in multipleFaces) vertexOcttree.AddMany(face.Vertices);
+            combineVertices(vertexOcttree);
             // everything else should work with execute
 
             //Initialize(ext, extsize * 1e-6); // initialize the OctTree

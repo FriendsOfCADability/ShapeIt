@@ -21,6 +21,20 @@ namespace CADability.Curve2D
             this.fromUnit = fromUnit;
         }
 
+        /// <summary>
+        /// The transformation which maps the unit sine curve (u, sin(u)) onto this curve.
+        /// </summary>
+        public ModOp2D FromUnit => fromUnit;
+        /// <summary>
+        /// The parameter u of the unit sine curve (u, sin(u)) at the startpoint of this curve.
+        /// </summary>
+        public double UStart => ustart;
+        /// <summary>
+        /// The difference of the parameter u of the unit sine curve (u, sin(u)) between end- and startpoint
+        /// of this curve. It is negative when the curve is reversed.
+        /// </summary>
+        public double UDiff => udiff;
+
         public static SineCurve2D Create(GeoPoint2D p1, GeoPoint2D p2, GeoPoint2D p3, GeoPoint2D p4)
         {
             (double a, double b, double c, double x0, double y0, NonlinearMinimizationResult result) =

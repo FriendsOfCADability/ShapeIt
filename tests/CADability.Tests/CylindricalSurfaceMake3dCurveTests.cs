@@ -1,4 +1,4 @@
-using CADability.Curve2D;
+﻿using CADability.Curve2D;
 using CADability.GeoObject;
 using System;
 
@@ -28,21 +28,33 @@ namespace CADability.Tests
         }
 
         /// <summary>
-        /// The 3d curve must be the image of the 2d line under the surface, with the same parametrization.
+        /// Creates the 2d curve v = a*sin(u-phi)+c, restricted to u from ustart to ustart+usweep, the way the
+        /// intersection of a cylinder with a plane provides it.
         /// </summary>
-        private static ICurve AssertMatchesSurface(CylindricalSurface cyl, GeoPoint2D from, GeoPoint2D to)
+        private static SineCurve2D Sine(double a, double phi, double c, double ustart, double usweep)
         {
-            Line2D l2d = new Line2D(from, to);
-            ICurve c3d = cyl.Make3dCurve(l2d);
+            return new SineCurve2D(ustart - phi, usweep, new ModOp2D(1, 0, phi, 0, a, c));
+        }
+
+        /// <summary>
+        /// The 3d curve must be the image of the 2d curve under the surface, with the same parametrization.
+        /// </summary>
+        private static ICurve AssertMatchesSurface(CylindricalSurface cyl, ICurve2D curve2d)
+        {
+            ICurve c3d = cyl.Make3dCurve(curve2d);
             Assert.IsNotNull(c3d);
             for (int i = 0; i <= 20; ++i)
             {
                 double t = i / 20.0;
-                GeoPoint onSurface = cyl.PointAt(l2d.PointAt(t));
+                GeoPoint onSurface = cyl.PointAt(curve2d.PointAt(t));
                 GeoPoint onCurve = c3d.PointAt(t);
                 Assert.IsTrue((onSurface | onCurve) < 1e-8, $"at t={t}: distance {(onSurface | onCurve)}");
             }
             return c3d;
+        }
+        private static ICurve AssertMatchesSurface(CylindricalSurface cyl, GeoPoint2D from, GeoPoint2D to)
+        {
+            return AssertMatchesSurface(cyl, new Line2D(from, to));
         }
 
         [TestMethod]
@@ -104,6 +116,102 @@ namespace CADability.Tests
                 double t = i / 20.0;
                 GeoPoint2D uv = cyl.PositionOf(c3d.PointAt(t));
                 GeoPoint2D expected = l2d.PointAt(t);
+                double du = uv.x - expected.x;
+                du -= 2 * Math.PI * Math.Round(du / (2 * Math.PI)); // u is periodic
+                Assert.AreEqual(0.0, du, 1e-8, "u at " + t);
+                Assert.AreEqual(expected.y, uv.y, 1e-8, "v at " + t);
+            }
+        }
+
+        [TestMethod]
+        public void SineCurve_YieldsAnEllipse()
+        {   // an arc of the intersection with a slanted plane
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), Sine(1.7, 0.6, 3.0, 0.4, 2.2)), typeof(Ellipse));
+            // the full intersection curve
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), Sine(1.7, 0.6, 3.0, 0.0, 2 * Math.PI)), typeof(Ellipse));
+            // reversed, i.e. a negative sweep
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), Sine(1.7, 0.6, 3.0, 2.6, -2.2)), typeof(Ellipse));
+            // a negative amplitude and a phase beyond 2*pi
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), Sine(-4.0, 7.5, -2.0, -1.0, 5.0)), typeof(Ellipse));
+            // an almost horizontal plane, i.e. almost a circle
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), Sine(1e-4, 0.6, 3.0, 0.4, 2.2)), typeof(Ellipse));
+        }
+
+        [TestMethod]
+        public void SineCurve_MirroredParametrization()
+        {   // fromUnit may also reverse the u direction (slope -1), which only reverses the resulting ellipse
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), new SineCurve2D(0.4, 2.2, new ModOp2D(-1, 0, 0.6, 0, 1.7, 3.0))), typeof(Ellipse));
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), new SineCurve2D(0.4, -2.2, new ModOp2D(-1, 0, 0.6, 0, -1.7, 3.0))), typeof(Ellipse));
+            Assert.IsInstanceOfType(AssertMatchesSurface(Circular(), new SineCurve2D(0.0, 2 * Math.PI, new ModOp2D(-1, 0, 0.6, 0, 1.7, 3.0))), typeof(Ellipse));
+            Assert.IsInstanceOfType(AssertMatchesSurface(Elliptical(), new SineCurve2D(0.4, 2.2, new ModOp2D(-1, 0, 0.6, 0, 1.7, 3.0))), typeof(Ellipse));
+            Assert.IsInstanceOfType(AssertMatchesSurface(Tilted(), new SineCurve2D(0.4, 2.2, new ModOp2D(-1, 0, 0.6, 0, 1.7, 3.0))), typeof(Ellipse));
+        }
+
+        [TestMethod]
+        public void SineCurve_OnDistortedCylinders()
+        {   // an elliptical and a sheared/scaled cylinder distort the ellipse, but it stays an ellipse
+            Assert.IsInstanceOfType(AssertMatchesSurface(Elliptical(), Sine(1.7, 0.6, 3.0, 0.4, 2.2)), typeof(Ellipse));
+            Assert.IsInstanceOfType(AssertMatchesSurface(Elliptical(), Sine(1.7, 0.6, 3.0, 0.0, 2 * Math.PI)), typeof(Ellipse));
+            Assert.IsInstanceOfType(AssertMatchesSurface(Tilted(), Sine(2.5, -1.2, 1.0, 0.3, 4.0)), typeof(Ellipse));
+            Assert.IsInstanceOfType(AssertMatchesSurface(LeftHanded(), Sine(2.5, -1.2, 1.0, 0.3, 4.0)), typeof(Ellipse));
+        }
+
+        [TestMethod]
+        public void SineCurve_AxesArePerpendicular()
+        {   // the major axis must be the longer one and perpendicular to the minor axis, also on a distorted cylinder
+            foreach (CylindricalSurface cyl in new CylindricalSurface[] { Circular(), Elliptical(), Tilted(), LeftHanded() })
+            {
+                Ellipse elli = (Ellipse)AssertMatchesSurface(cyl, Sine(1.7, 0.6, 3.0, 0.4, 2.2));
+                Assert.IsTrue(elli.MajorAxis.Length >= elli.MinorAxis.Length);
+                Assert.AreEqual(0.0, elli.MajorAxis.Normalized * elli.MinorAxis.Normalized, 1e-10);
+            }
+        }
+
+        [TestMethod]
+        public void SineCurve_WithAnotherPeriodFallsBack()
+        {   // only the period 2*pi yields a planar curve
+            ICurve c3d = Circular().Make3dCurve(new SineCurve2D(0.0, 2 * Math.PI, new ModOp2D(2, 0, 0.5, 0, 1.7, 3.0)));
+            Assert.IsNotNull(c3d);
+            Assert.IsFalse(c3d is Ellipse);
+            // a sine curve which is slanted in v is not planar either
+            c3d = Circular().Make3dCurve(new SineCurve2D(0.0, 2 * Math.PI, new ModOp2D(1, 0, 0.5, 0.3, 1.7, 3.0)));
+            Assert.IsNotNull(c3d);
+            Assert.IsFalse(c3d is Ellipse);
+        }
+
+        [TestMethod]
+        public void SineCurve_MatchesThePlaneIntersection()
+        {   // the sine curve provided by GetPlaneIntersection must yield the ellipse in which the plane cuts the cylinder
+            CylindricalSurface cyl = Circular();
+            PlaneSurface pls = new PlaneSurface(new Plane(new GeoPoint(1, 2, 4), new GeoVector(0.3, 0.2, 1)));
+            IDualSurfaceCurve[] dsc = cyl.GetPlaneIntersection(pls, 0, 2 * Math.PI, -10, 10, 0.0);
+            Assert.AreEqual(1, dsc.Length);
+            Assert.AreEqual(cyl, dsc[0].Surface1);
+            ICurve2D c2d = dsc[0].Curve2D1; // GetCurveOnSurface would wrap it into a Curve2DAspect
+            Assert.IsInstanceOfType(c2d, typeof(SineCurve2D));
+            Ellipse elli = (Ellipse)AssertMatchesSurface(cyl, c2d);
+            for (int i = 0; i <= 20; ++i)
+            {   // the whole curve lies in the plane
+                Assert.AreEqual(0.0, pls.Plane.Distance(elli.PointAt(i / 20.0)), 1e-8, "in the plane at " + i / 20.0);
+            }
+            // it is the same ellipse as the one GetPlaneIntersection provides (which starts at a different parameter)
+            Ellipse expected = (Ellipse)dsc[0].Curve3D;
+            Assert.IsTrue((elli.Center | expected.Center) < 1e-8);
+            Assert.AreEqual(expected.MajorAxis.Length, elli.MajorAxis.Length, 1e-8);
+            Assert.AreEqual(expected.MinorAxis.Length, elli.MinorAxis.Length, 1e-8);
+        }
+
+        [TestMethod]
+        public void SineCurve_BackProjectionYieldsTheOriginalCurve()
+        {
+            CylindricalSurface cyl = Circular();
+            SineCurve2D sc = Sine(1.7, 0.6, 3.0, 0.4, 2.2);
+            ICurve c3d = cyl.Make3dCurve(sc);
+            for (int i = 0; i <= 20; ++i)
+            {
+                double t = i / 20.0;
+                GeoPoint2D uv = cyl.PositionOf(c3d.PointAt(t));
+                GeoPoint2D expected = sc.PointAt(t);
                 double du = uv.x - expected.x;
                 du -= 2 * Math.PI * Math.Round(du / (2 * Math.PI)); // u is periodic
                 Assert.AreEqual(0.0, du, 1e-8, "u at " + t);

@@ -661,9 +661,9 @@ namespace CADability.GeoObject
                 }
             }
             // a 2d line yields a line (v direction), an ellipse (u direction) or a helical curve (slanted)
-            // a sine curve would be a special case, it also yields an ellipse, but that is handled better this way:
-            // there is a special 2d curve, which is the parameter curve of a surface intersected with another
-            // surface. And when the other surface is a plane, the result is an ellipse
+            // a sine curve with the period 2*pi also yields an ellipse, this is handled below. And there is a special
+            // 2d curve, which is the parameter curve of a surface intersected with another surface. When the other
+            // surface is a plane, the result is an ellipse, which is already provided by the Curve2DAspect above
             //
             if (curve2d is Line2D)
             {
@@ -698,6 +698,52 @@ namespace CADability.GeoObject
                     HelicalCurve res = HelicalCurve.Construct();
                     res.SetHelix(pln, 1.0, k * 2.0 * Math.PI, l2d.StartPoint.x, dir.x);
                     res.Modify(toCylinder); // toCylinder is a similarity here, so the helix is preserved
+                    return res;
+                }
+            }
+            if (curve2d is SineCurve2D sc)
+            {   // A sine curve in the (u,v) system of the cylinder is planar - and hence a 3d ellipse - exactly when v
+                // is a pure sine of u with the period 2*pi: v == a*sin(u-phi)+c. With fromUnit mapping the unit sine
+                // curve (t, sin(t)) onto (u,v) this means: u must be a linear function of t with the slope +/-1 (a
+                // negative slope only reverses the direction) and v must not contain a linear part. Any other sine
+                // curve (a different period or a slanted one) is not planar and is left to the base implementation.
+                ModOp2D fromUnit = sc.FromUnit;
+                if (Math.Abs(Math.Abs(fromUnit[0, 0]) - 1.0) < 1e-8 && Math.Abs(fromUnit[0, 1]) < 1e-8 && Math.Abs(fromUnit[1, 0]) < 1e-8)
+                {
+                    double sign = Math.Sign(fromUnit[0, 0]); // u == sign*t+phi, i.e. t == sign*(u-phi) and sin(t) == sign*sin(u-phi)
+                    double phi = fromUnit[0, 2];
+                    double a = sign * fromUnit[1, 1]; // v == a*sin(u-phi)+c
+                    double c = fromUnit[1, 2];
+                    double ustart = sign * sc.UStart + phi; // the angle u at the startpoint
+                    double usweep = sign * sc.UDiff; // the swept angle u
+                    // On the unit cylinder the curve is (cos(u), sin(u), a*sin(u-phi)+c). With w == u-phi this is
+                    // center + cos(w)*(cos(phi), sin(phi), 0) + sin(w)*(-sin(phi), cos(phi), a), where the two vectors
+                    // are perpendicular and the second one is the longer one, i.e. the major axis. An ellipse is
+                    // parametrized as center + cos(t)*majorAxis + sin(t)*minorAxis, which requires t == w-pi/2:
+                    GeoPoint center = toCylinder * new GeoPoint(0.0, 0.0, c);
+                    GeoVector majorAxis = toCylinder * new GeoVector(-Math.Sin(phi), Math.Cos(phi), a);
+                    GeoVector minorAxis = toCylinder * new GeoVector(-Math.Cos(phi), -Math.Sin(phi), 0.0);
+                    double startParameter = ustart - phi - Math.PI / 2.0;
+                    // toCylinder may distort (an elliptical or a sheared cylinder), then the two axes are no more
+                    // perpendicular but still conjugate diameters. Rotating the pair by theta makes them perpendicular
+                    // again, i.e. yields the principal axes:
+                    double theta = 0.5 * Math.Atan2(2.0 * (majorAxis * minorAxis), majorAxis * majorAxis - minorAxis * minorAxis);
+                    if (theta != 0.0)
+                    {   // cos(t)*ma+sin(t)*mi == cos(t-theta)*(cos(theta)*ma+sin(theta)*mi) + sin(t-theta)*(cos(theta)*mi-sin(theta)*ma)
+                        GeoVector ma = Math.Cos(theta) * majorAxis + Math.Sin(theta) * minorAxis;
+                        minorAxis = Math.Cos(theta) * minorAxis - Math.Sin(theta) * majorAxis;
+                        majorAxis = ma;
+                        startParameter -= theta;
+                    }
+                    if (majorAxis.Length < minorAxis.Length)
+                    {   // exchange the axes: cos(t)*ma+sin(t)*mi == cos(t-pi/2)*mi + sin(t-pi/2)*(-ma)
+                        GeoVector ma = minorAxis;
+                        minorAxis = -majorAxis;
+                        majorAxis = ma;
+                        startParameter -= Math.PI / 2.0;
+                    }
+                    Ellipse res = Ellipse.Construct();
+                    res.SetEllipseArcCenterAxis(center, majorAxis, minorAxis, startParameter, usweep);
                     return res;
                 }
             }
