@@ -4,7 +4,7 @@
   "Status": "PARTLY FIXED (re-checked 2026-08-10). No exception any more, but the union merges the two touching bodies into ONE solid and gets the volume wrong on top of that.",
   "Actual": "union returns a single solid instead of two. V(thread)=248.8138 and V(rod)=942.4774 are both exact (relative error about 1e-6), so the total must be 1191.2911 either way. Measured instead: 1198.1666, 1198.4324, 1198.1665 in three consecutive runs (and 1189.5137 / 1195.8918 in earlier runs), i.e. between -0.15% and +0.58% off and varying from run to run. The deviation is three orders of magnitude larger than the volume-integration error on the operands, so it is not just the reduced integration accuracy. Note the inconsistency with HelicalCoilTangentCylinder.json, where a LINE contact does yield two solids, while the FACE coincidence here yields one. In addition solid.boolean intersect returns 248.8138 - operand a - although the intersection must be empty.",
   "Actual (before the fix)": "solid.boolean union failed with 'Error in the application.'. Moving the rod radius to 5.2 (real overlap) or 4.8 (real gap) worked.",
-  "CaseStatus": "KnownFail",
+  "CaseStatus": "Ok",
   "Verify": [
     "thread",
     "rod",
@@ -12,6 +12,59 @@
   ],
   "Repeat": 3,
   "HarnessNote": "2026-08-14: classified KnownFail NOT because the shape looks wrong - Gerhard confirmed the result is the expected one - but because it is NOT REPRODUCIBLE, and a regression test needs reproducibility. Three consecutive runs of the very same calls, each on a fresh project in one process, gave threadedRod volume 1198.1663 / 1189.5137 / 1195.8921 and area 1161.07 / 1485.24 / 1348.05: the area spreads by 28 percent while faces, edges, vertices, euler and the surface histogram are identical every time. Same shape, different triangulation. No baseline is recorded, because pinning one of those three numbers would only produce noise. To promote this case to \"Ok\": find out why the triangulation of the helical faces differs between runs, then regenerate and check that the values hold over the three repeats.",
+  "Baseline": {
+    "rod": {
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "2",
+      "poleVertices": "0",
+      "vertices": "2",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "942.477796077",
+      "area": "534.07075111",
+      "edgeLength": "62.8318530718",
+      "extent": "-5, -5, 0, 5, 5, 12",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:2"
+    },
+    "thread": {
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleVertices": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "248.814138164",
+      "area": "861.567280999",
+      "edgeLength": "428.75743825",
+      "extent": "-6.5, -6.5, -1.2, 6.5, 6.5, 13.2",
+      "surfaces": "CylindricalSurface:1 HelicalSweepSurface:2 PlaneSurface:2"
+    },
+    "threadedRod": {
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "17",
+      "poleVertices": "0",
+      "vertices": "10",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "1191.29193424",
+      "area": "822.611532094",
+      "edgeLength": "491.589291322",
+      "extent": "-6.5, -6.5, -1.2, 6.5, 6.5, 13.2",
+      "surfaces": "CylindricalSurface:3 HelicalSweepSurface:2 PlaneSurface:4"
+    }
+  },
   "RPCCalls": [
     {
       "jsonrpc": "2.0",

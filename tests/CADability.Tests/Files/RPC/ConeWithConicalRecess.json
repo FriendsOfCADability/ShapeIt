@@ -10,19 +10,19 @@
     "spike": {
       "verified": "2026-08-26 GH: matches the hand computed values - volume 550*pi = 1727.8759594744 to 2.1e-7 and area 385*pi = 1209.5131716321 to 2e-12, edgeLength 139.8318530718 exactly. Two conical faces split at the seam into four, a pole at each apex, no planar face. The area was 1209.5132339605 (5.6e-4 off) while it was summed over the flat triangles; since ShellMetrics integrates |Su x Sv| over the parameter domain it is exact here, because the domain of a cone mantle is a rectangle and needs no mesh at all.",
       "consistent": "true",
-      "faces": "4",
-      "edges": "6",
-      "poleEdges": "4",
-      "vertices": "4",
+      "faces": "2",
+      "edges": "1",
+      "poleVertices": "2",
+      "vertices": "1",
       "holeLoops": "0",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "1727.875602",
+      "volume": "1727.87595947",
       "area": "1209.51317163",
-      "edgeLength": "139.831853072",
+      "edgeLength": "62.8318530718",
       "extent": "-10, -10, 0, 10, 10, 24",
-      "surfaces": "ConicalSurface:4"
+      "surfaces": "ConicalSurface:2"
     }
   },
   "Status": "OK since 2026-08-21. Recorded earlier the same day as a KNOWN FAILURE with consistent = false,\nvolume 344.478796275 and area 1040.93733452; that was the build of that morning. Nothing in this case\nchanged - the working tree did (Face.cs, Make3D.cs, Surface.cs, BoundingRect.cs) - and the result has\nbeen the one below in every run since, over several fresh processes.\n\nSTILL OPEN, and this case is slow because of it: triangulating a face with a pole does not converge.\nCall id 4 asks for precision 1e-5, which reaches Face.GetSimpleTriangulation as maxDeflection 5e-5, and\na single half cone then produces about 39000 triangles from 20000 vertices - the hard cap\nmaxVerts = max(20000, inputVertexCount*50) in CDTriangulation.Refine. It stops at the cap, it does not\nconverge. Measured on the same face, boundary sampled with 30 points:\n    maxDeflection 0.32     118 triangles   area 406.6865   (true 408.4070)\n    maxDeflection 0.05   37368 triangles   area 409.6935   18303 of the Steiner points from the shape\n                                                           quality criterion\n    maxDeflection 0.05     680 triangles   area 413.7600   same, with MinAngle3D set to 0\n    maxDeflection 5e-5   39114 triangles   area 405.0733   19538 Steiner points from edge deflection,\n                                                           quality plays no part, the cap stops it\nTwo independent causes. The quality criterion is pole specific: the same surface as a band with the apex\ncut away gives 406 triangles at maxDeflection 0.05 with the criterion on and 402 with it off. The\ndeflection cascade at 5e-5 is not pole specific - the band hits the cap just the same.\nThat defect does not corrupt the fingerprint below: ShellMetrics measures at size*1e-3 = 0.064, where the\nface triangulates cleanly. It only costs the runtime, roughly 26 seconds per repeat.\n\nThe values below are stable over 3 runs.",

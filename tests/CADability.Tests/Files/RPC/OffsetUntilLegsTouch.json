@@ -41,8 +41,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "174082.29582",
-      "area": "18293.7010611",
+      "volume": "174082.295823",
+      "area": "18293.7008275",
       "edgeLength": "1769.88694547",
       "extent": "-10, -10, -10, 70, 30, 50",
       "surfaces": "CylindricalSurface:22 PlaneSurface:7 SphericalSurface:12"
@@ -58,8 +58,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "212014.663369",
-      "area": "19893.0217317",
+      "volume": "212014.663362",
+      "area": "19893.0216741",
       "edgeLength": "1833.3319434",
       "extent": "-12, -12, -12, 72, 32, 52",
       "surfaces": "CylindricalSurface:22 PlaneSurface:7 SphericalSurface:12"
@@ -75,8 +75,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "138281.542814",
-      "area": "16797.3730685",
+      "volume": "138281.542804",
+      "area": "16797.3731335",
       "edgeLength": "1753.50955638",
       "extent": "-8, -8, -8, 68, 28, 48",
       "surfaces": "CylindricalSurface:22 PlaneSurface:10 SphericalSurface:12"

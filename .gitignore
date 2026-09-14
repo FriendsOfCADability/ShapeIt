@@ -357,3 +357,7 @@ CADability.Forms/log.txt
 
 # Claude Code: persoenliche Einstellungen, nicht teilen
 .claude/settings.local.json
+
+# Ansichtsdateien der RPC-Regressionsfaelle: werden bei jedem Regenerate-Lauf aus
+# dem Lauf selbst neu erzeugt (RpcCaseModel), sind also abgeleitet und nicht die Quelle.
+/tests/CADability.Tests/Files/RPC/*.cdb

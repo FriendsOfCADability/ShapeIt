@@ -15,6 +15,12 @@ namespace CADability.Tests.Rpc
         public BRepSummary Summary { get; init; } = new BRepSummary();
         /// <summary>Size of the object, used as the absolute floor when comparing floating point values.</summary>
         public double Scale { get; init; } = 1.0;
+        /// <summary>
+        /// The shell this summary was taken from. Null for an entry that describes no geometry - an empty
+        /// result, or a value of some other type. Kept so that a regenerate run can write the bodies into a
+        /// project next to the case file, see <see cref="RpcCaseModel"/>.
+        /// </summary>
+        public Shell? Shell { get; init; }
 
         public Dictionary<string, string> Values
             => Summary.Entries.ToDictionary(e => e.Key, e => e.Value, StringComparer.Ordinal);
@@ -182,7 +188,7 @@ namespace CADability.Tests.Rpc
             ShellMetrics.Describe(summary, "", shell);
             // the size of the shell - the absolute floor for the comparison of coordinates near zero
             double scale = ShellMetrics.SizeOf(shell);
-            result.Objects[name] = new RpcObjectSummary { Name = name, Summary = summary, Scale = scale };
+            result.Objects[name] = new RpcObjectSummary { Name = name, Summary = summary, Scale = scale, Shell = shell };
         }
 
         private static BRepSummary Single(string key, string value)

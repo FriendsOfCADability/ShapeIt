@@ -196,6 +196,13 @@ namespace CADability.Tests
 
             if (Regenerate)
             {
+                // Written before the gates below, not after: a case that is refused a baseline is exactly the
+                // one worth looking at in ShapeIt, so it must not be the one left without a project.
+                string? bodies = RpcCaseModel.Write(testCase, first);
+                report.AppendLine(bodies != null
+                    ? $"  project written: {Path.GetFileName(RpcCaseModel.PathFor(testCase))} ({bodies})"
+                    : "  no project written: the run produced no geometry");
+
                 if (unstable.Count > 0)
                     Assert.Fail($"{caseName}: refusing to record a baseline, the case is not stable over "
                         + $"{testCase.Repeat} run(s):\n  " + string.Join("\n  ", unstable)
@@ -206,6 +213,7 @@ namespace CADability.Tests
                 bool written = WriteBaseline(testCase, first, out string summary);
                 Write(report.ToString());
                 Assert.Inconclusive($"{caseName}: baseline {(written ? "written" : "unchanged")} - {summary}. "
+                    + (bodies != null ? $"The bodies are in {Path.GetFileName(RpcCaseModel.PathFor(testCase))}. " : "")
                     + "Review the diff, add a \"verified\" note and set \"Regenerate\" back to false.");
             }
 

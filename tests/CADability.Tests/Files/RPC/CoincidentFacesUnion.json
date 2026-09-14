@@ -14,10 +14,11 @@
   ],
   "Baseline": {
     "insideUnion": {
+      "verified": "2026-08-28 GH: control - the 6x6 face of the upper box lies inside the 10x10 one. Always worked. 1000 + 6*6*4 = 1144, eleven faces.",
       "consistent": "true",
       "faces": "11",
       "edges": "24",
-      "poleEdges": "0",
+      "poleVertices": "0",
       "vertices": "16",
       "holeLoops": "1",
       "euler": "2",
@@ -27,14 +28,14 @@
       "area": "696",
       "edgeLength": "184",
       "extent": "0, 0, 0, 10, 10, 14",
-      "surfaces": "PlaneSurface:11",
-      "verified": "2026-08-28 GH: control - the 6x6 face of the upper box lies inside the 10x10 one. Always worked. 1000 + 6*6*4 = 1144, eleven faces."
+      "surfaces": "PlaneSurface:11"
     },
     "partialUnion": {
+      "verified": "2026-08-28 GH: control - the upper box is shifted by 5, so the faces overlap only partly. Always worked. 2000, ten faces.",
       "consistent": "true",
       "faces": "10",
       "edges": "24",
-      "poleEdges": "0",
+      "poleVertices": "0",
       "vertices": "16",
       "holeLoops": "0",
       "euler": "2",
@@ -44,14 +45,14 @@
       "area": "1100",
       "edgeLength": "220",
       "extent": "0, 0, 0, 15, 10, 20",
-      "surfaces": "PlaneSurface:10",
-      "verified": "2026-08-28 GH: control - the upper box is shifted by 5, so the faces overlap only partly. Always worked. 2000, ten faces."
+      "surfaces": "PlaneSurface:10"
     },
     "sameLowUnion": {
+      "verified": "2026-08-28 GH: same congruent contact face, but the upper box is only 5 high - the two SOLIDS differ, which rules out identical bodies as the trigger. 1500, six faces.",
       "consistent": "true",
       "faces": "6",
       "edges": "12",
-      "poleEdges": "0",
+      "poleVertices": "0",
       "vertices": "8",
       "holeLoops": "0",
       "euler": "2",
@@ -61,14 +62,14 @@
       "area": "800",
       "edgeLength": "140",
       "extent": "0, 0, 0, 10, 10, 15",
-      "surfaces": "PlaneSurface:6",
-      "verified": "2026-08-28 GH: same congruent contact face, but the upper box is only 5 high - the two SOLIDS differ, which rules out identical bodies as the trigger. 1500, six faces."
+      "surfaces": "PlaneSurface:6"
     },
     "sameUnion": {
+      "verified": "2026-08-28 GH: the arrangement the case was written for - two 10-cubes stacked, contact face exactly congruent. Volume 2000 and SIX faces, so the contact face is gone from the boundary and the result is one 10x10x20 box. It used to come back as two unmerged solids of 1000 each.",
       "consistent": "true",
       "faces": "6",
       "edges": "12",
-      "poleEdges": "0",
+      "poleVertices": "0",
       "vertices": "8",
       "holeLoops": "0",
       "euler": "2",
@@ -78,14 +79,14 @@
       "area": "1000",
       "edgeLength": "160",
       "extent": "0, 0, 0, 10, 10, 20",
-      "surfaces": "PlaneSurface:6",
-      "verified": "2026-08-28 GH: the arrangement the case was written for - two 10-cubes stacked, contact face exactly congruent. Volume 2000 and SIX faces, so the contact face is gone from the boundary and the result is one 10x10x20 box. It used to come back as two unmerged solids of 1000 each."
+      "surfaces": "PlaneSurface:6"
     },
     "shrinkUnion": {
+      "verified": "2026-08-28 GH: the control that carries the case - the upper box is 10 x 9.999, one ten-thousandth narrower, and that is already enough to take the other path. It always worked while its congruent twin sameUnion did not, so the trigger is exact congruence and not a tolerance. 1000 + 999.9 = 1999.9, eight faces.",
       "consistent": "true",
       "faces": "8",
       "edges": "18",
-      "poleEdges": "0",
+      "poleVertices": "0",
       "vertices": "12",
       "holeLoops": "0",
       "euler": "2",
@@ -95,14 +96,14 @@
       "area": "999.98",
       "edgeLength": "180",
       "extent": "0, 0, 0, 10, 10, 20",
-      "surfaces": "PlaneSurface:8",
-      "verified": "2026-08-28 GH: the control that carries the case - the upper box is 10 x 9.999, one ten-thousandth narrower, and that is already enough to take the other path. It always worked while its congruent twin sameUnion did not, so the trigger is exact congruence and not a tolerance. 1000 + 999.9 = 1999.9, eight faces."
+      "surfaces": "PlaneSurface:8"
     },
     "sideXUnion": {
+      "verified": "2026-08-28 GH: same congruent contact face, but at x = 10 instead of z = 10 - rules out a peculiarity of one axis. 2000, six faces.",
       "consistent": "true",
       "faces": "6",
       "edges": "12",
-      "poleEdges": "0",
+      "poleVertices": "0",
       "vertices": "8",
       "holeLoops": "0",
       "euler": "2",
@@ -112,8 +113,7 @@
       "area": "1000",
       "edgeLength": "160",
       "extent": "0, 0, 0, 20, 10, 10",
-      "surfaces": "PlaneSurface:6",
-      "verified": "2026-08-28 GH: same congruent contact face, but at x = 10 instead of z = 10 - rules out a peculiarity of one axis. 2000, six faces."
+      "surfaces": "PlaneSurface:6"
     }
   },
   "RPCCalls": [
