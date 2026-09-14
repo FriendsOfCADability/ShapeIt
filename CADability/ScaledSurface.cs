@@ -278,6 +278,10 @@ namespace CADability
             get { throw new NotImplementedException(); }
             set { throw new NotImplementedException(); }
         }
+        public bool HasDomain
+        {
+            get { throw new NotImplementedException(); }
+        }
         public GeoPoint2D[] PerpendicularFoot(GeoPoint fromHere)
         {
             throw new NotImplementedException();

@@ -715,7 +715,9 @@ namespace CADability.GeoObject
             if (bottomCurve == null) return null;
             TrimCurve(bottomCurve, rb, lb);
 
-            sweptCircle.Domain = BoundingRect.EmptyBoundingRect; // reset bounds, they are recalculated in MakeFace
+            // end of the provisional phase: drop the guessed domain so MakeFace derives the real one
+            // from the edges below (see the remarks on ISurface.Domain)
+            sweptCircle.Domain = BoundingRect.EmptyBoundingRect;
             // topCurve.EndPoint | lid2crv3.StartPoint should be 0 and rt | lid2crv3.StartPoint
             // lid2crv3.EndPoint | bottomCurve.StartPoint should be 0 
             // lid1crv3.StartPoint | bottomCurve.EndPoint should be 0

@@ -2854,7 +2854,7 @@ namespace CADability.GeoObject
             return true;
         }
         IOrientation ISurfaceOfExtrusion.Orientation => throw new NotImplementedException();
-        ICurve ISurfaceOfExtrusion.ExtrudedCurve => domain.IsEmpty() || domain.IsInfinite ?
+        ICurve ISurfaceOfExtrusion.ExtrudedCurve => !HasDomain ?
             FixedU(0.0, 0.0, Math.PI) : FixedU(0.0, domain.Bottom, domain.Right);
         /// <summary>
         /// Setting the radius of a ISurfaceOfArcExtrusion means setting the radius of the extruded arc, which is the minor radius in this case
@@ -2894,7 +2894,7 @@ namespace CADability.GeoObject
         {
             get
             {
-                if (!domain.IsEmpty() && !domain.IsInfinite)
+                if (HasDomain)
                 {
                     return FixedU(0, domain.Bottom, domain.Top);
                 }

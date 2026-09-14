@@ -370,7 +370,27 @@ namespace CADability.GeoObject
         /// set before either of them is used. It is a subset of the natural bounds (see
         /// <see cref="GetNaturalBounds"/>) modulo the period. An empty rectangle means "not set yet".
         /// </summary>
+        /// <remarks>
+        /// A surface that belongs to a face gets its domain in three steps, and they must not be reordered:
+        /// <list type="number">
+        /// <item>a provisional domain is derived from 3d points, see
+        /// <see cref="SurfaceExtension.SetDomainTo"/> and <see cref="SurfaceExtension.ExtendDomainTo"/>.
+        /// This step exists because <see cref="GetProjectedCurve"/> already needs a domain to pick the right
+        /// period;</item>
+        /// <item>the 2d curves of the edges are projected using that provisional domain;</item>
+        /// <item><see cref="Face.Area"/> writes the exact extent of those 2d curves back onto the surface,
+        /// which is the value that holds from then on.</item>
+        /// </list>
+        /// Construction helpers that set a provisional domain therefore reset it to the empty rectangle
+        /// before handing the surface to <see cref="Face.MakeFace(ISurface, System.Collections.Generic.IEnumerable{ICurve})"/>,
+        /// so step three starts from the real edges rather than from the guess of step one.
+        /// </remarks>
         BoundingRect Domain { get; set; }
+        /// <summary>
+        /// True when <see cref="Domain"/> has been set to a bounded rectangle, i.e. when it can be used to
+        /// pick a period or to restrict the parametric space. False while the surface is still being built.
+        /// </summary>
+        bool HasDomain { get; }
         /// <summary>
         /// Returns a list of perpendicular foot points of the surface. The list may be empty
         /// </summary>
@@ -3596,7 +3616,7 @@ namespace CADability.GeoObject
         public virtual ICurve[] Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds)
         {
             GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-            if (domain.IsEmpty() || domain.IsInfinite) Domain = thisBounds; // via the property: the hull must be rebuilt
+            if (!HasDomain) Domain = thisBounds; // via the property: the hull must be rebuilt
             return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions);
         }
         public virtual ICurve Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, GeoPoint seed)
@@ -4115,6 +4135,13 @@ namespace CADability.GeoObject
             return null;
         }
 
+        /// <summary>
+        /// Implements <see cref="CADability.GeoObject.ISurface.HasDomain"/>
+        /// </summary>
+        public virtual bool HasDomain
+        {
+            get { return !domain.IsEmpty() && !domain.IsInfinite; }
+        }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.Domain"/>
         /// </summary>
@@ -5968,7 +5995,12 @@ namespace CADability.GeoObject
 
         void IJsonSerialize.SetObjectData(IJsonReadData data)
         {
-            domain = data.GetProperty<BoundingRect>("Domain");
+            // Files written before the Domain property existed carry no "Domain" key at all, and
+            // GetProperty returns default(BoundingRect) for a missing key. That is [0,0 .. 0,0], which is
+            // NOT the empty rectangle: IsEmpty() is false for it, so it would slip through every test for
+            // "no domain set" and make PositionOf adjust towards the origin instead. Map an absent property
+            // onto the empty rectangle, which is what "not set" means everywhere else.
+            domain = data.HasProperty("Domain") ? data.GetProperty<BoundingRect>("Domain") : BoundingRect.EmptyBoundingRect;
         }
 
 

@@ -1655,6 +1655,7 @@ namespace CADability.GeoObject
                     dbgtr.Add(Line.MakeLine(trianglePoint[triangleIndex[i + 1]], trianglePoint[triangleIndex[i + 2]]));
                     dbgtr.Add(Line.MakeLine(trianglePoint[triangleIndex[i + 2]], trianglePoint[triangleIndex[i]]));
                 }
+                // end of the provisional phase, see the remarks on ISurface.Domain
                 sweptCircle.Domain = BoundingRect.EmptyBoundingRect;
                 if (isConvex)
                 {

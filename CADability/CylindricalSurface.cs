@@ -504,7 +504,7 @@ namespace CADability.GeoObject
 
             {
                 GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-                if (domain.IsInfinite || domain.IsEmpty()) Domain = thisBounds; // via the property: the hull must be rebuilt
+                if (!HasDomain) Domain = thisBounds; // via the property: the hull must be rebuilt
                 return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions); // allgemeine Lösung
             }
         }
@@ -2626,7 +2626,7 @@ namespace CADability.GeoObject
             return true;
         }
         IOrientation ISurfaceOfExtrusion.Orientation => throw new NotImplementedException();
-        ICurve ISurfaceOfExtrusion.ExtrudedCurve => domain.IsEmpty() || domain.IsInfinite ?
+        ICurve ISurfaceOfExtrusion.ExtrudedCurve => !HasDomain ?
             FixedV(0.0, 0.0, Math.PI) : FixedV(0.0, domain.Left, domain.Right);
 
         double ISurfaceOfArcExtrusion.Radius

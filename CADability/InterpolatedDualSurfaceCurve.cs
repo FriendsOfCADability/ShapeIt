@@ -1098,7 +1098,7 @@ namespace CADability
         {
             if (bounds1.IsEmpty() && surface1 is ISurfaceImpl simpl1)
             {
-                if (simpl1.Domain.IsEmpty() || simpl1.Domain.IsInfinite)
+                if (!simpl1.HasDomain)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)
@@ -1111,7 +1111,7 @@ namespace CADability
             }
             if (bounds2.IsEmpty() && surface2 is ISurfaceImpl simpl2)
             {
-                if (simpl2.Domain.IsEmpty() || simpl2.Domain.IsInfinite)
+                if (!simpl2.HasDomain)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)
@@ -3522,7 +3522,7 @@ namespace CADability
                 }
                 if (surface1 is ISurfaceImpl simpl1)
                 {
-                    if (simpl1.Domain.IsEmpty() || simpl1.Domain.IsInfinite)
+                    if (!simpl1.HasDomain)
                     {
                         BoundingRect ext = BoundingRect.EmptyBoundingRect;
                         for (int i = 0; i < basePoints.Length; i++)
@@ -3535,7 +3535,7 @@ namespace CADability
                 }
                 if (surface2 is ISurfaceImpl simpl2)
                 {
-                    if (simpl2.Domain.IsEmpty() || simpl2.Domain.IsInfinite)
+                    if (!simpl2.HasDomain)
                     {
                         BoundingRect ext = BoundingRect.EmptyBoundingRect;
                         for (int i = 0; i < basePoints.Length; i++)
@@ -3559,7 +3559,7 @@ namespace CADability
         {
             if (surface1 is ISurfaceImpl simpl1)
             {
-                if (simpl1.Domain.IsEmpty() || simpl1.Domain.IsInfinite)
+                if (!simpl1.HasDomain)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)
@@ -3571,7 +3571,7 @@ namespace CADability
             }
             if (surface2 is ISurfaceImpl simpl2)
             {
-                if (simpl2.Domain.IsEmpty() || simpl2.Domain.IsInfinite)
+                if (!simpl2.HasDomain)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)

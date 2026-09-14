@@ -3664,7 +3664,8 @@ namespace CADability.GeoObject
 
             List<ICurve2D> bounds2d = [];
             BoundingRect domain = surface.Domain; // use the bounds of the surface (if any) because some InterpolatedDualSurfaceCurves might rely on it
-            if (domain.IsInfinite || domain.IsEmpty()) surface.Domain = BoundingRect.EmptyBoundingRect;
+            // normalise an unusable domain to the empty rectangle, which is the sentinel for "not set"
+            if (!surface.HasDomain) surface.Domain = BoundingRect.EmptyBoundingRect;
             // find a domain for the surface
             // A cone running into its apex is the special case: there are 3 curves, and the first two may well be
             // the lines towards the apex and away from it. Their periodic parameter is then 0 and pi, and which
@@ -4403,7 +4404,7 @@ namespace CADability.GeoObject
                         // segments[i].UserData.Add("CADability.Edge", outline[i]); // mal versuchsweise die zugehörige Kante merken
                     }
                     segments = ls.ToArray();
-                    if (surface is ISurfaceImpl && ((surface as ISurfaceImpl).Domain.IsEmpty() || (surface as ISurfaceImpl).Domain.IsInfinite))
+                    if (surface is ISurfaceImpl && !surface.HasDomain)
                     {
                         BoundingRect ext = BoundingRect.EmptyBoundingRect;
                         for (int i = 0; i < segments.Length; i++)
@@ -7659,7 +7660,7 @@ namespace CADability.GeoObject
             //  =>  cube doesn't hit the face
             DebugBreak.Hit("Face.HitTest", hashCode);
             // not sure, why we need this here, but in some cases domain is undefined
-            if ((Surface as ISurfaceImpl).Domain.IsInfinite || (Surface as ISurfaceImpl).Domain.IsEmpty()) (Surface as ISurfaceImpl).Domain = Domain;
+            if (!Surface.HasDomain) (Surface as ISurfaceImpl).Domain = Domain;
             GeoPoint2D uv;
             return (Surface.HitTest(bc, out uv) && Contains(ref uv, true));
         }
