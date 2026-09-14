@@ -1,6 +1,7 @@
 # ShapeIt.Profiler
 
-Runs one RPC case headless and repeatedly, so a profiler has something worth looking at.
+Runs RPC cases headless and repeatedly, so a profiler has something worth looking at: one case measured in
+detail, or a whole set of them to see where the time of the regression suite actually sits.
 
 Profiling the application itself rarely works: the message loop, the rendering and the idle time drown
 out the geometry, and the interesting work happens inside user interactions that are never repeated
@@ -13,25 +14,29 @@ measured here is what the tests run.
 ## Usage
 
 ```
-ShapeIt.Profiler <case> [-n <count>] [-w <count>] [-s <mb>] [--wait]
+ShapeIt.Profiler <case>... [-n <count>] [-w <count>] [-s <mb>] [--wait]
+ShapeIt.Profiler --all      [-n <count>] [-w <count>] [-s <mb>] [--wait]
 ShapeIt.Profiler --list
 ```
 
 | option | meaning |
 |---|---|
-| `<case>` | path to a `*.json` case, or the bare name of one in `tests\CADability.Tests\Files\RPC` |
-| `-n <count>` | measured iterations, default 5 |
-| `-w <count>` | warmup iterations, excluded from the result, default 1 |
+| `<case>` | path to a `*.json` case, or the bare name of one in `tests\CADability.Tests\Files\RPC`. More than one may be named |
+| `--all` | every case of that directory; the ones marked `Skip` and the unusable ones are reported and left out |
+| `-n <count>` | measured iterations, default 5 for a single case and 1 for a set |
+| `-w <count>` | warmup iterations, excluded from the result, default 1 for a single case and 0 for a set |
 | `-s <mb>` | stack size of the worker thread, default 32 MB |
-| `--wait` | run the warmup, then wait for Enter, so a profiler can be attached and started exactly around the measured iterations |
+| `--wait` | run the warmup, then wait for Enter, so a profiler can be attached and started exactly around the measured iterations. For a set it waits once, before the first case |
+| `--math-threads <n>` | override `MathNet.Numerics.Control.MaxDegreeOfParallelism`, which `CADability.NumericsConfiguration` sets to 1 for every host. `--math-threads 8` measures what the parallelization costs: over the whole set it was 12 % more wall clock time and 40 % more CPU |
 | `--list` | list the cases that can be named without a path |
 
 ```
 ShapeIt.Profiler DieWithPips -n 10
+ShapeIt.Profiler --all
 ```
 
-Build it with MSBuild, not with `dotnet build`: `ShapeIt.csproj` bumps its version through a
-`CodeTaskFactory` task, and that factory does not exist in the .NET Core version of MSBuild.
+The defaults differ because the two modes answer different questions. One case is a measurement, and five
+iterations show how much it scatters. A set is a ranking, and five iterations of forty cases is an hour.
 
 ## Reading the report
 
@@ -53,6 +58,32 @@ gc        gen0 1537,5   gen1 58,0   gen2 3,5   per iteration
 * **per call** breaks the run down by top level RPC call before any profiler is involved. That is
   usually enough to know which operation to look at.
 
+### A set of cases
+
+`--all` replaces the single case report with two tables on one scale, so they can be read against each other:
+
+```
+total     wall 512.7 s   cpu 856.1 s (167% - more than one core busy - the surplus is the concurrent GC)
+
+per case (mean of 1 iteration(s), share and running sum of the total)
+     54123 ms  10.6%   10.6%  DieWithPips
+     ...
+
+per method (mean of 1 iteration(s))
+    312456 ms  60.9%     84 call(s)  solid.boolean
+     ...
+       637 ms   9.9%            project setup and collecting the result
+```
+
+* The **running sum** in the case table is what says whether the suite has a few expensive cases or is
+  expensive everywhere - the difference decides whether optimizing one algorithm is worth anything.
+* The **method table** attributes the same total to the operations of the toolset. This is as far as one gets
+  without a profiler, and it is usually enough to know which operation to sample.
+* A **CPU share above 100 %** means more than one core was busy. The run itself is single threaded, so the
+  surplus is the concurrent GC - a hint that the allocation deserves a look before the arithmetic does.
+* With `-w 0`, the default for a set, the **first case also pays for the JIT**. Read the table as a ranking;
+  give it `-w 1` when the absolute numbers matter.
+
 ## With a profiler
 
 The `--wait` switch exists so the profiler only sees the measured iterations: start the host, let it do
@@ -73,11 +104,24 @@ hot path and *GC Heap Alloc Ignore Free* for the allocations.
 **dotnet-trace** produces a flame graph without installing anything heavy:
 
 ```
-dotnet-trace collect --providers ShapeIt-Profiler -- ShapeIt.Profiler.exe DieWithPips -n 5
+dotnet-trace collect --profile dotnet-sampled-thread-time --providers ShapeIt-Profiler --format Speedscope -- ShapeIt.Profiler.exe DieWithPips -n 5
+dotnet-trace collect --profile dotnet-sampled-thread-time --providers ShapeIt-Profiler --format Speedscope -- ShapeIt.Profiler.exe --all -n 3
 ```
 
-and `dotnet-trace convert --format speedscope` turns the result into something https://speedscope.app
-will display.
+**`--profile` is not optional here.** `--providers` adds to a profile, it does not select one, so leaving
+the profile out collects this project's marker events and no stacks at all - a trace that finishes without
+an error and contains nothing to read. On Windows the profile that samples managed stacks is
+`dotnet-sampled-thread-time`; `cpu-sampling` exists only for `collect-linux`.
+
+`--format Speedscope` writes a second file next to the nettrace that https://speedscope.app opens directly;
+`dotnet-trace convert --format speedscope` does the same afterwards. Sampling runs at roughly 100 Hz, so
+give the run enough iterations to collect a few thousand samples - `-n 3` over the whole set is about two
+minutes and twelve thousand of them.
+
+The `--all` form is the one that answers "where does the regression suite spend its time": one process,
+only geometry, and the `CaseStart`/`CaseStop` events on the timeline to cut the trace down to a single case
+afterwards. Do not point a sampler at `dotnet test` instead - it profiles the test host, the JIT of
+everything it loads and the baseline comparison along with the geometry.
 
 **Visual Studio** works too, but its CPU Usage view hides everything it cannot attribute to source
 behind a single `[External Code]` node - switch *Show External Code* on, or turn off *Just My Code*
