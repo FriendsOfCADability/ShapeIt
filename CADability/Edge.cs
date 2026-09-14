@@ -3584,9 +3584,9 @@ namespace CADability
                 return false;
             }
         }
+#endif
 
         public IEnumerable<Vertex> Vertices => new Vertex[] { v1, v2 };
 
-#endif
     }
 }
