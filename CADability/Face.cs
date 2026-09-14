@@ -4385,7 +4385,11 @@ namespace CADability.GeoObject
                     }
                     if (ok) area = new SimpleShape(soutline, sholes);   // the area has clones of the curves, because the holes are reverse oriented to the 2d curves of the face
                                                                         // it should always be OK here, if not, something went wrong with the construction of the face and should be fixed there
-                    if (surface is ISurfaceImpl si && area != null) si.Domain = area.GetExtent();
+                    if (surface is ISurfaceImpl si && area != null)
+                    {
+                        if (DomainDiagnostics.Enabled) DomainDiagnostics.ObserveAreaWriteBack(si, area.GetExtent(), GetHashCode());
+                        si.Domain = area.GetExtent();
+                    }
                 }
                 if (area == null)
                 {
@@ -4500,7 +4504,11 @@ namespace CADability.GeoObject
                         // conical surface v-offset
                     }
                 }
-                if (surface is ISurfaceImpl si1 && area != null) si1.Domain = area.GetExtent();
+                if (surface is ISurfaceImpl si1 && area != null)
+                {
+                    if (DomainDiagnostics.Enabled) DomainDiagnostics.ObserveAreaWriteBack(si1, area.GetExtent(), GetHashCode());
+                    si1.Domain = area.GetExtent();
+                }
                 return area;
             }
         }
@@ -4511,6 +4519,13 @@ namespace CADability.GeoObject
         {
             get
             {
+                if (DomainDiagnostics.Enabled)
+                {   // whether the area had to be rebuilt decides whether agreement is guaranteed by construction
+                    bool areaWasCached = area != null;
+                    BoundingRect res = Area.GetExtent();
+                    DomainDiagnostics.ObserveFaceDomain(surface, res, GetHashCode(), areaWasCached);
+                    return res;
+                }
                 return Area.GetExtent(); // is cached in Border
             }
         }
