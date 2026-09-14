@@ -3334,7 +3334,7 @@ namespace CADability.GeoObject
         public static Face MakeFace(ISurface surface, BoundingRect br)
         {
             SimpleShape ss = new SimpleShape(br.ToBorder());
-            (surface as ISurfaceImpl).domain = br;
+            (surface as ISurfaceImpl).Domain = br;
             return Face.MakeFace(surface, ss);
         }
 
@@ -3596,7 +3596,7 @@ namespace CADability.GeoObject
             {
                 if (edge.Curve3D is IGeoObject go) go.Style = EdgeStyle;
             }
-            if (surface is ISurfaceImpl si) si.domain = Domain;
+            if (surface is ISurfaceImpl si) si.Domain = Domain;
         }
         /// <summary>
         /// Create a face with the provided surface and an (unordered) set of ICurves, which define the outline
@@ -3847,7 +3847,7 @@ namespace CADability.GeoObject
                     v2.MergeWith(v1);
                 }
             }
-            if (res.surface is ISurfaceImpl si) si.domain = res.Domain;
+            if (res.surface is ISurfaceImpl si) si.Domain = res.Domain;
 
             return res;
         }
@@ -3907,7 +3907,7 @@ namespace CADability.GeoObject
                 }
             }
             SimpleShape forceArea = res.Area; // das SimpleShape wird hier erstmalig berechnet
-            if (res.surface is ISurfaceImpl si) si.domain = res.Domain;
+            if (res.surface is ISurfaceImpl si) si.Domain = res.Domain;
             return res;
         }
         internal void SetSurfaceAndEdges(ISurface surface, Edge[] outline)
@@ -3921,7 +3921,7 @@ namespace CADability.GeoObject
             this.outline = outline;
             this.holes = new Edge[0][]; // keine Löcher
             SimpleShape forceArea = Area; // das SimpleShape wird hier erstmalig berechnet
-            if (surface is ISurfaceImpl si) si.domain = Domain;
+            if (surface is ISurfaceImpl si) si.Domain = Domain;
         }
 
         internal void CheckPeriodic()
@@ -4385,7 +4385,7 @@ namespace CADability.GeoObject
                     }
                     if (ok) area = new SimpleShape(soutline, sholes);   // the area has clones of the curves, because the holes are reverse oriented to the 2d curves of the face
                                                                         // it should always be OK here, if not, something went wrong with the construction of the face and should be fixed there
-                    if (surface is ISurfaceImpl si && area != null) si.domain = area.GetExtent();
+                    if (surface is ISurfaceImpl si && area != null) si.Domain = area.GetExtent();
                 }
                 if (area == null)
                 {
@@ -4399,14 +4399,14 @@ namespace CADability.GeoObject
                         // segments[i].UserData.Add("CADability.Edge", outline[i]); // mal versuchsweise die zugehörige Kante merken
                     }
                     segments = ls.ToArray();
-                    if (surface is ISurfaceImpl && ((surface as ISurfaceImpl).domain.IsEmpty() || (surface as ISurfaceImpl).domain.IsInfinite))
+                    if (surface is ISurfaceImpl && ((surface as ISurfaceImpl).Domain.IsEmpty() || (surface as ISurfaceImpl).Domain.IsInfinite))
                     {
                         BoundingRect ext = BoundingRect.EmptyBoundingRect;
                         for (int i = 0; i < segments.Length; i++)
                         {
                             ext.MinMax(segments[i].GetExtent());
                         }
-                        (surface as ISurfaceImpl).domain = ext;
+                        (surface as ISurfaceImpl).Domain = ext;
                     }
 #if DEBUG
                     //DebuggerContainer dc = new DebuggerContainer();
@@ -4500,7 +4500,7 @@ namespace CADability.GeoObject
                         // conical surface v-offset
                     }
                 }
-                if (surface is ISurfaceImpl si1 && area != null) si1.domain = area.GetExtent();
+                if (surface is ISurfaceImpl si1 && area != null) si1.Domain = area.GetExtent();
                 return area;
             }
         }
@@ -5419,7 +5419,7 @@ namespace CADability.GeoObject
             internal set
             {
                 surface = value;
-                if (surface is ISurfaceImpl si && outline != null) si.domain = Domain;
+                if (surface is ISurfaceImpl si && outline != null) si.Domain = Domain;
                 extent = BoundingBox.EmptyBoundingBox;
             }
         }
@@ -5934,9 +5934,9 @@ namespace CADability.GeoObject
         internal void ModifySurfaceOnly(ModOp m)
         {
             DebugBreak.Hit("Face.ModifySurfaceOnly", hashCode);
-            BoundingRect ext = (surface as ISurfaceImpl).domain;
+            BoundingRect ext = (surface as ISurfaceImpl).Domain;
             surface = surface.GetModified(m);
-            (surface as ISurfaceImpl).domain = ext; // needed for BoxedSurface
+            (surface as ISurfaceImpl).Domain = ext; // needed for BoxedSurface
             extent = BoundingBox.EmptyBoundingBox;
         }
         public void ModifySurface(ModOp m)
@@ -5948,10 +5948,10 @@ namespace CADability.GeoObject
 #endif
             using (new Changing(this, false)) // no undo necessary
             {   // not sure, why changing is needed here
-                BoundingRect ext = (surface as ISurfaceImpl).domain;
+                BoundingRect ext = (surface as ISurfaceImpl).Domain;
                 surface = surface.GetModified(m);
                 area = null; // ProjectedCurves might be wrong after surface modification
-                (surface as ISurfaceImpl).domain = ext; // needed for BoxedSurface
+                (surface as ISurfaceImpl).Domain = ext; // needed for BoxedSurface
                                                           // we don't modify the surface directly but get a new copy of the modified surface
                                                           // Edges with InterpolatedDualSurfaceCurves (hopefully) can deal with this
                                                           // The caller must ensure that the edges ReflectModification is beeing called
@@ -6677,7 +6677,7 @@ namespace CADability.GeoObject
         {
             area = null;
             area = Area;
-            if (surface is ISurfaceImpl si) si.domain = Domain;
+            if (surface is ISurfaceImpl si) si.Domain = Domain;
         }
 
         internal void ClearVertices()
@@ -7644,7 +7644,7 @@ namespace CADability.GeoObject
             //  =>  cube doesn't hit the face
             DebugBreak.Hit("Face.HitTest", hashCode);
             // not sure, why we need this here, but in some cases domain is undefined
-            if ((Surface as ISurfaceImpl).domain.IsInfinite || (Surface as ISurfaceImpl).domain.IsEmpty()) (Surface as ISurfaceImpl).domain = Domain;
+            if ((Surface as ISurfaceImpl).Domain.IsInfinite || (Surface as ISurfaceImpl).Domain.IsEmpty()) (Surface as ISurfaceImpl).Domain = Domain;
             GeoPoint2D uv;
             return (Surface.HitTest(bc, out uv) && Contains(ref uv, true));
         }
@@ -9501,7 +9501,12 @@ namespace CADability.GeoObject
             BoundingRect modifiedBounds = Area.GetExtent();
             ModOp2D m = surface.ReverseOrientation();
             modifiedBounds.Modify(m);
-            if (surface is ISurfaceImpl si && !si.domain.IsEmpty()) si.domain.Modify(m);
+            if (surface is ISurfaceImpl si && !si.Domain.IsEmpty())
+            {   // BoundingRect is a struct, so the modified copy has to be assigned back
+                BoundingRect modifiedDomain = si.Domain;
+                modifiedDomain.Modify(m);
+                si.Domain = modifiedDomain;
+            }
             ICurve2D[] segments = new ICurve2D[outline.Length];
             for (int i = 0; i < outline.Length; ++i)
             {
@@ -11585,8 +11590,8 @@ namespace CADability.GeoObject
             GeoPoint2D res = surface.PositionOf(p);
             if (surface.IsUPeriodic || surface.IsVPeriodic)
             {
-                if (surface is ISurfaceImpl && (surface as ISurfaceImpl).domain != BoundingRect.EmptyBoundingRect)
-                    SurfaceHelper.AdjustPeriodic(surface, (surface as ISurfaceImpl).domain, ref res);
+                if (surface is ISurfaceImpl && (surface as ISurfaceImpl).Domain != BoundingRect.EmptyBoundingRect)
+                    SurfaceHelper.AdjustPeriodic(surface, (surface as ISurfaceImpl).Domain, ref res);
                 else
                     SurfaceHelper.AdjustPeriodic(surface, Area.GetExtent(), ref res);
             }

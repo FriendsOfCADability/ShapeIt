@@ -2624,7 +2624,7 @@ namespace CADability.GeoObject
             }
             PlaneSurface other = pl.Clone() as PlaneSurface;
             plbounds.Inflate(plbounds.Size); // this should make it large enough in any case
-            other.domain = plbounds; // without domain one cannot build a ParallelepipedHull from it, and Intersect needs that
+            other.Domain = plbounds; // without domain one cannot build a ParallelepipedHull from it, and Intersect needs that
             ICurve[] cvs = Intersect(new BoundingRect(umin, vmin, umax, vmax), other, plbounds, new List<GeoPoint>());
 #if DEBUG
             Face dbgfc = Face.MakeFace(other, new SimpleShape(Border.MakeRectangle(plbounds)));
@@ -4436,7 +4436,7 @@ namespace CADability.GeoObject
             SortedSet<double> vVal1 = new SortedSet<double>();
             SortedSet<double> uVal2 = new SortedSet<double>();
             SortedSet<double> vVal2 = new SortedSet<double>();
-            if ((other as ISurfaceImpl).domain.IsEmpty()) (other as ISurfaceImpl).domain = otherBounds;
+            if ((other as ISurfaceImpl).Domain.IsEmpty()) (other as ISurfaceImpl).Domain = otherBounds;
             ParallelepipedHull otherBS = (other as ISurfaceImpl).ParallelepipedHull;
             foreach (ParEpi pe in octtree.GetAllObjects())
             {

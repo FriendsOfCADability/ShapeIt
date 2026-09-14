@@ -702,7 +702,7 @@ namespace CADability.GeoObject
         {
             ISurface res = Clone();
             res.Modify(m);
-            (res as ISurfaceImpl).domain = domain;
+            (res as ISurfaceImpl).Domain = domain;
             return res;
         }
         /// <summary>

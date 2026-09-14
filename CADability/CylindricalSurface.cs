@@ -380,7 +380,7 @@ namespace CADability.GeoObject
 
                     }
                     GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-                    if (domain.IsInfinite || double.IsInfinity(domain.Size)) { domain = thisBounds; }
+                    if (domain.IsInfinite || double.IsInfinity(domain.Size)) { Domain = thisBounds; } // via the property: the hull must be rebuilt
                     ICurve[] res = ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions);
                     return res;
 
@@ -504,7 +504,7 @@ namespace CADability.GeoObject
 
             {
                 GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-                if (domain.IsInfinite || domain.IsEmpty()) domain = thisBounds;
+                if (domain.IsInfinite || domain.IsEmpty()) Domain = thisBounds; // via the property: the hull must be rebuilt
                 return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions); // allgemeine Lösung
             }
         }

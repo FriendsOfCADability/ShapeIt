@@ -2371,7 +2371,7 @@ namespace CADability.GeoObject
     public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable, IJsonSerialize
     {
         protected GeoPoint2D[] extrema; // Achtung, muss bei Modify auf null gesetzt werden
-        internal BoundingRect domain = BoundingRect.EmptyBoundingRect;
+        protected BoundingRect domain = BoundingRect.EmptyBoundingRect;
         internal ParallelepipedHull parallelepipedHull;
         internal virtual ParallelepipedHull ParallelepipedHull
         {
@@ -3596,12 +3596,12 @@ namespace CADability.GeoObject
         public virtual ICurve[] Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds)
         {
             GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-            if (domain.IsEmpty() || domain.IsInfinite) domain = thisBounds;
+            if (domain.IsEmpty() || domain.IsInfinite) Domain = thisBounds; // via the property: the hull must be rebuilt
             return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions);
         }
         public virtual ICurve Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, GeoPoint seed)
         {
-            if (domain.IsEmpty()) domain = thisBounds;
+            if (domain.IsEmpty()) Domain = thisBounds; // via the property: the hull must be rebuilt
             ICurve[] sol = ParallelepipedHull.Intersect(thisBounds, other, otherBounds, new List<GeoPoint>(new GeoPoint[] { seed }));
             if (sol == null || sol.Length == 0) sol = Intersect(thisBounds, other, otherBounds);
             for (int i = 0; i < sol.Length; i++)
@@ -4123,7 +4123,16 @@ namespace CADability.GeoObject
             // Deliberately no fallback to the natural bounds when the value is empty: callers such as
             // ExtendDomainTo rely on being able to read back the empty rectangle they set.
             get { return domain; }
-            set { domain = value; }
+            set
+            {
+                if (domain == value) return; // nothing derived from it can have gone stale
+                domain = value;
+                // The hull is built from the domain (see ParallelepipedHull) and therefore describes the
+                // old one now. The extrema are not affected: no GetExtrema implementation looks at the
+                // domain, they all work on the natural step grid. InvalidateSecondaryData() is deliberately
+                // not used here either - it is called from 70 other places with no reason to drop the hull.
+                parallelepipedHull = null;
+            }
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.PerpendicularFoot (GeoPoint)"/>
@@ -6662,7 +6671,7 @@ namespace CADability.GeoObject
         }
         public static void AdjustPeriodic(ISurface surface, ref GeoPoint2D p2d)
         {
-            if (surface is ISurfaceImpl si) AdjustPeriodic(surface, si.domain, ref p2d);
+            if (surface is ISurfaceImpl si) AdjustPeriodic(surface, si.Domain, ref p2d);
         }
         internal static void AdjustUPeriodic(ISurface surface, BoundingRect bounds, ref double u)
         {
