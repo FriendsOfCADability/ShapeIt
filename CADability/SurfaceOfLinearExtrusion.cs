@@ -109,7 +109,7 @@ namespace CADability.GeoObject
         public override ISurface Clone()
         {
             SurfaceOfLinearExtrusion res = new SurfaceOfLinearExtrusion(basisCurve.Clone(), direction, curveStartParameter, curveEndParameter);
-            res.usedArea = usedArea;
+            res.domain = domain;
             return res;
         }
         /// <summary>
@@ -359,7 +359,7 @@ namespace CADability.GeoObject
         {
             ISurface res = Clone();
             res.Modify(m);
-            (res as ISurfaceImpl).usedArea = usedArea;
+            (res as ISurfaceImpl).domain = domain;
             return res;
         }
         /// <summary>

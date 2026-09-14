@@ -170,7 +170,6 @@ namespace CADability
         }
         // nur für Kompatibilität mit altem CONDOR Code. Besser eliminieren!
         internal void MakeInvalid() { MakeEmpty(); }
-        internal bool IsInvalid() { return IsEmpty(); }
         /// <summary>
         /// Adapts the size of this bounding rectangle to include the provided point.
         /// </summary>

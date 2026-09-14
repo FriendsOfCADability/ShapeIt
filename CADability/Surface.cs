@@ -364,10 +364,13 @@ namespace CADability.GeoObject
         ICurve FixedV(double v, double umin, double umax);
         double[] GetPolynomialParameters();
         /// <summary>
-        /// Set the bounds of the surface to match the periodicity
+        /// The rectangle in the parametric (uv) space on which this instance of the surface is defined.
+        /// On a periodic surface it also selects the period: <see cref="PositionOf"/> and
+        /// <see cref="GetProjectedCurve"/> return values inside this rectangle, which is why it must be
+        /// set before either of them is used. It is a subset of the natural bounds (see
+        /// <see cref="GetNaturalBounds"/>) modulo the period. An empty rectangle means "not set yet".
         /// </summary>
-        /// <param name="boundingRect"></param>
-        void SetBounds(BoundingRect boundingRect);
+        BoundingRect Domain { get; set; }
         /// <summary>
         /// Returns a list of perpendicular foot points of the surface. The list may be empty
         /// </summary>
@@ -502,7 +505,6 @@ namespace CADability.GeoObject
         /// <returns>The sum of the squared errors</returns>
         double Fit(IEnumerable<GeoPoint> toPoints);
         bool IsCurveOnSurface(ICurve curve);
-        BoundingRect GetBounds();
         /// <summary>
         /// Performs a fast conservative test whether the given line segment
         /// may intersect this surface.
@@ -518,10 +520,10 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="surface"></param>
         /// <param name="p"></param>
-        public static void ExtendBoundsTo(this ISurface surface, GeoPoint p)
+        public static void ExtendDomainTo(this ISurface surface, GeoPoint p)
         {
             GeoPoint2D uv = surface.PositionOf(p);
-            BoundingRect ext = surface.GetBounds();
+            BoundingRect ext = surface.Domain;
             if (ext.IsInfinite) ext = BoundingRect.EmptyBoundingRect;
 
             double[] us = surface.GetUSingularities();
@@ -536,9 +538,9 @@ namespace CADability.GeoObject
             else if (vPole) ext.MinMaxHeight(uv.y); // only adjust the height of ext
             else ext.MinMax(uv); // adjust both width and height
 
-            surface.SetBounds(ext);
+            surface.Domain = ext;
         }
-        public static void SetBoundsTo(this ISurface surface, params GeoPoint[] pp)
+        public static void SetDomainTo(this ISurface surface, params GeoPoint[] pp)
         {
             BoundingRect ext = BoundingRect.EmptyBoundingRect;
             for (int j = 0; j < pp.Length; j++)
@@ -558,7 +560,7 @@ namespace CADability.GeoObject
                 else if (vPole) ext.MinMaxWidth(uv.x); // only adjust the width of ext
                 else ext.MinMax(uv); // adjust both width and height
             }
-            surface.SetBounds(ext);
+            surface.Domain = ext;
         }
 
         /// <summary>
@@ -600,7 +602,7 @@ namespace CADability.GeoObject
 
             double[] us = surface.GetUSingularities();
             double[] vs = surface.GetVSingularities();
-            BoundingRect domain = surface.GetBounds();
+            BoundingRect domain = surface.Domain;
             for (int i = 0; i < us.Length; i++)
             {
                 if (us[i] >= domain.Left && us[i] <= domain.Right) return null; // poles are not allowed
@@ -2369,7 +2371,7 @@ namespace CADability.GeoObject
     public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable, IJsonSerialize
     {
         protected GeoPoint2D[] extrema; // Achtung, muss bei Modify auf null gesetzt werden
-        internal BoundingRect usedArea = BoundingRect.EmptyBoundingRect;
+        internal BoundingRect domain = BoundingRect.EmptyBoundingRect;
         internal ParallelepipedHull parallelepipedHull;
         internal virtual ParallelepipedHull ParallelepipedHull
         {
@@ -2395,17 +2397,17 @@ namespace CADability.GeoObject
                     }
                     else if (this is NonPeriodicSurface)
                     {
-                        if (!usedArea.IsEmpty() && (ext.IsInfinite || ext.IsEmpty() || ext.IsInvalid())) ext = usedArea;
+                        if (!domain.IsEmpty() && (ext.IsInfinite || ext.IsEmpty())) ext = domain;
                     }
-                    else if (usedArea != BoundingRect.EmptyBoundingRect)
+                    else if (domain != BoundingRect.EmptyBoundingRect)
                     {
-                        // the usedArea can differ from natural bounds in periodic cases: we may not restrict to 0..2*pi!
-                        //if (!ext.IsEmpty()) ext = BoundingRect.Intersect(ext, usedArea * 1.01);
-                        ext = usedArea * 1.01;
+                        // the domain can differ from natural bounds in periodic cases: we may not restrict to 0..2*pi!
+                        //if (!ext.IsEmpty()) ext = BoundingRect.Intersect(ext, domain * 1.01);
+                        ext = domain * 1.01;
                         // make it slightly bigger. This is often the extent of the Face.Area, which is sometimes not very accurate
                         // and it makes problems with Intersect
                     }
-                    if (ext.IsInfinite) ext = usedArea * 1.01;
+                    if (ext.IsInfinite) ext = domain * 1.01;
                     parallelepipedHull = new ParallelepipedHull(this, ext); // removed ext*1.01, because NURBS surfaces are not well defined outside of their bounds
 
                 }
@@ -2419,11 +2421,11 @@ namespace CADability.GeoObject
         {
             get
             {
-                double umin = usedArea.Left;
-                double umax = usedArea.Right;
-                double vmin = usedArea.Bottom;
-                double vmax = usedArea.Top;
-                if (usedArea == BoundingRect.EmptyBoundingRect)
+                double umin = domain.Left;
+                double umax = domain.Right;
+                double vmin = domain.Bottom;
+                double vmax = domain.Top;
+                if (domain == BoundingRect.EmptyBoundingRect)
                 {
                     GetNaturalBounds(out umin, out umax, out vmin, out vmax);
                 }
@@ -2503,11 +2505,11 @@ namespace CADability.GeoObject
         {
             get
             {
-                double umin = usedArea.Left;
-                double umax = usedArea.Right;
-                double vmin = usedArea.Bottom;
-                double vmax = usedArea.Top;
-                if (usedArea == BoundingRect.EmptyBoundingRect)
+                double umin = domain.Left;
+                double umax = domain.Right;
+                double vmin = domain.Bottom;
+                double vmax = domain.Top;
+                if (domain == BoundingRect.EmptyBoundingRect)
                 {
                     GetNaturalBounds(out umin, out umax, out vmin, out vmax);
                 }
@@ -2596,7 +2598,7 @@ namespace CADability.GeoObject
         {
             get
             {
-                BoundingRect ext = usedArea;
+                BoundingRect ext = domain;
                 if (ext == BoundingRect.EmptyBoundingRect)
                 {
                     GetNaturalBounds(out ext.Left, out ext.Right, out ext.Bottom, out ext.Top);
@@ -2628,12 +2630,12 @@ namespace CADability.GeoObject
         static int idcounter = 0;
         public int uniqueid;
 #endif
-        protected ISurfaceImpl(BoundingRect? usedArea = null)
+        protected ISurfaceImpl(BoundingRect? domain = null)
         {
 #if DEBUG
             uniqueid = idcounter++;
 #endif
-            if (usedArea.HasValue) this.usedArea = usedArea.Value;
+            if (domain.HasValue) this.domain = domain.Value;
         }
         protected void InvalidateSecondaryData()
         {
@@ -2952,9 +2954,9 @@ namespace CADability.GeoObject
         /// <param name="duv"></param>
         public virtual void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
-            BoundingRect uvminmax = usedArea;
+            BoundingRect uvminmax = domain;
             double hu, hv;
-            if (!uvminmax.IsInvalid() && !uvminmax.IsEmpty() && !uvminmax.IsInfinite)
+            if (!uvminmax.IsEmpty() && !uvminmax.IsInfinite)
             {
                 hu = 1e-6 * (uvminmax.Width);
                 hv = 1e-6 * (uvminmax.Height);
@@ -3253,12 +3255,12 @@ namespace CADability.GeoObject
                 }
                 // there is a bug with SameGeometry and modifications. we use normal ProjectedCurve instead
                 //ModOp2D firstToSecond;
-                //if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface1, ((curve as InterpolatedDualSurfaceCurve).Surface1 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
+                //if (this.SameGeometry(this.domain, (curve as InterpolatedDualSurfaceCurve).Surface1, ((curve as InterpolatedDualSurfaceCurve).Surface1 as ISurfaceImpl).domain, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
                 //{
                 //    if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                 //    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface1.GetModified(firstToSecond); // ist die ModOp so richtigrum?
                 //}
-                //else if (this.SameGeometry(this.usedArea, (curve as InterpolatedDualSurfaceCurve).Surface2, ((curve as InterpolatedDualSurfaceCurve).Surface2 as ISurfaceImpl).usedArea, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
+                //else if (this.SameGeometry(this.domain, (curve as InterpolatedDualSurfaceCurve).Surface2, ((curve as InterpolatedDualSurfaceCurve).Surface2 as ISurfaceImpl).domain, precision, out firstToSecond)) // oder besser geometrische Gleichheit prüfen
                 //{
                 //    if (firstToSecond.IsAlmostIdentity(precision)) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2;
                 //    else if (!firstToSecond.IsNull) return (curve as InterpolatedDualSurfaceCurve).CurveOnSurface2.GetModified(firstToSecond); // ist die ModOp so richtigrum?
@@ -3267,9 +3269,9 @@ namespace CADability.GeoObject
             if (!IsUPeriodic && !IsVPeriodic)
             {
                 BoundingRect restricted = BoundingRect.EmptyBoundingRect;
-                if (usedArea.Left > double.MinValue && usedArea.Right < double.MaxValue && usedArea.Bottom > double.MinValue && usedArea.Top < double.MaxValue && !usedArea.IsEmpty())
+                if (domain.Left > double.MinValue && domain.Right < double.MaxValue && domain.Bottom > double.MinValue && domain.Top < double.MaxValue && !domain.IsEmpty())
                 {
-                    restricted = usedArea;
+                    restricted = domain;
                 }
                 else
                 {
@@ -3278,10 +3280,10 @@ namespace CADability.GeoObject
                 }
                 return new ProjectedCurve(curve, this, true, restricted, precision);
             }
-            if (usedArea.IsInfinite)
+            if (domain.IsInfinite)
                 return new ProjectedCurve(curve, this, true, BoundingRect.EmptyBoundingRect, precision);
             else
-                return new ProjectedCurve(curve, this, true, usedArea, precision);
+                return new ProjectedCurve(curve, this, true, domain, precision);
 
         }
         /// <summary>
@@ -3594,12 +3596,12 @@ namespace CADability.GeoObject
         public virtual ICurve[] Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds)
         {
             GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-            if (usedArea.IsEmpty() || usedArea.IsInfinite) usedArea = thisBounds;
+            if (domain.IsEmpty() || domain.IsInfinite) domain = thisBounds;
             return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions);
         }
         public virtual ICurve Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, GeoPoint seed)
         {
-            if (usedArea.IsEmpty()) usedArea = thisBounds;
+            if (domain.IsEmpty()) domain = thisBounds;
             ICurve[] sol = ParallelepipedHull.Intersect(thisBounds, other, otherBounds, new List<GeoPoint>(new GeoPoint[] { seed }));
             if (sol == null || sol.Length == 0) sol = Intersect(thisBounds, other, otherBounds);
             for (int i = 0; i < sol.Length; i++)
@@ -3664,7 +3666,7 @@ namespace CADability.GeoObject
         /// <param name="vmax"></param>
         public virtual void GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax)
         {
-            if (usedArea.IsEmpty())
+            if (domain.IsEmpty())
             {
                 umin = double.MinValue;
                 umax = double.MaxValue;
@@ -3673,10 +3675,10 @@ namespace CADability.GeoObject
             }
             else
             {
-                umin = usedArea.Left;
-                umax = usedArea.Right;
-                vmin = usedArea.Bottom;
-                vmax = usedArea.Top;
+                umin = domain.Left;
+                umax = domain.Right;
+                vmin = domain.Bottom;
+                vmax = domain.Top;
             }
         }
         /// <summary>
@@ -4114,21 +4116,14 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.SetBounds (BoundingRect)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.Domain"/>
         /// </summary>
-        /// <param name="boundingRect"></param>
-        public virtual void SetBounds(BoundingRect boundingRect)
+        public virtual BoundingRect Domain
         {
-            usedArea = boundingRect;
-        }
-        public virtual BoundingRect GetBounds()
-        {
-            //if (usedArea.IsEmpty()) // no! we need the empty bound e.g. in ExtendBoundsTo
-            //{
-            //    GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax);
-            //    return new BoundingRect(umin, vmin, umax, vmax);
-            //}
-            return usedArea;
+            // Deliberately no fallback to the natural bounds when the value is empty: callers such as
+            // ExtendDomainTo rely on being able to read back the empty rectangle they set.
+            get { return domain; }
+            set { domain = value; }
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.PerpendicularFoot (GeoPoint)"/>
@@ -5959,12 +5954,12 @@ namespace CADability.GeoObject
 
         void IJsonSerialize.GetObjectData(IJsonWriteData data)
         {
-            data.AddProperty("Domain", usedArea);
+            data.AddProperty("Domain", domain);
         }
 
         void IJsonSerialize.SetObjectData(IJsonReadData data)
         {
-            usedArea = data.GetProperty<BoundingRect>("Domain");
+            domain = data.GetProperty<BoundingRect>("Domain");
         }
 
 
@@ -6667,7 +6662,7 @@ namespace CADability.GeoObject
         }
         public static void AdjustPeriodic(ISurface surface, ref GeoPoint2D p2d)
         {
-            if (surface is ISurfaceImpl si) AdjustPeriodic(surface, si.usedArea, ref p2d);
+            if (surface is ISurfaceImpl si) AdjustPeriodic(surface, si.domain, ref p2d);
         }
         internal static void AdjustUPeriodic(ISurface surface, BoundingRect bounds, ref double u)
         {

@@ -297,7 +297,7 @@ namespace CADability.GeoObject
         public override ISurface Clone()
         {
             HelicalSurface res = new HelicalSurface(basisCurve2D.Clone(), pitch, toSurface, curveStartParameter, curveEndParameter, curveParameterOffset);
-            res.usedArea = usedArea;
+            res.domain = domain;
             return res;
         }
         /// <summary>
@@ -319,7 +319,7 @@ namespace CADability.GeoObject
         {
             ISurface res = Clone();
             res.Modify(m);
-            (res as ISurfaceImpl).usedArea = usedArea;
+            (res as ISurfaceImpl).domain = domain;
             return res;
         }
         /// <summary>

@@ -511,8 +511,8 @@ namespace CADability.GeoObject
                 bottomOffset = bottomSurface.GetOffsetSurface(radius);
             }
             if (topOffset == null || bottomOffset == null) return null; // e.g. a sphere shrinking to a point
-            topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
-            bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
+            topOffset.Domain = edgeToRound.PrimaryFace.Domain;
+            bottomOffset.Domain = edgeToRound.SecondaryFace.Domain;
             // construct the two planes at the front and end side of the fillet
             // we did move them a little bit outwards but rejected this solution again, because we need it at the exact endposition sometimes
             GeoPoint filletAxisLeft = leadingEdge.StartPoint; // a first guess for the intersection, typically a good start
@@ -584,7 +584,7 @@ namespace CADability.GeoObject
             uvm = sweptCircle.PositionOf(edgeToRound.Curve3D.PointAt(0.7));
             SurfaceHelper.AdjustPeriodic(sweptCircle, ext, ref uvm);
             ext.MinMax(uvm);
-            sweptCircle.SetBounds(ext);
+            sweptCircle.Domain = ext;
             uvm = sweptCircle.PositionOf(edgeToRound.Curve3D.StartPoint); // sweptCircle mus adjust the period according to its bounds
             ext.MinMax(uvm);
             uvm = sweptCircle.PositionOf(edgeToRound.Curve3D.EndPoint); // sweptCircle mus adjust the period according to its bounds
@@ -600,7 +600,7 @@ namespace CADability.GeoObject
                 ext.Bottom -= Math.PI / 2;
                 ext.Top += Math.PI / 2;
             }
-            sweptCircle.SetBounds(ext);
+            sweptCircle.Domain = ext;
 #if DEBUG
             GeoObjectList dbgsws = (sweptCircle as ISurfaceImpl).DebugGrid;
             GeoObjectList dbgswd = (sweptCircle as ISurfaceImpl).DebugDirectionsGrid;
@@ -715,7 +715,7 @@ namespace CADability.GeoObject
             if (bottomCurve == null) return null;
             TrimCurve(bottomCurve, rb, lb);
 
-            sweptCircle.SetBounds(BoundingRect.EmptyBoundingRect); // reset bounds, they are recalculated in MakeFace
+            sweptCircle.Domain = BoundingRect.EmptyBoundingRect; // reset bounds, they are recalculated in MakeFace
             // topCurve.EndPoint | lid2crv3.StartPoint should be 0 and rt | lid2crv3.StartPoint
             // lid2crv3.EndPoint | bottomCurve.StartPoint should be 0 
             // lid1crv3.StartPoint | bottomCurve.EndPoint should be 0

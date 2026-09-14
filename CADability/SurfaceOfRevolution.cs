@@ -55,7 +55,7 @@ namespace CADability.GeoObject
             this.curveEndParameter = curveToRotate.PositionToParameter(1.0);
             this.curveParameterOffset = 0.0;
 
-            usedArea = BoundingRect.EmptyBoundingRect;
+            domain = BoundingRect.EmptyBoundingRect;
         }
         /// <summary>
         /// Returns the location of the axis of revolution
@@ -532,11 +532,11 @@ namespace CADability.GeoObject
                     GeoPoint2D sp = PositionOf(curve.StartPoint);
                     GeoPoint2D mp = PositionOf(curve.PointAt(0.5));
                     GeoPoint2D ep = PositionOf(curve.EndPoint);
-                    if (!usedArea.IsEmpty())
+                    if (!domain.IsEmpty())
                     {
-                        SurfaceHelper.AdjustPeriodic(this, usedArea, ref sp);
-                        SurfaceHelper.AdjustPeriodic(this, usedArea, ref mp);
-                        SurfaceHelper.AdjustPeriodic(this, usedArea, ref ep);
+                        SurfaceHelper.AdjustPeriodic(this, domain, ref sp);
+                        SurfaceHelper.AdjustPeriodic(this, domain, ref mp);
+                        SurfaceHelper.AdjustPeriodic(this, domain, ref ep);
                     }
                     return new Line2D(sp, ep);
                 }
@@ -555,7 +555,7 @@ namespace CADability.GeoObject
                     return new Line2D(sp, ep);
                 }
             }
-            return new ProjectedCurve(curve, this, true, usedArea); // works also with empty usedArea
+            return new ProjectedCurve(curve, this, true, domain); // works also with empty domain
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetPlaneIntersection (PlaneSurface, double, double, double, double, double)"/>
@@ -666,7 +666,7 @@ namespace CADability.GeoObject
             SurfaceOfRevolution res;
             if (curveToRotate != null) res = new SurfaceOfRevolution(curveToRotate, Location, Axis);
             else res = new SurfaceOfRevolution(basisCurve2D.Clone(), toSurface, curveStartParameter, curveEndParameter, curveParameterOffset);
-            res.usedArea = usedArea;
+            res.domain = domain;
             return res;
         }
         /// <summary>
@@ -702,7 +702,7 @@ namespace CADability.GeoObject
         {
             ISurface res = Clone();
             res.Modify(m);
-            (res as ISurfaceImpl).usedArea = usedArea;
+            (res as ISurfaceImpl).domain = domain;
             return res;
         }
         /// <summary>

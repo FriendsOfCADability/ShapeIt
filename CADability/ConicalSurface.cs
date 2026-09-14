@@ -69,7 +69,7 @@ namespace CADability.GeoObject
             double semiAngle = Math.Atan2(r, 1);
             // noch nicht fertig!!!
         }
-        internal ConicalSurface(ModOp toCone, BoundingRect? usedArea = null) : base(usedArea)
+        internal ConicalSurface(ModOp toCone, BoundingRect? domain = null) : base(domain)
         {
             this.toCone = toCone;
             toUnit = toCone.GetInverse();
@@ -154,7 +154,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface GetModified(ModOp m)
         {
-            return new ConicalSurface(m * toCone, usedArea);
+            return new ConicalSurface(m * toCone, domain);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.PointAt (GeoPoint2D)"/>
@@ -212,14 +212,14 @@ namespace CADability.GeoObject
                                 res = r;
                             }
                         }
-                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+                        if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
                         return res;
                     }
                 }
                 catch (PlaneException) { }
             }
             GeoPoint2D uv = new GeoPoint2D(0.0, (toUnit * p).z);
-            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref uv); // must be adjusted to usedArea
+            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uv); // must be adjusted to domain
             return uv;
 
             // this is the old implementation, which was bad for points outside the surface
@@ -302,7 +302,7 @@ namespace CADability.GeoObject
         public override ISurface Clone()
         {
             ConicalSurface res = new ConicalSurface(toCone);
-            res.usedArea = usedArea;
+            res.domain = domain;
             return res;
         }
         /// <summary>
@@ -1278,10 +1278,10 @@ namespace CADability.GeoObject
         /// from the apex along a surface line, and it never changes its sign within a face: the used area lies
         /// either completely on one side of the apex or completely on the other. Both nappes are oriented
         /// outward, so the same offset has to move the apex in opposite directions on them.
-        /// <see cref="ISurfaceImpl.usedArea"/> is the only place that carries this information; when it is empty
+        /// <see cref="ISurfaceImpl.domain"/> is the only place that carries this information; when it is empty
         /// - a surface that is not bound to a face - the positive nappe is assumed.
         /// </summary>
-        private bool OnPositiveNappe => usedArea.IsEmpty() || usedArea.GetCenter().y + voffset >= 0.0;
+        private bool OnPositiveNappe => domain.IsEmpty() || domain.GetCenter().y + voffset >= 0.0;
         public override ISurface GetOffsetSurface(double offset)
         {
             return GetOffsetSurface(offset, out ModOp2D dumy);
@@ -1432,7 +1432,7 @@ namespace CADability.GeoObject
                             }
                         }
                         res = new Line2D(sp, ep);
-                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                         return res;
                     }
                 }
@@ -1447,7 +1447,7 @@ namespace CADability.GeoObject
                     if (l.StartPoint.z + l.EndPoint.z < 0) u += Math.PI; // start- or endpoint could be 0, crossing z=0 is not allowed
                     if (u < 0.0) u += 2.0 * Math.PI;
                     res = new Line2D(new GeoPoint2D(u, l.StartPoint.z - voffset), new GeoPoint2D(u, l.EndPoint.z - voffset));
-                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                     return res;
                 }
                 else
@@ -1460,7 +1460,7 @@ namespace CADability.GeoObject
                         GeoPoint2D p2 = PositionOf(curve.EndPoint);
                         SurfaceHelper.AdjustPeriodicStartPoint(this, p1, ref p2);
                         res = new Line2D(p1, p2);
-                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                         return res;
                     }
                 }
@@ -1504,7 +1504,7 @@ namespace CADability.GeoObject
                             ep.x += 2 * Math.PI; // noch nicht getestet
                         }
                         res = new Line2D(sp, ep);
-                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                         return res;
 
                         //Unreachable code
@@ -1523,7 +1523,7 @@ namespace CADability.GeoObject
                     // Grenzfälle: ustart oder uend liegen auf 0.0 oder 2*pi
                     // dann weiß man nicht ob der Punkt zyklisch richtig ist
                     res = new Line2D(new GeoPoint2D(ustart, e.Center.z), new GeoPoint2D(uend, e.Center.z));
-                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                     return res;
                 }
                 else
@@ -1582,7 +1582,7 @@ namespace CADability.GeoObject
                         }
                         if (minDist < Precision.eps && res != null)
                         {
-                            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                             return res;
                         }
                     }

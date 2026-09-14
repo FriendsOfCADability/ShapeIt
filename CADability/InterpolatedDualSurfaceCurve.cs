@@ -1098,29 +1098,29 @@ namespace CADability
         {
             if (bounds1.IsEmpty() && surface1 is ISurfaceImpl simpl1)
             {
-                if (simpl1.usedArea.IsEmpty() || simpl1.usedArea.IsInfinite)
+                if (simpl1.domain.IsEmpty() || simpl1.domain.IsInfinite)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)
                     {
                         ext.MinMax(basePoints[i].psurface1);
                     }
-                    simpl1.usedArea = ext;
+                    simpl1.domain = ext;
                 }
-                bounds1 = simpl1.usedArea;
+                bounds1 = simpl1.domain;
             }
             if (bounds2.IsEmpty() && surface2 is ISurfaceImpl simpl2)
             {
-                if (simpl2.usedArea.IsEmpty() || simpl2.usedArea.IsInfinite)
+                if (simpl2.domain.IsEmpty() || simpl2.domain.IsInfinite)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)
                     {
                         ext.MinMax(basePoints[i].psurface2);
                     }
-                    simpl2.usedArea = ext;
+                    simpl2.domain = ext;
                 }
-                bounds2 = simpl2.usedArea;
+                bounds2 = simpl2.domain;
             }
 
         }
@@ -1308,8 +1308,8 @@ namespace CADability
         }
         internal void AdjustPeriodic(ref GeoPoint2D uv1, ref GeoPoint2D uv2)
         {
-            if (bounds1.IsEmpty() || bounds1.IsInfinite || bounds1.IsInvalid()) bounds1 = (surface1 as ISurfaceImpl).usedArea;
-            if (bounds2.IsEmpty() || bounds2.IsInfinite || bounds2.IsInvalid()) bounds2 = (surface2 as ISurfaceImpl).usedArea;
+            if (bounds1.IsEmpty() || bounds1.IsInfinite) bounds1 = (surface1 as ISurfaceImpl).domain;
+            if (bounds2.IsEmpty() || bounds2.IsInfinite) bounds2 = (surface2 as ISurfaceImpl).domain;
             SurfaceHelper.AdjustPeriodic(surface1, bounds1, ref uv1);
             SurfaceHelper.AdjustPeriodic(surface2, bounds2, ref uv2);
         }
@@ -1555,12 +1555,12 @@ namespace CADability
                 surface2 = newSurface;
                 ModifySurfacePoints(false, oldToNew);
             }
-            else if (surface1.SameGeometry((surface1 as ISurfaceImpl).usedArea, oldSurface, (oldSurface as ISurfaceImpl).usedArea, Precision.eps, out ModOp2D dumy))
+            else if (surface1.SameGeometry((surface1 as ISurfaceImpl).domain, oldSurface, (oldSurface as ISurfaceImpl).domain, Precision.eps, out ModOp2D dumy))
             {
                 surface1 = newSurface;
                 ModifySurfacePoints(true, oldToNew);
             }
-            else if (surface2.SameGeometry((surface2 as ISurfaceImpl).usedArea, oldSurface, (oldSurface as ISurfaceImpl).usedArea, Precision.eps, out dumy))
+            else if (surface2.SameGeometry((surface2 as ISurfaceImpl).domain, oldSurface, (oldSurface as ISurfaceImpl).domain, Precision.eps, out dumy))
             {
                 surface2 = newSurface;
                 ModifySurfacePoints(false, oldToNew);
@@ -3522,29 +3522,29 @@ namespace CADability
                 }
                 if (surface1 is ISurfaceImpl simpl1)
                 {
-                    if (simpl1.usedArea.IsEmpty() || simpl1.usedArea.IsInfinite)
+                    if (simpl1.domain.IsEmpty() || simpl1.domain.IsInfinite)
                     {
                         BoundingRect ext = BoundingRect.EmptyBoundingRect;
                         for (int i = 0; i < basePoints.Length; i++)
                         {
                             ext.MinMax(basePoints[i].psurface1);
                         }
-                        simpl1.usedArea = ext;
+                        simpl1.domain = ext;
                     }
-                    bounds1 = simpl1.usedArea;
+                    bounds1 = simpl1.domain;
                 }
                 if (surface2 is ISurfaceImpl simpl2)
                 {
-                    if (simpl2.usedArea.IsEmpty() || simpl2.usedArea.IsInfinite)
+                    if (simpl2.domain.IsEmpty() || simpl2.domain.IsInfinite)
                     {
                         BoundingRect ext = BoundingRect.EmptyBoundingRect;
                         for (int i = 0; i < basePoints.Length; i++)
                         {
                             ext.MinMax(basePoints[i].psurface2);
                         }
-                        simpl2.usedArea = ext;
+                        simpl2.domain = ext;
                     }
-                    bounds2 = simpl2.usedArea;
+                    bounds2 = simpl2.domain;
                 }
             }
             jsonSerialize.InvokeSerializationDoneCallback(surface1);
@@ -3559,26 +3559,26 @@ namespace CADability
         {
             if (surface1 is ISurfaceImpl simpl1)
             {
-                if (simpl1.usedArea.IsEmpty() || simpl1.usedArea.IsInfinite)
+                if (simpl1.domain.IsEmpty() || simpl1.domain.IsInfinite)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)
                     {
                         ext.MinMax(basePoints[i].psurface1);
                     }
-                    simpl1.usedArea = ext;
+                    simpl1.domain = ext;
                 }
             }
             if (surface2 is ISurfaceImpl simpl2)
             {
-                if (simpl2.usedArea.IsEmpty() || simpl2.usedArea.IsInfinite)
+                if (simpl2.domain.IsEmpty() || simpl2.domain.IsInfinite)
                 {
                     BoundingRect ext = BoundingRect.EmptyBoundingRect;
                     for (int i = 0; i < basePoints.Length; i++)
                     {
                         ext.MinMax(basePoints[i].psurface2);
                     }
-                    simpl2.usedArea = ext;
+                    simpl2.domain = ext;
                 }
             }
         }

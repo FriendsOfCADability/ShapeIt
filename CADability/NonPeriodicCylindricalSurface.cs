@@ -19,8 +19,8 @@ namespace CADability.GeoObject
             // vmin wird so bestimmt, dass es sicher kleiner ist als der zu erwartende v-Bereich
             this.vmin = vmin - (vmax - vmin) / 2.0;
         }
-        public NonPeriodicCylindricalSurface(ModOp toCylinder, double vmin, BoundingRect? usedArea = null) 
-            : base(toCylinder, usedArea)
+        public NonPeriodicCylindricalSurface(ModOp toCylinder, double vmin, BoundingRect? domain = null) 
+            : base(toCylinder, domain)
         {
             // vmin wird so bestimmt, dass es sicher kleiner ist als der zu erwartende v-Bereich
             this.vmin = vmin;
@@ -210,7 +210,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface GetModified(ModOp m)
         {
-            return new NonPeriodicCylindricalSurface(m * toCylinder, vmin, usedArea);
+            return new NonPeriodicCylindricalSurface(m * toCylinder, vmin, domain);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.FixedU (double, double, double)"/>

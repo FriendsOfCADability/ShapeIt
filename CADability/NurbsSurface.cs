@@ -3700,7 +3700,7 @@ namespace CADability.GeoObject
             }
             res.InvalidateSecondaryData();
             res.Init();
-            res.usedArea = usedArea;
+            res.domain = domain;
             return res;
         }
         /// <summary>

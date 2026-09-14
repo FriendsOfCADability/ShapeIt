@@ -820,7 +820,7 @@ namespace CADability.GeoObject
                         domain.MinMax(uv);
                     }
                 }
-                surface.SetBounds(domain);
+                surface.Domain = domain;
             }
             for (int i = 0; i < chain.Count; i++)
             {
@@ -1384,8 +1384,8 @@ namespace CADability.GeoObject
                 ISurface topOffset = topSurface.GetOffsetSurface(dist);
                 ISurface bottomOffset = bottomSurface.GetOffsetSurface(dist);
                 if (topOffset == null || bottomOffset == null) continue; // e.g. a sphere shrinking to a point
-                topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
-                bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
+                topOffset.Domain = edgeToRound.PrimaryFace.Domain;
+                bottomOffset.Domain = edgeToRound.SecondaryFace.Domain;
                 PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint, -leadingEdge.StartDirection));
                 PlaneSurface rightPlane = new PlaneSurface(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection));
                 GeoPoint filletAxisLeft = leadingEdge.StartPoint; // a first guess for the intersection, typically a good start
@@ -1629,7 +1629,7 @@ namespace CADability.GeoObject
                 //GeoVector dbgvdir1 = sweptCircle.VDirection(revo * dbguv);
 
                 // we need bounds for sweptCircle to enable Makeface to use BoxedSurface methods
-                sweptCircle.SetBounds(new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2));
+                sweptCircle.Domain = new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2);
                 //sweptCircle.PointAt(GeoPoint2D.Origin);
                 //Face dbgfc = Face.MakeFace(sweptCircle, new BoundingRect(0.0, Math.PI / 2, 1.0, 3 * Math.PI / 2));
                 //Face dbgfc1 = Face.MakeFace(sweptCircle, new BoundingRect(0.0, 3 * Math.PI / 2, 1.0, 5 * Math.PI / 2));
@@ -1655,7 +1655,7 @@ namespace CADability.GeoObject
                     dbgtr.Add(Line.MakeLine(trianglePoint[triangleIndex[i + 1]], trianglePoint[triangleIndex[i + 2]]));
                     dbgtr.Add(Line.MakeLine(trianglePoint[triangleIndex[i + 2]], trianglePoint[triangleIndex[i]]));
                 }
-                sweptCircle.SetBounds(BoundingRect.EmptyBoundingRect);
+                sweptCircle.Domain = BoundingRect.EmptyBoundingRect;
                 if (isConvex)
                 {
                     sweptFace = Face.MakeFace(sweptCircle, new Edge[] { topEdges[0], re2, bottomEdges[3], le2 });
@@ -1735,8 +1735,8 @@ namespace CADability.GeoObject
             ISurface topOffset = topSurface.GetOffsetSurface(-radius);
             ISurface bottomOffset = bottomSurface.GetOffsetSurface(-radius);
             if (topOffset == null || bottomOffset == null) return null; // e.g. a sphere shrinking to a point
-            topOffset.SetBounds(edgeToRound.PrimaryFace.Domain);
-            bottomOffset.SetBounds(edgeToRound.SecondaryFace.Domain);
+            topOffset.Domain = edgeToRound.PrimaryFace.Domain;
+            bottomOffset.Domain = edgeToRound.SecondaryFace.Domain;
             // construct the two planes at the front and end side of the fillet
             // we did move them a little bit outwards but rejected this solution again, because we need it at the exact endposition sometimes
             PlaneSurface leftPlane = new PlaneSurface(new Plane(leadingEdge.StartPoint, -leadingEdge.StartDirection));
@@ -1766,7 +1766,7 @@ namespace CADability.GeoObject
             sweptCircle = SweptCircle.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
 
             // we need bounds for sweptCircle to enable Makeface to use BoxedSurface methods
-            sweptCircle.SetBounds(new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2));
+            sweptCircle.Domain = new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2);
 #if DEBUG
             GeoObjectList dbgsws = (sweptCircle as ISurfaceImpl).DebugGrid;
             GeoObjectList dbgswd = (sweptCircle as ISurfaceImpl).DebugDirectionsGrid;

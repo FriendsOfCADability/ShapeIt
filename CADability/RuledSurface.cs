@@ -629,7 +629,7 @@ namespace CADability
         {
             RuledSurface res = this.Clone() as RuledSurface;
             res.Modify(m);
-            res.usedArea = usedArea;
+            res.domain = domain;
             return res;
         }
         /// <summary>

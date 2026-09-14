@@ -30,7 +30,7 @@ namespace CADability.GeoObject
             toSphere = m2 * m1;
             toUnit = toSphere.GetInverse();
         }
-        internal SphericalSurface(ModOp toSphere, BoundingRect? usedArea = null) : base(usedArea)
+        internal SphericalSurface(ModOp toSphere, BoundingRect? domain = null) : base(domain)
         {
             this.toSphere = toSphere;
             toUnit = toSphere.GetInverse();
@@ -99,7 +99,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface GetModified(ModOp m)
         {
-            return new SphericalSurface(m * toSphere, usedArea);
+            return new SphericalSurface(m * toSphere, domain);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetNormal (GeoPoint2D)"/>
@@ -513,7 +513,7 @@ namespace CADability.GeoObject
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
             GeoPoint2D res = PositionOfUnit(toUnit * p);
-            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
             return res;
         }
         /// <summary>
@@ -550,7 +550,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface Clone()
         {
-            return new SphericalSurface(toSphere, usedArea);
+            return new SphericalSurface(toSphere, domain);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Modify (ModOp)"/>
@@ -1090,7 +1090,7 @@ namespace CADability.GeoObject
                         }
                     }
                     ICurve2D res = new Line2D(sp, ep);
-                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                     return res;
                 }
                 else if (Precision.IsPerpendicular(elli.Normal, ZAxis, false) && Precision.IsEqual(elli.Center, Location))
@@ -1120,7 +1120,7 @@ namespace CADability.GeoObject
                         }
                     }
                     ICurve2D res = new Line2D(sp, ep);
-                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                     return res;
                 }
                 if (elli.IsCircle && this.IsRealSphere) // it is not a longitudinal or latitudial circle
@@ -1137,7 +1137,7 @@ namespace CADability.GeoObject
                             clone.Radius = (Location + ctoc) | c;
                             curve = clone;
                         }
-                        return new ProjectedCurve(curve, this, true, this.usedArea);
+                        return new ProjectedCurve(curve, this, true, this.domain);
                     }
                 }
             }

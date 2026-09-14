@@ -22,7 +22,7 @@ public class LogAttribute : Attribute, IMethodDecorator
         // if (methodName.EndsWith("get_Surface1") || methodName.EndsWith("get_Surface2")) return; // would cause recursion
         if (instance is ISurfaceImpl si)
         {
-            if (Math.Abs(si.usedArea.Left - 3.1191820062517275) < 1e-6)
+            if (Math.Abs(si.domain.Left - 3.1191820062517275) < 1e-6)
             {
 
             }

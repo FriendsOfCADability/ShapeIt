@@ -147,7 +147,7 @@ namespace CADability.GeoObject
             }
         }
 
-        public SweptCircle(ICurve spine, double radius, BoundingRect? usedArea = null): base(usedArea)
+        public SweptCircle(ICurve spine, double radius, BoundingRect? domain = null): base(domain)
         {
             this.spine = spine;
             this.radius = radius;
@@ -552,7 +552,7 @@ namespace CADability.GeoObject
                 // commented out, because it too often throws exceptions
                 //if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
                 //uv = new GeoPoint2D(u, v);
-                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref uv); // must be adjusted to usedArea
+                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uv); // must be adjusted to domain
                 if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out double dist)) return uv;
                 return new GeoPoint2D(u, v);
             }
@@ -568,7 +568,7 @@ namespace CADability.GeoObject
                 GeoVector B = Sign(radius) * T ^ N;                              // Binormale
                 double v = Atan2((p - spinePoint) * B, (p - spinePoint) * N);
                 GeoPoint2D res = new GeoPoint2D(u, v);
-                if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
                 return res;
             }
         }
@@ -1500,7 +1500,7 @@ namespace CADability.GeoObject
             {
                 if (ss.Area < Precision.eps) continue;
                 SweptCircle part = Clone() as SweptCircle; // every face gets its own surface with its own domain
-                part.SetBounds(ss.GetExtent());
+                part.Domain = ss.GetExtent();
                 res.Add(Face.MakeFace(part, ss));
             }
             return res.ToArray();
@@ -1574,7 +1574,7 @@ namespace CADability.GeoObject
                     ICurve cc = FixedV((uvs1.y + uve1.y) / 2, 0, roots[0]);
                     ICurve cca = cc.Approximate(true, 0.1);
                     SweptCircle clone = Clone() as SweptCircle;
-                    clone.SetBounds(new BoundingRect(roots[1], 0, 1, 2 * PI));
+                    clone.Domain = new BoundingRect(roots[1], 0, 1, 2 * PI);
                     clone.Intersect(cc, ext2, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds);
                 }
             }

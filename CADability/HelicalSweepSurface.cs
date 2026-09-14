@@ -68,7 +68,7 @@ namespace CADability.GeoObject
         {
 
             HelicalSweepSurface res = new HelicalSweepSurface(curve.CloneModified(m), pitch, (m * axis).Normalized);
-            res.SetBounds(this.GetBounds());
+            res.Domain = this.Domain;
             return res;
         }
         public override ModOp2D ReverseOrientation()
@@ -79,7 +79,7 @@ namespace CADability.GeoObject
         public override ISurface Clone()
         {
             HelicalSweepSurface res = new HelicalSweepSurface(curve.Clone(), pitch, axis);
-            res.SetBounds(this.GetBounds());
+            res.Domain = this.Domain;
             return res;
         }
 
@@ -251,7 +251,7 @@ namespace CADability.GeoObject
             diry.Length = dirx.Length;
 
             CylindricalSurface cs = new CylindricalSurface(axis.Location, dirx, diry, axis.Direction);
-            cs.Intersect(curve, usedArea, out GeoPoint[] ips, out GeoPoint2D[] uv, out double[] u);
+            cs.Intersect(curve, domain, out GeoPoint[] ips, out GeoPoint2D[] uv, out double[] u);
             if (ips.Length > 0)
             {
                 // now find the point with the right v-parameter

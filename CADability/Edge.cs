@@ -1821,8 +1821,8 @@ namespace CADability
                     //GeoVector n1e = PrimaryFace.Surface.GetNormal(uv1e);
                     //GeoVector n2s = SecondaryFace.Surface.GetNormal(uv2s);
                     //GeoVector n2e = SecondaryFace.Surface.GetNormal(uv2e);
-                    primaryFace.Surface.SetBounds(bounds1);
-                    secondaryFace.Surface.SetBounds(bounds2); // these bounds were not set under certain circumstances
+                    primaryFace.Surface.Domain = bounds1;
+                    secondaryFace.Surface.Domain = bounds2; // these bounds were not set under certain circumstances
                     // now we can deal with tangential DualSurfaceCurves
                     //if ((new Angle(n1s, n2s)).Radian < 0.01 && (new Angle(n1e, n2e)).Radian < 0.01) // the condition was "||", but we get along with curves that are tangential at one end
                     //{   // surfaces are tangential, this edge.curve3d cannot remain a InterpolatedDualSurfaceCurve

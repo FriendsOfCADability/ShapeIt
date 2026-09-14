@@ -12,7 +12,7 @@ namespace CADability.GeoObject
         private ISurface baseSurface;
         private double offset;
         double umin, umax, vmin, vmax; // nur zur Kommunikation mit OCas nötig
-        public OffsetSurface(ISurface baseSurface, double offset, BoundingRect? usedArea = null) : base(usedArea)
+        public OffsetSurface(ISurface baseSurface, double offset, BoundingRect? domain = null) : base(domain)
         {
             this.baseSurface = baseSurface;
             this.offset = offset;
@@ -196,7 +196,7 @@ namespace CADability.GeoObject
             base.GetNaturalBounds(out umin, out umax, out vmin, out vmax);
             if (umin == double.MinValue || vmin == double.MinValue)
             {
-                umin = this.umin; // diese Werte existieren immer (siehe Konstruktoren) Das Problem ist die BoxedSurface, die usedArea braucht
+                umin = this.umin; // diese Werte existieren immer (siehe Konstruktoren) Das Problem ist die BoxedSurface, die domain braucht
                 umax = this.umax;
                 vmin = this.vmin;
                 vmax = this.vmax;
@@ -349,7 +349,7 @@ namespace CADability.GeoObject
             res.umax = umax;
             res.vmin = vmin;
             res.vmax = vmax;
-            res.usedArea = usedArea;
+            res.domain = domain;
             return res;
         }
         /// <summary>
@@ -375,7 +375,7 @@ namespace CADability.GeoObject
         {
             if (m.IsIsogonal)
             {
-                OffsetSurface res = new OffsetSurface(baseSurface.GetModified(m), offset * m.Factor, usedArea);
+                OffsetSurface res = new OffsetSurface(baseSurface.GetModified(m), offset * m.Factor, domain);
                 return res;
             }
             else throw new NotImplementedException("Modify OffsetSurface with non ortogonal Matrix");

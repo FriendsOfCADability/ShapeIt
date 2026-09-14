@@ -131,11 +131,11 @@ namespace CADability.GeoObject
             GeoPoint2D uv = sweptCircle.PositionOf(edge.PointAt(0.3));
             SurfaceHelper.AdjustPeriodic(sweptCircle, sweptCircleDomain, ref uv);
             sweptCircleDomain.MinMax(uv);
-            sweptCircle.SetBounds(sweptCircleDomain); // now PositionOf is adjusted to the period
+            sweptCircle.Domain = sweptCircleDomain; // now PositionOf is adjusted to the period
             sweptCircleDomain.MinMax(sweptCircle.PositionOf(edge.PointAt(0.7)));
-            sweptCircle.SetBounds(sweptCircleDomain); // now PositionOf is adjusted to the period
+            sweptCircle.Domain = sweptCircleDomain; // now PositionOf is adjusted to the period
             sweptCircleDomain.MinMax(sweptCircle.PositionOf(edge.EndPoint));
-            sweptCircle.SetBounds(sweptCircleDomain); // now PositionOf is adjusted to the period
+            sweptCircle.Domain = sweptCircleDomain; // now PositionOf is adjusted to the period
             if (sweptCircleExtrusion.ExtrusionDirectionIsV)
             {
                 sweptCircleDomain.Left -= Math.PI / 2;
@@ -146,7 +146,7 @@ namespace CADability.GeoObject
                 sweptCircleDomain.Bottom -= Math.PI / 2;
                 sweptCircleDomain.Top += Math.PI / 2;
             }
-            sweptCircle.SetBounds(sweptCircleDomain);
+            sweptCircle.Domain = sweptCircleDomain;
             return sweptCircle;
         }
         public Shell? MakeChamferShell(Edge edgeToCutter, double length1, double length2, bool convex)
@@ -163,9 +163,9 @@ namespace CADability.GeoObject
             if (sweptCircle == null || sweptCircleExtrusion == null) return null; // to satisfy the compiler
             foreach (GeoPoint p in new List<GeoPoint>([leadingEdge.PointAt(0.33), leadingEdge.PointAt(0.67), leadingEdge.StartPoint, leadingEdge.EndPoint]))
             {
-                sweptCircle.ExtendBoundsTo(p);
+                sweptCircle.ExtendDomainTo(p);
             }
-            BoundingRect swcbounds = sweptCircle.GetBounds();
+            BoundingRect swcbounds = sweptCircle.Domain;
             if (sweptCircleExtrusion.ExtrusionDirectionIsV)
             {
                 swcbounds.Left = 0.0;
@@ -176,7 +176,7 @@ namespace CADability.GeoObject
                 swcbounds.Bottom = 0.0;
                 swcbounds.Top = 2 * Math.PI;
             }
-            sweptCircle.SetBounds(swcbounds);
+            sweptCircle.Domain = swcbounds;
 
             int convexFactor = convex ? 1 : -1;
             Ellipse tstCircle = Ellipse.Construct();
@@ -200,7 +200,7 @@ namespace CADability.GeoObject
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
             GeoPoint mp = ips.MinBy(p => convexFactor*(p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
-            IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, sweptCircle, sweptCircle.GetBounds(), [sp, ep]);
+            IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
             ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
             if (topCurve == null) return null;
@@ -229,7 +229,7 @@ namespace CADability.GeoObject
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
             mp = ips.MinBy(p => convexFactor * (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
-            dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, sweptCircle, sweptCircle.GetBounds(), [sp, ep]);
+            dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
             ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
             if (bottomCurve == null) return null;
@@ -238,7 +238,7 @@ namespace CADability.GeoObject
             ISurface chamferSurface = Make3D.MakeRuledSurface(topCurve, bottomCurve);
             foreach (GeoPoint p in new List<GeoPoint>([topCurve.StartPoint, topCurve.PointAt(0.5), topCurve.EndPoint, bottomCurve.StartPoint, bottomCurve.EndPoint]))
             {
-                chamferSurface.ExtendBoundsTo(p);
+                chamferSurface.ExtendDomainTo(p);
             }
             ICurve leftChamferEdge = Line.TwoPoints(topCurve.StartPoint, bottomCurve.StartPoint);
             ICurve rightChamferEdge = Line.TwoPoints(topCurve.EndPoint, bottomCurve.EndPoint);

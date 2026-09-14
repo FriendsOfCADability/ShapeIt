@@ -54,7 +54,7 @@ namespace CADability.GeoObject
         }
         private Face MakeBigFace(ISurface surface)
         {   // extent the bounds of the surface at least double the area when possible and make a face to split something else with
-            BoundingRect br = surface.GetBounds();
+            BoundingRect br = surface.Domain;
             double left = br.Left;
             double right = br.Right;
             if (surface.IsUPeriodic)
@@ -115,7 +115,7 @@ namespace CADability.GeoObject
                 GeoPoint2D ip3 = surface.GetLineIntersection(freeEdge.Curve3D.EndPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
                 if (ip2.IsValid && ip3.IsValid)
                 {
-                    surface.SetBoundsTo(vtx.Position, surface.PointAt(ip2), surface.PointAt(ip3));
+                    surface.SetDomainTo(vtx.Position, surface.PointAt(ip2), surface.PointAt(ip3));
                     Face splitWith = MakeBigFace(surface);
                     (Shell[] upperPart, Shell[] lowerPart) = BooleanOperation.SplitByFace(cutter, splitWith);
                     if (upperPart.Length > 0 && lowerPart.Length > 0)

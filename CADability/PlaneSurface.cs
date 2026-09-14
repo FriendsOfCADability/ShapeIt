@@ -16,7 +16,7 @@ namespace CADability.GeoObject
         private ModOp fromUnitPlane; // projects the XY plane into this surface
         private ModOp toUnitPlane; // inverted fromUnitPlane
 
-        internal PlaneSurface(ModOp m, BoundingRect? usedArea = null) : base(usedArea)
+        internal PlaneSurface(ModOp m, BoundingRect? domain = null) : base(domain)
         {
             fromUnitPlane = m;
             toUnitPlane = fromUnitPlane.GetInverse();
@@ -117,7 +117,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface GetModified(ModOp m)
         {
-            return new PlaneSurface(m * fromUnitPlane, usedArea);
+            return new PlaneSurface(m * fromUnitPlane, domain);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Make3dCurve (ICurve2D)"/>

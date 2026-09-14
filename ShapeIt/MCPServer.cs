@@ -3739,7 +3739,7 @@ namespace ShapeIt
             }
             NurbsSurface ns = new NurbsSurface(throughPoints, degreeU, degreeV, uPeriodic, vPeriodic);
             BoundingRect ext = new BoundingRect(ns.UKnots.First(), ns.VKnots.First(), ns.UKnots.Last(), ns.VKnots.Last());
-            ns.SetBounds(ext);
+            ns.Domain = ext;
             namedItems[name] = ns;
         }
 
@@ -4407,7 +4407,7 @@ namespace ShapeIt
                 List<Face> faces = [];
                 for (int i = 0; i < surfaces.Count; i++)
                 {
-                    BoundingRect ext = surfaces[i].GetBounds();
+                    BoundingRect ext = surfaces[i].Domain;
                     // TODO: both u and v are periodic!
                     if (surfaces[i].IsUPeriodic && ext.Width > surfaces[i].UPeriod * 0.9)
                     {

@@ -2998,7 +2998,7 @@ namespace CADability.GeoObject
         {
             this.outline = outline;
             if (holes == null) holes = new Edge[0][];
-            if (surface is ISurfaceImpl surfaceImpl) surfaceImpl.SetBounds(Area.GetExtent());
+            if (surface is ISurfaceImpl surfaceImpl) surfaceImpl.Domain = Area.GetExtent();
         }
 
         /// <summary>
@@ -3268,7 +3268,7 @@ namespace CADability.GeoObject
             res.SetSurface(surface);
             Path2D p2d = outline.Outline.AsPath();
             p2d.Flatten();
-            res.surface.SetBounds(p2d.GetExtent());
+            res.surface.Domain = p2d.GetExtent();
 
             res.outline = new Edge[p2d.SubCurvesCount];
             for (int i = 0; i < p2d.SubCurvesCount; ++i)
@@ -3334,7 +3334,7 @@ namespace CADability.GeoObject
         public static Face MakeFace(ISurface surface, BoundingRect br)
         {
             SimpleShape ss = new SimpleShape(br.ToBorder());
-            (surface as ISurfaceImpl).usedArea = br;
+            (surface as ISurfaceImpl).domain = br;
             return Face.MakeFace(surface, ss);
         }
 
@@ -3449,7 +3449,7 @@ namespace CADability.GeoObject
             uv = sphericalSurface.PositionOf(C);
             SurfaceHelper.AdjustPeriodic(sphericalSurface, domain, ref uv);
             domain.MinMax(uv);
-            sphericalSurface.SetBounds(domain);
+            sphericalSurface.Domain = domain;
 
             return MakeFace(sphericalSurface, new List<ICurve>([Arc0, Arc1, Arc2]));
         }
@@ -3596,7 +3596,7 @@ namespace CADability.GeoObject
             {
                 if (edge.Curve3D is IGeoObject go) go.Style = EdgeStyle;
             }
-            if (surface is ISurfaceImpl si) si.usedArea = Domain;
+            if (surface is ISurfaceImpl si) si.domain = Domain;
         }
         /// <summary>
         /// Create a face with the provided surface and an (unordered) set of ICurves, which define the outline
@@ -3663,8 +3663,8 @@ namespace CADability.GeoObject
 #endif
 
             List<ICurve2D> bounds2d = [];
-            BoundingRect domain = surface.GetBounds(); // use the bounds of the surface (if any) because some InterpolatedDualSurfaceCurves might rely on it
-            if (domain.IsInfinite || domain.IsInvalid()) surface.SetBounds(BoundingRect.EmptyBoundingRect);
+            BoundingRect domain = surface.Domain; // use the bounds of the surface (if any) because some InterpolatedDualSurfaceCurves might rely on it
+            if (domain.IsInfinite || domain.IsEmpty()) surface.Domain = BoundingRect.EmptyBoundingRect;
             // find a domain for the surface
             // A cone running into its apex is the special case: there are 3 curves, and the first two may well be
             // the lines towards the apex and away from it. Their periodic parameter is then 0 and pi, and which
@@ -3688,34 +3688,34 @@ namespace CADability.GeoObject
             }
             for (int i = 0; i < sortedCurves.Count; i++)
             {
-                surface.ExtendBoundsTo(sortedCurves[(i + startwith) % sortedCurves.Count].StartPoint);
-                surface.ExtendBoundsTo(sortedCurves[(i + startwith) % sortedCurves.Count].PointAt(0.5));
+                surface.ExtendDomainTo(sortedCurves[(i + startwith) % sortedCurves.Count].StartPoint);
+                surface.ExtendDomainTo(sortedCurves[(i + startwith) % sortedCurves.Count].PointAt(0.5));
             }
             for (int i = 0; i < sortedCurves.Count; i++)
             {
                 if (sortedCurves[i] is InterpolatedDualSurfaceCurve idsc)
                 {   // the curve has been cloned above, so the surface is independant from its original source
                     // we adjust the bounds of the surface, because projecting that curve to 2d would not adjust periodic later
-                    if (surface.SameGeometry(surface.GetBounds(), idsc.Surface1, surface.GetBounds(), Precision.eps, out _))
+                    if (surface.SameGeometry(surface.Domain, idsc.Surface1, surface.Domain, Precision.eps, out _))
                     {
-                        idsc.Surface1.SetBounds(surface.GetBounds()); // reflect the ModOp?
+                        idsc.Surface1.Domain = surface.Domain; // reflect the ModOp?
                     }
-                    if (surface.SameGeometry(surface.GetBounds(), idsc.Surface2, surface.GetBounds(), Precision.eps, out _))
+                    if (surface.SameGeometry(surface.Domain, idsc.Surface2, surface.Domain, Precision.eps, out _))
                     {
-                        idsc.Surface2.SetBounds(surface.GetBounds()); // reflect the ModOp?
+                        idsc.Surface2.Domain = surface.Domain; // reflect the ModOp?
                     }
                 }
             }
             for (int i = 0; i < sortedCurves.Count; ++i)
             {
                 bounds2d.Add(surface.GetProjectedCurve(sortedCurves[i].Clone(), 0.0)); // .Clone, because when it is a ProjectedCurve, then it must be independant from the Edge curve
-                SurfaceHelper.AdjustPeriodic(surface, surface.GetBounds(), bounds2d[i]);
+                SurfaceHelper.AdjustPeriodic(surface, surface.Domain, bounds2d[i]);
             }
             double[] us = surface.GetUSingularities();
             double[] vs = surface.GetVSingularities();
             for (int i = 0; i < us.Length; i++)
             {
-                SurfaceHelper.AdjustUPeriodic(surface, surface.GetBounds().Left, surface.GetBounds().Right, ref us[i]);
+                SurfaceHelper.AdjustUPeriodic(surface, surface.Domain.Left, surface.Domain.Right, ref us[i]);
                 for (int j = 0; j < bounds2d.Count; j++)
                 {
                     int k = (j + 1) % bounds2d.Count;
@@ -3730,7 +3730,7 @@ namespace CADability.GeoObject
             }
             for (int i = 0; i < vs.Length; i++)
             {
-                SurfaceHelper.AdjustVPeriodic(surface, surface.GetBounds().Bottom, surface.GetBounds().Top, ref vs[i]);
+                SurfaceHelper.AdjustVPeriodic(surface, surface.Domain.Bottom, surface.Domain.Top, ref vs[i]);
                 for (int j = 0; j < bounds2d.Count; j++)
                 {
                     int k = (j + 1) % bounds2d.Count;
@@ -3847,7 +3847,7 @@ namespace CADability.GeoObject
                     v2.MergeWith(v1);
                 }
             }
-            if (res.surface is ISurfaceImpl si) si.usedArea = res.Domain;
+            if (res.surface is ISurfaceImpl si) si.domain = res.Domain;
 
             return res;
         }
@@ -3907,7 +3907,7 @@ namespace CADability.GeoObject
                 }
             }
             SimpleShape forceArea = res.Area; // das SimpleShape wird hier erstmalig berechnet
-            if (res.surface is ISurfaceImpl si) si.usedArea = res.Domain;
+            if (res.surface is ISurfaceImpl si) si.domain = res.Domain;
             return res;
         }
         internal void SetSurfaceAndEdges(ISurface surface, Edge[] outline)
@@ -3921,7 +3921,7 @@ namespace CADability.GeoObject
             this.outline = outline;
             this.holes = new Edge[0][]; // keine Löcher
             SimpleShape forceArea = Area; // das SimpleShape wird hier erstmalig berechnet
-            if (surface is ISurfaceImpl si) si.usedArea = Domain;
+            if (surface is ISurfaceImpl si) si.domain = Domain;
         }
 
         internal void CheckPeriodic()
@@ -4385,7 +4385,7 @@ namespace CADability.GeoObject
                     }
                     if (ok) area = new SimpleShape(soutline, sholes);   // the area has clones of the curves, because the holes are reverse oriented to the 2d curves of the face
                                                                         // it should always be OK here, if not, something went wrong with the construction of the face and should be fixed there
-                    if (surface is ISurfaceImpl si && area != null) si.usedArea = area.GetExtent();
+                    if (surface is ISurfaceImpl si && area != null) si.domain = area.GetExtent();
                 }
                 if (area == null)
                 {
@@ -4399,14 +4399,14 @@ namespace CADability.GeoObject
                         // segments[i].UserData.Add("CADability.Edge", outline[i]); // mal versuchsweise die zugehörige Kante merken
                     }
                     segments = ls.ToArray();
-                    if (surface is ISurfaceImpl && ((surface as ISurfaceImpl).usedArea.IsEmpty() || (surface as ISurfaceImpl).usedArea.IsInfinite))
+                    if (surface is ISurfaceImpl && ((surface as ISurfaceImpl).domain.IsEmpty() || (surface as ISurfaceImpl).domain.IsInfinite))
                     {
                         BoundingRect ext = BoundingRect.EmptyBoundingRect;
                         for (int i = 0; i < segments.Length; i++)
                         {
                             ext.MinMax(segments[i].GetExtent());
                         }
-                        (surface as ISurfaceImpl).usedArea = ext;
+                        (surface as ISurfaceImpl).domain = ext;
                     }
 #if DEBUG
                     //DebuggerContainer dc = new DebuggerContainer();
@@ -4486,7 +4486,7 @@ namespace CADability.GeoObject
                         }
                         Array.Reverse(holes[i]);
                     }
-                    surface.SetBounds(boutline.Extent);
+                    surface.Domain = boutline.Extent;
                     try
                     {
                         foreach (Vertex v in Vertices)
@@ -4500,7 +4500,7 @@ namespace CADability.GeoObject
                         // conical surface v-offset
                     }
                 }
-                if (surface is ISurfaceImpl si1 && area != null) si1.usedArea = area.GetExtent();
+                if (surface is ISurfaceImpl si1 && area != null) si1.domain = area.GetExtent();
                 return area;
             }
         }
@@ -5419,7 +5419,7 @@ namespace CADability.GeoObject
             internal set
             {
                 surface = value;
-                if (surface is ISurfaceImpl si && outline != null) si.usedArea = Domain;
+                if (surface is ISurfaceImpl si && outline != null) si.domain = Domain;
                 extent = BoundingBox.EmptyBoundingBox;
             }
         }
@@ -5648,7 +5648,7 @@ namespace CADability.GeoObject
             res.extent = this.extent; // struct, wird kopiert
             if (res.surface is ISurfaceImpl si)
             {
-                si.SetBounds(Domain);
+                si.Domain = Domain;
             }
             return res;
         }
@@ -5690,7 +5690,7 @@ namespace CADability.GeoObject
                     //bounds.Bottom = double.MinValue;
                     //bounds.Top = double.MaxValue;
                 }
-                canonical.SetBounds(bounds); // need finite bounds for boxedsurface
+                canonical.Domain = bounds; // need finite bounds for boxedsurface
                 foreach (Edge edg in Edges)
                 {
                     if (edg.Curve3D != null)
@@ -5934,9 +5934,9 @@ namespace CADability.GeoObject
         internal void ModifySurfaceOnly(ModOp m)
         {
             DebugBreak.Hit("Face.ModifySurfaceOnly", hashCode);
-            BoundingRect ext = (surface as ISurfaceImpl).usedArea;
+            BoundingRect ext = (surface as ISurfaceImpl).domain;
             surface = surface.GetModified(m);
-            (surface as ISurfaceImpl).usedArea = ext; // needed for BoxedSurface
+            (surface as ISurfaceImpl).domain = ext; // needed for BoxedSurface
             extent = BoundingBox.EmptyBoundingBox;
         }
         public void ModifySurface(ModOp m)
@@ -5948,10 +5948,10 @@ namespace CADability.GeoObject
 #endif
             using (new Changing(this, false)) // no undo necessary
             {   // not sure, why changing is needed here
-                BoundingRect ext = (surface as ISurfaceImpl).usedArea;
+                BoundingRect ext = (surface as ISurfaceImpl).domain;
                 surface = surface.GetModified(m);
                 area = null; // ProjectedCurves might be wrong after surface modification
-                (surface as ISurfaceImpl).usedArea = ext; // needed for BoxedSurface
+                (surface as ISurfaceImpl).domain = ext; // needed for BoxedSurface
                                                           // we don't modify the surface directly but get a new copy of the modified surface
                                                           // Edges with InterpolatedDualSurfaceCurves (hopefully) can deal with this
                                                           // The caller must ensure that the edges ReflectModification is beeing called
@@ -6677,7 +6677,7 @@ namespace CADability.GeoObject
         {
             area = null;
             area = Area;
-            if (surface is ISurfaceImpl si) si.usedArea = Domain;
+            if (surface is ISurfaceImpl si) si.domain = Domain;
         }
 
         internal void ClearVertices()
@@ -7643,8 +7643,8 @@ namespace CADability.GeoObject
             // outside of the face          (otherwise true)
             //  =>  cube doesn't hit the face
             DebugBreak.Hit("Face.HitTest", hashCode);
-            // not sure, why we need this here, but in some cases usedArea is undefined
-            if ((Surface as ISurfaceImpl).usedArea.IsInfinite || (Surface as ISurfaceImpl).usedArea.IsInvalid()) (Surface as ISurfaceImpl).usedArea = Domain;
+            // not sure, why we need this here, but in some cases domain is undefined
+            if ((Surface as ISurfaceImpl).domain.IsInfinite || (Surface as ISurfaceImpl).domain.IsEmpty()) (Surface as ISurfaceImpl).domain = Domain;
             GeoPoint2D uv;
             return (Surface.HitTest(bc, out uv) && Contains(ref uv, true));
         }
@@ -8474,7 +8474,7 @@ namespace CADability.GeoObject
                 try
                 {
                     jsonSerialize.InvokeSerializationDoneCallback(surface);
-                    if (surface.GetBounds().IsEmpty())
+                    if (surface.Domain.IsEmpty())
                     {   // this should not happen, but in old files there are surfaces without bounds, and then we have to recalculate them here.
                         foreach (Edge edg in Edges)
                         {
@@ -8482,9 +8482,9 @@ namespace CADability.GeoObject
                         }
                         foreach (Vertex vtx in Vertices)
                         {
-                            surface.ExtendBoundsTo(vtx.Position); // this might already need bounds
+                            surface.ExtendDomainTo(vtx.Position); // this might already need bounds
                         }
-                        // surface.SetBounds(Area.GetExtent()); // not working well,because some data is not yet read
+                        // surface.Domain = Area.GetExtent(); // not working well,because some data is not yet read
                     }
                 }
                 catch { }
@@ -8521,14 +8521,14 @@ namespace CADability.GeoObject
                                     if (i > 0) SurfaceHelper.AdjustPeriodic(surface, ext, ref uv);
                                     ext.MinMax(uv);
                                 }
-                                surface.SetBounds(ext);
+                                surface.Domain = ext;
                                 foreach (Edge edg in Edges)
                                 {
                                     if (edg.PrimaryFace == this)
                                     {
                                         if (edg.Curve3D is InterpolatedDualSurfaceCurve ipdsc && ipdsc.Surface1.SameGeometry(ext, surface, ext, Precision.eps, out _))
                                         {
-                                            ipdsc.Surface1.SetBounds(ext);
+                                            ipdsc.Surface1.Domain = ext;
                                             ipdsc.SetBounds(ext, BoundingRect.EmptyBoundingRect);
                                         }
                                         edg.PrimaryCurve2D = surface.GetProjectedCurve(edg.Curve3D, 0.0);
@@ -8539,7 +8539,7 @@ namespace CADability.GeoObject
                                     {
                                         if (edg.Curve3D is InterpolatedDualSurfaceCurve ipdsc && ipdsc.Surface2.SameGeometry(ext, surface, ext, Precision.eps, out _))
                                         {
-                                            ipdsc.Surface2.SetBounds(ext);
+                                            ipdsc.Surface2.Domain = ext;
                                             ipdsc.SetBounds(BoundingRect.EmptyBoundingRect, ext);
                                         }
                                         edg.SecondaryCurve2D = surface.GetProjectedCurve(edg.Curve3D, 0.0);
@@ -9501,7 +9501,7 @@ namespace CADability.GeoObject
             BoundingRect modifiedBounds = Area.GetExtent();
             ModOp2D m = surface.ReverseOrientation();
             modifiedBounds.Modify(m);
-            if (surface is ISurfaceImpl si && !si.usedArea.IsEmpty()) si.usedArea.Modify(m);
+            if (surface is ISurfaceImpl si && !si.domain.IsEmpty()) si.domain.Modify(m);
             ICurve2D[] segments = new ICurve2D[outline.Length];
             for (int i = 0; i < outline.Length; ++i)
             {
@@ -11020,7 +11020,7 @@ namespace CADability.GeoObject
             if (du != 0.0 || dv != 0.0) otherDomain.Move(new GeoVector2D(du, dv));
             BoundingRect commonDomain = otherDomain;
             commonDomain.MinMax(Domain);
-            this.surface.SetBounds(commonDomain); // so the ProjectedCurves find the correct domain when Surface is beeing replaced by ReplaceFace
+            this.surface.Domain = commonDomain; // so the ProjectedCurves find the correct domain when Surface is beeing replaced by ReplaceFace
             for (int i = 0; i < loops.Count; i++)
             {
                 List<ICurve2D> segments = new List<ICurve2D>();
@@ -11133,7 +11133,7 @@ namespace CADability.GeoObject
                 }
                 Array.Reverse(holes[i]);
             }
-            surface.SetBounds(boutline.Extent);
+            surface.Domain = boutline.Extent;
 
         }
 
@@ -11585,8 +11585,8 @@ namespace CADability.GeoObject
             GeoPoint2D res = surface.PositionOf(p);
             if (surface.IsUPeriodic || surface.IsVPeriodic)
             {
-                if (surface is ISurfaceImpl && (surface as ISurfaceImpl).usedArea != BoundingRect.EmptyBoundingRect)
-                    SurfaceHelper.AdjustPeriodic(surface, (surface as ISurfaceImpl).usedArea, ref res);
+                if (surface is ISurfaceImpl && (surface as ISurfaceImpl).domain != BoundingRect.EmptyBoundingRect)
+                    SurfaceHelper.AdjustPeriodic(surface, (surface as ISurfaceImpl).domain, ref res);
                 else
                     SurfaceHelper.AdjustPeriodic(surface, Area.GetExtent(), ref res);
             }

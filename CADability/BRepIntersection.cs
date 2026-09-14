@@ -2035,8 +2035,8 @@ namespace CADability
                                                   // the intersection curve of the two faces of the edge, offset by radius, defines the axis of the rounded edge cylinder or extruded circle
                 ISurface srfc1 = edg.PrimaryFace.Surface.GetOffsetSurface(-radius);
                 ISurface srfc2 = edg.SecondaryFace.Surface.GetOffsetSurface(-radius);
-                srfc1.SetBounds(edg.PrimaryFace.GetUVBounds());
-                srfc2.SetBounds(edg.SecondaryFace.GetUVBounds()); // for ParallelepipedHull
+                srfc1.Domain = edg.PrimaryFace.GetUVBounds();
+                srfc2.Domain = edg.SecondaryFace.GetUVBounds(); // for ParallelepipedHull
                 ICurve[] cvs = srfc1.Intersect(edg.PrimaryFace.GetUVBounds(), srfc2, edg.SecondaryFace.GetUVBounds());
                 // there is a problem with the length of the curves: should use "Surfaces.Intersect(srfc1, srfc2);" and fix the length below
                 if (cvs == null || cvs.Length == 0) continue;
@@ -2474,7 +2474,7 @@ namespace CADability
                         uv = ss.PositionOf(arc3.EndPoint);
                         SurfaceHelper.AdjustPeriodic(ss, ext2d, ref uv);
                         ext2d.MinMax(uv);
-                        ss.SetBounds(ext2d);
+                        ss.Domain = ext2d;
                         ICurve2D c2d1 = ss.GetProjectedCurve(arc1, 0.0);
                         ICurve2D c2d2 = ss.GetProjectedCurve(arc2, 0.0);
                         ICurve2D c2d3 = ss.GetProjectedCurve(arc3, 0.0);
@@ -5891,8 +5891,8 @@ namespace CADability
                         bool onSurface1 = false;
                         if ((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface1 == face2.Surface) onSurface1 = true;
                         else if ((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface2 == face2.Surface) onSurface1 = false;
-                        else if ((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface1.SameGeometry(((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface1 as ISurfaceImpl).usedArea, face2.Surface, (face2.Surface as ISurfaceImpl).usedArea, precision, out ModOp2D dumy)) onSurface1 = true;
-                        else if ((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface2.SameGeometry(((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface2 as ISurfaceImpl).usedArea, face2.Surface, (face2.Surface as ISurfaceImpl).usedArea, precision, out dumy)) onSurface1 = false;
+                        else if ((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface1.SameGeometry(((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface1 as ISurfaceImpl).domain, face2.Surface, (face2.Surface as ISurfaceImpl).domain, precision, out ModOp2D dumy)) onSurface1 = true;
+                        else if ((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface2.SameGeometry(((clone.Curve3D as InterpolatedDualSurfaceCurve).Surface2 as ISurfaceImpl).domain, face2.Surface, (face2.Surface as ISurfaceImpl).domain, precision, out dumy)) onSurface1 = false;
                         (clone.Curve3D as InterpolatedDualSurfaceCurve).ReplaceSurface(face2.Surface, face1.Surface, secondToFirst);
                         if (onSurface1) c2d = (clone.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         else c2d = (clone.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
@@ -9675,8 +9675,8 @@ namespace CADability
             //    {
             //        BoundingRect exti = crv2dOnRoundSrfP[i].GetExtent() + crv2dOnRoundSrfS[i].GetExtent();
             //        BoundingRect extj = crv2dOnRoundSrfP[j].GetExtent() + crv2dOnRoundSrfS[j].GetExtent();
-            //        srf[i].SetBounds(exti);
-            //        srf[j].SetBounds(extj);
+            //        srf[i].Domain = exti;
+            //        srf[j].Domain = extj;
             //        ICurve[] iscrv = srf[i].Intersect(exti, srf[j], extj);
             //    }
             //}

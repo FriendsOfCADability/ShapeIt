@@ -2738,8 +2738,8 @@ namespace CADability
         //                                                  // the intersection curve of the two faces of the edge, offset by radius, defines the axis of the rounded edge cylinder or extruded circle
         //                ISurface srfc1 = edg.PrimaryFace.Surface.GetOffsetSurface(-radius);
         //                ISurface srfc2 = edg.SecondaryFace.Surface.GetOffsetSurface(-radius);
-        //                srfc1.SetBounds(edg.PrimaryFace.GetUVBounds());
-        //                srfc2.SetBounds(edg.SecondaryFace.GetUVBounds()); // for ParallelepipedHull
+        //                srfc1.Domain = edg.PrimaryFace.GetUVBounds();
+        //                srfc2.Domain = edg.SecondaryFace.GetUVBounds(); // for ParallelepipedHull
         //                ICurve[] cvs = srfc1.Intersect(edg.PrimaryFace.GetUVBounds(), srfc2, edg.SecondaryFace.GetUVBounds());
         //                // there is a problem with the length of the curves: should use "Surfaces.Intersect(srfc1, srfc2);" and fix the length below
         //                if (cvs == null || cvs.Length == 0) continue;
@@ -3177,7 +3177,7 @@ namespace CADability
         //                        uv = ss.PositionOf(arc3.EndPoint);
         //                        SurfaceHelper.AdjustPeriodic(ss, ext2d, ref uv);
         //                        ext2d.MinMax(uv);
-        //                        ss.SetBounds(ext2d);
+        //                        ss.Domain = ext2d;
         //                        ICurve2D c2d1 = ss.GetProjectedCurve(arc1, 0.0);
         //                        ICurve2D c2d2 = ss.GetProjectedCurve(arc2, 0.0);
         //                        ICurve2D c2d3 = ss.GetProjectedCurve(arc3, 0.0);

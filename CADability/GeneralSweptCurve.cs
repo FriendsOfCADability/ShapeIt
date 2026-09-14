@@ -445,7 +445,7 @@ namespace CADability
         /// <param name="toSweep"></param>
         /// <param name="along"></param>
         /// <param name="normal"></param>
-        /// <param name="usedArea"></param>
+        /// <param name="domain"></param>
         public GeneralSweptCurve(ICurve toSweep, ICurve along, GeoVector normal) : base()
         {
             if (normal.IsNullVector())

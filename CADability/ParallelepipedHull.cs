@@ -760,7 +760,7 @@ namespace CADability.GeoObject
                 // therefore better check here and split only into two
 #if DEBUG
                 DebuggerContainer dc = new DebuggerContainer();
-                Face fc = Face.MakeFace(this.surface.Clone(), uvPatch); // added clone to not change the usedArea of the surface, no two faces with the same surface
+                Face fc = Face.MakeFace(this.surface.Clone(), uvPatch); // added clone to not change the domain of the surface, no two faces with the same surface
                 dc.Add(fc, 0);
                 double len = ((cube.plr | cube.pul) + (cube.pll | cube.pur)) / 4.0;
                 dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * cube.nll));
@@ -2624,7 +2624,7 @@ namespace CADability.GeoObject
             }
             PlaneSurface other = pl.Clone() as PlaneSurface;
             plbounds.Inflate(plbounds.Size); // this should make it large enough in any case
-            other.usedArea = plbounds; // without usedArea one cannot build a ParallelepipedHull from it, and Intersect needs that
+            other.domain = plbounds; // without domain one cannot build a ParallelepipedHull from it, and Intersect needs that
             ICurve[] cvs = Intersect(new BoundingRect(umin, vmin, umax, vmax), other, plbounds, new List<GeoPoint>());
 #if DEBUG
             Face dbgfc = Face.MakeFace(other, new SimpleShape(Border.MakeRectangle(plbounds)));
@@ -4436,7 +4436,7 @@ namespace CADability.GeoObject
             SortedSet<double> vVal1 = new SortedSet<double>();
             SortedSet<double> uVal2 = new SortedSet<double>();
             SortedSet<double> vVal2 = new SortedSet<double>();
-            if ((other as ISurfaceImpl).usedArea.IsEmpty()) (other as ISurfaceImpl).usedArea = otherBounds;
+            if ((other as ISurfaceImpl).domain.IsEmpty()) (other as ISurfaceImpl).domain = otherBounds;
             ParallelepipedHull otherBS = (other as ISurfaceImpl).ParallelepipedHull;
             foreach (ParEpi pe in octtree.GetAllObjects())
             {

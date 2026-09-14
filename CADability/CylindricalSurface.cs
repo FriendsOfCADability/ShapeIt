@@ -68,7 +68,7 @@ namespace CADability.GeoObject
             this.toCylinder = toClone.toCylinder;
             toUnit = toCylinder.GetInverse();
         }
-        internal CylindricalSurface(ModOp toCylinder, BoundingRect? usedArea = null) : base(usedArea)
+        internal CylindricalSurface(ModOp toCylinder, BoundingRect? domain = null) : base(domain)
         {
             this.toCylinder = toCylinder;
             toUnit = toCylinder.GetInverse();
@@ -157,7 +157,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface GetModified(ModOp m)
         {
-            return new CylindricalSurface(m * toCylinder, usedArea);
+            return new CylindricalSurface(m * toCylinder, domain);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetNormal (GeoPoint2D)"/>
@@ -380,7 +380,7 @@ namespace CADability.GeoObject
 
                     }
                     GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-                    if (usedArea.IsInfinite || double.IsInfinity(usedArea.Size)) { usedArea = thisBounds; }
+                    if (domain.IsInfinite || double.IsInfinity(domain.Size)) { domain = thisBounds; }
                     ICurve[] res = ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions);
                     return res;
 
@@ -504,7 +504,7 @@ namespace CADability.GeoObject
 
             {
                 GetExtremePositions(thisBounds, other, otherBounds, out List<Tuple<double, double, double, double>> extremePositions);
-                if (usedArea.IsInfinite || usedArea.IsEmpty()) usedArea = thisBounds;
+                if (domain.IsInfinite || domain.IsEmpty()) domain = thisBounds;
                 return ParallelepipedHull.Intersect(thisBounds, other, otherBounds, null, extremePositions); // allgemeine Lösung
             }
         }
@@ -1988,7 +1988,7 @@ namespace CADability.GeoObject
             if (u < 0.0) u += 2.0 * Math.PI;
             double v = c.z;
             GeoPoint2D res = new GeoPoint2D(u, v);
-            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, ref res); // must be adjusted to usedArea
+            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
             return res;
         }
         private GeoPoint2D PositionOfUnit(GeoPoint p)
@@ -2032,7 +2032,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ISurface Clone()
         {
-            return new CylindricalSurface(toCylinder, usedArea);
+            return new CylindricalSurface(toCylinder, domain);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Modify (ModOp)"/>
@@ -2126,7 +2126,7 @@ namespace CADability.GeoObject
                     double u = Math.Atan2(l.StartPoint.y, l.StartPoint.x);
                     if (u < 0.0) u += 2.0 * Math.PI;
                     ICurve2D res = new Line2D(new GeoPoint2D(u, l.StartPoint.z), new GeoPoint2D(u, l.EndPoint.z));
-                    if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                    if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                     return res;
                 }
             }
@@ -2158,7 +2158,7 @@ namespace CADability.GeoObject
                         // Grenzfälle: ustart oder uend liegen auf 0.0 oder 2*pi
                         // dann weiß man nicht ob der Punkt zyklisch richtig ist
                         ICurve2D res = new Line2D(new GeoPoint2D(ustart, e.Center.z), new GeoPoint2D(uend, e.Center.z));
-                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                         return res;
                     }
                     else
@@ -2168,7 +2168,7 @@ namespace CADability.GeoObject
                             res = new Line2D(new GeoPoint2D(0.0, e.Center.z), new GeoPoint2D(2.0 * Math.PI, e.Center.z));
                         else
                             res = new Line2D(new GeoPoint2D(2.0 * Math.PI, e.Center.z), new GeoPoint2D(0.0, e.Center.z));
-                        if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, res); // must be adjusted to usedArea
+                        if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, res); // must be adjusted to domain
                         return res;
                     }
                 }
@@ -2204,7 +2204,7 @@ namespace CADability.GeoObject
                         if (sc != null)
                         {
                             sc.StartAt(testPoints[0]);
-                            if (!usedArea.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, usedArea, sc); // must be adjusted to usedArea
+                            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, sc); // must be adjusted to domain
                             return sc;
                         }
                     }
@@ -2626,8 +2626,8 @@ namespace CADability.GeoObject
             return true;
         }
         IOrientation ISurfaceOfExtrusion.Orientation => throw new NotImplementedException();
-        ICurve ISurfaceOfExtrusion.ExtrudedCurve => usedArea.IsEmpty() || usedArea.IsInfinite || usedArea.IsInvalid() ?
-            FixedV(0.0, 0.0, Math.PI) : FixedV(0.0, usedArea.Left, usedArea.Right);
+        ICurve ISurfaceOfExtrusion.ExtrudedCurve => domain.IsEmpty() || domain.IsInfinite ?
+            FixedV(0.0, 0.0, Math.PI) : FixedV(0.0, domain.Left, domain.Right);
 
         double ISurfaceOfArcExtrusion.Radius
         {
