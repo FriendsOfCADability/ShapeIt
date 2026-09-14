@@ -146,12 +146,8 @@ namespace ShapeIt
         }
         public MainForm(string[] args) : base(args)
         {   // interpret the command line arguments as a name of a file, which should be opened
-#if DEBUG
-            // to make debugging easier, we disable the parallelization in MathNet.Numerics, which is used for some boolean
-            // operations. This avoids the debugger message: "Cannot evaluate expression since the function evaluation requires
-            // all threads to run.". In release mode, we keep the parallelization enabled for better performance.
-            MathNet.Numerics.Control.MaxDegreeOfParallelism = 1;
-#endif
+            // The parallelization of MathNet.Numerics is switched off in CADability.NumericsConfiguration now,
+            // for every host and both configurations - see there for what it costs and why it used to be here.
             string fileName = "";
             bool debugBRep = false;
             bool nofile = false;
