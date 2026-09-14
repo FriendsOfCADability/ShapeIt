@@ -353,6 +353,8 @@ CADability.Forms/log.txt
 /ShapeIt/Upload-ClickOnce.ps1
 /ShapeIt/UploadShapeIt.cmd
 /ShapeIt/ReadMe-Upload.txt
+# Debug-Argumente des jeweiligen Entwicklers, mit absoluten Pfaden
+/ShapeIt/Properties/launchSettings.json
 /index.html
 
 # Claude Code: persoenliche Einstellungen, nicht teilen
