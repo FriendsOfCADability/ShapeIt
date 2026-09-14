@@ -71,50 +71,19 @@
 		</None>
 	</ItemGroup>
 
-	<!---->
-	<PropertyGroup>
-		<!-- Pfad zur Versionsdatei -->
-		<VersionFile>$(MSBuildProjectDirectory)\version.txt</VersionFile>
-	</PropertyGroup>
-
+	<!-- Version number. The repo-root version.txt is the single source for every ShapeIt
+	     head (this WinForms app, ShapeIt.Avalonia, ShapeIt.Browser) and for the packaging
+	     scripts under scripts\windows-packaging and scripts\linux-packaging. It is
+	     maintained by hand: no build step rewrites it, so a Release build can no longer
+	     silently change the version that the installers and packages carry. -->
 	<ItemGroup>
-		<!-- version.txt als Embedded Resource einbetten -->
-		<EmbeddedResource Include="$(VersionFile)">
-			<!-- Fester Ressourcenname, damit das Auslesen trivial ist -->
+		<EmbeddedResource Include="..\version.txt">
+			<Link>version.txt</Link>
+			<!-- Fixed resource name, so reading it back is trivial -->
 			<LogicalName>App.Version</LogicalName>
 		</EmbeddedResource>
 	</ItemGroup>
 
-	<!-- Mini-Task zum Erhöhen der 4. Stelle (Revision) -->
-	<UsingTask TaskName="BumpVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
-		<ParameterGroup>
-			<VersionIn ParameterType="System.String" Required="true" />
-			<VersionOut ParameterType="System.String" Output="true" />
-		</ParameterGroup>
-		<Task>
-			<Code Type="Fragment" Language="cs">
-				<![CDATA[
-      var v = new System.Version(VersionIn.Trim());
-      VersionOut = new System.Version(v.Major, v.Minor, v.Build, v.Revision + 1).ToString();
-    ]]>
-			</Code>
-		</Task>
-	</UsingTask>
-
-	<!-- Nur bei Release *vor* dem Kompilieren erhöhen, keine DesignTime-Builds -->
-	<Target Name="BumpVersionOnRelease" BeforeTargets="CoreCompile" Condition="'$(Configuration)' == 'Release' AND '$(DesignTimeBuild)' != 'true'">
-		<ReadLinesFromFile File="$(VersionFile)">
-			<Output TaskParameter="Lines" ItemName="_VersionLine" />
-		</ReadLinesFromFile>
-		<PropertyGroup>
-			<_CurrentVersion>%(_VersionLine.Identity)</_CurrentVersion>
-		</PropertyGroup>
-		<BumpVersion VersionIn="$(_CurrentVersion)">
-			<Output TaskParameter="VersionOut" PropertyName="_NewVersion" />
-		</BumpVersion>
-		<WriteLinesToFile File="$(VersionFile)" Lines="$(_NewVersion)" Overwrite="true" />
-		<Message Importance="High" Text="Release-Build → version.txt erhöht auf $(_NewVersion)" />
-	</Target>
 	<ProjectExtensions><VisualStudio><UserProperties /></VisualStudio></ProjectExtensions>
 
 
