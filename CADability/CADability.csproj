@@ -107,7 +107,6 @@
     <Compile Remove="ToolsTrim.cs" />
     <Compile Remove="TriangulationSmoothing.cs" />
     <Compile Remove="ShortConnection.cs" />
-    <Compile Remove="BRepIntersection.cs" />
     <Content Remove="@(RemoveFiles)" />
     <None Remove="@(RemoveFiles)" />
   </ItemGroup>
