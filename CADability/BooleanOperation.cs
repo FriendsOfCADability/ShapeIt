@@ -1005,14 +1005,14 @@ namespace CADability
                         if (con2 is ProjectedCurve) con2 = fc2.Surface.GetProjectedCurve(tr, Precision.eps);
                         {   // we need this test with the trimmed 3d curve in a strange case: a quarter of an ellipse is exactely outside a threequarter cylinder
                             // this part of a 2d curve gets arbitrarily wrong periodic adjusted
+                            // PositionOf already returns the value in the surface domain, which equals the
+                            // domain of the face (see the remarks on ISurface.Domain)
                             GeoPoint2D uv = fc1.Surface.PositionOf(tr.PointAt(0.5));
-                            SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, ref uv);
                             if (!fc1.Contains(ref uv, true))
                             {   // still too strong condition, we only need to exclude e.g. wrong halves of a circle
                                 if (fc1.Area.GetPosition(uv, fc1.Domain.Size * 1e-5) == Border.Position.Outside) continue;
                             }
                             uv = fc2.Surface.PositionOf(tr.PointAt(0.5));
-                            SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, ref uv);
                             if (!fc2.Contains(ref uv, true))
                             {   // still too strong condition, we only need to exclude e.g. wrong halves of a circle
                                 if (fc2.Area.GetPosition(uv, fc2.Domain.Size * 1e-5) == Border.Position.Outside) continue;
@@ -4934,9 +4934,7 @@ namespace CADability
                                 GeoPoint2D uv1 = face.Surface.PositionOf(edge.Vertex1.Position);
                                 GeoPoint2D uv2 = face.Surface.PositionOf(edge.Vertex2.Position);
                                 GeoPoint2D uv3 = face.Surface.PositionOf(edge.Curve3D.PointAt(0.5));
-                                SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, ref uv1);
-                                SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, ref uv2);
-                                SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, ref uv3);
+                                // the three are already in the surface domain, which equals face.Domain
                                 if (face.Area.Contains(uv1, true) && face.Area.Contains(uv2, true) && face.Area.Contains(uv3, true))
                                 //if (face.Contains(edge.Vertex1.Position, true) && face.Contains(edge.Vertex2.Position, true) && face.Contains(edge.Curve3D.PointAt(0.5), true))
                                 {
@@ -6040,10 +6038,9 @@ namespace CADability
                                     // it is also tangential at the midpoint of the intersection curve
                                     // we now use the uv points in the surfaces and slowly walk from the uv point in the direction of the center of the domain
                                     // (2d extent), until we find a point, where the normals are not parallel any more.
+                                    // both are already in their surface domain, which equals the face domain
                                     GeoPoint2D uvf1 = item.Key.face1.Surface.PositionOf(m);
-                                    SurfaceHelper.AdjustPeriodic(item.Key.face1.Surface, item.Key.face1.Domain, ref uvf1);
                                     GeoPoint2D uvf2 = item.Key.face2.Surface.PositionOf(m);
-                                    SurfaceHelper.AdjustPeriodic(item.Key.face2.Surface, item.Key.face2.Domain, ref uvf2);
                                     GeoVector2D toCenter1 = item.Key.face1.Domain.GetCenter() - uvf1;
                                     GeoVector2D toCenter2 = item.Key.face2.Domain.GetCenter() - uvf2;
                                     // normalis the step vectors to the size of the extent

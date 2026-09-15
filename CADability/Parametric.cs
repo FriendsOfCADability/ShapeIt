@@ -1014,8 +1014,7 @@ namespace CADability
                     {   // this is probably a seam of two periodic parts with the same surface
                         GeoPoint2D sp = edge.PrimaryFace.Surface.PositionOf(seeds[0]);
                         GeoPoint2D ep = edge.PrimaryFace.Surface.PositionOf(seeds[1]);
-                        SurfaceHelper.AdjustPeriodic(edge.PrimaryFace.Surface, edge.PrimaryFace.Domain, ref sp);
-                        SurfaceHelper.AdjustPeriodic(edge.PrimaryFace.Surface, edge.PrimaryFace.Domain, ref ep);
+                        // both are already in the surface domain, which equals edge.PrimaryFace.Domain
                         Line2D l2d = new Line2D(sp, ep);
                         crv = edge.PrimaryFace.Surface.Make3dCurve(l2d);
                     }

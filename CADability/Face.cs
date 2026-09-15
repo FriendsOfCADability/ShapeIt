@@ -11604,13 +11604,11 @@ namespace CADability.GeoObject
         public GeoPoint2D PositionOf(GeoPoint p)
         {
             GeoPoint2D res = surface.PositionOf(p);
-            if (surface.IsUPeriodic || surface.IsVPeriodic)
-            {
-                if (surface is ISurfaceImpl && (surface as ISurfaceImpl).Domain != BoundingRect.EmptyBoundingRect)
-                    SurfaceHelper.AdjustPeriodic(surface, (surface as ISurfaceImpl).Domain, ref res);
-                else
-                    SurfaceHelper.AdjustPeriodic(surface, Area.GetExtent(), ref res);
-            }
+            // PositionOf adjusts to the surface domain itself now (see the remarks on ISurface.Domain).
+            // Only a surface that carries no domain at all needs the area of this face to stand in.
+            bool surfaceCarriesDomain = surface is ISurfaceImpl si && si.Domain != BoundingRect.EmptyBoundingRect;
+            if (!surfaceCarriesDomain && (surface.IsUPeriodic || surface.IsVPeriodic))
+                SurfaceHelper.AdjustPeriodic(surface, Area.GetExtent(), ref res);
             return res;
         }
         /// <summary>
