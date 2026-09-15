@@ -27,6 +27,12 @@ namespace CADability.Actions
         {
             this.mode = mode;
         }
+        /// <summary>
+        /// Constructor for the "autorepeat" mechanism (see <see cref="ActionStack"/>), which recreates the action by
+        /// reflection and only accepts a parameterless constructor or one taking the same action type. A constructor
+        /// with optional parameters does not qualify. Keeps the mode the user was working with.
+        /// </summary>
+        public TrimObjectsAction(TrimObjectsAction autorepeat) : this(autorepeat.mode) { }
 
         // The optional stop curve: if set, the picked curves are trimmed at their intersections with this curve
         // (whether the intersection is inside the stop curve or not). If null, each curve is trimmed at its next inner

@@ -40,6 +40,12 @@ namespace CADability.Actions
             this.operation = operation;
             this.mode = mode;
         }
+        /// <summary>
+        /// Constructor for the "autorepeat" mechanism (see <see cref="ActionStack"/>), which recreates the action by
+        /// reflection and only accepts a parameterless constructor or one taking the same action type. A constructor
+        /// with optional parameters does not qualify. Keeps the operation and the mode the user was working with.
+        /// </summary>
+        public CornerCurvesAction(CornerCurvesAction autorepeat) : this(autorepeat.operation, autorepeat.mode) { }
 
         // one curve of a corner, reduced to the simple segment that touches the corner
         private class CornerCurve
