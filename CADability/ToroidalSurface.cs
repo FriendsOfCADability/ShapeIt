@@ -648,7 +648,7 @@ namespace CADability.GeoObject
                         pnts[i].x = Math.Atan2(pnts1[i].y, pnts1[i].x);
                         pnts[i].y = Math.Atan2(pnts1[i].z, zc);
                     }
-                    BSpline2D.AdjustPeriodic(pnts, 2 * Math.PI, 2 * Math.PI);
+                    SurfaceHelper.UnwrapPeriodic(this, domain, pnts);
                     BSpline2D c2d1p = new BSpline2D(pnts, degree, false);
                     //Kurve 1p auf der Ebene pl
                     ICurve2D c2dpl1p = (c3d1p as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -672,7 +672,7 @@ namespace CADability.GeoObject
                         pnts[i].x = Math.Atan2(pnts1[i].y, pnts1[i].x);
                         pnts[i].y = Math.Atan2(pnts1[i].z, zc);
                     }
-                    BSpline2D.AdjustPeriodic(pnts, 2 * Math.PI, 2 * Math.PI);
+                    SurfaceHelper.UnwrapPeriodic(this, domain, pnts);
                     BSpline2D c2d1n = new BSpline2D(pnts, degree, false);
                     //Kurve 1n auf der Ebene pl
                     ICurve2D c2dpl1n = (c3d1n as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -697,7 +697,7 @@ namespace CADability.GeoObject
                         pnts[i].x = Math.Atan2(pnts1[i].y, pnts1[i].x);
                         pnts[i].y = Math.Atan2(pnts1[i].z, zc);
                     }
-                    BSpline2D.AdjustPeriodic(pnts, 2 * Math.PI, 2 * Math.PI);
+                    SurfaceHelper.UnwrapPeriodic(this, domain, pnts);
                     BSpline2D c2d2p = new BSpline2D(pnts, degree, false);
                     //Kurve 2p auf der Ebene pl
                     ICurve2D c2dpl2p = (c3d2p as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -722,7 +722,7 @@ namespace CADability.GeoObject
                         pnts[i].x = Math.Atan2(pnts1[i].y, pnts1[i].x);
                         pnts[i].y = Math.Atan2(pnts1[i].z, zc);
                     }
-                    BSpline2D.AdjustPeriodic(pnts, 2 * Math.PI, 2 * Math.PI);
+                    SurfaceHelper.UnwrapPeriodic(this, domain, pnts);
                     BSpline2D c2d2n = new BSpline2D(pnts, degree, false);
                     //Kurve 2n auf der Ebene pl
                     ICurve2D c2dpl2n = (c3d2n as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -819,7 +819,7 @@ namespace CADability.GeoObject
                     kpnts[i].x = Math.Atan2(kpnts1[i].y, kpnts1[i].x);
                     kpnts[i].y = Math.Atan2(kpnts1[i].z, f);
                 }
-                BSpline2D.AdjustPeriodic(kpnts, 2 * Math.PI, 2 * Math.PI);
+                SurfaceHelper.UnwrapPeriodic(this, domain, kpnts);
                 BSpline2D kc2d = new BSpline2D(kpnts, 3, true);
 
                 ////Kurve auf der Ebene pl
@@ -1204,7 +1204,7 @@ namespace CADability.GeoObject
                     psuv1[i].x = Math.Atan2(pnts1[i].y, pnts1[i].x);
                     psuv1[i].y = Math.Atan2(pnts1[i].z, f);
                 }
-                BSpline2D.AdjustPeriodic(psuv1, 2 * Math.PI, 2 * Math.PI);
+                SurfaceHelper.UnwrapPeriodic(this, domain, psuv1);
                 BSpline2D f3c2d1 = new BSpline2D(psuv1, degree, close);
                 //Kurve 1 auf der Ebene pl
                 ICurve2D f3c2dpl1 = (f3c3d1 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -1228,7 +1228,7 @@ namespace CADability.GeoObject
                     psuv1[i].x = Math.Atan2(pnts1[i].y, pnts1[i].x);
                     psuv1[i].y = Math.Atan2(pnts1[i].z, f);
                 }
-                BSpline2D.AdjustPeriodic(psuv1, 2 * Math.PI, 2 * Math.PI);
+                SurfaceHelper.UnwrapPeriodic(this, domain, psuv1);
                 BSpline2D f3c2d2 = new BSpline2D(psuv1, degree, close);
                 //Kurve 2 auf der Ebene pl
                 ICurve2D f3c2dpl2 = (f3c3d2 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -1523,7 +1523,7 @@ namespace CADability.GeoObject
                     psuv[i].x = Math.Atan2(ps[i].y, ps[i].x);
                     psuv[i].y = Math.Atan2(ps[i].z, f);
                 }
-                BSpline2D.AdjustPeriodic(psuv, 2 * Math.PI, 2 * Math.PI);
+                SurfaceHelper.UnwrapPeriodic(this, domain, psuv);
                 BSpline2D kuv1 = new BSpline2D(psuv, degree, false);
                 ////Kurve 1 auf der Ebene pl
                 ICurve2D kpl1 = (kwlt1 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -1548,7 +1548,7 @@ namespace CADability.GeoObject
                     psuv[i].x = Math.Atan2(ps[i].y, ps[i].x);
                     psuv[i].y = Math.Atan2(ps[i].z, f);
                 }
-                BSpline2D.AdjustPeriodic(psuv, 2 * Math.PI, 2 * Math.PI);
+                SurfaceHelper.UnwrapPeriodic(this, domain, psuv);
                 BSpline2D kuv2 = new BSpline2D(psuv, degree, false);
                 ////Kurve 2 auf der Ebene pl
                 ICurve2D kpl2 = (kwlt2 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -1714,7 +1714,7 @@ namespace CADability.GeoObject
                 puv1[i].x = Math.Atan2(pin[i].y, pin[i].x);
                 puv1[i].y = Math.Atan2(pin[i].z, f);
             }
-            BSpline2D.AdjustPeriodic(puv1, 2 * Math.PI, 2 * Math.PI);
+            SurfaceHelper.UnwrapPeriodic(this, domain, puv1);
             BSpline2D fuv1 = new BSpline2D(puv1, degree, false);
             ////Kurve 1 auf der Ebene pl
             ICurve2D fpl1 = (fwlt1 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -1739,7 +1739,7 @@ namespace CADability.GeoObject
                 puv1[i].x = Math.Atan2(pin[i].y, pin[i].x);
                 puv1[i].y = Math.Atan2(pin[i].z, f);
             }
-            BSpline2D.AdjustPeriodic(puv1, 2 * Math.PI, 2 * Math.PI);
+            SurfaceHelper.UnwrapPeriodic(this, domain, puv1);
             BSpline2D fuv2 = new BSpline2D(puv1, degree, false);
             ////Kurve 2 auf der Ebene pl
             ICurve2D fpl2 = (fwlt2 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -1764,7 +1764,7 @@ namespace CADability.GeoObject
                 puv1[i].x = Math.Atan2(pin[i].y, pin[i].x);
                 puv1[i].y = Math.Atan2(pin[i].z, f);
             }
-            BSpline2D.AdjustPeriodic(puv1, 2 * Math.PI, 2 * Math.PI);
+            SurfaceHelper.UnwrapPeriodic(this, domain, puv1);
             BSpline2D fuv3 = new BSpline2D(puv1, degree, false);
             ////Kurve 3 auf der Ebene pl
             ICurve2D fpl3 = (fwlt3 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));
@@ -1789,7 +1789,7 @@ namespace CADability.GeoObject
                 puv1[i].x = Math.Atan2(pin[i].y, pin[i].x);
                 puv1[i].y = Math.Atan2(pin[i].z, f);
             }
-            BSpline2D.AdjustPeriodic(puv1, 2 * Math.PI, 2 * Math.PI);
+            SurfaceHelper.UnwrapPeriodic(this, domain, puv1);
             BSpline2D fuv4 = new BSpline2D(puv1, degree, false);
             ////Kurve 4 auf der Ebene pl
             ICurve2D fpl4 = (fwlt4 as ICurve).GetProjectedCurve(new Plane(pl.Location, pl.DirectionX, pl.DirectionY));

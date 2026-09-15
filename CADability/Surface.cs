@@ -6466,19 +6466,6 @@ namespace CADability.GeoObject
             yield return srf.FixedV(ext.Top, ext.Left, ext.Right);
 
         }
-        public static void AdjustPeriodic(double uperiod, double vperiod, ref GeoPoint2D p)
-        {
-            if (uperiod > 0.0)
-            {
-                while (p.x > uperiod) p.x -= uperiod;
-                while (p.x < 0.0) p.x += uperiod;
-            }
-            if (vperiod > 0.0)
-            {
-                while (p.y > vperiod) p.y -= vperiod;
-                while (p.y < 0.0) p.y += vperiod;
-            }
-        }
         internal static void AdjustPeriodic(ISurface surface, BoundingRect bounds, SimpleShape ss)
         {
             if (surface.IsUPeriodic || surface.IsVPeriodic)
