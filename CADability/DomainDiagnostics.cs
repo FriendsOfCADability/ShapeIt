@@ -65,6 +65,9 @@ namespace CADability.GeoObject
         private static readonly Dictionary<string, long[]> whenAreaWritesBack = new Dictionary<string, long[]>();
         private static readonly List<string> differentSamples = new List<string>();
         private static readonly List<string> degenerateStacks = new List<string>();
+        // "file:line" of an AdjustPeriodic call site -> [calls, of which actually moved something]
+        private static readonly Dictionary<string, long[]> adjustCallSites = new Dictionary<string, long[]>();
+        private static long adjustCalls;
         private static readonly List<string> periodShiftSamples = new List<string>();
         private static long observations;
 
@@ -150,6 +153,35 @@ namespace CADability.GeoObject
             }
             catch
             {   // a measurement must never change the outcome of the run it measures
+            }
+        }
+
+        /// <summary>
+        /// Called from every SurfaceHelper.AdjustPeriodic overload. What matters is not how often a call site
+        /// runs but how often it actually moves something: a site that never moved anything over a whole
+        /// suite run is a no-op on every tested path and can go.
+        /// </summary>
+        internal static void RecordAdjust(string callerFile, int callerLine, bool moved)
+        {
+            if (!Enabled) return;
+            try
+            {
+                string key = (callerFile == null ? "?" : System.IO.Path.GetFileName(callerFile)) + ":" + callerLine;
+                lock (sync)
+                {
+                    if (!adjustCallSites.TryGetValue(key, out long[] counts))
+                    {
+                        counts = new long[2];
+                        adjustCallSites[key] = counts;
+                    }
+                    counts[0]++;
+                    if (moved) counts[1]++;
+                    adjustCalls++;
+                    if (adjustCalls % flushInterval == 0) WriteReportNoLock();
+                }
+            }
+            catch
+            {
             }
         }
 
@@ -257,6 +289,7 @@ namespace CADability.GeoObject
                 AppendSamples(sb, "Samples: Different", differentSamples);
                 AppendSamples(sb, "Samples: PeriodShift", periodShiftSamples);
                 AppendSamples(sb, "Stacks: surface domain is a default constructed BoundingRect", degenerateStacks);
+                AppendAdjustTable(sb);
 
                 File.WriteAllText(reportPath, sb.ToString());
             }
@@ -287,6 +320,26 @@ namespace CADability.GeoObject
             }
             sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,12} {2,12} {3,12} {4,12} {5,12}",
                                         "TOTAL", total[0], total[1], total[2], total[3], total[4]));
+            sb.AppendLine();
+        }
+
+        private static void AppendAdjustTable(StringBuilder sb)
+        {
+            sb.AppendLine("SurfaceHelper.AdjustPeriodic per call site, never-moved first");
+            sb.AppendLine("------------------------------------------------------------");
+            if (adjustCallSites.Count == 0)
+            {
+                sb.AppendLine("  (nothing observed)");
+                sb.AppendLine();
+                return;
+            }
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-46} {1,14} {2,14}", "call site", "calls", "moved"));
+            foreach (KeyValuePair<string, long[]> entry in adjustCallSites.OrderBy(e => e.Value[1])
+                                                                         .ThenByDescending(e => e.Value[0]))
+            {
+                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-46} {1,14} {2,14}",
+                                            entry.Key, entry.Value[0], entry.Value[1]));
+            }
             sb.AppendLine();
         }
 
