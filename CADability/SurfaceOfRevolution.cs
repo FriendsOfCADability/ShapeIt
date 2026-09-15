@@ -223,12 +223,12 @@ namespace CADability.GeoObject
                             GeoPoint2D op = perp.Project(curveToRotate.PointAt(ip[0]));
                             GeoPoint2D org = perp.Project(p);
                             SweepAngle sa1 = new SweepAngle(op.ToVector(), org.ToVector());
-                            // 
-                            if ((PointAt(new GeoPoint2D(-sa1.Radian, curveToRotate.PositionToParameter(ip[0]))) | p) <
-                                (PointAt(new GeoPoint2D(sa1.Radian, curveToRotate.PositionToParameter(ip[0]))) | p))
-                                return new GeoPoint2D(-sa1.Radian, curveToRotate.PositionToParameter(ip[0]));
-                            else
-                                return new GeoPoint2D(sa1.Radian, curveToRotate.PositionToParameter(ip[0]));
+                            double vpar = curveToRotate.PositionToParameter(ip[0]);
+                            GeoPoint2D inPlane = (PointAt(new GeoPoint2D(-sa1.Radian, vpar)) | p) < (PointAt(new GeoPoint2D(sa1.Radian, vpar)) | p)
+                                ? new GeoPoint2D(-sa1.Radian, vpar)
+                                : new GeoPoint2D(sa1.Radian, vpar);
+                            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref inPlane); // must be adjusted to domain
+                            return inPlane;
                         }
                     }
                 }
@@ -261,7 +261,11 @@ namespace CADability.GeoObject
                     d = PointAt(new GeoPoint2D(-sa, y)) | p;
                     if (d < mindist) { res = new GeoPoint2D(-sa, y); mindist = d; }
                 }
-                if (mindist < double.MaxValue) return res;
+                if (mindist < double.MaxValue)
+                {
+                    if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
+                    return res;
+                }
                 return base.PositionOf(p); // we could do better here!
             }
             GeoPoint unit = fromSurface * p;
@@ -277,7 +281,9 @@ namespace CADability.GeoObject
             //{
             //    double d = (new GeoPoint2D(u + 2 * Math.PI, v) | dbg);
             //}
-            return new GeoPoint2D(u, v);
+            GeoPoint2D uv = new GeoPoint2D(u, v);
+            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uv); // must be adjusted to domain
+            return uv;
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.UDirection (GeoPoint2D)"/>
@@ -628,8 +634,8 @@ namespace CADability.GeoObject
             IDualSurfaceCurve[] onCommonAxis = Surfaces.IntersectOnCommonAxis(this, thisBounds, other, otherBounds);
             if (onCommonAxis != null) return onCommonAxis;
             if (other is PlaneSurface)
-            {
-                return GetPlaneIntersection(other as PlaneSurface, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, Precision.eps);
+            {   // we should calculate plane intersections only for planes perpendicular to the axis. In the other cases we would use an approximation, which does not reflect the seeds
+                // return GetPlaneIntersection(other as PlaneSurface, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, Precision.eps);
             }
             return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
         }
@@ -1463,13 +1469,14 @@ namespace CADability.GeoObject
             if (curveToRotate != null)
             {
                 intv = curveToRotate.GetSavePositions();
+                // intv is in position [0,1], we need to convert it to parameter of the curve
                 List<double> vsteps = new List<double>();
                 vsteps.Add(vmin);
                 vsteps.Add(vmax);
                 for (int i = 0; i < intv.Length; ++i)
                 {
-
-                    if (intv[i] > vmin && intv[i] < vmax) vsteps.Add(intv[i]);
+                    double v = curveToRotate.PositionToParameter(intv[i]);
+                    if (v > vmin && v < vmax) vsteps.Add(v);
                 }
                 vsteps.Sort();
                 double udiff = umax - umin;

@@ -2832,6 +2832,7 @@ namespace CADability.GeoObject
             GeoPoint2D res;
             if (ParallelepipedHull.PositionOf(p, out res))
             {
+                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
                 return res;
             }
             else
@@ -2945,6 +2946,9 @@ namespace CADability.GeoObject
                         }
                     }
                 }
+                // The branch above works on the natural bounds, which for several surfaces are hard coded to
+                // [0,1]x[0,1] and know nothing about the domain, so the adjustment is needed here.
+                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
                 return res;
             }
             // return new GeoPoint2D(Helper.PositionOf(p.ToCndHlp()));

@@ -118,9 +118,8 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
-            GeoPoint2D res = PositionOfInUnit(toUnit * p);
-            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
-            return res;
+            // PositionOfInUnit already adjusts to the domain, a second call here would be a no-op
+            return PositionOfInUnit(toUnit * p);
         }
         private GeoPoint2D PositionOfInUnit(GeoPoint pu)
         {
