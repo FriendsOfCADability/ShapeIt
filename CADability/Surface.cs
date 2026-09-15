@@ -6553,9 +6553,9 @@ namespace CADability.GeoObject
                 {
                     cv2d.Move(du, dv);
                 }
-                if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(callerFile, callerLine, du != 0.0 || dv != 0.0);
+                if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(surface, bounds, callerFile, callerLine, du != 0.0 || dv != 0.0);
             }
-            else if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(callerFile, callerLine, false);
+            else if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(surface, bounds, callerFile, callerLine, false);
         }
         internal static void AdjustPeriodicStartPoint(ISurface surface, GeoPoint2D startPoint, ICurve2D cv2d)
         {
@@ -6690,9 +6690,9 @@ namespace CADability.GeoObject
                         points[i] += d;
                     }
                 }
-                if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(callerFile, callerLine, du != 0.0 || dv != 0.0);
+                if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(surface, bounds, callerFile, callerLine, du != 0.0 || dv != 0.0);
             }
-            else if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(callerFile, callerLine, false);
+            else if (DomainDiagnostics.Enabled) DomainDiagnostics.RecordAdjust(surface, bounds, callerFile, callerLine, false);
         }
         public static void AdjustPeriodic(ISurface surface, BoundingRect bounds, ref GeoPoint2D p2d,
                                           [CallerFilePath] string callerFile = null, [CallerLineNumber] int callerLine = 0)
@@ -6701,7 +6701,7 @@ namespace CADability.GeoObject
             {   // only while measuring: remember the value so the call site can be told whether it moved anything
                 GeoPoint2D before = p2d;
                 AdjustPeriodicCore(surface, bounds, ref p2d);
-                DomainDiagnostics.RecordAdjust(callerFile, callerLine, before.x != p2d.x || before.y != p2d.y);
+                DomainDiagnostics.RecordAdjust(surface, bounds, callerFile, callerLine, before.x != p2d.x || before.y != p2d.y);
                 return;
             }
             AdjustPeriodicCore(surface, bounds, ref p2d);

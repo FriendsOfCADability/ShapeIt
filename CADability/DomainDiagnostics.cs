@@ -65,7 +65,7 @@ namespace CADability.GeoObject
         private static readonly Dictionary<string, long[]> whenAreaWritesBack = new Dictionary<string, long[]>();
         private static readonly List<string> differentSamples = new List<string>();
         private static readonly List<string> degenerateStacks = new List<string>();
-        // "file:line" of an AdjustPeriodic call site -> [calls, of which actually moved something]
+        // "file:line" of an AdjustPeriodic call site -> [calls, moved something, bounds was the surface domain]
         private static readonly Dictionary<string, long[]> adjustCallSites = new Dictionary<string, long[]>();
         private static long adjustCalls;
         private static readonly List<string> periodShiftSamples = new List<string>();
@@ -161,21 +161,27 @@ namespace CADability.GeoObject
         /// runs but how often it actually moves something: a site that never moved anything over a whole
         /// suite run is a no-op on every tested path and can go.
         /// </summary>
-        internal static void RecordAdjust(string callerFile, int callerLine, bool moved)
+        internal static void RecordAdjust(ISurface surface, BoundingRect bounds, string callerFile, int callerLine, bool moved)
         {
             if (!Enabled) return;
             try
             {
+                // Whether the caller aimed at the surface's own domain is the question that cannot be answered
+                // at the call site, because the rectangle is usually a local variable there.
+                bool boundsIsDomain;
+                try { boundsIsDomain = bounds == surface.Domain; }
+                catch { boundsIsDomain = false; } // ScaledSurface throws on Domain
                 string key = (callerFile == null ? "?" : System.IO.Path.GetFileName(callerFile)) + ":" + callerLine;
                 lock (sync)
                 {
                     if (!adjustCallSites.TryGetValue(key, out long[] counts))
                     {
-                        counts = new long[2];
+                        counts = new long[3];
                         adjustCallSites[key] = counts;
                     }
                     counts[0]++;
                     if (moved) counts[1]++;
+                    if (boundsIsDomain) counts[2]++;
                     adjustCalls++;
                     if (adjustCalls % flushInterval == 0) WriteReportNoLock();
                 }
@@ -327,18 +333,22 @@ namespace CADability.GeoObject
         {
             sb.AppendLine("SurfaceHelper.AdjustPeriodic per call site, never-moved first");
             sb.AppendLine("------------------------------------------------------------");
+            sb.AppendLine("  onOwnDomain = calls where the rectangle handed in was exactly the surface's Domain.");
+            sb.AppendLine("  A site with moved = 0 and onOwnDomain = calls, whose value comes straight out of");
+            sb.AppendLine("  PositionOf of that same surface, is a no-op by the contract on ISurface.Domain.");
             if (adjustCallSites.Count == 0)
             {
                 sb.AppendLine("  (nothing observed)");
                 sb.AppendLine();
                 return;
             }
-            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-46} {1,14} {2,14}", "call site", "calls", "moved"));
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-40} {1,12} {2,12} {3,14}",
+                                        "call site", "calls", "moved", "onOwnDomain"));
             foreach (KeyValuePair<string, long[]> entry in adjustCallSites.OrderBy(e => e.Value[1])
                                                                          .ThenByDescending(e => e.Value[0]))
             {
-                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-46} {1,14} {2,14}",
-                                            entry.Key, entry.Value[0], entry.Value[1]));
+                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-40} {1,12} {2,12} {3,14}",
+                                            entry.Key, entry.Value[0], entry.Value[1], entry.Value[2]));
             }
             sb.AppendLine();
         }
