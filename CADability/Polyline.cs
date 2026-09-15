@@ -923,14 +923,22 @@ namespace CADability.GeoObject
             {
                 try
                 {
-                    // Attempt to intersect with the plane
-                    GeoPoint p = GetPlane().Intersect(fromHere, direction);
-                    // Return parameter t on the ray for the intersection point
-                    return Geometry.LinePar(fromHere, direction, p);
+                    // The bool overload of Intersect reports a ray parallel to the plane instead of throwing:
+                    // the parameterless one used to throw a PlaneException, but that throw is commented out
+                    // and it returns GeoPoint.Invalid now, which LinePar would turn into NaN. The overload is
+                    // also the more careful one, it tests the direction against a relative tolerance rather
+                    // than comparing to zero exactly, so an almost parallel ray does not produce a point far
+                    // out in space.
+                    if (GetPlane().Intersect(fromHere, direction, out GeoPoint p))
+                    {
+                        // Return parameter t on the ray for the intersection point
+                        return Geometry.LinePar(fromHere, direction, p);
+                    }
+                    // Ray is parallel to the plane → no intersection
+                    return double.MaxValue;
                 }
                 catch (PlaneException)
-                {
-                    // Ray is parallel to the plane → no intersection
+                {   // GetPlane itself can still fail on a degenerate polyline
                     return double.MaxValue;
                 }
             }
