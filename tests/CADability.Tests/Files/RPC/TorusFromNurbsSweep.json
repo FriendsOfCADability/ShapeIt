@@ -1,0 +1,269 @@
+{
+  "Description": "A torus built from nothing but two exact circles in NURBS form: a rational quadratic circle of radius 8 as the profile and a second one of radius 30 as the sweep path. Both are given by control points, knot vector and weights - the classical nine pole representation of four 90 degree arcs with the corner weights sqrt(2)/2 - so they are circles in the exact sense and not approximations of one. Nothing in the case is a primitive: there is no Ellipse, no ToroidalSurface and no solid.torus anywhere in it, and that is the point. It is the smallest input that forces solid.sweep into the general case - a path that is neither a straight line nor a circular arc object - while still having a result whose volume can be written down by hand.",
+  "Expected": "One closed solid, the torus with R = 30 and r = 8. Volume 2*pi^2*R*r^2 = 2*pi^2*30*64 = 37899.2809, area 4*pi^2*R*r = 4*pi^2*240 = 9474.8202, extent -38, -38, -8 .. 38, 38, 8. Both numbers are calculated, not measured. The volume must come out positive: a swept solid with a reversed shell is a defect that has been seen before in this corpus (HelicalExtrudeOrientationUnstable), and the sign is the cheapest test for it. The band in the assertion of call 9 is deliberately wider below the exact value than above it, because a triangulated volume underestimates a curved body and never exceeds it. The topology is NOT pinned by this prose: how many faces the sweep produces, and whether the swept surface ends up as a NurbsSurface, a SweptCircle or a recognized ToroidalSurface, is the implementation's choice - the recorded fingerprint will say which, once there is one.",
+  "Status": "KnownFail, and for two independent reasons - both are prerequisites of this case, and the order below is the order in which they have to be fixed. No baseline is recorded: the right result is captured, never typed, and the case cannot produce one yet.\n(1) sketch.add_nurbs ignores control points. SketchAddNurbsImpl (ShapeIt/MCPServer.cs) implements the 'approximation' and 'throughPoints' branches only; everything else falls into 'else throw new NotImplementedException()', so calls 2 and 4 answer with -32601 and no curve is created. The toolset declares controlPoints, knots and weights, so this is an unimplemented promise, not a missing feature. BSpline2D already has the matching constructor: BSpline2D(GeoPoint2D[] poles, double[] weights, double[] knots, int[] multiplicities, int degree, bool periodic, double startParam, double endParam). It wants distinct knots plus multiplicities while the toolset declares the flat knot vector, so [0,0,0,1,1,2,2,3,3,4,4,4] has to be compressed to knots [0,1,2,3,4] with multiplicities [3,2,2,2,3]. The usual validation belongs with it: length(knots) = length(poles) + degree + 1, length(weights) = length(poles), all weights > 0.\n(2) solid.sweep cannot sweep along anything but a line or a circular arc. SolidSweepImpl resolves both operands correctly and calls Make3D.MakePipe(face, path, null), which asks Make3D.ExtrudeCurveToFace(edgeCurve, pathSegment) for every open edge of the profile and every segment of the path. That method branches on the path: PlanarState.UnderDetermined (a straight line) and 'along is Ellipse && IsCircle' are implemented, everything else returns null. A BSpline path segment takes the last branch, so no face is produced, SewFaces gets an empty array and MakePipe returns null. SolidSweepImpl then stores nothing - without raising an error, because it only assigns 'if (sweptSolid is Solid)'. Expect the name 'torus' to be simply absent afterwards, which this harness records as an entry {exists: false}, with the envelope warning about a creator tool that stored nothing as the only hint. A silent miss deserves an error of its own while this is being implemented.",
+  "Note": "A NURBS curve IS usable as a sweep path - the toolset does not have to grow a new parameter for it. solid.sweep takes 'path' as a NameRef and resolves it through GetSketchCurves, which reads the sketch from the curve's UserData[MCPServer.Sketch] and maps the 2d curve to 3d with curve2D.MakeGeoObject(sketch.Plane). Any named sketch curve therefore serves as the path, in any sketch, and the profile does not have to live in the same sketch as the path - here it deliberately does not. What the description of solid.sweep calls 'a 3D curve or polycurve' is exactly this: sketch curves are the only source of 3d curves the toolset has.\nThe profile sketch is placed so that its plane contains the path's start point (30, 0, 0) and is perpendicular to the path's tangent there (the tangent is +y, the plane spans +x and +z). MakePipe does reposition a single planar profile face onto the path start, but only along the path - it does not reorient a profile that starts out skew, so a case that wants an exact torus has to place the profile correctly itself.",
+  "CaseStatus": "KnownFail",
+  "Verify": [
+    "torus"
+  ],
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "pathSketch",
+        "plane": {
+          "standard": "XY"
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "pathSketch"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            30.0,
+            0.0
+          ],
+          [
+            30.0,
+            30.0
+          ],
+          [
+            0.0,
+            30.0
+          ],
+          [
+            -30.0,
+            30.0
+          ],
+          [
+            -30.0,
+            0.0
+          ],
+          [
+            -30.0,
+            -30.0
+          ],
+          [
+            0.0,
+            -30.0
+          ],
+          [
+            30.0,
+            -30.0
+          ],
+          [
+            30.0,
+            0.0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "majorCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.create",
+      "params": {
+        "name": "profileSketch",
+        "plane": {
+          "origin": [
+            30,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "profileSketch"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            8.0,
+            0.0
+          ],
+          [
+            8.0,
+            8.0
+          ],
+          [
+            0.0,
+            8.0
+          ],
+          [
+            -8.0,
+            8.0
+          ],
+          [
+            -8.0,
+            0.0
+          ],
+          [
+            -8.0,
+            -8.0
+          ],
+          [
+            0.0,
+            -8.0
+          ],
+          [
+            8.0,
+            -8.0
+          ],
+          [
+            8.0,
+            0.0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "minorCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "inspect.properties",
+      "params": {
+        "target": "majorCircle",
+        "properties": [
+          "Length",
+          "IsClosed",
+          "StartPoint",
+          "EndPoint"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "inspect.properties",
+      "params": {
+        "target": "minorCircle",
+        "properties": [
+          "Length",
+          "IsClosed"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.sweep",
+      "params": {
+        "name": "torus",
+        "profile": "minorCircle",
+        "path": "majorCircle",
+        "orientation": "follow"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "inspect.properties",
+      "params": {
+        "target": "torus",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "assert.check",
+      "params": {
+        "objects": "torus",
+        "minCount": 1,
+        "maxCount": 1,
+        "condition": "this.Volume > 37710 && this.Volume < 37910",
+        "message": "the sweep of an exact circle r = 8 along an exact circle R = 30 is a torus with V = 2*pi^2*R*r^2 = 37899.2809; a triangulated volume stays slightly below that, a negative or wildly different value means the shell is reversed or the sweep is wrong"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": "torus"
+      }
+    }
+  ]
+}

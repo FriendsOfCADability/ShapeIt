@@ -1,0 +1,418 @@
+{
+  "Description": "A cylinder and a truncated cone, each built as a ruled solid between two exact NURBS circles - the same rational quadratic circles as TorusFromNurbsSweep, only in horizontal planes 25 mm apart. The companion case to that one: it exercises the second way of turning NURBS curves into a solid, on two bodies whose volume is elementary. Both circles carry the identical knot vector and the identical pole layout, so corresponding parameters are corresponding angles and the ruled surface between them is the exact cylinder resp. the exact cone - which is what makes the calculated volumes binding rather than approximate.",
+  "Expected": "Two closed solids.\ncylinder: r = 10, h = 25, V = pi*r^2*h = 7853.9816, A = 2*pi*r*h + 2*pi*r^2 = 2199.1149, extent -10, -10, 0 .. 10, 10, 25.\ncone: r1 = 10 at z = 0, r2 = 4 at z = 25, V = pi*h/3*(r1^2 + r1*r2 + r2^2) = 1300*pi = 4084.0704, slant height sqrt(25^2 + 6^2) = sqrt(661) = 25.709920, A = pi*(r1+r2)*s + pi*(r1^2+r2^2) = 1495.2061, extent -10, -10, 0 .. 10, 10, 25.\nAll calculated, not measured. The lateral faces are expected to be RuledSurface, not CylindricalSurface or ConicalSurface: Make3D recognizes those two only from a pair of Ellipse objects, and there is no Ellipse in this case. Should a later version recognize the quadric behind two rational circles, the 'surfaces' line of the baseline is where it shows up - a welcome improvement, but one that has to be judged, not absorbed silently.",
+  "Status": "KnownFail for one reason only, and it is the first of the two blockers of TorusFromNurbsSweep: sketch.add_nurbs implements the 'approximation' and 'throughPoints' branches but throws NotImplementedException for control points, so calls 2, 4 and 6 fail with -32601 and no curve exists for solid.ruled to work on. SolidRuledImpl itself looks complete - it resolves both profiles, closes each into a Path and hands them to Make3D.MakeRuledSolid - so this case is expected to go green as soon as the NURBS curves can be created, which also makes it the cheaper of the two to try first. No baseline is recorded until it can produce one.",
+  "CaseStatus": "KnownFail",
+  "Verify": [
+    "cylinder",
+    "cone"
+  ],
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "bottomSketch",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "bottomSketch"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            10.0,
+            0.0
+          ],
+          [
+            10.0,
+            10.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            -10.0,
+            10.0
+          ],
+          [
+            -10.0,
+            0.0
+          ],
+          [
+            -10.0,
+            -10.0
+          ],
+          [
+            0.0,
+            -10.0
+          ],
+          [
+            10.0,
+            -10.0
+          ],
+          [
+            10.0,
+            0.0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "bottomCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.create",
+      "params": {
+        "name": "topSketch",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            25
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "topSketch"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            10.0,
+            0.0
+          ],
+          [
+            10.0,
+            10.0
+          ],
+          [
+            0.0,
+            10.0
+          ],
+          [
+            -10.0,
+            10.0
+          ],
+          [
+            -10.0,
+            0.0
+          ],
+          [
+            -10.0,
+            -10.0
+          ],
+          [
+            0.0,
+            -10.0
+          ],
+          [
+            10.0,
+            -10.0
+          ],
+          [
+            10.0,
+            0.0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "topCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "sketch.create",
+      "params": {
+        "name": "coneTopSketch",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            25
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "coneTopSketch"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            4.0,
+            0.0
+          ],
+          [
+            4.0,
+            4.0
+          ],
+          [
+            0.0,
+            4.0
+          ],
+          [
+            -4.0,
+            4.0
+          ],
+          [
+            -4.0,
+            0.0
+          ],
+          [
+            -4.0,
+            -4.0
+          ],
+          [
+            0.0,
+            -4.0
+          ],
+          [
+            4.0,
+            -4.0
+          ],
+          [
+            4.0,
+            0.0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "coneTopCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "inspect.properties",
+      "params": {
+        "target": "bottomCircle",
+        "properties": [
+          "Length",
+          "IsClosed"
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.ruled",
+      "params": {
+        "name": "cylinder",
+        "profile1": {
+          "name": "bottomCircle"
+        },
+        "profile2": {
+          "name": "topCircle"
+        },
+        "synchronization": "bySegments",
+        "alignment": "natural"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.ruled",
+      "params": {
+        "name": "cone",
+        "profile1": {
+          "name": "bottomCircle"
+        },
+        "profile2": {
+          "name": "coneTopCircle"
+        },
+        "synchronization": "bySegments",
+        "alignment": "natural"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "inspect.properties",
+      "params": {
+        "target": "cylinder",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "inspect.properties",
+      "params": {
+        "target": "cone",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 1e-05
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "assert.check",
+      "params": {
+        "objects": "cylinder",
+        "minCount": 1,
+        "maxCount": 1,
+        "condition": "this.Volume > 7815 && this.Volume < 7855",
+        "message": "ruling two exact circles r = 10 that are 25 apart is a cylinder, V = pi*r^2*h = 7853.9816; a triangulated volume stays slightly below that"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "assert.check",
+      "params": {
+        "objects": "cone",
+        "minCount": 1,
+        "maxCount": 1,
+        "condition": "this.Volume > 4064 && this.Volume < 4085",
+        "message": "ruling an exact circle r = 10 against an exact circle r = 4 that is 25 above it is a truncated cone, V = pi*h/3*(r1^2 + r1*r2 + r2^2) = 1300*pi = 4084.0704; a triangulated volume stays slightly below that"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "document.commit_objects",
+      "params": {
+        "objects": [
+          "cylinder",
+          "cone"
+        ]
+      }
+    }
+  ]
+}
