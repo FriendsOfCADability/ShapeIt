@@ -3285,15 +3285,15 @@ namespace CADability.GeoObject
                         //c3d2.Trim(pos4, pos3);
                         Face connectingFace = Face.Construct();
                         ICurve2D c2de1;
-                        if (gsc is GeneralSweptCurve)
-                            c2de1 = (gsc as GeneralSweptCurve).GetProjectedCurveAlongV(e1.Curve3D);
+                        if (gsc is SweptCurveSurface)
+                            c2de1 = (gsc as SweptCurveSurface).GetProjectedCurveAlongV(e1.Curve3D);
                         else
                             c2de1 = gsc.GetProjectedCurve(e1.Curve3D, 0.0);
                         // if (!e1.Forward(e1.PrimaryFace)) c2de1.Reverse();
 
                         ICurve2D c2de3;
-                        if (gsc is GeneralSweptCurve)
-                            c2de3 = (gsc as GeneralSweptCurve).GetProjectedCurveAlongV(e3.Curve3D);
+                        if (gsc is SweptCurveSurface)
+                            c2de3 = (gsc as SweptCurveSurface).GetProjectedCurveAlongV(e3.Curve3D);
                         else
                             c2de3 = gsc.GetProjectedCurve(e3.Curve3D, 0.0);
 #if DEBUG

@@ -1297,57 +1297,6 @@ namespace CADability.GeoObject
             return null; // not yet implemented for other curves
         }
 
-        internal static Shell MakePipe(ICurve along, double radius, GeoVector seam)
-        {   // erzeugt ein Rohr mit gegebenem Radius entland der Kurve als Mittelachse und der Nahtstelle in Richtung seam
-            if (along is Line)
-            {
-                GeoVector dirz = along.StartDirection.Normalized;
-                GeoVector diry = radius * (seam ^ dirz).Normalized;
-                GeoVector dirx = radius * (dirz ^ diry).Normalized;
-                CylindricalSurface cs = new CylindricalSurface(along.StartPoint, dirx, diry, dirz);
-                Border bdr = Border.MakeRectangle(0.0, 2.0 * Math.PI, 0.0, along.Length);
-                Face fc = Face.MakeFace(cs, new SimpleShape(bdr));
-                Shell res = Shell.Construct();
-                res.SetFaces(new Face[] { fc });
-                return res;
-            }
-            if (along is Ellipse && (along as Ellipse).IsCircle)
-            {
-                Ellipse e = (along as Ellipse);
-                ToroidalSurface ts = new ToroidalSurface(along.StartPoint, e.Plane.DirectionX, e.Plane.DirectionY, e.Plane.Normal, e.Radius, e.MinorRadius);
-                Border bdr = Border.MakeRectangle(0.0, e.SweepParameter, 0.0, 2.0 * Math.PI);
-                Face fc = Face.MakeFace(ts, new SimpleShape(bdr));
-                Shell res = Shell.Construct();
-                res.SetFaces(new Face[] { fc });
-                return res;
-            }
-            // Pfade besser vorher aufteilen wegen der Richtungen
-            //else if (along is Path)
-            //{
-            //    Path path = (along as Path);
-            //    for (int i = 0; i < path.CurveCount; i++)
-            //    {
-            //        path.Curves[i]
-            //    }
-            //}
-            else
-            {
-                Ellipse circ = Ellipse.Construct();
-                GeoVector dirz = along.StartDirection.Normalized;
-                GeoVector diry = radius * (seam ^ dirz).Normalized;
-                GeoVector dirx = radius * (dirz ^ diry).Normalized;
-                circ.SetCirclePlaneCenterRadius(new Plane(along.StartPoint, dirx, diry), along.StartPoint, radius);
-                // ISurface orient = new SurfaceOfLinearExtrusion(along, seam, 0.0, 1.0);
-                // CurveMovement mm = new CurveMovement(new Line2D(GeoPoint2D.Origin, new GeoPoint2D(1, 0)), orient);
-                // das wurde noch nicht getestet. Die 2d Linie (0,0)->(1,0) entspricht der 3d Kurve.
-                GeneralSweptCurve gs = new GeneralSweptCurve(circ, along, GeoVector.NullVector);
-                Border bdr = Border.MakeRectangle(0.0, 2.0 * Math.PI, 0.0, along.Length);
-                Face fc = Face.MakeFace(gs, new SimpleShape(bdr));
-                Shell res = Shell.Construct();
-                res.SetFaces(new Face[] { fc });
-                return res;
-            }
-        }
         public static Face MakeFace(Path path, Project project)
         {
             return MakeFace(path, project, true) as Face;

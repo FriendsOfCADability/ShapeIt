@@ -82,6 +82,35 @@ namespace CADability.GeoObject
         /// </para>
         /// </summary>
         public GeoVector Evaluate(GeoPoint local) => Location + local.x * X + local.y * Y + local.z * Z;
+
+        /// <summary>
+        /// A direction carried along by the system: local.x*X + local.y*Y + local.z*Z, without the origin.
+        /// <para>
+        /// The counterpart of <see cref="Evaluate(GeoPoint)"/> for something that has no position - the tangent
+        /// of the profile, say. Applied to the n-th derivative of the system it is again the n-th derivative,
+        /// for the same reason.
+        /// </para>
+        /// </summary>
+        public GeoVector Evaluate(GeoVector local) => local.x * X + local.y * Y + local.z * Z;
+
+        /// <summary>
+        /// The coordinates <paramref name="p"/> has in this system, the inverse of
+        /// <see cref="Evaluate(GeoPoint)"/>. The axes are orthonormal, so this is three dot products.
+        /// <para>
+        /// Only meaningful on the system itself, never on one of its derivatives - those are not a coordinate
+        /// system and have no inverse.
+        /// </para>
+        /// </summary>
+        public GeoPoint LocalOf(GeoPoint p)
+        {
+            GeoVector d = p - (GeoPoint.Origin + Location);
+            return new GeoPoint(d * X, d * Y, d * Z);
+        }
+
+        /// <summary>The coordinates a direction has in this system, the inverse of
+        /// <see cref="Evaluate(GeoVector)"/>.</summary>
+        public GeoVector LocalOf(GeoVector direction)
+            => new GeoVector(direction * X, direction * Y, direction * Z);
     }
 
     /// <summary>

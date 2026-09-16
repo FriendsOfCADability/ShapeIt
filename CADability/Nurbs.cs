@@ -1235,31 +1235,33 @@ namespace CADability
             v = calc.Add(v, calc.Mul(-calc.Weight(derivAtU), pointAtUNorm));
             return calc.Mul(1.0 / calc.Weight(pointAtU), v);
         }
+        /// <summary>
+        /// Turns the homogeneous derivatives of a rational curve into the real ones, algorithm A4.2 of the
+        /// NURBS book: C(k) = (A(k) - sum over i of binomial(k,i) * w(i) * C(k-i)) / w. A is the homogeneous
+        /// curve, w its weight, C the curve one actually sees.
+        /// <para>
+        /// This used to be wrong in three ways at once, all of them only visible on a RATIONAL curve, and the
+        /// symptom was mild enough to hide: the direction came out about a degree off on an exact NURBS circle
+        /// while its length was right. It subtracted multiples of the HOMOGENEOUS point A where the formula
+        /// asks for the projected point C - <see cref="RatCurveDerivs1"/> next door normalizes it and is
+        /// correct. It used the binomial coefficient 1 for k=2, i=1, where it is 2. And it read the weight of
+        /// deriv1AtU AFTER overwriting that value, so the w' it subtracted in the second line was no longer w'.
+        /// </para>
+        /// </summary>
         void RatCurveDerivs2(T pointAtU, ref T deriv1AtU, ref T deriv2AtU)
         {
-            // im Buch S. 127. Aders und wders sind die echten Komponenten bzw. das Gewicht
-            // diese beiden werden hier in einem Parameter übergeben
             double w = calc.Weight(pointAtU);
-            // int[][] B = Bino(d);
-            //for (int k = 0; k <= d; ++k)
-            //{
-            //    Pole v = derivAtU[k].Clone();
-            //    for (int i = 1; i <= k; ++i)
-            //    {
-            //        v.Add(-B[k][i] * derivAtU[i].Weight, CK[k - i]);
-            //    }
-            //    CK[k] = v.Create(1.0 / w, v, nullPole);
-            //}
-            // k=0: nichts zu tun (pointAtU bleibt unverändert)
-            // k=1:
-            if (w != 0.0) deriv1AtU = calc.Mul(1.0 / w, calc.Add(deriv1AtU, calc.Mul(-calc.Weight(deriv1AtU), pointAtU)));
-            else deriv1AtU = calc.Mul(1.0 / 1.0, calc.Add(deriv1AtU, calc.Mul(-calc.Weight(deriv1AtU), pointAtU)));
-            // k=2:
-            T v = deriv2AtU; // Binomialkoeffizienten sind alle 1
-            v = calc.Add(v, calc.Mul(-calc.Weight(deriv1AtU), deriv1AtU));
-            v = calc.Add(v, calc.Mul(-calc.Weight(deriv2AtU), pointAtU));
-            if (w != 0.0) deriv2AtU = calc.Mul(1.0 / w, v);
-            else deriv2AtU = calc.Mul(1.0 / 1.0, v);
+            if (w == 0.0) w = 1.0;
+            // the weights of the homogeneous derivatives, taken before anything is overwritten
+            double w1 = calc.Weight(deriv1AtU);
+            double w2 = calc.Weight(deriv2AtU);
+
+            T c0 = calc.NormH(pointAtU);                                            // C = A / w
+            T c1 = calc.Mul(1.0 / w, calc.Add(deriv1AtU, calc.Mul(-w1, c0)));       // C' = (A' - w'C) / w
+            T c2 = calc.Mul(1.0 / w, calc.Add(calc.Add(deriv2AtU, calc.Mul(-2.0 * w1, c1)),
+                                              calc.Mul(-w2, c0)));                  // C'' = (A'' - 2w'C' - w''C) / w
+            deriv1AtU = c1;
+            deriv2AtU = c2;
         }
 
         public void InitDeriv1()
