@@ -6,11 +6,11 @@ using System.Collections.Generic;
 namespace CADability.Tests
 {
     /// <summary>
-    /// Tests for <see cref="SweptCircle.GetSelfIntersections(BoundingRect)"/>: where the curvature radius of the
+    /// Tests for <see cref="SweptCircleSurface.GetSelfIntersections(BoundingRect)"/>: where the curvature radius of the
     /// spine falls below the radius of the swept circle, the surface folds over and penetrates itself.
     /// </summary>
     [TestClass]
-    public class SweptCircleSelfIntersectionTests
+    public class SweptCircleSurfaceSelfIntersectionTests
     {
         private const double radius = 1.5;
         private static readonly BoundingRect fullDomain = new BoundingRect(0, 0, 1, 2 * Math.PI);
@@ -21,7 +21,7 @@ namespace CADability.Tests
         /// surface fold. Which v the fold belongs to depends on the orientation of the plane of the spine, so the
         /// tests must not assume it.
         /// </summary>
-        private static SweptCircle MakeSurface(double from, double to, double r)
+        private static SweptCircleSurface MakeSurface(double from, double to, double r)
         {
             int n = 40;
             GeoPoint[] pnts = new GeoPoint[n + 1];
@@ -32,7 +32,7 @@ namespace CADability.Tests
             }
             BSpline bsp = BSpline.Construct();
             Assert.IsTrue(bsp.ThroughPoints(pnts, 3, false));
-            return new SweptCircle(bsp, r);
+            return new SweptCircleSurface(bsp, r);
         }
 
         /// <summary>
@@ -55,7 +55,7 @@ namespace CADability.Tests
         /// The two branches of a pair must describe the same 3d curve: at the same v they must yield the same 3d
         /// point, at clearly different u values.
         /// </summary>
-        private static void AssertIsDoubleCurve(SweptCircle surface, ICurve2D branch1, ICurve2D branch2)
+        private static void AssertIsDoubleCurve(SweptCircleSurface surface, ICurve2D branch1, ICurve2D branch2)
         {
             double v1 = Math.Min(branch1.StartPoint.y, branch1.EndPoint.y);
             double v2 = Math.Max(branch1.StartPoint.y, branch1.EndPoint.y);
@@ -88,7 +88,7 @@ namespace CADability.Tests
         [TestMethod]
         public void single_fold_yields_one_pair_of_branches()
         {
-            SweptCircle sc = MakeSurface(-1.3, 1.3, radius);
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, radius);
             ICurve2D[] si = sc.GetSelfIntersections(fullDomain);
             Assert.IsNotNull(si, "the surface folds over, so it must intersect itself");
             Assert.AreEqual(2, si.Length, "one fold must yield exactly one pair of branches");
@@ -98,7 +98,7 @@ namespace CADability.Tests
         [TestMethod]
         public void branches_meet_in_the_two_swallowtail_points()
         {
-            SweptCircle sc = MakeSurface(-1.3, 1.3, radius);
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, radius);
             ICurve2D[] si = sc.GetSelfIntersections(fullDomain);
             // the branch with the bigger u ascends, the other one descends, so start and end points are exchanged
             Assert.IsTrue((si[0].StartPoint | si[1].EndPoint) < 1e-6, "the branches do not meet in the lower swallowtail point");
@@ -120,7 +120,7 @@ namespace CADability.Tests
         {
             // the curve where the surface normal vanishes is sin(v) == curvatureRadius(u)/radius. At the center of
             // the double curve it reaches its widest u range, and the double curve must be outside of that.
-            SweptCircle sc = MakeSurface(-1.3, 1.3, radius);
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, radius);
             ICurve2D[] si = sc.GetSelfIntersections(fullDomain);
             double vCenter = (si[0].StartPoint.y + si[0].EndPoint.y) / 2.0;
             GeoPoint2D uv1 = PointAtV(si[0], vCenter);
@@ -143,7 +143,7 @@ namespace CADability.Tests
         {
             // -cos(t) has its vertices at t == -pi, 0, pi, the outer ones bend to the other side, so their double
             // curves are centered around the opposite v
-            SweptCircle sc = MakeSurface(-4.5, 4.5, radius);
+            SweptCircleSurface sc = MakeSurface(-4.5, 4.5, radius);
             ICurve2D[] si = sc.GetSelfIntersections(fullDomain);
             Assert.IsNotNull(si);
             Assert.AreEqual(6, si.Length, "three folds must yield three pairs of branches");
@@ -180,7 +180,7 @@ namespace CADability.Tests
         [TestMethod]
         public void closed_spine_with_two_folds_yields_two_complete_pairs()
         {
-            SweptCircle sc = new SweptCircle(BoreEllipse(0.0, 2 * Math.PI), 5.0);
+            SweptCircleSurface sc = new SweptCircleSurface(BoreEllipse(0.0, 2 * Math.PI), 5.0);
             (double uVertex, ICurve2D ascending, ICurve2D descending)[] branches = sc.GetSelfIntersectionBranches(fullDomain);
             Assert.AreEqual(2, branches.Length, "the two ends of the major axis both fold");
             foreach ((double uVertex, ICurve2D ascending, ICurve2D descending) branch in branches)
@@ -207,7 +207,7 @@ namespace CADability.Tests
             // half of the same ellipse, as the edge of the bore is split into two: the fold is at u == 0.1549, and
             // at the widest point of its double curve the branch with the smaller u would be at u == -0.116, i.e.
             // outside the domain. Both pieces which remain inside have to be found.
-            SweptCircle sc = new SweptCircle(BoreEllipse(2.6550498248872345, Math.PI), 5.0);
+            SweptCircleSurface sc = new SweptCircleSurface(BoreEllipse(2.6550498248872345, Math.PI), 5.0);
             (double uVertex, ICurve2D ascending, ICurve2D descending)[] branches = sc.GetSelfIntersectionBranches(fullDomain);
             Assert.AreEqual(2, branches.Length, "both pieces of the double curve must be found");
             Assert.IsTrue(Math.Abs(branches[0].uVertex - branches[1].uVertex) < 1e-6, "both pieces belong to the same fold");
@@ -227,14 +227,14 @@ namespace CADability.Tests
         [TestMethod]
         public void no_self_intersection_when_the_radius_is_small_enough()
         {
-            SweptCircle sc = MakeSurface(-1.3, 1.3, 0.5); // the curvature radius of the spine stays above 1
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, 0.5); // the curvature radius of the spine stays above 1
             Assert.IsNull(sc.GetSelfIntersections(fullDomain));
         }
 
         [TestMethod]
         public void nothing_is_returned_outside_the_given_bounds()
         {
-            SweptCircle sc = MakeSurface(-1.3, 1.3, radius);
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, radius);
             ICurve2D[] si = sc.GetSelfIntersections(fullDomain);
             double vCenter = (si[0].StartPoint.y + si[0].EndPoint.y) / 2.0;
             double halfWidth = (si[0].EndPoint.y - si[0].StartPoint.y) / 2.0;
@@ -245,7 +245,7 @@ namespace CADability.Tests
         [TestMethod]
         public void outer_shell_without_a_fold_is_a_single_face()
         {
-            SweptCircle sc = MakeSurface(-1.3, 1.3, 0.5);
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, 0.5);
             Face[] faces = sc.OuterShell(0.0, 2 * Math.PI);
             Assert.IsNotNull(faces);
             Assert.AreEqual(1, faces.Length, "without a self intersection nothing has to be split");
@@ -255,7 +255,7 @@ namespace CADability.Tests
         [TestMethod]
         public void outer_shell_of_a_single_fold_is_split_into_two_faces()
         {
-            SweptCircle sc = MakeSurface(-1.3, 1.3, radius);
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, radius);
             ICurve2D[] si = sc.GetSelfIntersections(fullDomain);
             double uVertex = si[0].StartPoint.x;
             double vlow = si[0].StartPoint.y, vhigh = si[0].EndPoint.y;
@@ -286,7 +286,7 @@ namespace CADability.Tests
         public void outer_shell_faces_do_not_contain_the_fold_curve()
         {
             // inside the double curve the surface normal is flipped, that part must not be part of any face
-            SweptCircle sc = MakeSurface(-1.3, 1.3, radius);
+            SweptCircleSurface sc = MakeSurface(-1.3, 1.3, radius);
             Face[] faces = sc.OuterShell(0.0, 2 * Math.PI);
             int tested = 0;
             foreach (Face f in faces)
@@ -310,7 +310,7 @@ namespace CADability.Tests
         [TestMethod]
         public void outer_shell_of_three_folds_has_four_faces()
         {
-            SweptCircle sc = MakeSurface(-4.5, 4.5, radius);
+            SweptCircleSurface sc = MakeSurface(-4.5, 4.5, radius);
             Face[] faces = sc.OuterShell(0.0, 2 * Math.PI);
             Assert.IsNotNull(faces);
             Assert.AreEqual(4, faces.Length, "three folds split the surface into four faces");

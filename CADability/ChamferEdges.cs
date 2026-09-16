@@ -123,7 +123,7 @@ namespace CADability.GeoObject
 
         private static ISurface? hullAroundEdge(ICurve edge, double radius, GeoVector seam)
         {
-            ISurface sweptCircle = SweptCircle.MakePipeSurface(edge, radius, seam); // a cylindrical hull around the edge
+            ISurface sweptCircle = SweptCircleSurface.MakePipeSurface(edge, radius, seam); // a cylindrical hull around the edge
             ISurfaceOfExtrusion? sweptCircleExtrusion = sweptCircle as ISurfaceOfExtrusion;
             if (sweptCircleExtrusion == null) return null; // to satisfy the compiler
             BoundingRect sweptCircleDomain = BoundingRect.EmptyBoundingRect;

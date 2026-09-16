@@ -74,7 +74,7 @@ namespace CADability.Tests
             int openEdges = parts.Sum(f => f.AllEdges.Count(e => e.SecondaryFace == null));
             Assert.AreEqual(0, openEdges, "the parts of the offset do not fit together");
             // both bores have a fold at the sharp end of their elliptical edge, so both fillets are split there
-            Face[] fillets = parts.Where(f => f.Surface is SweptCircle).ToArray();
+            Face[] fillets = parts.Where(f => f.Surface is SweptCircleSurface).ToArray();
             Assert.AreEqual(4, fillets.Length, "each of the two fillets should be split into two faces");
 
             Shell[] offset = ShellExtensions.GetOffset(BoreShell(), 5.0);
@@ -92,7 +92,7 @@ namespace CADability.Tests
             int tested = 0;
             foreach (Face face in shell.Faces)
             {
-                if (!(face.Surface is SweptCircle sweptCircle)) continue;
+                if (!(face.Surface is SweptCircleSurface sweptCircle)) continue;
                 BoundingRect ext = face.Area.GetExtent();
                 for (int i = 1; i < 20; i++)
                 {

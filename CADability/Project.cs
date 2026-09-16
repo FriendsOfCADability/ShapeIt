@@ -1274,6 +1274,9 @@ namespace CADability
             public override Type BindToType(string assemblyName, string typeName)
             {
                 System.Diagnostics.Trace.WriteLine("BindToType: " + assemblyName + ", " + typeName);
+                // Classes renamed since the file was written. The same table the json reader uses, so a rename
+                // is entered once and both formats can still be read.
+                typeName = RenamedTypes.Resolve(typeName);
                 // Diese Zeilen dienen dazu alte CONDOR Dateien lesbar zu machen.
                 // evtl. machen sie Schwierigkeiten, wenn Objekte von anderen Modulen
                 // deserialisiert werden sollen. Dann müsste man weiter unten es wieder 

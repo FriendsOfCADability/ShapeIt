@@ -110,7 +110,7 @@ namespace CADability.GeoObject
 
 
     [Serializable()]
-    public class SweptCircle : ISurfaceImpl, ISerializable, IJsonSerialize, ISurfaceOfExtrusion
+    public class SweptCircleSurface : ISurfaceImpl, ISerializable, IJsonSerialize, ISurfaceOfExtrusion
     {
         private ICurve spine; // spine curve for the pipe
         private double radius; // radius of the pipe, when negative, the normal of the surface points towwards the spine curve
@@ -119,7 +119,7 @@ namespace CADability.GeoObject
 
         /// <summary>
         /// create a surface which is defined by a curve along which a circle is beeing moved.
-        /// The result may be a cylindrical surface, a toroidal surface or a SweptCircle
+        /// The result may be a cylindrical surface, a toroidal surface or a SweptCircleSurface
         /// </summary>
         /// <param name="along"></param>
         /// <param name="radius"></param>
@@ -143,11 +143,11 @@ namespace CADability.GeoObject
             }
             else
             {
-                return new SweptCircle(along, radius);
+                return new SweptCircleSurface(along, radius);
             }
         }
 
-        public SweptCircle(ICurve spine, double radius, BoundingRect? domain = null): base(domain)
+        public SweptCircleSurface(ICurve spine, double radius, BoundingRect? domain = null): base(domain)
         {
             this.spine = spine;
             this.radius = radius;
@@ -258,11 +258,11 @@ namespace CADability.GeoObject
         [Serializable()]
         public class FixedVCurve : GeneralCurve, ISerializable, IJsonSerialize
         {
-            SweptCircle sweptCircle;
+            SweptCircleSurface sweptCircle;
             double v0; // the sweptCircle v position, which is fixed for this curve
             double umin;
             double umax;
-            public FixedVCurve(SweptCircle sweptCircle, double v0, double umin, double umax)
+            public FixedVCurve(SweptCircleSurface sweptCircle, double v0, double umin, double umax)
             {
                 this.sweptCircle = sweptCircle;
                 this.v0 = v0;
@@ -301,7 +301,7 @@ namespace CADability.GeoObject
 
             public override void Modify(ModOp m)
             {
-                throw new NotSupportedException("SweptCircle.FixedVCurve is immutable");
+                throw new NotSupportedException("SweptCircleSurface.FixedVCurve is immutable");
             }
 
             public override GeoPoint PointAt(double Position)
@@ -315,12 +315,12 @@ namespace CADability.GeoObject
 
             public override void Reverse()
             {
-                throw new NotSupportedException("SweptCircle.FixedVCurve is immutable");
+                throw new NotSupportedException("SweptCircleSurface.FixedVCurve is immutable");
             }
 
             public override ICurve[] Split(double Position)
             {
-                throw new NotSupportedException("SweptCircle.FixedVCurve is immutable");
+                throw new NotSupportedException("SweptCircleSurface.FixedVCurve is immutable");
             }
 
             public override void Trim(double StartPos, double EndPos)
@@ -359,7 +359,7 @@ namespace CADability.GeoObject
             protected FixedVCurve(SerializationInfo info, StreamingContext context)
                    : base(info, context)
             {
-                sweptCircle = (SweptCircle)info.GetValue("SweptCircle", typeof(SweptCircle));
+                sweptCircle = (SweptCircleSurface)info.GetValue("SweptCircleSurface", typeof(SweptCircleSurface));
                 v0 = (double)info.GetValue("V0", typeof(double));
                 umin = (double)info.GetValue("Umin", typeof(double));
                 umax = (double)info.GetValue("Umax", typeof(double));
@@ -367,7 +367,7 @@ namespace CADability.GeoObject
             public override void GetObjectData(SerializationInfo info, StreamingContext context)
             {
                 base.GetObjectData(info, context);
-                info.AddValue("SweptCircle", sweptCircle, typeof(SweptCircle));
+                info.AddValue("SweptCircleSurface", sweptCircle, typeof(SweptCircleSurface));
                 info.AddValue("V0", v0, typeof(double));
                 info.AddValue("Umin", umin, typeof(double));
                 info.AddValue("Umax", umax, typeof(double));
@@ -377,7 +377,7 @@ namespace CADability.GeoObject
             protected FixedVCurve() { } // we need this for JsonSerialisation
             public void GetObjectData(IJsonWriteData data)
             {
-                data.AddProperty("SweptCircle", sweptCircle);
+                data.AddProperty("SweptCircleSurface", sweptCircle);
                 data.AddProperty("V0", v0);
                 data.AddProperty("Umin", umin);
                 data.AddProperty("Umax", umax);
@@ -385,7 +385,7 @@ namespace CADability.GeoObject
 
             public void SetObjectData(IJsonReadData data)
             {
-                sweptCircle = data.GetProperty<SweptCircle>("SweptCircle");
+                sweptCircle = data.GetProperty<SweptCircleSurface>("SweptCircleSurface");
                 v0 = data.GetProperty<double>("V0");
                 umin = data.GetProperty<double>("Umin");
                 umax = data.GetProperty<double>("Umax");
@@ -424,7 +424,7 @@ namespace CADability.GeoObject
 
         public override ISurface GetModified(ModOp m)
         {
-            if (m.IsIsogonal) return new SweptCircle(spine.CloneModified(m), m.Factor * radius);
+            if (m.IsIsogonal) return new SweptCircleSurface(spine.CloneModified(m), m.Factor * radius);
             else throw new NotImplementedException();
         }
 
@@ -434,7 +434,7 @@ namespace CADability.GeoObject
             IPropertyEntry spineProperty = (spine as IGeoObject).GetShowProperties(frame);
             spineProperty.ReadOnly = true;
             se.Add(spineProperty);
-            LengthProperty radiusProperty = new LengthProperty(frame, "SweptCircle.Radius");
+            LengthProperty radiusProperty = new LengthProperty(frame, "SweptCircleSurface.Radius");
             radiusProperty.ReadOnly = true;
             radiusProperty.OnGetValue = () => radius;
             se.Add(radiusProperty);
@@ -639,8 +639,11 @@ namespace CADability.GeoObject
                 GeoVector crossVA = vel ^ acc;              // c′ × c″
                 double curvature = crossVA.Length / Pow(speed, 3);     // κ
 
-                GeoVector crossVB = vel ^ jerk;             // c′ × c‴
-                double torsion = (vel * crossVB) / Pow(crossVA.Length, 2); // τ
+                // τ = ((c' x c'').c''') / |c' x c''|^2. It used to read c'.(c' x c''') here, which is
+                // identically ZERO - a vector is perpendicular to every cross product it appears in - so
+                // this branch treated every spine as torsion free, and it is the branch that runs when the
+                // spine is NOT planar. SweepFrameTests pins the correct value against a helix.
+                double torsion = (crossVA * jerk) / Pow(crossVA.Length, 2); // τ
 
                 // Frenet-Frame 
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
@@ -700,8 +703,11 @@ namespace CADability.GeoObject
                 GeoVector crossVA = vel ^ acc;              // c′ × c″
                 double curvature = crossVA.Length / Pow(speed, 3);     // κ
 
-                GeoVector crossVB = vel ^ jerk;             // c′ × c‴
-                double torsion = (vel * crossVB) / Pow(crossVA.Length, 2); // τ
+                // τ = ((c' x c'').c''') / |c' x c''|^2. It used to read c'.(c' x c''') here, which is
+                // identically ZERO - a vector is perpendicular to every cross product it appears in - so
+                // this branch treated every spine as torsion free, and it is the branch that runs when the
+                // spine is NOT planar. SweepFrameTests pins the correct value against a helix.
+                double torsion = (crossVA * jerk) / Pow(crossVA.Length, 2); // τ
 
                 // Frenet-Frame 
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
@@ -843,7 +849,11 @@ namespace CADability.GeoObject
                 double curvature = crossVA.Length / Pow(speed, 3);     // κ
 
                 GeoVector crossVB = vel ^ jerk;             // c′ × c‴
-                double torsion = (vel * crossVB) / Pow(crossVA.Length, 2); // τ
+                // τ = ((c' x c'').c''') / |c' x c''|^2. It used to read c'.(c' x c''') here, which is
+                // identically ZERO - a vector is perpendicular to every cross product it appears in - so
+                // this branch treated every spine as torsion free, and it is the branch that runs when the
+                // spine is NOT planar. SweepFrameTests pins the correct value against a helix.
+                double torsion = (crossVA * jerk) / Pow(crossVA.Length, 2); // τ
 
                 // κ′ und τ′ we will need only for S_uu (T″)
                 double curvatureDash = (crossVA * crossVB) / (crossVA.Length * Pow(speed, 3))
@@ -931,7 +941,7 @@ namespace CADability.GeoObject
         }
         public override ISurface Clone()
         {
-            return new SweptCircle(spine, radius);
+            return new SweptCircleSurface(spine, radius);
         }
         public override void Modify(ModOp m)
         {
@@ -954,7 +964,7 @@ namespace CADability.GeoObject
         }
         public override void CopyData(ISurface CopyFrom)
         {
-            SweptCircle cc = CopyFrom as SweptCircle;
+            SweptCircleSurface cc = CopyFrom as SweptCircleSurface;
             if (cc != null)
             {
                 this.spine = cc.spine;
@@ -964,7 +974,7 @@ namespace CADability.GeoObject
         }
         public override bool SameGeometry(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, double precision, out ModOp2D firstToSecond)
         {
-            if (other is SweptCircle sc)
+            if (other is SweptCircleSurface sc)
             {
                 if (sc.spine.SameGeometry(spine, Precision.eps))
                 {
@@ -1499,7 +1509,7 @@ namespace CADability.GeoObject
             foreach (SimpleShape ss in remaining.SimpleShapes)
             {
                 if (ss.Area < Precision.eps) continue;
-                SweptCircle part = Clone() as SweptCircle; // every face gets its own surface with its own domain
+                SweptCircleSurface part = Clone() as SweptCircleSurface; // every face gets its own surface with its own domain
                 part.Domain = ss.GetExtent();
                 res.Add(Face.MakeFace(part, ss));
             }
@@ -1573,7 +1583,7 @@ namespace CADability.GeoObject
                     uve2 = new GeoPoint2D(roots[1], v1);
                     ICurve cc = FixedV((uvs1.y + uve1.y) / 2, 0, roots[0]);
                     ICurve cca = cc.Approximate(true, 0.1);
-                    SweptCircle clone = Clone() as SweptCircle;
+                    SweptCircleSurface clone = Clone() as SweptCircleSurface;
                     clone.Domain = new BoundingRect(roots[1], 0, 1, 2 * PI);
                     clone.Intersect(cc, ext2, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds);
                 }
@@ -1605,7 +1615,7 @@ namespace CADability.GeoObject
 
 
         #region ISerializable
-        protected SweptCircle(SerializationInfo info, StreamingContext context)
+        protected SweptCircleSurface(SerializationInfo info, StreamingContext context)
         {
             spine = (ICurve)info.GetValue("Spine", typeof(ICurve));
             radius = (double)info.GetValue("Radius", typeof(double));
@@ -1620,7 +1630,7 @@ namespace CADability.GeoObject
 
         #endregion
         #region IJsonSerialize
-        protected SweptCircle() { } // we need this for JsonSerialisation
+        protected SweptCircleSurface() { } // we need this for JsonSerialisation
         public void GetObjectData(IJsonWriteData data)
         {
             data.AddProperty("Spine", spine);

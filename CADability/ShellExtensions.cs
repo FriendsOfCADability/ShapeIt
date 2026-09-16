@@ -503,7 +503,7 @@ namespace CADability.GeoObject
             else
             {   // the general case: a pipe around the edge. Where the curvature radius of the edge falls below
                 // the radius of the pipe, the surface folds over and penetrates itself; that is resolved below
-                surface = new SweptCircle(axis.Curve3D, Math.Abs(radius));
+                surface = new SweptCircleSurface(axis.Curve3D, Math.Abs(radius));
             }
             if (surface is ToroidalSurface toroidalSurface)
             {
@@ -586,7 +586,7 @@ namespace CADability.GeoObject
             List<Edge> offsetEdges = new List<Edge>(); // the edges of the offset faces the fillet is connected to
             for (int i = 0; i < chain.Count; i++) { offsetEdges.Add(chain[i].forward); offsetEdges.Add(chain[i].backward); }
             // a pipe which folds over itself is split into several faces, everything else stays a single face
-            if (surface is SweptCircle sweptCircle)
+            if (surface is SweptCircleSurface sweptCircle)
             {
                 // a closed chain is additionally split where its edges meet: a face which covers a whole period
                 // would be glued to itself along the seam, and such a face is hard to handle further on. The
@@ -702,7 +702,7 @@ namespace CADability.GeoObject
         /// the circle is swept along that ellipse, which is closed when the arcs cover it completely. Returns null
         /// when the edges do not fit together this way; every edge needs its own fillet then.
         /// </summary>
-        private static SweptCircle ChainPipeSurface(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain, double radius)
+        private static SweptCircleSurface ChainPipeSurface(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain, double radius)
         {
             if (!(chain[0].axis.Curve3D is Ellipse first)) return null;
             // a chain of circular arcs is left alone: its fillet is a torus, and the fold of a torus whose minor
@@ -735,7 +735,7 @@ namespace CADability.GeoObject
                 if (endPosition < 1e-6 || endPosition > 1.0 - 1e-6) return null; // cannot tell where the chain ends
                 spine.SweepParameter = endPosition * spine.SweepParameter;
             }
-            return new SweptCircle(spine, Math.Abs(radius));
+            return new SweptCircleSurface(spine, Math.Abs(radius));
         }
 
         /// <summary>
@@ -807,7 +807,7 @@ namespace CADability.GeoObject
                 else domain.MinMax(c2d.GetExtent());
                 curves.Add(c2d);
             }
-            if (!(surface is SweptCircle))
+            if (!(surface is SweptCircleSurface))
             {   // the domain of a cylindrical or toroidal fillet is fixed by the four corners of the area: the
                 // surface needs it to project the following curves into the right period
                 domain = new BoundingRect(surface.PositionOf(chain[0].forward.Curve3D.PointAt(0.5)));
@@ -839,7 +839,7 @@ namespace CADability.GeoObject
             // of the surface, because there the surface is split anyway, and only then the two sides of the double
             // curve end up on two different faces, which can be sewn together along it
             uSeam = 0.0;
-            if (surface is SweptCircle sweptCircle)
+            if (surface is SweptCircleSurface sweptCircle)
             {
                 (double uVertex, ICurve2D ascending, ICurve2D descending)[] branches = sweptCircle.GetSelfIntersectionBranches(domain);
                 if (branches.Length > 0) uSeam = branches[0].uVertex;
@@ -864,7 +864,7 @@ namespace CADability.GeoObject
         /// <paramref name="uSeam"/>. The seam itself is not among them, it is the border of the area anyway.
         /// </summary>
         private static List<double> ChainJunctions(IReadOnlyList<(Edge axis, Edge forward, Edge backward)> chain,
-            SweptCircle surface, double uSeam)
+            SweptCircleSurface surface, double uSeam)
         {
             List<double> res = new List<double>();
             double period = surface.UPeriod;
@@ -934,7 +934,7 @@ namespace CADability.GeoObject
         /// </summary>
         private static BoundingRect ProjectionWindow(ISurface surface, Edge axis, ICurve toProject)
         {
-            if (!surface.IsUPeriodic || !(surface is SweptCircle sweptCircle) || axis.Curve3D == null || toProject == null)
+            if (!surface.IsUPeriodic || !(surface is SweptCircleSurface sweptCircle) || axis.Curve3D == null || toProject == null)
             {
                 return BoundingRect.EmptyBoundingRect;
             }
@@ -1410,7 +1410,7 @@ namespace CADability.GeoObject
                 if (filletAxisCurve == null) return null;
                 Vertex lt, lb, rb, rt; // the four vertices, left plane (lid) with bottom face lb, etc.
                 // we calculate the four vertices as intersection of the swept circle with the left and right plane and the top and bottom surface
-                SweptCircle swc = new SweptCircle(filletAxisCurve.Curve3D, radius);
+                SweptCircleSurface swc = new SweptCircleSurface(filletAxisCurve.Curve3D, radius);
                 GeoPoint2D uvswc, uvs;
                 if (BoxedSurfaceExtension.FindTangentialIntersectionPoint(leftPlane.Location, leftPlane.Normal, swc, bottomSurface, out uvswc, out uvs))
                 {
@@ -1614,7 +1614,7 @@ namespace CADability.GeoObject
 #endif
 
                 ISurface sweptCircle;
-                sweptCircle = SweptCircle.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
+                sweptCircle = SweptCircleSurface.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
                 //GeoPoint2D dbguv = new GeoPoint2D(0, 2 * Math.PI - Math.PI / 4);
                 //GeoPoint dbg3d = sweptCircle.PointAt(dbguv);
                 //GeoVector dbgudir = sweptCircle.UDirection(dbguv);
@@ -1764,7 +1764,7 @@ namespace CADability.GeoObject
             if (filletAxisCurve == null) return null;
             filletAxisCurve.Trim(filletAxisLeft, filletAxisRight);
             ISurface sweptCircle;
-            sweptCircle = SweptCircle.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
+            sweptCircle = SweptCircleSurface.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
 
             // we need bounds for sweptCircle to enable Makeface to use BoxedSurface methods
             sweptCircle.Domain = new BoundingRect(0, Math.PI / 2, 1, 3 * Math.PI / 2);
@@ -2106,7 +2106,7 @@ namespace CADability.GeoObject
                         fillet1.Surface.Intersect(thirdEdge.Curve3D, fillet1.Domain, out GeoPoint[] ips1, out GeoPoint2D[] uvs1, out double[] uOnCurve1);
                         fillet2.Surface.Intersect(thirdEdge.Curve3D, fillet2.Domain, out GeoPoint[] ips2, out GeoPoint2D[] uvs2, out double[] uOnCurve2);
                         if (ips1 == null || ips2 == null || ips1.Length != 1 || ips2.Length != 1) continue; // no intersection found, should not happen
-                        ISurface aroundThirdEdge = SweptCircle.MakePipeSurface(thirdEdge.Curve3D, radius, -(fillet1.Surface.GetNormal(uvs1[0]).Normalized + fillet2.Surface.GetNormal(uvs2[0]).Normalized));
+                        ISurface aroundThirdEdge = SweptCircleSurface.MakePipeSurface(thirdEdge.Curve3D, radius, -(fillet1.Surface.GetNormal(uvs1[0]).Normalized + fillet2.Surface.GetNormal(uvs2[0]).Normalized));
                         BoundingRect aroundThirdEdgeDomain;
                         if ((aroundThirdEdge as ISurfaceOfExtrusion)!.ExtrusionDirectionIsV) aroundThirdEdgeDomain = new BoundingRect(0, 0, 2 * Math.PI, 1);
                         else aroundThirdEdgeDomain = new BoundingRect(0, 0, 1, 2 * Math.PI);
@@ -2155,7 +2155,7 @@ namespace CADability.GeoObject
                             }
                             if (toroidalSpine != null)
                             {
-                                ISurface connectingToroid = SweptCircle.MakePipeSurface(toroidalSpine, radius, commonFace.Surface.GetNormal(commonFace.Surface.PositionOf(item.Key.Position)));
+                                ISurface connectingToroid = SweptCircleSurface.MakePipeSurface(toroidalSpine, radius, commonFace.Surface.GetNormal(commonFace.Surface.PositionOf(item.Key.Position)));
                                 PlaneSurface pln1 = new PlaneSurface(new Plane(toroidalSpine.StartPoint, -toroidalSpine.StartDirection));
                                 Face toClipWith1 = Face.MakeFace(pln1, new BoundingRect(GeoPoint2D.Origin, radius * 1.1, radius * 1.1));
                                 PlaneSurface pln2 = new PlaneSurface(new Plane(toroidalSpine.EndPoint, toroidalSpine.EndDirection));

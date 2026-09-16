@@ -309,7 +309,7 @@ namespace CADability.GeoObject
             }
             if (isTangential)
             {
-                if (surface1 is SweptCircle sc1 && (Math.Abs(Math.Abs(surface2.GetDistance(sc1.Spine.StartPoint)) - sc1.Radius) < Precision.eps)
+                if (surface1 is SweptCircleSurface sc1 && (Math.Abs(Math.Abs(surface2.GetDistance(sc1.Spine.StartPoint)) - sc1.Radius) < Precision.eps)
                     && (Math.Abs(Math.Abs(surface2.GetDistance(sc1.Spine.EndPoint)) - sc1.Radius) < Precision.eps)
                     && (Math.Abs(Math.Abs(surface2.GetDistance(sc1.Spine.PointAt(0.5))) - sc1.Radius) < Precision.eps))
                 {   // the spine seems to be parallel to surface2, so we have a tangential intersection along the spine
@@ -318,7 +318,7 @@ namespace CADability.GeoObject
                     ICurve crv = surface2.Make3dCurve(surface2.GetProjectedCurve(sc1.Spine, Precision.eps));
                     return new IDualSurfaceCurve[] { new DualSurfaceCurve(crv, surface1, crv2d1, surface2, crv2d2) };
                 }
-                if (surface2 is SweptCircle sc2 && (Math.Abs(Math.Abs(surface1.GetDistance(sc2.Spine.StartPoint)) - sc2.Radius) < Precision.eps)
+                if (surface2 is SweptCircleSurface sc2 && (Math.Abs(Math.Abs(surface1.GetDistance(sc2.Spine.StartPoint)) - sc2.Radius) < Precision.eps)
                     && (Math.Abs(Math.Abs(surface1.GetDistance(sc2.Spine.EndPoint)) - sc2.Radius) < Precision.eps)
                     && (Math.Abs(Math.Abs(surface1.GetDistance(sc2.Spine.PointAt(0.5))) - sc2.Radius) < Precision.eps))
                 {   // the spine seems to be parallel to surface2, so we have a tangential intersection along the spine

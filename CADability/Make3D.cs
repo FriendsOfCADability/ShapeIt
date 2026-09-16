@@ -1032,7 +1032,7 @@ namespace CADability.GeoObject
                         {
                             int n = 25;
                             double[] values = Enumerable.Range(0, n + 1).Select(i => i / (double)n).ToArray();
-                            normal = SweptCircle.FindSweepNormal(along, values); // if normal==null, we should use the Frenet frame
+                            normal = SweptCircleSurface.FindSweepNormal(along, values); // if normal==null, we should use the Frenet frame
                             if (normal.IsNullVector()) throw new NotImplementedException("not implemented: pipe along a curve which is not planar or linear");
                         }
                         ModOp m = ModOp.Fit(along.PointAt(pos), [dir, normal, dir ^ normal], along.StartPoint, [along.StartDirection.Normalized, normal, along.StartDirection.Normalized ^ normal]);

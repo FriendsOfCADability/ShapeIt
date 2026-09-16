@@ -2683,15 +2683,124 @@ namespace ShapeIt
                 }
                 curve = new BSpline2D(throughPoints.ToArray(), degree, isPeriodic);
             }
+            else if (controlPointsEl.ValueKind == JsonValueKind.Array)
+            {
+                curve = NurbsFromControlPoints(degree, controlPointsEl, knotsEl, weightsEl, isPeriodic);
+            }
             else
             {
-                throw new NotImplementedException();
+                throw new JsonRpcException("E_INVALID_PARAMS", "sketch.add_nurbs needs exactly one curve definition: "
+                    + "'controlPoints', 'throughPoints' or 'approximation'.");
             }
             if (curve != null)
             {
                 sketch.Add(curve);
                 if (name != null) namedItems[name] = curve;
             }
+        }
+
+        /// <summary>
+        /// Builds a NURBS curve from explicit control points. The toolset declares the knot vector in flat form -
+        /// every knot written as often as its multiplicity, the way STEP and IGES do it - while
+        /// <see cref="BSpline2D"/> wants the distinct knots plus a multiplicity vector, so the flat vector is
+        /// compressed here: [0,0,0,1,1,2,2,3,3,4,4,4] becomes knots [0,1,2,3,4] with multiplicities [3,2,2,2,3].
+        /// </summary>
+        /// <param name="degree">the degree of the curve</param>
+        /// <param name="controlPointsEl">the poles, at least degree+1 of them</param>
+        /// <param name="knotsEl">the flat knot vector, or undefined for a uniform one</param>
+        /// <param name="weightsEl">one weight per pole, or undefined for a non rational curve</param>
+        /// <param name="isPeriodic">true for a curve that closes over its seam without a clamped end</param>
+        private BSpline2D NurbsFromControlPoints(int degree, JsonElement controlPointsEl, JsonElement knotsEl,
+                                                 JsonElement weightsEl, bool isPeriodic)
+        {
+            List<GeoPoint2D> poles = new List<GeoPoint2D>();
+            foreach (JsonElement pole in controlPointsEl.EnumerateArray()) poles.Add(RequirePoint2D(pole, null));
+            if (degree < 1) throw new JsonRpcException("E_INVALID_PARAMS", $"'degree' must be at least 1, not {degree}.");
+            if (poles.Count < degree + 1)
+                throw new JsonRpcException("E_INVALID_PARAMS", $"a NURBS of degree {degree} needs at least "
+                    + $"{degree + 1} control points, {poles.Count} were given.");
+
+            double[]? weights = null;
+            if (weightsEl.ValueKind == JsonValueKind.Array)
+            {
+                List<double> given = new List<double>();
+                foreach (JsonElement weight in weightsEl.EnumerateArray()) given.Add(RequireDouble(weight, null));
+                if (given.Count != poles.Count)
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"there must be one weight per control point: "
+                        + $"{poles.Count} control points, but {given.Count} weights.");
+                for (int i = 0; i < given.Count; i++)
+                    if (!(given[i] > 0.0) || double.IsInfinity(given[i]))
+                        throw new JsonRpcException("E_INVALID_PARAMS", $"weights must be positive and finite, "
+                            + $"'weights[{i}]' is {given[i]}.");
+                weights = given.ToArray();
+            }
+
+            // A clamped curve needs poles + degree + 1 knots. A periodic one needs poles + 1: its knot vector
+            // covers a single period, the last knot being the wrap of the first, and BSpline2D repeats it itself.
+            int required = isPeriodic ? poles.Count + 1 : poles.Count + degree + 1;
+            double[] flatKnots;
+            if (knotsEl.ValueKind == JsonValueKind.Array)
+            {
+                List<double> given = new List<double>();
+                foreach (JsonElement knot in knotsEl.EnumerateArray()) given.Add(RequireDouble(knot, null));
+                if (given.Count != required)
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"a {(isPeriodic ? "periodic" : "clamped")} NURBS "
+                        + $"of degree {degree} with {poles.Count} control points needs {required} knots, "
+                        + $"{given.Count} were given.");
+                for (int i = 1; i < given.Count; i++)
+                    if (given[i] < given[i - 1])
+                        throw new JsonRpcException("E_INVALID_PARAMS", $"the knot vector must not decrease, but "
+                            + $"'knots[{i}]' is {given[i]} and 'knots[{i - 1}]' is {given[i - 1]}.");
+                if (given[given.Count - 1] <= given[0])
+                    throw new JsonRpcException("E_INVALID_PARAMS", "the knot vector must span a parameter range "
+                        + "greater than zero.");
+                flatKnots = given.ToArray();
+            }
+            else flatKnots = UniformKnots(degree, poles.Count, isPeriodic);
+
+            CompressKnots(flatKnots, out double[] knots, out int[] multiplicities);
+            return new BSpline2D(poles.ToArray(), weights, knots, multiplicities, degree, isPeriodic,
+                                 flatKnots[0], flatKnots[flatKnots.Length - 1]);
+        }
+
+        /// <summary>
+        /// The knot vector the kernel chooses when the call provides none: uniform, and clamped at both ends
+        /// unless the curve is periodic, so that it starts at the first and ends at the last control point.
+        /// </summary>
+        private static double[] UniformKnots(int degree, int poleCount, bool isPeriodic)
+        {
+            List<double> flat = new List<double>();
+            if (isPeriodic)
+            {
+                for (int i = 0; i <= poleCount; i++) flat.Add(i);
+            }
+            else
+            {
+                for (int i = 0; i <= degree; i++) flat.Add(0.0);
+                for (int i = 1; i < poleCount - degree; i++) flat.Add(i);
+                for (int i = 0; i <= degree; i++) flat.Add(poleCount - degree);
+            }
+            return flat.ToArray();
+        }
+
+        /// <summary>
+        /// Splits a flat knot vector into the distinct knots and their multiplicities.
+        /// </summary>
+        private static void CompressKnots(double[] flatKnots, out double[] knots, out int[] multiplicities)
+        {
+            List<double> distinct = new List<double>();
+            List<int> multiplicity = new List<int>();
+            for (int i = 0; i < flatKnots.Length; i++)
+            {
+                if (distinct.Count > 0 && flatKnots[i] == distinct[distinct.Count - 1]) ++multiplicity[multiplicity.Count - 1];
+                else
+                {
+                    distinct.Add(flatKnots[i]);
+                    multiplicity.Add(1);
+                }
+            }
+            knots = distinct.ToArray();
+            multiplicities = multiplicity.ToArray();
         }
 
         private void SketchAddPolycurveImpl(Sketch sketch, JsonElement verticesEl, bool isClosed, string name)
@@ -3796,36 +3905,46 @@ namespace ShapeIt
             if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "No sketch assoziated with profile.");
 
             Face toSweep = Face.MakeFace(new PlaneSurface(sketch.Plane), profiles[0].SimpleShapes[0]); // the profile should not consist of multiple SimpleShapes
-            if (!(paths[0] is Path)) paths[0] = Path.FromSegments(paths)[0]; // there must be at least one!
-            Path? p = paths[0] as Path;
-            if (p != null)
-            {
-                IGeoObject sweptSolid = Make3D.MakePipe(toSweep, p, null);
-                if (sweptSolid is Solid sld)
-                {
-                    if (name != null) namedItems[name] = sld;
-                    if (capture.ValueKind != JsonValueKind.Undefined)
-                    {
-                        string? startEdgesName = GetOptionalString(capture, "startEdges");
-                        string? endEdgesName = GetOptionalString(capture, "endEdges");
-                        string? startFaceName = GetOptionalString(capture, "startFace");
-                        string? endFaceName = GetOptionalString(capture, "endFace");
+            // "paths" holds exactly one curve here, and neither outcome of Path.FromSegments(List) could be read
+            // back out of it: that overload REMOVES the curves it consumed from the list it was given, so on
+            // success the list is empty, and for a single closed curve - a circle used as the sweep path is
+            // exactly that - it sorts nothing together and returns an empty list instead. A single curve already
+            // is the whole path, so it is wrapped directly.
+            Path? p = paths[0] as Path ?? Path.FromSegments(paths, true);
+            if (p == null || p.CurveCount == 0)
+                throw new JsonRpcException("E_INVALID_PARAMS", "The path must be a curve or a polycurve.");
 
-                        Face endFace = (toSweep.Clone() as Face)!;
-                        endFace.Modify(ModOp.Fit(p.StartPoint, [p.StartDirection], p.EndPoint, [p.EndDirection]));
-                        Face? startingFace = sld.Shell.FindSimilarFace(toSweep);
-                        Face? endingFace = sld.Shell.FindSimilarFace(endFace);
-                        if (startingFace != null)
-                        {
-                            if (startFaceName != null) namedItems[startFaceName] = startingFace; // there should only be one
-                            if (startEdgesName != null) namedItems[startEdgesName] = startingFace.AllEdges.ToList();
-                        }
-                        if (endingFace != null)
-                        {
-                            if (endFaceName != null) namedItems[endFaceName] = endingFace; // there should only be one
-                            if (endEdgesName != null) namedItems[endEdgesName] = endingFace.AllEdges.ToList();
-                        }
-                    }
+            IGeoObject sweptSolid = Make3D.MakePipe(toSweep, p, null);
+            // A failed sweep used to leave the workspace unchanged and still report success, so the client only
+            // noticed when the name turned out to be missing several calls later. Make3D.MakePipe returns null
+            // whenever it could not build a face for one of the path segments - today that is every segment which
+            // is neither a straight line nor a circular arc.
+            if (!(sweptSolid is Solid sld))
+                throw new JsonRpcException("E_OPERATION_FAILED", "Could not sweep the profile along the path. "
+                    + "Sweeping is implemented for paths built from straight lines and circular arcs; a segment of "
+                    + "any other kind produces no face, and the sweep ends up empty.");
+
+            if (name != null) namedItems[name] = sld;
+            if (capture.ValueKind != JsonValueKind.Undefined)
+            {
+                string? startEdgesName = GetOptionalString(capture, "startEdges");
+                string? endEdgesName = GetOptionalString(capture, "endEdges");
+                string? startFaceName = GetOptionalString(capture, "startFace");
+                string? endFaceName = GetOptionalString(capture, "endFace");
+
+                Face endFace = (toSweep.Clone() as Face)!;
+                endFace.Modify(ModOp.Fit(p.StartPoint, [p.StartDirection], p.EndPoint, [p.EndDirection]));
+                Face? startingFace = sld.Shell.FindSimilarFace(toSweep);
+                Face? endingFace = sld.Shell.FindSimilarFace(endFace);
+                if (startingFace != null)
+                {
+                    if (startFaceName != null) namedItems[startFaceName] = startingFace; // there should only be one
+                    if (startEdgesName != null) namedItems[startEdgesName] = startingFace.AllEdges.ToList();
+                }
+                if (endingFace != null)
+                {
+                    if (endFaceName != null) namedItems[endFaceName] = endingFace; // there should only be one
+                    if (endEdgesName != null) namedItems[endEdgesName] = endingFace.AllEdges.ToList();
                 }
             }
         }

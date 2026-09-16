@@ -249,7 +249,7 @@ namespace CADability.GeoObject
             fillet1.Surface.Intersect(thirdEdge.Curve3D, fillet1.Domain, out GeoPoint[] ips1, out GeoPoint2D[] uvs1, out double[] uOnCurve1);
             fillet2.Surface.Intersect(thirdEdge.Curve3D, fillet2.Domain, out GeoPoint[] ips2, out GeoPoint2D[] uvs2, out double[] uOnCurve2);
             if (ips1 == null || ips2 == null || ips1.Length != 1 || ips2.Length != 1) return null; // no intersection found, should not happen
-            ISurface aroundThirdEdge = SweptCircle.MakePipeSurface(thirdEdge.Curve3D, radius, -(fillet1.Surface.GetNormal(uvs1[0]).Normalized + fillet2.Surface.GetNormal(uvs2[0]).Normalized));
+            ISurface aroundThirdEdge = SweptCircleSurface.MakePipeSurface(thirdEdge.Curve3D, radius, -(fillet1.Surface.GetNormal(uvs1[0]).Normalized + fillet2.Surface.GetNormal(uvs2[0]).Normalized));
             BoundingRect aroundThirdEdgeDomain;
             if ((aroundThirdEdge as ISurfaceOfExtrusion)!.ExtrusionDirectionIsV) aroundThirdEdgeDomain = new BoundingRect(0, 0, 2 * Math.PI, 1);
             else aroundThirdEdgeDomain = new BoundingRect(0, 0, 1, 2 * Math.PI);
@@ -298,7 +298,7 @@ namespace CADability.GeoObject
                 }
                 if (toroidalSpine != null)
                 {
-                    ISurface connectingToroid = SweptCircle.MakePipeSurface(toroidalSpine, radius, commonFace.Surface.GetNormal(commonFace.Surface.PositionOf(vtx.Position)));
+                    ISurface connectingToroid = SweptCircleSurface.MakePipeSurface(toroidalSpine, radius, commonFace.Surface.GetNormal(commonFace.Surface.PositionOf(vtx.Position)));
                     Face dbgpatch = Face.MakeFace(connectingToroid, new BoundingRect(0, -Math.PI / 2, 1, Math.PI / 2));
                     return null;
                     PlaneSurface pln1 = new PlaneSurface(new Plane(toroidalSpine.StartPoint, -toroidalSpine.StartDirection));
@@ -485,10 +485,10 @@ namespace CADability.GeoObject
         private Shell? MakeFilletShell(Edge edgeToRound, double radius, bool convex)
         {
             /* Zum Weitermachen:
-             * Die Spine Kurve für die SweptCircle Fläche entsteht natürlich aus dem Schnitt der beiden Offset Flächen.
+             * Die Spine Kurve für die SweptCircleSurface Fläche entsteht natürlich aus dem Schnitt der beiden Offset Flächen.
              * Aber wie lang soll die werden?
              * Die erste Idee, die Ebenen senkrecht zur "leadingEdge" an den beiden Enden ist keine gute Begrenzung
-             * vor allem, weil der Kreis von SweptCircle i.A. nicht in den Ebenen liegt. Besser wäre es, die Spine Kurve
+             * vor allem, weil der Kreis von SweptCircleSurface i.A. nicht in den Ebenen liegt. Besser wäre es, die Spine Kurve
              * möglichst lang zu machen und ihre senkrecht Projektion auf die beiden Flächen mit den Face Grenzen clippen.
              * Wie aber Anfang und Ende der Spine Kurve finden? Mir scheint es da keine einfache geometrische Lösung zu geben.
              * Man könnte die senkrechten Ebenen am Anfang und Ende versuchsweise um "radius" nach außen schieben,
@@ -573,7 +573,7 @@ namespace CADability.GeoObject
             dbgr = filletAxisCurve.Curve3D.EndDirection.Normalized * rightPlane.Plane.Normal;
 #endif
             ISurface sweptCircle;
-            sweptCircle = SweptCircle.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
+            sweptCircle = SweptCircleSurface.MakePipeSurface(filletAxisCurve.Curve3D, radius, filletAxisCurve.Curve3D.PointAt(0.5) - leadingEdge.PointAt(0.5));
             ISurfaceOfExtrusion? sweptCircleExtrusion = sweptCircle as ISurfaceOfExtrusion;
             if (sweptCircleExtrusion == null) return null; // sweptCircle must always be a ISurfaceOfExtrusion. this is to satisfy the compiler
 
@@ -674,8 +674,8 @@ namespace CADability.GeoObject
             }
 
             ICurve? topCurve = null;
-            if (sweptCircle is SweptCircle sc)
-            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircle surfaces
+            if (sweptCircle is SweptCircleSurface sc)
+            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircleSurface surfaces
                 List<double> spos = [.. sc.Spine.GetSavePositions()];
                 GapInserter.FillLargestGaps(spos, 9);
                 GeoPoint[] pnts = new GeoPoint[spos.Count];
@@ -695,8 +695,8 @@ namespace CADability.GeoObject
             TrimCurve(topCurve, lt, rt); // with exactely half arcs thies reverses the arc whereas "Trimm" yields the other half
 
             ICurve? bottomCurve = null;
-            if (sweptCircle is SweptCircle scb)
-            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircle surfaces
+            if (sweptCircle is SweptCircleSurface scb)
+            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircleSurface surfaces
                 List<double> spos = [.. scb.Spine.GetSavePositions()];
                 GapInserter.FillLargestGaps(spos, 9);
                 GeoPoint[] pnts = new GeoPoint[spos.Count];
