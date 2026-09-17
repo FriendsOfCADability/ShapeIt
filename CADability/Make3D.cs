@@ -950,7 +950,13 @@ namespace CADability.GeoObject
             return new RuledSurface(curve1, curve2);
         }
 
-        public static IGeoObject MakePipe(IGeoObject faceShellOrPath, Path along, Project project)
+        /// <summary>
+        /// Sweeps a face, a shell or a closed path along <paramref name="along"/>.
+        /// </summary>
+        /// <param name="orientation">whether the profile follows the path, turning with it, or keeps the
+        /// orientation it starts with and is only translated. On a straight path the two are the same.</param>
+        public static IGeoObject MakePipe(IGeoObject faceShellOrPath, Path along, Project project,
+                                          SweepOrientation orientation = SweepOrientation.Follow)
         {
             if (faceShellOrPath is Path)
             {
@@ -990,7 +996,21 @@ namespace CADability.GeoObject
                     fc.SplitSingleOutlines(); // no single closed edge in outlines or holes
                 }
                 Edge[] openEdges = shell.OpenEdges;
-                ICurve[] alongParts = along.Curves;
+                // A closed path is fine, a closed CURVE inside it is not: the face swept from it would meet
+                // itself at v = 0 = 1 and need a seam, and its boundary would come out as one closed edge,
+                // which SplitSingleOutlines above exists to prevent. Such a curve is split, the same way the
+                // single closed profile curve is split further up.
+                // Asked geometrically and NOT through ICurve.IsClosed: for a BSpline that property returns the
+                // "periodic" flag, and the clamped nine pole circle - poles repeating, so as closed as a curve
+                // gets - answers false to it.
+                List<ICurve> alongPartList = new List<ICurve>();
+                foreach (ICurve alongPart in along.Curves)
+                {
+                    if (Precision.IsEqual(alongPart.StartPoint, alongPart.EndPoint))
+                        alongPartList.AddRange(alongPart.Split(0.5));
+                    else alongPartList.Add(alongPart);
+                }
+                ICurve[] alongParts = alongPartList.ToArray();
                 // assume the path is smooth, no sharp bends
                 // with sharp bends we must split the path at these points, make partial pipes and unite them all.
                 // plus add "wedges" at the sharp bends
@@ -1035,7 +1055,12 @@ namespace CADability.GeoObject
                             normal = SweptCircleSurface.FindSweepNormal(along, values); // if normal==null, we should use the Frenet frame
                             if (normal.IsNullVector()) throw new NotImplementedException("not implemented: pipe along a curve which is not planar or linear");
                         }
-                        ModOp m = ModOp.Fit(along.PointAt(pos), [dir, normal, dir ^ normal], along.StartPoint, [along.StartDirection.Normalized, normal, along.StartDirection.Normalized ^ normal]);
+                        // "Fixed" means the profile never changes its orientation in space, so moving it to
+                        // the start of the path may only translate it - turning it here would be the one
+                        // rotation that law is meant to rule out.
+                        ModOp m = orientation == SweepOrientation.Fixed
+                            ? ModOp.Translate(along.StartPoint - along.PointAt(pos))
+                            : ModOp.Fit(along.PointAt(pos), [dir, normal, dir ^ normal], along.StartPoint, [along.StartDirection.Normalized, normal, along.StartDirection.Normalized ^ normal]);
                         shell.Modify(m);
                     }
                 }
@@ -1043,29 +1068,15 @@ namespace CADability.GeoObject
                 {
                     for (int j = 0; j < openEdges.Length; j++)
                     {
-                        Face fc = ExtrudeCurveToFace(openEdges[j].Curve3D.CloneModified(fromStartToEnd), alongParts[i]);
+                        Face fc = ExtrudeCurveToFace(openEdges[j].Curve3D.CloneModified(fromStartToEnd), alongParts[i], orientation);
                         if (fc != null) pipeFaces.Add(fc);
                     }
-                    ModOp m;
-                    if (Precision.SameNotOppositeDirection(alongParts[i].StartDirection.Normalized, alongParts[i].EndDirection.Normalized))
-                    {
-                        // simple move 
-                        m = ModOp.Translate(alongParts[i].EndPoint - alongParts[i].StartPoint);
-                    }
-                    else
-                    {
-                        GeoVector normal = alongParts[i].StartDirection ^ alongParts[i].EndDirection;
-                        if (Precision.IsNullVector(normal))
-                        {
-                            if (alongParts[i].GetPlanarState() == PlanarState.Planar)
-                            {
-                                normal = alongParts[i].GetPlane().Normal;
-                            }
-                        }
-                        normal.Norm();
-                        m = ModOp.Fit(alongParts[i].StartPoint, new GeoVector[] { alongParts[i].StartDirection.Normalized, normal, normal ^ alongParts[i].StartDirection.Normalized },
-                            alongParts[i].EndPoint, new GeoVector[] { alongParts[i].EndDirection.Normalized, normal, normal ^ alongParts[i].EndDirection.Normalized });
-                    }
+                    // Where the profile sits when the next part begins follows from the SAME law the sweep
+                    // itself uses - it has to end up exactly where the swept face of this part ended. This
+                    // used to be built from the start and end tangents with a normal of its own, which agrees
+                    // with the sweep only while the part is planar; on a spline spine the end face then did
+                    // not meet the swept ones and the faces could not be sewn into a shell.
+                    ModOp m = SweepFrame.Create(alongParts[i], orientation).Between(0.0, 1.0);
                     fromStartToEnd = m * fromStartToEnd;
                 }
                 if (!along.IsClosed || !Precision.SameDirection(along.StartDirection, along.EndDirection, false))
@@ -1095,8 +1106,14 @@ namespace CADability.GeoObject
         /// <param name="toExtrude"></param>
         /// <param name="along"></param>
         /// <returns></returns>
-        public static Face ExtrudeCurveToFace(ICurve toExtrude, ICurve along)
+        /// <param name="orientation">whether the profile turns with the path or keeps its orientation. It
+        /// makes no difference on a straight path - the tangent does not change there, so neither law rotates
+        /// anything - which is why the special cases below are only skipped for a path that bends.</param>
+        public static Face ExtrudeCurveToFace(ICurve toExtrude, ICurve along,
+                                              SweepOrientation orientation = SweepOrientation.Follow)
         {
+            if (orientation == SweepOrientation.Fixed && along.GetPlanarState() != PlanarState.UnderDetermined)
+                return SweptFace(toExtrude, along, orientation); // every special case below turns the profile
             if (along.GetPlanarState() == PlanarState.UnderDetermined) // a line or a linear spline
             {
                 if (toExtrude.GetPlanarState() == PlanarState.UnderDetermined) // also linear
@@ -1291,10 +1308,39 @@ namespace CADability.GeoObject
             }
             else
             {
-                return null; // not yet implemented for other curves
-
+                return SweptFace(toExtrude, along, orientation);
             }
-            return null; // not yet implemented for other curves
+            return SweptFace(toExtrude, along, orientation);
+        }
+
+        /// <summary>
+        /// The general case of <see cref="ExtrudeCurveToFace(ICurve, ICurve)"/>: any curve swept along any
+        /// curve, as a <see cref="SweptCurveSurface"/>. Everything above this is a special case that comes out
+        /// as a quadric or a surface of revolution instead, which is worth having - those carry their geometry
+        /// exactly and are recognized everywhere.
+        /// <para>
+        /// The face is the whole natural domain of the surface, which is the unit square: u runs along the
+        /// profile, v along the spine. The outline runs counterclockwise, so the normal of the face is
+        /// du x dv - and that is the direction of the profile crossed with the direction of the spine, which
+        /// is the orientation the other branches produce and the one SewFaces needs to build a solid whose
+        /// volume comes out positive.
+        /// </para>
+        /// </summary>
+        private static Face SweptFace(ICurve toExtrude, ICurve along,
+                                      SweepOrientation orientation = SweepOrientation.Follow)
+        {
+            if (toExtrude == null || along == null) return null;
+            SweptCurveSurface swept = new SweptCurveSurface(toExtrude.Clone(), along.Clone(), orientation);
+            ICurve2D[] outline =
+            {
+                new Line2D(new GeoPoint2D(0.0, 0.0), new GeoPoint2D(1.0, 0.0)), // the profile at the start
+                new Line2D(new GeoPoint2D(1.0, 0.0), new GeoPoint2D(1.0, 1.0)), // the path of its end point
+                new Line2D(new GeoPoint2D(1.0, 1.0), new GeoPoint2D(0.0, 1.0)), // the profile at the end
+                new Line2D(new GeoPoint2D(0.0, 1.0), new GeoPoint2D(0.0, 0.0))  // the path of its start point
+            };
+            Border bdr = Border.FromOrientedList(outline);
+            if (bdr == null) return null;
+            return Face.MakeFace(swept, new SimpleShape(bdr));
         }
 
         public static Face MakeFace(Path path, Project project)

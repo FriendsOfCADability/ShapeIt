@@ -3895,8 +3895,27 @@ namespace ShapeIt
             }
         }
 
+        /// <summary>
+        /// The "orientation" parameter of solid.sweep. "follow" turns the profile with the path so that it
+        /// stays perpendicular to it, "fixed" keeps the orientation it starts with and only translates it.
+        /// Missing means "follow", which is what the toolset declares as the default.
+        /// </summary>
+        private static SweepOrientation RequireSweepOrientation(string? orientation)
+        {
+            if (string.IsNullOrEmpty(orientation)) return SweepOrientation.Follow;
+            switch (orientation.ToLowerInvariant())
+            {
+                case "follow": return SweepOrientation.Follow;
+                case "fixed": return SweepOrientation.Fixed;
+                default:
+                    throw new JsonRpcException("E_INVALID_PARAMS",
+                        $"'orientation' must be 'follow' or 'fixed', not '{orientation}'.");
+            }
+        }
+
         private void SolidSweepImpl(JsonElement profile, JsonElement path, string? orientation, string? name, JsonElement capture)
         {
+            SweepOrientation sweepOrientation = RequireSweepOrientation(orientation);
             List<CompoundShape> profiles = GetProfiles(profile);
             List<ICurve> paths = GetSketchCurves(path);
             if (profiles.Count != 1) throw new JsonRpcException("E_INVALID_PARAMS", "There must be exactely one profile.");
@@ -3914,7 +3933,7 @@ namespace ShapeIt
             if (p == null || p.CurveCount == 0)
                 throw new JsonRpcException("E_INVALID_PARAMS", "The path must be a curve or a polycurve.");
 
-            IGeoObject sweptSolid = Make3D.MakePipe(toSweep, p, null);
+            IGeoObject sweptSolid = Make3D.MakePipe(toSweep, p, null, sweepOrientation);
             // A failed sweep used to leave the workspace unchanged and still report success, so the client only
             // noticed when the name turned out to be missing several calls later. Make3D.MakePipe returns null
             // whenever it could not build a face for one of the path segments - today that is every segment which
@@ -3932,8 +3951,13 @@ namespace ShapeIt
                 string? startFaceName = GetOptionalString(capture, "startFace");
                 string? endFaceName = GetOptionalString(capture, "endFace");
 
+                // Where the end face sits follows the same law as the sweep: turned with the path for
+                // "follow", only carried along for "fixed". Fitting the directions in the fixed case would
+                // look for the end face in a place the sweep never put one.
                 Face endFace = (toSweep.Clone() as Face)!;
-                endFace.Modify(ModOp.Fit(p.StartPoint, [p.StartDirection], p.EndPoint, [p.EndDirection]));
+                endFace.Modify(sweepOrientation == SweepOrientation.Fixed
+                    ? ModOp.Translate(p.EndPoint - p.StartPoint)
+                    : ModOp.Fit(p.StartPoint, [p.StartDirection], p.EndPoint, [p.EndDirection]));
                 Face? startingFace = sld.Shell.FindSimilarFace(toSweep);
                 Face? endingFace = sld.Shell.FindSimilarFace(endFace);
                 if (startingFace != null)

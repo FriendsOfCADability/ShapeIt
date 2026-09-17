@@ -157,16 +157,44 @@ namespace CADability.GeoObject
         public override ICurve FixedV(double v, double umin, double umax)
         {
             ICurve res = toSweep.CloneModified(frame.Between(0.0, v));
-            if (umin > umax)
+            bool reversed = umin > umax;
+            if (reversed)
             {
-                res.Trim(umax, umin);
-                res.Reverse();
+                double swap = umin;
+                umin = umax;
+                umax = swap;
             }
-            else res.Trim(umin, umax);
+            // The range has to be brought into the natural domain, and that is not a formality: the
+            // ParallelepipedHull asks for patches a little OUTSIDE it - measured 0.5 % past both ends - while
+            // the profile only exists between 0 and 1. Handing such a range on is what ICurve.Trim cannot
+            // take: it clamps its END to 1 and leaves the start where it was, so Trim(1, 1.005) turns into
+            // Trim(1, 1), falls into the "wraps over the end" branch and asks for a second piece that a split
+            // at the very end does not produce.
+            umin = Math.Max(0.0, Math.Min(1.0, umin));
+            umax = Math.Max(0.0, Math.Min(1.0, umax));
+            if (umax - umin < Precision.eps)
+            {   // an empty range, which only gets here from outside the domain. The smallest piece the curve
+                // can represent at that end is a better answer than the whole profile.
+                umin = Math.Max(0.0, Math.Min(1.0 - Precision.eps, umin));
+                umax = umin + Precision.eps;
+            }
+            // Trimming to the whole range is pointless and, through the same branch, not harmless either.
+            if (umin > 0.0 || umax < 1.0) res.Trim(umin, umax);
+            if (reversed) res.Reverse();
             return res;
         }
 
-        public override ICurve FixedU(double u, double vmin, double vmax) => new FixedUCurve(this, u, vmin, vmax);
+        /// <summary>
+        /// The path one point of the profile takes along the spine. It is built on a COPY of this surface, and
+        /// that is not an optimization to regret: the curve reads the surface it was made from, and
+        /// <see cref="Modify"/> and <see cref="ReverseOrientation"/> change a surface in place. A curve that
+        /// held the original would silently move when either of those is called - and they are, after the
+        /// curve has long become an edge of a face. Measured before the copy was introduced: reversing the
+        /// surface moved the already built edges by the extent of the profile, which left a shell whose edges
+        /// no longer met their own vertices.
+        /// </summary>
+        public override ICurve FixedU(double u, double vmin, double vmax)
+            => new FixedUCurve((SweptCurveSurface)Clone(), u, vmin, vmax);
 
         public override ISurface Clone()
         {
@@ -282,9 +310,14 @@ namespace CADability.GeoObject
         {
             if (curve2d is Line2D line2d)
             {
-                if (Math.Abs(line2d.StartPoint.y - line2d.EndPoint.y) < Precision.eps)
+                double du = Math.Abs(line2d.StartPoint.x - line2d.EndPoint.x);
+                double dv = Math.Abs(line2d.StartPoint.y - line2d.EndPoint.y);
+                // Both shortcuts need the line to actually go somewhere. A 2d line that is degenerate in both
+                // directions is a point, and asking either of them for it would mean trimming a curve to an
+                // empty range - the general route below copes with it, these two do not.
+                if (dv < Precision.eps && du > Precision.eps)
                     return FixedV(line2d.StartPoint.y, line2d.StartPoint.x, line2d.EndPoint.x);
-                if (Math.Abs(line2d.StartPoint.x - line2d.EndPoint.x) < Precision.eps)
+                if (du < Precision.eps && dv > Precision.eps)
                     return FixedU(line2d.StartPoint.x, line2d.StartPoint.y, line2d.EndPoint.y);
             }
             if (curve2d is ProjectedCurve projected && projected.Surface is SweptCurveSurface)

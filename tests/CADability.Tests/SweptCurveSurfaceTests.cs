@@ -2,6 +2,7 @@ using CADability;
 using CADability.GeoObject;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace CADability.Tests
 {
@@ -282,6 +283,29 @@ namespace CADability.Tests
                 Assert.IsTrue((following.PointAt(uv) | fixedFrame.PointAt(uv)) < 1e-9,
                     $"at v = 0 both laws have to place the profile identically, they differ at {uv}");
             }
+        }
+
+        [TestMethod]
+        public void a_fixed_u_curve_does_not_move_when_the_surface_is_changed_afterwards()
+        {
+            // ISurfaceImpl lets a surface be changed in place, and by the time that happens the curves it
+            // produced have long become edges of a face. A curve that read the surface it came from would move
+            // with it: measured before FixedU started copying the surface, ReverseOrientation displaced the
+            // already built edges by the extent of the profile, and the resulting shell had edges that no
+            // longer met their own vertices - which is exactly what Face.CheckConsistency looks for.
+            SweptCurveSurface surface = AwkwardSweep();
+            ICurve fixedU = surface.FixedU(0.3, 0.0, 1.0);
+            GeoPoint[] before = Enumerable.Range(0, 5).Select(i => fixedU.PointAt(i / 4.0)).ToArray();
+
+            surface.ReverseOrientation();
+            for (int i = 0; i < before.Length; i++)
+                Assert.IsTrue((fixedU.PointAt(i / 4.0) | before[i]) < 1e-12,
+                    $"ReverseOrientation moved the curve at {i / 4.0}");
+
+            surface.Modify(ModOp.Translate(new GeoVector(100.0, 0.0, 0.0)));
+            for (int i = 0; i < before.Length; i++)
+                Assert.IsTrue((fixedU.PointAt(i / 4.0) | before[i]) < 1e-12,
+                    $"Modify moved the curve at {i / 4.0}");
         }
 
         // -------------------------------------------------------------------- copying and serialization --
