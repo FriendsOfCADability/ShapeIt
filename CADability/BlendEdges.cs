@@ -88,7 +88,10 @@ namespace CADability.GeoObject
             Shell cutter = edgeToCutter[edge];
             Face? endFace = cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
             if (endFace == null) return [cutter]; // should not happen
-            Edge freeEdge = endFace.AllEdges.First(e => !Precision.IsEqual(e.Vertex1.Position,vtx.Position) && !Precision.IsEqual(e.Vertex2.Position, vtx.Position)); // the chamfer or rounding edge
+            Edge freeEdge = endFace.AllEdges
+                .Where(e => !Precision.IsEqual(e.Vertex1.Position, vtx.Position) && !Precision.IsEqual(e.Vertex2.Position, vtx.Position))
+                .MinBy(e => -new Angle(e.Curve3D.StartPoint-vtx.Position, e.Curve3D.EndPoint-vtx.Position).Radian);
+            // the chamfer or rounding edge, the one with the widest opening angle to the vertex (and not coinciding with the vertex)
             if (freeEdge == null) return [cutter]; // should not happen
 
             HashSet<Face> endingFaces = []; // faces on the shell to be rounded where the edge ends
