@@ -2,6 +2,7 @@ using CADability;
 using CADability.Actions;
 using CADability.GeoObject;
 using CADability.Substitutes;
+using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
 using static CADability.Actions.ConstructAction;
@@ -150,6 +151,7 @@ namespace ShapeIt
             feedback.Attach(CurrentMouseView);
 
             base.OnSetAction();
+            axisLineInput.SetContextMenu("MenuId.Axis", new AxisLineContextMenuHandler(this));
 
             Recalc();
         }
@@ -388,6 +390,72 @@ namespace ShapeIt
         {
             feedback.Detach();
             base.OnRemoveAction();
+        }
+
+        private class AxisLineContextMenuHandler : ICommandHandler
+        {
+            private RotateObjectsAction action;
+
+            public AxisLineContextMenuHandler(RotateObjectsAction action)
+            {
+                this.action = action;
+            }
+
+            public bool OnCommand(string menuId)
+            {
+                switch (menuId)
+                {
+
+                    case "MenuId.XAxis":
+                        action.axisPoint = GeoPoint.Origin;
+                        action.axisVector = GeoVector.XAxis;
+                        action.axisVectorInput.Optional = true;
+                        action.axisLineInput.Fixed = true;
+                        return true;
+
+                    case "MenuId.YAxis":
+                        action.axisPoint = GeoPoint.Origin;
+                        action.axisVector = GeoVector.YAxis;
+                        action.axisVectorInput.Optional = true;
+                        action.axisLineInput.Fixed = true;
+                        return true;
+
+                    case "MenuId.ZAxis":
+                        action.axisPoint = GeoPoint.Origin;
+                        action.axisVector = GeoVector.ZAxis;
+                        action.axisVectorInput.Optional = true;
+                        action.axisLineInput.Fixed = true;
+                        return true;
+                }
+                return false;
+            }
+
+            public void OnSelected(MenuWithHandler selectedMenu, bool selected)
+            {
+            }
+
+            public bool OnUpdateCommand(string menuId, CommandState commandState)
+            {
+                switch (menuId)
+                {
+
+                    case "MenuId.XAxis":
+                        commandState.Enabled = true;
+                        commandState.Checked = Precision.SameDirection(action.axisVector,GeoVector.XAxis, false);
+                        return true;
+
+                    case "MenuId.YAxis":
+                        commandState.Enabled = true;
+                        commandState.Checked = Precision.SameDirection(action.axisVector,GeoVector.YAxis, false);
+                        return true;
+
+                    case "MenuId.ZAxis":
+                        commandState.Enabled = true;
+                        commandState.Checked = Precision.SameDirection(action.axisVector,GeoVector.ZAxis, false);
+                        return true;
+                }
+                return false;
+            }
         }
     }
 }
