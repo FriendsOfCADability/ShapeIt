@@ -374,8 +374,7 @@ namespace CADability.GeoObject
         /// The path one point of the profile takes along the spine. Its direction comes from the frame, so it
         /// is exact rather than approximated.
         /// </summary>
-        [Serializable]
-        public class FixedUCurve : GeneralCurve, ISerializable
+        public class FixedUCurve : GeneralCurve, IJsonSerialize
         {
             private SweptCurveSurface parent;
             private double u;
@@ -443,21 +442,27 @@ namespace CADability.GeoObject
                 return StepsAlong(parent.along, 0.0, 1.0);
             }
 
-            protected FixedUCurve(SerializationInfo info, StreamingContext context) : base(info, context)
+            // ---------------------------------------------------------------------------- serialization --
+            // Only IJsonSerialize: the base class already implements IJsonSerialize (via IGeoObjectImpl), so
+            // JsonSerialize takes that route for this type and never looks at ISerializable. That route needs
+            // a parameterless constructor, which is why the old ISerializable implementation was unusable.
+
+            protected FixedUCurve() { } // for IJsonSerialize
+
+            public void GetObjectData(IJsonWriteData data)
             {
-                parent = (SweptCurveSurface)info.GetValue("Parent", typeof(SweptCurveSurface));
-                u = (double)info.GetValue("U", typeof(double));
-                vmin = (double)info.GetValue("Vmin", typeof(double));
-                vmax = (double)info.GetValue("Vmax", typeof(double));
+                data.AddProperty("Parent", parent);
+                data.AddProperty("U", u);
+                data.AddProperty("Vmin", vmin);
+                data.AddProperty("Vmax", vmax);
             }
 
-            void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
+            public void SetObjectData(IJsonReadData data)
             {
-                base.GetObjectData(info, context);
-                info.AddValue("Parent", parent, parent.GetType());
-                info.AddValue("U", u, typeof(double));
-                info.AddValue("Vmin", vmin, typeof(double));
-                info.AddValue("Vmax", vmax, typeof(double));
+                parent = data.GetProperty<SweptCurveSurface>("Parent");
+                u = data.GetProperty<double>("U");
+                vmin = data.GetProperty<double>("Vmin");
+                vmax = data.GetProperty<double>("Vmax");
             }
         }
 

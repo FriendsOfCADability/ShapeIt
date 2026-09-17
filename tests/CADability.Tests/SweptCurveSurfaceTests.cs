@@ -317,6 +317,32 @@ namespace CADability.Tests
         }
 
         [TestMethod]
+        public void the_fixed_u_curve_survives_a_json_round_trip()
+        {
+            // FixedUCurve is written on its own whenever it has become an edge of a face, so it has to come
+            // back from a file by itself - together with the surface it reads its points from.
+            SweptCurveSurface surface = AwkwardSweep();
+            ICurve curve = surface.FixedU(0.3, 0.2, 0.8);
+            Assert.IsInstanceOfType(curve, typeof(SweptCurveSurface.FixedUCurve),
+                "the test needs the curve class itself, not something FixedU simplified into");
+
+            object read = JsonSerialize.FromString(JsonSerialize.ToString(curve));
+            Assert.IsInstanceOfType(read, typeof(SweptCurveSurface.FixedUCurve),
+                "reading has to produce the curve again. A JsonProxyType or an exception here means the "
+                + "class is being serialized through a route it cannot be read back from.");
+
+            ICurve restored = (ICurve)read;
+            for (int i = 0; i <= 8; i++)
+            {
+                double position = i / 8.0;
+                Assert.IsTrue((restored.PointAt(position) | curve.PointAt(position)) < 1e-9,
+                    $"the curve differs at {position} after the round trip");
+                AssertSameVector($"direction at {position}", curve.DirectionAt(position),
+                                 restored.DirectionAt(position), 1e-9);
+            }
+        }
+
+        [TestMethod]
         public void reverse_orientation_turns_the_normal_round_and_relabels_u()
         {
             SweptCurveSurface surface = AwkwardSweep();
