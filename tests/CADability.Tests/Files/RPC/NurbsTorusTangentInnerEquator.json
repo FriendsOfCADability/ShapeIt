@@ -1,0 +1,479 @@
+{
+  "Description": "A rod standing in the hole of a torus, exactly as wide as the hole: the two surfaces touch along a WHOLE\nCIRCLE and nowhere else. Of the three kinds of tangential contact this is the one that is not a point -\nSurfaces.ContactType calls it Degenerate - and it is the hardest to get right, because the two surfaces\nosculate along the contact and the intersection curve is not a curve of transversal crossing anywhere.\n\n  nurbsTorus  R = 18, r = 8 about the z axis, so its inner equator is the circle rho = 10, z = 0.\n              solid.sweep of an exact NURBS circle along an exact NURBS circle, so the mantle is a\n              SweptCurveSurface, not a ToroidalSurface.\n  nurbsRod    r = 10 about the z axis, z from -20 to 20. solid.extrude of an exact NURBS circle, so the\n              mantle is a SurfaceOfLinearExtrusion, not a CylindricalSurface.\n\nThe rod's mantle rho = 10 and the torus' inner equator rho = 10, z = 0 meet in that whole circle, and\nthere the two surfaces have the same tangent plane - the torus' normal at the inner equator is radial\nand horizontal, which is the rod's normal as well. The rod deliberately reaches from z = -20 to z = 20,\nfar past the tube's |z| <= 8, so the contact circle lies in the INTERIOR of the rod's mantle and is not\nmixed up with a cap.\n\nThe two solids therefore have disjoint interiors and touch along a curve. That makes three of the four\noperations trivial in substance and hard in execution, which is the point: a boolean operation that does\nnot recognize the contact will either lose the touching circle or invent an intersection body from it.",
+  "Expected": "Two closed solids, and results that are pinned exactly because the interiors are disjoint.\n\n  nurbsTorus  V = 2*pi^2*R*r^2 = 2*pi^2*18*64 = 22739.5685401099\n              A = 4*pi^2*R*r = 4*pi^2*144 = 5684.8921350275\n              extent -26, -26, -8 .. 26, 26, 8, no cap at all - the path closes\n  nurbsRod    V = pi*10^2*40 = 12566.3706143592\n              A = 2*pi*10*40 + 2*pi*100 = 3141.5926535898\n              extent -10, -10, -20 .. 10, 10, 20\n\n  torusRodInter   EMPTY. The interiors are disjoint - the whole tube has rho >= 10 and the rod has\n                  rho <= 10 - so the intersection is the contact circle, which has no volume. The\n                  operation must report an empty result and store nothing under the name, recorded as\n                  { \"exists\": \"false\" }. Returning a body here, of any size, is the failure this case\n                  is watching for.\n  torusRodUnion   V = 22739.5685401099 + 12566.3706143592 = 35305.9391544691\n                  A = 5684.8921350275 + 3141.5926535898 = 8826.4847886173\n                  extent -26, -26, -20 .. 26, 26, 20\n                  The two bodies meet only along a circle, so the union is NOT a manifold solid. Whether\n                  the operation answers with one non manifold solid or with the two operands side by\n                  side is its own decision; what is binding is that no material is added or lost.\n  torusMinusRod   the torus, unchanged: V = 22739.5685401099, A = 5684.8921350275\n  rodMinusTorus   the rod, unchanged:   V = 12566.3706143592, A = 3141.5926535898\n\nBoth differences have to come back with the operand's own numbers to the last digit. A difference that\nsubtracts anything at all has misread the tangential contact as an overlap, and one that returns nothing\nhas misread it as containment - the two failure modes this arrangement separates.\n\nWHY THESE RADII AND NOT OTHERS. A planar face whose outline is a rational NURBS circle is measured\nthrough Border.Area -> BSpline2D.GetArea -> GeneralCurve2D.GetArea -> Approximate(false, 0.0), and for\nmost radii that biarc approximation degenerates into four straight lines, so the lid measures 2*r*r\ninstead of pi*r*r - the defect RuledSolidsFromNurbsCircles documents and pins. Measured over a range of\nradii it turns out NOT to be a simple threshold: the lid is exact for r = 9.5, 10, 11, 12, 15, 16, 18\nand 19 and short by the factor 2/pi for r = 2.5, 4, 5, 6, 8, 9, 13, 14, 17, 20, 22 and 25. Every radius\nin this case is taken from the first list, so every number below is the geometry and not a measurement\nartefact. Change a radius and the case may start measuring a lid at 2/pi of its area, which looks like a\nregression of the boolean operation and is none.",
+  "Status": "KNOWN FAILURE since the case was written on 2026-09-17. ALL FOUR operations throw:\n  torusRodUnion   \"Error in the application.\"                                   (call id 11)\n  torusRodInter   \"Constructing Polyline2D with less than two points\"           (call id 12)\n  torusMinusRod   the same                                                      (call id 13)\n  rodMinusTorus   \"Error in the application.\"                                   (call id 14)\nso nothing is stored under any of the four names and the baseline records four empty results.\n\nThis is the tangential case whose contact is not a point but a WHOLE CIRCLE - the rod's mantle and the\ntorus' inner equator coincide - which Surfaces.ContactType calls Degenerate. Switching the general\nsearch in Surfaces.TangentialContacts off changes nothing here: the four calls fail with the same four\nmessages. So whatever breaks is downstream of the contact detection, unlike NurbsCylindersTangentAtSeam\nwhere the general search fixed the intersection.\n\nThe two operands are correct and are recorded as such, so the case pins the input as well as the\nfailure. When the operations start returning, the expectations are unusually sharp because the interiors\nare disjoint: the intersection has to stay EMPTY, both differences have to give the operand back\nunchanged to the last digit, and the union has to have exactly the sum of the two volumes.",
+  "CaseStatus": "KnownFail",
+  "Repeat": 3,
+  "ExpectError": [
+    {
+      "id": 11,
+      "code": "Error in the application"
+    },
+    {
+      "id": 12,
+      "code": "Polyline2D"
+    },
+    {
+      "id": 13,
+      "code": "Polyline2D"
+    },
+    {
+      "id": 14,
+      "code": "Error in the application"
+    }
+  ],
+  "Verify": [
+    "nurbsTorus",
+    "nurbsRod",
+    "torusRodUnion",
+    "torusRodInter",
+    "torusMinusRod",
+    "rodMinusTorus"
+  ],
+  "Baseline": {
+    "nurbsRod": {
+      "verified": "2026-09-17 GH: volume 12566.3705834 against 12566.3706144, 2.5e-09. the operand is correct.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleVertices": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "12566.3705834",
+      "area": "3141.5926443",
+      "edgeLength": "193.13708499",
+      "extent": "-10, -10, -20, 10, 10, 20",
+      "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2"
+    },
+    "nurbsTorus": {
+      "verified": "2026-09-17 GH: volume 22739.5684875 against 22739.5685401, 2.3e-09. the operand is correct: four SweptCurveSurface faces, no lid, area 5684.89212186 against the exact 4*pi^2*R*r = 5684.8921350275.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "8",
+      "poleVertices": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "22739.5684875",
+      "area": "5684.89212186",
+      "edgeLength": "316.989109996",
+      "extent": "-26, -26, -8, 26, 26, 8",
+      "surfaces": "SweptCurveSurface:4"
+    },
+    "rodMinusTorus": {
+      "exists": "false"
+    },
+    "torusMinusRod": {
+      "exists": "false"
+    },
+    "torusRodInter": {
+      "exists": "false"
+    },
+    "torusRodUnion": {
+      "exists": "false"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "torusPath",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "torusPath"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            18,
+            0
+          ],
+          [
+            18,
+            18
+          ],
+          [
+            0,
+            18
+          ],
+          [
+            -18,
+            18
+          ],
+          [
+            -18,
+            0
+          ],
+          [
+            -18,
+            -18
+          ],
+          [
+            0,
+            -18
+          ],
+          [
+            18,
+            -18
+          ],
+          [
+            18,
+            0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "torusMajorCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "sketch.create",
+      "params": {
+        "name": "torusProfile",
+        "plane": {
+          "origin": [
+            18,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "torusProfile"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            8,
+            0
+          ],
+          [
+            8,
+            8
+          ],
+          [
+            0,
+            8
+          ],
+          [
+            -8,
+            8
+          ],
+          [
+            -8,
+            0
+          ],
+          [
+            -8,
+            -8
+          ],
+          [
+            0,
+            -8
+          ],
+          [
+            8,
+            -8
+          ],
+          [
+            8,
+            0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "torusMinorCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.sweep",
+      "params": {
+        "name": "nurbsTorus",
+        "profile": "torusMinorCircle",
+        "path": "torusMajorCircle",
+        "orientation": "follow"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "sketch.create",
+      "params": {
+        "name": "rodBase",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            -20
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "sketch.add_nurbs",
+      "params": {
+        "sketch": {
+          "name": "rodBase"
+        },
+        "degree": 2,
+        "controlPoints": [
+          [
+            10,
+            0
+          ],
+          [
+            10,
+            10
+          ],
+          [
+            0,
+            10
+          ],
+          [
+            -10,
+            10
+          ],
+          [
+            -10,
+            0
+          ],
+          [
+            -10,
+            -10
+          ],
+          [
+            0,
+            -10
+          ],
+          [
+            10,
+            -10
+          ],
+          [
+            10,
+            0
+          ]
+        ],
+        "knots": [
+          0,
+          0,
+          0,
+          1,
+          1,
+          2,
+          2,
+          3,
+          3,
+          4,
+          4,
+          4
+        ],
+        "weights": [
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1,
+          0.7071067811865476,
+          1
+        ],
+        "isPeriodic": false,
+        "name": "rodCircle"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.extrude",
+      "params": {
+        "profile": "rodCircle",
+        "length": 40,
+        "name": "nurbsRod"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "inspect.properties",
+      "params": {
+        "target": "nurbsTorus",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 0.001
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "assert.check",
+      "params": {
+        "objects": "nurbsTorus",
+        "minCount": 1,
+        "maxCount": 1,
+        "condition": "this.Volume > 22625.870697 && this.Volume < 22785.047677",
+        "message": "the sweep of an exact circle r = 8 along an exact circle R = 18 is a torus, V = 2*pi^2*R*r^2 = 22739.5685"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "nurbsTorus",
+        "b": "nurbsRod",
+        "name": "torusRodUnion",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "nurbsTorus",
+        "b": "nurbsRod",
+        "name": "torusRodInter",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "nurbsTorus",
+        "b": "nurbsRod",
+        "name": "torusMinusRod",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "nurbsRod",
+        "b": "nurbsTorus",
+        "name": "rodMinusTorus",
+        "rebind": false
+      }
+    }
+  ]
+}
