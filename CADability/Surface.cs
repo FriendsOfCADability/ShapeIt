@@ -3345,6 +3345,10 @@ namespace CADability.GeoObject
                 }
             }
             ParallelepipedHull.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            for (int i = 0; i < ips.Length; i++)
+            {
+                if (RefineCurveIntersection(curve, ref uOnCurve3Ds[i], ref uvOnFaces[i], out GeoPoint refIp)) ips[i] = refIp;
+            }
         }
 
         private bool IsOffset(ISurface other, out double offset)
