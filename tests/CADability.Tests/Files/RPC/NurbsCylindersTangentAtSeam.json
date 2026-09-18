@@ -1,23 +1,9 @@
 {
   "Description": "The NURBS twin of EqualCylindersCrossedAtSeam: two cylinders of the SAME radius whose axes cross at a\nright angle, so that the two mantles TOUCH TANGENTIALLY at two points and the intersection curve has a\nnode at each of them. What is new here is that neither surface is a CylindricalSurface. Both bodies are\nsolid.extrude of an exact nine pole rational NURBS circle, so both mantles are SurfaceOfLinearExtrusion\nand nothing about them is known in closed form - the contact has to be FOUND, not derived.\n\n  cylZ   r = 10 about the z axis, z from -20 to 30\n  cylY   r = 10 about the y axis, y from -20 to 25\n\nBecause the radii are equal, the intersection of the two infinite mantles degenerates into TWO ELLIPSES\nlying in the planes z = y and z = -y, and those two ellipses cross at\n\n  (10, 0, 0)  and  (-10, 0, 0)\n\nAt each of them both surfaces have the same tangent plane x = +-10 and the intersection curve has a NODE\n- two branches crossing in one point. This is the degeneracy the case is about, and on these surfaces it\nis exactly the one Surfaces.TangentialContacts has to reach through its general search on ISurface: the\ncanal form is only available for the natural quadrics, and a SurfaceOfLinearExtrusion is none.\n\nThe nodes are placed on the WORST possible spot of the topology, as in the quadric case. The nine pole\ncircle starts at its first pole, so cylZ's seam is the line x = 10, y = 0 and cylY's seam is the line\nx = 10, z = 0 - both run straight through the node at (10, 0, 0). The second node at (-10, 0, 0) sits on\nthe fifth pole of both circles, which is a knot of the NURBS and therefore a span boundary but not a\nseam. So the case carries both flavours at once: a node on a face boundary and a node in the interior of\na face but on a patch boundary.\n\nThe lengths are of different and asymmetric extent for the reason EqualCylindersCrossedAtSeam gives:\nwith symmetric cylinders the halves a difference falls into are congruent, the canonical order of the\nparts of a multi solid result is then not determined, and the recorded extents flip from run to run.",
   "Expected": "Every value in this case is exact - it is the same geometry as EqualCylindersCrossedAtSeam, only built\nout of NURBS, so the two baselines can be read against each other field by field. Any difference in\nvolume, area or extent between the two cases is a defect in one of them; a difference in the number of\nfaces is not, because the two constructions partition the mantles differently.\n\n  cylZ   V = pi*100*50 = 15707.9632679490, A = 2*pi*10*50 + 2*pi*100 = 3769.9111843078,\n         extent -10, -10, -20 .. 10, 10, 30\n  cylY   V = pi*100*45 = 14137.1669411541, A = 3455.7519189488,\n         extent -10, -20, -10 .. 10, 25, 10\n\nThe intersection is the STEINMETZ SOLID of two equal cylinders, whose volume and area are known exactly:\n  crossInter   V = 16*r^3/3 = 5333.3333333333\n               A = 16*r^2   = 1600.0000000000  (no cap is reached, the body stays inside |y|,|z| <= 10)\n               extent -10, -10, -10 .. 10, 10, 10\nIt is a single solid bounded by cylindrical faces meeting at the two nodes, with no planar face.\n\nFrom that everything else follows exactly:\n  crossUnion     15707.9632679490 + 14137.1669411541 - 5333.3333333333 = 24511.7968757698\n  crossZminusY   15707.9632679490 - 5333.3333333333 = 10374.6299346157\n  crossYminusZ   14137.1669411541 - 5333.3333333333 =  8803.8336078208\n\nThe SHAPE of the differences is the interesting part, and it is where a mishandled node shows up first.\nIn the plane z = 0 the cross section of cylZ is the full disc of radius 10 and cylY removes all of it,\nso crossZminusY falls apart into a lower and an upper half connected ONLY through the two node points\n(10, 0, 0) and (-10, 0, 0):\n  pi*100*20 - 5333.3333333333/2 = 3616.5186405129  and  pi*100*30 - 2666.6666666667 = 6758.1112941027\nand likewise crossYminusZ, split in the plane y = 0 into\n  3616.5186405129  and  pi*100*25 - 2666.6666666667 = 5187.3149673078\nWhat must NOT happen is that a half is dropped, that two halves are welded into a manifold body, or that\nthe operation returns nothing at all.\n\nWHY THESE RADII AND NOT OTHERS. A planar face whose outline is a rational NURBS circle is measured\nthrough Border.Area -> BSpline2D.GetArea -> GeneralCurve2D.GetArea -> Approximate(false, 0.0), and for\nmost radii that biarc approximation degenerates into four straight lines, so the lid measures 2*r*r\ninstead of pi*r*r - the defect RuledSolidsFromNurbsCircles documents and pins. Measured over a range of\nradii it turns out NOT to be a simple threshold: the lid is exact for r = 9.5, 10, 11, 12, 15, 16, 18\nand 19 and short by the factor 2/pi for r = 2.5, 4, 5, 6, 8, 9, 13, 14, 17, 20, 22 and 25. Every radius\nin this case is taken from the first list, so every number below is the geometry and not a measurement\nartefact. Change a radius and the case may start measuring a lid at 2/pi of its area, which looks like a\nregression of the boolean operation and is none.",
-  "Status": "KNOWN FAILURE since the case was written on 2026-09-17, and it is the most informative of the three\ntangential cases because half of it already works.\n\nWHAT WORKS. crossInter is RIGHT: 5333.26424104 against the exact Steinmetz volume 16*r^3/3 =\n5333.3333333333 (1.3e-5) and area 1599.91998188 against the exact 1600 (5.0e-5), four faces meeting in\nTWO vertices - the two nodes at (+-10, 0, 0) - and no planar face, exactly as the quadric twin\nEqualCylindersCrossedAtSeam produces it. So the tangential contact on two SurfaceOfLinearExtrusion faces\nis found and used.\n\nThat is new. With the general search in Surfaces.TangentialContacts switched off, the same call returns\ncylZ ITSELF as the intersection, 15707.9632558, without reporting anything wrong - and the union returns\ncylZ as well while both differences come back empty. Four silently wrong answers. So the general search\nturned this case from wrong-and-quiet into right-where-it-answers and loud-where-it-does-not.\n\nWHAT STILL FAILS, and this is the open defect:\n  crossUnion     returns TWO SOLIDS, the two operands unchanged (15707.96 and 14137.17). It has to be\n                 one solid of 24511.7968757698. The union simply did not happen.\n  crossZminusY   Debug.Fail inside the boolean operation (call id 11)\n  crossYminusZ   the same (call id 12)\nBoth differences have to return two solids each, of 3616.5186405129 + 6758.1112941027 and\n3616.5186405129 + 5187.3149673078, joined only through the two node points.\n\nThe baseline records this WRONG result on purpose, so that a change becomes visible either way. A match\nmeans unchanged, never \"passes now\"; a difference is the interesting event. When the union and the two\ndifferences come out right, set CaseStatus to Ok, drop the ExpectError block and regenerate - the\nExpected section already carries every value to check against.\n\nCompare NurbsCylindersCrossedDifferentRadii: the identical construction with radii 10 and 12 instead of\n10 and 10, so with no contact at all, is green. The difference between the two cases is the tangency and\nnothing else.",
-  "CaseStatus": "KnownFail",
+  "Status": "OK since 2026-09-18. The case was a KNOWN FAILURE from 2026-09-17 until RefineCurveIntersection was added\nto ISurfaceImpl.Intersect (c98950cc): before that crossUnion returned the two operands unchanged and both\ndifferences died in a Debug.Fail inside the boolean operation. All four operations now produce the right\nSHAPE, which is what this case is about:\n\n  crossInter    ONE solid, four SurfaceOfLinearExtrusion faces meeting in the two nodes at (+-10, 0, 0),\n                no planar face - the Steinmetz solid, in substance identical to the crossInter of the\n                quadric twin EqualCylindersCrossedAtSeam\n  crossUnion    ONE solid, 12 faces, closed and consistent\n  crossZminusY  TWO solids, joined only through the two node points, as the Expected section demands\n  crossYminusZ  TWO solids, likewise\nNo half is dropped, nothing is welded into a manifold body and no operation returns nothing - the three\nfailure modes the Expected section names.\n\nHOW CLOSE THE NUMBERS ARE, against the exact values of the Expected section:\n  crossInter    volume 5333.32016311  against 5333.3333333333            2.5e-06\n                area   1600.01431688  against 1600                       8.9e-06\n  crossUnion    volume 24515.9686461  against 24511.7968757698           1.7e-04\n  crossZminusY  6758.74444589 + 3617.09670395 against\n                6758.1112941027 + 3616.5186405129                        1.2e-04 on the sum\n  crossYminusZ  5187.94549362 + 3617.12135006 against\n                5187.3149673078 + 3616.5186405129                        1.4e-04 on the sum\nThe operands themselves are good to 2.5e-09, so the ~1e-04 of the three boolean results is the error of\nthe tangential construction and not of the input. The exact identity union + intersect = cylZ + cylY\nmisses by 4.16 of 29845.13, again 1.4e-04, and in the same direction: the union overshoots. Note that\ncrossInter, which was already right before the fix, is two orders of magnitude better than the three\nresults that the fix unlocked - there is still something to gain here.\n\nTHE ONE THING THAT GOT WORSE, and it is the next thing to look at in this case. crossInter reaches y and\nz only to +-9.94946412 where the Steinmetz solid reaches exactly +-10, an absolute miss of 0.0505. The\nrecorded extent used to be +-10.000000001. The two ellipses are marched, and their branches stop short of\nthe extreme point - the debug trace of the run shows branch heads at 9.9484 - so the point where the\nintersection curve reaches y = z = 10 is never hit. Volume and area barely show it because the missing\nsliver is second order; the extent shows it directly. Whether the extreme position is not searched for or\nthe marching gives up before it is open.\n\nCompare NurbsCylindersCrossedDifferentRadii: the identical construction with radii 10 and 12 instead of\n10 and 10, so with no contact at all, is green. The difference between the two cases is the tangency and\nnothing else.",
+  "CaseStatus": "Ok",
   "Repeat": 3,
-  "ExpectError": [
-    {
-      "id": 11,
-      "code": "Debug.Fail"
-    },
-    {
-      "id": 12,
-      "code": "Debug.Fail"
-    },
-    {
-      "id": 16,
-      "code": "Assertion failed"
-    }
-  ],
   "Verify": [
     "cylZ",
     "cylY",
@@ -28,7 +14,7 @@
   ],
   "Baseline": {
     "crossInter": {
-      "verified": "2026-09-17 GH: volume 5333.26424104 against 5333.33333333, 1.3e-05. the one result that is RIGHT. Area 1599.91998188 against the exact 16*r^2 = 1600 (5.0e-5), four faces, two vertices - the two nodes - and no planar face. Identical in substance to the crossInter of EqualCylindersCrossedAtSeam, which is the quadric twin of this case.",
+      "verified": "2026-09-18: volume 5333.32016311 against the exact 16*r^3/3 = 5333.3333333333, 2.5e-06, and area 1600.01431688 against the exact 16*r^2 = 1600, 8.9e-06. Four faces meeting in two vertices - the two nodes at (+-10, 0, 0) - and no planar face, as in the quadric twin EqualCylindersCrossedAtSeam. The extent is the weak spot and the open defect of this case: y and z reach only +-9.94946412 instead of +-10, see Status.",
       "consistent": "true",
       "faces": "4",
       "edges": "4",
@@ -38,52 +24,104 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "5333.26424104",
-      "area": "1599.91998188",
-      "edgeLength": "152.807646559",
-      "extent": "-10, -10.0000000012, -10.0000000001, 10, 10.0000000006, 10.0000000018",
+      "volume": "5333.32016311",
+      "area": "1600.01431688",
+      "edgeLength": "152.608351375",
+      "extent": "-10, -9.94946412899, -9.9494641271, 10, 9.9494641281, 9.94946412879",
       "surfaces": "SurfaceOfLinearExtrusion:4"
     },
     "crossUnion": {
-      "solids": "2"
-    },
-    "crossUnion#0": {
+      "verified": "2026-09-18: ONE solid of 24515.9686461 against the exact 24511.7968757698, 1.7e-04, 12 faces, closed and consistent. Until 2026-09-17 this call returned the two operands unchanged - the union did not happen at all. The 1.7e-04 is the error of the tangential construction; the operands are good to 2.5e-09.",
       "consistent": "true",
-      "faces": "4",
-      "edges": "6",
+      "faces": "12",
+      "edges": "20",
       "poleVertices": "0",
-      "vertices": "4",
+      "vertices": "10",
       "holeLoops": "0",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "15707.9632292",
-      "area": "3769.91117269",
-      "edgeLength": "213.13708499",
-      "extent": "-10, -10, -20, 10, 10, 30",
-      "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2"
-    },
-    "crossUnion#1": {
-      "consistent": "true",
-      "faces": "4",
-      "edges": "6",
-      "poleVertices": "0",
-      "vertices": "4",
-      "holeLoops": "0",
-      "euler": "2",
-      "closed": "true",
-      "openEdges": "0",
-      "volume": "14137.1669063",
-      "area": "3455.75190849",
-      "edgeLength": "203.13708499",
-      "extent": "-10, -20, -10, 10, 25, 10",
-      "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2"
+      "volume": "24515.9686461",
+      "area": "5625.6850798",
+      "edgeLength": "568.882521346",
+      "extent": "-10, -20, -20, 10, 25, 30",
+      "surfaces": "PlaneSurface:4 SurfaceOfLinearExtrusion:8"
     },
     "crossYminusZ": {
-      "exists": "false"
+      "verified": "2026-09-18: TWO solids, joined only through the two node points at (+-10, 0, 0). Until 2026-09-17 this call died in a Debug.Fail.",
+      "solids": "2"
+    },
+    "crossYminusZ#0": {
+      "verified": "2026-09-18: volume 5187.94549362 against the exact pi*100*25 - 2666.6666666667 = 5187.3149673078, 1.2e-04.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleVertices": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5187.94549362",
+      "area": "1884.98109535",
+      "edgeLength": "182.872718407",
+      "extent": "-10, -4.68409879772E-08, -10, 10, 25, 10",
+      "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
+    },
+    "crossYminusZ#1": {
+      "verified": "2026-09-18: volume 3617.12135006 against the exact pi*100*20 - 2666.6666666667 = 3616.5186405129, 1.7e-04.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleVertices": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3617.12135006",
+      "area": "1570.85548537",
+      "edgeLength": "172.872717957",
+      "extent": "-10, -20, -10, 10, -1.98780014671E-08, 10",
+      "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
     "crossZminusY": {
-      "exists": "false"
+      "verified": "2026-09-18: TWO solids, joined only through the two node points at (+-10, 0, 0), which is what the Expected section demands. Until 2026-09-17 this call died in a Debug.Fail.",
+      "solids": "2"
+    },
+    "crossZminusY#0": {
+      "verified": "2026-09-18: volume 6758.74444589 against the exact pi*100*30 - 2666.6666666667 = 6758.1112941027, 9.4e-05.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleVertices": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "6758.74444589",
+      "area": "2199.06562894",
+      "edgeLength": "192.872718374",
+      "extent": "-10, -10, -3.99003496909E-08, 10, 10, 30",
+      "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
+    },
+    "crossZminusY#1": {
+      "verified": "2026-09-18: volume 3617.09670395 against the exact pi*100*20 - 2666.6666666667 = 3616.5186405129, 1.6e-04.",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "6",
+      "poleVertices": "0",
+      "vertices": "4",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "3617.09670395",
+      "area": "1570.77836608",
+      "edgeLength": "172.87271799",
+      "extent": "-10, -10, -20, 10, 10, -1.58693680419E-08",
+      "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
     "cylY": {
       "verified": "2026-09-17 GH: volume 14137.1669063 against 14137.1669412, 2.5e-09. the operand is correct.",

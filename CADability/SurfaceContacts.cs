@@ -129,6 +129,12 @@ namespace CADability.GeoObject
         /// contact curve, at most <c>maxContacts</c> of them. The type is the reliable signal there, not
         /// the number of points.
         /// </para>
+        /// <para>
+        /// Results at practically the SAME point on the other hand are condensed into one, see
+        /// <see cref="MergeDistance"/>: several solver runs ending a few micrometers apart around one node
+        /// are one contact found repeatedly, not several contacts, and the one of them that describes the
+        /// node best is the one returned.
+        /// </para>
         /// </summary>
         /// <param name="surface1">the first surface</param>
         /// <param name="bounds1">the parameter domain of interest on the first surface</param>
@@ -180,20 +186,95 @@ namespace CADability.GeoObject
             }
 
             List<SurfaceContact> res = new List<SurfaceContact>();
+            double mergeDistance = candidates.Count > 1
+                ? MergeDistance(surface1, bounds1, surface2, bounds2, precision) : 0.0;
             for (int i = 0; i < candidates.Count; i++)
             {
                 SurfaceContact contact = Verify(surface1, bounds1, surface2, bounds2,
                     candidates[i], candidateNormals[i], precision);
                 if (contact == null) continue;
-                bool duplicate = false;
+                int same = -1;
                 for (int j = 0; j < res.Count; j++)
                 {
-                    if ((res[j].Location | contact.Location) < precision * 10) { duplicate = true; break; }
+                    if ((res[j].Location | contact.Location) < mergeDistance) { same = j; break; }
                 }
-                if (!duplicate) res.Add(contact);
+                if (same >= 0)
+                {   // the same contact, found a second time: keep the better description of it, never both
+                    if (IsBetterRepresentative(contact, res[same])) res[same] = contact;
+                    continue;
+                }
+                res.Add(contact);
                 if (res.Count >= maxContacts) break; // a contact along a curve would go on forever
             }
             return res.ToArray();
+        }
+
+        /// <summary>
+        /// How close two results have to be to be the same contact reported twice rather than two contacts.
+        /// <para>
+        /// They do occur: where the two surfaces touch along a whole CURVE the system that is solved for a
+        /// contact point is singular at every point of that curve - the residual vanishes along it - so a
+        /// solver run started anywhere near it converges TRANSVERSALLY and then stops wherever it happens
+        /// to be along the curve. Several starts around a node therefore end up at several points a few
+        /// micrometers apart which are all the same node, and that close to the node the classification
+        /// cannot tell them apart either: the two branches of the node close up into the double root of the
+        /// tangential contact, so one and the same cluster comes out partly as
+        /// <see cref="ContactType.Crossing"/> and partly as <see cref="ContactType.Degenerate"/>. Reporting
+        /// such a cluster as three nodes is worse than reporting one - a caller which turns every node into
+        /// a vertex, as the boolean operation does, gets three vertices where the model has one.
+        /// </para>
+        /// <para>
+        /// The distance is taken relative to the SMALLER of the two patches, because a contact can only
+        /// happen where the two overlap and that is the scale the whole computation is carried out on, and
+        /// it is never below the tolerance the points themselves were accepted with. Two contacts that
+        /// really are distinct at a hundred thousandth of the patch size are nothing the algorithms working
+        /// with this result could keep apart anyway.
+        /// </para>
+        /// </summary>
+        private static double MergeDistance(ISurface surface1, BoundingRect bounds1,
+            ISurface surface2, BoundingRect bounds2, double precision)
+        {
+            double size = 0.0;
+            BoundingBox box1 = surface1.GetPatchExtent(bounds1, true);
+            BoundingBox box2 = surface2.GetPatchExtent(bounds2, true);
+            if (!box1.IsEmpty && !box2.IsEmpty) size = Math.Min(box1.Size, box2.Size);
+            return Math.Max(precision * 10.0, size * 1e-5);
+        }
+
+        /// <summary>
+        /// Which of two results that describe the SAME contact point is the one to report, see
+        /// <see cref="MergeDistance"/>.
+        /// <para>
+        /// A <see cref="ContactType.Crossing"/> always wins: it is the classification a marching
+        /// intersection must not miss, and it is the only one that carries branch directions. Of two nodes
+        /// the one with the WIDER angle between its branches is the one closer to the node itself - moving
+        /// away from the node along the contact curve the two branches close up until they coincide in the
+        /// double root of the tangential contact, so a nearly zero branch angle says "this is a point next
+        /// to the node", not "this is the node".
+        /// </para>
+        /// <para>
+        /// Anything else is decided by how exact the contact was measured to be. Whether such a point is
+        /// called Isolated or Degenerate is deliberately not ranked: nothing downstream branches on that
+        /// difference, and a preference would only hide that the two classifications disagreed.
+        /// </para>
+        /// </summary>
+        private static bool IsBetterRepresentative(SurfaceContact candidate, SurfaceContact current)
+        {
+            bool candidateIsNode = candidate.Type == ContactType.Crossing;
+            bool currentIsNode = current.Type == ContactType.Crossing;
+            if (candidateIsNode != currentIsNode) return candidateIsNode;
+            if (candidateIsNode) return BranchAngle(candidate) > BranchAngle(current);
+            if (candidate.AngleDefect != current.AngleDefect) return candidate.AngleDefect < current.AngleDefect;
+            return candidate.DistanceDefect < current.DistanceDefect;
+        }
+
+        /// <summary>The angle between the two branches of a node, 0 when the contact has no branches.</summary>
+        private static double BranchAngle(SurfaceContact contact)
+        {
+            if (contact.BranchDirections.Length < 2) return 0.0;
+            double cosine = Math.Abs(contact.BranchDirections[0] * contact.BranchDirections[1]);
+            if (cosine > 1.0) cosine = 1.0;
+            return Math.Acos(cosine);
         }
 
         /// <summary>

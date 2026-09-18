@@ -20,7 +20,7 @@ namespace CADability
         /// Dient der Beschreibung einer Zwischenkurve bei festem V
         /// </summary>
         [Serializable()]
-        private class IntermediateCurve : GeneralCurve, ISerializable
+        private class IntermediateCurve : GeneralCurve, ISerializable, IJsonSerialize
         {
             private ICurve firstCurve;
             private ICurve secondCurve;
@@ -149,6 +149,27 @@ namespace CADability
                 info.AddValue("V", v);
                 info.AddValue("StartParam", startParam);
                 info.AddValue("EndParam", endParam);
+            }
+
+            #endregion
+            #region IJsonSerialize
+            protected IntermediateCurve() { } // we need this for JsonSerialisation
+            public void GetObjectData(IJsonWriteData data)
+            {
+                data.AddProperty("FirstCurve", firstCurve);
+                data.AddProperty("SecondCurve", secondCurve);
+                data.AddProperty("V", v);
+                data.AddProperty("StartParam", startParam);
+                data.AddProperty("EndParam", endParam);
+            }
+
+            public void SetObjectData(IJsonReadData data)
+            {
+                firstCurve = data.GetProperty<ICurve>("FirstCurve");
+                secondCurve = data.GetProperty<ICurve>("SecondCurve");
+                v = data.GetProperty<double>("V");
+                startParam = data.GetProperty<double>("StartParam");
+                endParam = data.GetProperty<double>("EndParam");
             }
 
             #endregion
@@ -466,8 +487,44 @@ namespace CADability
             PlanarState ps2 = secondCurve.GetPlanarState();
             if ((ps1 == PlanarState.UnderDetermined || ps1 == PlanarState.Planar) && (ps2 == PlanarState.UnderDetermined || ps2 == PlanarState.Planar))
             {
-                if (Precision.IsPerpendicular(firstCurve.StartDirection, pl.Normal, false) && Precision.IsPerpendicular(secondCurve.StartDirection, pl.Normal, false))
-                {   // beide Kurven sind eben und parallel zur Schnittebene, wir haben also ein festes v und somit eine Zwischenkurve
+                bool ok = true;
+                if (ps1 == PlanarState.Planar && ps2 == PlanarState.Planar)
+                {
+                    if (!Precision.SameDirection(firstCurve.GetPlane().Normal, secondCurve.GetPlane().Normal, false))
+                    { // not parallel first and last curve: no fixed v intersection
+                        ok = false;
+                    }
+                }
+                if (ps1 == PlanarState.Planar)
+                {
+                    if (!Precision.IsPerpendicular(firstCurve.GetPlane().Normal, pl.Normal, false))
+                    { // first curve not parallel to plane: no fixed v intersection
+                        ok = false;
+                    }
+                }
+                else
+                {
+                    if (!Precision.IsPerpendicular(firstCurve.StartDirection, pl.Normal, false))
+                    { // first curve parallel to plane: no fixed v intersection
+                        ok = false;
+                    }
+                }
+                if (ps2 == PlanarState.Planar)
+                {
+                    if (!Precision.IsPerpendicular(secondCurve.GetPlane().Normal, pl.Normal, false))
+                    { // first curve not parallel to plane: no fixed v intersection
+                        ok = false;
+                    }
+                }
+                else
+                {
+                    if (!Precision.IsPerpendicular(secondCurve.StartDirection, pl.Normal, false))
+                    { // first curve parallel to plane: no fixed v intersection
+                        ok = false;
+                    }
+                }
+                if (ok)
+                {   // both curves are parallel to the plane, so the intersection is a fixed v curve
                     GeoPoint ip = pl.Plane.Intersect(firstCurve.StartPoint, secondCurve.StartPoint - firstCurve.StartPoint);
                     double v = Geometry.LinePar(firstCurve.StartPoint, secondCurve.StartPoint, ip);
                     ICurve cv = FixedV(v, umin, umax);
@@ -659,7 +716,7 @@ namespace CADability
 #if DEBUG
         public static int hitcount = 0;
 #endif
-        public override void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        protected override void GetCurveIntersectionCandidates(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             if (curve is IExplicitPCurve3D && firstCurve is Line && secondCurve is Line)
             {
@@ -714,7 +771,7 @@ namespace CADability
                     return;
                 }
             }
-            base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            base.GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
 
         // ParallelepipedHull is alot faster with the HitTest. Don't override it

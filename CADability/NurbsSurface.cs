@@ -5109,14 +5109,14 @@ namespace CADability.GeoObject
             return res;
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Intersect (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetCurveIntersectionCandidates (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>
         /// </summary>
         /// <param name="curve"></param>
         /// <param name="uvExtent"></param>
         /// <param name="ips"></param>
         /// <param name="uvOnFaces"></param>
         /// <param name="uOnCurve3Ds"></param>
-        public override void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        protected override void GetCurveIntersectionCandidates(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             //// Problemfall: tangentiale Kurve, sehr nahe am Rand der Fläche
             //// führt bei BoxedSurface zu großen Problemen
@@ -5240,7 +5240,7 @@ namespace CADability.GeoObject
                 }
             }
             */
-            base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            base.GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Derivative2At (GeoPoint2D, out GeoPoint, out GeoVector, out GeoVector, out GeoVector, out GeoVector, out GeoVector)"/>

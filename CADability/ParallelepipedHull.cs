@@ -2890,6 +2890,11 @@ namespace CADability.GeoObject
                                     }
                                 }
                                 // TODO: introduce flags to indicate whether surface or curve provide 2nd derivative
+                                // These two are FINDERS, not refiners: the starting values are the center of the uv patch
+                                // and the middle of the tetraeder, which can be far from the intersection. That needs a
+                                // globally convergent method - the local Newton of ISurfaceImpl.RefineCurveIntersection
+                                // would give up here. Exactness and the check whether the result is an intersection at
+                                // all is done once for all paths in ISurfaceImpl.RefineCurveIntersections.
                                 if (!found && BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve, ref uvStart, ref tStart, out ip))
                                 {
                                     if (cubes[j].uvPatch.Contains(uvStart) && th.TetraederParams[i] <= tStart && tStart <= th.TetraederParams[i + 1])
@@ -2900,23 +2905,6 @@ namespace CADability.GeoObject
                                         found = true;
                                     }
                                 }
-                                //if (BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve, cubes[j].uvPatch, th.TetraederParams[i], th.TetraederParams[i + 1], ref uvStart, ref tStart, out ip))
-                                //{
-                                //    // Performance test: almost the same, CurveSurfaceIntersectionwith the TrustRegionNewtonCGMinimizer is a little slower than LevenbergMarquardtMinimizer
-                                //    // TrustRegionDogLegMinimizer and TrustRegionNewtonCGMinimizer are about the same
-                                //    for (int ii = 0; ii < 1000; ii++)
-                                //    {
-                                //        uvStart = cubes[j].uvPatch.GetCenter();
-                                //        tStart = (th.TetraederParams[i] + th.TetraederParams[i + 1]) / 2;
-                                //        BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve, cubes[j].uvPatch, th.TetraederParams[i], th.TetraederParams[i + 1], ref uvStart, ref tStart, out ip);
-                                //    }
-                                //    for (int ii = 0; ii < 1000; ii++)
-                                //    {
-                                //        uvStart = cubes[j].uvPatch.GetCenter();
-                                //        tStart = (th.TetraederParams[i] + th.TetraederParams[i + 1]) / 2;
-                                //        BoxedSurfaceExtension.CurveSurfaceIntersectionDL(surface, curve, cubes[j].uvPatch, th.TetraederParams[i], th.TetraederParams[i + 1], ref uvStart, ref tStart, out ip);
-                                //    }
-                                //}
                                 if (!found && BoxedSurfaceExtension.CurveSurfaceIntersectionLM(surface, curve, ref uvStart, ref tStart, out ip))
                                 {
                                     if (cubes[j].uvPatch.Contains(uvStart) && th.TetraederParams[i] <= tStart && tStart <= th.TetraederParams[i + 1])
@@ -2995,7 +2983,7 @@ namespace CADability.GeoObject
             {
                 case CurveIntersectionMode.simpleIntersection:
                     {
-                        if (Math.Abs(surface.GetNormal(uv).Normalized * (curve as ICurve).DirectionAt(u).Normalized)<0.01)
+                        if (Math.Abs(surface.GetNormal(uv).Normalized * (curve as ICurve).DirectionAt(u).Normalized) < 0.01)
                         {
                             BoxedSurfaceExtension.CurveSurfaceIntersectionLM_Tangential(surface, curve as ICurve, ref uv, ref u, out ip);
                         }
@@ -3014,6 +3002,9 @@ namespace CADability.GeoObject
                         // and then abort. But this is not very effective
                         uv = cube.uvPatch.GetCenter();
                         u = 0.5; // in the middle, unimportant
+                        // A FINDER again, see the note in Intersect: from the center of the patch at an arbitrary
+                        // position on the curve only a globally convergent method has a chance. The result is made
+                        // exact and checked in ISurfaceImpl.RefineCurveIntersections.
                         if (BoxedSurfaceExtension.CurveSurfaceIntersection(surface, curve as ICurve, ref uv, ref u, out GeoPoint tmpip))
                         {
                             lips.Add(tmpip);

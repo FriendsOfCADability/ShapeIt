@@ -938,7 +938,7 @@ namespace CADability.GeoObject
             if (alpha <= 0.0 || beta <= 0.0 || gamma <= 0.0) return 0.0; // onCurve is not inside the triangle of the poles
             return beta / (2.0 * Math.Sqrt(alpha * gamma));
         }
-        public override void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        protected override void GetCurveIntersectionCandidates(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             if (curve is Line line)
             {
@@ -985,7 +985,7 @@ namespace CADability.GeoObject
                     return;
                 }
             }
-            base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            base.GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
 
         /// <summary>

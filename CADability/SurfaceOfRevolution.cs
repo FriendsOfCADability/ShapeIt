@@ -1117,17 +1117,15 @@ namespace CADability.GeoObject
             }
         }
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Intersect (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetCurveIntersectionCandidates (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>
         /// </summary>
         /// <param name="curve"></param>
         /// <param name="uvExtent"></param>
         /// <param name="ips"></param>
         /// <param name="uvOnFaces"></param>
         /// <param name="uOnCurve3Ds"></param>
-        public override void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        protected override void GetCurveIntersectionCandidates(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
-            if (curveToRotate != null) base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds); // new implementation: check special cases
-
             if (curve.GetPlanarState() == PlanarState.Planar)
             {
                 Plane pln = curve.GetPlane();
@@ -1217,7 +1215,7 @@ namespace CADability.GeoObject
                     return;
                 }
             }
-            base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            base.GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
         public override bool Oriented
         {

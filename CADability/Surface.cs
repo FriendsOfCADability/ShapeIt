@@ -3312,15 +3312,48 @@ namespace CADability.GeoObject
 
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.Intersect (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.Intersect (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>.
+        /// This is the single entry point for the curve/surface intersection and it works in two stages:
+        /// <list type="number">
+        /// <item><see cref="GetCurveIntersectionCandidates"/> <i>finds</i> the intersections. The derived surfaces
+        /// override this method to use their analytic knowledge (a line with a cylinder, a planar curve with a plane,
+        /// ...), everything else goes through the hulls (<see cref="ParallelepipedHull"/>, <see cref="TetraederHull"/>),
+        /// which yield good starting values. This stage only has to get close to each intersection and it must not
+        /// miss any.</item>
+        /// <item><see cref="RefineCurveIntersection"/> makes each of those candidates <i>exact</i>. Getting the last
+        /// digits right, keeping the three returned parameters (3d point, uv on the surface, u on the curve) consistent
+        /// with each other and recognizing a candidate which is not an intersection at all is the business of this
+        /// second stage alone - see <see cref="RefineCurveIntersections"/>.</item>
+        /// </list>
         /// </summary>
-        /// <param name="curve"></param>
-        /// <param name="uvExtent"></param>
-        /// <param name="ips"></param>
-        /// <param name="uvOnFaces"></param>
-        /// <param name="uOnCurve3Ds"></param>
+        /// <param name="curve">The curve to intersect with this surface</param>
+        /// <param name="uvExtent">The relevant part of this surface, used for the periodic adjustment of the results</param>
+        /// <param name="ips">The intersection points</param>
+        /// <param name="uvOnFaces">The uv positions of <paramref name="ips"/> on this surface</param>
+        /// <param name="uOnCurve3Ds">The positions of <paramref name="ips"/> on the curve</param>
         public virtual void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
-        {   // implement special cases with their surfaces
+        {
+            GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            RefineCurveIntersections(curve, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
+        }
+
+        /// <summary>
+        /// Finds the intersection points of this surface with the provided <paramref name="curve"/>. This is the first
+        /// stage of <see cref="Intersect(ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>, see
+        /// there for the division of labour: the results of this method are starting values, they are made exact
+        /// afterwards. So an implementation may (and should) stop as soon as it is close to the solution, but it must
+        /// not miss an intersection and it should not return more than one candidate per intersection.
+        /// <para>This implementation covers the general case: for a <see cref="BSpline"/> or an
+        /// <see cref="InterpolatedDualSurfaceCurve"/> the tetraeder hull of the curve is used, which is typically much
+        /// slimmer than the parallelepiped hull of the surface, for all other curves the parallelepiped hull.</para>
+        /// </summary>
+        /// <param name="curve">The curve to intersect with this surface</param>
+        /// <param name="uvExtent">The relevant part of this surface, used for the periodic adjustment of the results</param>
+        /// <param name="ips">The approximate intersection points</param>
+        /// <param name="uvOnFaces">The approximate uv positions of <paramref name="ips"/> on this surface</param>
+        /// <param name="uOnCurve3Ds">The approximate positions of <paramref name="ips"/> on the curve</param>
+        protected virtual void GetCurveIntersectionCandidates(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        {
             if (curve is IDualSurfaceCurve dsc)
             {   // when it is a dualSurfaceCurve on an offset surface, there will be no intersection
                 if (IsOffset(dsc.Surface1, out double offset) || IsOffset(dsc.Surface2, out offset))
@@ -3345,10 +3378,73 @@ namespace CADability.GeoObject
                 }
             }
             ParallelepipedHull.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+        }
+
+        /// <summary>
+        /// The second stage of <see cref="Intersect(ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>:
+        /// every candidate found by <see cref="GetCurveIntersectionCandidates"/> is made exact by
+        /// <see cref="RefineCurveIntersection"/>. Since that Newton iteration converges to the point of the closest
+        /// approach when there is no intersection, it also tells whether a candidate is an intersection at all:
+        /// candidates which do not meet the surface are dropped here. Refining never makes a candidate worse, so a
+        /// result which is still too far away from the surface was not an intersection to begin with.
+        /// </summary>
+        /// <param name="curve">The curve which intersects this surface</param>
+        /// <param name="ips">The intersection points, refined by this method</param>
+        /// <param name="uvOnFaces">The uv positions on this surface, refined by this method</param>
+        /// <param name="uOnCurve3Ds">The positions on the curve, refined by this method</param>
+        protected void RefineCurveIntersections(ICurve curve, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
+        {
+            if (ips == null || ips.Length == 0)
+            {   // the implementations are not consistent about empty results, make sure the caller gets usable arrays
+                ips = []; uvOnFaces = []; uOnCurve3Ds = [];
+                return;
+            }
+            List<GeoPoint> points = new List<GeoPoint>(ips.Length);
+            List<GeoPoint2D> uvs = new List<GeoPoint2D>(ips.Length);
+            List<double> us = new List<double>(ips.Length);
             for (int i = 0; i < ips.Length; i++)
             {
-                if (RefineCurveIntersection(curve, ref uOnCurve3Ds[i], ref uvOnFaces[i], out GeoPoint refIp)) ips[i] = refIp;
+                double u = uOnCurve3Ds[i];
+                GeoPoint2D uv = uvOnFaces[i];
+                CurveIntersectionScale(uv, curve, u, out double _, out double numericPrecision);
+                if ((PointAt(uv) | curve.PointAt(u)) <= numericPrecision)
+                {   // This candidate is already as exact as the arithmetic allows, so the iteration cannot improve it -
+                    // it can only MOVE it. At a tangential contact that is exactly what happens: the distance is flat
+                    // there, so a step which gains a few ulps of distance can shift the point by orders of magnitude
+                    // more, and a boolean operation reacts to that shift. The analytic implementations place such a
+                    // contact better than any iteration, so leave their result alone.
+                    points.Add(ips[i]);
+                    uvs.Add(uv);
+                    us.Add(u);
+                    continue;
+                }
+                bool wasOnCurve = u >= 0.0 && u <= 1.0;
+                if (!RefineCurveIntersection(curve, ref u, ref uv, out GeoPoint ip)) continue; // not an intersection
+                if (wasOnCurve && (u < 0.0 || u > 1.0))
+                {   // The candidate was on the curve and the refinement pushed it beyond the end: that happens when the
+                    // curve ENDS on the surface, because the end point is only "on the surface" within the tolerance
+                    // while the exact intersection of the EXTENDED curve lies a hair outside. Everybody downstream
+                    // tests the curve parameter against [0,1], so the point would be lost. The intersection of THIS
+                    // curve is its end point, so put it back there. A candidate which was outside to begin with is not
+                    // touched - the parametrics ask for intersections on the extension and rely on getting them.
+                    double atEnd = u < 0.0 ? 0.0 : 1.0;
+                    GeoPoint endPoint = curve.PointAt(atEnd);
+                    if ((PointAt(uv) | endPoint) <= Precision.eps)
+                    {
+                        u = atEnd;
+                        ip = new GeoPoint(PointAt(uv), endPoint);
+                    }
+                }
+                // No duplicate elimination here: on a surface which overlaps itself (a helical sweep, for instance)
+                // one position on the curve legitimately belongs to two different uv positions, one per sheet. The
+                // stages which can tell the two apart remove their own duplicates.
+                points.Add(ip);
+                uvs.Add(uv);
+                us.Add(u);
             }
+            ips = points.ToArray();
+            uvOnFaces = uvs.ToArray();
+            uOnCurve3Ds = us.ToArray();
         }
 
         private bool IsOffset(ISurface other, out double offset)
@@ -3388,6 +3484,25 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
+        /// The two scales the curve intersection iterations need at the provided position: the 3d length which
+        /// corresponds to one unit in the parameter spaces, which makes the equations of the tangential system
+        /// comparable, and the distance below which a point on this surface and a point on the curve cannot be told
+        /// apart any more. The latter is the rounding error of the point evaluation, so it grows with the size of the
+        /// geometry and with the distance from the origin.
+        /// </summary>
+        /// <param name="uvOnSurface">Position on this surface</param>
+        /// <param name="curve">The curve which intersects this surface</param>
+        /// <param name="uOnCurve">Position on the curve</param>
+        /// <param name="lengthScale">3d length of one parameter unit</param>
+        /// <param name="numericPrecision">Residual below which no further improvement is possible</param>
+        private void CurveIntersectionScale(GeoPoint2D uvOnSurface, ICurve curve, double uOnCurve, out double lengthScale, out double numericPrecision)
+        {
+            DerivativeAt(uvOnSurface, out GeoPoint location, out GeoVector du, out GeoVector dv);
+            lengthScale = Math.Max(Math.Max(du.Length, dv.Length), curve.DirectionAt(uOnCurve).Length);
+            if (lengthScale < 1e-30) lengthScale = 1.0; // totally degenerate, don't divide by zero
+            numericPrecision = 1e-13 * Math.Max(lengthScale, location.ToVector().Length);
+        }
+        /// <summary>
         /// Refines an approximate intersection point of this surface with the provided <paramref name="curve"/>. The
         /// provided parameters must already be close to the solution, a Newton iteration makes them exact. Transversal
         /// intersections as well as tangential contacts are handled:
@@ -3414,20 +3529,19 @@ namespace CADability.GeoObject
         {
             GeoPoint2D uv = uvOnSurface;
             double u = uOnCurve;
-            DerivativeAt(uv, out GeoPoint startPoint, out GeoVector du, out GeoVector dv);
-            // the 3d length which corresponds to one unit in the parameter spaces, used to weight the tangency condition
-            double lengthScale = Math.Max(Math.Max(du.Length, dv.Length), curve.DirectionAt(u).Length);
-            if (lengthScale < 1e-30) lengthScale = 1.0; // totally degenerate, don't divide by zero
-            // the iteration cannot get better than the rounding error of the point calculation, which depends on the size
-            // of the geometry and on the distance from the origin
-            double numericPrecision = 1e-13 * Math.Max(lengthScale, startPoint.ToVector().Length);
+            CurveIntersectionScale(uv, curve, u, out double lengthScale, out double numericPrecision);
             // a transversal intersection is the normal case and its system converges faster and further, so it is tried first
             double distance = NewtonCurveIntersection(curve, false, ref uv, ref u, lengthScale, numericPrecision, out intersectionPoint);
-            if (distance > numericPrecision || IsTangentialTo(curve, uv, u))
+            if (distance > Precision.eps || IsTangentialTo(curve, uv, u))
             {   // either the curve touches the surface tangentially, then the system above cannot reach the solution (and
                 // even when the distance looks good, the position of the contact point is undetermined), or there is no
                 // intersection close by. Both cases are covered by the tangential system, which converges to the point of
                 // the closest approach. It starts at the best position found so far.
+                // At a clean transversal intersection the tangential system must NOT run: there the tangency equation
+                // (Su^Sv)*Ct==0 is not satisfied and cannot be, so its Newton would slide the point away from the
+                // intersection along the curve while keeping the distance small - which is exactly what the caller does
+                // not want. That is why the condition above asks for a real failure of the transversal system
+                // (a distance which is still significant) and not merely for one which did not reach the rounding floor.
                 GeoPoint2D tangentialUv = uv;
                 double tangentialU = u;
                 double tangentialDistance = NewtonCurveIntersection(curve, true, ref tangentialUv, ref tangentialU, lengthScale, numericPrecision, out GeoPoint tangentialPoint);

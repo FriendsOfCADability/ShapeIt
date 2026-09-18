@@ -3007,7 +3007,10 @@ namespace CADability.GeoObject
                     if (parEpis[j].InterferesWithTetraeder(tetraederBase[i], tetraederBase[i + 1], tetraederVertex[2 * i], tetraederVertex[2 * i + 1], tetraederParams[i], tetraederParams[i + 1], out double t))
                     {
                         GeoPoint2D uv = surface.PositionOf(theCurve.PointAt(t));
-                        if (BoxedSurfaceExtension.CurveSurfaceIntersectionLM(surface, theCurve, ref uv, ref t, out GeoPoint ip))
+                        SurfaceHelper.AdjustPeriodic(surface, uvExtent, ref uv);
+                        // the tetraeder only provides a starting value, the surface turns it into the exact intersection
+                        // point (and tells us whether there is one at all)
+                        if (surface.RefineCurveIntersection(theCurve, ref t, ref uv, out GeoPoint ip))
                         {
                             if (t >= tetraederParams[i] && t <= tetraederParams[i + 1] && uvExtent.ContainsEps(uv, Precision.eps))
                             {

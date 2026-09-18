@@ -872,7 +872,7 @@ namespace CADability.GeoObject
             return Precision.IsPointOnLine(toSphere * GeoPoint.Origin, rotationAxis.Location, rotationAxis.Location + this.RadiusX * rotationAxis.Direction);
         }
 
-        public override void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        protected override void GetCurveIntersectionCandidates(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             ips = null;
             if (curve is Line)
@@ -897,7 +897,7 @@ namespace CADability.GeoObject
                     uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
                 }
             }
-            else base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            else base.GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
         public override ICurve Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, GeoPoint seed)
         {

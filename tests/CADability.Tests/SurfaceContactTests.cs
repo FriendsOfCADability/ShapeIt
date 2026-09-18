@@ -645,6 +645,72 @@ namespace CADability.Tests
         }
 
         /// <summary>
+        /// The NURBS twin of <see cref="cones_tangent_at_a_mantle_point_are_found"/> and the case the merging
+        /// of near coincident results exists for: two truncated cones ruled between exact NURBS circles,
+        /// coneB being coneA turned by 180 degrees about the surface normal at P = (14.25, 0, 9.5).
+        /// <para>
+        /// That rotation fixes P and fixes the ruling through P - it is perpendicular to the axis of the
+        /// rotation, so it is mapped onto itself - which makes the whole ruling a common line of BOTH cones
+        /// with a common tangent plane: the two mantles touch along the entire ruling, and at P the
+        /// intersection curve has a node on top of that. Along a contact curve the system solved for a
+        /// contact point is singular, so several starts end a few micrometers apart around the node, and
+        /// each of them used to be reported as its own crossing - three nodes where the model has one, which
+        /// a boolean operation turns into three vertices. What has to come out is ONE node, at P.
+        /// </para>
+        /// <para>
+        /// The domains are the halves of the u range, which is how the boolean operation sees the two
+        /// mantles: they are split at the seam of the NURBS circle, and it is on those halves that the
+        /// cluster appeared.
+        /// </para>
+        /// </summary>
+        [TestMethod]
+        public void ruled_nurbs_cones_tangent_at_a_mantle_point_give_one_node()
+        {
+            RuledSurface coneA = new RuledSurface(
+                NurbsCircle(GeoPoint.Origin, 19 * GeoVector.XAxis, 19 * GeoVector.YAxis),
+                NurbsCircle(new GeoPoint(0, 0, 18), 10 * GeoVector.XAxis, 10 * GeoVector.YAxis));
+            GeoPoint p = new GeoPoint(14.25, 0, 9.5);
+            GeoVector n = new GeoVector(2, 0, 1).Normalized; // the surface normal of coneA at p
+            RuledSurface coneB = coneA.Clone() as RuledSurface;
+            coneB.Modify(ModOp.Rotate(p, n, SweepAngle.Deg(180)));
+
+            BoundingRect left = new BoundingRect(0.0, 0.0, 0.5, 1.0), right = new BoundingRect(0.5, 0.0, 1.0, 1.0);
+            foreach ((BoundingRect d1, BoundingRect d2, string what) in new[]
+            {
+                (Natural(coneA), Natural(coneB), "the whole mantles"),
+                (left, right, "the left half against the right one"),
+                (right, left, "the right half against the left one")
+            })
+            {
+                SurfaceContact[] contacts = Surfaces.TangentialContacts(coneA, d1, coneB, d2, precision);
+                Dump("two ruled NURBS cones tangent at a mantle point, " + what, contacts);
+
+                SurfaceContact node = null;
+                int nodes = 0;
+                foreach (SurfaceContact c in contacts)
+                {
+                    if (c.Type != ContactType.Crossing) continue;
+                    ++nodes;
+                    node = c;
+                }
+                Assert.AreEqual(1, nodes, $"{what}: the single node at {p} must be reported exactly once");
+                Assert.AreEqual(0.0, (node.Location | p), 1e-4, $"{what}: the node is at {p}");
+                Assert.AreEqual(2, node.BranchDirections.Length, "a node has two crossing branches");
+                foreach (GeoVector b in node.BranchDirections)
+                    Assert.AreEqual(0.0, b.Normalized * n, 1e-4, "a branch tangent lies in the common tangent plane");
+                // The representative kept must be the one AT the node: next to it, along the contact
+                // ruling, the two branches close up into the double root of the tangential contact.
+                double cosine = System.Math.Abs(node.BranchDirections[0] * node.BranchDirections[1]);
+                Assert.IsTrue(cosine < 0.5, $"{what}: the two branches of the node must be clearly distinct, "
+                    + $"the angle between them is only {System.Math.Acos(cosine) * 180.0 / System.Math.PI:F2} degrees");
+                // the contact along the ruling is what it is - samples of it, never invented branches
+                foreach (SurfaceContact c in contacts)
+                    if (c.Type != ContactType.Crossing)
+                        Assert.AreEqual(ContactType.Degenerate, c.Type, "the ruling is a tangential contact curve");
+            }
+        }
+
+        /// <summary>
         /// A plane that does not reach the NURBS cylinder has no contact - and, just as important, costs the
         /// coarse scan and nothing else: the bounding boxes do not even overlap.
         /// </summary>

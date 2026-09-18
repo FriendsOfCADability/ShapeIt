@@ -1841,14 +1841,14 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.Intersect (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>
+        /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.GetCurveIntersectionCandidates (ICurve, BoundingRect, out GeoPoint[], out GeoPoint2D[], out double[])"/>
         /// </summary>
         /// <param name="curve"></param>
         /// <param name="uvExtent"></param>
         /// <param name="ips"></param>
         /// <param name="uvOnFaces"></param>
         /// <param name="uOnCurve3Ds"></param>
-        public override void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        protected override void GetCurveIntersectionCandidates(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             GeoPoint tangentialFound = GeoPoint.Invalid;
             if (curve is Line line)
@@ -2118,7 +2118,7 @@ namespace CADability.GeoObject
             //    ips = lips.ToArray();
             //    return;
             //}
-            base.Intersect(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            base.GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
         }
         public override ICurve[] Intersect(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds)
         {   // fill in more special cases
