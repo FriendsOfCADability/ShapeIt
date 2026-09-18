@@ -434,5 +434,230 @@ namespace CADability.Tests
             SphericalSurface s2 = Sphere(new GeoPoint(0, 0, 30.0), 5.0);
             Assert.IsNull(Surfaces.ContactAt(c1, s2, new GeoPoint(0, 0, 10.0), precision));
         }
+
+        #region the general search: the same situations on surfaces which are not natural quadrics
+
+        // The quadrics above have a closed form solution and their own code path. Everything here is built
+        // from NURBS instead - an exact circle as a rational quadratic BSpline, carried into a surface by
+        // extrusion, ruling, sweeping or revolution - so it is the same geometry with none of the knowledge:
+        // a cylinder that is a SurfaceOfLinearExtrusion, a cone that is a RuledSurface, a torus that is a
+        // SweptCurveSurface or a SurfaceOfRevolution. The answers therefore stay the ones written down above,
+        // which is what makes these tests worth having: they state what is right, not what came out.
+
+        /// <summary>The classical nine pole rational quadratic circle, exact and not an approximation.</summary>
+        private static BSpline NurbsCircle(GeoPoint centre, GeoVector dx, GeoVector dy)
+        {
+            double[,] q = { { 1, 0 }, { 1, 1 }, { 0, 1 }, { -1, 1 }, { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 }, { 1, 0 } };
+            GeoPoint[] poles = new GeoPoint[9];
+            double[] weights = new double[9];
+            double w = System.Math.Sqrt(2.0) / 2.0;
+            for (int i = 0; i < 9; i++)
+            {
+                poles[i] = centre + q[i, 0] * dx + q[i, 1] * dy;
+                weights[i] = (i % 2 == 0) ? 1.0 : w;
+            }
+            BSpline res = BSpline.Construct();
+            res.SetData(2, poles, weights, new double[] { 0, 1, 2, 3, 4 }, new int[] { 3, 2, 2, 2, 3 }, false);
+            return res;
+        }
+
+        /// <summary>A circle of the given radius in the plane through centre with the given normal.</summary>
+        private static BSpline NurbsCircle(GeoPoint centre, GeoVector normal, double radius)
+        {
+            GeoVector dx = ArbitraryPerpendicular(normal);
+            GeoVector dy = (normal.Normalized ^ dx).Normalized;
+            return NurbsCircle(centre, radius * dx, radius * dy);
+        }
+
+        /// <summary>A cylinder about the given axis, as a SurfaceOfLinearExtrusion of an exact NURBS circle.</summary>
+        private static SurfaceOfLinearExtrusion ExtrudedCylinder(GeoPoint location, GeoVector axis, double radius)
+        {
+            return new SurfaceOfLinearExtrusion(NurbsCircle(location, axis, radius), axis.Normalized, 0.0, 1.0);
+        }
+
+        /// <summary>The natural parameter domain of a surface, which is where these tests look for contacts.</summary>
+        private static BoundingRect Natural(ISurface surface)
+        {
+            surface.GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax);
+            return new BoundingRect(umin, vmin, umax, vmax);
+        }
+
+        /// <summary>The domain of an extrusion, whose v is unlimited: the circle once, the axis this far.</summary>
+        private static BoundingRect ExtrusionDomain(double halfLength)
+        {
+            return new BoundingRect(0.0, -halfLength, 1.0, halfLength);
+        }
+
+        /// <summary>
+        /// The same situation as <see cref="equal_cylinders_with_crossing_axes_touch_at_two_nodes"/>, but
+        /// neither surface is a CylindricalSurface: both are extrusions of a NURBS circle, so nothing about
+        /// them is known in closed form. The answer has to be the same - the two nodes at (+-10, 0, 0), where
+        /// the normal of the first cylinder (x, y, 0) and that of the second (x, 0, z) can only be parallel
+        /// if y = z = 0.
+        /// </summary>
+        [TestMethod]
+        public void nurbs_cylinders_with_crossing_axes_touch_at_two_nodes()
+        {
+            const double r = 10.0;
+            SurfaceOfLinearExtrusion c1 = ExtrudedCylinder(GeoPoint.Origin, GeoVector.ZAxis, r);
+            SurfaceOfLinearExtrusion c2 = ExtrudedCylinder(GeoPoint.Origin, GeoVector.YAxis, r);
+            BoundingRect domain = ExtrusionDomain(30.0);
+
+            SurfaceContact[] contacts = Surfaces.TangentialContacts(c1, domain, c2, domain, precision);
+            Dump("two NURBS cylinders, perpendicular axes", contacts);
+
+            Assert.AreEqual(2, contacts.Length, "expected exactly the two crossing points");
+            foreach (SurfaceContact c in contacts)
+            {
+                Assert.AreEqual(ContactType.Crossing, c.Type);
+                Assert.AreEqual(2, c.BranchDirections.Length, "a node has two crossing branches");
+                Assert.AreEqual(0.0, c.DistanceDefect, 1e-6);
+                Assert.AreEqual(0.0, c.AngleDefect, 1e-5);
+                Assert.AreEqual(r, System.Math.Abs(c.Location.x), 1e-6);
+                Assert.AreEqual(0.0, c.Location.y, 1e-6);
+                Assert.AreEqual(0.0, c.Location.z, 1e-6);
+            }
+            Assert.AreNotEqual(System.Math.Sign(contacts[0].Location.x), System.Math.Sign(contacts[1].Location.x),
+                "the two nodes are on opposite sides");
+        }
+
+        /// <summary>
+        /// The same two cylinders with DIFFERENT radii. Their normals are still parallel only where
+        /// y = z = 0, but there the two surfaces are 4 apart, so there is no contact at all - and a point
+        /// where the normals are parallel without the surfaces meeting must not be reported as one. This is
+        /// the test that the second condition of the general search is actually checked.
+        /// </summary>
+        [TestMethod]
+        public void nurbs_cylinders_of_different_radius_do_not_touch()
+        {
+            SurfaceOfLinearExtrusion c1 = ExtrudedCylinder(GeoPoint.Origin, GeoVector.ZAxis, 10.0);
+            SurfaceOfLinearExtrusion c2 = ExtrudedCylinder(GeoPoint.Origin, GeoVector.YAxis, 6.0);
+            BoundingRect domain = ExtrusionDomain(30.0);
+
+            SurfaceContact[] contacts = Surfaces.TangentialContacts(c1, domain, c2, domain, precision);
+            Dump("two NURBS cylinders of different radius", contacts);
+            Assert.AreEqual(0, contacts.Length, "they cross transversally, they do not touch");
+        }
+
+        /// <summary>
+        /// A NURBS cylinder against a real CylindricalSurface: one operand has a canal form and the other
+        /// does not, which is the mixed case. The two nodes must come out the same way.
+        /// </summary>
+        [TestMethod]
+        public void nurbs_cylinder_against_a_quadric_cylinder_touches_at_two_nodes()
+        {
+            const double r = 10.0;
+            SurfaceOfLinearExtrusion c1 = ExtrudedCylinder(GeoPoint.Origin, GeoVector.ZAxis, r);
+            CylindricalSurface c2 = Cylinder(GeoPoint.Origin, GeoVector.YAxis, r);
+
+            SurfaceContact[] contacts = Surfaces.TangentialContacts(c1, ExtrusionDomain(30.0), c2, Wide, precision);
+            Dump("NURBS cylinder against a quadric cylinder", contacts);
+
+            Assert.AreEqual(2, contacts.Length);
+            foreach (SurfaceContact c in contacts)
+            {
+                Assert.AreEqual(ContactType.Crossing, c.Type);
+                Assert.AreEqual(r, System.Math.Abs(c.Location.x), 1e-6);
+                Assert.AreEqual(0.0, c.Location.y, 1e-6);
+                Assert.AreEqual(0.0, c.Location.z, 1e-6);
+            }
+        }
+
+        /// <summary>
+        /// A cylinder as a RuledSurface between two exact NURBS circles, against a plane tangent to it. As
+        /// for the quadric cylinder the contact is a whole ruling and not a point, so what has to come out
+        /// is several Degenerate samples along that line and no invented branches.
+        /// </summary>
+        [TestMethod]
+        public void ruled_nurbs_cylinder_and_tangent_plane_touch_along_a_ruling()
+        {
+            const double r = 4.0;
+            // the axis is the x axis at height r, so the plane z = 0 touches along y = 0, z = 0
+            RuledSurface cyl = new RuledSurface(
+                NurbsCircle(new GeoPoint(-20, 0, r), r * GeoVector.YAxis, r * GeoVector.ZAxis),
+                NurbsCircle(new GeoPoint(20, 0, r), r * GeoVector.YAxis, r * GeoVector.ZAxis));
+            PlaneSurface pln = PlaneThrough(GeoPoint.Origin, GeoVector.ZAxis);
+
+            SurfaceContact[] contacts = Surfaces.TangentialContacts(pln, Wide, cyl, Natural(cyl), precision);
+            Dump("plane tangent to a ruled NURBS cylinder", contacts);
+
+            Assert.IsTrue(contacts.Length > 1, "the contact is a whole ruling, not a point");
+            foreach (SurfaceContact c in contacts)
+            {
+                Assert.AreEqual(ContactType.Degenerate, c.Type);
+                Assert.AreEqual(0, c.BranchDirections.Length, "no branch directions for a degenerate contact");
+                Assert.AreEqual(0.0, c.Location.z, 1e-5, "every contact point is on the plane z = 0");
+                Assert.AreEqual(0.0, c.Location.y, 1e-5, "and on the ruling y = 0");
+            }
+        }
+
+        /// <summary>
+        /// A torus built by sweeping an exact NURBS circle along another one - a SweptCurveSurface, the
+        /// surface <c>solid.sweep</c> produces - against the plane tangent at its INNER equator. That point
+        /// is a saddle, so the plane crosses the surface there and the contact is a node; the same plane at
+        /// the outer equator touches an elliptic point and does not cross. Both answers are the ones the
+        /// ToroidalSurface gives in
+        /// <see cref="plane_at_the_inner_equator_of_a_torus_is_a_node_the_outer_one_is_not"/>.
+        /// </summary>
+        [TestMethod]
+        public void swept_nurbs_torus_against_the_equator_planes()
+        {
+            const double R = 30.0, r = 8.0;
+            SweptCurveSurface tor = new SweptCurveSurface(
+                NurbsCircle(new GeoPoint(R, 0, 0), r * GeoVector.XAxis, r * GeoVector.ZAxis),
+                NurbsCircle(GeoPoint.Origin, R * GeoVector.XAxis, R * GeoVector.YAxis));
+            BoundingRect domain = Natural(tor);
+
+            SurfaceContact[] inner = Surfaces.TangentialContacts(
+                PlaneThrough(new GeoPoint(R - r, 0, 0), GeoVector.XAxis), Wide, tor, domain, precision);
+            Dump("swept NURBS torus, plane at the inner equator", inner);
+            Assert.AreEqual(1, inner.Length);
+            Assert.AreEqual(ContactType.Crossing, inner[0].Type, "the inner equator is a saddle point");
+            Assert.AreEqual(0.0, (inner[0].Location | new GeoPoint(R - r, 0, 0)), 1e-5);
+
+            SurfaceContact[] outer = Surfaces.TangentialContacts(
+                PlaneThrough(new GeoPoint(R + r, 0, 0), GeoVector.XAxis), Wide, tor, domain, precision);
+            Dump("swept NURBS torus, plane at the outer equator", outer);
+            Assert.AreEqual(1, outer.Length);
+            Assert.AreEqual(ContactType.Isolated, outer[0].Type, "the outer equator is an elliptic point");
+            Assert.AreEqual(0.0, (outer[0].Location | new GeoPoint(R + r, 0, 0)), 1e-5);
+        }
+
+        /// <summary>
+        /// The same torus as a SurfaceOfRevolution - the fourth of the surfaces this search had to reach -
+        /// against the plane tangent at its inner equator. Same saddle, same node.
+        /// </summary>
+        [TestMethod]
+        public void revolved_nurbs_torus_against_the_inner_equator_plane()
+        {
+            const double R = 30.0, r = 8.0;
+            SurfaceOfRevolution tor = new SurfaceOfRevolution(
+                NurbsCircle(new GeoPoint(R, 0, 0), r * GeoVector.XAxis, r * GeoVector.ZAxis),
+                GeoPoint.Origin, GeoVector.ZAxis);
+
+            SurfaceContact[] contacts = Surfaces.TangentialContacts(
+                PlaneThrough(new GeoPoint(R - r, 0, 0), GeoVector.XAxis), Wide, tor, Natural(tor), precision);
+            Dump("revolved NURBS torus, plane at the inner equator", contacts);
+
+            Assert.AreEqual(1, contacts.Length);
+            Assert.AreEqual(ContactType.Crossing, contacts[0].Type, "the inner equator is a saddle point");
+            Assert.AreEqual(0.0, (contacts[0].Location | new GeoPoint(R - r, 0, 0)), 1e-5);
+        }
+
+        /// <summary>
+        /// A plane that does not reach the NURBS cylinder has no contact - and, just as important, costs the
+        /// coarse scan and nothing else: the bounding boxes do not even overlap.
+        /// </summary>
+        [TestMethod]
+        public void plane_missing_the_nurbs_cylinder_has_no_contact()
+        {
+            SurfaceOfLinearExtrusion cyl = ExtrudedCylinder(new GeoPoint(0, 0, 0), GeoVector.ZAxis, 10.0);
+            PlaneSurface pln = PlaneThrough(new GeoPoint(11, 0, 0), GeoVector.XAxis);
+            SurfaceContact[] contacts = Surfaces.TangentialContacts(pln, Wide, cyl, ExtrusionDomain(30.0), precision);
+            Dump("plane one unit away from the NURBS cylinder", contacts);
+            Assert.AreEqual(0, contacts.Length);
+        }
+
+        #endregion
     }
 }

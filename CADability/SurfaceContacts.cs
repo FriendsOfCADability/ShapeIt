@@ -108,8 +108,12 @@ namespace CADability.GeoObject
         /// crossing exactly there. Two planes touch only if they are the same plane.
         /// </para>
         /// <para>
-        /// Anything that is none of these surfaces yields an empty result - it is not a statement that
-        /// there is no contact.
+        /// Anything that is none of these surfaces - a ruled surface, a surface of revolution, a surface of
+        /// linear extrusion, a swept curve surface, a NURBS surface - is handled by a general numerical
+        /// search on <see cref="ISurface"/> alone, see <see cref="GeneralContacts"/>. It needs no knowledge
+        /// of the surface beyond point, derivatives and <see cref="ISurface.PositionOf"/>, so it applies to
+        /// every surface there is, but unlike the canal form it scans a finite grid and can therefore not
+        /// promise to find every contact. The quadrics keep their own path because it is exact and cheap.
         /// </para>
         /// <para>
         /// The system is overdetermined by one equation, which is not a flaw of the formulation: tangency
@@ -149,21 +153,30 @@ namespace CADability.GeoObject
                 PlaneSurface plane = plane1 ?? plane2;
                 ISurface other = plane1 != null ? surface2 : surface1;
                 BoundingRect otherBounds = plane1 != null ? bounds2 : bounds1;
+                BoundingRect planeBounds = plane1 != null ? bounds1 : bounds2;
                 CanalForm canal = CanalForm.Create(other, otherBounds, precision);
-                if (canal == null) return new SurfaceContact[0];
-                PlaneContacts(plane, canal, precision, candidates, candidateNormals);
+                if (canal != null) PlaneContacts(plane, canal, precision, candidates, candidateNormals);
+                // the plane is the better projection target of the two: its foot point is exact and costs
+                // nothing, so the general search scans the domain of the other surface
+                else GeneralContacts(other, otherBounds, plane, planeBounds, precision, candidates, candidateNormals);
             }
             else
             {
                 CanalForm canal1 = CanalForm.Create(surface1, bounds1, precision);
                 CanalForm canal2 = CanalForm.Create(surface2, bounds2, precision);
-                if (canal1 == null || canal2 == null) return new SurfaceContact[0];
-                for (int s = 0; s < 2; s++)
+                if (canal1 != null && canal2 != null)
                 {
-                    double sigma = s == 0 ? 1.0 : -1.0;
-                    CoincidentSphereContacts(canal1, canal2, sigma, precision, candidates, candidateNormals);
-                    RegularContacts(canal1, canal2, sigma, precision, candidates, candidateNormals);
+                    for (int s = 0; s < 2; s++)
+                    {
+                        double sigma = s == 0 ? 1.0 : -1.0;
+                        CoincidentSphereContacts(canal1, canal2, sigma, precision, candidates, candidateNormals);
+                        RegularContacts(canal1, canal2, sigma, precision, candidates, candidateNormals);
+                    }
                 }
+                // scan the domain of the surface that is NOT a quadric, so that the quadric - which has an
+                // exact PositionOf - is the one the foot points are taken on
+                else if (canal1 != null) GeneralContacts(surface2, bounds2, surface1, bounds1, precision, candidates, candidateNormals);
+                else GeneralContacts(surface1, bounds1, surface2, bounds2, precision, candidates, candidateNormals);
             }
 
             List<SurfaceContact> res = new List<SurfaceContact>();
@@ -873,6 +886,245 @@ namespace CADability.GeoObject
                 if (!stepTaken) break;
             }
             return !double.IsNaN(t1) && !double.IsNaN(t2);
+        }
+
+        #endregion
+
+        #region the general search, for surfaces which are not natural quadrics
+
+        /// <summary>
+        /// Grid lines per parameter direction for the coarse scan of <see cref="GeneralContacts"/>. The scan
+        /// is only there to find the regions where the two surfaces come close enough to touch at all; the
+        /// contact point itself is produced by the Newton step afterwards, so this does not have to be fine.
+        /// </summary>
+        private const int generalGridLines = 10;
+        /// <summary>
+        /// Upper limit on the Newton runs of one general search. A whole CURVE of contact makes every node
+        /// of the grid a candidate, and running all of them would only produce the same curve over and over.
+        /// </summary>
+        private const int generalStarts = 32;
+        /// <summary>
+        /// How far the two normals may be from parallel and still count as a contact of the general search,
+        /// as the sine of the angle. Not tighter, because an ALMOST tangential point is just as dangerous for
+        /// an intersection algorithm as an exact one - see the remarks on <see cref="TangentialContacts"/> -
+        /// and how exact the contact really is ends up in <see cref="SurfaceContact.AngleDefect"/>.
+        /// </summary>
+        private const double generalAngleTolerance = 1e-4;
+
+        /// <summary>
+        /// The general search, used when at least one of the two surfaces is not a natural quadric and the
+        /// canal form is therefore not available: a ruled surface, a surface of revolution, a surface of
+        /// linear extrusion, a swept curve surface, a NURBS surface - anything that implements
+        /// <see cref="ISurface"/>.
+        /// <para>
+        /// It works with two quantities on the domain of <paramref name="probe"/>, both measured against the
+        /// FOOT POINT on <paramref name="target"/> (see <see cref="TangentResidual"/>): the signed distance
+        /// g and the pair h = (Pu*n, Pv*n) of the probe's tangent vectors projected onto the target's normal.
+        /// A contact is a point where BOTH vanish, and the two conditions play different roles.
+        /// </para>
+        /// <para>
+        /// h = 0 says the normals are parallel. It is two equations in the two unknowns (u,v), so it is a
+        /// well posed system, and it is what the Newton step actually solves. g = 0 says the surfaces really
+        /// meet there. It is the one equation too many which makes tangency a codimension one condition -
+        /// exactly the overdetermination the canal form solver has as well - so it is not solved but checked
+        /// afterwards.
+        /// </para>
+        /// <para>
+        /// Why g is the right function to scan with: at the foot point the derivative of the distance along
+        /// the target vanishes, so the gradient of g on the probe's domain is precisely h. Every critical
+        /// point of g is therefore a zero of h and the other way round, which is what makes a scan of g a
+        /// complete search - including the SADDLES, and a crossing contact is always a saddle of g, never a
+        /// minimum. Minimizing a distance, which is the obvious thing to do, would miss exactly the case
+        /// this method exists for.
+        /// </para>
+        /// <para>
+        /// The result is not claimed to be complete: a contact hidden between two grid nodes is not found,
+        /// and no finite scan can promise otherwise on an arbitrary surface. The grid is judged against the
+        /// 3d size of its own cells, so a node is followed up only when a contact could be within one cell
+        /// of it, which is what keeps a face pair that does not touch at <see cref="generalGridLines"/>
+        /// squared surface evaluations and no Newton run at all.
+        /// </para>
+        /// </summary>
+        /// <param name="probe">the surface whose parameter domain is scanned</param>
+        /// <param name="probeBounds">the domain of interest on <paramref name="probe"/></param>
+        /// <param name="target">the surface the foot points are taken on - the one with the cheaper and more
+        /// reliable <see cref="ISurface.PositionOf"/>, which is why a plane or a quadric is passed here</param>
+        /// <param name="targetBounds">the domain of interest on <paramref name="target"/>, used for the
+        /// bounding box rejection only</param>
+        /// <param name="precision">geometric tolerance, as in <see cref="TangentialContacts"/></param>
+        /// <param name="points">candidate points are appended here</param>
+        /// <param name="normals">the common normal of each candidate, appended in the same order</param>
+        private static void GeneralContacts(ISurface probe, BoundingRect probeBounds, ISurface target,
+            BoundingRect targetBounds, double precision, List<GeoPoint> points, List<GeoVector> normals)
+        {
+            if (probe == null || target == null) return;
+            if (probeBounds.Width <= 0.0 || probeBounds.Height <= 0.0) return;
+
+            BoundingBox probeBox = probe.GetPatchExtent(probeBounds, true);
+            BoundingBox targetBox = target.GetPatchExtent(targetBounds, true);
+            if (probeBox.IsEmpty || targetBox.IsEmpty) return;
+            probeBox.Expand(Math.Max(precision * 10.0, (probeBox.Size + targetBox.Size) * 1e-6));
+            if (!probeBox.Interferes(targetBox)) return; // far apart, nothing can touch
+
+            const int n = generalGridLines;
+            GeoPoint[,] point = new GeoPoint[n + 1, n + 1];
+            double[,] gap = new double[n + 1, n + 1];
+            bool[,] usable = new bool[n + 1, n + 1];
+            double[] residual = new double[2];
+            for (int i = 0; i <= n; i++)
+            {
+                for (int j = 0; j <= n; j++)
+                {
+                    GeoPoint2D uv = GridPoint(probeBounds, i, j, n);
+                    usable[i, j] = TangentResidual(probe, uv, target, out point[i, j], out gap[i, j], residual);
+                }
+            }
+
+            // A node is worth a Newton run when a contact could be within one cell of it - the cell measured
+            // in 3d, not in parameters, because that is the scale the distance has to be compared with.
+            List<KeyValuePair<double, GeoPoint2D>> starts = new List<KeyValuePair<double, GeoPoint2D>>();
+            for (int i = 0; i <= n; i++)
+            {
+                for (int j = 0; j <= n; j++)
+                {
+                    if (!usable[i, j]) continue;
+                    double reach = 0.0;
+                    for (int di = -1; di <= 1; di++)
+                    {
+                        for (int dj = -1; dj <= 1; dj++)
+                        {
+                            int ii = i + di, jj = j + dj;
+                            if (ii < 0 || ii > n || jj < 0 || jj > n || !usable[ii, jj]) continue;
+                            double d = point[i, j] | point[ii, jj];
+                            if (d > reach) reach = d;
+                        }
+                    }
+                    double distance = Math.Abs(gap[i, j]);
+                    if (distance <= Math.Max(reach, precision * 10.0))
+                        starts.Add(new KeyValuePair<double, GeoPoint2D>(distance, GridPoint(probeBounds, i, j, n)));
+                }
+            }
+            starts.Sort((a, b) => a.Key.CompareTo(b.Key)); // the closest nodes are the most promising ones
+
+            // generous, because the caller checks the domain properly: a contact exactly on the boundary must
+            // not be lost to a clamp, and a Newton step leaving this region is nothing worth following
+            BoundingRect region = probeBounds;
+            region.Inflate(probeBounds.Width * 0.25, probeBounds.Height * 0.25);
+            List<GeoPoint> found = new List<GeoPoint>();
+            for (int i = 0; i < starts.Count && i < generalStarts; i++)
+            {
+                GeoPoint2D uv = starts[i].Value;
+                if (!PolishGeneral(probe, region, target, ref uv)) continue;
+                if (!region.Contains(uv)) continue;
+                if (!TangentResidual(probe, uv, target, out GeoPoint location, out double gapHere, residual)) continue;
+                // h = 0 is what the Newton step solves, so it has to be met; g = 0 is the equation too many
+                // and is only checked. Neither is tightened beyond what Verify would accept anyway.
+                if (Math.Sqrt(residual[0] * residual[0] + residual[1] * residual[1]) > generalAngleTolerance) continue;
+                if (Math.Abs(gapHere) > precision * 10.0) continue;
+                GeoVector normal = probe.GetNormal(uv);
+                if (normal.IsNullVector()) continue;
+                bool duplicate = false;
+                for (int k = 0; k < found.Count; k++)
+                    if ((found[k] | location) < precision * 10.0) { duplicate = true; break; }
+                if (duplicate) continue;
+                found.Add(location);
+                points.Add(location);
+                normals.Add(normal.Normalized);
+                if (found.Count >= maxContacts) break; // a contact along a curve would go on forever
+            }
+        }
+
+        private static GeoPoint2D GridPoint(BoundingRect bounds, int i, int j, int n)
+        {
+            return new GeoPoint2D(bounds.Left + bounds.Width * i / n, bounds.Bottom + bounds.Height * j / n);
+        }
+
+        /// <summary>
+        /// The two quantities the general search works with, at one parameter pair of the probe surface.
+        /// <paramref name="signedDistance"/> is the distance to the target surface measured along the
+        /// target's normal at the foot point, and <paramref name="residual"/> holds the two tangent vectors
+        /// of the probe projected onto that normal and divided by their own length - sines of the angle
+        /// between a tangent direction of the probe and the tangent plane of the target, so both are
+        /// dimensionless and both vanish exactly when the two normals are parallel.
+        /// </summary>
+        /// <returns>false where the quantities are not defined: a pole of the probe surface, or a point whose
+        /// foot point has no normal</returns>
+        private static bool TangentResidual(ISurface probe, GeoPoint2D uv, ISurface target,
+            out GeoPoint location, out double signedDistance, double[] residual)
+        {
+            location = probe.PointAt(uv);
+            signedDistance = 0.0;
+            residual[0] = residual[1] = 0.0;
+            GeoVector du = probe.UDirection(uv), dv = probe.VDirection(uv);
+            double lu = du.Length, lv = dv.Length;
+            if (lu < 1e-13 || lv < 1e-13) return false; // a pole: no tangent plane
+
+            // no AdjustPeriodic here on purpose: the normal is the same at a wrapped parameter, and pulling
+            // the foot point into a domain would make the residual jump at the seam
+            GeoPoint2D uvTarget = target.PositionOf(location);
+            GeoVector normal = target.GetNormal(uvTarget);
+            if (normal.IsNullVector()) return false;
+            normal.Norm();
+
+            signedDistance = (location - target.PointAt(uvTarget)) * normal;
+            residual[0] = (du * normal) / lu;
+            residual[1] = (dv * normal) / lv;
+            return true;
+        }
+
+        /// <summary>
+        /// Damped Gauss-Newton on the two residuals of <see cref="TangentResidual"/> in the two parameters of
+        /// the probe surface, with a numerical Jacobian. The Levenberg damping is not decoration: where the
+        /// two surfaces touch along a whole CURVE the Jacobian is singular at every point of it, and an
+        /// undamped Newton step would be a division by zero rather than a result.
+        /// </summary>
+        /// <returns>false when the residual could not be evaluated at the starting point at all</returns>
+        private static bool PolishGeneral(ISurface probe, BoundingRect region, ISurface target, ref GeoPoint2D uv)
+        {
+            double hu = region.Width * 1e-5, hv = region.Height * 1e-5;
+            double[] r = new double[2], rp = new double[2], rm = new double[2], ju = new double[2], jv = new double[2];
+            if (!TangentResidual(probe, uv, target, out _, out _, r)) return false;
+            double err = r[0] * r[0] + r[1] * r[1];
+            double lambda = 1e-6;
+            for (int iteration = 0; iteration < 30; iteration++)
+            {
+                if (err < 1e-26) break;
+                if (!TangentResidual(probe, new GeoPoint2D(uv.x + hu, uv.y), target, out _, out _, rp)) break;
+                if (!TangentResidual(probe, new GeoPoint2D(uv.x - hu, uv.y), target, out _, out _, rm)) break;
+                for (int k = 0; k < 2; k++) ju[k] = (rp[k] - rm[k]) / (2.0 * hu);
+                if (!TangentResidual(probe, new GeoPoint2D(uv.x, uv.y + hv), target, out _, out _, rp)) break;
+                if (!TangentResidual(probe, new GeoPoint2D(uv.x, uv.y - hv), target, out _, out _, rm)) break;
+                for (int k = 0; k < 2; k++) jv[k] = (rp[k] - rm[k]) / (2.0 * hv);
+
+                double a11 = ju[0] * ju[0] + ju[1] * ju[1];
+                double a12 = ju[0] * jv[0] + ju[1] * jv[1];
+                double a22 = jv[0] * jv[0] + jv[1] * jv[1];
+                double b1 = -(ju[0] * r[0] + ju[1] * r[1]);
+                double b2 = -(jv[0] * r[0] + jv[1] * r[1]);
+                double diagonal = Math.Max(Math.Max(a11, a22), 1e-12);
+                bool stepTaken = false;
+                for (int attempt = 0; attempt < 8; attempt++)
+                {
+                    double d11 = a11 + lambda * diagonal, d22 = a22 + lambda * diagonal;
+                    double det = d11 * d22 - a12 * a12;
+                    if (Math.Abs(det) < 1e-30) { lambda *= 10.0; continue; }
+                    GeoPoint2D next = new GeoPoint2D(uv.x + (b1 * d22 - b2 * a12) / det,
+                                                     uv.y + (b2 * d11 - b1 * a12) / det);
+                    if (!region.Contains(next)) { lambda *= 10.0; continue; } // stepped out of the patch
+                    if (!TangentResidual(probe, next, target, out _, out _, rp)) { lambda *= 10.0; continue; }
+                    double newErr = rp[0] * rp[0] + rp[1] * rp[1];
+                    if (newErr < err)
+                    {
+                        uv = next; err = newErr; r[0] = rp[0]; r[1] = rp[1];
+                        lambda = Math.Max(lambda * 0.3, 1e-9);
+                        stepTaken = true;
+                        break;
+                    }
+                    lambda *= 10.0;
+                }
+                if (!stepTaken) break;
+            }
+            return !double.IsNaN(uv.x) && !double.IsNaN(uv.y);
         }
 
         #endregion

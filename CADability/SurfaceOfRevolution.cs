@@ -255,7 +255,12 @@ namespace CADability.GeoObject
                     // SweepAngle sa = new SweepAngle(p - onAxis, curveToRotate.PointAt(ipar[0]) - onAxis);
                     ModOp rotate = ModOp.Rotate(axisLocation, axisDirection, sa);
                     // double y = curveToRotate.PositionToParameter(curveToRotate.PositionOf(rotate * p));
-                    double y = curveToRotate.PositionToParameter(ipar[0]);
+                    // ipar[i], not ipar[0]: the angle above is taken from the i-th intersection, so the curve
+                    // parameter has to come from the same one. With ipar[0] every candidate of the loop was
+                    // measured at the first intersection, which for a CLOSED profile - the cross section of a
+                    // torus, where the perpendicular plane meets the curve twice - returned the point on the
+                    // outer equator for every point of the inner one.
+                    double y = curveToRotate.PositionToParameter(ipar[i]);
                     double d = PointAt(new GeoPoint2D(sa, y)) | p;
                     if (d < mindist) { res = new GeoPoint2D(sa, y); mindist = d; }
                     d = PointAt(new GeoPoint2D(-sa, y)) | p;
@@ -944,7 +949,15 @@ namespace CADability.GeoObject
                     samples[(i + 1) * 3 + 1] = rot90 * samples[i * 3 + 1];
                     samples[(i + 1) * 3 + 2] = rot90 * samples[i * 3 + 2];
                 }
-                ImplicitPSurface ips = new ImplicitPSurface(samples);
+                // The 12 samples determine that quadric only when the four rotated copies of the line are
+                // not coplanar in pairs. They are exactly when the line is parallel or perpendicular to the
+                // axis, or meets it - then the pair of planes through opposite copies is a second quadric
+                // through the same points, the system is rank deficient and the constructor says so. That is
+                // a degenerate line, not a broken surface, so it falls back on the general implementation
+                // rather than propagating an exception out of a line intersection.
+                ImplicitPSurface ips;
+                try { ips = new ImplicitPSurface(samples); }
+                catch (ApplicationException) { return base.GetLineIntersection(startPoint, direction); }
                 GeoPoint[] itpts = ips.Intersect(expcrv.GetExplicitPCurve3D(), out double[] ipspars);
                 List<GeoPoint2D> res = new List<GeoPoint2D>();
                 for (int i = 0; i < itpts.Length; i++)
