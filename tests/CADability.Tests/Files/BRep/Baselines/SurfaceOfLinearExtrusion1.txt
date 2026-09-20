@@ -1,3 +1,9 @@
+# note 2026-09-21 (deliberately NOT "verified": the direction of the change is argued, the value
+# itself is not independently checked): in0.area 6743.09679828 -> 6771.31877451 and out0.area 6906.7324394 ->
+# 6917.01357416, both with the rational area fix in BSpline2D and both only in the AREA - no volume
+# moved. The direction is the one a chord polygon predicts: it cuts the corners of a curved outline, so
+# the old value was too small. Where the true area is known the fix lands on it exactly - see
+# RuledSolidsFromNurbsCircles, whose cone area went to the calculated value to 1.0e-07.
 case.operation    = Difference
 case.markedEdges  = 0
 in0.consistent    = true
@@ -10,7 +16,7 @@ in0.euler         = 2
 in0.closed        = true
 in0.openEdges     = 0
 in0.volume        = 29633.377915
-in0.area          = 6743.09679828
+in0.area          = 6771.31877451
 in0.edgeLength    = 331.448809623
 in0.extent        = -30.437896768, -4.26196507533E-07, -1.47756092305E-13, 30.437896768, 55.9954761453, 19.9783416258
 in0.surfaces      = PlaneSurface:3 SurfaceOfRevolution:1
@@ -39,8 +45,8 @@ out0.holeLoops    = 0
 out0.euler        = 2
 out0.closed       = true
 out0.openEdges    = 0
-out0.volume       = 26929.856719
-out0.area         = 6906.7324394
-out0.edgeLength   = 413.803665897
-out0.extent       = -30.437896768, -4.26196507533E-07, -9.54619784768E-11, 30.437896768, 55.9954761453, 25.4153205426
+out0.volume       = 26929.8552117
+out0.area         = 6917.01357416
+out0.edgeLength   = 413.803665896
+out0.extent       = -30.437896768, -4.26196507533E-07, -1.47756092305E-13, 30.437896768, 55.9954761453, 25.4153205426
 out0.surfaces     = PlaneSurface:4 SurfaceOfLinearExtrusion:1 SurfaceOfRevolution:1

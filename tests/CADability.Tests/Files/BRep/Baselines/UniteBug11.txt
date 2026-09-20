@@ -1,3 +1,13 @@
+# verified 2026-09-21: RE-RECORDED, out0.volume 7953.42909444 -> 8170.2985479 and out0.area
+# 3068.3907453 -> 3094.01785946, after BSpline2D started integrating the swept area of a rational spline
+# instead of taking it from an arc approximation (Border.Area was short on the trimmed planar faces of
+# the union, and a planar face carries 1/3*d*A into the volume). The new value is the right one and the
+# old verified one was not: Shell.Volume, which never goes through Border.Area, gives 8170.194 to
+# 8170.196 over the mesh precisions 0.1, 0.01 and 0.001, and the new ShellMetrics value meets it to
+# 1.7e-06 while the old one was 2.7 % below. The overlap of the two operands is therefore
+# 5093.86104706 + 3574.93609024 - 8170.2985479 = 498.50, not the 715.37 the note below computed from the
+# wrong number. Everything else about that note still stands, and is kept:
+#
 # verified 2026-09-12: union of a cone-and-cylinder body with a plain cylinder, checked visually in ShapeIt
 # by GH and judged correct. One closed, consistent shell of 6 patches, euler 2, and the volume adds up:
 # 5093.86104706 + 3574.93609024 - 7953.42909444 leaves 715.37 for the overlap of the two operands.
@@ -45,8 +55,8 @@ out0.holeLoops    = 3
 out0.euler        = 2
 out0.closed       = true
 out0.openEdges    = 0
-out0.volume       = 7953.42909444
-out0.area         = 3068.3907453
-out0.edgeLength   = 391.28580238
+out0.volume       = 8170.2985479
+out0.area         = 3094.01785946
+out0.edgeLength   = 391.285802379
 out0.extent       = -16, 18.3875, 5, 16, 30.3875, 37
 out0.surfaces     = ConicalSurface:1 CylindricalSurface:2 PlaneSurface:3

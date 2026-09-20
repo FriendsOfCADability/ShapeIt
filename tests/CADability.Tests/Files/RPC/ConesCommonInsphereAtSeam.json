@@ -59,8 +59,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "15147.6814589",
-      "area": "3658.21318811",
+      "volume": "15155.6143347",
+      "area": "3659.16513321",
       "edgeLength": "308.241250184",
       "extent": "-24.8648137681, -24.7487373416, -15.8578643865, 24.8648137681, 11.1192762393, 11.1464279588",
       "surfaces": "ConicalSurface:4 PlaneSurface:2"
@@ -79,8 +79,8 @@
       "euler": "0",
       "closed": "true",
       "openEdges": "0",
-      "volume": "16245.3661915",
-      "area": "6659.97429439",
+      "volume": "16237.4333156",
+      "area": "6659.02234929",
       "edgeLength": "421.485464515",
       "extent": "-25.9807621135, -36.0488426006, -36.0488426006, 25.9807621135, 6.10365985075, 8.95167441582",
       "surfaces": "ConicalSurface:2 PlaneSurface:2"
@@ -113,8 +113,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "44951.3838492",
-      "area": "9532.06317536",
+      "volume": "44943.4509734",
+      "area": "9531.11123026",
       "edgeLength": "646.336493211",
       "extent": "-30, -36.0488426006, -36.0488426006, 30, 30, 14.1421356237",
       "surfaces": "ConicalSurface:5 PlaneSurface:3"
@@ -140,7 +140,7 @@
       "surfaces": "ConicalSurface:2 PlaneSurface:1"
     },
     "insphereWideMinusNarrow#1": {
-      "verified": "2026-08-28 GH: the lobe below, unchanged by the fix (690.525248884 before and after).",
+      "verified": "2026-09-21 GH: RE-RECORDED, 697.632234561 -> 689.69935874, after BSpline2D started integrating the swept area of a rational spline instead of approximating it. This part carries two planar faces whose trimmed outline runs through rational curves, so its volume moved with the area. The case's own sharpest check says the new value is the better one: the sum of the three parts of insphereWideMinusNarrow has to be coneWide - insphereInter = 13126.652423, and it went from 13138.997549 (+12.345) to 13131.065 (+4.412) - now level with the other difference, which sits at +4.247. 2026-08-28 GH: the lobe below, unchanged by the fix (690.525248884 before and after).",
       "consistent": "true",
       "faces": "3",
       "edges": "3",
@@ -150,8 +150,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "697.632234561",
-      "area": "801.15197635",
+      "volume": "689.69935874",
+      "area": "802.103921448",
       "edgeLength": "145.358046491",
       "extent": "-22.8001860078, -30, -15.8578643865, 22.8001860078, -19.4974746729, -10.6066017178",
       "surfaces": "ConicalSurface:1 PlaneSurface:2"

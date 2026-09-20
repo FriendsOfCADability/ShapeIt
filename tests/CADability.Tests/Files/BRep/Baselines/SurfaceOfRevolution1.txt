@@ -1,3 +1,7 @@
+# note 2026-09-21 (deliberately NOT "verified": the direction of the change is argued, the value
+# itself is not independently checked): in0.area 6743.09679828 -> 6771.31877451 and out0.area 13054.5640133 ->
+# 13082.7859896, both with the rational area fix in BSpline2D and both only in the AREA. Same input body
+# and same reasoning as SurfaceOfLinearExtrusion1.
 case.operation    = Union
 case.markedEdges  = 0
 in0.consistent    = true
@@ -10,7 +14,7 @@ in0.euler         = 2
 in0.closed        = true
 in0.openEdges     = 0
 in0.volume        = 29633.377915
-in0.area          = 6743.09679828
+in0.area          = 6771.31877451
 in0.edgeLength    = 331.448809623
 in0.extent        = -30.437896768, -4.26196507533E-07, -1.47756092305E-13, 30.437896768, 55.9954761453, 19.9783416258
 in0.surfaces      = PlaneSurface:3 SurfaceOfRevolution:1
@@ -40,7 +44,7 @@ out0.euler        = 2
 out0.closed       = true
 out0.openEdges    = 0
 out0.volume       = 48565.6353612
-out0.area         = 13054.5640133
+out0.area         = 13082.7859896
 out0.edgeLength   = 1070.71709497
 out0.extent       = -44.8367022745, -4.26196507533E-07, -1.47756092305E-13, 40.9738550025, 152.058413817, 23.8682700798
 out0.surfaces     = PlaneSurface:11 SurfaceOfRevolution:1
