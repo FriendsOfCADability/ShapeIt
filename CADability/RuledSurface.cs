@@ -608,6 +608,10 @@ namespace CADability
             {
                 pnts[i] = PositionOf(curve.PointAt(pos[i]));
             }
+            if (Precision.IsColinear(pnts))
+            { // like the top or bottom curve or the seam of a closed ruled surface
+                return new Line2D(pnts[0], pnts[pnts.Length - 1]);
+            }
             BSpline2D bsp = new BSpline2D(pnts, 3, false);
             return bsp;
             return base.GetProjectedCurve(curve, precision);

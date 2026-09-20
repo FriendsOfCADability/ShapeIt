@@ -381,6 +381,7 @@ namespace CADability
 
         private OctTree<Face> facesOctTree;
         private OctTree<Vertex> verticesOctTree;
+        private OctTree<Edge> edgesOctTree;
         private HashSet<(Edge, Face)> dontIntersect = new HashSet<(Edge, Face)>(); // dont intersect these pairs of edges and faces
 
         Dictionary<DoubleFaceKey, ModOp2D> overlappingFaces; // Faces von verschiedenen Shells, die auf der gleichen Surface beruhen und sich überlappen
@@ -575,7 +576,7 @@ namespace CADability
                     // this touching point may or may not lie on an edge
                     foreach (Edge edge in fc1.Edges.Concat(fc2.Edges))
                     {
-                        if (edge.Curve3D != null && edge.Curve3D.DistanceTo(v.Position) < Precision.eps)
+                        if (edge.Curve3D != null && edge.Curve3D.DistanceTo(v.Position) < 10 * Precision.eps)
                         {
                             double pos = edge.Curve3D.PositionOf(v.Position);
                             if (pos > Precision.eps && pos < 1 - Precision.eps)
@@ -632,6 +633,13 @@ namespace CADability
                         else
                         {
                             List<Vertex> vtxs = GetFaceEdgeIntersection(fca, edge, out bool curveIsInSurface).ToList();
+                            if (curveIsInSurface) foreach (Vertex vtx in surfaceContactVertices)
+                            {
+                                if (!vtxs.Contains(vtx) && edge.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps)
+                                {
+                                    vtxs.Add(vtx);
+                                }
+                            }
                             vtxs.Sort((v1, v2) => edge.Curve3D.PositionOf(v1.Position).CompareTo(edge.Curve3D.PositionOf(v2.Position)));
                             if (curveIsInSurface)
                             {   // why not accumulate the vertices and create the intersection edges later?
@@ -659,6 +667,18 @@ namespace CADability
                                     }
                                     usedVerticedByKnownIntersections.AddRange(list);
                                 }
+                                foreach(Vertex vtx in vtxs) foreach (Edge e in edgesOctTree.GetObjectsFromPoint(vtx.Position))
+                                {   // this intersection curve lies in the surface of a face. It might also lie on an edge of the face. In this case, we have to split the edge as well
+                                    if (e == edge) continue;
+                                    if (edgesToSplit.TryGetValue(e, out var l)) if (l.Contains(vtx)) continue;
+                                    if (e.Vertex1== vtx || e.Vertex2 == vtx) continue; // the vertex is already on the edge
+                                    if (e.Curve3D != null && e.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps)
+                                    {
+                                        if (!edgesToSplit.ContainsKey(e)) edgesToSplit[e] = new List<Vertex>();
+                                        edgesToSplit[e].Add(vtx);
+                                    }
+                                }
+
                             }
                             intersectionVertices.UnionWith(vtxs);
                         }
@@ -1276,11 +1296,11 @@ namespace CADability
             // the middle point is never a pole, because a curve never crosses a pole
             GeoPoint m = intersectionCurve.PointAt(0.5);
             GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m));
-            if (normalsCrossedMiddle.Length > 100 * Precision.eps)
-            {
-                return (normalsCrossedMiddle * intersectionCurve.DirectionAt(0.5)) > 0;
-            }
-            else
+            //if (normalsCrossedMiddle.Length > 100 * Precision.eps)
+            //{
+            //    return (normalsCrossedMiddle * intersectionCurve.DirectionAt(0.5)) > 0;
+            //}
+            //else
             {
                 // it is also tangential at the midpoint of the intersection curve.
                 // We consider the whole intersection curve beeing tangential.
@@ -2212,6 +2232,7 @@ namespace CADability
             ext = ext.Modify(new GeoVector(extsize * 1e-4, extsize * 1e-4, extsize * 1e-4));
             facesOctTree = new OctTree<Face>(ext, extsize * 1e-6);
             verticesOctTree = new OctTree<Vertex>(ext, extsize * 1e-6);
+            edgesOctTree = new OctTree<Edge>(ext, extsize * 1e-6);
             facesOctTree.AddMany(shell1.Faces);
             facesOctTree.AddMany(shell2.Faces);
             AddToVertexOctTree(shell1);
@@ -2338,12 +2359,14 @@ namespace CADability
             ext = ext.Modify(new GeoVector(extsize * 1e-4, extsize * 1e-4, extsize * 1e-4));
             facesOctTree = new OctTree<Face>(ext, extsize * 1e-6);
             verticesOctTree = new OctTree<Vertex>(ext, extsize * 1e-6);
+            edgesOctTree = new OctTree<Edge>(ext, extsize * 1e-6);
             if (multipleFaces != null)
             {
                 facesOctTree.AddMany(multipleFaces);
                 HashSet<Vertex> allVertices = new HashSet<Vertex>();
                 foreach (Face face in multipleFaces) allVertices.UnionWith(face.Vertices);
                 verticesOctTree.AddMany(allVertices);
+                edgesOctTree.AddMany(new HashSet<Edge>(multipleFaces.SelectMany(f => f.Edges)));
             }
             else
             {
@@ -2351,6 +2374,8 @@ namespace CADability
                 facesOctTree.AddMany(shell2.Faces);
                 AddToVertexOctTree(shell1);
                 AddToVertexOctTree(shell2);
+                edgesOctTree.AddMany(shell1.Edges);
+                edgesOctTree.AddMany(shell2.Edges);
             }
             combineVertices(verticesOctTree);
 
