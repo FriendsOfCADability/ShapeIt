@@ -5978,13 +5978,7 @@ namespace CADability.GeoObject
                 try
                 {
                     IDualSurfaceCurve[] intCurves = Surfaces.GetIntersectionCurves(this, thisBounds, other, otherBounds, seeds);
-                    if (intCurves != null && intCurves.Length > 0) return intCurves;
-                    IDualSurfaceCurve[] testWithNewAlgorithm = NewGetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, out int numTangentialSeeds);
-                    if (testWithNewAlgorithm != null && testWithNewAlgorithm.Length > 0) return testWithNewAlgorithm;
-                    if (seeds.Count == numTangentialSeeds && seeds.Count == 2)
-                    {   // two seeds, both tangential, try to make an InterpolatedDualSurfaceCurve
-                        InterpolatedDualSurfaceCurve dsc = new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, seeds[0], seeds[1], true);
-                    }
+                    return intCurves;
                 }
                 catch (Exception)
                 {

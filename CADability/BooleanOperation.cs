@@ -1257,7 +1257,7 @@ namespace CADability
         {
             GeoVector normalsCrossedStart = fc1.Surface.GetNormal(uv1sp).Normalized ^ fc2.Surface.GetNormal(uv2sp).Normalized;
             GeoVector normalsCrossedEnd = fc1.Surface.GetNormal(uv1ep).Normalized ^ fc2.Surface.GetNormal(uv2ep).Normalized;
-            if (normalsCrossedStart.Length > 10 * Precision.eps || normalsCrossedEnd.Length > 10 * Precision.eps)
+            if (normalsCrossedStart.Length > 0.01 || normalsCrossedEnd.Length > 0.01)
             {   // simple case: not tangential, the crossproduct of the normals to the face.
                 // The result is same direction of cross product and intersection curve
                 // maybe one of the uv points is a pole, which has an unstable normal. In this case we use the other point
@@ -1296,8 +1296,7 @@ namespace CADability
             // the middle point is never a pole, because a curve never crosses a pole
             GeoPoint m = intersectionCurve.PointAt(0.5);
             GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)).Normalized ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m)).Normalized;
-            Angle middleAngle = new Angle(fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)), fc2.Surface.GetNormal(fc2.Surface.PositionOf(m)));
-            if (normalsCrossedStart.Length > 10 * Precision.eps && Math.Abs(middleAngle.Radian) > 0.1) // more than 5°
+            if (normalsCrossedMiddle.Length > 0.01) // more than 1.7°
             {
                 return (normalsCrossedMiddle * intersectionCurve.DirectionAt(0.5)) > 0;
             }
