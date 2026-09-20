@@ -1295,9 +1295,9 @@ namespace CADability
             // it seems to be tangential at the endpoints of the intersection curve: test in the middle of the intersection curve
             // the middle point is never a pole, because a curve never crosses a pole
             GeoPoint m = intersectionCurve.PointAt(0.5);
-            GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)) ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m));
+            GeoVector normalsCrossedMiddle = fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)).Normalized ^ fc2.Surface.GetNormal(fc2.Surface.PositionOf(m)).Normalized;
             Angle middleAngle = new Angle(fc1.Surface.GetNormal(fc1.Surface.PositionOf(m)), fc2.Surface.GetNormal(fc2.Surface.PositionOf(m)));
-            if (Math.Abs(middleAngle.Radian)>0.1) // mor than 5°
+            if (normalsCrossedStart.Length > 10 * Precision.eps && Math.Abs(middleAngle.Radian) > 0.1) // more than 5°
             {
                 return (normalsCrossedMiddle * intersectionCurve.DirectionAt(0.5)) > 0;
             }
