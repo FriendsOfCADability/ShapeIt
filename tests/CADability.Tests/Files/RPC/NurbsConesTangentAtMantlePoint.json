@@ -1,27 +1,9 @@
 {
   "Description": "The NURBS twin of ConesTangentAtMantlePoint: two identical cones touching TANGENTIALLY at one point of\ntheir mantles, then united, intersected and subtracted both ways. Neither mantle is a ConicalSurface -\nboth cones are solid.ruled between two exact nine pole NURBS circles, so both are RuledSurface and the\ncontact has to be found by the general search on ISurface rather than by the canal form of a quadric.\n\nconeA is the ruled solid between the circle r = 19 at z = 0 and the circle r = 10 at z = 18. Its mantle\nlies on the cone with apex (0, 0, 38) and half angle atan(1/2); the apex itself is cut away, which is\nwhat the ruled construction needs - a NURBS circle of radius zero is not a curve.\n\nconeB is coneA rotated by 180 degrees about the surface NORMAL of coneA at one point of its mantle:\n  P = (14.25, 0, 9.5)   a point of the ruling from (19, 0, 0) towards the apex (0, 0, 38), a quarter of\n                        the way up, so it is well inside the truncated part\n  n = (2, 0, 1)         the outward normal there - perpendicular to the ruling (-19, 0, 38), since\n                        -19*2 + 38*1 = 0, and to the circumferential direction (0, 1, 0)\n\nRotating about the normal at P fixes P and fixes the tangent plane at P, so coneB touches coneA at P and\nboth are tangent to the same plane there. That is the point of the case. A cone touches its tangent\nplane along a whole ruling, so both cones touch that plane along a ruling, and the two rulings are\ndifferent lines crossing at P. The intersection curve of the two mantles therefore has a NODE at P - two\nbranches crossing - which is the degenerate situation a surface/surface intersection has to survive.\n\nThe angle is 180 degrees on purpose: the rotation is then an involution, coneB = f(coneA) AND\nconeA = f(coneB), so the pair is symmetric and the two differences must come out equal. Under it the\nbase circle of coneA lands at centre (-1.9, 0, 3.8) and its top circle at (12.5, 0, -7), 18 apart as\nthey must be, with the axis direction (0.8, 0, -0.6).",
   "Expected": "Both operands are the same truncated cone and coneB is a rigid image of coneA, so every measured\nquantity must come out the same for both:\n  volume      pi*18/3*(19^2 + 19*10 + 10^2) = 3906*pi = 12271.0609049217\n  area        lateral pi*(19+10)*sqrt(18^2+9^2) = pi*29*20.1246117975 plus the two lids pi*361 and\n              pi*100, together 3281.7508581065\n  edgeLength  the two circles measure as their chord polygons 4*r*sqrt(2) (see\n              RuledSolidsFromNurbsCircles), 107.4802307404 and 56.5685424949, plus the two seams\n              2*20.1246117975: 204.2979968303\nconeA reaches z from 0 to 18 and |x|, |y| <= 19; coneB is its rigid image.\n\nThe results are pinned by three exact identities, none of which needs a computed value:\n  1  volume(coneUnion) + volume(coneInter) = volume(coneA) + volume(coneB) = 7812*pi = 24542.1218098434\n  2  volume(coneAminusB) = 12271.0609049217 - volume(coneInter)\n  3  volume(coneAminusB) = volume(coneBminusA), from the involution - the sharpest of the three\n\nThe one remaining unknown was computed independently by Monte Carlo over the bounding box of coneA,\n8e6 samples, using the exact cone volume as a control variate:\n  volume(coneInter)     5182.3 +- 3.7\n  volume(coneUnion)     24542.1218098434 - that = 19359.8\n  volume(coneAminusB)   12271.0609049217 - that =  7088.8 +- 4.1 (measured directly), same for\n                        coneBminusA\nSo the results are checkable against real values to about a tenth of a percent, not merely captured.\n\nWHAT MAY LEGITIMATELY VARY. How many solids each difference falls into is NOT fixed by this prose. In\nConesTangentAtMantlePoint, where the same construction is carried out on ConicalSurface, each difference\ncame out as two solids - a main body and a pair of lobes that meet the rest only at the tangency point,\nso they are one non manifold solid and the split is right. The truncation here changes how far the\nsecond cone reaches, so the same is likely but not guaranteed; whatever comes out has to be judged\nagainst the volume identities above before its baseline is recorded.\n\nWHY THESE RADII AND NOT OTHERS. A planar face whose outline is a rational NURBS circle is measured\nthrough Border.Area -> BSpline2D.GetArea -> GeneralCurve2D.GetArea -> Approximate(false, 0.0), and for\nmost radii that biarc approximation degenerates into four straight lines, so the lid measures 2*r*r\ninstead of pi*r*r - the defect RuledSolidsFromNurbsCircles documents and pins. Measured over a range of\nradii it turns out NOT to be a simple threshold: the lid is exact for r = 9.5, 10, 11, 12, 15, 16, 18\nand 19 and short by the factor 2/pi for r = 2.5, 4, 5, 6, 8, 9, 13, 14, 17, 20, 22 and 25. Every radius\nin this case is taken from the first list, so every number below is the geometry and not a measurement\nartefact. Change a radius and the case may start measuring a lid at 2/pi of its area, which looks like a\nregression of the boolean operation and is none.",
-  "Status": "KNOWN FAILURE since the case was written on 2026-09-17. All four operations hit the assertion\n\"loops.Count should never be 0\" inside BooleanOperation (call ids 11 to 14), so nothing is stored under\nany of the four names.\n\nThat is the same assertion the quadric twin ConesTangentAtMantlePoint used to hit before it was fixed on\n2026-08-24, on the same geometry and with the same tangential node at one point of the two mantles. The\ndifference is only the surface: there the mantles are ConicalSurface and the canal form solves the\ncontact in closed form, here they are RuledSurface. Switching the general search in\nSurfaces.TangentialContacts off changes nothing - the same four calls fail with the same message - so\nthe contact is not what breaks; what is built from it is.\n\nThe two operands are correct and, more to the point, they measure IDENTICALLY although they are\nindependent objects: coneA 12271.0609105 and coneB 12271.0609099, both against the exact 3906*pi =\n12271.0609049217, with the same area and the same edgeLength to the last recorded digit. They have to -\nconeB is a rigid image of coneA - and that they do means the input of the case is sound and the failure\nis the operation's.\n\nWhen the operations start returning, the three identities in the Expected section pin the answer without\nneeding any measurement, and the Monte Carlo value for the intersection, 5182.3 +- 3.7, checks it\nagainst something the code under test had no part in.",
-  "CaseStatus": "KnownFail",
+  "Status": "OK since 2026-09-20, and the second paragraph has to be read before any recorded number of this case is.\n\nWHAT THE BOOLEAN NOW DOES, and it is right. The case was a KNOWN FAILURE from 2026-09-17, when all four\noperations hit the assertion \"loops.Count should never be 0\" inside BooleanOperation. All four return\nnow, and at ae347d29 they already did, so the repair predates 284004f1. The SHAPE is the one the\nExpected section demands:\n  coneInter     one solid, Euler 2, eight faces - four RuledSurface and four planar\n  coneUnion     one solid, Euler 2, extent -19,-19,-15 .. 19,19,19, exactly the union of the two\n                operand extents\n  coneAminusB   TWO solids, the main body and the pair of lobes that meet it only at the tangency point\n  coneBminusA   TWO solids, likewise\nand the geometry is checked against values the code under test had no part in:\n  volume(coneInter)   5183.538    against 5182.3 +- 3.7 by Monte Carlo               0.3 sigma\n  volume(coneUnion)   19358.560   against the exact identity union + intersect = coneA + coneB, which\n                      forces 24542.1218098434 - 5183.538 = 19358.584                 1.0e-06\nBoth are read with Solid.Volume through inspect.properties, and calls 15 to 20 pin them - including that\nevery part of both differences, the lobes among them, stays above 300. So a real regression of the\nboolean fails this case loudly even though its recorded fingerprint would not notice.\n\nWHY THE RECORDED FINGERPRINT IS NOT THE ANSWER. ShellMetrics measures these bodies wrongly, and by a lot:\n  coneUnion       volume 18928.1196638 recorded against 19358.58 true      -2.2 %\n  coneBminusA#1   volume 202.675680244 recorded against about 333          -39 %\nThe second one is the giveaway. coneB is a rigid image of coneA, so coneAminusB and coneBminusA are\ncongruent - and the two lobes do measure the SAME area, 867.679962462 against 867.68001372 (6e-8), and\nthe same edgeLength, 219.358915756 against 219.358915009 (3e-9). They are the same shell, and congruent\nshells cannot have different volumes. Solid.Volume bears that out: bracketing both lobes with assert.check\nputs each of them in (330, 340].\n\nThe mechanism is the Border.Area defect that RuledSolidsFromNurbsCircles documents, reaching further than\nthat case could see. There the outline was a full NURBS circle and the error showed as a lid area of\n2*r*r instead of pi*r*r, which is why every radius in this corpus is taken from the list of radii where\nthat is exact. Here the planar faces are TRIMMED: their outline is a mixture of NURBS arcs and\nintersection curves, and the biarc approximation gets ITS area wrong too - the identity\nA(union) + A(intersect) = A(coneA) + A(coneB) misses by 263.13 of 6563.50. A planar face contributes\n(1/3)*d*A to the volume, with d the distance of its plane from the origin, so ONE area error produces\nDIFFERENT volume errors at different positions. That is exactly why two congruent lobes end up 130.5\napart, and it is why the recorded volume and area of coneUnion, coneInter and the lobes are pinned here\nas the defect they are and not as the answer.\n\nThe day ShellMetrics measures a trimmed planar face correctly this case goes red, and the new numbers\nhave to be judged against the three identities of the Expected section - which is the point of recording\nthe wrong ones now.",
+  "CaseStatus": "Ok",
   "Repeat": 3,
-  "ExpectError": [
-    {
-      "id": 11,
-      "code": "loops.Count should never be 0"
-    },
-    {
-      "id": 12,
-      "code": "loops.Count should never be 0"
-    },
-    {
-      "id": 13,
-      "code": "loops.Count should never be 0"
-    },
-    {
-      "id": 14,
-      "code": "loops.Count should never be 0"
-    }
-  ],
   "Verify": [
     "coneA",
     "coneB",
@@ -42,14 +24,48 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "12271.0609105",
-      "area": "3281.75085909",
+      "volume": "12271.0606029",
+      "area": "3281.75080479",
       "edgeLength": "204.29799683",
       "extent": "-19, -19, 1.42108547152E-14, 19, 19, 18",
       "surfaces": "PlaneSurface:2 RuledSurface:2"
     },
     "coneAminusB": {
-      "exists": "false"
+      "solids": "2"
+    },
+    "coneAminusB#0": {
+      "verified": "2026-09-20 GH: the main body. Congruent to coneBminusA#0 by the involution and measures it: 6756.14381266 against 6756.00752183, 2.0e-05.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleVertices": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "6756.14381266",
+      "area": "2310.99720662",
+      "edgeLength": "218.249037223",
+      "extent": "-19, -18.3966708945, 1.42108547152E-14, 8.75000000036, 18.3966708945, 18",
+      "surfaces": "PlaneSurface:3 RuledSurface:2"
+    },
+    "coneAminusB#1": {
+      "verified": "2026-09-20 GH: the pair of lobes, the part that only touches the rest at the tangency point. Congruent to coneBminusA#1 - same area to 6e-8, same edgeLength to 3e-9 - but the two RECORDED volumes differ by 39 %, which is the ShellMetrics defect and not the geometry; Solid.Volume puts both lobes in (330, 340]. See Status.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "11",
+      "poleVertices": "0",
+      "vertices": "7",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "333.150484119",
+      "area": "867.679962462",
+      "edgeLength": "219.358915756",
+      "extent": "-4.75, -19, -3.84193628022E-07, 19, 19, 9.50000053432",
+      "surfaces": "PlaneSurface:2 RuledSurface:4"
     },
     "coneB": {
       "verified": "2026-09-17 GH: volume 12271.0609099 against 12271.0609049, 4.1e-10. the rigid image of coneA, and it measures the same volume to 5e-11, the same area and the same edgeLength to the last recorded digit.",
@@ -62,20 +78,82 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "12271.0609099",
-      "area": "3281.75085909",
+      "volume": "12271.0606331",
+      "area": "3281.75080479",
       "edgeLength": "204.29799683",
       "extent": "-13.3, -19, -15, 18.5, 19, 19",
       "surfaces": "PlaneSurface:2 RuledSurface:2"
     },
     "coneBminusA": {
-      "exists": "false"
+      "solids": "2"
+    },
+    "coneBminusA#0": {
+      "verified": "2026-09-20 GH: congruent to coneAminusB#0, 6756.00752183 against 6756.14381266.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "9",
+      "poleVertices": "0",
+      "vertices": "6",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "6756.00752183",
+      "area": "2311.00363675",
+      "edgeLength": "218.249037223",
+      "extent": "-13.3, -18.3966708945, -15, 17.75, 18.3966708945, 1.6447336396E-09",
+      "surfaces": "PlaneSurface:3 RuledSurface:2"
+    },
+    "coneBminusA#1": {
+      "verified": "2026-09-20 GH: congruent to coneAminusB#1 by the involution, and the shells measure identically in area and edgeLength. The recorded volume 202.675680244 is WRONG - Solid.Volume puts this lobe in (330, 340] like its twin. See Status.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "11",
+      "poleVertices": "0",
+      "vertices": "7",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "202.675680244",
+      "area": "867.68001372",
+      "edgeLength": "219.358915009",
+      "extent": "-4.75, -19, -6.20392626161E-13, 14.2500002751, 19, 19",
+      "surfaces": "PlaneSurface:2 RuledSurface:4"
     },
     "coneInter": {
-      "exists": "false"
+      "verified": "2026-09-20 GH: the recorded volume 5183.9537577 is ShellMetrics and is NOT the value to trust - see Status. Solid.Volume gives 5183.538, against 5182.3 +- 3.7 by Monte Carlo, 0.3 sigma. One solid of Euler 2, eight faces, four RuledSurface and four planar.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "15",
+      "poleVertices": "0",
+      "vertices": "9",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5183.9537577",
+      "area": "2017.37542087",
+      "edgeLength": "265.344320599",
+      "extent": "-4.75000002679, -18.3966708945, -3.84193628022E-07, 18.5, 18.3966708945, 18",
+      "surfaces": "PlaneSurface:4 RuledSurface:4"
     },
     "coneUnion": {
-      "exists": "false"
+      "verified": "2026-09-20 GH: the recorded volume 18928.1196638 is 2.2 % LOW and the recorded area is short as well - a ShellMetrics defect on trimmed planar faces, see Status. Solid.Volume gives 19358.560 against the 19358.584 that union + intersect = coneA + coneB forces, 1.0e-06. One solid, Euler 2, and the extent is exactly the union of the two operands.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "25",
+      "poleVertices": "0",
+      "vertices": "13",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "18928.1196638",
+      "area": "4282.99669465",
+      "edgeLength": "609.871582929",
+      "extent": "-19, -19, -15, 19, 19, 19",
+      "surfaces": "PlaneSurface:6 RuledSurface:8"
     }
   },
   "RPCCalls": [
@@ -413,6 +491,78 @@
         "b": "coneA",
         "name": "coneBminusA",
         "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coneInter",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 0.001
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "assert.check",
+      "params": {
+        "objects": "coneInter",
+        "minCount": 1,
+        "maxCount": 1,
+        "condition": "this.Volume > 5150 && this.Volume < 5215",
+        "message": "the intersection of the two tangent cones, 5182.3 +- 3.7 by Monte Carlo"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "inspect.properties",
+      "params": {
+        "target": "coneUnion",
+        "properties": [
+          "Volume"
+        ],
+        "precision": 0.001
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "assert.check",
+      "params": {
+        "objects": "coneUnion",
+        "minCount": 1,
+        "maxCount": 1,
+        "condition": "this.Volume > 19265 && this.Volume < 19455",
+        "message": "union + intersect = coneA + coneB = 24542.1218, so the union is 24542.1218 - 5183.5 = 19358.6"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "assert.check",
+      "params": {
+        "objects": "coneAminusB",
+        "minCount": 2,
+        "maxCount": 2,
+        "condition": "this.Volume > 300",
+        "message": "coneA minus coneB is the main body plus the pair of lobes; every part, the lobes included, is above 300"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "assert.check",
+      "params": {
+        "objects": "coneBminusA",
+        "minCount": 2,
+        "maxCount": 2,
+        "condition": "this.Volume > 300",
+        "message": "the involution forces coneB minus coneA to be congruent to coneA minus coneB, so its lobes are above 300 as well"
       }
     }
   ]
