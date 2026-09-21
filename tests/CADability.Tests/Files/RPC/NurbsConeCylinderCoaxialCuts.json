@@ -26,7 +26,7 @@
       "openEdges": "0",
       "volume": "12859.5861241",
       "area": "2979.35097692",
-      "edgeLength": "260.120915313",
+      "edgeLength": "260.120915314",
       "extent": "-12.0000000008, -12, 0, 12.0000000008, 12, 30",
       "surfaces": "PlaneSurface:2 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },
@@ -80,7 +80,7 @@
       "openEdges": "0",
       "volume": "2974.04082973",
       "area": "2602.35985674",
-      "edgeLength": "250.120915313",
+      "edgeLength": "250.120915314",
       "extent": "-12.0000000008, -12, 19.9999999936, 12.0000000008, 12, 35",
       "surfaces": "PlaneSurface:2 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },

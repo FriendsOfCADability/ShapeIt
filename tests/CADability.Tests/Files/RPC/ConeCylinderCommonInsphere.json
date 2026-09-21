@@ -30,7 +30,7 @@
       "openEdges": "0",
       "volume": "23064.0729673",
       "area": "6198.63946142",
-      "edgeLength": "290.663283564",
+      "edgeLength": "290.663283565",
       "extent": "-36.0554082877, -35.2027626247, -34.641016152, 9.52472335465, 9.99541228981, 9.99999999998",
       "surfaces": "ConicalSurface:1 CylindricalSurface:1 PlaneSurface:1"
     },
@@ -45,10 +45,10 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "307.620712144",
-      "area": "412.754920496",
-      "edgeLength": "48.8505973904",
-      "extent": "-0.30287482046, -3.04625105056, -2.67949193221, 13.8327728013, 10.4237419686, 10",
+      "volume": "307.951828218",
+      "area": "413.582623882",
+      "edgeLength": "48.8505973907",
+      "extent": "-0.30287482046, -3.04625105087, -2.67949193221, 13.8327728013, 10.4237419686, 10",
       "surfaces": "ConicalSurface:1 CylindricalSurface:1"
     },
     "coneCylCylMinusCone": {
@@ -67,7 +67,7 @@
       "openEdges": "0",
       "volume": "11481.9293832",
       "area": "3160.44227511",
-      "edgeLength": "140.336057886",
+      "edgeLength": "140.336057887",
       "extent": "-10, -10, -1.28457244841E-11, 10.0000000028, 10, 45",
       "surfaces": "ConicalSurface:1 CylindricalSurface:1 PlaneSurface:1"
     },
@@ -82,9 +82,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "8355.96156101",
-      "area": "2875.68047523",
-      "edgeLength": "180.18842229",
+      "volume": "8355.96156099",
+      "area": "2875.68047524",
+      "edgeLength": "180.188422291",
       "extent": "-10.0000000001, -10, -45, 10.0000000099, 10, -1.28451323652E-11",
       "surfaces": "ConicalSurface:1 CylindricalSurface:1 PlaneSurface:2"
     },
@@ -99,10 +99,10 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "8437.62347962",
-      "area": "2506.14655653",
-      "edgeLength": "194.860774032",
-      "extent": "-10.0000000001, -9.99999900279, -35, 10.0000000028, 9.9989605525, 10",
+      "volume": "8437.62347963",
+      "area": "2506.14655654",
+      "edgeLength": "194.860774034",
+      "extent": "-10.0000000001, -9.99999900279, -35, 10.0000000028, 9.99896055247, 10",
       "surfaces": "ConicalSurface:2 CylindricalSurface:2 PlaneSurface:1"
     },
     "coneCylUnion": {
@@ -116,9 +116,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "51639.7615964",
-      "area": "10138.24304",
-      "edgeLength": "465.177587097",
+      "volume": "51642.593326",
+      "area": "10138.1984659",
+      "edgeLength": "465.177587098",
       "extent": "-36.0554082877, -35.2027626247, -45, 13.8327728013, 10.4237419686, 45",
       "surfaces": "ConicalSurface:2 CylindricalSurface:2 PlaneSurface:3"
     },

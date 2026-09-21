@@ -46,7 +46,7 @@
       "openEdges": "0",
       "volume": "7636.44584334",
       "area": "2457.16008771",
-      "edgeLength": "134.181159009",
+      "edgeLength": "134.181159014",
       "extent": "-10, -10, -30, 10, 10, 7",
       "surfaces": "CylindricalSurface:1 PlaneSurface:1 SphericalSurface:1"
     },
@@ -63,7 +63,7 @@
       "openEdges": "0",
       "volume": "3238.49932936",
       "area": "1577.4838516",
-      "edgeLength": "134.224250281",
+      "edgeLength": "134.224250282",
       "extent": "-10, -10, 7, 10, 10, 30",
       "surfaces": "CylindricalSurface:1 PlaneSurface:1 SphericalSurface:1"
     },
@@ -80,7 +80,7 @@
       "openEdges": "0",
       "volume": "7975.20997697",
       "area": "2115.12404461",
-      "edgeLength": "142.741703147",
+      "edgeLength": "142.741703152",
       "extent": "-10, -9.99990331309, -9, 10, 9.99813689834, 23",
       "surfaces": "CylindricalSurface:1 SphericalSurface:2"
     },
@@ -95,9 +95,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "28033.1970283",
-      "area": "5500.39620563",
-      "edgeLength": "268.405406454",
+      "volume": "28033.1970278",
+      "area": "5500.39592192",
+      "edgeLength": "268.405406456",
       "extent": "-17.9534089267, -21.6731114536, -30, 14.0465910733, 10.3268885464, 30",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2 SphericalSurface:1"
     },
@@ -131,7 +131,7 @@
       "openEdges": "0",
       "volume": "9182.66277506",
       "area": "3580.81673773",
-      "edgeLength": "142.741700314",
+      "edgeLength": "142.741700319",
       "extent": "-17.9534089267, -21.6731114536, -8.48164818386, 14.0465910733, 10.3268885464, 22.4918900089",
       "surfaces": "CylindricalSurface:1 SphericalSurface:1"
     }

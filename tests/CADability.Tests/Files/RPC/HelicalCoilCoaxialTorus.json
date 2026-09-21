@@ -38,9 +38,9 @@
       "euler": "0",
       "closed": "true",
       "openEdges": "0",
-      "volume": "3588.66739864",
-      "area": "2855.27602805",
-      "edgeLength": "464.129047602",
+      "volume": "3588.66740138",
+      "area": "2855.27528477",
+      "edgeLength": "464.129047629",
       "extent": "-13, -13, -2, 13, 13, 26",
       "surfaces": "HelicalSweepSurface:4 PlaneSurface:2 ToroidalSurface:1"
     },

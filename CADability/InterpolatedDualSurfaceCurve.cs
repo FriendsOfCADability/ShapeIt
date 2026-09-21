@@ -1040,8 +1040,9 @@ namespace CADability
             return res;
         }
         public BSpline ToBSpline(double precision)
-        {
-            return ApproxBSpline; // better than through basepoints
+        {   // better than through the base points. A copy: the spline is shared with the clones of this curve, and the
+            // caller may modify what it gets - Edge.UpdateInterpolatedDualSurfaceCurve for instance makes it the curve of an edge.
+            return ApproxBSpline.Clone() as BSpline;
         }
         internal GeoPoint[] BasePoints
         {
@@ -1847,8 +1848,30 @@ namespace CADability
         }
         public override IGeoObject Clone()
         {
-            return new InterpolatedDualSurfaceCurve(surface1.Clone(), bounds1, surface2.Clone(), bounds2, basePoints.Select(sp => sp.p3d).ToArray(), basePoints.Select(sp => sp.psurface1).ToList(), basePoints.Select(sp => sp.psurface2).ToList(), isTangential, approxBSpline);
-            // Clone introduced because of independant surfaces for BRep operations
+            return new InterpolatedDualSurfaceCurve(this);
+        }
+        /// <summary>
+        /// The copy <see cref="Clone"/> makes: the same base points, bounds and flag, and the same approximating
+        /// spline, which is never modified in place, only replaced. The surfaces are cloned, because BRep operations
+        /// need independent surfaces.
+        /// <para>
+        /// Clone used to rebuild the curve with the constructor, which refined the inner base points again, filled
+        /// them up to nine and removed close ones. So a clone was a slightly different curve than its original, and
+        /// most constructions of this class are clones.
+        /// </para>
+        /// </summary>
+        private InterpolatedDualSurfaceCurve(InterpolatedDualSurfaceCurve toCopy)
+            : this()
+        {
+            DualSurfaceCurveDiagnostics.ConstructionProbe probe = DualSurfaceCurveDiagnostics.BeginConstruction(toCopy.surface1, toCopy.bounds1, toCopy.surface2, toCopy.bounds2);
+            surface1 = toCopy.surface1.Clone();
+            surface2 = toCopy.surface2.Clone();
+            bounds1 = toCopy.bounds1;
+            bounds2 = toCopy.bounds2;
+            basePoints = toCopy.basePoints.Clone() as SurfacePoint[];
+            isTangential = toCopy.isTangential;
+            approxBSpline = toCopy.approxBSpline;
+            DualSurfaceCurveDiagnostics.EndConstruction(probe, surface1, surface2, basePoints, isTangential);
         }
         internal void SetSurfaces(ISurface surface1, ISurface surface2, bool swapped)
         {
@@ -2161,6 +2184,31 @@ namespace CADability
             }
             data.RegisterForSerializationDoneCallback(this);
         }
+        /// <summary>
+        /// A file may contain inner base points which are not on the surfaces, or whose uv values do not describe
+        /// them. UniteBug17 has such curves: they were written while CloneTrimmed handed a wrong isTangential, so their
+        /// points were computed by the solver for touching surfaces, which failed, and the unrefined points were
+        /// stored. Clone used to rebuild every curve and refined these points on the way. Clone copies now, so they
+        /// are refined here, once, when the file is read. The end points are left alone, they belong to vertices.
+        /// </summary>
+        private void RefineInconsistentInnerPoints()
+        {
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
+            for (int i = 0; i < basePoints.Length; i++) ext.MinMax(basePoints[i].p3d);
+            double tolerance = Math.Max(100 * Precision.eps, 1e-6 * ext.Size);
+            for (int i = 1; i < basePoints.Length - 1; i++)
+            {
+                if ((surface1.PointAt(basePoints[i].psurface1) | basePoints[i].p3d) <= tolerance
+                    && (surface2.PointAt(basePoints[i].psurface2) | basePoints[i].p3d) <= tolerance) continue;
+                DualSurfaceCurveDiagnostics.Count("IDSC read: an inner base point was not on the surfaces and is refined");
+                // without a spline the plane goes through the base point itself, perpendicular to the base polygon
+                approxBSpline = null;
+                ApproximatePosition((double)i / (basePoints.Length - 1), out GeoPoint2D uv1, out GeoPoint2D uv2, out basePoints[i].p3d);
+                basePoints[i].psurface1 = uv1;
+                basePoints[i].psurface2 = uv2;
+                hashedPositions.Clear();
+            }
+        }
         void IJsonSerializeDone.SerializationDone(JsonSerialize jsonSerialize)
         {
             if (jsonSerialize.GetTypeVersion(this.GetType()) < 1)
@@ -2189,6 +2237,8 @@ namespace CADability
             // fails for them, so every point would silently remain unrefined.
             if (isTangential && IsTransversalAtAllInnerPoints()) isTangential = false;
             DualSurfaceCurveDiagnostics.ConstructionProbe probe = DualSurfaceCurveDiagnostics.BeginConstruction(surface1, bounds1, surface2, bounds2);
+            CheckSurfaceExtents();
+            RefineInconsistentInnerPoints();
             Init();
             DualSurfaceCurveDiagnostics.EndConstruction(probe, surface1, surface2, basePoints, isTangential,
                 "JSON deserialization, type version " + jsonSerialize.GetTypeVersion(this.GetType()).ToString());

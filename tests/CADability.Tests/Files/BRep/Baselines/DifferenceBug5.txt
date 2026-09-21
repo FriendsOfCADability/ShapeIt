@@ -41,6 +41,6 @@ out0.closed       = true
 out0.openEdges    = 0
 out0.volume       = 9918.74114954
 out0.area         = 4495.54758882
-out0.edgeLength   = 670.180505107
+out0.edgeLength   = 670.180505109
 out0.extent       = 38.7767094017, 35.5448717949, -7.73853111042E-14, 88.7767094017, 58.8141025641, 10
 out0.surfaces     = ConicalSurface:1 CylindricalSurface:8 PlaneSurface:6 SphericalSurface:4

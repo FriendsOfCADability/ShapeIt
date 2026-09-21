@@ -259,6 +259,67 @@ namespace CADability.Tests
         }
 
         /// <summary>
+        /// Clone rebuilt the curve with the constructor, which refined the inner base points again and filled them up
+        /// to nine, so the clone of a trimmed curve with fewer base points was a different curve. Now it is a copy.
+        /// </summary>
+        [TestMethod]
+        public void a_clone_is_the_same_curve()
+        {
+            InterpolatedDualSurfaceCurve trimmed = CloneTrimmed(Ellipse(), 0.2, 0.7);
+            Assert.IsTrue(BasePointsOf(trimmed).Length < 9, "the trimmed curve has fewer than nine base points, which the constructor fills up");
+            InterpolatedDualSurfaceCurve clone = trimmed.Clone() as InterpolatedDualSurfaceCurve;
+            GeoPoint[] original = BasePointsOf(trimmed), copied = BasePointsOf(clone);
+            Assert.AreEqual(original.Length, copied.Length, "the same number of base points");
+            for (int i = 0; i < original.Length; i++) Assert.AreEqual(0.0, original[i] | copied[i], 0.0, "base point " + i);
+            for (int i = 0; i <= 20; i++) Assert.AreEqual(0.0, trimmed.PointAt(i / 20.0) | clone.PointAt(i / 20.0), 0.0, "point at " + (i / 20.0));
+            Assert.AreNotSame(trimmed.Surface1, clone.Surface1, "the surfaces are cloned, BRep operations need independent surfaces");
+        }
+
+        /// <summary>
+        /// ToBSpline handed out the approximating spline itself, which the clones of the curve share. Whoever modified
+        /// what they got, modified the curve and all its clones.
+        /// </summary>
+        [TestMethod]
+        public void modifying_the_bspline_leaves_the_curve_alone()
+        {
+            InterpolatedDualSurfaceCurve curve = Ellipse();
+            GeoPoint before = curve.PointAt(0.5);
+            BSpline bsp = curve.ToBSpline(0.0);
+            bsp.Modify(ModOp.Translate(0, 0, 100));
+            Assert.AreEqual(0.0, before | curve.PointAt(0.5), 0.0, "the curve did not move");
+        }
+
+        /// <summary>
+        /// Files contain curves whose inner base points were stored off the surfaces, computed by a solver that failed.
+        /// Clone used to refine them on the way, now it copies, so they are refined when the file is read.
+        /// </summary>
+        [TestMethod]
+        public void inner_base_points_off_the_surfaces_are_refined_when_read()
+        {
+            InterpolatedDualSurfaceCurve curve = Ellipse();
+            // move an inner base point off the plane, as the unrefined point of a failed solver would be
+            FieldInfo field = typeof(InterpolatedDualSurfaceCurve).GetField("basePoints", BindingFlags.NonPublic | BindingFlags.Instance);
+            Array basePoints = (Array)field.GetValue(curve);
+            object point = basePoints.GetValue(4);
+            FieldInfo p3d = point.GetType().GetField("p3d");
+            p3d.SetValue(point, (GeoPoint)p3d.GetValue(point) + new GeoVector(0, 0, 0.01));
+            basePoints.SetValue(point, 4);
+
+            InterpolatedDualSurfaceCurve read = JsonSerialize.FromString(JsonSerialize.ToString(curve)) as InterpolatedDualSurfaceCurve;
+            Assert.IsNotNull(read);
+            foreach (GeoPoint p in BasePointsOf(read))
+            {
+                Assert.AreEqual(0.0, read.Surface1.PointAt(read.Surface1.PositionOf(p)) | p, 1e-6, "base point on the cylinder: " + p.ToString());
+                Assert.AreEqual(0.0, read.Surface2.PointAt(read.Surface2.PositionOf(p)) | p, 1e-6, "base point on the plane: " + p.ToString());
+            }
+        }
+
+        private static GeoPoint[] BasePointsOf(InterpolatedDualSurfaceCurve curve)
+        {
+            return (GeoPoint[])typeof(InterpolatedDualSurfaceCurve).GetProperty("BasePoints", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(curve);
+        }
+
+        /// <summary>
         /// Older versions need "ForwardOriented" to read a file. The curve no longer keeps it but computes it when
         /// writing, so it has to follow the orientation of the curve and the order of the surfaces.
         /// </summary>
