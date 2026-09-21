@@ -180,10 +180,8 @@ namespace CADability.Tests
         /// ellipses which cross each other exactly there. So at both seeds four branches start, and they build
         /// the four arcs between the two touching points.
         /// <para>
-        /// The points of the curves are not checked here, only their course: an
-        /// <see cref="InterpolatedDualSurfaceCurve"/> whose endpoint is such a node evaluates its inner points
-        /// unreliably, because the refinement onto both surfaces may end up on the other branch of the
-        /// intersection. See <see cref="interpolated_curve_which_ends_at_a_node_leaves_its_own_branch"/>.
+        /// Only the course of the curves is checked here. That the points of such an arc stay on its own branch is
+        /// the subject of <see cref="interpolated_curve_which_ends_at_a_node_stays_on_its_own_branch"/>.
         /// </para>
         /// </summary>
         [TestMethod]
@@ -216,18 +214,18 @@ namespace CADability.Tests
         /// <summary>
         /// Not a test of the marching, but of what the resulting curve does with correct base points: an
         /// <see cref="InterpolatedDualSurfaceCurve"/> whose endpoints are touching points (nodes of the
-        /// intersection) leaves its own branch. The base points here are exact points of the ellipse x = -y,
-        /// the arc of the two touching cylinders from one node to the other, but the curve evaluates its first
-        /// half on the other ellipse (x = y) or on no surface at all: PointAt uses the approximating BSpline,
-        /// which is built by refining interpolated points onto both surfaces, and near the node that
-        /// refinement can end up on the other branch.
+        /// intersection) must stay on its own branch. The base points here are exact points of the ellipse x = -y,
+        /// the arc of the two touching cylinders from one node to the other.
         /// <para>
-        /// Ignored because it states what should happen, not what happens today.
+        /// This was a known defect for a long time, and it was blamed on the node: the curve evaluated its points on
+        /// the other ellipse x = y or on no surface at all. The node was innocent. The base points lie in the plane
+        /// x = -y through the origin, and Plane.FromPoints reported them as linear, so the guide spline through
+        /// them was projected onto the plane x = 0. Every refinement started from a point of that plane, see
+        /// PlaneFromPointsTests.
         /// </para>
         /// </summary>
         [TestMethod]
-        [Ignore("known defect of InterpolatedDualSurfaceCurve at a node, not of the marching")]
-        public void interpolated_curve_which_ends_at_a_node_leaves_its_own_branch()
+        public void interpolated_curve_which_ends_at_a_node_stays_on_its_own_branch()
         {
             CylindricalSurface c1 = Cylinder(GeoPoint.Origin, 10 * GeoVector.YAxis, 10 * GeoVector.ZAxis, GeoVector.XAxis);
             CylindricalSurface c2 = Cylinder(GeoPoint.Origin, 10 * GeoVector.XAxis, 10 * GeoVector.ZAxis, GeoVector.YAxis);
@@ -239,13 +237,16 @@ namespace CADability.Tests
             for (int i = t.Length - 1; i >= 0; i--) pts.Add(new GeoPoint(-t[i], t[i], -System.Math.Sqrt(100.0 - t[i] * t[i])));
 
             InterpolatedDualSurfaceCurve crv = new InterpolatedDualSurfaceCurve(c1, FullCylinder, c2, FullCylinder, pts.ToArray());
+            // PointAt is the approximating spline, which BSpline.Approximate fits to size * 1e-6 of the curve, about
+            // 2.4e-5 here. The other branch would be several units away.
+            const double onSurface = 1e-4;
             for (int i = 0; i <= 8; i++)
             {
                 GeoPoint p = (crv as ICurve).PointAt(i / 8.0);
                 TestContext.WriteLine((i / 8.0).ToString() + ": " + p.ToString());
-                Assert.AreEqual(0.0, p | c1.PointAt(c1.PositionOf(p)), 1e-5, "point on the first surface");
-                Assert.AreEqual(0.0, p | c2.PointAt(c2.PositionOf(p)), 1e-5, "point on the second surface");
-                Assert.AreEqual(0.0, p.x + p.y, 1e-4, "the curve stays on its own ellipse x = -y");
+                Assert.AreEqual(0.0, p | c1.PointAt(c1.PositionOf(p)), onSurface, "point on the first surface");
+                Assert.AreEqual(0.0, p | c2.PointAt(c2.PositionOf(p)), onSurface, "point on the second surface");
+                Assert.AreEqual(0.0, p.x + p.y, 1e-9, "the curve stays on its own ellipse x = -y");
             }
         }
     }
