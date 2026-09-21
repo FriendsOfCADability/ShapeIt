@@ -40,7 +40,6 @@ namespace CADability
 #endif
         BoundingRect bounds1 = BoundingRect.EmptyBoundingRect, bounds2 = BoundingRect.EmptyBoundingRect; // the uv region, where these surfaces are beeing used
         SurfacePoint[] basePoints; // some points, especially start and endpoint, of the curve, that have been calculated
-        bool forwardOriented; // the crossproduct surface1.Normal^surface2.Normal is the direction of the curve if true
         bool isTangential = false; // we need a different point approximation for curves which describe the tangential intersection of two surfaces
         BSpline approxBSpline; // BSpline for approximation
         SortedList<double, SurfacePoint> hashedPositions; // already calculated points on the curve
@@ -550,7 +549,6 @@ namespace CADability
                 if (onSurface1) basePoints[i].psurface1 = m * basePoints[i].psurface1;
                 else basePoints[i].psurface2 = m * basePoints[i].psurface2;
             }
-            if (m.Determinant < 0) forwardOriented = !forwardOriented; // die Orientierung der Fläche hat sich umgedreht, damit ist auch das Kreuzprodukt andersrum
             InvalidateSecondaryData();
         }
 
@@ -577,17 +575,6 @@ namespace CADability
             this.isTangential = isTangential;
             this.bounds1 = bounds1;
             this.bounds2 = bounds2;
-            // wierum orientiert?
-            // manchmal am Anfang oder Ende tangetial, deshalb besser in der mitte testen
-            int n = basePoints.Length / 2; // es müssen mindesten 3 sein
-            GeoVector v = surface1.GetNormal(basePoints[n].psurface1) ^ surface2.GetNormal(basePoints[n].psurface2);
-            GeoVector v0;
-            if (basePoints.Length == 2)
-                v0 = basePoints[1].p3d - basePoints[0].p3d;
-            else
-                v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
-            Angle a = new Angle(v, v0);
-            forwardOriented = (a.Radian < Math.PI / 2.0);
             if (basePoints.Length == 2) RefineBasePoints();
             CheckSurfaceExtents();
             AdjustBasePointsPeriodic();
@@ -596,17 +583,6 @@ namespace CADability
         }
         private void Init()
         {
-            // wierum orientiert?
-            // manchmal am Anfang oder Ende tangetial, deshalb besser in der mitte testen
-            int n = basePoints.Length / 2; // es müssen mindesten 3 sein
-            GeoVector v = surface1.GetNormal(basePoints[n].psurface1) ^ surface2.GetNormal(basePoints[n].psurface2);
-            GeoVector v0;
-            if (basePoints.Length == 2)
-                v0 = basePoints[1].p3d - basePoints[0].p3d;
-            else
-                v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
-            Angle a = new Angle(v, v0);
-            forwardOriented = (a.Radian < Math.PI / 2.0);
             if (basePoints.Length == 2) RefineBasePoints();
             CheckSurfaceExtents();
             AdjustBasePointsPeriodic();
@@ -658,13 +634,6 @@ namespace CADability
                 points.Insert(ind + 1, new SurfacePoint(p, uv1, uv2));
                 basePoints = points.ToArray(); // damit basePoints für die nächste Runde zu Verfügung steht
             }
-            // wierum orientiert?
-            // manchmal am Anfang oder Ende tangetial, deshalb besser in der mitte testen
-            int n = basePoints.Length / 2; // es müssen mindesten 3 sein
-            GeoVector v = surface1.GetNormal(basePoints[n].psurface1) ^ surface2.GetNormal(basePoints[n].psurface2);
-            GeoVector v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
-            Angle a = new Angle(v, v0);
-            forwardOriented = (a.Radian < Math.PI / 2.0);
             CheckSurfaceExtents();
             AdjustBasePointsPeriodic();
             BSpline bsp = ApproxBSpline; // make sure it is created and the basepoints are refined
@@ -761,14 +730,6 @@ namespace CADability
                 }
             }
             basePoints = points.ToArray();
-            // determin the orientation: sometimes both surfaces are tangential at the start or endpoint, so we use an intermedite point when available
-            int n = Math.Min(basePoints.Length / 2, basePoints.Length - 2);
-            GeoVector v = surface1.GetNormal(basePoints[n].psurface1) ^ surface2.GetNormal(basePoints[n].psurface2);
-            GeoVector v0;
-            if (n == 0) v0 = basePoints[n + 1].p3d - basePoints[n].p3d; // only two points
-            else v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
-            Angle a = new Angle(v, v0);
-            forwardOriented = (a.Radian < Math.PI / 2.0); // we need this value for ApproximatePosition
 
             // Recalculate the positions of the inner points, which are sometimes not precise
             for (int i = 1; i < basePoints.Length - 1; ++i)
@@ -802,10 +763,6 @@ namespace CADability
                 hashedPositions.Clear(); // die Werte hier sind unnütz, da die basePoints sich ja immer noch ändern
                 points.Insert(ind + 1, new SurfacePoint(p, uv1, uv2));
                 basePoints = points.ToArray(); // damit basePoints für die nächste Runde zu Verfügung steht
-                v = surface1.GetNormal(basePoints[ind + 1].psurface1) ^ surface2.GetNormal(basePoints[ind + 1].psurface2);
-                v0 = basePoints[ind + 2].p3d - basePoints[ind].p3d;
-                a = new Angle(v, v0);
-                forwardOriented = (a.Radian < Math.PI / 2.0); // recalculate, because for exactly half circles the first result is ambiguous
             }
             double baseLength = 0.0;
             double minLength = double.MaxValue;
@@ -1344,7 +1301,6 @@ namespace CADability
         {
             InterpolatedDualSurfaceCurve other = ToCopyFrom as InterpolatedDualSurfaceCurve;
             basePoints = other.basePoints.Clone() as SurfacePoint[];
-            forwardOriented = other.forwardOriented;
             surface1 = other.surface1;
             surface2 = other.surface2;
             InvalidateSecondaryData();
@@ -1671,7 +1627,7 @@ namespace CADability
                 {
                     GeoVector v = surface1.GetNormal(basePoints[0].psurface1) ^ surface2.GetNormal(basePoints[0].psurface2);
                     if (v.Length < 1e-5) return adir; // if the two surfaces are tangential at the start point, then the cross product is zero and we take the direction of the approximating BSpline)
-                    if (!forwardOriented) v.Reverse();
+                    if (v * adir < 0.0) v.Reverse(); // n1 x n2 is the tangent up to its sign, the spline tells which way the curve runs
                     v.Length = adir.Length; // make the same lengt as the approximating BSpline would have. This is very close
                     return v;
                 }
@@ -1690,7 +1646,7 @@ namespace CADability
                 {
                     GeoVector v = surface1.GetNormal(basePoints[basePoints.Length - 1].psurface1) ^ surface2.GetNormal(basePoints[basePoints.Length - 1].psurface2);
                     if (v.Length < 1e-5) return adir; // if the two surfaces are tangential at the end point, then the cross product is zero and we take the direction of the approximating BSpline
-                    if (!forwardOriented) v.Reverse();
+                    if (v * adir < 0.0) v.Reverse(); // n1 x n2 is the tangent up to its sign, the spline tells which way the curve runs
                     v.Length = adir.Length; // make the same lengt as the approximating BSpline would have. This is very close to the factual length
                     return v;
                 }
@@ -1795,11 +1751,6 @@ namespace CADability
                 SurfaceHelper.AdjustPeriodic(surface2, bounds2, ref basePoints[i].psurface2);
             }
             InvalidateSecondaryData();
-            int n = basePoints.Length / 2; // es müssen mindesten 3 sein
-            GeoVector v = surface1.GetNormal(basePoints[n].psurface1) ^ surface2.GetNormal(basePoints[n].psurface2);
-            GeoVector v0 = basePoints[n + 1].p3d - basePoints[n - 1].p3d;
-            Angle a = new Angle(v, v0);
-            forwardOriented = (a.Radian < Math.PI / 2.0);
             CheckPeriodic();
         }
 
@@ -1843,7 +1794,6 @@ namespace CADability
         {
             DualSurfaceCurveDiagnostics.Count("IDSC.Reverse");
             Array.Reverse(basePoints);
-            forwardOriented = !forwardOriented;
             InvalidateSecondaryData();
         }
         public override void Trim(double StartPos, double EndPos)
@@ -1899,7 +1849,6 @@ namespace CADability
         {
             return new InterpolatedDualSurfaceCurve(surface1.Clone(), bounds1, surface2.Clone(), bounds2, basePoints.Select(sp => sp.p3d).ToArray(), basePoints.Select(sp => sp.psurface1).ToList(), basePoints.Select(sp => sp.psurface2).ToList(), isTangential, approxBSpline);
             // Clone introduced because of independant surfaces for BRep operations
-            // forwardOriented is calculated by the order of the base points
         }
         internal void SetSurfaces(ISurface surface1, ISurface surface2, bool swapped)
         {
@@ -1925,7 +1874,6 @@ namespace CADability
                     this.surface2 = surface2;
                     // if (swapped)
                     {
-                        forwardOriented = !forwardOriented; // falls die surfaces getauscht wurden
                         if (basePoints != null)
                         {
                             for (int i = 0; i < basePoints.Length; i++)
@@ -2090,7 +2038,6 @@ namespace CADability
                 basePoints[i].psurface1 = basePoints[i].psurface2;
                 basePoints[i].psurface2 = t;
             }
-            forwardOriented = !forwardOriented;
             InvalidateSecondaryData();
         }
 
@@ -2159,14 +2106,21 @@ namespace CADability
             surface2 = info.GetValue("Surface2", typeof(ISurface)) as ISurface;
             basePoints = info.GetValue("BasePoints", typeof(SurfacePoint[])) as SurfacePoint[];
             hashedPositions = new SortedList<double, SurfacePoint>();
-            try
-            {
-                forwardOriented = (bool)info.GetValue("ForwardOriented", typeof(bool));
-            }
-            catch (SerializationException)
-            {
-                forwardOriented = true; // fehlte früher mit subtilen Folgen
-            }
+            // "ForwardOriented" is no longer read, see ForwardOrientedForOlderVersions
+        }
+
+        /// <summary>
+        /// Older versions stored whether n1 x n2 runs along the curve ("ForwardOriented") and need it to read a file.
+        /// The curve no longer keeps it: <see cref="StartDirection"/> and <see cref="EndDirection"/> take the sign from
+        /// the approximating spline. So it is computed here the way those versions computed it, at an inner base point,
+        /// because the surfaces may touch at the ends. Only surface normals are used, no spline is built while writing.
+        /// </summary>
+        private bool ForwardOrientedForOlderVersions()
+        {
+            int n = Math.Min(basePoints.Length / 2, basePoints.Length - 2);
+            GeoVector v = surface1.GetNormal(basePoints[n].psurface1) ^ surface2.GetNormal(basePoints[n].psurface2);
+            GeoVector chord = n == 0 ? basePoints[1].p3d - basePoints[0].p3d : basePoints[n + 1].p3d - basePoints[n - 1].p3d;
+            return v * chord >= 0.0;
         }
 
         /// <summary>
@@ -2180,14 +2134,14 @@ namespace CADability
             info.AddValue("Surface1", surface1);
             info.AddValue("Surface2", surface2);
             info.AddValue("BasePoints", basePoints);
-            info.AddValue("ForwardOriented", forwardOriented);
+            info.AddValue("ForwardOriented", ForwardOrientedForOlderVersions());
         }
         public void GetObjectData(IJsonWriteData data)
         {
             data.AddProperty("Surface1", surface1);
             data.AddProperty("Surface2", surface2);
             data.AddProperty("BasePoints", basePoints);
-            data.AddProperty("ForwardOriented", forwardOriented);
+            data.AddProperty("ForwardOriented", ForwardOrientedForOlderVersions());
             data.AddProperty("IsTangential", isTangential);
             data.AddProperty("Bounds1", bounds1);
             data.AddProperty("Bounds2", bounds2);
@@ -2198,7 +2152,7 @@ namespace CADability
             surface1 = data.GetPropertyOrDefault<ISurface>("Surface1");
             surface2 = data.GetPropertyOrDefault<ISurface>("Surface2");
             basePoints = data.GetPropertyOrDefault<SurfacePoint[]>("BasePoints");
-            forwardOriented = (bool)data.GetProperty("ForwardOriented");
+            // "ForwardOriented" is no longer read, see ForwardOrientedForOlderVersions
             if (data.Version >= 1)
             {
                 isTangential = data.GetPropertyOrDefault<bool>("IsTangential");

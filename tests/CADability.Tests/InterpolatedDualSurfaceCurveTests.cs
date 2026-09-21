@@ -76,7 +76,7 @@ namespace CADability.Tests
         public void clone_trimmed_keeps_the_tangential_flag()
         {
             foreach (bool reverse in new[] { false, true })
-            {   // one of the two orientations has forwardOriented set
+            {   // n1 x n2 runs along the curve in one of the two orientations and against it in the other
                 InterpolatedDualSurfaceCurve ellipse = Ellipse();
                 if (reverse) ellipse.Reverse();
                 InterpolatedDualSurfaceCurve trimmed = CloneTrimmed(ellipse, 0.2, 0.7);
@@ -221,6 +221,62 @@ namespace CADability.Tests
                     Assert.AreEqual(0.0, (deriv - direction).Length, 1e-6 * direction.Length, "derivative at " + t + " on surface " + (onSurface1 ? 1 : 2));
                 }
             }
+        }
+
+        /// <summary>The tangent of the ellipse at the angle <paramref name="t"/>, in the direction of growing t.</summary>
+        private static GeoVector EllipseTangent(double t)
+        {
+            return new GeoVector(-radius * System.Math.Sin(t), radius * System.Math.Cos(t), -0.5 * radius * System.Math.Sin(t));
+        }
+
+        private static void AssertSameDirection(GeoVector expected, GeoVector actual, string message)
+        {
+            Assert.IsTrue(expected * actual > 0.0, message + ": runs the other way");
+            Assert.AreEqual(0.0, (expected.Normalized ^ actual.Normalized).Length, 1e-9, message + ": not parallel");
+        }
+
+        /// <summary>
+        /// StartDirection and EndDirection are n1 x n2 at the end points, the exact tangent up to its sign. The sign was
+        /// a stored flag, which Reverse, SwapSurfaces and every change of a surface orientation had to turn round. Now
+        /// the approximating spline decides it.
+        /// </summary>
+        [TestMethod]
+        public void start_and_end_direction_run_along_the_curve()
+        {
+            foreach (bool reverse in new[] { false, true })
+            {
+                foreach (bool swap in new[] { false, true })
+                {
+                    InterpolatedDualSurfaceCurve curve = Ellipse();
+                    if (reverse) curve.Reverse();
+                    if (swap) (curve as IDualSurfaceCurve).SwapSurfaces();
+                    string what = "reversed: " + reverse + ", surfaces swapped: " + swap;
+                    // the ellipse runs from the angle 0.3 to 2.8
+                    AssertSameDirection(reverse ? -EllipseTangent(2.8) : EllipseTangent(0.3), curve.StartDirection, "start direction, " + what);
+                    AssertSameDirection(reverse ? -EllipseTangent(0.3) : EllipseTangent(2.8), curve.EndDirection, "end direction, " + what);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Older versions need "ForwardOriented" to read a file. The curve no longer keeps it but computes it when
+        /// writing, so it has to follow the orientation of the curve and the order of the surfaces.
+        /// </summary>
+        [TestMethod]
+        public void the_orientation_written_for_older_versions_follows_the_curve()
+        {
+            static bool Written(string json)
+            {
+                System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(json, "\"ForwardOriented\":(true|false)");
+                Assert.IsTrue(m.Success, "ForwardOriented is written");
+                return m.Groups[1].Value == "true";
+            }
+            InterpolatedDualSurfaceCurve curve = Ellipse();
+            bool forward = Written(JsonSerialize.ToString(curve));
+            curve.Reverse();
+            Assert.AreEqual(!forward, Written(JsonSerialize.ToString(curve)), "the reversed curve");
+            (curve as IDualSurfaceCurve).SwapSurfaces();
+            Assert.AreEqual(forward, Written(JsonSerialize.ToString(curve)), "the reversed curve with swapped surfaces");
         }
     }
 }
