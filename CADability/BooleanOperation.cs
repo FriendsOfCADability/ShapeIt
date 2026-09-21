@@ -667,11 +667,11 @@ namespace CADability
                                     }
                                     usedVerticedByKnownIntersections.AddRange(list);
                                 }
-                                foreach(Vertex vtx in vtxs) foreach (Edge e in edgesOctTree.GetObjectsFromPoint(vtx.Position))
+                                foreach (Vertex vtx in vtxs) foreach (Edge e in edgesOctTree.GetObjectsFromPoint(vtx.Position))
                                 {   // this intersection curve lies in the surface of a face. It might also lie on an edge of the face. In this case, we have to split the edge as well
                                     if (e == edge) continue;
                                     if (edgesToSplit.TryGetValue(e, out var l)) if (l.Contains(vtx)) continue;
-                                    if (e.Vertex1== vtx || e.Vertex2 == vtx) continue; // the vertex is already on the edge
+                                    if (e.Vertex1 == vtx || e.Vertex2 == vtx) continue; // the vertex is already on the edge
                                     if (e.Curve3D != null && e.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps)
                                     {
                                         if (!edgesToSplit.ContainsKey(e)) edgesToSplit[e] = new List<Vertex>();
@@ -3811,13 +3811,9 @@ namespace CADability
                 if (faceToIntersectionEdges.TryGetValue(fc, out HashSet<Edge> found))
                     splitIntersectionEdges(found, fc, refinedintersectionEdges);
             }
-            if (multipleFaces != null)
-            {   // special case here, which is not possible with two shell intersection: two exactely opposite faces contain intersection edges
-                // we have to remove those faces
-                foreach (Face fc in totalyCoveredByOppositeFace)
-                {
-                    faceToIntersectionEdges.Remove(fc);
-                }
+            foreach (Face fc in totalyCoveredByOppositeFace)
+            {
+                faceToIntersectionEdges.Remove(fc);
             }
             foreach (KeyValuePair<Edge, List<Edge>> kv in refinedintersectionEdges)
             {
