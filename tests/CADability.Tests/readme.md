@@ -6,6 +6,16 @@ Run the tests from the command line:
 dotnet test tests/CADability.Tests/CADability.Tests.csproj
 ```
 
+This runs against a **Release** build: `Directory.Build.props` next to the project makes Release the default when
+no configuration is given, and hands it on to the referenced projects (CADability, CADability.Forms.NET8,
+ShapeIt). Release is what users get, the whole suite takes about 3.5 minutes instead of well over 15, and it is
+deterministic from run to run. The regression baselines in `Files/BRep`, `Files/RPC` and `Files/STL` are recorded
+from Release, and the harnesses refuse to write one from a Debug build.
+
+`dotnet test ... -c Debug` still works and still matches the baselines within their tolerance. Run it from time to
+time anyway: only Debug checks the `Debug.Assert` statements, and the test host turns a failed assertion into a
+failed test. Visual Studio's Test Explorer uses the configuration selected in the IDE.
+
 Note that this project is not part of any solution — `CADability.sln` does not contain it, so
 `dotnet test CADability.sln` runs nothing.
 

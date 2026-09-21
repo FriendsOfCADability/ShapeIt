@@ -1,0 +1,19 @@
+<Project>
+  <!--
+    The tests run against a Release build unless a configuration is given explicitly (dotnet test -c Debug).
+    The regression baselines in Files/BRep, Files/RPC and Files/STL are recorded from Release: Release is what
+    users get, it runs about six times faster, and it is deterministic from run to run, whereas Debug differs
+    from it in a few floating point digits because some #if DEBUG blocks have side effects. A Debug run still
+    matches the baselines within their tolerance and additionally checks the Debug.Assert statements.
+  -->
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+  </PropertyGroup>
+  <!-- A configuration set here is no global property, so the referenced projects would still be built with
+       their own default (Debug). Hand it on explicitly. -->
+  <ItemDefinitionGroup>
+    <ProjectReference>
+      <AdditionalProperties>Configuration=$(Configuration)</AdditionalProperties>
+    </ProjectReference>
+  </ItemDefinitionGroup>
+</Project>

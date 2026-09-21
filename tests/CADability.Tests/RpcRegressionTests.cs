@@ -196,6 +196,7 @@ namespace CADability.Tests
 
             if (Regenerate)
             {
+                BuildConfiguration.RequireReleaseForBaselines("the RPC baseline of " + caseName);
                 // Written before the gates below, not after: a case that is refused a baseline is exactly the
                 // one worth looking at in ShapeIt, so it must not be the one left without a project.
                 string? bodies = RpcCaseModel.Write(testCase, first);

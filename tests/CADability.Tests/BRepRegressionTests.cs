@@ -335,6 +335,7 @@ namespace CADability.Tests
                     // reported below and fails the run anyway.
                     if (unstableHere.Count == 0)
                     {
+                        BuildConfiguration.RequireReleaseForBaselines("the BRep baseline of " + name);
                         // keep the hand written comments - that is where the "# verified" note lives
                         File.WriteAllText(baselinePath, BRepSummary.ExtractComments(oldBaseline) + summary.ToText());
                         generated.Add(name);

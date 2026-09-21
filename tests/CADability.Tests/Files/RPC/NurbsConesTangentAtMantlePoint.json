@@ -61,9 +61,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "333.150484119",
-      "area": "970.708699597",
-      "edgeLength": "219.358915756",
+      "volume": "333.15049263",
+      "area": "970.708699884",
+      "edgeLength": "219.356084438",
       "extent": "-4.75, -19, -3.84193628022E-07, 19, 19, 9.50000053432",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
     },
@@ -98,9 +98,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "6756.00752209",
-      "area": "2311.0036368",
-      "edgeLength": "218.249037223",
+      "volume": "6756.00769449",
+      "area": "2311.00356025",
+      "edgeLength": "218.246205905",
       "extent": "-13.3, -18.3966708945, -15, 17.75, 18.3966708945, 1.6447336396E-09",
       "surfaces": "PlaneSurface:3 RuledSurface:2"
     },
@@ -116,7 +116,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "333.178747282",
-      "area": "970.708750855",
+      "area": "970.708750853",
       "edgeLength": "219.358915009",
       "extent": "-4.75, -19, -6.20392626161E-13, 14.2500002751, 19, 19",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
@@ -132,10 +132,10 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "5183.9537577",
-      "area": "2017.37542087",
-      "edgeLength": "265.344320599",
-      "extent": "-4.75000002679, -18.3966708945, -3.84193628022E-07, 18.5, 18.3966708945, 18",
+      "volume": "5183.95374714",
+      "area": "2017.37541382",
+      "edgeLength": "265.341489281",
+      "extent": "-4.75000002678, -18.3966708945, -3.84193628022E-07, 18.5, 18.3966708945, 18",
       "surfaces": "PlaneSurface:4 RuledSurface:4"
     },
     "coneUnion": {
@@ -149,9 +149,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "19364.9500935",
-      "area": "4546.13380171",
-      "edgeLength": "609.871582929",
+      "volume": "19364.9756819",
+      "area": "4546.16392235",
+      "edgeLength": "609.868751611",
       "extent": "-19, -19, -15, 19, 19, 19",
       "surfaces": "PlaneSurface:6 RuledSurface:8"
     }

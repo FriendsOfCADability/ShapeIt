@@ -47,6 +47,7 @@ namespace CADability.Tests
                 string baseline = Path.ChangeExtension(stl, ".txt");
                 if (Regenerate || !File.Exists(baseline))
                 {
+                    BuildConfiguration.RequireReleaseForBaselines("the STL baseline " + Path.GetFileName(baseline));
                     File.WriteAllText(baseline, summary);
                     generated.Add(Path.GetFileName(baseline));
                     continue;

@@ -198,5 +198,6 @@ The environment variables `BREP_REGEN=1` and `BREP_CASE=<name>` still work and t
 line runs. Note that the `VAR=value command` prefix is bash syntax; in PowerShell it is `$env:BREP_REGEN = "1"`
 on a line of its own, and `$env:BREP_REGEN = $null` to switch it off again.
 
-Note that the tests run against a **Debug** build, where `Debug.Assert` failures are turned into exceptions
-by the test host. Several of the known failures are assertion hits rather than wrong results.
+Note that the tests run against a **Release** build by default and the baselines are recorded from Release (see
+`tests/CADability.Tests/readme.md`). In a Debug build (`-c Debug`) `Debug.Assert` failures are additionally turned
+into exceptions by the test host, and some of the known failures there are assertion hits rather than wrong results.
