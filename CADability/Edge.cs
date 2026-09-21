@@ -1844,9 +1844,6 @@ namespace CADability
                     curveOnSecondaryFace = dsc.CurveOnSurface2;
                     if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
                     this.curve3d = dsc;
-#if DEBUG
-                    dsc.CheckSurfaceParameters();
-#endif
                     return;
 
                     //}
@@ -1890,9 +1887,6 @@ namespace CADability
                         if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
                         dsc.RecalcSurfacePoints(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
                         dsc.AdjustPeriodic(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
-#if DEBUG
-                        dsc.CheckSurfaceParameters();
-#endif
                     }
                 }
             }
@@ -2884,7 +2878,6 @@ namespace CADability
                     splittedEdge.forwardOnSecondaryFace = forwardOnSecondaryFace;
                     splittedEdge.curve3d = (curve3d as InterpolatedDualSurfaceCurve).CloneTrimmed(startpos, endpos, curveOnPrimaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve, curveOnSecondaryFace as InterpolatedDualSurfaceCurve.ProjectedCurve, out splittedEdge.curveOnPrimaryFace, out splittedEdge.curveOnSecondaryFace);
 #if DEBUG
-                    (splittedEdge.curve3d as InterpolatedDualSurfaceCurve).CheckSurfaceParameters();
                     splittedEdge.curveOnSecondaryFace.GetArea();
 #endif
                     (splittedEdge.curve3d as IGeoObject).Owner = splittedEdge;

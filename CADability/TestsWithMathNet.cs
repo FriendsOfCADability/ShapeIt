@@ -178,6 +178,7 @@ namespace CADability
             var model = ObjectiveFunction.NonlinearModel(residual, observedX, observedY, weight, accuracyOrder: 2);
 
             var lm = new LevenbergMarquardtMinimizer();
+            SolverTrace.Record("MathNet.LM");
             var result = lm.FindMinimum(model, p0);
 
             // Akzeptanz prüfen (zusätzlich mit expliziten Toleranzen)
@@ -312,6 +313,7 @@ namespace CADability
 
             var model = ObjectiveFunction.NonlinearModel(function, derivatives, observedX, observedY, weight: null);
             var lm = new LevenbergMarquardtMinimizer();
+            SolverTrace.Record("MathNet.LM");
             var result = lm.FindMinimum(model, p0);
 
             // Erfolg prüfen (optionale Toleranzen)
@@ -803,6 +805,7 @@ namespace CADability
                 }), observedX, observedY);
             try
             {
+                SolverTrace.Record("MathNet.LM");
                 NonlinearMinimizationResult mres = lm.FindMinimum(iom, new DenseVector(new double[] { uv1.x, uv1.y, uv2.x, uv2.y, uv3.x, uv3.y }));
                 if (mres.ReasonForExit == ExitCondition.Converged || mres.ReasonForExit == ExitCondition.RelativeGradient || mres.ReasonForExit == ExitCondition.RelativePoints)
                 {

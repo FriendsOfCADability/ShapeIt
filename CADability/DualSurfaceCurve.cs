@@ -821,79 +821,6 @@ namespace CADability
         {
             return ApproxBSpline2D.GetInflectionPoints();
         }
-        //protected override void GetTriangulationBasis(out GeoPoint2D[] points, out GeoVector2D[] directions, out double[] parameters)
-        //{
-        //    double[] pars = curve3D.GetSavePositions();
-        //    List<double> positions = new List<double>();
-        //    for (int i = 0; i < pars.Length; i++)
-        //    {
-        //        double d = Get2dParameter(pars[i]);
-        //        if (d > 1e-6 && d < 1.0 - 1e-6) positions.Add(d); // nur innerhalb des Bereichs und 0 und 1 nicht doppelt
-        //    }
-        //    positions.Add(0.0);
-        //    positions.Add(1.0);
-        //    if (positions.Count < 3) positions.Add(0.5);
-        //    positions.Sort();
-        //    List<double> lparameters = new List<double>();
-        //    for (int i = 0; i < positions.Count; i++)
-        //    {
-        //        lparameters.Add(positions[i]);
-        //    }
-        //    List<GeoPoint2D> lpoints = new List<GeoPoint2D>();
-        //    List<GeoVector2D> ldirections = new List<GeoVector2D>();
-        //    for (int i = 0; i < positions.Count; i++)
-        //    {
-        //        GeoPoint2D p;
-        //        GeoVector2D v;
-        //        PointDirAt(positions[i], out p, out v);
-        //        lpoints.Add(p);
-        //        ldirections.Add(v);
-        //    }
-
-        //    bool check = true;
-        //    // the interpolation should be smooth. Max. bending between interpolation points 45°, which makes sure, the baseApproximation
-        //    // uses arcs, so that the start- and end-direction are correct
-        //    while (check && lpoints.Count < 100)
-        //    {
-        //        check = false;
-        //        for (int i = lpoints.Count - 1; i > 0; --i)
-        //        {
-        //            if (Math.Abs(new SweepAngle(ldirections[i], ldirections[i - 1])) > Math.PI / 4)
-        //            {
-        //                double par = (positions[i] + positions[i - 1]) / 2.0;
-        //                GeoPoint2D p = PointAt(par);
-        //                GeoVector2D dir = DirectionAt(par);
-        //                lpoints.Insert(i, p);
-        //                ldirections.Insert(i, dir);
-        //                positions.Insert(i, par);
-        //                check = true;
-        //            }
-        //        }
-        //    }
-        //    points = lpoints.ToArray();
-        //    directions = ldirections.ToArray();
-        //    parameters = positions.ToArray();
-        //    if (surface.IsUPeriodic)
-        //    {
-        //        for (int i = 1; i < points.Length; i++)
-        //        {
-        //            if ((points[i].x - points[i - 1].x) > surface.UPeriod / 2.0) points[i].x -= surface.UPeriod;
-        //            if ((points[i].x - points[i - 1].x) < -surface.UPeriod / 2.0) points[i].x += surface.UPeriod;
-        //        }
-        //    }
-        //    if (surface.IsVPeriodic)
-        //    {
-        //        for (int i = 1; i < points.Length; i++)
-        //        {
-        //            if ((points[i].y - points[i - 1].y) > surface.VPeriod / 2.0) points[i].y -= surface.VPeriod;
-        //            if ((points[i].y - points[i - 1].y) < -surface.VPeriod / 2.0) points[i].y += surface.VPeriod;
-        //        }
-        //    }
-        //    if (!periodicDomain.IsEmpty())
-        //    {
-        //        SurfaceHelper.AdjustPeriodic(surface, periodicDomain, points);
-        //    }
-        //}
 #if DEBUG
         public void DebugTest()
         {
@@ -971,68 +898,7 @@ namespace CADability
         }
         private void PointDirAt(double pos, out GeoPoint2D uv, out GeoVector2D dir)
         {
-            ApproxBSpline2D.PointDirAt(pos, out uv, out dir);
-            return; // better and faster, ApproxBSpline2D always parametrized from 0 to 1
-            // Projektion der 3d Richtung auf die Tangentialebene aufgespannt durch die beiden Richtungen
-            double par3d = Get3dParameter(pos);
-            uv = surface.PositionOf(curve3D.PointAt(par3d));
-            if (!periodicDomain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref uv);
-            if (par3d < 1e-6 && startPoint2d.x == 0.0 && startPoint2d.y == 0.0)
-            {
-                startPoint2d = (endParam > startParam) ? surface.PositionOf(curve3D.StartPoint) : surface.PositionOf(curve3D.EndPoint);
-                if (!periodicDomain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref startPoint2d);
-            }
-            if (par3d < 1e-6 && startPointIsPole) uv = startPoint2d;
-            if (par3d > 1 - 1e-6 && endPointIsPole) uv = endPoint2d;
-            if ((surface.IsUPeriodic && periodicDomain.Width > surface.UPeriod * (1 - 1e-6)) || (surface.IsVPeriodic && periodicDomain.Height > surface.VPeriod * (1 - 1e-6)))
-            {   // do not adjust when the domain is the full period and we are close to the start or endpoint. These have been adjusted correctly in the constructor
-                if (par3d < 1e-6) uv = startPoint2d;
-                else if (par3d > 1 - 1e-6) uv = endPoint2d;
-            }
-            GeoPoint2D duv = uv;
-            if (par3d < 1e-6 && startPointIsPole)
-            {
-                duv = surface.PositionOf(curve3D.PointAt(0.05));
-            }
-            if (par3d > 1 - 1e-6 && endPointIsPole)
-            {
-                duv = surface.PositionOf(curve3D.PointAt(0.95));
-            }
-
-            GeoVector dir3d = curve3D.DirectionAt(par3d);
-            // Punkt auf der Fläche und Richtung im Raum:
-            // wie drückt sich diese Raumrichtung in diru und dirv aus
-            GeoPoint loc;
-            GeoVector diru, dirv;
-            surface.DerivativeAt(duv, out loc, out diru, out dirv);
-            Matrix m = DenseMatrix.OfColumnArrays(diru, dirv, diru ^ dirv);
-            Vector b = new DenseVector(dir3d);
-            Vector s = (Vector)m.Solve(b);
-            if (s.IsValid())
-            {   // what about the length? Added the .Normalized, because in "HyperCube Evolution - Double Z motor 1.stp" the direction length is definitely wrong
-                dir = (endParam - startParam) * new GeoVector2D(s[0], s[1]).Normalized;
-                double tstPar;
-                if (pos < 0.05)
-                {
-                    double pos1 = pos + 0.05;
-                    GeoPoint2D uv1 = PointAt(pos1);
-                    SurfaceHelper.AdjustPeriodic(surface, new BoundingRect(uv), ref uv1);
-                    GeoVector2D dir1 = uv1 - uv;
-                    if (dir1 * dir < 0.0) dir = -dir;
-                }
-                else
-                {
-                    double pos1 = pos - 0.05;
-                    GeoPoint2D uv1 = PointAt(pos1);
-                    SurfaceHelper.AdjustPeriodic(surface, new BoundingRect(uv), ref uv1);
-                    GeoVector2D dir1 = uv - uv1;
-                    if (dir1 * dir < 0.0) dir = -dir;
-                }
-            }
-            else
-            {
-                dir = GeoVector2D.NullVector;
-            }
+            ApproxBSpline2D.PointDirAt(pos, out uv, out dir); // ApproxBSpline2D is always parametrized from 0 to 1
         }
 
         internal void ReflectModification(ISurface surface, ICurve curve3d)
@@ -1059,17 +925,6 @@ namespace CADability
         public override GeoPoint2D PointAt(double Position)
         {
             return ApproxBSpline2D.PointAt(Position); // it is synchronous with parameters too!
-            double par3d = Get3dParameter(Position);
-            GeoPoint2D res = surface.PositionOf(curve3D.PointAt(par3d));
-            if (par3d < 1e-6 && startPointIsPole) res = startPoint2d;
-            else if (par3d > 1 - 1e-6 && endPointIsPole) res = endPoint2d;
-            if (!periodicDomain.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, periodicDomain, ref res);
-            if ((surface.IsUPeriodic && periodicDomain.Width > surface.UPeriod * (1 - 1e-6)) || (surface.IsVPeriodic && periodicDomain.Height > surface.VPeriod * (1 - 1e-6)))
-            {   // do not adjust when the domain is the full period and we are close to the start or endpoint. These have been adjusted correctly in the constructor
-                if (par3d < 1e-6) res = startPoint2d;
-                else if (par3d > 1 - 1e-6) res = endPoint2d;
-            }
-            return res;
         }
         public override void Reverse()
         {

@@ -305,9 +305,10 @@ namespace CADability.GeoObject
                     basePoints.ToArray()));
                 resPoints.Add(basePoints);
             }
-            catch (Exception)
+            catch (Exception ex)
             {   // these points do not make a usable curve, which the constructor decides: better to lose this
                 // one curve than all the others
+                DualSurfaceCurveDiagnostics.RecordConstructionFailure("SurfaceIntersectionMarching.AddCurve", ex);
                 ctx.debug.ShowFailedCurve(basePoints);
             }
         }

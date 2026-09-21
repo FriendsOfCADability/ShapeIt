@@ -5190,15 +5190,6 @@ namespace CADability.GeoObject
                             edge.PrimaryFace != edge.SecondaryFace && firstToSecond.Determinant > 0) // firstToSecond.IsIsogonal: non periodic surfaces or spheres with different axis are not implemented yet
                         {
                             if (edge.PrimaryFace.Surface is CylindricalSurfaceNP || edge.PrimaryFace.Surface is SphericalSurfaceNP || edge.PrimaryFace.Surface is ConicalSurfaceNP) continue;
-#if DEBUG
-                            foreach (Edge dbgedg in edge.PrimaryFace.Edges)
-                            {
-                                if (edge.Curve3D is InterpolatedDualSurfaceCurve)
-                                {
-                                    (edge.Curve3D as InterpolatedDualSurfaceCurve).CheckSurfaceParameters();
-                                }
-                            }
-#endif
                             if (edge.PrimaryFace.Surface.IsUPeriodic || edge.PrimaryFace.Surface.IsVPeriodic)
                             {   // do not combine two faces, which are periodic and in the combination fill the whole period
                                 // these faces are explicitly kept separate
