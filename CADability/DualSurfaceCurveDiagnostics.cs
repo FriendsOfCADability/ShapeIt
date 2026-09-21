@@ -98,7 +98,6 @@ namespace CADability
         // ---- everything else ------------------------------------------------------------------------------
 
         private static readonly Dictionary<string, long> operations = new Dictionary<string, long>();
-        private static readonly Dictionary<string, long> domainWrites = new Dictionary<string, long>();
 
         private static readonly List<string> fallbackSamples = new List<string>();
         private static readonly List<string> offSurfaceSamples = new List<string>();
@@ -206,10 +205,11 @@ namespace CADability
 
         /// <summary>
         /// Called where the nested ProjectedCurve has just built its 2d approximation. <paramref name="bounds"/>
-        /// is the bounds field of the 3d curve which was used to adjust the periodic values.
+        /// is the bounds field of the 3d curve which was used to adjust the periodic values, <paramref name="offset"/>
+        /// the shift by periods of the 2d curve, which applies to its end points as well as to the approximation.
         /// </summary>
         internal static void ObserveProjectedCurve(ISurface surface, BoundingRect bounds, InterpolatedDualSurfaceCurve.SurfacePoint[] basePoints,
-            bool onSurface1, BSpline2D spline)
+            bool onSurface1, GeoVector2D offset, BSpline2D spline)
         {
             if (!Enabled || spline == null) return;
             try
@@ -219,15 +219,20 @@ namespace CADability
                 BoundsAgreement b = ClassifyBounds(surface, bounds, hasDomain, domain);
                 UvAgreement[] uv = ClassifyStoredUv(surface, basePoints, onSurface1, tol3d);
                 int last = basePoints.Length - 1;
-                GeoPoint2D storedStart = onSurface1 ? basePoints[0].psurface1 : basePoints[0].psurface2;
-                GeoPoint2D storedEnd = onSurface1 ? basePoints[last].psurface1 : basePoints[last].psurface2;
+                GeoPoint2D storedStart = (onSurface1 ? basePoints[0].psurface1 : basePoints[0].psurface2) + offset;
+                GeoPoint2D storedEnd = (onSurface1 ? basePoints[last].psurface1 : basePoints[last].psurface2) + offset;
                 GeoPoint2D splineStart = spline.PointAt(0.0);
                 GeoPoint2D splineEnd = spline.PointAt(1.0);
                 UvAgreement startAgreement = Compare(surface, splineStart, storedStart, basePoints[0].p3d, tol3d);
                 UvAgreement endAgreement = Compare(surface, splineEnd, storedEnd, basePoints[last].p3d, tol3d);
                 string type = TypeName(surface);
+                // where an end is a period away from the stored end point: which of the two is in the domain?
+                string startWhere = startAgreement == UvAgreement.PeriodShift ? InsideWhich(hasDomain, domain, storedStart, splineStart) : null;
+                string endWhere = endAgreement == UvAgreement.PeriodShift ? InsideWhich(hasDomain, domain, storedEnd, splineEnd) : null;
                 lock (sync)
                 {
+                    if (startWhere != null) Increment(operations, "2d curve, period shift at an end, " + startWhere);
+                    if (endWhere != null) Increment(operations, "2d curve, period shift at an end, " + endWhere);
                     Increment(boundsAtProjection, type, (int)b, boundsNames.Length);
                     AddUv(uvAtProjection, surface, uv, null, "2d curve, " + (onSurface1 ? "surface1" : "surface2"), basePoints, onSurface1);
                     Increment(projectedEnds, type, (int)startAgreement, 5);
@@ -310,21 +315,16 @@ namespace CADability
             }
         }
 
-        /// <summary>The curve has written a domain onto a surface which had none.</summary>
-        internal static void RecordDomainWrite(string where, ISurface surface)
+        private static string InsideWhich(bool hasDomain, BoundingRect domain, GeoPoint2D stored, GeoPoint2D spline)
         {
-            if (!Enabled) return;
-            try
-            {
-                lock (sync)
-                {
-                    Increment(domainWrites, where + " on " + TypeName(surface));
-                    Observed();
-                }
-            }
-            catch
-            {
-            }
+            if (!hasDomain) return "no domain";
+            BoundingRect d = domain;
+            d.Inflate(1e-6 * Math.Max(1.0, d.Size));
+            bool storedIn = d.Contains(stored), splineIn = d.Contains(spline);
+            if (storedIn && splineIn) return "both in the domain";
+            if (storedIn) return "only the stored end point in the domain";
+            if (splineIn) return "only the spline end in the domain";
+            return "neither in the domain";
         }
 
         /// <summary>Counts an operation, e.g. a clone of the 3d curve made by a 2d curve.</summary>
@@ -336,47 +336,6 @@ namespace CADability
                 lock (sync)
                 {
                     Increment(operations, operation);
-                    Observed();
-                }
-            }
-            catch
-            {
-            }
-        }
-
-        /// <summary>
-        /// Split(double) assumes that base point i lies at the parameter i/(n-1), but the parameter of the curve comes
-        /// from its approximating spline. <paramref name="index"/> is the base point Split derived from that assumption:
-        /// the one at <paramref name="position"/> when <paramref name="atBasePoint"/>, otherwise the one after which the
-        /// new point is inserted.
-        /// </summary>
-        internal static void RecordSplit(Func<GeoPoint, double> positionOf, InterpolatedDualSurfaceCurve.SurfacePoint[] basePoints,
-            int index, double position, bool atBasePoint)
-        {
-            if (!Enabled) return;
-            try
-            {
-                string result;
-                if (index < 0 || index >= basePoints.Length || (!atBasePoint && index + 1 >= basePoints.Length))
-                {
-                    result = "IDSC.Split(double): position outside the curve";
-                }
-                else if (atBasePoint)
-                {
-                    result = Math.Abs(positionOf(basePoints[index].p3d) - position) < 1e-6
-                        ? "IDSC.Split(double): at a base point, which really is at that parameter"
-                        : "IDSC.Split(double): at a base point, which is NOT at that parameter";
-                }
-                else
-                {
-                    double before = positionOf(basePoints[index].p3d), after = positionOf(basePoints[index + 1].p3d);
-                    result = before <= position + 1e-9 && position <= after + 1e-9
-                        ? "IDSC.Split(double): new point lies between the base points it is inserted between"
-                        : "IDSC.Split(double): new point lies OUTSIDE the base points it is inserted between";
-                }
-                lock (sync)
-                {
-                    Increment(operations, result);
                     Observed();
                 }
             }
@@ -660,8 +619,7 @@ namespace CADability
                 AppendUv(sb, "5b. Stored uv of the base points against PositionOf, when the 2d curve is built", uvAtProjection);
                 AppendEnds(sb);
                 AppendRefinement(sb);
-                AppendCounters(sb, "7. Domains written onto a surface by the curve", domainWrites);
-                AppendCounters(sb, "8. Operations", operations);
+                AppendCounters(sb, "7. Operations", operations);
                 AppendSamples(sb, "Samples: fallback, the unrefined point was stored as exact", fallbackSamples);
                 AppendSamples(sb, "Samples: a solver result accepted although it is off the surfaces or off the plane", offSurfaceSamples);
                 AppendSamples(sb, "Samples: stored uv not equal to PositionOf", uvSamples);

@@ -1887,6 +1887,7 @@ namespace CADability
                         if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
                         dsc.RecalcSurfacePoints(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
                         dsc.AdjustPeriodic(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
+                        this.curve3d = dsc; // the 2d curves refer to dsc, so it must be the 3d curve too
                     }
                 }
             }
