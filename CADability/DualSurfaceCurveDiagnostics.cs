@@ -19,7 +19,7 @@ namespace CADability
     /// <item>which way a point of the curve is actually computed, and how often that fails silently,</item>
     /// <item>whether the per-curve flag "isTangential" matches the geometry along the base points,</item>
     /// <item>whether the uv values the curve stores agree with what <see cref="ISurface.PositionOf"/> returns for
-    /// the domain of the surface, i.e. whether the curve's own bounds are still needed,</item>
+    /// the domain of the surface, point by point and as a continuous row,</item>
     /// <item>who creates, clones and mutates these curves.</item>
     /// </list>
     /// <para>
@@ -82,10 +82,18 @@ namespace CADability
         // per surface type, the ends of the 2d spline against the stored end points, [UvAgreement]
         private static readonly Dictionary<string, long[]> projectedEnds = new Dictionary<string, long[]>();
 
-        private enum BoundsAgreement { BoundsEmpty, DomainNotSet, Infinite, Equal, PeriodShift, Different }
-        private static readonly string[] boundsNames = { "bounds empty", "domain not set", "infinite", "equal", "period shift", "different" };
-        private static readonly Dictionary<string, long[]> boundsAtConstruction = new Dictionary<string, long[]>();
-        private static readonly Dictionary<string, long[]> boundsAtProjection = new Dictionary<string, long[]>();
+        // ---- the uv values of the base points as a continuous row -------------------------------------------
+
+        /// <summary>
+        /// How the stored uv values of the base points relate to the chain the curve computes: the first point from
+        /// PositionOf, which honours the domain of the surface, each further one from PositionOf moved by whole periods
+        /// next to its predecessor. The curve used bounds for this until they were found to give the same values.
+        /// </summary>
+        private enum ChainAgreement { NotPeriodic, Equal, WholeShift, Partial, StoredJumps, NotComparable }
+        private static readonly string[] chainNames = { "not periodic", "equal", "whole shift", "partial", "stored jumps", "not comparable" };
+        private static readonly Dictionary<string, long[]> chainAtConstruction = new Dictionary<string, long[]>();
+        private static readonly Dictionary<string, long[]> chainAtProjection = new Dictionary<string, long[]>();
+        private static readonly List<string> chainSamples = new List<string>();
 
         // ---- point refinement -----------------------------------------------------------------------------
 
@@ -119,40 +127,20 @@ namespace CADability
             }
         }
 
-        /// <summary>
-        /// State captured at the beginning of a constructor, before the constructor may have written a domain onto
-        /// one of the surfaces.
-        /// </summary>
+        /// <summary>State captured at the beginning of a constructor.</summary>
         internal sealed class ConstructionProbe
         {
             internal long startTimestamp;
-            internal BoundingRect bounds1, bounds2, domain1, domain2;
-            internal bool hasDomain1, hasDomain2;
         }
 
         /// <summary>
         /// Called first thing in a constructor of <see cref="InterpolatedDualSurfaceCurve"/>. Returns null while
         /// the measurement is off, which makes the matching <see cref="EndConstruction"/> a no-op.
         /// </summary>
-        internal static ConstructionProbe BeginConstruction(ISurface surface1, BoundingRect bounds1, ISurface surface2, BoundingRect bounds2)
+        internal static ConstructionProbe BeginConstruction()
         {
             if (!Enabled) return null;
-            try
-            {
-                ConstructionProbe probe = new ConstructionProbe
-                {
-                    startTimestamp = Stopwatch.GetTimestamp(),
-                    bounds1 = bounds1,
-                    bounds2 = bounds2
-                };
-                probe.hasDomain1 = TryGetDomain(surface1, out probe.domain1);
-                probe.hasDomain2 = TryGetDomain(surface2, out probe.domain2);
-                return probe;
-            }
-            catch
-            {
-                return null;
-            }
+            return new ConstructionProbe { startTimestamp = Stopwatch.GetTimestamp() };
         }
 
         /// <summary>
@@ -175,8 +163,8 @@ namespace CADability
                 // evaluate outside the lock, the surfaces may take their time
                 UvAgreement[] uv1 = ClassifyStoredUv(surface1, basePoints, true, tol3d);
                 UvAgreement[] uv2 = ClassifyStoredUv(surface2, basePoints, false, tol3d);
-                BoundsAgreement b1 = ClassifyBounds(surface1, probe.bounds1, probe.hasDomain1, probe.domain1);
-                BoundsAgreement b2 = ClassifyBounds(surface2, probe.bounds2, probe.hasDomain2, probe.domain2);
+                ChainAgreement c1 = ClassifyChain(surface1, basePoints, true, tol3d, out string chainDetail1);
+                ChainAgreement c2 = ClassifyChain(surface2, basePoints, false, tol3d, out string chainDetail2);
 
                 lock (sync)
                 {
@@ -193,8 +181,8 @@ namespace CADability
                     contactByFlag[(int)contact, isTangential ? 1 : 0]++;
                     AddUv(uvAtConstruction, surface1, uv1, creator, "construction, surface1", basePoints, true);
                     AddUv(uvAtConstruction, surface2, uv2, creator, "construction, surface2", basePoints, false);
-                    Increment(boundsAtConstruction, TypeName(surface1), (int)b1, boundsNames.Length);
-                    Increment(boundsAtConstruction, TypeName(surface2), (int)b2, boundsNames.Length);
+                    AddChain(chainAtConstruction, surface1, c1, chainDetail1, "construction, surface1 <- " + creator);
+                    AddChain(chainAtConstruction, surface2, c2, chainDetail2, "construction, surface2 <- " + creator);
                     Observed();
                 }
             }
@@ -204,11 +192,10 @@ namespace CADability
         }
 
         /// <summary>
-        /// Called where the nested ProjectedCurve has just built its 2d approximation. <paramref name="bounds"/>
-        /// is the bounds field of the 3d curve which was used to adjust the periodic values, <paramref name="offset"/>
-        /// the shift by periods of the 2d curve, which applies to its end points as well as to the approximation.
+        /// Called where the nested ProjectedCurve has just built its 2d approximation. <paramref name="offset"/> is the
+        /// shift by periods of the 2d curve, which applies to its end points as well as to the approximation.
         /// </summary>
-        internal static void ObserveProjectedCurve(ISurface surface, BoundingRect bounds, InterpolatedDualSurfaceCurve.SurfacePoint[] basePoints,
+        internal static void ObserveProjectedCurve(ISurface surface, InterpolatedDualSurfaceCurve.SurfacePoint[] basePoints,
             bool onSurface1, GeoVector2D offset, BSpline2D spline)
         {
             if (!Enabled || spline == null) return;
@@ -216,8 +203,8 @@ namespace CADability
             {
                 double tol3d = Tolerance3d(basePoints);
                 bool hasDomain = TryGetDomain(surface, out BoundingRect domain);
-                BoundsAgreement b = ClassifyBounds(surface, bounds, hasDomain, domain);
                 UvAgreement[] uv = ClassifyStoredUv(surface, basePoints, onSurface1, tol3d);
+                ChainAgreement chain = ClassifyChain(surface, basePoints, onSurface1, tol3d, out string chainDetail);
                 int last = basePoints.Length - 1;
                 GeoPoint2D storedStart = (onSurface1 ? basePoints[0].psurface1 : basePoints[0].psurface2) + offset;
                 GeoPoint2D storedEnd = (onSurface1 ? basePoints[last].psurface1 : basePoints[last].psurface2) + offset;
@@ -233,7 +220,7 @@ namespace CADability
                 {
                     if (startWhere != null) Increment(operations, "2d curve, period shift at an end, " + startWhere);
                     if (endWhere != null) Increment(operations, "2d curve, period shift at an end, " + endWhere);
-                    Increment(boundsAtProjection, type, (int)b, boundsNames.Length);
+                    AddChain(chainAtProjection, surface, chain, chainDetail, "2d curve, " + (onSurface1 ? "surface1" : "surface2"));
                     AddUv(uvAtProjection, surface, uv, null, "2d curve, " + (onSurface1 ? "surface1" : "surface2"), basePoints, onSurface1);
                     Increment(projectedEnds, type, (int)startAgreement, 5);
                     Increment(projectedEnds, type, (int)endAgreement, 5);
@@ -249,6 +236,71 @@ namespace CADability
             {
             }
         }
+
+        private static ChainAgreement ClassifyChain(ISurface surface, InterpolatedDualSurfaceCurve.SurfacePoint[] basePoints, bool onSurface1, double tol3d, out string detail)
+        {
+            detail = null;
+            if (!surface.IsUPeriodic && !surface.IsVPeriodic) return ChainAgreement.NotPeriodic;
+            double uPeriod = surface.IsUPeriodic ? surface.UPeriod : 0.0, vPeriod = surface.IsVPeriodic ? surface.VPeriod : 0.0;
+            for (int i = 1; i < basePoints.Length; i++)
+            {
+                GeoPoint2D a = onSurface1 ? basePoints[i - 1].psurface1 : basePoints[i - 1].psurface2;
+                GeoPoint2D b = onSurface1 ? basePoints[i].psurface1 : basePoints[i].psurface2;
+                if ((uPeriod > 0.0 && Math.Abs(b.x - a.x) > uPeriod / 2) || (vPeriod > 0.0 && Math.Abs(b.y - a.y) > vPeriod / 2))
+                {
+                    detail = "jump after point " + (i - 1).ToString(CultureInfo.InvariantCulture) + ": " + Format(a) + " -> " + Format(b);
+                    return ChainAgreement.StoredJumps;
+                }
+            }
+            bool havePrevious = false, haveShift = false, partial = false;
+            GeoPoint2D previous = GeoPoint2D.Origin;
+            double shiftU = 0.0, shiftV = 0.0;
+            int compared = 0;
+            for (int i = 0; i < basePoints.Length; i++)
+            {
+                GeoPoint p3d = basePoints[i].p3d;
+                GeoPoint2D stored = onSurface1 ? basePoints[i].psurface1 : basePoints[i].psurface2;
+                GeoPoint2D chain = surface.PositionOf(p3d);
+                if (havePrevious) InterpolatedDualSurfaceCurve.SurfacePoint.FixSurfacePoint2D(ref chain, previous, surface.IsUPeriodic, uPeriod, surface.IsVPeriodic, vPeriod);
+                UvAgreement a = Compare(surface, stored, chain, p3d, tol3d);
+                if (a != UvAgreement.Equal && a != UvAgreement.PeriodShift) continue; // a pole or a point off the surface says nothing about periods
+                previous = chain;
+                havePrevious = true;
+                compared++;
+                double ku = uPeriod > 0.0 ? Math.Round((stored.x - chain.x) / uPeriod) : 0.0;
+                double kv = vPeriod > 0.0 ? Math.Round((stored.y - chain.y) / vPeriod) : 0.0;
+                if (!haveShift)
+                {
+                    shiftU = ku;
+                    shiftV = kv;
+                    haveShift = true;
+                }
+                else if (ku != shiftU || kv != shiftV) partial = true;
+            }
+            if (compared == 0) return ChainAgreement.NotComparable;
+            if (partial)
+            {
+                detail = "shift at the first point " + shiftU.ToString(CultureInfo.InvariantCulture) + ", " + shiftV.ToString(CultureInfo.InvariantCulture) + " periods, then others";
+                return ChainAgreement.Partial;
+            }
+            if (shiftU == 0.0 && shiftV == 0.0) return ChainAgreement.Equal;
+            detail = "stored = chain + (" + shiftU.ToString(CultureInfo.InvariantCulture) + ", " + shiftV.ToString(CultureInfo.InvariantCulture) + ") periods, stored first point " +
+                Format(onSurface1 ? basePoints[0].psurface1 : basePoints[0].psurface2);
+            return ChainAgreement.WholeShift;
+        }
+
+        private static void AddChain(Dictionary<string, long[]> into, ISurface surface, ChainAgreement agreement, string detail, string origin)
+        {
+            Increment(into, TypeName(surface), (int)agreement, chainNames.Length);
+            if (agreement != ChainAgreement.NotPeriodic && agreement != ChainAgreement.Equal && chainSamples.Count < maxSamples)
+            {
+                TryGetDomain(surface, out BoundingRect domain);
+                chainSamples.Add(string.Format(CultureInfo.InvariantCulture, "{0,-26} {1}: {2}  domain {3}   ({4})",
+                    TypeName(surface), agreement, detail, Format(domain), origin));
+            }
+        }
+
+        private static string Format(BoundingRect r) => r.IsEmpty() ? "empty" : string.Format(CultureInfo.InvariantCulture, "[{0:G6}, {1:G6}] x [{2:G6}, {3:G6}]", r.Left, r.Right, r.Bottom, r.Top);
 
         /// <summary>A point was found in the cache of already computed positions.</summary>
         internal static void RecordCacheHit()
@@ -442,20 +494,6 @@ namespace CADability
             return UvAgreement.OtherParameter; // same 3d point, different parameters: a pole or another singularity
         }
 
-        private static BoundsAgreement ClassifyBounds(ISurface surface, BoundingRect bounds, bool hasDomain, BoundingRect domain)
-        {
-            if (bounds.IsEmpty()) return BoundsAgreement.BoundsEmpty;
-            if (!hasDomain) return BoundsAgreement.DomainNotSet;
-            switch (DomainDiagnostics.Classify(surface, bounds, domain, out _, out _, out _))
-            {
-                case DomainAgreement.NotSet: return BoundsAgreement.DomainNotSet;
-                case DomainAgreement.Infinite: return BoundsAgreement.Infinite;
-                case DomainAgreement.Equal: return BoundsAgreement.Equal;
-                case DomainAgreement.PeriodShift: return BoundsAgreement.PeriodShift;
-                default: return BoundsAgreement.Different;
-            }
-        }
-
         private static bool TryGetDomain(ISurface surface, out BoundingRect domain)
         {
             domain = BoundingRect.EmptyBoundingRect;
@@ -614,10 +652,10 @@ namespace CADability
                 AppendCreators(sb);
                 AppendContact(sb);
                 AppendUv(sb, "3. Stored uv of the base points against PositionOf, at construction", uvAtConstruction);
-                AppendBounds(sb, "4. Bounds handed to the constructor against the surface's Domain at that moment", boundsAtConstruction);
-                AppendBounds(sb, "5a. Bounds field of the curve against the surface's Domain, when the 2d curve is built", boundsAtProjection);
                 AppendUv(sb, "5b. Stored uv of the base points against PositionOf, when the 2d curve is built", uvAtProjection);
                 AppendEnds(sb);
+                AppendChain(sb, "5d. Stored uv of the base points against the chain, at construction", chainAtConstruction);
+                AppendChain(sb, "5e. Stored uv of the base points against the chain, when the 2d curve is built", chainAtProjection);
                 AppendRefinement(sb);
                 AppendCounters(sb, "7. Operations", operations);
                 AppendSamples(sb, "Samples: fallback, the unrefined point was stored as exact", fallbackSamples);
@@ -625,6 +663,7 @@ namespace CADability
                 AppendSamples(sb, "Samples: stored uv not equal to PositionOf", uvSamples);
                 AppendSamples(sb, "Samples: ends of the 2d spline not equal to the stored end points", endsSamples);
                 AppendSamples(sb, "Samples: exceptions from the constructor", failureSamples);
+                AppendSamples(sb, "Samples: stored uv of the base points not equal to the chain", chainSamples);
 
                 File.WriteAllText(reportPath, sb.ToString());
             }
@@ -698,26 +737,6 @@ namespace CADability
             sb.AppendLine();
         }
 
-        private static void AppendBounds(StringBuilder sb, string caption, Dictionary<string, long[]> counts)
-        {
-            Caption(sb, caption);
-            if (counts.Count == 0)
-            {
-                sb.AppendLine("  (nothing observed)");
-                sb.AppendLine();
-                return;
-            }
-            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,14} {2,14} {3,10} {4,10} {5,13} {6,10}",
-                "surface type", boundsNames[0], boundsNames[1], boundsNames[2], boundsNames[3], boundsNames[4], boundsNames[5]));
-            foreach (KeyValuePair<string, long[]> e in counts.OrderBy(e => e.Key, StringComparer.Ordinal))
-            {
-                long[] c = e.Value;
-                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,14} {2,14} {3,10} {4,10} {5,13} {6,10}",
-                    e.Key, c[0], c[1], c[2], c[3], c[4], c[5]));
-            }
-            sb.AppendLine();
-        }
-
         private static void AppendEnds(StringBuilder sb)
         {
             Caption(sb, "5c. Ends of the 2d spline (PointAt(0), PointAt(1)) against the stored end points (StartPoint, EndPoint)");
@@ -735,6 +754,28 @@ namespace CADability
                 long[] c = e.Value;
                 sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,12} {2,12} {3,12} {4,12} {5,12}",
                     e.Key, c[0], c[1], c[2], c[3], c[4]));
+            }
+            sb.AppendLine();
+        }
+
+        private static void AppendChain(StringBuilder sb, string caption, Dictionary<string, long[]> counts)
+        {
+            Caption(sb, caption);
+            if (counts.Count == 0)
+            {
+                sb.AppendLine("  (nothing observed)");
+                sb.AppendLine();
+                return;
+            }
+            sb.AppendLine("  chain = the first point from PositionOf (in the domain), every further one moved by periods next to its predecessor.");
+            sb.AppendLine("  whole shift = stored and chain differ by the same periods everywhere; partial = by different ones.");
+            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,13} {2,10} {3,12} {4,10} {5,13} {6,15}",
+                "surface type", chainNames[0], chainNames[1], chainNames[2], chainNames[3], chainNames[4], chainNames[5]));
+            foreach (KeyValuePair<string, long[]> e in counts.OrderBy(e => e.Key, StringComparer.Ordinal))
+            {
+                long[] c = e.Value;
+                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,13} {2,10} {3,12} {4,10} {5,13} {6,15}",
+                    e.Key, c[0], c[1], c[2], c[3], c[4], c[5]));
             }
             sb.AppendLine();
         }

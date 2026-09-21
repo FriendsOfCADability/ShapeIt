@@ -1034,7 +1034,7 @@ namespace CADability
             curve3d.EndPoint = Vertex2.Position;
             if (curve3d is InterpolatedDualSurfaceCurve)
             {
-                (curve3d as InterpolatedDualSurfaceCurve).RecalcSurfacePoints(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
+                (curve3d as InterpolatedDualSurfaceCurve).RecalcSurfacePoints();
                 if (PrimaryCurve2D is InterpolatedDualSurfaceCurve.ProjectedCurve)
                 {
                     bool rev = (PrimaryCurve2D as InterpolatedDualSurfaceCurve.ProjectedCurve).IsReversed;
@@ -1885,8 +1885,7 @@ namespace CADability
                         if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
                         curveOnSecondaryFace = dsc.CurveOnSurface2;
                         if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
-                        dsc.RecalcSurfacePoints(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
-                        dsc.AdjustPeriodic(primaryFace.Area.GetExtent(), secondaryFace.Area.GetExtent());
+                        dsc.RecalcSurfacePoints();
                         this.curve3d = dsc; // the 2d curves refer to dsc, so it must be the 3d curve too
                     }
                 }

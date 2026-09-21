@@ -5944,7 +5944,7 @@ namespace CADability.GeoObject
                     // Polyline pl = Polyline.FromPoints(ips.ToArray());
                     if (ips.Count > 1 && seeds.Any(p => Precision.IsEqual(p, ips[0])) && seeds.Any(p => Precision.IsEqual(p, ips[ips.Count - 1])))
                     { // start and endpoint are seeds
-                        res.Add(new InterpolatedDualSurfaceCurve(this, thisBounds, other, otherBounds, surfacePoints.ToArray()));
+                        res.Add(new InterpolatedDualSurfaceCurve(this, other, surfacePoints.ToArray()));
                         if (seeds.Count == 2 && !Precision.IsEqual(ips[0], ips[ips.Count - 1]))
                         {   // only two seeds and the curve uses both, so we are done
                             // this is a very common case, we return the first intersection curve we found

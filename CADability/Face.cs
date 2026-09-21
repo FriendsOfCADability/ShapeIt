@@ -8545,7 +8545,7 @@ namespace CADability.GeoObject
                                         if (edg.Curve3D is InterpolatedDualSurfaceCurve ipdsc && ipdsc.Surface1.SameGeometry(ext, surface, ext, Precision.eps, out _))
                                         {
                                             ipdsc.Surface1.Domain = ext;
-                                            ipdsc.SetBounds(ext, BoundingRect.EmptyBoundingRect);
+                                            ipdsc.RecalcSurfacePoints(); // PositionOf puts them into the domain just set
                                         }
                                         edg.PrimaryCurve2D = surface.GetProjectedCurve(edg.Curve3D, 0.0);
                                         if (!edg.Forward(this)) edg.PrimaryCurve2D.Reverse();
@@ -8556,7 +8556,7 @@ namespace CADability.GeoObject
                                         if (edg.Curve3D is InterpolatedDualSurfaceCurve ipdsc && ipdsc.Surface2.SameGeometry(ext, surface, ext, Precision.eps, out _))
                                         {
                                             ipdsc.Surface2.Domain = ext;
-                                            ipdsc.SetBounds(BoundingRect.EmptyBoundingRect, ext);
+                                            ipdsc.RecalcSurfacePoints(); // PositionOf puts them into the domain just set
                                         }
                                         edg.SecondaryCurve2D = surface.GetProjectedCurve(edg.Curve3D, 0.0);
                                         if (!edg.Forward(this)) edg.SecondaryCurve2D.Reverse();

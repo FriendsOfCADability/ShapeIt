@@ -196,7 +196,7 @@ namespace CADability.GeoObject
         /// the number of whole periods between them, <paramref name="residual"/> is what is left over after
         /// removing those periods, relative to the size of the face domain.
         /// </summary>
-        internal static DomainAgreement Classify(ISurface surface, BoundingRect faceDomain, BoundingRect surfaceDomain,
+        private static DomainAgreement Classify(ISurface surface, BoundingRect faceDomain, BoundingRect surfaceDomain,
                                                 out double uShift, out double vShift, out double residual)
         {
             uShift = vShift = residual = 0.0;

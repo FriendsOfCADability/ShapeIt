@@ -301,8 +301,7 @@ namespace CADability.GeoObject
             if (basePoints.Count < 3 && (basePoints[0].p3d | last.p3d) < minDistance) return; // nothing but a point
             try
             {
-                res.Add(new InterpolatedDualSurfaceCurve(ctx.surface1, ctx.bounds1, ctx.surface2, ctx.bounds2,
-                    basePoints.ToArray()));
+                res.Add(new InterpolatedDualSurfaceCurve(ctx.surface1, ctx.surface2, basePoints.ToArray()));
                 resPoints.Add(basePoints);
             }
             catch (Exception ex)

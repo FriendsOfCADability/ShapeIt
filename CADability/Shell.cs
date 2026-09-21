@@ -5135,7 +5135,7 @@ namespace CADability.GeoObject
                     }
                     if (edg.Curve3D is InterpolatedDualSurfaceCurve)
                     {
-                        (edg.Curve3D as InterpolatedDualSurfaceCurve).Repair(edg.PrimaryFace.Area.GetExtent(), edg.SecondaryFace.Area.GetExtent());
+                        (edg.Curve3D as InterpolatedDualSurfaceCurve).Repair();
                     }
                 }
             }

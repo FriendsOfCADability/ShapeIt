@@ -314,6 +314,78 @@ namespace CADability.Tests
             }
         }
 
+        /// <summary>The cylinder with its domain one period further on: u runs from 2 pi to 4 pi.</summary>
+        private static CylindricalSurface CylinderInSecondPeriod()
+        {
+            CylindricalSurface cylinder = Cylinder();
+            cylinder.Domain = new BoundingRect(2 * System.Math.PI, -20, 4 * System.Math.PI, 20);
+            return cylinder;
+        }
+
+        private static void AssertInDomain(ICurve2D c2d, BoundingRect domain, string what)
+        {
+            for (int i = 0; i <= 20; i++)
+            {
+                GeoPoint2D uv = c2d.PointAt(i / 20.0);
+                Assert.IsTrue(uv.x >= domain.Left - 1e-9 && uv.x <= domain.Right + 1e-9, what + ": u = " + uv.x + " at " + (i / 20.0));
+            }
+            Assert.AreEqual(0.0, c2d.StartPoint | c2d.PointAt(0.0), 1e-6, what + ": start point and curve agree");
+            Assert.AreEqual(0.0, c2d.EndPoint | c2d.PointAt(1.0), 1e-6, what + ": end point and curve agree");
+        }
+
+        /// <summary>
+        /// The curve used its own bounds to put the uv values into their periods. They are gone: the uv values follow
+        /// from PositionOf, which honours the domain of the surface, and the bounds handed to the constructor, here the
+        /// first period, do not matter.
+        /// </summary>
+        [TestMethod]
+        public void the_uv_values_follow_the_domain_of_the_surface()
+        {
+            CylindricalSurface cylinder = CylinderInSecondPeriod();
+            GeoPoint[] points = new GeoPoint[9];
+            for (int i = 0; i < points.Length; i++) points[i] = OnEllipse(0.3 + 2.5 * i / 8.0);
+            InterpolatedDualSurfaceCurve curve = new InterpolatedDualSurfaceCurve(cylinder, FullCylinder, ObliquePlane(), Wide, points);
+            AssertInDomain(curve.CurveOnSurface1, cylinder.Domain, "the 2d curve on the cylinder");
+        }
+
+        /// <summary>
+        /// The uv values of a closed curve run on continuously: the end point is a period away from the start point, the
+        /// 2d curve does not jump back. Its first and last base points are the same point in space, so the base point
+        /// next to a position must be found by the parameter, not by the distance in space.
+        /// </summary>
+        [TestMethod]
+        public void a_closed_curve_runs_on_continuously_in_uv()
+        {
+            GeoPoint[] points = new GeoPoint[13];
+            for (int i = 0; i < points.Length; i++) points[i] = OnEllipse(0.3 + 2 * System.Math.PI * i / 12.0);
+            points[points.Length - 1] = points[0];
+            InterpolatedDualSurfaceCurve curve = new InterpolatedDualSurfaceCurve(Cylinder(), FullCylinder, ObliquePlane(), Wide, points);
+            ICurve2D c2d = curve.CurveOnSurface1;
+            Assert.AreEqual(2 * System.Math.PI, c2d.EndPoint.x - c2d.StartPoint.x, 1e-9, "the end is a period after the start");
+            double previous = c2d.PointAt(0.0).x;
+            for (int i = 1; i <= 40; i++)
+            {
+                double u = c2d.PointAt(i / 40.0).x;
+                Assert.IsTrue(u > previous && u - previous < 1.0, "u runs on continuously: " + previous + " then " + u);
+                previous = u;
+            }
+            Assert.AreEqual(0.0, c2d.EndPoint | c2d.PointAt(1.0), 1e-6, "end point and curve agree");
+        }
+
+        /// <summary>
+        /// Face sets a new domain on the surface of an edge when it reads an old file, and then asks the curve to compute
+        /// its uv values anew. That used to take the new domain as bounds; PositionOf alone puts them there now.
+        /// </summary>
+        [TestMethod]
+        public void recalculated_uv_values_move_into_a_new_domain()
+        {
+            InterpolatedDualSurfaceCurve curve = Ellipse();
+            CylindricalSurface cylinder = (CylindricalSurface)curve.Surface1;
+            cylinder.Domain = new BoundingRect(2 * System.Math.PI, -20, 4 * System.Math.PI, 20);
+            typeof(InterpolatedDualSurfaceCurve).GetMethod("RecalcSurfacePoints", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(curve, null);
+            AssertInDomain(curve.CurveOnSurface1, cylinder.Domain, "the 2d curve on the cylinder");
+        }
+
         private static GeoPoint[] BasePointsOf(InterpolatedDualSurfaceCurve curve)
         {
             return (GeoPoint[])typeof(InterpolatedDualSurfaceCurve).GetProperty("BasePoints", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(curve);
