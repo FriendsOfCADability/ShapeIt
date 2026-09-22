@@ -16,7 +16,7 @@ namespace ShapeIt
         Shell shell;
         LengthInput radiusInput;
         private Feedback feedback;
-        Shell result;
+        Shell? result;
 
         public override string GetID()
         {
@@ -57,18 +57,25 @@ namespace ShapeIt
         private bool Recalc(double length)
         {
             feedback.Clear();
-            Dictionary<Edge, Edge> clonedEdges = new Dictionary<Edge, Edge>();
-            Shell shellToRound = shell.Clone(clonedEdges);
-            IEnumerable<Edge> cledges = clonedEdges.Where(kv => edges.Contains(kv.Key)).Select(kv => kv.Value);
-            result = shellToRound.RoundEdges(cledges, Math.Abs(length));
-            if (result!=null)
+            if (length != 0)
             {
-                feedback.FrontFaces.Add(shellToRound);
+                Dictionary<Edge, Edge> clonedEdges = new Dictionary<Edge, Edge>();
+                Shell shellToRound = shell.Clone(clonedEdges);
+                IEnumerable<Edge> cledges = clonedEdges.Where(kv => edges.Contains(kv.Key)).Select(kv => kv.Value);
+                result = shellToRound.RoundEdges(cledges, Math.Abs(length));
+            }
+            else result = null;
+            if (result != null)
+            {
+                feedback.CreatedObjectsOwnColor = true;
+                feedback.CreatedObjects.Add(result);
+                feedback.Hide(shell);
                 feedback.Refresh();
                 return true;
             }
             else
             {
+                feedback.Show(shell);
                 feedback.Refresh();
                 return false;
             }

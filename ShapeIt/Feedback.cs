@@ -1,18 +1,21 @@
-﻿using CADability.GeoObject;
-using CADability;
+﻿using CADability;
+using CADability.Attribute;
 using CADability.Curve2D;
+using CADability.GeoObject;
+using CADability.Substitutes;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using CADability.Substitutes;
 
 namespace ShapeIt
 {
     internal class Feedback
     {
         private IView view;
+        private Dictionary<IGeoObject, Layer> originalLayers = new Dictionary<IGeoObject, Layer>(); // for transparent objects to make them opaque again when the feedback is cleared
         public GeoObjectList FrontFaces = new GeoObjectList(); // List of front faces for distance for feedback
         public GeoObjectList BackFaces = new GeoObjectList(); // List of back faces for distance for feedback
         public GeoObjectList ShadowFaces = new GeoObjectList(); // List of faces, usually the result of an operation, displayed as a transparent overlay
@@ -34,6 +37,7 @@ namespace ShapeIt
         Color frontColor, backColor, selectColor, shadowColor;
         // Color and transparency for the CreatedObjects list. The action sets CreatedObjectsColor to the
         // color of its chosen attribute; the alpha (0..255) makes the not-yet-final shape a bit transparent.
+        Layer transparent; // a temporary transparent layer, used to make the original objects transparent while the action is running
         public Color CreatedObjectsColor = Color.LightBlue;
         public int CreatedObjectsAlpha = 210;
         // When true, the CreatedObjects are painted in their own colors (the attributes carried by the objects)
@@ -55,6 +59,8 @@ namespace ShapeIt
             backColor = Color.PaleVioletRed;
             selectColor = Color.LightPink;
             shadowColor = Color.Yellow;
+            transparent = new Layer("TransparentForAction");
+            transparent.Transparency = 128;
         }
         public void Attach(IView vw)
         {
@@ -67,8 +73,45 @@ namespace ShapeIt
         public void Detach()
         {
             view.RemovePaintHandler(PaintBuffer.DrawingAspect.Select, OnRepaint);
+            foreach (var lgo in originalLayers)
+            {
+                SetLayer(lgo.Key, lgo.Value);
+                if (lgo.Key.Owner is IGeoObject owner) SetLayer(owner, lgo.Value); // in case of a shell
+            }
         }
 
+        private void SetLayer(IGeoObject go, Layer l)
+        {
+            go.Layer = l;
+            //if (go.OwnedItems != null) for (int i = 0; i < go.OwnedItems.Length; ++i) SetLayer(go.OwnedItems[i], l);
+            go.Modify(ModOp.Identity); // force the object to be redrawn with the new layer
+        }
+        public void Show(params IGeoObject[] objects)
+        {
+            foreach (IGeoObject go in objects)
+            {
+                if (originalLayers.TryGetValue(go, out Layer? layer))
+                {
+                    originalLayers.Remove(go);
+                    if (go.Owner is IGeoObject owner) owner.Layer = layer; // in case of a shell
+                    else go.Layer = layer;
+                }
+            }
+        }
+        public void Hide(params IGeoObject[] objects)
+        {
+            foreach (IGeoObject go in objects)
+            {
+                if (!originalLayers.ContainsKey(go))
+                {
+                    originalLayers.Add(go, go.Layer);
+                    Layer layer = view.Canvas.Frame.Project.LayerList.CreateOrFind("CADability.Visible");
+                    if (view is ModelView mv) mv.SetLayerVisibility(layer, false);
+                    if (go.Owner is IGeoObject owner) owner.Layer = layer; // in case of a shell
+                    else go.Layer = layer;
+                }
+            }
+        }
         public void Clear()
         {
             FrontFaces.Clear();
@@ -194,6 +237,7 @@ namespace ShapeIt
             //double precision = view.Projection.WorldToDeviceFactor;
             //view.Canvas.Frame
             view.Invalidate(PaintBuffer.DrawingAspect.Select, view.DisplayRectangle);
+            view.Invalidate(PaintBuffer.DrawingAspect.Drawing, view.DisplayRectangle);
         }
 
         private void OnRepaint(Rectangle IsInvalid, IView view, IPaintTo3D PaintToSelect)
