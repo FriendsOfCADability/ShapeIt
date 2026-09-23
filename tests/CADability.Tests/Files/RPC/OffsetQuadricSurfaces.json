@@ -98,7 +98,7 @@
       "openEdges": "0",
       "volume": "15650.6097494",
       "area": "5854.71930668",
-      "edgeLength": "504.315030308",
+      "edgeLength": "504.421150675",
       "extent": "-23, -23, -3, 23, 23, 39",
       "surfaces": "ConicalSurface:1 PlaneSurface:1 SphericalSurface:1 ToroidalSurface:4"
     },

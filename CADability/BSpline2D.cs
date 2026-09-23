@@ -1830,16 +1830,27 @@ namespace CADability.Curve2D
                 if (length > 0) return length;
                 try
                 {
-                    ICurve2D cv = this.Approximate(true, -poles.Length);
-                    length = cv.Length;
-                    return length;
+                    if (nubs == null && nurbs == null) Init();
+                    // the arc length, integrated span by span. Approximate(true, negative) used to be the
+                    // answer here, but that makes exactly one line per interpolation interval, so the result
+                    // was the chord polygon through the spans - for the rational quadratic circle, whose four
+                    // spans are quadrants, 10% short of the circumference.
+                    double res = ArcLength.FromSpeed(u =>
+                    {
+                        PointDerAt(u, out GeoPoint2D _, out GeoVector2D dir);
+                        return dir.Length;
+                    }, startParam, endParam, knots);
+                    if (!double.IsNaN(res) && !double.IsInfinity(res))
+                    {
+                        length = res;
+                        return length;
+                    }
                 }
                 catch (Exception e)
                 {
                     if (e is ThreadAbortException) throw (e);
-                    return base.Length;
                 }
-                //				}
+                return base.Length; // last resort: the polygon through the interpolation points
             }
         }
         public override GeoPoint2D StartPoint

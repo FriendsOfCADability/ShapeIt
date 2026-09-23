@@ -26,7 +26,7 @@
       "openEdges": "0",
       "volume": "12859.5861241",
       "area": "2979.35097692",
-      "edgeLength": "260.120915314",
+      "edgeLength": "273.900198583",
       "extent": "-12.0000000008, -12, 0, 12.0000000008, 12, 30",
       "surfaces": "PlaneSurface:2 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },
@@ -43,7 +43,7 @@
       "openEdges": "0",
       "volume": "21446.605838",
       "area": "4558.7342634",
-      "edgeLength": "450.222620852",
+      "edgeLength": "482.791835852",
       "extent": "-16, -16, -5, 16, 16, 35",
       "surfaces": "PlaneSurface:3 RuledSurface:2 SurfaceOfLinearExtrusion:4"
     },
@@ -60,7 +60,7 @@
       "openEdges": "0",
       "volume": "3351.03217924",
       "area": "3653.95558232",
-      "edgeLength": "314.458118865",
+      "edgeLength": "331.99538848",
       "extent": "-16, -16, 0, 16, 16, 20.0000000519",
       "surfaces": "PlaneSurface:1 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },
@@ -80,7 +80,7 @@
       "openEdges": "0",
       "volume": "2974.04082973",
       "area": "2602.35985674",
-      "edgeLength": "250.120915314",
+      "edgeLength": "263.900198583",
       "extent": "-12.0000000008, -12, 19.9999999936, 12.0000000008, 12, 35",
       "surfaces": "PlaneSurface:2 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },
@@ -97,7 +97,7 @@
       "openEdges": "0",
       "volume": "2261.94670501",
       "area": "1281.76980127",
-      "edgeLength": "145.764501988",
+      "edgeLength": "160.796447372",
       "extent": "-12, -12, -5, 12, 12, 0",
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2"
     },
@@ -114,7 +114,7 @@
       "openEdges": "0",
       "volume": "16210.6182778",
       "area": "3617.37761023",
-      "edgeLength": "208.26644465",
+      "edgeLength": "224.55105215",
       "extent": "-16, -16, 0, 16, 16, 30",
       "surfaces": "PlaneSurface:2 RuledSurface:2"
     },
@@ -131,7 +131,7 @@
       "openEdges": "0",
       "volume": "18095.5736401",
       "area": "3920.70762053",
-      "edgeLength": "215.764501988",
+      "edgeLength": "230.796447372",
       "extent": "-12, -12, -5, 12, 12, 35",
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2"
     }

@@ -2529,20 +2529,28 @@ namespace CADability.GeoObject
             get
             {
                 if (length > 0) return length; // cached value
-                if ((this as ICurve).GetPlanarState() == PlanarState.Planar)
+                try
                 {
-                    Plane pl = (this as ICurve).GetPlane();
-                    ICurve2D c2d = (this as ICurve).GetProjectedCurve(pl);
-                    if (c2d == null)
+                    // the arc length, integrated span by span, in 3d and for the planar case alike. This used
+                    // to project a planar spline and ask the 2d curve, or approximate a non planar one by
+                    // lines - both measured a polygon through a handful of points and came out short.
+                    double res = ArcLength.FromSpeed(u =>
                     {
-                        c2d = (this as ICurve).GetProjectedCurve(pl);
-                        return 0.0;
+                        PointDirAtParam(u, out GeoPoint _, out GeoVector dir);
+                        return dir.Length;
+                    }, startParam, endParam, knots);
+                    if (!double.IsNaN(res) && !double.IsInfinity(res))
+                    {
+                        length = res;
+                        return length;
                     }
-                    length = c2d.Length;
-                    return length;
+                }
+                catch (Exception e)
+                {
+                    if (e is ThreadAbortException) throw (e);
                 }
                 ICurve aprox = (this as ICurve).Approximate(true, Math.Max(GetBoundingCube().Size / 1000, Precision.eps));
-                length = aprox.Length;
+                length = aprox.Length; // last resort: the polygon through an approximation
                 return length;
             }
         }
