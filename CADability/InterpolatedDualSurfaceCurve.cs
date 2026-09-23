@@ -129,396 +129,66 @@ namespace CADability
         static int idcnt = 0;
         int id;
 #endif
+        /// <summary>
+        /// The 2d curve of an <see cref="InterpolatedDualSurfaceCurve"/> as older versions wrote it: the 3d curve, which
+        /// of its two surfaces, reversed or not, and the periods it was moved by. Such a curve is only read. Every curve
+        /// made today is a <see cref="CADability.ProjectedCurve"/>, see <see cref="CADability.ProjectedCurve.IsCurveOfIntersection"/>,
+        /// and so is this one once it is read. It is written in the old format again, under this name, so that an older
+        /// version can still read a file which was read and written here. Both readers below also understand the format
+        /// of the new class.
+        /// </summary>
         [Serializable()]
-        public class ProjectedCurve : GeneralCurve2D, ISerializable, IJsonSerialize
+        public class ProjectedCurve : CADability.ProjectedCurve, IJsonSerialize
         {
-            InterpolatedDualSurfaceCurve curve3d;
-            bool onSurface1;
-            bool reversed;
-            BSpline2D approxBSpline = null;
-            /// <summary>
-            /// A shift by whole periods, made by <see cref="Move"/>. It is added to the uv values stored in the 3d curve
-            /// and to the approximation computed from the 3d curve. So moving this 2d curve moves all of it and leaves
-            /// the 3d curve unchanged, which is shared with the edge and with the 2d curve on the other surface.
-            /// </summary>
-            GeoVector2D offset = GeoVector2D.NullVector;
-            public ProjectedCurve(InterpolatedDualSurfaceCurve curve3d, bool onSurface1)
-            {
-                this.curve3d = curve3d;
-                this.onSurface1 = onSurface1;
-                reversed = false;
-            }
-            public ProjectedCurve(InterpolatedDualSurfaceCurve curve3d, ProjectedCurve toCloneFrom)
-            {
-                this.curve3d = curve3d;
-                this.onSurface1 = toCloneFrom.onSurface1;
-                reversed = toCloneFrom.reversed;
-                offset = toCloneFrom.offset;
-                BSpline2D init = ApproxBSpline;
-            }
-            public ProjectedCurve(InterpolatedDualSurfaceCurve curve3d, bool onSurface1, bool reversed)
-            {
-                this.curve3d = curve3d;
-                this.onSurface1 = onSurface1;
-                this.reversed = reversed;
-            }
-            protected override void GetTriangulationBasis(out GeoPoint2D[] points, out GeoVector2D[] directions, out double[] parameters)
-            {
-                // it is difficult to find a good solution here: 
-                // so we use a couple of points, but could miss some infplection points this way
-
-                int n = 12;
-                parameters = new double[n + 1];
-                points = new GeoPoint2D[n + 1];
-                directions = new GeoVector2D[n + 1];
-                for (int i = 0; i < n + 1; i++)
-                {
-                    parameters[i] = i / (double)n;
-                    points[i] = PointAt(parameters[i]);
-                    directions[i] = DirectionAt(parameters[i]);
-                }
-            }
-            protected BSpline2D ApproxBSpline
-            {
-                get
-                {
-                    // The BSpline always runs in the direction of the 3d curve. A reversed projected curve is
-                    // marked by the "reversed" flag instead, which PointAt and DirectionAt take into account.
-                    if (approxBSpline != null) return approxBSpline;
-                    // we need a BSpline here, which is precise and has the same parametrisation as the curve3d.
-                    // Its uv values run on continuously from the stored ones: every point is moved by whole periods next to
-                    // the base point nearest in the parameter. So the 2d curve lies where its end points are.
-                    ISurface surface = onSurface1 ? curve3d.surface1 : curve3d.surface2;
-                    double[] fractions = curve3d.ChordFractions();
-                    Func<double, GeoPoint2D> curve = (pos =>
-                    {
-                        GeoPoint p = curve3d.PointAt(pos);
-                        GeoPoint2D uv = surface.PositionOf(p);
-                        SurfacePoint nearest = curve3d.basePoints[NearestIndex(fractions, pos)];
-                        SurfacePoint.FixSurfacePoint2D(ref uv, onSurface1 ? nearest.psurface1 : nearest.psurface2,
-                            surface.IsUPeriodic, surface.UPeriod, surface.IsVPeriodic, surface.VPeriod);
-                        return uv + offset;
-                    });
-                    approxBSpline = BSpline2D.Approximate(curve, Precision.eps, 0, 1);
-                    if (DualSurfaceCurveDiagnostics.Enabled) DualSurfaceCurveDiagnostics.ObserveProjectedCurve(surface, curve3d.basePoints, onSurface1, offset, approxBSpline);
-                    return approxBSpline;
-                }
-            }
-            public override double GetArea()
-            {
-                double a = ApproxBSpline.GetArea();
-                if (reversed) return -a;
-                else return a;
-            }
-            public override double GetAreaFromPoint(GeoPoint2D p)
-            {
-                double a = ApproxBSpline.GetAreaFromPoint(p);
-                if (reversed) return -a;
-                else return a;
-            }
-            public override BoundingRect GetExtent()
-            {
-                return ApproxBSpline.GetExtent();
-            }
-            public override double Length => ApproxBSpline.Length;
-            public override double Sweep => reversed ? -ApproxBSpline.Sweep : ApproxBSpline.Sweep;
-            public override GeoVector2D DirectionAt(double par)
-            {
-                // since the ApproxBSpline  has the same parametrisation as the curve3d, we can use it directly
-                if (reversed) return -ApproxBSpline.DirectionAt(1.0 - par);
-                else return ApproxBSpline.DirectionAt(par);
-            }
-            public override GeoPoint2D PointAt(double par)
-            {
-                if (reversed) par = 1.0 - par;
-                return ApproxBSpline.PointAt(par);
-            }
-            public override double PositionOf(GeoPoint2D p)
-            {   // in die 3d Situation übersetzen, demit die periodischen Flächen keine Probleme machen
-                GeoPoint p3d;
-                if (onSurface1) p3d = curve3d.surface1.PointAt(p);
-                else p3d = curve3d.surface2.PointAt(p);
-                double res = curve3d.PositionOf(p3d);
-                if (reversed) return 1 - res;
-                else return res;
-            }
-            public override GeoPoint2D StartPoint
-            {
-                get
-                {
-                    if (reversed)
-                    {
-                        if (onSurface1) return curve3d.basePoints[curve3d.basePoints.Length - 1].psurface1 + offset;
-                        else return curve3d.basePoints[curve3d.basePoints.Length - 1].psurface2 + offset;
-                    }
-                    else
-                    {
-                        if (onSurface1) return curve3d.basePoints[0].psurface1 + offset;
-                        else return curve3d.basePoints[0].psurface2 + offset;
-                    }
-                }
-                set
-                {   // das wird gebraucht, um kleine Lücken in einem Border zu schließen
-                    DualSurfaceCurveDiagnostics.Count("ProjectedCurve.StartPoint setter: writes uv into the shared 3d curve");
-                    if (reversed)
-                    {
-                        if (onSurface1) curve3d.basePoints[curve3d.basePoints.Length - 1].psurface1 = value - offset;
-                        else curve3d.basePoints[curve3d.basePoints.Length - 1].psurface2 = value - offset;
-                    }
-                    else
-                    {
-                        if (onSurface1) curve3d.basePoints[0].psurface1 = value - offset;
-                        else curve3d.basePoints[0].psurface2 = value - offset;
-                    }
-                    base.StartPoint = value;
-                }
-            }
-            public override GeoPoint2D EndPoint
-            {
-                get
-                {
-                    if (reversed)
-                    {
-                        if (onSurface1) return curve3d.basePoints[0].psurface1 + offset;
-                        else return curve3d.basePoints[0].psurface2 + offset;
-                    }
-                    else
-                    {
-                        if (onSurface1) return curve3d.basePoints[curve3d.basePoints.Length - 1].psurface1 + offset;
-                        else return curve3d.basePoints[curve3d.basePoints.Length - 1].psurface2 + offset;
-                    }
-                }
-                set
-                {
-                    DualSurfaceCurveDiagnostics.Count("ProjectedCurve.EndPoint setter: writes uv into the shared 3d curve");
-                    if (reversed)
-                    {
-                        if (onSurface1) curve3d.basePoints[0].psurface1 = value - offset;
-                        else curve3d.basePoints[0].psurface2 = value - offset;
-                    }
-                    else
-                    {
-                        if (onSurface1) curve3d.basePoints[curve3d.basePoints.Length - 1].psurface1 = value - offset;
-                        else curve3d.basePoints[curve3d.basePoints.Length - 1].psurface2 = value - offset;
-                    }
-                    base.EndPoint = value;
-                }
-            }
-            public override GeoVector2D StartDirection
-            {
-                get
-                {
-                    return DirectionAt(0.0);
-                }
-            }
-            public override GeoVector2D EndDirection
-            {
-                get
-                {
-                    return DirectionAt(1.0);
-                }
-            }
-            public override ICurve2D Trim(double StartPos, double EndPos)
-            {
-                DualSurfaceCurveDiagnostics.Count("ProjectedCurve.Trim: clones and trims the 3d curve");
-                double sp = StartPos;
-                double ep = EndPos;
-                InterpolatedDualSurfaceCurve clone = curve3d.Clone() as InterpolatedDualSurfaceCurve;
-                clone.Trim(sp, ep);
-                ProjectedCurve res = new ProjectedCurve(clone, onSurface1);
-                res.reversed = reversed;
-                res.offset = offset;
-                res.ClearTriangulation();
-                return res;
-            }
-            public override void Reverse()
-            {
-                reversed = !reversed;
-                base.ClearTriangulation();
-                approxBSpline = null;
-            }
-            public override ICurve2D Clone()
-            {
-                DualSurfaceCurveDiagnostics.Count("ProjectedCurve.Clone: clones the 3d curve");
-                ProjectedCurve res = new ProjectedCurve(curve3d.Clone() as InterpolatedDualSurfaceCurve, onSurface1);
-                res.reversed = reversed;
-                res.offset = offset;
-                res.ClearTriangulation();
-                res.UserData.CloneFrom(UserData);
-                return res;
-            }
-            public override ICurve2D CloneReverse(bool reverse)
-            {
-                DualSurfaceCurveDiagnostics.Count("ProjectedCurve.CloneReverse: clones the 3d curve");
-                ProjectedCurve res = new ProjectedCurve(curve3d.Clone() as InterpolatedDualSurfaceCurve, onSurface1);
-                if (reverse) res.reversed = !reversed;
-                else res.reversed = reversed;
-                res.offset = offset;
-                res.ClearTriangulation();
-                res.UserData.CloneFrom(UserData);
-                return res;
-            }
-            public override ICurve2D GetModified(ModOp2D m)
-            {
-                // das geht ja eigentlich nicht, denn diese Kurve ist ja gegeben durch die 3d Kurve, und kann nicht einfach woandershin verschoben werden
-                // ABER: nach einer Modifikation der Surface stimmen die basePoints der curve3d nicht mehr. Eigentlich müsste die curve3d das mitbekommen.
-                // Die Methode ISurface.ReverseOrientation() verändert nämlich die surface. Die curve3d hier upzudaten ist ein Trick, der zwar nicht schadet, es ist aber nicht
-                // die richtige Stelle es zu tun. Wir z.Z. nur bei Face.ReverseOrientation verwendet.
-                DualSurfaceCurveDiagnostics.Count(m.IsIdentity ? "ProjectedCurve.GetModified, identity" : "ProjectedCurve.GetModified: modifies the base points of the shared 3d curve");
-                curve3d.ModifySurfacePoints(onSurface1, m);
-                ProjectedCurve res = new ProjectedCurve(curve3d, onSurface1); // do not clone curve3d!
-                res.reversed = reversed;
-                res.offset = m * offset; // the stored uv values have been modified, the offset follows the linear part
-                res.ClearTriangulation();
-                res.UserData.CloneFrom(UserData);
-                return res;
-            }
-            public override bool IsClosed
-            {
-                get
-                {
-                    return false; // sollte nie geschlossen sein, oder?
-                }
-            }
-            public override void Move(double x, double y)
-            {
-                DualSurfaceCurveDiagnostics.Count(x == 0.0 && y == 0.0 ? "ProjectedCurve.Move(0, 0)" : "ProjectedCurve.Move by periods");
-                ISurface surface;
-                if (onSurface1) surface = curve3d.surface1;
-                else surface = curve3d.surface2;
-                if (x != 0 && surface.UPeriod != 0.0)
-                {
-                    if (Math.IEEERemainder(Math.Abs(x), surface.UPeriod) != 0.0) throw new ApplicationException("cannot move ProjectedCurve");
-                }
-                if (y != 0 && surface.VPeriod != 0.0)
-                {
-                    if (Math.IEEERemainder(Math.Abs(y), surface.VPeriod) != 0.0) throw new ApplicationException("cannot move ProjectedCurve");
-                }
-                // This used to shift the uv values stored in the shared 3d curve, but not the approximation, which is
-                // computed from the 3d points: afterwards StartPoint and EndPoint were a period away from PointAt.
-                offset = offset + new GeoVector2D(x, y);
-                base.ClearTriangulation();
-                approxBSpline = null;
-            }
-            #region ISerializable Members
             protected ProjectedCurve(SerializationInfo info, StreamingContext context)
-                : base(info, context)
+                : base(info, context, true)
             {
-                curve3d = info.GetValue("Curve3d", typeof(InterpolatedDualSurfaceCurve)) as InterpolatedDualSurfaceCurve;
-                onSurface1 = info.GetBoolean("OnSurface1");
-                reversed = info.GetBoolean("Reversed");
-                try
+                if (HasValue(info, "OnSurface1"))
                 {
-                    offset = (GeoVector2D)info.GetValue("Offset", typeof(GeoVector2D));
+                    InterpolatedDualSurfaceCurve curve3d = info.GetValue("Curve3d", typeof(InterpolatedDualSurfaceCurve)) as InterpolatedDualSurfaceCurve;
+                    GeoVector2D offset = HasValue(info, "Offset") ? (GeoVector2D)info.GetValue("Offset", typeof(GeoVector2D)) : GeoVector2D.NullVector;
+                    InitFromOlderFile(curve3d, info.GetBoolean("OnSurface1"), info.GetBoolean("Reversed"), offset);
                 }
-                catch (SerializationException)
-                {   // written before the offset existed
-                    offset = GeoVector2D.NullVector;
-                }
-            }
-            void ISerializable.GetObjectData(SerializationInfo info, StreamingContext context)
-            {
-                base.GetObjectData(info, context);
-                info.AddValue("Curve3d", curve3d);
-                info.AddValue("OnSurface1", onSurface1);
-                info.AddValue("Reversed", reversed);
-                info.AddValue("Offset", offset);
+                else ReadValues(info.GetValue, name => HasValue(info, name));
             }
             protected ProjectedCurve() { } // needed for IJsonSerialize
+            public override void GetObjectData(SerializationInfo info, StreamingContext context)
+            {
+                AddBaseValues(info, context);
+                AddOlderFormat(info.AddValue);
+            }
             public void GetObjectData(IJsonWriteData data)
             {
-                base.JSonGetObjectData(data);
-                data.AddProperty("Curve3d", curve3d);
-                data.AddProperty("OnSurface1", onSurface1);
-                data.AddProperty("Reversed", reversed);
-                if (offset.x != 0.0 || offset.y != 0.0) data.AddProperty("Offset", offset);
+                JSonGetObjectData(data);
+                AddOlderFormat(data.AddProperty);
             }
-
+            private void AddOlderFormat(Action<string, object> add)
+            {
+                add("Curve3d", IntersectionCurve);
+                add("OnSurface1", IsOnSurface1);
+                add("Reversed", IsReverse);
+                add("Offset", PeriodsBeyondStoredUv);
+            }
             public void SetObjectData(IJsonReadData data)
             {
-                base.JSonSetObjectData(data);
-                curve3d = data.GetProperty<InterpolatedDualSurfaceCurve>("Curve3d");
-                onSurface1 = data.GetProperty<bool>("OnSurface1");
-                reversed = data.GetProperty<bool>("Reversed");
-                offset = data.GetPropertyOrDefault<GeoVector2D>("Offset");
-            }
-
-            #endregion
-#if DEBUG
-            public GeoObjectList Debug
-            {
-                get
+                JSonSetObjectData(data);
+                if (data.HasProperty("OnSurface1"))
                 {
-                    GeoPoint2D[] pnts = new GeoPoint2D[101];
-                    for (int i = 0; i < 101; ++i)
-                    {
-                        pnts[i] = PointAt(i / 100.0);
-                    }
-                    Polyline2D pl2d = new Polyline2D(pnts);
-                    return new GeoObjectList(pl2d.MakeGeoObject(Plane.XYPlane));
+                    InitFromOlderFile(data.GetProperty<InterpolatedDualSurfaceCurve>("Curve3d"), data.GetProperty<bool>("OnSurface1"),
+                        data.GetProperty<bool>("Reversed"), data.GetPropertyOrDefault<GeoVector2D>("Offset"));
                 }
-            }
-#endif
-
-            public override void Copy(ICurve2D toCopyFrom)
-            {
-                ProjectedCurve pc = toCopyFrom as ProjectedCurve;
-                if (pc != null)
-                {
-                    curve3d = pc.curve3d;
-                    onSurface1 = pc.onSurface1;
-                    reversed = pc.reversed;
-                    offset = pc.offset;
-                }
-            }
-
-            internal void ReplaceSurface(ISurface oldSurface, ISurface newSurface)
-            {
-                curve3d.ReplaceSurface(oldSurface, newSurface);
-            }
-            internal bool IsOnSurface1
-            {
-                get
-                {
-                    return onSurface1;
-                }
-                set
-                {
-                    onSurface1 = value;
-                }
-            }
-            internal bool IsReversed
-            {
-                get
-                {
-                    return reversed;
-                }
-            }
-            internal void SetCurve3d(InterpolatedDualSurfaceCurve c3d)
-            {
-                DualSurfaceCurveDiagnostics.Count("ProjectedCurve.SetCurve3d: re-links a 2d curve to another 3d curve");
-                if ((c3d.StartPoint | curve3d.StartPoint) + (c3d.EndPoint | curve3d.EndPoint) > (c3d.StartPoint | curve3d.EndPoint) + (c3d.EndPoint | curve3d.StartPoint)) reversed = !reversed;
-                curve3d = c3d;
-                // es muss sich hier um eine geometrisch identische Kurve handeln (Richtung?)
-                ClearTriangulation();
-            }
-
-            public override bool TryPointDeriv2At(double position, out GeoPoint2D point, out GeoVector2D deriv, out GeoVector2D deriv2)
-            {   // the approximation has the parametrization of the 3d curve, a reversed curve runs through it backwards
-                bool ok = ApproxBSpline.TryPointDeriv2At(reversed ? 1.0 - position : position, out point, out deriv, out deriv2);
-                if (reversed) deriv = -deriv; // the second derivative keeps its sign
-                return ok;
-            }
-
-            internal InterpolatedDualSurfaceCurve Curve3D
-            {
-                get
-                {
-                    return curve3d;
-                }
+                else ReadValues(data.GetProperty, data.HasProperty);
             }
         }
 
+        /// <summary>
+        /// The first or the second surface has been reparametrized in place by <paramref name="m"/>, see
+        /// <see cref="ISurface.ReverseOrientation"/>: the uv values stored for it follow.
+        /// </summary>
+        internal void SurfaceReparametrized(bool onSurface1, ModOp2D m)
+        {
+            ModifySurfacePoints(onSurface1, m);
+        }
         private void ModifySurfacePoints(bool onSurface1, ModOp2D m)
         {
             DualSurfaceCurveDiagnostics.Count("IDSC.ModifySurfacePoints" + (m.Determinant < 0 ? ", orientation reversed" : ""));
@@ -910,9 +580,28 @@ namespace CADability
                 }
             }
         }
+        /// <summary>
+        /// The uv value on the first or on the second surface of the point at <paramref name="position"/>, in the periods of
+        /// the uv value stored at the base point next to that position. The 2d curves on the two surfaces run through these
+        /// values, see <see cref="CADability.ProjectedCurve.IsCurveOfIntersection"/>.
+        /// </summary>
+        internal GeoPoint2D UvInStoredPeriods(bool onSurface1, double position)
+        {
+            ISurface surface = onSurface1 ? surface1 : surface2;
+            GeoPoint2D uv = surface.PositionOf(PointAt(position));
+            SurfacePoint nearest = basePoints[NearestIndex(ChordFractions(), position)];
+            SurfacePoint.FixSurfacePoint2D(ref uv, onSurface1 ? nearest.psurface1 : nearest.psurface2, surface.IsUPeriodic, surface.UPeriod, surface.IsVPeriodic, surface.VPeriod);
+            return uv;
+        }
+        /// <summary>The uv value on the first or on the second surface stored at the start or at the end of this curve.</summary>
+        internal GeoPoint2D StoredUvAtEnd(bool onSurface1, bool atEnd)
+        {
+            SurfacePoint sp = basePoints[atEnd ? basePoints.Length - 1 : 0];
+            return onSurface1 ? sp.psurface1 : sp.psurface2;
+        }
         internal DualSurfaceCurve ToDualSurfaceCurve()
         {
-            return new DualSurfaceCurve(this, surface1, new ProjectedCurve(this, true), surface2, new ProjectedCurve(this, false));
+            return new DualSurfaceCurve(this, surface1, new CADability.ProjectedCurve(this, true), surface2, new CADability.ProjectedCurve(this, false));
         }
         public ISurface Surface1
         {
@@ -939,15 +628,15 @@ namespace CADability
         public ICurve2D CurveOnSurface1
         {
             get
-            {   // evtl Cache?
-                return new ProjectedCurve(this, true);
+            {
+                return new CADability.ProjectedCurve(this, true);
             }
         }
         public ICurve2D CurveOnSurface2
         {
             get
             {
-                return new ProjectedCurve(this, false);
+                return new CADability.ProjectedCurve(this, false);
             }
         }
         protected override void InvalidateSecondaryData()
@@ -989,13 +678,17 @@ namespace CADability
 
             }
         }
-        internal InterpolatedDualSurfaceCurve CloneTrimmed(double startPos, double endPos, ProjectedCurve c1, ProjectedCurve c2, out ICurve2D c1trimmed, out ICurve2D c2trimmed)
+        /// <summary>
+        /// A trimmed copy of this curve, for an edge split into parts, together with the curves on the two surfaces along
+        /// it, which stay in the periods and in the directions of <paramref name="c1"/> and <paramref name="c2"/>.
+        /// </summary>
+        internal InterpolatedDualSurfaceCurve CloneTrimmed(double startPos, double endPos, CADability.ProjectedCurve c1, CADability.ProjectedCurve c2, out ICurve2D c1trimmed, out ICurve2D c2trimmed)
         {
             // this used to pass forwardOriented, which bound to the parameter isTangential
             InterpolatedDualSurfaceCurve res = new InterpolatedDualSurfaceCurve(surface1, surface2, basePoints.Clone() as SurfacePoint[], isTangential);
             res.Trim(startPos, endPos);
-            c1trimmed = new ProjectedCurve(res, c1);
-            c2trimmed = new ProjectedCurve(res, c2);
+            c1trimmed = c1.OnTrimmedCurve(res);
+            c2trimmed = c2.OnTrimmedCurve(res);
             return res;
         }
         public BSpline ToBSpline(double precision)

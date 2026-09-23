@@ -550,7 +550,7 @@ namespace CADability
         /// <returns></returns>
         public override ICurve Make3dCurve(ICurve2D curve2d)
         {
-            if (curve2d is ProjectedCurve pc)
+            if (curve2d is ProjectedCurve pc && !pc.IsCurveOfIntersection)
             {
                 if (pc.Surface is RuledSurface)
                 {

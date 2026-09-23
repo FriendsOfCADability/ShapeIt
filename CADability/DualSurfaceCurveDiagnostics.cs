@@ -12,9 +12,9 @@ using System.Text;
 namespace CADability
 {
     /// <summary>
-    /// Opt-in measurement of how <see cref="InterpolatedDualSurfaceCurve"/> and its nested
-    /// <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/> behave on real data. It answers the questions the
-    /// planned cleanup of these two classes depends on:
+    /// Opt-in measurement of how <see cref="InterpolatedDualSurfaceCurve"/> and the 2d curves on its two surfaces,
+    /// see <see cref="ProjectedCurve.IsCurveOfIntersection"/>, behave on real data. It answers the questions the
+    /// planned cleanup of these classes depends on:
     /// <list type="bullet">
     /// <item>which way a point of the curve is actually computed, and how often that fails silently,</item>
     /// <item>whether the per-curve flag "isTangential" matches the geometry along the base points,</item>
@@ -78,9 +78,6 @@ namespace CADability
 
         // per surface type, [0 = end point, 1 = inner point, UvAgreement]
         private static readonly Dictionary<string, long[,]> uvAtConstruction = new Dictionary<string, long[,]>();
-        private static readonly Dictionary<string, long[,]> uvAtProjection = new Dictionary<string, long[,]>();
-        // per surface type, the ends of the 2d spline against the stored end points, [UvAgreement]
-        private static readonly Dictionary<string, long[]> projectedEnds = new Dictionary<string, long[]>();
 
         // ---- the uv values of the base points as a continuous row -------------------------------------------
 
@@ -92,7 +89,6 @@ namespace CADability
         private enum ChainAgreement { NotPeriodic, Equal, WholeShift, Partial, StoredJumps, NotComparable }
         private static readonly string[] chainNames = { "not periodic", "equal", "whole shift", "partial", "stored jumps", "not comparable" };
         private static readonly Dictionary<string, long[]> chainAtConstruction = new Dictionary<string, long[]>();
-        private static readonly Dictionary<string, long[]> chainAtProjection = new Dictionary<string, long[]>();
         private static readonly List<string> chainSamples = new List<string>();
 
         // ---- point refinement -----------------------------------------------------------------------------
@@ -110,7 +106,6 @@ namespace CADability
         private static readonly List<string> fallbackSamples = new List<string>();
         private static readonly List<string> offSurfaceSamples = new List<string>();
         private static readonly List<string> uvSamples = new List<string>();
-        private static readonly List<string> endsSamples = new List<string>();
         private static readonly List<string> failureSamples = new List<string>();
 
         static DualSurfaceCurveDiagnostics()
@@ -188,52 +183,6 @@ namespace CADability
             }
             catch
             {   // a measurement must never change the outcome of the run it measures
-            }
-        }
-
-        /// <summary>
-        /// Called where the nested ProjectedCurve has just built its 2d approximation. <paramref name="offset"/> is the
-        /// shift by periods of the 2d curve, which applies to its end points as well as to the approximation.
-        /// </summary>
-        internal static void ObserveProjectedCurve(ISurface surface, InterpolatedDualSurfaceCurve.SurfacePoint[] basePoints,
-            bool onSurface1, GeoVector2D offset, BSpline2D spline)
-        {
-            if (!Enabled || spline == null) return;
-            try
-            {
-                double tol3d = Tolerance3d(basePoints);
-                bool hasDomain = TryGetDomain(surface, out BoundingRect domain);
-                UvAgreement[] uv = ClassifyStoredUv(surface, basePoints, onSurface1, tol3d);
-                ChainAgreement chain = ClassifyChain(surface, basePoints, onSurface1, tol3d, out string chainDetail);
-                int last = basePoints.Length - 1;
-                GeoPoint2D storedStart = (onSurface1 ? basePoints[0].psurface1 : basePoints[0].psurface2) + offset;
-                GeoPoint2D storedEnd = (onSurface1 ? basePoints[last].psurface1 : basePoints[last].psurface2) + offset;
-                GeoPoint2D splineStart = spline.PointAt(0.0);
-                GeoPoint2D splineEnd = spline.PointAt(1.0);
-                UvAgreement startAgreement = Compare(surface, splineStart, storedStart, basePoints[0].p3d, tol3d);
-                UvAgreement endAgreement = Compare(surface, splineEnd, storedEnd, basePoints[last].p3d, tol3d);
-                string type = TypeName(surface);
-                // where an end is a period away from the stored end point: which of the two is in the domain?
-                string startWhere = startAgreement == UvAgreement.PeriodShift ? InsideWhich(hasDomain, domain, storedStart, splineStart) : null;
-                string endWhere = endAgreement == UvAgreement.PeriodShift ? InsideWhich(hasDomain, domain, storedEnd, splineEnd) : null;
-                lock (sync)
-                {
-                    if (startWhere != null) Increment(operations, "2d curve, period shift at an end, " + startWhere);
-                    if (endWhere != null) Increment(operations, "2d curve, period shift at an end, " + endWhere);
-                    AddChain(chainAtProjection, surface, chain, chainDetail, "2d curve, " + (onSurface1 ? "surface1" : "surface2"));
-                    AddUv(uvAtProjection, surface, uv, null, "2d curve, " + (onSurface1 ? "surface1" : "surface2"), basePoints, onSurface1);
-                    Increment(projectedEnds, type, (int)startAgreement, 5);
-                    Increment(projectedEnds, type, (int)endAgreement, 5);
-                    if ((startAgreement != UvAgreement.Equal || endAgreement != UvAgreement.Equal) && endsSamples.Count < maxSamples)
-                    {
-                        endsSamples.Add(string.Format(CultureInfo.InvariantCulture, "{0,-26} start {1} spline={2} stored={3}   end {4} spline={5} stored={6}",
-                            type, startAgreement, Format(splineStart), Format(storedStart), endAgreement, Format(splineEnd), Format(storedEnd)));
-                    }
-                    Observed();
-                }
-            }
-            catch
-            {
             }
         }
 
@@ -365,18 +314,6 @@ namespace CADability
             catch
             {
             }
-        }
-
-        private static string InsideWhich(bool hasDomain, BoundingRect domain, GeoPoint2D stored, GeoPoint2D spline)
-        {
-            if (!hasDomain) return "no domain";
-            BoundingRect d = domain;
-            d.Inflate(1e-6 * Math.Max(1.0, d.Size));
-            bool storedIn = d.Contains(stored), splineIn = d.Contains(spline);
-            if (storedIn && splineIn) return "both in the domain";
-            if (storedIn) return "only the stored end point in the domain";
-            if (splineIn) return "only the spline end in the domain";
-            return "neither in the domain";
         }
 
         /// <summary>Counts an operation, e.g. a clone of the 3d curve made by a 2d curve.</summary>
@@ -652,16 +589,12 @@ namespace CADability
                 AppendCreators(sb);
                 AppendContact(sb);
                 AppendUv(sb, "3. Stored uv of the base points against PositionOf, at construction", uvAtConstruction);
-                AppendUv(sb, "5b. Stored uv of the base points against PositionOf, when the 2d curve is built", uvAtProjection);
-                AppendEnds(sb);
                 AppendChain(sb, "5d. Stored uv of the base points against the chain, at construction", chainAtConstruction);
-                AppendChain(sb, "5e. Stored uv of the base points against the chain, when the 2d curve is built", chainAtProjection);
                 AppendRefinement(sb);
                 AppendCounters(sb, "7. Operations", operations);
                 AppendSamples(sb, "Samples: fallback, the unrefined point was stored as exact", fallbackSamples);
                 AppendSamples(sb, "Samples: a solver result accepted although it is off the surfaces or off the plane", offSurfaceSamples);
                 AppendSamples(sb, "Samples: stored uv not equal to PositionOf", uvSamples);
-                AppendSamples(sb, "Samples: ends of the 2d spline not equal to the stored end points", endsSamples);
                 AppendSamples(sb, "Samples: exceptions from the constructor", failureSamples);
                 AppendSamples(sb, "Samples: stored uv of the base points not equal to the chain", chainSamples);
 
@@ -733,27 +666,6 @@ namespace CADability
                     sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,-6} {2,12} {3,12} {4,12} {5,12} {6,14}",
                         row == 0 ? e.Key : "", row == 0 ? "ends" : "inner", c[row, 0], c[row, 1], c[row, 2], c[row, 3], c[row, 4]));
                 }
-            }
-            sb.AppendLine();
-        }
-
-        private static void AppendEnds(StringBuilder sb)
-        {
-            Caption(sb, "5c. Ends of the 2d spline (PointAt(0), PointAt(1)) against the stored end points (StartPoint, EndPoint)");
-            if (projectedEnds.Count == 0)
-            {
-                sb.AppendLine("  (nothing observed)");
-                sb.AppendLine();
-                return;
-            }
-            sb.AppendLine("  stored off = the stored end point does not reproduce the 3d end point; spline off: the spline end does not.");
-            sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,12} {2,12} {3,12} {4,12} {5,12}",
-                "surface type", "equal", "period shift", "other param", "spline off", "stored off"));
-            foreach (KeyValuePair<string, long[]> e in projectedEnds.OrderBy(e => e.Key, StringComparer.Ordinal))
-            {
-                long[] c = e.Value;
-                sb.AppendLine(string.Format(CultureInfo.InvariantCulture, "  {0,-30} {1,12} {2,12} {3,12} {4,12} {5,12}",
-                    e.Key, c[0], c[1], c[2], c[3], c[4]));
             }
             sb.AppendLine();
         }

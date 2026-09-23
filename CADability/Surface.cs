@@ -2727,10 +2727,10 @@ namespace CADability.GeoObject
                     return l;
                 }
             }
-            else if (curve2d is InterpolatedDualSurfaceCurve.ProjectedCurve)
+            else if (curve2d is ProjectedCurve pc && pc.IntersectionCurve != null)
             {
-                InterpolatedDualSurfaceCurve.ProjectedCurve pc = curve2d as InterpolatedDualSurfaceCurve.ProjectedCurve;
-                if ((pc.IsOnSurface1 && pc.Curve3D.Surface1 == this) || (!pc.IsOnSurface1 && pc.Curve3D.Surface2 == this))
+                InterpolatedDualSurfaceCurve idsc = pc.IntersectionCurve;
+                if ((pc.IsOnSurface1 && idsc.Surface1 == this) || (!pc.IsOnSurface1 && idsc.Surface2 == this))
                 {
                     // es kann sich nur um die ganze Curve3D handeln oder einen Teil davon
                     double pos1 = pc.Curve3D.PositionOf(PointAt(pc.StartPoint));

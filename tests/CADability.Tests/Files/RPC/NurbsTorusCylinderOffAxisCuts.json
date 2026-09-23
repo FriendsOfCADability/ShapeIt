@@ -58,8 +58,8 @@
       "euler": "0",
       "closed": "true",
       "openEdges": "0",
-      "volume": "8893.52981323",
-      "area": "3507.45660997",
+      "volume": "8893.55942347",
+      "area": "3507.44181085",
       "edgeLength": "369.135354953",
       "extent": "20, -10, -20, 40, 10, 20",
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2 SweptCurveSurface:4"
@@ -92,8 +92,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "3674.15968125",
-      "area": "1266.9364747",
+      "volume": "3674.15968126",
+      "area": "1266.93647471",
       "edgeLength": "175.998269963",
       "extent": "21.4, -9.99097655481, -8, 38, 9.99097655481, 8",
       "surfaces": "SurfaceOfLinearExtrusion:2 SweptCurveSurface:4"

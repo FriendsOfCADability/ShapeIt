@@ -296,7 +296,7 @@ namespace CADability.GeoObject
                 ICurve res = (curve2d as Curve2DAspect).Get3DCurve(this);
                 if (res != null) return res;
             }
-            if (curve2d is ProjectedCurve pc)
+            if (curve2d is ProjectedCurve pc && !pc.IsCurveOfIntersection)
             {
                 if (pc.Surface is SphericalSurface)
                 {

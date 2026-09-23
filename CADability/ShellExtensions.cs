@@ -611,7 +611,7 @@ namespace CADability.GeoObject
                 {   // where an edge is the projection of one of the curves the area was built from, the exact 3d
                     // curve is used instead of the approximation MakeFace created from the 2d curve: only then it
                     // is close enough to the edge of the offset face to be connected with it
-                    if (edg.PrimaryCurve2D is ProjectedCurve pc && pc.Surface == surface && edg.Curve3D != null)
+                    if (edg.PrimaryCurve2D is ProjectedCurve pc && !pc.IsCurveOfIntersection && pc.Surface == surface && edg.Curve3D != null)
                     {
                         ICurve exact = pc.Curve3DFromParams;
                         if (exact != null && exact.Length > Precision.eps)
@@ -1110,7 +1110,7 @@ namespace CADability.GeoObject
         private static ICurve2D OffsetCurve2D(Edge edge, Face face, ModOp2D toOffsetUv)
         {
             ICurve2D c2d = edge.Curve2D(face).Clone();
-            if (c2d is InterpolatedDualSurfaceCurve.ProjectedCurve pc) c2d = pc.ToBSpline(0.0);
+            if (c2d is ProjectedCurve pc && pc.IsCurveOfIntersection) c2d = pc.ToBSpline(0.0);
             if (c2d is Path2D)
             {   // sine curve is not maintained (14.6.25) but was converted to Path2D
                 c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);

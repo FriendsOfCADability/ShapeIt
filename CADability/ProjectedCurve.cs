@@ -15,6 +15,11 @@ namespace CADability
     /// The anchor is absolute, so it stays valid when the domain of the surface is set or changed later, which changes
     /// what PositionOf returns. <see cref="Move"/> moves the anchor.
     /// </para>
+    /// <para>
+    /// It is also the 2d curve of an <see cref="InterpolatedDualSurfaceCurve"/> on one of its two surfaces, see
+    /// <see cref="IsCurveOfIntersection"/>. Such a curve has no anchor of its own: it lies in the periods of the uv values
+    /// its 3d curve stores, moved by the whole periods <see cref="Move"/> added.
+    /// </para>
     /// </summary>
     [Serializable()]
     public class ProjectedCurve : GeneralCurve2D, ISerializable
@@ -22,11 +27,38 @@ namespace CADability
         private double startParam; // start parameter on the 3d curve, together wit endParam also specifies the orientation
         private double endParam; // on the 3d curve
         ICurve curve3D;
-        ISurface surface;
+        ISurface surfaceOfOtherCurves; // see surface
+        /// <summary>
+        /// The surface this curve lies on. A curve of an intersection takes it from its <see cref="InterpolatedDualSurfaceCurve"/>
+        /// every time: the surfaces of that curve are replaced by clones or by geometrically identical ones, and a face
+        /// reparametrizes its surface in place, see <see cref="Reparametrized"/>.
+        /// </summary>
+        private ISurface surface
+        {
+            get
+            {
+                if (surfaceOfIntersection != 0 && curve3D is InterpolatedDualSurfaceCurve idsc) return surfaceOfIntersection == 1 ? idsc.Surface1 : idsc.Surface2;
+                return surfaceOfOtherCurves;
+            }
+            set => surfaceOfOtherCurves = value;
+        }
         GeoPoint2D anchorUv; // the uv value of this curve at the parameter anchor3d of the 3d curve
         double anchor3d;
         bool hasAnchor; // false only for a curve read from a file written before the anchor existed
         BoundingRect windowOfAnOlderFile; // such a file has the domain the curve used, it gives the anchor on first use
+        /// <summary>
+        /// 1 or 2 for a curve an <see cref="InterpolatedDualSurfaceCurve"/> made for its first or its second surface, see
+        /// <see cref="IsCurveOfIntersection"/>, 0 for the other projected curves.
+        /// </summary>
+        int surfaceOfIntersection;
+        private bool ofIntersection => surfaceOfIntersection != 0;
+        /// <summary>
+        /// For a curve of an intersection: the whole periods it lies beyond the uv values its <see cref="InterpolatedDualSurfaceCurve"/>
+        /// stores, added by <see cref="Move"/>. Those uv values belong to the 3d curve, which keeps them up to date when a
+        /// surface is replaced or reparametrized, and the 2d curves on that surface follow them, see <see cref="Reparametrized"/>.
+        /// </summary>
+        GeoVector2D periodsBeyondStoredUv;
+        GeoPoint2D? startPointSet, endPointSet; // see ExactEnd
         /// <summary>The number of points of the chain which carries the anchor along the curve, see <see cref="ContinuousChain"/>.</summary>
         private const int chainLength = 17;
 #if DEBUG
@@ -40,12 +72,36 @@ namespace CADability
             {
                 if (approxBSpline2D == null)
                 {
-                    double prec = Math.Max(curve3D.Length * 1e-5, Precision.eps);
-                    GeoPoint2D[] chain = AnchoredChain();
-                    approxBSpline2D = BSpline2D.Approximate(pos => ContinuousUv(pos, chain), prec);
+                    if (ofIntersection) approxBSpline2D = ApproximateCurveOfIntersection();
+                    else
+                    {
+                        double prec = Math.Max(curve3D.Length * 1e-5, Precision.eps);
+                        GeoPoint2D[] chain = AnchoredChain();
+                        approxBSpline2D = BSpline2D.Approximate(pos => ContinuousUv(pos, chain), prec);
+                    }
                 }
                 return approxBSpline2D;
             }
+        }
+        /// <summary>
+        /// The approximation of a curve of an intersection: the uv values of its points in the periods of the uv values the
+        /// 3d curve stores, moved by <see cref="periodsBeyondStoredUv"/>. The whole curve is approximated in the direction
+        /// of the 3d curve and reversed, if need be, as the class InterpolatedDualSurfaceCurve.ProjectedCurve did.
+        /// </summary>
+        private BSpline2D ApproximateCurveOfIntersection()
+        {
+            InterpolatedDualSurfaceCurve idsc = curve3D as InterpolatedDualSurfaceCurve;
+            bool onSurface1 = IsOnSurface1;
+            GeoVector2D periods = periodsBeyondStoredUv;
+            Func<double, GeoPoint2D> uv = position => idsc.UvInStoredPeriods(onSurface1, position) + periods;
+            if (startParam == 0.0 && endParam == 1.0) return BSpline2D.Approximate(uv, Precision.eps, 0, 1);
+            if (startParam == 1.0 && endParam == 0.0)
+            {
+                BSpline2D res = BSpline2D.Approximate(uv, Precision.eps, 0, 1);
+                res.Reverse();
+                return res;
+            }
+            return BSpline2D.Approximate(pos => uv(Get3dParameter(pos)), Precision.eps);
         }
         /// <summary>
         /// The projection of <paramref name="curve3D"/> onto <paramref name="surface"/>. On a periodic surface, where the curve
@@ -92,7 +148,7 @@ namespace CADability
             SetAnchor(domain);
         }
         /// <summary>A copy or a part of another projected curve, with an anchor taken from it, so that both lie in the same periods.</summary>
-        private ProjectedCurve(ICurve curve3D, ISurface surface, double startParam, double endParam, double anchor3d, GeoPoint2D anchorUv)
+        private ProjectedCurve(ICurve curve3D, ISurface surface, double startParam, double endParam, double anchor3d, GeoPoint2D anchorUv, ProjectedCurve kindOf)
         {
 #if DEBUG
             debugCount = debugCounter++;
@@ -103,7 +159,119 @@ namespace CADability
             this.endParam = endParam;
             this.anchor3d = anchor3d;
             this.anchorUv = anchorUv;
+            surfaceOfIntersection = kindOf.surfaceOfIntersection;
+            periodsBeyondStoredUv = kindOf.periodsBeyondStoredUv;
             hasAnchor = true;
+        }
+        /// <summary>
+        /// The curve of <paramref name="curve3d"/> on its first or on its second surface, running backwards when
+        /// <paramref name="reverse"/>, in the periods of the uv values <paramref name="curve3d"/> stores.
+        /// </summary>
+        internal ProjectedCurve(InterpolatedDualSurfaceCurve curve3d, bool onSurface1, bool reverse = false)
+        {
+#if DEBUG
+            debugCount = debugCounter++;
+#endif
+            curve3D = curve3d;
+            surfaceOfIntersection = onSurface1 ? 1 : 2;
+            startParam = reverse ? 1.0 : 0.0;
+            endParam = reverse ? 0.0 : 1.0;
+            hasAnchor = true; // there is none, see periodsBeyondStoredUv
+        }
+        /// <summary>For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which reads older files.</summary>
+        protected ProjectedCurve() { }
+        /// <summary>For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which reads older files: only the data of the base class.</summary>
+        protected ProjectedCurve(SerializationInfo info, StreamingContext context, bool onlyBase)
+            : base(info, context)
+        {
+#if DEBUG
+            debugCount = debugCounter++;
+#endif
+        }
+        /// <summary>
+        /// For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which reads older files. The 3d curve may not be
+        /// complete while it is read, the surface is taken from it on use.
+        /// </summary>
+        protected void InitFromOlderFile(InterpolatedDualSurfaceCurve curve3d, bool onSurface1, bool reversed, GeoVector2D offset)
+        {
+            curve3D = curve3d;
+            surfaceOfIntersection = onSurface1 ? 1 : 2;
+            startParam = reversed ? 1.0 : 0.0;
+            endParam = reversed ? 0.0 : 1.0;
+            periodsBeyondStoredUv = offset;
+            hasAnchor = true; // there is none
+        }
+        /// <summary>
+        /// True for the 2d curve an <see cref="InterpolatedDualSurfaceCurve"/> makes for one of its own two surfaces. Such
+        /// a curve lies in the periods of the uv values its 3d curve stores, it is approximated to Precision.eps and it
+        /// takes its length, area, extent, sweep, directions and derivatives from that approximation - all as the class
+        /// InterpolatedDualSurfaceCurve.ProjectedCurve did, which it replaces. The other projected curves keep the coarser
+        /// approximation and the measures of GeneralCurve2D. Both ways give different results - an offset fillet splits
+        /// differently with the other length, coincident spheres of radius 40 leave a sliver with the other precision - so
+        /// they are to be made one by a measured step of their own.
+        /// </summary>
+        internal bool IsCurveOfIntersection => ofIntersection;
+        /// <summary>A projected curve which is not the curve of an intersection, see <see cref="IsCurveOfIntersection"/>.</summary>
+        internal static bool IsPlain(ICurve2D curve) => curve is ProjectedCurve pc && !pc.ofIntersection;
+        /// <summary>The <see cref="InterpolatedDualSurfaceCurve"/> this is a curve of, null for the other projected curves.</summary>
+        internal InterpolatedDualSurfaceCurve IntersectionCurve => ofIntersection ? curve3D as InterpolatedDualSurfaceCurve : null;
+        /// <summary>Whether this curve of an intersection is on the first of its two surfaces.</summary>
+        internal bool IsOnSurface1 => surfaceOfIntersection == 1;
+        /// <summary>
+        /// The whole periods this curve of an intersection lies beyond the uv values its 3d curve stores, see
+        /// <see cref="periodsBeyondStoredUv"/>. For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which writes
+        /// this as the "Offset" of an older file.
+        /// </summary>
+        internal GeoVector2D PeriodsBeyondStoredUv => periodsBeyondStoredUv;
+        /// <summary>
+        /// Replaces the 3d curve by <paramref name="c3d"/>, which is geometrically identical to the piece of the 3d curve
+        /// this curve runs along, e.g. the trimmed copy made for an edge. This curve keeps its direction and its periods.
+        /// </summary>
+        internal void SetCurve3D(ICurve c3d)
+        {
+            EnsureAnchor();
+            GeoPoint sp = curve3D.PointAt(startParam), ep = curve3D.PointAt(endParam);
+            bool sameDirection = (c3d.StartPoint | sp) + (c3d.EndPoint | ep) <= (c3d.StartPoint | ep) + (c3d.EndPoint | sp);
+            if (!ofIntersection) anchor3d = Math.Max(0.0, Math.Min(1.0, c3d.PositionOf(curve3D.PointAt(anchor3d))));
+            startParam = sameDirection ? 0.0 : 1.0;
+            endParam = sameDirection ? 1.0 : 0.0;
+            curve3D = c3d;
+            startPointSet = endPointSet = null; // they were set for the old 3d curve
+            InvalidateSecondaryData();
+        }
+        /// <summary>
+        /// The curve on the same surface along <paramref name="trimmed"/>, a trimmed copy of the 3d curve of this curve of an
+        /// intersection, in the same direction and moved by the same periods as this curve.
+        /// </summary>
+        internal ProjectedCurve OnTrimmedCurve(InterpolatedDualSurfaceCurve trimmed)
+        {
+            ProjectedCurve res = new ProjectedCurve(trimmed, IsOnSurface1, IsReverse);
+            res.periodsBeyondStoredUv = periodsBeyondStoredUv;
+            return res;
+        }
+        /// <summary>
+        /// This curve of an intersection after its surface has been reparametrized in place by <paramref name="m"/>, as
+        /// <see cref="ISurface.ReverseOrientation"/> does: the 3d curve converts the uv values it stores for that surface,
+        /// and the new curve lies in their periods, moved by the converted periods of this curve. For
+        /// <see cref="Edge.ModifyCurve2D"/>, which gets the new parametrization of the surface of a face.
+        /// </summary>
+        internal ProjectedCurve Reparametrized(ModOp2D m)
+        {
+            IntersectionCurve.SurfaceReparametrized(IsOnSurface1, m);
+            ProjectedCurve res = new ProjectedCurve(curve3D, surface, startParam, endParam, anchor3d, anchorUv, this);
+            res.periodsBeyondStoredUv = m * periodsBeyondStoredUv; // the linear part
+            if (startPointSet.HasValue) res.startPointSet = m * startPointSet.Value;
+            if (endPointSet.HasValue) res.endPointSet = m * endPointSet.Value;
+            res.UserData.CloneFrom(UserData);
+            return res;
+        }
+        /// <summary>
+        /// Replaces a surface by a geometrically identical one in the 3d curve of an intersection; this curve takes its
+        /// surface from there.
+        /// </summary>
+        internal void ReplaceSurface(ISurface oldSurface, ISurface newSurface)
+        {
+            if (curve3D is InterpolatedDualSurfaceCurve idsc) idsc.ReplaceSurface(oldSurface, newSurface);
         }
         /// <summary>
         /// Fixes the anchor: at the first point of the chain which is not at a pole, with the whole chain moved by periods
@@ -203,12 +371,41 @@ namespace CADability
         }
         internal override void GetTriangulationPoints(out GeoPoint2D[] interpol, out double[] interparam)
         {
-            ApproxBSpline2D.GetTriangulationPoints(out interpol, out interparam);
+            if (ofIntersection) base.GetTriangulationPoints(out interpol, out interparam);
+            else ApproxBSpline2D.GetTriangulationPoints(out interpol, out interparam);
+        }
+        protected override void GetTriangulationBasis(out GeoPoint2D[] points, out GeoVector2D[] directions, out double[] parameters)
+        {
+            if (!ofIntersection)
+            {
+                base.GetTriangulationBasis(out points, out directions, out parameters);
+                return;
+            }
+            // a couple of points, which may miss some inflection points
+            int n = 12;
+            parameters = new double[n + 1];
+            points = new GeoPoint2D[n + 1];
+            directions = new GeoVector2D[n + 1];
+            for (int i = 0; i < n + 1; i++)
+            {
+                parameters[i] = i / (double)n;
+                points[i] = PointAt(parameters[i]);
+                directions[i] = DirectionAt(parameters[i]);
+            }
         }
         public override double[] GetInflectionPoints()
         {
+            if (ofIntersection) return base.GetInflectionPoints();
             return ApproxBSpline2D.GetInflectionPoints();
         }
+        public override double GetArea() => ofIntersection ? ApproxBSpline2D.GetArea() : base.GetArea();
+        public override double GetAreaFromPoint(GeoPoint2D p) => ofIntersection ? ApproxBSpline2D.GetAreaFromPoint(p) : base.GetAreaFromPoint(p);
+        public override BoundingRect GetExtent() => ofIntersection ? ApproxBSpline2D.GetExtent() : base.GetExtent();
+        public override double Length => ofIntersection ? ApproxBSpline2D.Length : base.Length;
+        public override double Sweep => ofIntersection ? ApproxBSpline2D.Sweep : base.Sweep;
+        public override GeoVector2D StartDirection => ofIntersection ? DirectionAt(0.0) : base.StartDirection;
+        public override GeoVector2D EndDirection => ofIntersection ? DirectionAt(1.0) : base.EndDirection;
+        public override bool IsClosed => !ofIntersection && base.IsClosed; // a curve of an intersection never was
 #if DEBUG
         public void DebugTest()
         {
@@ -297,6 +494,7 @@ namespace CADability
 
         public override GeoVector2D DirectionAt(double Position)
         {
+            if (ofIntersection) return ApproxBSpline2D.DirectionAt(Position); // the derivative, not normalized
             GeoPoint2D loc;
             GeoVector2D res;
             PointDirAt(Position, out loc, out res);
@@ -315,15 +513,51 @@ namespace CADability
         {
             return Get2dParameter(curve3D.PositionOf(surface.PointAt(p)));
         }
+        /// <summary>
+        /// The uv value at the start or at the end of a curve of an intersection which runs along the whole 3d curve: the value
+        /// the 3d curve stores there, where the two surfaces meet exactly, moved by the periods of this curve. The end of the
+        /// approximation is PositionOf of that point, which may differ a little, and the curves of the edges of a face must
+        /// meet at the uv values of their vertices. A value set from outside - <see cref="Border"/> closes small gaps this
+        /// way - is kept by this curve and does not change the 3d curve, which the other curves share. Null for the other
+        /// projected curves and for a part of the 3d curve, whose ends are the ends of the approximation.
+        /// </summary>
+        private GeoPoint2D? ExactEnd(bool atEnd)
+        {
+            GeoPoint2D? set = atEnd ? endPointSet : startPointSet;
+            if (set.HasValue) return set;
+            if (!ofIntersection || Math.Min(startParam, endParam) != 0.0 || Math.Max(startParam, endParam) != 1.0) return null;
+            return IntersectionCurve.StoredUvAtEnd(IsOnSurface1, atEnd ^ IsReverse) + periodsBeyondStoredUv;
+        }
+        public override GeoPoint2D StartPoint
+        {
+            get => ExactEnd(false) ?? base.StartPoint;
+            set
+            {
+                if (ofIntersection) startPointSet = value;
+                base.StartPoint = value;
+            }
+        }
+        public override GeoPoint2D EndPoint
+        {
+            get => ExactEnd(true) ?? base.EndPoint;
+            set
+            {
+                if (ofIntersection) endPointSet = value;
+                base.EndPoint = value;
+            }
+        }
         public override void Reverse()
         {
             (startParam, endParam) = (endParam, startParam);
+            (startPointSet, endPointSet) = (endPointSet, startPointSet);
             InvalidateSecondaryData();
         }
         public override ICurve2D Clone()
         {
             EnsureAnchor();
-            ICurve2D res = new ProjectedCurve(curve3D, surface, startParam, endParam, anchor3d, anchorUv);
+            ProjectedCurve res = new ProjectedCurve(curve3D, surface, startParam, endParam, anchor3d, anchorUv, this);
+            res.startPointSet = startPointSet;
+            res.endPointSet = endPointSet;
             res.UserData.CloneFrom(this.UserData);
             return res;
         }
@@ -336,25 +570,31 @@ namespace CADability
                 startParam = pc.startParam;
                 endParam = pc.endParam;
                 curve3D = pc.curve3D;
-                surface = pc.surface;
+                surfaceOfOtherCurves = pc.surfaceOfOtherCurves;
                 anchor3d = pc.anchor3d;
                 anchorUv = pc.anchorUv;
                 hasAnchor = true;
+                surfaceOfIntersection = pc.surfaceOfIntersection;
+                periodsBeyondStoredUv = pc.periodsBeyondStoredUv;
+                startPointSet = pc.startPointSet;
+                endPointSet = pc.endPointSet;
                 InvalidateSecondaryData();
             }
         }
         /// <summary>
         /// The parts keep the periods of this curve: each gets an anchor from the middle of this curve's piece, which is
-        /// never at a pole unless the whole piece is.
+        /// never at a pole unless the whole piece is. A part of a curve of an intersection runs along a part of the same
+        /// 3d curve.
         /// </summary>
         public override ICurve2D Trim(double StartPos, double EndPos)
         {
+            EnsureAnchor();
             if (StartPos < EndPos)
             {
                 double sp3d = Get3dParameter(StartPos);
                 double ep3d = Get3dParameter(EndPos);
                 double middle = (StartPos + EndPos) / 2.0;
-                return new ProjectedCurve(curve3D, surface, sp3d, ep3d, Get3dParameter(middle), PointAt(middle));
+                return new ProjectedCurve(curve3D, surface, sp3d, ep3d, Get3dParameter(middle), PointAt(middle), this);
             }
             else
             {
@@ -364,17 +604,18 @@ namespace CADability
                 ICurve c3d = curve3D.Clone();
                 c3d.Trim(sp3d, ep3d);
                 double middle = (StartPos + (EndPos + 1.0 - StartPos) / 2.0) % 1.0; // the middle of the piece across the seam
-                return new ProjectedCurve(c3d, surface, 0, 1, 0.5, PointAt(middle));
+                return new ProjectedCurve(c3d, surface, 0, 1, 0.5, PointAt(middle), this);
             }
         }
         public override ICurve2D[] Split(double Position)
         {
+            EnsureAnchor();
             double sp3d = Get3dParameter(Position);
             if (Math.Abs(sp3d - startParam) < 1e-6 || Math.Abs(sp3d - endParam) < 1e-6) return new ICurve2D[] { Clone() };
             double middle1 = Position / 2.0, middle2 = (Position + 1.0) / 2.0;
             return new ICurve2D[] {
-                new ProjectedCurve(curve3D, surface, startParam, sp3d, Get3dParameter(middle1), PointAt(middle1)),
-                new ProjectedCurve(curve3D, surface, sp3d, endParam, Get3dParameter(middle2), PointAt(middle2)) };
+                new ProjectedCurve(curve3D, surface, startParam, sp3d, Get3dParameter(middle1), PointAt(middle1), this),
+                new ProjectedCurve(curve3D, surface, sp3d, endParam, Get3dParameter(middle2), PointAt(middle2), this) };
         }
         public override void Move(double x, double y)
         {
@@ -400,14 +641,22 @@ namespace CADability
             if (ok)
             {
                 EnsureAnchor();
-                anchorUv = anchorUv + new GeoVector2D(x, y);
+                GeoVector2D offset = new GeoVector2D(x, y);
+                if (ofIntersection) periodsBeyondStoredUv = periodsBeyondStoredUv + offset;
+                else anchorUv = anchorUv + offset;
+                if (startPointSet.HasValue) startPointSet = startPointSet.Value + offset;
+                if (endPointSet.HasValue) endPointSet = endPointSet.Value + offset;
                 InvalidateSecondaryData();
             }
             else throw new ApplicationException("cannot move ProjectedCurve");
         }
+        /// <summary>
+        /// A projected curve depends on its 3d curve and its surface and cannot be moved in the parameter plane at will: a
+        /// modification which only turns it round gives a reversed copy, anything else an approximation. The new
+        /// parametrization of the surface of a curve of an intersection is <see cref="Reparametrized"/>.
+        /// </summary>
         public override ICurve2D GetModified(ModOp2D m)
         {
-            // actually we cannot modify a projected curve, because it relies on the 3d curve and the surface
             if (m.IsIdentity) return Clone();
             GeoPoint2D sp = m * StartPoint;
             GeoPoint2D ep = m * EndPoint;
@@ -425,28 +674,69 @@ namespace CADability
 #if DEBUG
             debugCount = debugCounter++;
 #endif
-            curve3D = info.GetValue("Curve3D", typeof(ICurve)) as ICurve;
-            surface = info.GetValue("Surface", typeof(ISurface)) as ISurface;
-            startParam = info.GetDouble("StartParam");
-            endParam = info.GetDouble("EndParam");
-            try
+            ReadValues(info.GetValue, name => HasValue(info, name));
+        }
+        /// <summary>Whether <paramref name="info"/> has an entry <paramref name="name"/>.</summary>
+        protected static bool HasValue(SerializationInfo info, string name)
+        {
+            foreach (SerializationEntry entry in info)
             {
-                anchorUv = (GeoPoint2D)info.GetValue("AnchorUv", typeof(GeoPoint2D));
-                anchor3d = info.GetDouble("Anchor3d");
+                if (entry.Name == name) return true;
+            }
+            return false;
+        }
+        /// <summary>
+        /// Reads what <see cref="AddValues"/> wrote, in this or in an older version. For the constructor of
+        /// <see cref="ISerializable"/> and for the JSON format of <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>.
+        /// </summary>
+        protected void ReadValues(Func<string, Type, object> get, Func<string, bool> has)
+        {
+            curve3D = get("Curve3D", typeof(ICurve)) as ICurve;
+            surface = get("Surface", typeof(ISurface)) as ISurface;
+            startParam = (double)get("StartParam", typeof(double));
+            endParam = (double)get("EndParam", typeof(double));
+            if (has("SurfaceOfIntersection")) surfaceOfIntersection = (int)get("SurfaceOfIntersection", typeof(int));
+            if (ofIntersection)
+            {
+                periodsBeyondStoredUv = (GeoVector2D)get("PeriodsBeyondStoredUv", typeof(GeoVector2D));
+                hasAnchor = true; // there is none
+            }
+            else if (has("AnchorUv"))
+            {
+                anchorUv = (GeoPoint2D)get("AnchorUv", typeof(GeoPoint2D));
+                anchor3d = (double)get("Anchor3d", typeof(double));
                 hasAnchor = true;
             }
-            catch (SerializationException)
+            else
             {   // written before the anchor existed: the anchor comes from the domain the curve was written with, on first
                 // use - the 3d curve and the surface may not be complete while they are being read
-                try
-                {
-                    windowOfAnOlderFile = (BoundingRect)info.GetValue("PeriodicDomain", typeof(BoundingRect));
-                }
-                catch (SerializationException)
-                {
-                    windowOfAnOlderFile = BoundingRect.EmptyBoundingRect;
-                }
+                if (has("PeriodicDomain")) windowOfAnOlderFile = (BoundingRect)get("PeriodicDomain", typeof(BoundingRect));
+                else windowOfAnOlderFile = BoundingRect.EmptyBoundingRect;
             }
+        }
+        /// <summary>
+        /// Adds the data of this curve, without the data of the base class. For <see cref="GetObjectData"/> and for the
+        /// JSON format of <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>.
+        /// </summary>
+        protected void AddValues(Action<string, object> add)
+        {
+            add("Curve3D", curve3D);
+            add("Surface", surface);
+            add("StartParam", startParam);
+            add("EndParam", endParam);
+            if (ofIntersection)
+            {
+                add("SurfaceOfIntersection", surfaceOfIntersection);
+                add("PeriodsBeyondStoredUv", periodsBeyondStoredUv);
+            }
+            else
+            {
+                EnsureAnchor();
+                add("AnchorUv", anchorUv);
+                add("Anchor3d", anchor3d);
+            }
+            // older versions move every point next to the center of this domain; the extent of the curve puts it where it is
+            add("PeriodicDomain", GetExtent());
         }
         /// <summary>
         /// Implements <see cref="ISerializable.GetObjectData"/>
@@ -456,19 +746,20 @@ namespace CADability
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
-            info.AddValue("Curve3D", curve3D);
-            info.AddValue("Surface", surface);
-            info.AddValue("StartParam", startParam);
-            info.AddValue("EndParam", endParam);
-            EnsureAnchor();
-            info.AddValue("AnchorUv", anchorUv);
-            info.AddValue("Anchor3d", anchor3d);
-            // older versions move every point next to the center of this domain; the extent of the curve puts it where it is
-            info.AddValue("PeriodicDomain", GetExtent());
+            AddValues(info.AddValue);
+        }
+        /// <summary>
+        /// The data of the base class only, for <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which writes the
+        /// format of an older file.
+        /// </summary>
+        protected void AddBaseValues(SerializationInfo info, StreamingContext context)
+        {
+            base.GetObjectData(info, context);
         }
 
         public override bool TryPointDeriv2At(double position, out GeoPoint2D point, out GeoVector2D deriv, out GeoVector2D deriv2)
         {
+            if (ofIntersection) return ApproxBSpline2D.TryPointDeriv2At(position, out point, out deriv, out deriv2);
             point = GeoPoint2D.Origin;
             deriv = deriv2 = GeoVector2D.NullVector;
             return false;

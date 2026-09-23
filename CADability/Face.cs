@@ -1741,7 +1741,7 @@ namespace CADability.GeoObject
                             loopExt[i] = BoundingRect.EmptyBoundingRect;
                             for (int j = 0; j < loops[i].Count; j++)
                             {
-                                if (loops[i][j].curve2d is ProjectedCurve pc)
+                                if (loops[i][j].curve2d is ProjectedCurve pc && !pc.IsCurveOfIntersection)
                                 {
                                     loops[i][j].curve2d = surface.GetProjectedCurve(loops[i][j].curve, surfacePrecision);
                                     if (!loops[i][j].forward) loops[i][j].curve2d.Reverse();
@@ -2241,7 +2241,7 @@ namespace CADability.GeoObject
                                         if (!loops[i][j].forward)
                                         {
                                             crv3d.Reverse(); // crv3d was forward oriented, now it is oriented according to loop[i][j].forward again
-                                            if (crv2d is ProjectedCurve pc) pc.IsReverse = true; // mark this projected curve as reversed
+                                            if (crv2d is ProjectedCurve pc && !pc.IsCurveOfIntersection) pc.IsReverse = true; // mark this projected curve as reversed
                                         }
                                         crv2d.UserData["EdgeDescriptor"] = loops[i][j];
                                         crv2d.UserData["Curves3DIndex"] = crvs3d.Count - 1;
@@ -9526,7 +9526,7 @@ namespace CADability.GeoObject
             ICurve2D[] segments = new ICurve2D[outline.Length];
             for (int i = 0; i < outline.Length; ++i)
             {
-                if (outline[i].Curve2D(this) is ProjectedCurve)
+                if (ProjectedCurve.IsPlain(outline[i].Curve2D(this)))
                 {
                     ICurve2D c2d = surface.GetProjectedCurve(outline[i].Curve3D, 0.0).CloneReverse(true);
                     SurfaceHelper.AdjustPeriodic(surface, modifiedBounds, c2d);
@@ -9555,7 +9555,7 @@ namespace CADability.GeoObject
             {
                 for (int i = 0; i < holes[j].Length; ++i)
                 {
-                    if (holes[j][i].Curve2D(this) is ProjectedCurve)
+                    if (ProjectedCurve.IsPlain(holes[j][i].Curve2D(this)))
                     {
                         ICurve2D c2d = surface.GetProjectedCurve(holes[j][i].Curve3D, 0.0).CloneReverse(true);
                         SurfaceHelper.AdjustPeriodic(surface, modifiedBounds, c2d);

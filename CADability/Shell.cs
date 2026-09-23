@@ -5737,7 +5737,7 @@ namespace CADability.GeoObject
                     }
                     if (goOnWith != null)
                     {
-                        ICurve2D c2d = goOnWith.Curve2D(goOnFace).Clone(); // Clone is needed because of interpolatedDualSurfaceCurve.ProjectedCurve.GetModified, which changes the 3d curve
+                        ICurve2D c2d = goOnWith.Curve2D(goOnFace).Clone(); // Clone was needed because InterpolatedDualSurfaceCurve.ProjectedCurve.GetModified changed the 3d curve
                         if (!toMainFace.IsIdentity) c2d = c2d.GetModified(toMainFace);
                         loop.Add(c2d);
                         res.Add(goOnWith);

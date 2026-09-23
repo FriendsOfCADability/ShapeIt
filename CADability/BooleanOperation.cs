@@ -1021,8 +1021,8 @@ namespace CADability
                         ICurve2D con1 = crvsOnSurface1[i].Trim(params2dFace1[i, j1], params2dFace1[i, j2]);
                         ICurve2D con2 = crvsOnSurface2[i].Trim(params2dFace2[i, j1], params2dFace2[i, j2]);
                         // projected curves are not precise when trimmed. 
-                        if (con1 is ProjectedCurve) con1 = fc1.Surface.GetProjectedCurve(tr, Precision.eps);
-                        if (con2 is ProjectedCurve) con2 = fc2.Surface.GetProjectedCurve(tr, Precision.eps);
+                        if (ProjectedCurve.IsPlain(con1)) con1 = fc1.Surface.GetProjectedCurve(tr, Precision.eps);
+                        if (ProjectedCurve.IsPlain(con2)) con2 = fc2.Surface.GetProjectedCurve(tr, Precision.eps);
                         {   // we need this test with the trimmed 3d curve in a strange case: a quarter of an ellipse is exactely outside a threequarter cylinder
                             // this part of a 2d curve gets arbitrarily wrong periodic adjusted
                             // PositionOf already returns the value in the surface domain, which equals the
@@ -1041,12 +1041,12 @@ namespace CADability
                         // hier am Besten aus InterpolatedDualSurfaceCurve BSplines machen, sowohl in 2d, als auch in 3d und ganz am Ende
                         // wieder zu InterpolatedDualSurfaceCurve machen. GGf mit Flag, damit das klar ist
                         // Problme wäre die Genauigkeit, wenn beim BooleanOperation.generateCycles die Richtung genommen wird...
-                        if (con1 is InterpolatedDualSurfaceCurve.ProjectedCurve pon1 && con2 is InterpolatedDualSurfaceCurve.ProjectedCurve pon2 &&
+                        if (con1 is ProjectedCurve pon1 && pon1.IsCurveOfIntersection && con2 is ProjectedCurve pon2 && pon2.IsCurveOfIntersection &&
                             tr is InterpolatedDualSurfaceCurve idsc)
                         {   // con1 und con2 müssen auf tr verweisen, sonst kann man das Face später nicht mit "ReverseOrientation" umdrehen. Dort wird nämlich die 
                             // surface verändert, und die muss bei allen Kurven die selbe sein
-                            pon1.SetCurve3d(idsc);
-                            pon2.SetCurve3d(idsc);
+                            pon1.SetCurve3D(idsc);
+                            pon2.SetCurve3D(idsc);
                         }
                         // The cross product of the normals specifies the direction of the new edge, no matter where on the curve we compute it.
                         // But if the surfaces are tangential in a point the cross product of the normals will be 0. So we take the better one
@@ -1081,9 +1081,9 @@ namespace CADability
 #if DEBUG
                         (tr as IGeoObject).UserData.Add("DebugIntersectionBy1", fc1.GetHashCode());
                         (tr as IGeoObject).UserData.Add("DebugIntersectionBy2", fc2.GetHashCode());
-                        if (con2 is InterpolatedDualSurfaceCurve.ProjectedCurve)
+                        if (con2 is ProjectedCurve pc2 && pc2.IsCurveOfIntersection)
                         {
-                            // BSpline2D dbgbsp2d = (con2 as InterpolatedDualSurfaceCurve.ProjectedCurve).ToBSpline(0.0);
+                            // BSpline2D dbgbsp2d = pc2.ToBSpline(0.0);
                         }
 #endif
                         if (dirs1) // the trimming of BSplines is sometimes not very exact
@@ -6038,12 +6038,12 @@ namespace CADability
                             // hier am Besten aus InterpolatedDualSurfaceCurve BSplines machen, sowohl in 2d, als auch in 3d und ganz am Ende
                             // wieder zu InterpolatedDualSurfaceCurve machen. GGf mit Flag, damit das klar ist
                             // Problme wäre die Genauigkeit, wenn beim BooleanOperation.generateCycles die Richtung genommen wird...
-                            if (con1 is InterpolatedDualSurfaceCurve.ProjectedCurve && con2 is InterpolatedDualSurfaceCurve.ProjectedCurve &&
+                            if (con1 is ProjectedCurve pon1 && pon1.IsCurveOfIntersection && con2 is ProjectedCurve pon2 && pon2.IsCurveOfIntersection &&
                                 tr is InterpolatedDualSurfaceCurve)
                             {   // con1 und con2 müssen auf tr verweisen, sonst kann man das Face später nicht mit "ReverseOrientation" umdrehen. Dort wird nämlich die 
                                 // surface verändert, und die muss bei allen Kurven die selbe sein
-                                (con1 as InterpolatedDualSurfaceCurve.ProjectedCurve).SetCurve3d(tr as InterpolatedDualSurfaceCurve);
-                                (con2 as InterpolatedDualSurfaceCurve.ProjectedCurve).SetCurve3d(tr as InterpolatedDualSurfaceCurve);
+                                pon1.SetCurve3D(tr);
+                                pon2.SetCurve3D(tr);
                             }
                             // das Kreuzprodukt im Start (oder End oder Mittel) -Punkt hat die selbe Reichung wie die 3d Kurve: con1 umdrehen
                             // andere Richtung: con2 umdrehen
@@ -6196,9 +6196,9 @@ namespace CADability
 #if DEBUG
                             (tr as IGeoObject).UserData.Add("DebugIntersectionBy1", item.Key.face1.GetHashCode());
                             (tr as IGeoObject).UserData.Add("DebugIntersectionBy2", item.Key.face2.GetHashCode());
-                            if (con2 is InterpolatedDualSurfaceCurve.ProjectedCurve)
+                            if (con2 is ProjectedCurve pc2 && pc2.IsCurveOfIntersection)
                             {
-                                BSpline2D dbgbsp2d = (con2 as InterpolatedDualSurfaceCurve.ProjectedCurve).ToBSpline(0.0);
+                                BSpline2D dbgbsp2d = pc2.ToBSpline(0.0);
                             }
 #endif
                             if (dirs1) // the trimming of BSplines is sometimes not very exact

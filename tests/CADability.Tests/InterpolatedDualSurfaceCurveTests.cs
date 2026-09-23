@@ -411,5 +411,121 @@ namespace CADability.Tests
             (curve as IDualSurfaceCurve).SwapSurfaces();
             Assert.AreEqual(forward, Written(JsonSerialize.ToString(curve)), "the reversed curve with swapped surfaces");
         }
+
+        /// <summary>
+        /// The two surfaces meet exactly at the uv values the curve stores at its ends, and the 2d curves must end
+        /// there: the edges of a face meet at the uv values of their vertices. The end of the approximation is
+        /// PositionOf of the same point and may be a little beside it.
+        /// </summary>
+        [TestMethod]
+        public void a_2d_curve_ends_where_the_surfaces_meet()
+        {
+            foreach (bool onSurface1 in new[] { true, false })
+            {
+                foreach (bool reverse in new[] { false, true })
+                {
+                    InterpolatedDualSurfaceCurve curve = Ellipse();
+                    ISurface surface = onSurface1 ? curve.Surface1 : curve.Surface2;
+                    ICurve2D c2d = onSurface1 ? curve.CurveOnSurface1 : curve.CurveOnSurface2;
+                    if (reverse) c2d.Reverse();
+                    string what = " on surface " + (onSurface1 ? 1 : 2) + (reverse ? ", reversed" : "");
+                    AssertClose(reverse ? curve.EndPoint : curve.StartPoint, surface.PointAt(c2d.StartPoint), 1e-9, "the start point" + what);
+                    AssertClose(reverse ? curve.StartPoint : curve.EndPoint, surface.PointAt(c2d.EndPoint), 1e-9, "the end point" + what);
+                }
+            }
+        }
+
+        /// <summary>
+        /// A start point set from outside - Border closes small gaps this way - stays with the 2d curve which got it.
+        /// The 3d curve is shared with the edge and with the 2d curve on the other surface and is not changed.
+        /// </summary>
+        [TestMethod]
+        public void setting_the_start_point_of_a_2d_curve_leaves_the_3d_curve_alone()
+        {
+            InterpolatedDualSurfaceCurve curve = Ellipse();
+            ICurve2D c2d = curve.CurveOnSurface1;
+            GeoPoint2D before = c2d.StartPoint;
+            GeoPoint2D moved = before + new GeoVector2D(1e-6, 2e-6);
+            c2d.StartPoint = moved;
+            Assert.AreEqual(0.0, moved | c2d.StartPoint, 1e-12, "the 2d curve got the new start point");
+            Assert.AreEqual(0.0, before | curve.CurveOnSurface1.StartPoint, 1e-12, "a new 2d curve of the 3d curve is where it was");
+            AssertClose(OnEllipse(0.3), curve.StartPoint, 1e-9, "the 3d curve is unchanged");
+        }
+
+        /// <summary>A part of a 2d curve runs along the same 3d curve, it does not need a copy of it.</summary>
+        [TestMethod]
+        public void a_part_of_a_2d_curve_runs_along_the_same_3d_curve()
+        {
+            InterpolatedDualSurfaceCurve curve = Ellipse();
+            ICurve2D c2d = curve.CurveOnSurface1;
+            ICurve2D part = c2d.Trim(0.25, 0.75);
+            Assert.AreSame(curve, (part as ProjectedCurve).Curve3D, "the part runs along the same 3d curve");
+            AssertClose(curve.PointAt(0.25), curve.Surface1.PointAt(part.StartPoint), 1e-6, "the part starts a quarter along the curve");
+            AssertClose(curve.PointAt(0.75), curve.Surface1.PointAt(part.EndPoint), 1e-6, "the part ends three quarters along it");
+            for (int i = 0; i <= 4; i++)
+            {   // the part has its own approximation and its own parameters, but it runs on the curve
+                Assert.AreEqual(0.0, c2d.MinDistance(part.PointAt(i / 4.0)), 1e-6, "the part runs on the curve at " + i / 4.0);
+            }
+        }
+
+        /// <summary>
+        /// A face reverses its orientation by reparametrizing its surface in place. The uv values stored in the
+        /// intersection curves on that surface follow, and their 2d curves follow those: they still run along the
+        /// curve, now in the new parameters. Face.ReverseOrientation does this through Edge.ModifyCurve2D.
+        /// </summary>
+        [TestMethod]
+        public void a_2d_curve_follows_a_new_parametrization_of_its_surface()
+        {
+            InterpolatedDualSurfaceCurve curve = Ellipse();
+            ISurface cylinder = curve.Surface1;
+            ProjectedCurve c2d = curve.CurveOnSurface1 as ProjectedCurve;
+            GeoPoint2D before = c2d.PointAt(0.5);
+            ModOp2D m = cylinder.ReverseOrientation(); // this changes the surface itself
+            MethodInfo reparametrized = typeof(ProjectedCurve).GetMethod("Reparametrized", BindingFlags.NonPublic | BindingFlags.Instance);
+            ICurve2D after = reparametrized.Invoke(c2d, new object[] { m }) as ICurve2D;
+            Assert.AreEqual(0.0, (m * before) | after.PointAt(0.5), 1e-6, "the curve is where the new parametrization puts it");
+            AssertClose(curve.PointAt(0.5), cylinder.PointAt(after.PointAt(0.5)), 1e-6, "the curve still runs along the 3d curve");
+            AssertClose(curve.StartPoint, cylinder.PointAt(after.StartPoint), 1e-9, "it still ends where the surfaces meet");
+        }
+
+        private static string FileOfTests([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
+
+        /// <summary>
+        /// Files written before hold the 2d curves of the intersections as InterpolatedDualSurfaceCurve.ProjectedCurve.
+        /// They are read into the one ProjectedCurve class and written again under the old name and in the old format,
+        /// so that an older version can still read a file which has been read and written here.
+        /// </summary>
+        [TestMethod]
+        public void a_2d_curve_of_an_older_file_is_written_in_the_old_format_again()
+        {
+            const string oldName = "CADability.InterpolatedDualSurfaceCurve+ProjectedCurve";
+            string file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(FileOfTests())!, "Files", "BRep", "UniteBug11.cdb.json");
+            Assert.IsTrue(File.ReadAllText(file).Contains(oldName), "the file holds 2d curves of the old class");
+            Project project = Project.ReadFromFile(file, "cdb");
+            Assert.IsNotNull(project, "the file is read");
+            Shell shell = project.GetActiveModel().AllObjects.OfType<Solid>().First().Shells[0];
+            Edge edge = shell.Edges.First(e => e.Curve3D is InterpolatedDualSurfaceCurve);
+            Assert.IsInstanceOfType(edge.Curve2D(edge.PrimaryFace), typeof(ProjectedCurve), "the 2d curve is one ProjectedCurve now");
+
+            string written = JsonSerialize.ToString(shell);
+            Assert.IsTrue(written.Contains(oldName), "it is written under the old name");
+            Assert.IsTrue(written.Contains("\"OnSurface1\""), "and in the old format");
+
+            Shell read = JsonSerialize.FromString(written) as Shell;
+            Assert.IsNotNull(read, "the written shell is read again");
+            int checkedCurves = 0;
+            foreach (Edge e in read.Edges)
+            {
+                if (!(e.Curve3D is InterpolatedDualSurfaceCurve)) continue;
+                foreach (Face face in new[] { e.PrimaryFace, e.SecondaryFace })
+                {
+                    if (face == null) continue;
+                    ICurve2D c2d = e.Curve2D(face);
+                    AssertClose(e.Curve3D.PointAt(0.5), face.Surface.PointAt(c2d.PointAt(0.5)), 1e-5, "the 2d curve still runs along its 3d curve");
+                    checkedCurves++;
+                }
+            }
+            Assert.IsTrue(checkedCurves > 0, "there are 2d curves of intersections in the shell");
+        }
     }
 }

@@ -320,7 +320,7 @@ namespace CADability.GeoObject
                 if (du < Precision.eps && dv > Precision.eps)
                     return FixedU(line2d.StartPoint.x, line2d.StartPoint.y, line2d.EndPoint.y);
             }
-            if (curve2d is ProjectedCurve projected && projected.Surface is SweptCurveSurface)
+            if (curve2d is ProjectedCurve projected && !projected.IsCurveOfIntersection && projected.Surface is SweptCurveSurface)
             {
                 BoundingRect otherBounds = new BoundingRect(PositionOf(projected.Surface.PointAt(projected.StartPoint)),
                                                             PositionOf(projected.Surface.PointAt(projected.EndPoint)));
