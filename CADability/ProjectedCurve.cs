@@ -72,10 +72,10 @@ namespace CADability
             {
                 if (approxBSpline2D == null)
                 {
-                    if (ofIntersection) approxBSpline2D = ApproximateCurveOfIntersection();
+                    double prec = UvPrecision();
+                    if (ofIntersection) approxBSpline2D = ApproximateCurveOfIntersection(prec);
                     else
                     {
-                        double prec = Math.Max(curve3D.Length * 1e-5, Precision.eps);
                         GeoPoint2D[] chain = AnchoredChain();
                         approxBSpline2D = BSpline2D.Approximate(pos => ContinuousUv(pos, chain), prec);
                     }
@@ -84,24 +84,47 @@ namespace CADability
             }
         }
         /// <summary>
-        /// The approximation of a curve of an intersection: the uv values of its points in the periods of the uv values the
-        /// 3d curve stores, moved by <see cref="periodsBeyondStoredUv"/>. The whole curve is approximated in the direction
-        /// of the 3d curve and reversed, if need be, as the class InterpolatedDualSurfaceCurve.ProjectedCurve did.
+        /// How close the approximation has to follow the curve, in uv. The approximation measures its error in the
+        /// parameter plane, while the precision which matters is a distance in space: on a big cylinder one radian is a
+        /// long way, on a small one it is not. So the precision in space - a fraction of the length of the curve, at
+        /// least Precision.eps - is divided by how far a step in uv moves a point on the surface.
+        /// <para>
+        /// Both kinds of projected curve use this since stage 7. Before, a curve of an intersection was approximated to
+        /// Precision.eps in uv and every other one to a fraction of the length of its 3d curve, also in uv, which is a
+        /// length in space and does not belong there.
+        /// </para>
         /// </summary>
-        private BSpline2D ApproximateCurveOfIntersection()
+        private double UvPrecision()
+        {
+            double tolerance3d = Math.Max(curve3D.Length * 1e-6, Precision.eps);
+            double scale = 0.0;
+            for (int i = 0; i <= 4; i++)
+            {
+                GeoPoint2D uv = surface.PositionOf(curve3D.PointAt(Get3dParameter(i / 4.0)));
+                scale = Math.Max(scale, Math.Max(surface.UDirection(uv).Length, surface.VDirection(uv).Length));
+            }
+            return scale > Precision.eps ? tolerance3d / scale : tolerance3d;
+        }
+        /// <summary>
+        /// The approximation of a curve of an intersection to <paramref name="precision"/>: the uv values of its points in
+        /// the periods of the uv values the 3d curve stores, moved by <see cref="periodsBeyondStoredUv"/>. The whole curve
+        /// is approximated in the direction of the 3d curve and reversed, if need be, as the class
+        /// InterpolatedDualSurfaceCurve.ProjectedCurve did.
+        /// </summary>
+        private BSpline2D ApproximateCurveOfIntersection(double precision)
         {
             InterpolatedDualSurfaceCurve idsc = curve3D as InterpolatedDualSurfaceCurve;
             bool onSurface1 = IsOnSurface1;
             GeoVector2D periods = periodsBeyondStoredUv;
             Func<double, GeoPoint2D> uv = position => idsc.UvInStoredPeriods(onSurface1, position) + periods;
-            if (startParam == 0.0 && endParam == 1.0) return BSpline2D.Approximate(uv, Precision.eps, 0, 1);
+            if (startParam == 0.0 && endParam == 1.0) return BSpline2D.Approximate(uv, precision, 0, 1);
             if (startParam == 1.0 && endParam == 0.0)
             {
-                BSpline2D res = BSpline2D.Approximate(uv, Precision.eps, 0, 1);
+                BSpline2D res = BSpline2D.Approximate(uv, precision, 0, 1);
                 res.Reverse();
                 return res;
             }
-            return BSpline2D.Approximate(pos => uv(Get3dParameter(pos)), Precision.eps);
+            return BSpline2D.Approximate(pos => uv(Get3dParameter(pos)), precision);
         }
         /// <summary>
         /// The projection of <paramref name="curve3D"/> onto <paramref name="surface"/>. On a periodic surface, where the curve
@@ -184,12 +207,12 @@ namespace CADability
         }
         /// <summary>
         /// True for the 2d curve an <see cref="InterpolatedDualSurfaceCurve"/> makes for one of its own two surfaces. Such
-        /// a curve lies in the periods of the uv values its 3d curve stores, it is approximated to Precision.eps and it
-        /// takes its length, area, extent, sweep, directions and derivatives from that approximation - all as the class
-        /// InterpolatedDualSurfaceCurve.ProjectedCurve did, which it replaces. The other projected curves keep the coarser
-        /// approximation and the measures of GeneralCurve2D. Both ways give different results - an offset fillet splits
-        /// differently with the other length, coincident spheres of radius 40 leave a sliver with the other precision - so
-        /// they are to be made one by a measured step of their own.
+        /// a curve lies in the periods of the uv values its 3d curve stores, and it takes its length, area, extent, sweep,
+        /// directions and derivatives from its approximation, as the class InterpolatedDualSurfaceCurve.ProjectedCurve
+        /// did, which it replaces. The other projected curves take those from GeneralCurve2D, which measures them on the
+        /// arcs through the triangulation. Both ways give different results - an offset fillet splits differently with
+        /// the other length - so they are still to be made one by a measured step of their own. The precision of the
+        /// approximation is the same for both since stage 7, see <see cref="UvPrecision"/>.
         /// </summary>
         internal bool IsCurveOfIntersection => ofIntersection;
         /// <summary>

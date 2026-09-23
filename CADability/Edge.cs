@@ -1858,38 +1858,6 @@ namespace CADability
                     }
                 }
             }
-            else if (secondaryFace != null && (IsCurveOfIntersection(curveOnPrimaryFace) || IsCurveOfIntersection(curveOnSecondaryFace)))
-            {
-                if (Curve3D is BSpline && (Curve3D as BSpline).ThroughPoints3dExist) // das war mal eine InterpolatedDualSurfaceCurve
-                {
-                    GeoPoint2D uv1s = Vertex1.GetPositionOnFace(PrimaryFace);
-                    GeoPoint2D uv1e = Vertex2.GetPositionOnFace(PrimaryFace);
-                    GeoPoint2D uv2s = Vertex1.GetPositionOnFace(SecondaryFace);
-                    GeoPoint2D uv2e = Vertex2.GetPositionOnFace(SecondaryFace);
-                    GeoVector n1s = PrimaryFace.Surface.GetNormal(uv1s);
-                    GeoVector n1e = PrimaryFace.Surface.GetNormal(uv1e);
-                    GeoVector n2s = SecondaryFace.Surface.GetNormal(uv2s);
-                    GeoVector n2e = SecondaryFace.Surface.GetNormal(uv2e);
-                    if ((new Angle(n1s, n2s)).Radian < 0.1 || (new Angle(n1e, n2e)).Radian < 0.1)
-                    {   // surfaces are tangential, this edge.curve3d cannot remain a InterpolatedDualSurfaceCurve
-                        curveOnPrimaryFace = PrimaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
-                        if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
-                        curveOnSecondaryFace = SecondaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
-                        if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
-                    }
-                    else
-                    {
-                        InterpolatedDualSurfaceCurve dsc = new InterpolatedDualSurfaceCurve(primaryFace.Surface, bounds1,
-                            secondaryFace.Surface, bounds2, new List<GeoPoint>((Curve3D as BSpline).ThroughPoint));
-                        curveOnPrimaryFace = dsc.CurveOnSurface1;
-                        if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
-                        curveOnSecondaryFace = dsc.CurveOnSurface2;
-                        if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
-                        dsc.RecalcSurfacePoints();
-                        this.curve3d = dsc; // the 2d curves refer to dsc, so it must be the 3d curve too
-                    }
-                }
-            }
             else
             {
                 if (ProjectedCurve.IsPlain(curveOnPrimaryFace))
@@ -2834,7 +2802,6 @@ namespace CADability
             //}
             return c2d.PositionOf(p); // in p ist die Periode ggf. angeglichen
         }
-        private static bool IsCurveOfIntersection(ICurve2D curve) => curve is ProjectedCurve pc && pc.IsCurveOfIntersection;
         internal bool IsDualSurfaceEdge
         {
             get

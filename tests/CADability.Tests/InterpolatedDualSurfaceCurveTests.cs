@@ -463,8 +463,9 @@ namespace CADability.Tests
             AssertClose(curve.PointAt(0.25), curve.Surface1.PointAt(part.StartPoint), 1e-6, "the part starts a quarter along the curve");
             AssertClose(curve.PointAt(0.75), curve.Surface1.PointAt(part.EndPoint), 1e-6, "the part ends three quarters along it");
             for (int i = 0; i <= 4; i++)
-            {   // the part has its own approximation and its own parameters, but it runs on the curve
-                Assert.AreEqual(0.0, c2d.MinDistance(part.PointAt(i / 4.0)), 1e-6, "the part runs on the curve at " + i / 4.0);
+            {   // the part has its own approximation and its own parameters, but it runs on the curve. The tolerance is
+                // the precision of the two approximations, see ProjectedCurve.UvPrecision
+                Assert.AreEqual(0.0, c2d.MinDistance(part.PointAt(i / 4.0)), 1e-4, "the part runs on the curve at " + i / 4.0);
             }
         }
 
