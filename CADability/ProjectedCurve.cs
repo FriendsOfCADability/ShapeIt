@@ -207,12 +207,18 @@ namespace CADability
         }
         /// <summary>
         /// True for the 2d curve an <see cref="InterpolatedDualSurfaceCurve"/> makes for one of its own two surfaces. Such
-        /// a curve lies in the periods of the uv values its 3d curve stores, and it takes its length, area, extent, sweep,
+        /// a curve lies in the periods of the uv values its 3d curve stores, and it takes its area, extent, sweep,
         /// directions and derivatives from its approximation, as the class InterpolatedDualSurfaceCurve.ProjectedCurve
         /// did, which it replaces. The other projected curves take those from GeneralCurve2D, which measures them on the
-        /// arcs through the triangulation. Both ways give different results - an offset fillet splits differently with
-        /// the other length - so they are still to be made one by a measured step of their own. The precision of the
-        /// approximation is the same for both since stage 7, see <see cref="UvPrecision"/>.
+        /// arcs through the triangulation. The precision of the approximation and the length are the same for both since
+        /// stage 7, see <see cref="UvPrecision"/>.
+        /// <para>
+        /// Both ways of measuring the length were held against the curve itself, densely sampled: the arc length of the
+        /// approximation is exact to better than 1e-7, the arcs are off by up to 2e-6. The more accurate one is not used
+        /// because it splits one of the two mirror symmetric fillets of ShellOffsetTests and not the other - the two
+        /// differ by 2e-6 and a threshold in SweptCircleSurface.OuterShell decides between them. That threshold is what
+        /// has to be looked at before the length can follow the approximation as well.
+        /// </para>
         /// </summary>
         internal bool IsCurveOfIntersection => ofIntersection;
         /// <summary>
@@ -404,7 +410,6 @@ namespace CADability
         public override double GetArea() => ofIntersection ? ApproxBSpline2D.GetArea() : base.GetArea();
         public override double GetAreaFromPoint(GeoPoint2D p) => ofIntersection ? ApproxBSpline2D.GetAreaFromPoint(p) : base.GetAreaFromPoint(p);
         public override BoundingRect GetExtent() => ofIntersection ? ApproxBSpline2D.GetExtent() : base.GetExtent();
-        public override double Length => ofIntersection ? ApproxBSpline2D.Length : base.Length;
         public override double Sweep => ofIntersection ? ApproxBSpline2D.Sweep : base.Sweep;
         public override GeoVector2D StartDirection => ofIntersection ? DirectionAt(0.0) : base.StartDirection;
         public override GeoVector2D EndDirection => ofIntersection ? DirectionAt(1.0) : base.EndDirection;
