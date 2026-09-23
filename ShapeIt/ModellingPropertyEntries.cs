@@ -1502,6 +1502,10 @@ namespace ShapeIt
                 }
                 if (paths.Count > 1 && Curves.GetCommonPlane(paths.Cast<ICurve>().ToList(), out Plane plane))
                 {
+                    if (Precision.SameNotOppositeDirection(vw.Projection.DrawingPlane.Normal, -plane.Normal))
+                    {   // when the plane is parallel and opposite oriented to the drawing plane, we want it to be reversed.
+                        plane.Reverse();
+                    }
                     List<Border> bdrs = paths.Where(p => p.IsClosed).Select(p => new Border(p.GetProjectedCurve(plane))).OrderBy(b => -b.Area).ToList();
                     for (int i = 0; i < bdrs.Count; ++i)
                     {
@@ -1685,6 +1689,10 @@ namespace ShapeIt
             if (path.GetPlanarState() == PlanarState.Planar)
             {
                 pln = path.GetPlane();
+                if (Precision.SameNotOppositeDirection(vw.Projection.DrawingPlane.Normal, -pln.Normal))
+                {   // when the plane is parallel and opposite oriented to the drawing plane, we want it to be reversed.
+                    pln.Reverse();
+                }
                 path2D = path.GetProjectedCurve(pln) as Path2D;
             }
             Face fc = null;
@@ -1878,7 +1886,11 @@ namespace ShapeIt
             }
             if (curve.IsClosed && curve.GetPlanarState() == PlanarState.Planar)
             {
-                Plane plane = curve.GetPlane();
+                Plane plane = curve.GetPlane(); // this is arbitrary, but often this is the drawing plane
+                if (Precision.SameNotOppositeDirection(vw.Projection.DrawingPlane.Normal, -plane.Normal))
+                {   // when the plane is parallel and opposite oriented to the drawing plane, we want it to be reversed.
+                    plane.Reverse();
+                }
                 Face fc = null;
                 ICurve2D curve2d = curve.GetProjectedCurve(plane);
                 ICurve2D[] parts = curve2d.Split(0.5);
