@@ -3031,27 +3031,22 @@ namespace CADability
                 Vertex tmp = v1;
                 v1 = v2;
                 v2 = tmp;
-                if (curve3d is InterpolatedDualSurfaceCurve)
+                if (curve3d is InterpolatedDualSurfaceCurve idsc)
                 {   // not sure, whether this is the right place to do this. But it is definitely needed
                     // it should always be valid to call ReverseCurve3D without changing the consitency of the faces
-                    curveOnPrimaryFace = (curve3d as InterpolatedDualSurfaceCurve).CurveOnSurface1;
+                    curveOnPrimaryFace = idsc.CurveOnSurface1;
                     if (!forwardOnPrimaryFace) curveOnPrimaryFace.Reverse();
                     if (curveOnSecondaryFace != null)
                     {
-                        curveOnSecondaryFace = (curve3d as InterpolatedDualSurfaceCurve).CurveOnSurface2;
+                        curveOnSecondaryFace = idsc.CurveOnSurface2;
                         if (!forwardOnSecondaryFace) curveOnSecondaryFace.Reverse();
                     }
-                    //if (curveOnPrimaryFace is ProjectedCurve)
-                    //{
-                    //    (curveOnPrimaryFace as ProjectedCurve).Reverse();
-                    //}
-                    //if (curveOnSecondaryFace is ProjectedCurve)
-                    //{
-                    //    (curveOnSecondaryFace as ProjectedCurve).Reverse();
-                    //}
                 }
-                if (curveOnPrimaryFace is ProjectedCurve pcp && !pcp.IsCurveOfIntersection) pcp.IsReverse = !forwardOnPrimaryFace;
-                if (curveOnSecondaryFace is ProjectedCurve pcs && !pcs.IsCurveOfIntersection) pcs.IsReverse = !forwardOnSecondaryFace;
+                else
+                {   // the curves of an intersection above have just been made in the direction they need, the others follow the 3d curve here
+                    if (curveOnPrimaryFace is ProjectedCurve pcp) pcp.IsReverse = !forwardOnPrimaryFace;
+                    if (curveOnSecondaryFace is ProjectedCurve pcs) pcs.IsReverse = !forwardOnSecondaryFace;
+                }
                 PrimaryFace?.InvalidateArea();
                 SecondaryFace?.InvalidateArea();
             }
@@ -3145,7 +3140,7 @@ namespace CADability
                     SecondaryCurve2D = from.Surface.GetProjectedCurve(Curve3D, 0.0);
                     if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
                 }
-                else if (ProjectedCurve.IsPlain(PrimaryCurve2D))
+                else if (ProjectedCurve.IsPlain(SecondaryCurve2D))
                 {
                     SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(curve3d, 0.0);
                     if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();

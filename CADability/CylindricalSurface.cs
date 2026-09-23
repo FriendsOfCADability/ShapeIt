@@ -649,17 +649,7 @@ namespace CADability.GeoObject
                 ICurve res = (curve2d as Curve2DAspect).Get3DCurve(this);
                 if (res != null) return res;
             }
-            if (curve2d is ProjectedCurve pc && !pc.IsCurveOfIntersection)
-            {
-                if (pc.Surface is CylindricalSurface)
-                {
-                    BoundingRect otherBounds = new BoundingRect(PositionOf(pc.Surface.PointAt(pc.StartPoint)), PositionOf(pc.Surface.PointAt(pc.EndPoint)));
-                    if (pc.Surface.SameGeometry(pc.GetExtent(), this, otherBounds, Precision.eps, out ModOp2D notneeded))
-                    {
-                        return pc.Curve3DFromParams; // if trimmed or reversed still returns the correct 3d curve (but trimmed and/or reversed)
-                    }
-                }
-            }
+            if (Curve3dOfProjected(curve2d) is ICurve onThisSurface) return onThisSurface;
             // a 2d line yields a line (v direction), an ellipse (u direction) or a helical curve (slanted)
             // a sine curve with the period 2*pi also yields an ellipse, this is handled below. And there is a special
             // 2d curve, which is the parameter curve of a surface intersected with another surface. When the other

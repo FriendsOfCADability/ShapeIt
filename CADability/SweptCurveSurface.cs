@@ -320,13 +320,7 @@ namespace CADability.GeoObject
                 if (du < Precision.eps && dv > Precision.eps)
                     return FixedU(line2d.StartPoint.x, line2d.StartPoint.y, line2d.EndPoint.y);
             }
-            if (curve2d is ProjectedCurve projected && !projected.IsCurveOfIntersection && projected.Surface is SweptCurveSurface)
-            {
-                BoundingRect otherBounds = new BoundingRect(PositionOf(projected.Surface.PointAt(projected.StartPoint)),
-                                                            PositionOf(projected.Surface.PointAt(projected.EndPoint)));
-                if (projected.Surface.SameGeometry(projected.GetExtent(), this, otherBounds, Precision.eps, out ModOp2D _))
-                    return projected.Curve3DFromParams; // still correct when it was trimmed or reversed
-            }
+            if (Curve3dOfProjected(curve2d) is ICurve onThisSurface) return onThisSurface;
             return base.Make3dCurve(curve2d);
         }
 

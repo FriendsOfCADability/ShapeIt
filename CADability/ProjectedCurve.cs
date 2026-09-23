@@ -107,9 +107,8 @@ namespace CADability
         /// The projection of <paramref name="curve3D"/> onto <paramref name="surface"/>. On a periodic surface, where the curve
         /// may lie in any period, <paramref name="domain"/> tells which: the curve is moved by whole periods as close as
         /// possible to it. An empty domain leaves it where PositionOf puts its start, in the domain of the surface.
-        /// <paramref name="precision"/> is not used.
         /// </summary>
-        public ProjectedCurve(ICurve curve3D, ISurface surface, bool forward, BoundingRect domain, double precision = 0.0)
+        public ProjectedCurve(ICurve curve3D, ISurface surface, bool forward, BoundingRect domain)
         {
 #if DEBUG
             debugCount = debugCounter++;
@@ -130,22 +129,6 @@ namespace CADability
 #if DEBUG
             this.MakeTriangulation();
 #endif
-        }
-        /// <summary>
-        /// The projection of the part from <paramref name="startParam"/> to <paramref name="endParam"/> of
-        /// <paramref name="curve3D"/>, moved by whole periods as close as possible to <paramref name="domain"/>, see the
-        /// other constructor.
-        /// </summary>
-        public ProjectedCurve(ICurve curve3D, ISurface surface, double startParam, double endParam, BoundingRect domain)
-        {
-#if DEBUG
-            debugCount = debugCounter++;
-#endif
-            this.curve3D = curve3D;
-            this.surface = surface;
-            this.startParam = startParam;
-            this.endParam = endParam;
-            SetAnchor(domain);
         }
         /// <summary>A copy or a part of another projected curve, with an anchor taken from it, so that both lie in the same periods.</summary>
         private ProjectedCurve(ICurve curve3D, ISurface surface, double startParam, double endParam, double anchor3d, GeoPoint2D anchorUv, ProjectedCurve kindOf)
@@ -209,7 +192,12 @@ namespace CADability
         /// they are to be made one by a measured step of their own.
         /// </summary>
         internal bool IsCurveOfIntersection => ofIntersection;
-        /// <summary>A projected curve which is not the curve of an intersection, see <see cref="IsCurveOfIntersection"/>.</summary>
+        /// <summary>
+        /// A projected curve which is not the curve of an intersection, see <see cref="IsCurveOfIntersection"/>. The places
+        /// which ask this make a 2d curve anew from the surface and the 3d curve. That is right for a projected curve, but
+        /// not for the curve of an intersection: that one is made by its <see cref="InterpolatedDualSurfaceCurve"/>, which
+        /// keeps the curves on both of its surfaces in step.
+        /// </summary>
         internal static bool IsPlain(ICurve2D curve) => curve is ProjectedCurve pc && !pc.ofIntersection;
         /// <summary>The <see cref="InterpolatedDualSurfaceCurve"/> this is a curve of, null for the other projected curves.</summary>
         internal InterpolatedDualSurfaceCurve IntersectionCurve => ofIntersection ? curve3D as InterpolatedDualSurfaceCurve : null;

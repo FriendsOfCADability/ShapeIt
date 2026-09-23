@@ -2692,6 +2692,25 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="curve2d"></param>
         /// <returns></returns>
+        /// <summary>
+        /// The 3d curve of <paramref name="curve2d"/>, when it is a <see cref="ProjectedCurve"/> on this surface or on
+        /// one which is geometrically the same - trimmed and turned the way the 2d curve is. Null for any other 2d
+        /// curve, and also when the 3d curve does not lie on this surface after all. Every surface used to ask this
+        /// with a copy of its own, see <see cref="Make3dCurve"/>.
+        /// </summary>
+        protected ICurve Curve3dOfProjected(ICurve2D curve2d)
+        {
+            if (!(curve2d is ProjectedCurve pc)) return null;
+            if (pc.Surface != this)
+            {
+                if (!GetType().IsInstanceOfType(pc.Surface)) return null;
+                BoundingRect otherBounds = new BoundingRect(PositionOf(pc.Surface.PointAt(pc.StartPoint)), PositionOf(pc.Surface.PointAt(pc.EndPoint)));
+                if (!pc.Surface.SameGeometry(pc.GetExtent(), this, otherBounds, Precision.eps, out ModOp2D _)) return null;
+            }
+            ICurve res = pc.Curve3DFromParams;
+            if (GetDistance(res.PointAt(0.5)) > Precision.eps) return null; // two surfaces of the same geometry, but the curve is not on this one
+            return res;
+        }
         public virtual ICurve Make3dCurve(CADability.Curve2D.ICurve2D curve2d)
         {
             if (curve2d is Curve2DAspect)
@@ -2727,30 +2746,9 @@ namespace CADability.GeoObject
                     return l;
                 }
             }
-            else if (curve2d is ProjectedCurve pc && pc.IntersectionCurve != null)
-            {
-                InterpolatedDualSurfaceCurve idsc = pc.IntersectionCurve;
-                if ((pc.IsOnSurface1 && idsc.Surface1 == this) || (!pc.IsOnSurface1 && idsc.Surface2 == this))
-                {
-                    // es kann sich nur um die ganze Curve3D handeln oder einen Teil davon
-                    double pos1 = pc.Curve3D.PositionOf(PointAt(pc.StartPoint));
-                    double pos2 = pc.Curve3D.PositionOf(PointAt(pc.EndPoint));
-                    if (pos1 >= 0.0 && pos1 <= 1.0 && pos2 >= 0.0 && pos2 <= 1.0)
-                    {
-                        bool reversed = false;
-                        if (pos2 < pos1)
-                        {
-                            reversed = true;
-                            double tmp = pos1;
-                            pos1 = pos2;
-                            pos2 = tmp;
-                        }
-                        ICurve res = pc.Curve3D.Clone() as ICurve;
-                        res.Trim(pos1, pos2);
-                        if (reversed) res.Reverse();
-                        return res;
-                    }
-                }
+            else if (curve2d is ProjectedCurve pc && pc.Surface == this)
+            {   // the curve knows its 3d curve and which part of it it runs along, no need to look for that part here
+                return pc.Curve3DFromParams;
             }
             // kein else, sondern das folgende ist der Notfall, wenn sonst nichts greift
             {
@@ -3303,12 +3301,12 @@ namespace CADability.GeoObject
                     GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax);
                     if (umin > double.MinValue && umax < double.MaxValue && vmin > double.MinValue && vmax < double.MaxValue) restricted = new BoundingRect(umin, vmin, umax, vmax);
                 }
-                return new ProjectedCurve(curve, this, true, restricted, precision);
+                return new ProjectedCurve(curve, this, true, restricted);
             }
             if (domain.IsInfinite)
-                return new ProjectedCurve(curve, this, true, BoundingRect.EmptyBoundingRect, precision);
+                return new ProjectedCurve(curve, this, true, BoundingRect.EmptyBoundingRect);
             else
-                return new ProjectedCurve(curve, this, true, domain, precision);
+                return new ProjectedCurve(curve, this, true, domain);
 
         }
         /// <summary>

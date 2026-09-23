@@ -3443,10 +3443,7 @@ namespace CADability.Shapes
             ModOp m3d = ModOp.From2D(m);
             for (int i = 0; i < segment.Length; ++i)
             {
-                ICurve2D c;
-                // we cannot modify the curve of an intersection. ProjectedCurve.GetModified could do it, but maybe this would have a side effect
-                if (segment[i] is ProjectedCurve pc && pc.IsCurveOfIntersection) c = pc.ToBSpline(0.0).GetModified(m);
-                else c = segment[i].GetModified(m);
+                ICurve2D c = segment[i].GetModified(m);
                 if (c != null) segs.Add(c);
             }
             if (m.Determinant < 0.0)

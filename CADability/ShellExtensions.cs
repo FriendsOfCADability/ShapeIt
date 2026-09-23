@@ -1110,7 +1110,6 @@ namespace CADability.GeoObject
         private static ICurve2D OffsetCurve2D(Edge edge, Face face, ModOp2D toOffsetUv)
         {
             ICurve2D c2d = edge.Curve2D(face).Clone();
-            if (c2d is ProjectedCurve pc && pc.IsCurveOfIntersection) c2d = pc.ToBSpline(0.0);
             if (c2d is Path2D)
             {   // sine curve is not maintained (14.6.25) but was converted to Path2D
                 c2d = face.Surface.GetProjectedCurve(edge.Curve3D, 0.0);
