@@ -130,58 +130,6 @@ namespace CADability
         int id;
 #endif
         /// <summary>
-        /// The 2d curve of an <see cref="InterpolatedDualSurfaceCurve"/> as older versions wrote it: the 3d curve, which
-        /// of its two surfaces, reversed or not, and the periods it was moved by. Such a curve is only read. Every curve
-        /// made today is a <see cref="CADability.ProjectedCurve"/>, see <see cref="CADability.ProjectedCurve.IsCurveOfIntersection"/>,
-        /// and so is this one once it is read. It is written in the old format again, under this name, so that an older
-        /// version can still read a file which was read and written here. Both readers below also understand the format
-        /// of the new class.
-        /// </summary>
-        [Serializable()]
-        public class ProjectedCurve : CADability.ProjectedCurve, IJsonSerialize
-        {
-            protected ProjectedCurve(SerializationInfo info, StreamingContext context)
-                : base(info, context, true)
-            {
-                if (HasValue(info, "OnSurface1"))
-                {
-                    InterpolatedDualSurfaceCurve curve3d = info.GetValue("Curve3d", typeof(InterpolatedDualSurfaceCurve)) as InterpolatedDualSurfaceCurve;
-                    GeoVector2D offset = HasValue(info, "Offset") ? (GeoVector2D)info.GetValue("Offset", typeof(GeoVector2D)) : GeoVector2D.NullVector;
-                    InitFromOlderFile(curve3d, info.GetBoolean("OnSurface1"), info.GetBoolean("Reversed"), offset);
-                }
-                else ReadValues(info.GetValue, name => HasValue(info, name));
-            }
-            protected ProjectedCurve() { } // needed for IJsonSerialize
-            public override void GetObjectData(SerializationInfo info, StreamingContext context)
-            {
-                AddBaseValues(info, context);
-                AddOlderFormat(info.AddValue);
-            }
-            public void GetObjectData(IJsonWriteData data)
-            {
-                JSonGetObjectData(data);
-                AddOlderFormat(data.AddProperty);
-            }
-            private void AddOlderFormat(Action<string, object> add)
-            {
-                add("Curve3d", IntersectionCurve);
-                add("OnSurface1", IsOnSurface1);
-                add("Reversed", IsReverse);
-                add("Offset", PeriodsBeyondStoredUv);
-            }
-            public void SetObjectData(IJsonReadData data)
-            {
-                JSonSetObjectData(data);
-                if (data.HasProperty("OnSurface1"))
-                {
-                    InitFromOlderFile(data.GetProperty<InterpolatedDualSurfaceCurve>("Curve3d"), data.GetProperty<bool>("OnSurface1"),
-                        data.GetProperty<bool>("Reversed"), data.GetPropertyOrDefault<GeoVector2D>("Offset"));
-                }
-                else ReadValues(data.GetProperty, data.HasProperty);
-            }
-        }
-
-        /// <summary>
         /// The first or the second surface has been reparametrized in place by <paramref name="m"/>, see
         /// <see cref="ISurface.ReverseOrientation"/>: the uv values stored for it follow.
         /// </summary>

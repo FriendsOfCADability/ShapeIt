@@ -30,6 +30,9 @@ namespace CADability
         {
             // 2026-09-16, when the swept surfaces were given names that say they are surfaces
             { "CADability.GeoObject.SweptCircle", "CADability.GeoObject.SweptCircleSurface" },
+            // 2026-09-23, when the two ProjectedCurve classes became one: the 2d curves of an
+            // InterpolatedDualSurfaceCurve are ProjectedCurves which read the format of the nested class too
+            { "CADability.InterpolatedDualSurfaceCurve+ProjectedCurve", "CADability.ProjectedCurve" },
         };
 
         /// <summary>

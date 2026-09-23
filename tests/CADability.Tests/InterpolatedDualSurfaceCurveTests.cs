@@ -491,14 +491,15 @@ namespace CADability.Tests
         private static string FileOfTests([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
         /// <summary>
-        /// Files written before hold the 2d curves of the intersections as InterpolatedDualSurfaceCurve.ProjectedCurve.
-        /// They are read into the one ProjectedCurve class and written again under the old name and in the old format,
-        /// so that an older version can still read a file which has been read and written here.
+        /// Files written before hold the 2d curves of the intersections as the nested class
+        /// InterpolatedDualSurfaceCurve.ProjectedCurve, which does not exist any more. They are read into the one
+        /// ProjectedCurve, see <see cref="RenamedTypes"/>, and written under its name.
         /// </summary>
         [TestMethod]
-        public void a_2d_curve_of_an_older_file_is_written_in_the_old_format_again()
+        public void a_2d_curve_of_an_older_file_is_read_into_the_one_class()
         {
             const string oldName = "CADability.InterpolatedDualSurfaceCurve+ProjectedCurve";
+            Assert.AreEqual("CADability.ProjectedCurve", RenamedTypes.Resolve(oldName), "the old name is in the table");
             string file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(FileOfTests())!, "Files", "BRep", "UniteBug11.cdb.json");
             Assert.IsTrue(File.ReadAllText(file).Contains(oldName), "the file holds 2d curves of the old class");
             Project project = Project.ReadFromFile(file, "cdb");
@@ -508,8 +509,8 @@ namespace CADability.Tests
             Assert.IsInstanceOfType(edge.Curve2D(edge.PrimaryFace), typeof(ProjectedCurve), "the 2d curve is one ProjectedCurve now");
 
             string written = JsonSerialize.ToString(shell);
-            Assert.IsTrue(written.Contains(oldName), "it is written under the old name");
-            Assert.IsTrue(written.Contains("\"OnSurface1\""), "and in the old format");
+            Assert.IsFalse(written.Contains(oldName), "the old name is not written any more");
+            Assert.IsTrue(written.Contains("CADability.ProjectedCurve"), "the curves are written under the name of the one class");
 
             Shell read = JsonSerialize.FromString(written) as Shell;
             Assert.IsNotNull(read, "the written shell is read again");

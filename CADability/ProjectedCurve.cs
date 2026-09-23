@@ -22,7 +22,7 @@ namespace CADability
     /// </para>
     /// </summary>
     [Serializable()]
-    public class ProjectedCurve : GeneralCurve2D, ISerializable
+    public class ProjectedCurve : GeneralCurve2D, ISerializable, IJsonSerialize
     {
         private double startParam; // start parameter on the 3d curve, together wit endParam also specifies the orientation
         private double endParam; // on the 3d curve
@@ -178,21 +178,19 @@ namespace CADability
             endParam = reverse ? 0.0 : 1.0;
             hasAnchor = true; // there is none, see periodsBeyondStoredUv
         }
-        /// <summary>For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which reads older files.</summary>
-        protected ProjectedCurve() { }
-        /// <summary>For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which reads older files: only the data of the base class.</summary>
-        protected ProjectedCurve(SerializationInfo info, StreamingContext context, bool onlyBase)
-            : base(info, context)
+        /// <summary>Needed to read a file, see <see cref="SetObjectData"/>.</summary>
+        protected ProjectedCurve()
         {
 #if DEBUG
             debugCount = debugCounter++;
 #endif
         }
         /// <summary>
-        /// For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which reads older files. The 3d curve may not be
-        /// complete while it is read, the surface is taken from it on use.
+        /// A curve of an intersection as files written before hold it, when it was the class
+        /// InterpolatedDualSurfaceCurve.ProjectedCurve: the 3d curve, which of its two surfaces, reversed or not, and the
+        /// periods it was moved by. The 3d curve may not be complete while it is read, the surface is taken from it on use.
         /// </summary>
-        protected void InitFromOlderFile(InterpolatedDualSurfaceCurve curve3d, bool onSurface1, bool reversed, GeoVector2D offset)
+        private void InitFromOlderFile(InterpolatedDualSurfaceCurve curve3d, bool onSurface1, bool reversed, GeoVector2D offset)
         {
             curve3D = curve3d;
             surfaceOfIntersection = onSurface1 ? 1 : 2;
@@ -217,12 +215,6 @@ namespace CADability
         internal InterpolatedDualSurfaceCurve IntersectionCurve => ofIntersection ? curve3D as InterpolatedDualSurfaceCurve : null;
         /// <summary>Whether this curve of an intersection is on the first of its two surfaces.</summary>
         internal bool IsOnSurface1 => surfaceOfIntersection == 1;
-        /// <summary>
-        /// The whole periods this curve of an intersection lies beyond the uv values its 3d curve stores, see
-        /// <see cref="periodsBeyondStoredUv"/>. For <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which writes
-        /// this as the "Offset" of an older file.
-        /// </summary>
-        internal GeoVector2D PeriodsBeyondStoredUv => periodsBeyondStoredUv;
         /// <summary>
         /// Replaces the 3d curve by <paramref name="c3d"/>, which is geometrically identical to the piece of the 3d curve
         /// this curve runs along, e.g. the trimmed copy made for an edge. This curve keeps its direction and its periods.
@@ -677,7 +669,7 @@ namespace CADability
             ReadValues(info.GetValue, name => HasValue(info, name));
         }
         /// <summary>Whether <paramref name="info"/> has an entry <paramref name="name"/>.</summary>
-        protected static bool HasValue(SerializationInfo info, string name)
+        private static bool HasValue(SerializationInfo info, string name)
         {
             foreach (SerializationEntry entry in info)
             {
@@ -686,11 +678,19 @@ namespace CADability
             return false;
         }
         /// <summary>
-        /// Reads what <see cref="AddValues"/> wrote, in this or in an older version. For the constructor of
-        /// <see cref="ISerializable"/> and for the JSON format of <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>.
+        /// Reads what <see cref="AddValues"/> wrote, in this or in an older version, and also a curve of an intersection
+        /// as the class InterpolatedDualSurfaceCurve.ProjectedCurve wrote it, which this class replaces, see
+        /// <see cref="RenamedTypes"/>. For <see cref="ISerializable"/> and for <see cref="SetObjectData"/>.
         /// </summary>
-        protected void ReadValues(Func<string, Type, object> get, Func<string, bool> has)
+        private void ReadValues(Func<string, Type, object> get, Func<string, bool> has)
         {
+            if (has("OnSurface1"))
+            {
+                InitFromOlderFile(get("Curve3d", typeof(InterpolatedDualSurfaceCurve)) as InterpolatedDualSurfaceCurve,
+                    (bool)get("OnSurface1", typeof(bool)), (bool)get("Reversed", typeof(bool)),
+                    has("Offset") ? (GeoVector2D)get("Offset", typeof(GeoVector2D)) : GeoVector2D.NullVector);
+                return;
+            }
             curve3D = get("Curve3D", typeof(ICurve)) as ICurve;
             surface = get("Surface", typeof(ISurface)) as ISurface;
             startParam = (double)get("StartParam", typeof(double));
@@ -714,11 +714,8 @@ namespace CADability
                 else windowOfAnOlderFile = BoundingRect.EmptyBoundingRect;
             }
         }
-        /// <summary>
-        /// Adds the data of this curve, without the data of the base class. For <see cref="GetObjectData"/> and for the
-        /// JSON format of <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>.
-        /// </summary>
-        protected void AddValues(Action<string, object> add)
+        /// <summary>Adds the data of this curve, without the data of the base class. For both formats.</summary>
+        private void AddValues(Action<string, object> add)
         {
             add("Curve3D", curve3D);
             add("Surface", surface);
@@ -748,14 +745,6 @@ namespace CADability
             base.GetObjectData(info, context);
             AddValues(info.AddValue);
         }
-        /// <summary>
-        /// The data of the base class only, for <see cref="InterpolatedDualSurfaceCurve.ProjectedCurve"/>, which writes the
-        /// format of an older file.
-        /// </summary>
-        protected void AddBaseValues(SerializationInfo info, StreamingContext context)
-        {
-            base.GetObjectData(info, context);
-        }
 
         public override bool TryPointDeriv2At(double position, out GeoPoint2D point, out GeoVector2D deriv, out GeoVector2D deriv2)
         {
@@ -763,6 +752,18 @@ namespace CADability
             point = GeoPoint2D.Origin;
             deriv = deriv2 = GeoVector2D.NullVector;
             return false;
+        }
+
+        public void GetObjectData(IJsonWriteData data)
+        {
+            JSonGetObjectData(data);
+            AddValues(data.AddProperty);
+        }
+
+        public void SetObjectData(IJsonReadData data)
+        {
+            JSonSetObjectData(data);
+            ReadValues(data.GetProperty, data.HasProperty);
         }
 
         internal void InvalidateSecondaryData()
