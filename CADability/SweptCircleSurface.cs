@@ -1517,6 +1517,26 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
+        /// Whether the fold of <paramref name="branch"/> (one of <see cref="GetSelfIntersectionBranches(BoundingRect)"/>)
+        /// cuts into <paramref name="area"/>, i.e. whether <see cref="OuterShell(SimpleShape, IReadOnlyList{double}, out double[])"/>
+        /// cuts a part of it away. A fold of the pipe may well lie outside of the v range the area covers there.
+        /// </summary>
+        internal bool FoldCutsInto(SimpleShape area, (double uVertex, ICurve2D ascending, ICurve2D descending) branch)
+        {
+            BoundingRect ext = area.GetExtent();
+            CompoundShape whole = new CompoundShape(area);
+            for (int shift = -1; shift <= 1; ++shift)
+            {
+                if (shift != 0 && !spine.IsClosed) continue;
+                SimpleShape hidden = HiddenRegion(branch.ascending, branch.descending, shift);
+                if (hidden == null || !hidden.GetExtent().Interferes(ref ext)) continue;
+                CompoundShape reduced = whole - new CompoundShape(hidden);
+                if (reduced != null && reduced.Area < whole.Area - Precision.eps) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// The part of the (u,v) system which is hidden inside the pipe, enclosed by the two branches of one piece
         /// of the double curve. Where such a piece ends at the border of the domain of the spine instead of in a
         /// swallowtail point, the region is closed with a straight line: only the part of the hidden zone which

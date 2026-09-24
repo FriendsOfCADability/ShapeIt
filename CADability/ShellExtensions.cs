@@ -837,16 +837,40 @@ namespace CADability.GeoObject
             }
             // the chain is closed: everything is moved into one period [uSeam, uSeam+1]. The seam is put at a fold
             // of the surface, because there the surface is split anyway, and only then the two sides of the double
-            // curve end up on two different faces, which can be sewn together along it
-            uSeam = 0.0;
+            // curve end up on two different faces, which can be sewn together along it. It must be a fold which
+            // really cuts into the area: the pipe may also fold where the fillet does not reach, and a seam there
+            // is no split line of a fold, so a split at a junction of the chain next to it would not be recognized
+            // as lying inside a fold
             if (surface is SweptCircleSurface sweptCircle)
             {
                 (double uVertex, ICurve2D ascending, ICurve2D descending)[] branches = sweptCircle.GetSelfIntersectionBranches(domain);
-                if (branches.Length > 0) uSeam = branches[0].uVertex;
+                foreach ((double uVertex, ICurve2D ascending, ICurve2D descending) branch in branches)
+                {
+                    SimpleShape candidate = AreaCutOpenAt(curves, branch.uVertex);
+                    if (candidate != null && sweptCircle.FoldCutsInto(candidate, branch))
+                    {
+                        uSeam = branch.uVertex;
+                        return candidate;
+                    }
+                }
+                if (branches.Length > 0)
+                {   // no fold cuts into the area, any of them will do
+                    uSeam = branches[0].uVertex;
+                    return AreaCutOpenAt(curves, uSeam);
+                }
             }
+            uSeam = 0.0;
+            return AreaCutOpenAt(curves, uSeam);
+        }
+
+        /// <summary>
+        /// The area of a closed chain, cut open at <paramref name="uSeam"/>: the curves are moved into the period
+        /// [uSeam, uSeam+1] and the two ends of the area are closed with the circle of the pipe at the seam.
+        /// </summary>
+        private static SimpleShape AreaCutOpenAt(List<ICurve2D> curves, double uSeam)
+        {
             List<ICurve2D> moved = new List<ICurve2D>();
             for (int i = 0; i < curves.Count; i++) PlaceInPeriod(curves[i], uSeam, true, moved);
-            // the two ends of the area are closed with the circle of the pipe at the seam
             List<GeoPoint2D> atSeam = new List<GeoPoint2D>(), atPeriod = new List<GeoPoint2D>();
             for (int i = 0; i < moved.Count; i++)
             {
