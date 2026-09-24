@@ -159,8 +159,8 @@ input the operation never touches. Three things were done about it on 2026-09-07
   within 1.2e-8 and bit identical on five meshes. The triangulation still decides the orientation of each face,
   and it is the fallback for a face whose boundary curves do not deliver a usable derivative. Since the
   volume is now exact enough for mirror images to tie, `ShellMetrics.SortCanonically` compares volume and
-  area with a relative tolerance of 1e-6 and breaks the tie by position. `area` still partitions the domain
-  by the uv triangles and has the old weakness at the apex of a trimmed cone.
+  area with a relative tolerance of 1e-6 and breaks the tie by position. Since the same day `area` is the
+  same boundary integral of |Su x Sv| (`VolumeTests.SurfaceAreaOfPointedConeIsExact`).
 - **The area quadrature is no longer switched off by accident.** It refused any over-coverage beyond `1e-6`
   while allowing a 2% shortfall; the uv triangles of a trimmed face routinely stick out by a few parts per
   million, so all eight cylindrical faces of `DifferenceBug9` fell back to the flat sum. Its area was 0.79%

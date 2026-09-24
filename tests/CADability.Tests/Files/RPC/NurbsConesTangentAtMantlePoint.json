@@ -25,7 +25,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "12271.0606445",
-      "area": "3281.75080479",
+      "area": "3281.75079787",
       "edgeLength": "222.461597503",
       "extent": "-19, -19, 1.42108547152E-14, 19, 19, 18",
       "surfaces": "PlaneSurface:2 RuledSurface:2"
@@ -45,7 +45,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "6754.2536596",
-      "area": "2310.99719662",
+      "area": "2311.08878673",
       "edgeLength": "223.277296958",
       "extent": "-19, -18.3966708945, 1.42108547152E-14, 8.75000000036, 18.3966708945, 18",
       "surfaces": "PlaneSurface:3 RuledSurface:2"
@@ -62,7 +62,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "333.264386633",
-      "area": "970.708706378",
+      "area": "970.662045711",
       "edgeLength": "225.358717434",
       "extent": "-4.75, -19, -3.84193628022E-07, 19, 19, 9.50000053432",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
@@ -79,7 +79,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "12271.0606057",
-      "area": "3281.75080479",
+      "area": "3281.75079787",
       "edgeLength": "222.461597503",
       "extent": "-13.3, -19, -15, 18.5, 19, 19",
       "surfaces": "PlaneSurface:2 RuledSurface:2"
@@ -99,7 +99,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "6754.25374043",
-      "area": "2311.00355007",
+      "area": "2311.08878484",
       "edgeLength": "223.274465641",
       "extent": "-13.3, -18.3966708945, -15, 17.75, 18.3966708945, 1.6447336396E-09",
       "surfaces": "PlaneSurface:3 RuledSurface:2"
@@ -116,7 +116,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "333.264450087",
-      "area": "970.708704659",
+      "area": "970.662059207",
       "edgeLength": "225.361548004",
       "extent": "-4.75, -19, -6.20392626161E-13, 14.2500002751, 19, 19",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
@@ -133,7 +133,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "5183.54280566",
-      "area": "2017.37534012",
+      "area": "2017.29952613",
       "edgeLength": "265.395418242",
       "extent": "-4.75000002678, -18.3966708945, -3.84193628022E-07, 18.5, 18.3966708945, 18",
       "surfaces": "PlaneSurface:4 RuledSurface:4"
@@ -150,7 +150,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "19358.5788463",
-      "area": "4546.12929158",
+      "area": "4546.20210812",
       "edgeLength": "631.876608113",
       "extent": "-19, -19, -15, 19, 19, 19",
       "surfaces": "PlaneSurface:6 RuledSurface:8"

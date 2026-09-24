@@ -41,7 +41,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "7352.72373703",
-      "area": "2351.71769837",
+      "area": "2351.66338782",
       "edgeLength": "127.441418382",
       "extent": "11.9999999996, -25.2982212815, -7.95304469067, 28, 25.2982212815, 7.95304469067",
       "surfaces": "PlaneSurface:2 ToroidalSurface:1"
@@ -58,7 +58,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "17913.4620462",
-      "area": "5094.41188375",
+      "area": "5094.33629084",
       "edgeLength": "127.441418382",
       "extent": "-28, -28, -8, 12.0000000005, 28, 8",
       "surfaces": "PlaneSurface:2 ToroidalSurface:1"
@@ -75,7 +75,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "145913.463067",
-      "area": "19965.0090295",
+      "area": "19964.8834326",
       "edgeLength": "767.441418366",
       "extent": "-28, -40, -20, 52, 40, 20",
       "surfaces": "PlaneSurface:6 ToroidalSurface:1"

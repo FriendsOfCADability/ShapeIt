@@ -383,191 +383,85 @@ namespace ShapeIt
             => shell.Vertices.Length - RealEdgeCount(shell) + shell.Faces.Length - HoleLoopCount(shell);
 
         /// <summary>
-        /// The 3d surface area. The triangulation is used only to PARTITION the parameter domain of each
-        /// face; the area of a part is then integrated over its uv triangle as the surface integral of
-        /// |Su x Sv|, with the three point rule (the edge midpoints of the uv triangle, weight 1/3 each),
-        /// which is exact for quadratic integrands.
+        /// The 3d surface area: the integral of |Su x Sv| over the parameter domain of every face, by the same
+        /// boundary integral the volume uses, see <see cref="IntegrateOverDomain"/>. A planar face is closed form,
+        /// |Su x Sv| is constant there and the area is that times the exact area of the domain - which makes a
+        /// trimmed disc pi*r^2 instead of the inscribed polygon.
         /// <para>
-        /// Summing the flat triangles instead - which is what this did until 2026-08-25 - underestimates a
-        /// curved face by an amount that only falls with the square of the mesh size, and it makes the
-        /// number depend on how finely the face happened to be triangulated. Measured on a band of a sphere
-        /// against the exact area, flat sum versus this quadrature:
+        /// The history, because both earlier versions were steps in the right direction and both left the mesh in
+        /// the value. Until 2026-08-25 the flat triangles were summed, which underestimates a curved face by an
+        /// amount that only falls with the square of the mesh size. Until 2026-09-24 the uv triangles partitioned
+        /// the domain, with the shortfall along a curved outline corrected by the factor domain/covered and a
+        /// switch back to the flat sum beyond 2 percent. That was the same weakness the volume had at the apex of
+        /// a trimmed cone, where the triangulation drops the degenerate triangles: the small part
+        /// coneCylConeMinusCyl#1 of ConeCylinderCommonInsphere, whose exact area is 410.4147, was recorded as
+        /// 410.80, 412.75, 413.27 and 412.78 by successive versions of unrelated code.
         /// </para>
         /// <para>
-        /// 8x4 mesh: -7.622% / +0.00263%, 20x10: -1.260% / +0.00007%, 48x24: -0.220% / 0.00000%
-        /// </para>
-        /// <para>
-        /// So the value is now essentially independent of the mesh, which also removes the mesh as a source
-        /// of run to run scatter in this field.
+        /// The mesh is triangulated only for a face that has to fall back to the flat sum.
         /// </para>
         /// </summary>
         public static double SurfaceArea(Shell shell)
         {
             double precision = PrecisionFor(shell);
+            double size = SizeOf(shell);
             double sum = 0.0;
-            foreach (Face face in shell.Faces)
-            {
-                face.GetTriangulation(precision, out GeoPoint[] points, out GeoPoint2D[] uvPoints, out int[] indices, out _);
-                if (indices == null) continue;
-                double flat = 0.0;
-                for (int i = 0; i < indices.Length; i += 3)
-                {
-                    GeoVector a = points[indices[i + 1]] - points[indices[i]];
-                    GeoVector b = points[indices[i + 2]] - points[indices[i]];
-                    flat += 0.5 * (a ^ b).Length;
-                }
-                sum += IntegratedFaceArea(face, points, uvPoints, indices, flat);
-            }
+            foreach (Face face in shell.Faces) sum += IntegratedFaceArea(face, precision, size);
             return sum;
         }
 
         /// <summary>
-        /// The area of one face: the integral of |Su x Sv| over its parameter domain. Which route is taken
-        /// depends on what the domain looks like, because the triangulation is not always a usable partition
-        /// of it.
-        /// <list type="bullet">
-        /// <item>A PLANAR face has a constant |Su x Sv|, so the area is that times the exact domain area -
-        /// no quadrature and no mesh at all. This is what makes a trimmed disc come out as pi*r^2 instead of
-        /// the inscribed polygon the mesh would give.</item>
-        /// <item>A face whose domain is the full bounding RECTANGLE is integrated over that rectangle
-        /// directly. This is the case for the mantle of a cone or cylinder and for a torus, and it is what
-        /// closes the gap a pole leaves: the triangulation drops the triangles along a singular line because
-        /// they are degenerate in 3d, which costs the flat sum nothing but leaves a hole in the parameter
-        /// domain. Measured on the mantle of a cone the triangles cover only 87.6 percent of the rectangle.</item>
-        /// <item>Otherwise the uv triangles are used as the partition. They form a polygon inscribed in the
-        /// true domain, so they fall slightly short along a curved boundary; that is corrected by scaling
-        /// with domain/covered, which is safe as long as the mismatch is a thin boundary strip - it may go
-        /// either way, the triangles can also stick out past a concave boundary. Beyond
-        /// <c>maxDomainMismatch</c> the extrapolation is refused and the flat triangle sum is used - the
-        /// old, slightly low value, but never a new error.</item>
-        /// </list>
+        /// The number of faces whose area fell back to the flat triangle sum since the process started.
+        /// Diagnostics only, like <see cref="VolumeFallbackCount"/>.
         /// </summary>
-        private static double IntegratedFaceArea(Face face, GeoPoint[] points, GeoPoint2D[] uvPoints, int[] indices, double flat)
+        public static int AreaFallbackCount => areaFallbackCount;
+        private static int areaFallbackCount;
+
+        /// <summary>The area of one face: closed form for a plane, the boundary integral otherwise, see <see cref="SurfaceArea"/>.</summary>
+        private static double IntegratedFaceArea(Face face, double precision, double size)
         {
-            ISurface surface = face.Surface;
-            if (surface == null) return flat;
-            SimpleShape shape;
-            double domain;
-            BoundingRect rect;
-            try
+            ISurface? surface = face.Surface;
+            if (surface != null)
             {
-                shape = face.Area;
-                domain = shape.Area;
-                rect = shape.GetExtent();
-            }
-            catch (Exception) { return flat; }
-            if (!(domain > 0.0)) return flat;
-
-            if (surface is PlaneSurface)
-            {   // constant integrand: exact, and it needs neither the mesh nor a quadrature
-                double scale = Jacobian(surface, rect.GetCenter());
-                return scale > 0.0 ? scale * domain : flat;
-            }
-
-            if (Math.Abs(domain - rect.Width * rect.Height) <= 1e-6 * domain)
-            {   // the domain IS the rectangle, so the mesh is not needed and the pole gap cannot bite
-                double overRectangle = IntegrateOverRectangle(surface, rect, Jacobian);
-                if (overRectangle > 0.0) return overRectangle;
-                return flat;
-            }
-
-            if (uvPoints == null || uvPoints.Length != points.Length) return flat;
-            double covered = 0.0, integrated = 0.0;
-            for (int i = 0; i < indices.Length; i += 3)
-            {
-                GeoPoint2D uv1 = uvPoints[indices[i]], uv2 = uvPoints[indices[i + 1]], uv3 = uvPoints[indices[i + 2]];
-                double duv = 0.5 * Math.Abs((uv2.x - uv1.x) * (uv3.y - uv1.y) - (uv3.x - uv1.x) * (uv2.y - uv1.y));
-                if (duv <= 0.0) continue;
-                double part = IntegrateArea(surface, uv1, uv2, uv3, duv);
-                if (!(part > 0.0) || double.IsNaN(part) || double.IsInfinity(part)) return flat;
-                covered += duv;
-                integrated += part;
-            }
-            if (!(covered > 0.0)) return flat;
-            double mismatch = (domain - covered) / domain;
-            if (Math.Abs(mismatch) > maxDomainMismatch) return flat;
-            return integrated * domain / covered;
-        }
-
-        /// <summary>
-        /// How far the uv triangles may miss the parameter domain, in either direction, before the correction
-        /// by domain/covered is refused as an extrapolation.
-        /// <para>
-        /// Until 2026-09-07 an OVER-coverage of more than 1e-6 was rejected outright while a shortfall of up to
-        /// 2 percent was accepted. That asymmetry was not intended and it was expensive: the triangles of a
-        /// trimmed face routinely stick out past the true boundary by a few parts per million - noise between
-        /// the triangle sum and SimpleShape.Area, nothing more - so all eight cylindrical faces of
-        /// DifferenceBug9 fell back to the flat triangle sum. Its recorded area was 0.79 percent short because
-        /// of it, and it never converged: 56607 at size/1000 climbing to 56997 at size/8000, while the
-        /// quadrature gives 57056.7267257 at every one of those meshes, to twelve digits.
-        /// </para>
-        /// <para>
-        /// The correction is the same first order argument in both directions - scale the integrated density by
-        /// the ratio of true to covered measure - so the limit is now the same in both, and it is the 2 percent
-        /// that was always meant to be the limit.
-        /// </para>
-        /// </summary>
-        private const double maxDomainMismatch = 0.02;
-
-        /// <summary>|Su x Sv| at a parameter point, 0 when the surface cannot be differentiated there.</summary>
-        private static double Jacobian(ISurface surface, GeoPoint2D uv)
-        {
-            try
-            {
-                surface.DerivativeAt(uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
-                double res = (du ^ dv).Length;
-                return double.IsNaN(res) || double.IsInfinity(res) ? 0.0 : res;
-            }
-            catch (Exception) { return 0.0; }
-        }
-
-        /// <summary>
-        /// The integral of a density over a rectangle of the parameter plane, by a tensor product of the two
-        /// point Gauss rule over a grid of cells, refined until the value settles. The integrand of a natural
-        /// quadric is smooth and low order, so this converges in very few steps.
-        /// </summary>
-        private static double IntegrateOverRectangle(ISurface surface, BoundingRect rect, Func<ISurface, GeoPoint2D, double> density)
-        {
-            const double g = 0.5773502691896257; // 1/sqrt(3), the two point Gauss node
-            double previous = 0.0;
-            for (int n = 2; n <= 64; n *= 2)
-            {
-                double du = rect.Width / n, dv = rect.Height / n;
-                double sum = 0.0;
-                for (int i = 0; i < n; i++)
+                SimpleShape? shape;
+                double domain;
+                BoundingRect rect;
+                try { shape = face.Area; domain = shape.Area; rect = shape.GetExtent(); }
+                catch (Exception) { shape = null; domain = 0.0; rect = BoundingRect.EmptyBoundingRect; }
+                if (shape != null && domain > 0.0)
                 {
-                    double uc = rect.Left + (i + 0.5) * du;
-                    for (int j = 0; j < n; j++)
+                    if (surface is PlaneSurface)
+                    {   // constant integrand: exact, and it needs neither the mesh nor a quadrature
+                        double jacobian = Evaluate(surface, rect.GetCenter(), AreaDensity);
+                        if (jacobian > 0.0) return jacobian * domain;
+                    }
+                    else
                     {
-                        double vc = rect.Bottom + (j + 0.5) * dv;
-                        for (int a = -1; a <= 1; a += 2)
-                        {
-                            for (int b = -1; b <= 1; b += 2)
-                            {
-                                sum += density(surface, new GeoPoint2D(uc + a * g * du / 2.0, vc + b * g * dv / 2.0));
-                            }
-                        }
+                        double green = IntegrateOverDomain(surface, shape, rect, AreaDensity, size * size);
+                        if (green > 0.0) return green;
                     }
                 }
-                sum *= du * dv / 4.0;
-                if (n > 2 && Math.Abs(sum - previous) <= 1e-9 * Math.Abs(sum)) return sum;
-                previous = sum;
             }
-            return previous;
+            System.Threading.Interlocked.Increment(ref areaFallbackCount);
+            return FlatArea(face, precision);
         }
 
-        /// <summary>
-        /// The area of the surface patch over one uv triangle: the integral of |Su x Sv| over that triangle,
-        /// evaluated with the three point rule at the midpoints of its edges, which is exact for a quadratic
-        /// integrand. Returns 0 when the surface cannot be differentiated at one of the three points.
-        /// </summary>
-        private static double IntegrateArea(ISurface surface, GeoPoint2D uv1, GeoPoint2D uv2, GeoPoint2D uv3, double duv)
+        /// <summary><c>|Su x Sv|</c>, the integrand of the area.</summary>
+        private static double AreaDensity(GeoPoint location, GeoVector du, GeoVector dv) => (du ^ dv).Length;
+
+        /// <summary>The sum of the flat triangles of the mesh, the fallback of <see cref="IntegratedFaceArea"/>.</summary>
+        private static double FlatArea(Face face, double precision)
         {
-            if (duv <= 0.0) return 0.0;
-            double acc = Jacobian(surface, new GeoPoint2D(uv1, uv2))
-                       + Jacobian(surface, new GeoPoint2D(uv2, uv3))
-                       + Jacobian(surface, new GeoPoint2D(uv3, uv1));
-            return duv * acc / 3.0;
+            face.GetTriangulation(precision, out GeoPoint[] points, out GeoPoint2D[] _, out int[] indices, out _);
+            if (indices == null) return 0.0;
+            double flat = 0.0;
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                GeoVector a = points[indices[i + 1]] - points[indices[i]];
+                GeoVector b = points[indices[i + 2]] - points[indices[i]];
+                flat += 0.5 * (a ^ b).Length;
+            }
+            return flat;
         }
 
         /// <summary>
@@ -660,20 +554,13 @@ namespace ShapeIt
                         // both e1 and e2 are perpendicular to their own cross product, so the u and v terms drop out
                         // and only (P - c).(e1 x e2) is left. The integral is that times the area of the domain,
                         // which SimpleShape gives exactly - no quadrature, nothing left to converge.
-                        double density = FluxDensity(surface, rect.GetCenter(), center);
+                        double density = Evaluate(surface, rect.GetCenter(), (location, du, dv) => VolumeDensity(location, du, dv, center));
                         if (!double.IsNaN(density)) return orientation * density * domain;
                     }
                     else
-                    {   // a surface whose DerivativeAt is not the derivative of its PointAt is differentiated here
-                        Func<GeoPoint2D, double> density;
-                        if (DerivativesAreConsistent(surface, rect)) density = uv => FluxDensity(surface, uv, center);
-                        else
-                        {
-                            double hu = DifferenceStep * rect.Width, hv = DifferenceStep * rect.Height;
-                            density = uv => DifferencedFluxDensity(surface, uv, center, hu, hv);
-                        }
-                        KnotLines(surface, rect, out double[] uKnots, out double[] vKnots);
-                        double green = GreenFaceIntegral(shape, rect, density, size * size * size, uKnots, vKnots);
+                    {
+                        double green = IntegrateOverDomain(surface, shape, rect,
+                            (location, du, dv) => VolumeDensity(location, du, dv, center), size * size * size);
                         if (!double.IsNaN(green)) return orientation * green;
                     }
                 }
@@ -682,41 +569,68 @@ namespace ShapeIt
             return FallbackVolume(face, precision, center);
         }
 
+        /// <summary><c>(S(u,v) - c).(Su x Sv) / 3</c>, the integrand of the volume.</summary>
+        private static double VolumeDensity(GeoPoint location, GeoVector du, GeoVector dv, GeoPoint center)
+        {
+            GeoVector normal = du ^ dv;
+            return ((location.x - center.x) * normal.x + (location.y - center.y) * normal.y
+                  + (location.z - center.z) * normal.z) / 3.0;
+        }
+
         /// <summary>
-        /// <c>(S(u,v) - c).(Su x Sv) / 3</c>, the integrand of the volume. At a pole one of the derivatives is the
-        /// null vector and the value is a genuine 0. Where the surface cannot be evaluated at all the result is
-        /// NaN, so that the face goes to the fallback instead of silently integrating a zero there.
+        /// The integral of <paramref name="integrand"/>, a function of S, Su and Sv, over the parameter domain of a
+        /// face, as the boundary integral of <see cref="GreenFaceIntegral"/>. Volume and area differ only in the
+        /// integrand. The derivatives come from <see cref="ISurface.DerivativeAt"/> when that passes
+        /// <see cref="DerivativesAreConsistent"/>, otherwise from central differences of PointAt.
         /// </summary>
-        private static double FluxDensity(ISurface surface, GeoPoint2D uv, GeoPoint center)
+        /// <param name="scale">The magnitude the tolerance is relative to, size^3 for a volume, size^2 for an area</param>
+        /// <returns>The integral, NaN when it cannot be computed reliably</returns>
+        private static double IntegrateOverDomain(ISurface surface, SimpleShape shape, BoundingRect rect,
+            Func<GeoPoint, GeoVector, GeoVector, double> integrand, double scale)
+        {
+            Func<GeoPoint2D, double> density;
+            if (DerivativesAreConsistent(surface, rect)) density = uv => Evaluate(surface, uv, integrand);
+            else
+            {
+                double hu = DifferenceStep * rect.Width, hv = DifferenceStep * rect.Height;
+                density = uv => EvaluateDifferenced(surface, uv, hu, hv, integrand);
+            }
+            KnotLines(surface, rect, out double[] uKnots, out double[] vKnots);
+            return GreenFaceIntegral(shape, rect, density, scale, uKnots, vKnots);
+        }
+
+        /// <summary>
+        /// The integrand at a parameter point, with S, Su and Sv from DerivativeAt. At a pole one of the derivatives
+        /// is the null vector and the value is a genuine 0. Where the surface cannot be evaluated at all the result
+        /// is NaN, so that the face goes to the fallback instead of silently integrating a zero there.
+        /// </summary>
+        private static double Evaluate(ISurface surface, GeoPoint2D uv, Func<GeoPoint, GeoVector, GeoVector, double> integrand)
         {
             try
             {
                 surface.DerivativeAt(uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
-                GeoVector normal = du ^ dv;
-                double res = ((location.x - center.x) * normal.x + (location.y - center.y) * normal.y
-                            + (location.z - center.z) * normal.z) / 3.0;
+                double res = integrand(location, du, dv);
                 return double.IsInfinity(res) ? double.NaN : res;
             }
             catch (Exception) { return double.NaN; }
         }
 
         /// <summary>
-        /// <see cref="FluxDensity"/> with the derivatives taken as central differences of <see cref="ISurface.PointAt"/>,
+        /// <see cref="Evaluate"/> with the derivatives taken as central differences of <see cref="ISurface.PointAt"/>,
         /// for a surface that fails <see cref="DerivativesAreConsistent"/>. Four more points per evaluation, good to
-        /// about 1e-9 - and the face stays on the boundary route instead of going to the tetrahedron sum, which
-        /// would not fit its exactly integrated neighbours: their common edge is a polyline on one side and the
-        /// exact curve on the other, and with SurfaceOfRevolution1 that mix was 7e-4 off.
+        /// about 1e-9 - and the face stays on the boundary route instead of going to the triangles, which would not
+        /// fit its exactly integrated neighbours: their common edge is a polyline on one side and the exact curve
+        /// on the other, and for the volume of SurfaceOfRevolution1 that mix was 7e-4 off.
         /// </summary>
-        private static double DifferencedFluxDensity(ISurface surface, GeoPoint2D uv, GeoPoint center, double hu, double hv)
+        private static double EvaluateDifferenced(ISurface surface, GeoPoint2D uv, double hu, double hv,
+            Func<GeoPoint, GeoVector, GeoVector, double> integrand)
         {
             try
             {
                 GeoPoint location = surface.PointAt(uv);
                 GeoVector du = (1.0 / (2.0 * hu)) * (surface.PointAt(new GeoPoint2D(uv.x + hu, uv.y)) - surface.PointAt(new GeoPoint2D(uv.x - hu, uv.y)));
                 GeoVector dv = (1.0 / (2.0 * hv)) * (surface.PointAt(new GeoPoint2D(uv.x, uv.y + hv)) - surface.PointAt(new GeoPoint2D(uv.x, uv.y - hv)));
-                GeoVector normal = du ^ dv;
-                double res = ((location.x - center.x) * normal.x + (location.y - center.y) * normal.y
-                            + (location.z - center.z) * normal.z) / 3.0;
+                double res = integrand(location, du, dv);
                 return double.IsInfinity(res) ? double.NaN : res;
             }
             catch (Exception) { return double.NaN; }
@@ -732,7 +646,7 @@ namespace ShapeIt
         /// curve instead of the v parameter, 24 percent off in SurfaceOfRevolution1. Its mantle then contributed
         /// 15261 instead of 20060, and the old rectangle route was just as wrong, only differently (the recorded
         /// volume was 29633 where the triangles converge to 36696). A face that fails this check is integrated
-        /// with <see cref="DifferencedFluxDensity"/>.
+        /// with <see cref="EvaluateDifferenced"/>.
         /// </para>
         /// </summary>
         private static bool DerivativesAreConsistent(ISurface surface, BoundingRect rect)
@@ -770,7 +684,8 @@ namespace ShapeIt
         private const double DerivativeConsistency = 1e-5;
 
         /// <summary>
-        /// Relative accuracy the boundary integral is driven to, relative to size^3 of the shell. Far below
+        /// Relative accuracy the boundary integral is driven to, relative to size^3 of the shell for a volume and
+        /// size^2 for an area. Far below
         /// the 1e-4 the baselines are compared with, so the quadrature itself never shows in a diff. 1e-9 moved
         /// the values of the NURBS faces of DifferenceBug14 and 15 by 2e-8 and cost 16 percent more time.
         /// </summary>
@@ -805,15 +720,15 @@ namespace ShapeIt
         /// with respect to the normalized position, and a curve for which it is not makes the face return NaN.
         /// </para>
         /// </summary>
-        /// <param name="volumeScale">The magnitude the tolerance is relative to</param>
+        /// <param name="scale">The magnitude the tolerance is relative to</param>
         /// <param name="uKnots">Values of u inside the domain where the surface is less smooth, see <see cref="KnotLines"/></param>
         /// <param name="vKnots">The same for v</param>
         /// <returns>The integral, NaN when it cannot be computed reliably</returns>
-        private static double GreenFaceIntegral(SimpleShape shape, BoundingRect rect, Func<GeoPoint2D, double> density, double volumeScale,
+        private static double GreenFaceIntegral(SimpleShape shape, BoundingRect rect, Func<GeoPoint2D, double> density, double scale,
             double[] uKnots, double[] vKnots)
         {
             double u0 = (rect.Left + rect.Right) / 2.0; // the middle halves the length of the inner integrals
-            double outerTolerance = GreenRelativeTolerance * volumeScale;
+            double outerTolerance = GreenRelativeTolerance * scale;
             // An error in F is multiplied by the total variation of v along the boundary, about twice the height of
             // the domain for a simple outline. The factor 0.01 keeps that inner noise well below what the outer
             // error estimate reacts to, otherwise the outer refinement would chase it up to the panel limit.

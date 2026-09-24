@@ -191,24 +191,7 @@ namespace CADability.Tests
         [TestMethod]
         public void IntegratedVolumeOfPointedConeIsMeshIndependent()
         {
-            Solid Cone() => Make3D.MakeCone(PointedBase, GeoVector.XAxis, PointedH * GeoVector.ZAxis, PointedR, 0.0);
-            Solid box = Make3D.MakeBox(PointedBase + new GeoVector(BoxCut, -50.0, -10.0),
-                100.0 * GeoVector.XAxis, 100.0 * GeoVector.YAxis, 100.0 * GeoVector.ZAxis);
-            Solid bore = Make3D.MakeCylinder(PointedBase + new GeoVector(0.0, -50.0, BoreHeight),
-                BoreRadius * GeoVector.XAxis, 100.0 * GeoVector.YAxis);
-            Solid[] cut = Solid.Subtract(Cone(), box);
-            Solid[] bored = Solid.Subtract(Cone(), bore);
-            Assert.AreEqual(1, cut.Length, "the box cut must leave one solid");
-            Assert.AreEqual(1, bored.Length, "the bore must leave one solid");
-            Assert.IsTrue(bored[0].Shell.Faces.Any(f => f.Surface is ConicalSurface && f.HoleCount > 0),
-                "the bore is meant to put a hole into the mantle");
-
-            (string name, Shell shell, double expected)[] cases =
-            {
-                ("Pointed cone", Cone().Shell,     Math.PI * PointedR * PointedR * PointedH / 3.0),
-                ("Box cut",      cut[0].Shell,     PointedConeVolume(r => BoxCutSection(r))),
-                ("Bored",        bored[0].Shell,   PointedConeVolume(r => 0.0, BoredSection)),
-            };
+            (string name, Shell shell, double expected)[] cases = PointedCones().Select(c => (c.name, c.shell, c.volume)).ToArray();
 
             StringBuilder report = new StringBuilder().AppendLine();
             report.AppendLine($"{"Solid",-13} {"expected",14} {"rel.prec",9} {"integrated",16} {"rel.err",11}   {"tetrahedra",14}");
@@ -232,6 +215,122 @@ namespace CADability.Tests
             }
             TestContext.WriteLine(report.ToString());
             if (failures.Count > 0) Assert.Fail(string.Join("\n  ", failures) + "\n" + report);
+        }
+
+        /// <summary>
+        /// The same three trimmed pointed cones for <see cref="ShapeIt.ShellMetrics.SurfaceArea"/>, which integrates
+        /// |Su x Sv| over the boundary of the uv domain like the volume. It had the same weakness at the apex while it
+        /// partitioned the domain by the uv triangles. The mesh no longer enters at all - it is only triangulated for
+        /// a face that falls back - so one measurement per solid is enough, and it must not fall back.
+        /// <para>
+        /// The closed forms: the base disc, the mantle as the integral of the slant factor times the arc of the cross
+        /// section over the height, for the box cut the cut face as the integral of its chord, for the bore the
+        /// removed mantle and the wall of the bore.
+        /// </para>
+        /// </summary>
+        [TestMethod]
+        public void SurfaceAreaOfPointedConeIsExact()
+        {
+            StringBuilder report = new StringBuilder().AppendLine();
+            report.AppendLine($"{"Solid",-13} {"expected",14} {"integrated",16} {"rel.err",11}");
+            List<string> failures = new List<string>();
+            foreach ((string name, Shell shell, double volume, double expected) in PointedCones())
+            {
+                int fallbacksBefore = ShapeIt.ShellMetrics.AreaFallbackCount;
+                double integrated = ShapeIt.ShellMetrics.SurfaceArea((Shell)shell.Clone());
+                int fallbacks = ShapeIt.ShellMetrics.AreaFallbackCount - fallbacksBefore;
+                double relErr = (integrated - expected) / expected;
+                report.AppendLine($"{name,-13} {expected,14:F6} {integrated,16:F6} {relErr,11:E2}");
+                if (Math.Abs(relErr) > PointedTolerance)
+                    failures.Add($"{name}: area {integrated:F6} against {expected:F6}, off by {relErr:E2}");
+                if (fallbacks > 0)
+                    failures.Add($"{name}: {fallbacks} face(s) fell back to the flat triangle sum");
+            }
+            TestContext.WriteLine(report.ToString());
+            if (failures.Count > 0) Assert.Fail(string.Join("\n  ", failures) + "\n" + report);
+        }
+
+        /// <summary>
+        /// The untrimmed pointed cone, the cone with a box cut away beside the axis and the cone with a bore across
+        /// it, each with its exact volume and area.
+        /// </summary>
+        private static (string name, Shell shell, double volume, double area)[] PointedCones()
+        {
+            Solid Cone() => Make3D.MakeCone(PointedBase, GeoVector.XAxis, PointedH * GeoVector.ZAxis, PointedR, 0.0);
+            Solid box = Make3D.MakeBox(PointedBase + new GeoVector(BoxCut, -50.0, -10.0),
+                100.0 * GeoVector.XAxis, 100.0 * GeoVector.YAxis, 100.0 * GeoVector.ZAxis);
+            Solid bore = Make3D.MakeCylinder(PointedBase + new GeoVector(0.0, -50.0, BoreHeight),
+                BoreRadius * GeoVector.XAxis, 100.0 * GeoVector.YAxis);
+            Solid[] cut = Solid.Subtract(Cone(), box);
+            Solid[] bored = Solid.Subtract(Cone(), bore);
+            Assert.AreEqual(1, cut.Length, "the box cut must leave one solid");
+            Assert.AreEqual(1, bored.Length, "the bore must leave one solid");
+            Assert.IsTrue(bored[0].Shell.Faces.Any(f => f.Surface is ConicalSurface && f.HoleCount > 0),
+                "the bore is meant to put a hole into the mantle");
+
+            double disc = Math.PI * PointedR * PointedR;
+            double mantle = Math.PI * PointedR * Math.Sqrt(PointedR * PointedR + PointedH * PointedH);
+            return new[]
+            {
+                ("Pointed cone", Cone().Shell, Math.PI * PointedR * PointedR * PointedH / 3.0, disc + mantle),
+                ("Box cut", cut[0].Shell, PointedConeVolume(r => BoxCutSection(r)),
+                    disc - BoxCutSection(PointedR) + OverHeight((z, r) => Slant * BoxCutArc(r) + BoxCutChord(r))),
+                ("Bored", bored[0].Shell, PointedConeVolume(r => 0.0, BoredSection),
+                    disc + mantle - OverHeight((z, r) => Slant * BoredArc(z, r)) + BoreWall()),
+            };
+        }
+
+        /// <summary>Length of a generator per unit of height, the factor between the mantle and its projection on the axis.</summary>
+        private static double Slant => Math.Sqrt(1.0 + PointedR * PointedR / (PointedH * PointedH));
+
+        /// <summary>
+        /// The integral over the height of the pointed cone of f(z, r), r the radius at height z, by the midpoint
+        /// rule; the integrands have square root edges, see <see cref="PointedConeVolume"/>.
+        /// </summary>
+        private static double OverHeight(Func<double, double, double> f)
+        {
+            const int steps = 2000000;
+            double h = PointedH / steps, sum = 0.0;
+            for (int i = 0; i < steps; i++)
+            {
+                double z = (i + 0.5) * h;
+                sum += f(z, PointedR * (1.0 - z / PointedH)) * h;
+            }
+            return sum;
+        }
+
+        /// <summary>The arc of the circle of radius r that the box leaves, x &lt;= BoxCut.</summary>
+        private static double BoxCutArc(double r)
+            => r <= BoxCut ? 2.0 * Math.PI * r : r * (2.0 * Math.PI - 2.0 * Math.Acos(BoxCut / r));
+
+        /// <summary>The chord of the circle of radius r along x = BoxCut, the width of the cut face at that height.</summary>
+        private static double BoxCutChord(double r) => r <= BoxCut ? 0.0 : 2.0 * Math.Sqrt(r * r - BoxCut * BoxCut);
+
+        /// <summary>The arc of the circle of radius r at height z that lies inside the bore, |x| &lt;= w.</summary>
+        private static double BoredArc(double z, double r)
+        {
+            double dz = z - BoreHeight;
+            if (Math.Abs(dz) >= BoreRadius) return 0.0;
+            double w = Math.Sqrt(BoreRadius * BoreRadius - dz * dz);
+            return w >= r ? 2.0 * Math.PI * r : 4.0 * r * Math.Asin(w / r);
+        }
+
+        /// <summary>
+        /// The wall of the bore inside the cone: around the axis of the bore, at angle phi, it runs along y as far as
+        /// the cone reaches at that x and z.
+        /// </summary>
+        private static double BoreWall()
+        {
+            const int steps = 200000;
+            double h = 2.0 * Math.PI / steps, sum = 0.0;
+            for (int i = 0; i < steps; i++)
+            {
+                double phi = (i + 0.5) * h;
+                double x = BoreRadius * Math.Cos(phi), z = BoreHeight + BoreRadius * Math.Sin(phi);
+                double r = PointedR * (1.0 - z / PointedH);
+                sum += BoreRadius * 2.0 * Math.Sqrt(r * r - x * x) * h;
+            }
+            return sum;
         }
 
         /// <summary>
