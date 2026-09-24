@@ -323,61 +323,57 @@ namespace CADability.GeoObject
         {
             if (curveToRotate != null)
             {   // new implementation
-                GeoVector dir = curveToRotate.DirectionAt(curveToRotate.ParameterToPosition(uv.y));
+                // DirectionAt differentiates by the normalized position, v is the natural parameter of the curve
+                GeoVector dir = PositionPerParameter * curveToRotate.DirectionAt(curveToRotate.ParameterToPosition(uv.y));
                 ModOp rotate = ModOp.Rotate(axisLocation, axisDirection, (SweepAngle)uv.x);
                 return rotate * dir;
             }
             else
             {
                 double pos = GetPos(uv.y);
-                GeoVector2D dir = basisCurve2D.DirectionAt(pos);
-                //dir = (1.0 / (curveEndParameter - curveStartParameter)) * dir; // dir ist die Änderung um 1 also volle Kurvenlänge
-                // 15.8.17: die Skalierung von dir ist wohl falsch: NewtonLineintersection läuft mit obiger Zeile nicht richtig, so aber perfekt
+                // DirectionAt differentiates by the position on basisCurve2D (0..1), while v runs from curveStartParameter
+                // to curveEndParameter. This factor was removed on 15.8.17 because NewtonLineIntersection seemed to work
+                // better without it - presumably because Arc2D.DirectionAt itself had the wrong length until 31.1.18.
+                GeoVector2D dir = (1.0 / (curveEndParameter - curveStartParameter)) * basisCurve2D.DirectionAt(pos);
                 ModOp rot = ModOp.Rotate(1, (SweepAngle)uv.x);
                 return toSurface * rot * dir;
             }
         }
         public override void Derivative2At(GeoPoint2D uv, out GeoPoint location, out GeoVector du, out GeoVector dv, out GeoVector duu, out GeoVector dvv, out GeoVector duv)
         {
-            // with simple maxima:
-            // loc: [sqrt(cx(v)^2+cy(v)^2)*cos(u),sqrt(cx(v)^2+cy(v)^2)*sin(u),cz(v)]
-            // du: [-sin(u) * sqrt(cy(v) ^ 2 + cx(v) ^ 2), cos(u) * sqrt(cy(v) ^ 2 + cx(v) ^ 2), 0]
-            // dv: [(cos(u)*(2*cy(v)*('diff(cy(v),v,1))+2*cx(v)*('diff(cx(v),v,1))))/(2*sqrt(cy(v)^2+cx(v)^2)),(sin(u)*(2*cy(v)*('diff(cy(v),v,1))+2*cx(v)*('diff(cx(v),v,1))))/(2*sqrt(cy(v)^2+cx(v)^2)),'diff(cz(v),v,1)]
-            // duu:[-cos(u)*sqrt(cy(v)^2+cx(v)^2),-sin(u)*sqrt(cy(v)^2+cx(v)^2),0]
-            // dvv: [(cos(u)*(2*cy(v)*('diff(cy(v),v,2))+2*('diff(cy(v),v,1))^2+2*cx(v)*('diff(cx(v),v,2))+2*('diff(cx(v),v,1))^2))/(2*sqrt(cy(v)^2+cx(v)^2))-(cos(u)*(2*cy(v)*('diff(cy(v),v,1))+2*cx(v)*('diff(cx(v),v,1)))^2)/(4*(cy(v)^2+cx(v)^2)^(3/2)),(sin(u)*(2*cy(v)*('diff(cy(v),v,2))+2*('diff(cy(v),v,1))^2+2*cx(v)*('diff(cx(v),v,2))+2*('diff(cx(v),v,1))^2))/(2*sqrt(cy(v)^2+cx(v)^2))-(sin(u)*(2*cy(v)*('diff(cy(v),v,1))+2*cx(v)*('diff(cx(v),v,1)))^2)/(4*(cy(v)^2+cx(v)^2)^(3/2)),'diff(cz(v),v,2)]
-            // duv: [-(sin(u)*(2*cy(v)*('diff(cy(v),v,1))+2*cx(v)*('diff(cx(v),v,1))))/(2*sqrt(cy(v)^2+cx(v)^2)),(cos(u)*(2*cy(v)*('diff(cy(v),v,1))+2*cx(v)*('diff(cx(v),v,1))))/(2*sqrt(cy(v)^2+cx(v)^2)),0]
-            // transform into a system, where the z-axis is the rotation axis, then calculate the derivations, then transform back
-            // loc: [d*Math.Cos(u),d*Math.Sin(u),c0.z]
-            // du: [-Math.Sin(u) * d, Math.Cos(u) * d, 0]
-            // dv: [(Math.Cos(u)*(2*c0.y*c1.y)+2*c0.x*c1.x)))/(2*d),(Math.Sin(u)*(2*c0.y*c1.y)+2*c0.x*c1.x)))/(2*d),c1.z)]
-            // duu:[-Math.Cos(u)*d,-Math.Sin(u)*d,0]
-            // dvv: [(Math.Cos(u)*(2*c0.y*(c2.y))+2*c1.y)^2+2*c0.x*(c2.x))+2*c1.x)^2))/(2*d)-(Math.Cos(u)*(2*c0.y*c1.y)+2*c0.x*c1.x))^2)/(4*(c0.y^2+c0.x^2)^(3/2)),(Math.Sin(u)*(2*c0.y*(c2.y))+2*c1.y)^2+2*c0.x*(c2.x))+2*c1.x)^2))/(2*d)-(Math.Sin(u)*(2*c0.y*c1.y)+2*c0.x*c1.x))^2)/(4*(c0.y^2+c0.x^2)^(3/2)),c2.z)]
-            // duv: [-(Math.Sin(u)*(2*c0.y*c1.y)+2*c0.x*c1.x)))/(2*d),(Math.Cos(u)*(2*c0.y*c1.y)+2*c0.x*c1.x)))/(2*d),0]
-            axisDirection.ArbitraryNormals(out GeoVector dirx, out GeoVector diry);
-            Plane pln = new Plane(axisLocation, axisDirection);
-            ModOp toNormal = ModOp.Transform(pln.CoordSys, new CoordSys(GeoPoint.Origin, GeoVector.XAxis, GeoVector.YAxis));
-            if (curveToRotate.TryPointDeriv2At(uv.y, out GeoPoint c0, out GeoVector c1, out GeoVector c2))
-            {
-                c0 = toNormal * c0;
-                c1 = toNormal * c1;
-                c2 = toNormal * c2;
-                double d = Math.Sqrt(c0.x * c0.x + c0.y * c0.y);
-                location = new GeoPoint(d * Math.Cos(uv.x), d * Math.Sin(uv.x), c0.z);
-                du = new GeoVector(-Math.Sin(uv.x) * d, Math.Cos(uv.x) * d, 0);
-                dv = new GeoVector(Math.Cos(uv.x) * (c0.y * c1.y + c0.x * c1.x) / (d), Math.Sin(uv.x) * (c0.y * c1.y + c0.x * c1.x) / (d), c1.z);
-                duu = new GeoVector(-Math.Cos(uv.x) * d, -Math.Sin(uv.x) * d, 0);
-                dvv = new GeoVector(Math.Cos(uv.x) * (c0.y * c2.y + c1.y * c1.y + c0.x * c2.x + c1.x * c1.x) / d - Math.Cos(uv.x) * sqr(c0.y * c1.y + c0.x * c1.x) / (exp32(c0.y * c0.y + c0.x * c0.x)),
-                                    Math.Sin(uv.x) * (c0.y * c2.y + c1.y * c1.y + c0.x * c2.x + c1.x * c1.x) / d - Math.Sin(uv.x) * sqr(c0.y * c1.y + c0.x * c1.x) / (exp32(c0.y * c0.y + c0.x * c0.x)), c2.z);
-                duv = new GeoVector(-Math.Sin(uv.x) * (c0.y * c1.y + c0.x * c1.x) / (d), Math.Cos(uv.x) * (c0.y * c1.y + c0.x * c1.x) / (d), 0);
-                ModOp fromNormal = toNormal.GetInverse();
-                location = fromNormal * location;
-                du = fromNormal * du;
-                dv = fromNormal * dv;
-                duu = fromNormal * duu;
-                dvv = fromNormal * dvv;
-                duv = fromNormal * duv;
+            if (curveToRotate == null)
+            {   // old implementation: numerically
+                base.Derivative2At(uv, out location, out du, out dv, out duu, out dvv, out duv);
+                return;
             }
-            else throw new ApplicationException("Derivation 2 of curve not implemented");
+            // The surface is R(u) * c(v), R the rotation about the axis, c the profile curve. R is linear in the
+            // curve point, so the v derivatives are the rotated curve derivatives, and d/du of any vector rotating
+            // with R is axis x vector (for a point: of its offset from the axis).
+            // TryPointDeriv2At differentiates by the position, v is the natural parameter: chain rule with the
+            // constant d(position)/d(parameter).
+            if (!curveToRotate.TryPointDeriv2At(curveToRotate.ParameterToPosition(uv.y), out GeoPoint c0, out GeoVector c1, out GeoVector c2))
+                throw new ApplicationException("Derivation 2 of curve not implemented");
+            double f = PositionPerParameter;
+            ModOp rotate = ModOp.Rotate(axisLocation, axisDirection, (SweepAngle)uv.x);
+            GeoVector axis = axisDirection.Normalized;
+            location = rotate * c0;
+            du = axis ^ (location - axisLocation);
+            duu = axis ^ du;
+            dv = f * (rotate * c1);
+            dvv = (f * f) * (rotate * c2);
+            duv = axis ^ dv;
+        }
+        /// <summary>
+        /// d(position)/d(parameter) of <see cref="curveToRotate"/>. PointAt maps the v parameter to a position with
+        /// ParameterToPosition, while ICurve.DirectionAt and ICurve.TryPointDeriv2At differentiate by the position.
+        /// PositionToParameter is linear for the curves in CADability, so this is a constant.
+        /// </summary>
+        private double PositionPerParameter
+        {
+            get
+            {
+                return 1.0 / (curveToRotate.PositionToParameter(1.0) - curveToRotate.PositionToParameter(0.0));
+            }
         }
 
         /// <summary>

@@ -2195,7 +2195,8 @@ namespace CADability.GeoObject
             GeoVector2D dir = new GeoVector2D(-majorRadius * Math.Sin(a), minorRadius * Math.Cos(a));
             deriv1 = sweepParameter * plane.ToGlobal(dir); // Achtung, wir brauchen eine Ableitung mit echter Länge
             GeoVector2D dir2 = new GeoVector2D(-majorRadius * Math.Cos(a), -minorRadius * Math.Sin(a));
-            deriv2 = sweepParameter * plane.ToGlobal(dir2); // Achtung, wir brauchen eine Ableitung mit echter Länge
+            // chain rule: the angle is linear in the position, so the second derivative carries the sweep squared
+            deriv2 = (sweepParameter * sweepParameter) * plane.ToGlobal(dir2);
             return true;
         }
 
@@ -3006,7 +3007,7 @@ namespace CADability.GeoObject
             Angle a = startParameter + position * sweepParameter;
             point = plane.Location + Math.Cos(a) * majorRadius * plane.DirectionX + Math.Sin(a) * minorRadius * plane.DirectionY;
             GeoVector2D dir1 = new GeoVector2D(-sweepParameter * majorRadius * Math.Sin(a), sweepParameter * minorRadius * Math.Cos(a));
-            GeoVector2D dir2 = new GeoVector2D(-sweepParameter * sweepParameter * majorRadius * Math.Cos(a), -sweepParameter * minorRadius * Math.Sin(a));
+            GeoVector2D dir2 = new GeoVector2D(-sweepParameter * sweepParameter * majorRadius * Math.Cos(a), -sweepParameter * sweepParameter * minorRadius * Math.Sin(a));
             deriv = plane.ToGlobal(dir1);
             deriv2 = plane.ToGlobal(dir2);
             return true;
