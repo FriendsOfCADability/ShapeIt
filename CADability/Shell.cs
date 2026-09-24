@@ -285,13 +285,29 @@ namespace CADability.GeoObject
         /// <param name="precision">The precision of the triangulation</param>
         /// <returns>The signed enclosed volume</returns>
         public static double SignedVolume(IEnumerable<Face> shellFaces, double precision)
+            => SignedVolume(shellFaces, precision, GeoPoint.Origin);
+
+        /// <summary>
+        /// <see cref="SignedVolume(IEnumerable{Face}, double)"/> with the tetrahedra spanned from <paramref name="reference"/>
+        /// instead of from the origin. For a closed shell the result does not depend on the reference point, but the
+        /// contribution of a single face does - so whoever sums faces from different sources must use the same
+        /// reference point for all of them. A reference near the shell also keeps the per face contributions small.
+        /// </summary>
+        public static double SignedVolume(IEnumerable<Face> shellFaces, double precision, GeoPoint reference)
         {
             double sum = 0.0;
             double corr = 0.0;
+            GeoVector shift = reference.ToVector();
             foreach (Face fc in shellFaces)
             {
-                fc.GetTriangulation(precision, out GeoPoint[] trianglePoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingBox triangleExtent);
+                fc.GetTriangulation(precision, out GeoPoint[] meshPoint, out GeoPoint2D[] triangleUVPoint, out int[] triangleIndex, out BoundingBox triangleExtent);
                 if (triangleIndex == null) continue;
+                GeoPoint[] trianglePoint = meshPoint;
+                if (!shift.IsNullVector())
+                {   // never shift the mesh of the face in place, it is cached there
+                    trianglePoint = new GeoPoint[meshPoint.Length];
+                    for (int i = 0; i < meshPoint.Length; i++) trianglePoint[i] = meshPoint[i] - shift;
+                }
                 // tried to use normals for correction, but the distance from plane had better results
                 //GeoVector[] triangleNormals = new GeoVector[triangleUVPoint.Length];
                 //for (int i = 0; i < triangleUVPoint.Length; i++)
@@ -312,7 +328,8 @@ namespace CADability.GeoObject
                     try
                     {
                         Plane pln = new Plane(trianglePoint[triangleIndex[i]], trianglePoint[triangleIndex[i + 1]] - trianglePoint[triangleIndex[i]], trianglePoint[triangleIndex[i + 2]] - trianglePoint[triangleIndex[i]]);
-                        double d = pln.Distance(fc.Surface.PointAt(new GeoPoint2D(triangleUVPoint[triangleIndex[i]], triangleUVPoint[triangleIndex[i + 1]], triangleUVPoint[triangleIndex[i + 2]])));
+                        // the plane is spanned by the shifted points, so the surface point must be shifted as well
+                        double d = pln.Distance(fc.Surface.PointAt(new GeoPoint2D(triangleUVPoint[triangleIndex[i]], triangleUVPoint[triangleIndex[i + 1]], triangleUVPoint[triangleIndex[i + 2]])) - shift);
                         GeoVector cp = (trianglePoint[triangleIndex[i + 1]] - trianglePoint[triangleIndex[i]]) ^ (trianglePoint[triangleIndex[i + 2]] - trianglePoint[triangleIndex[i]]);
                         double a = cp.Length / 2.0; // area of the triangle
                         corr += a * d * 3 / 4; // 3/4 is a good value for spheres and cylinders

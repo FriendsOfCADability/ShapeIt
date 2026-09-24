@@ -39,11 +39,11 @@ namespace CADability.Tests
         // relative error required at the finest precision
         private const double Tolerance = 1e-3;
         /// <summary>
-        /// How far apart the five meshes may leave the integrated volume of one solid. Two of the three solids
-        /// come out bit identical; the hemisphere sits at about 6.5e-4 because its spherical faces have curved
-        /// uv outlines, see <see cref="IntegratedVolumeMatchesAnalyticOnEveryMesh"/>.
+        /// How far apart the five meshes may leave the integrated volume of one solid. All three come out bit
+        /// identical since the volume is a boundary integral; until 2026-09-24 the hemisphere sat about 6.5e-4 wide
+        /// because the uv triangles partitioned its curved domain, see <see cref="IntegratedVolumeMatchesAnalyticOnEveryMesh"/>.
         /// </summary>
-        private const double MaxMeshSpread = 1e-3;
+        private const double MaxMeshSpread = 1e-9;
 
         private static string CdbFile([CallerFilePath] string thisFile = "")
             => Path.Combine(Path.GetDirectoryName(thisFile), "Files", "CDB", "Volumes.cdb.json");
@@ -108,14 +108,11 @@ namespace CADability.Tests
         /// triangulator was replaced, on inputs that had not changed at all.
         /// </para>
         /// <para>
-        /// The cone frustum and the torus segment come out EXACT here, to eight digits and identical on all five
-        /// meshes: every one of their faces is either planar or has the full rectangle as its parameter domain, and
-        /// both of those routes are closed form. The hemisphere does not, and it is worth knowing why - its
-        /// spherical faces have curved uv outlines (domain 3.4647 against a bounding rectangle of 3.7011), so they
-        /// take the third route, where the uv triangles are an inscribed polygon of the domain and the shortfall is
-        /// only corrected to first order. That leaves it about 6e-4 wide over the five meshes instead of exact -
-        /// still an order of magnitude better than the 0.77 percent of the triangle sum, and the residue is the
-        /// approximation of the DOMAIN BOUNDARY, which no quadrature can remove.
+        /// All three come out EXACT here, to eight digits and bit identical on all five meshes: the planar faces are
+        /// closed form, and the curved ones are integrated over the boundary of their uv domain, which the mesh does
+        /// not enter. The hemisphere used to be the exception - its spherical faces have curved uv outlines (domain
+        /// 3.4647 against a bounding rectangle of 3.7011), and while the domain was partitioned by the uv triangles
+        /// it stayed about 6e-4 wide over the five meshes.
         /// </para>
         /// </summary>
         [TestMethod]
@@ -164,6 +161,114 @@ namespace CADability.Tests
             TestContext.WriteLine(report.ToString());
             System.Diagnostics.Trace.WriteLine(report.ToString());
             if (failures.Count > 0) Assert.Fail(string.Join("\n  ", failures) + "\n" + report);
+        }
+
+        // a pointed cone, away from the origin so that the reference point of the integral matters
+        private const double PointedR = 20.0, PointedH = 30.0;
+        private static readonly GeoPoint PointedBase = new GeoPoint(100.0, 50.0, 20.0);
+        private const double BoxCut = 5.0;                                   // the box removes local x > BoxCut
+        private const double BoreRadius = 3.0, BoreHeight = 10.0;            // a bore along y at this height
+        // relative precisions of the mesh, the same range the regression tests live in and beyond
+        private static readonly double[] RelativePrecisions = { 1e-3, 5e-4, 2.5e-4, 1.25e-4, 6.25e-5 };
+        private const double PointedTolerance = 1e-6;
+
+        /// <summary>
+        /// A pointed cone whose mantle is TRIMMED but still contains the apex - the case that made the recorded volume
+        /// of the regression tests jump. The triangulation drops the degenerate triangles next to the apex, and the
+        /// old route through the uv triangles either extrapolated the uncovered part with a global factor or fell
+        /// back to the tetrahedron sum beyond 2 percent, depending on the mesh: errors between -0.07 and -1.8 percent
+        /// over the five meshes used here. The boundary integral of <see cref="ShapeIt.ShellMetrics.IntegratedVolume"/>
+        /// has to hit the closed form on every one of them, without a single face falling back.
+        /// <list type="bullet">
+        /// <item>the untrimmed cone, whose mantle domain is the full rectangle;</item>
+        /// <item>the cone with a box cut away beside the axis, so the mantle keeps the apex and gets a straight
+        /// boundary that is a hyperbola in 3d and a curve in uv;</item>
+        /// <item>the cone with a bore across it, which puts a HOLE into each half of the mantle.</item>
+        /// </list>
+        /// The reference values come from integrating the cross section over the height, which is elementary for all
+        /// three.
+        /// </summary>
+        [TestMethod]
+        public void IntegratedVolumeOfPointedConeIsMeshIndependent()
+        {
+            Solid Cone() => Make3D.MakeCone(PointedBase, GeoVector.XAxis, PointedH * GeoVector.ZAxis, PointedR, 0.0);
+            Solid box = Make3D.MakeBox(PointedBase + new GeoVector(BoxCut, -50.0, -10.0),
+                100.0 * GeoVector.XAxis, 100.0 * GeoVector.YAxis, 100.0 * GeoVector.ZAxis);
+            Solid bore = Make3D.MakeCylinder(PointedBase + new GeoVector(0.0, -50.0, BoreHeight),
+                BoreRadius * GeoVector.XAxis, 100.0 * GeoVector.YAxis);
+            Solid[] cut = Solid.Subtract(Cone(), box);
+            Solid[] bored = Solid.Subtract(Cone(), bore);
+            Assert.AreEqual(1, cut.Length, "the box cut must leave one solid");
+            Assert.AreEqual(1, bored.Length, "the bore must leave one solid");
+            Assert.IsTrue(bored[0].Shell.Faces.Any(f => f.Surface is ConicalSurface && f.HoleCount > 0),
+                "the bore is meant to put a hole into the mantle");
+
+            (string name, Shell shell, double expected)[] cases =
+            {
+                ("Pointed cone", Cone().Shell,     Math.PI * PointedR * PointedR * PointedH / 3.0),
+                ("Box cut",      cut[0].Shell,     PointedConeVolume(r => BoxCutSection(r))),
+                ("Bored",        bored[0].Shell,   PointedConeVolume(r => 0.0, BoredSection)),
+            };
+
+            StringBuilder report = new StringBuilder().AppendLine();
+            report.AppendLine($"{"Solid",-13} {"expected",14} {"rel.prec",9} {"integrated",16} {"rel.err",11}   {"tetrahedra",14}");
+            List<string> failures = new List<string>();
+            foreach ((string name, Shell shell, double expected) in cases)
+            {
+                foreach (double relative in RelativePrecisions)
+                {
+                    Shell measured = (Shell)shell.Clone();
+                    double precision = ShapeIt.ShellMetrics.SizeOf(measured) * relative;
+                    int fallbacksBefore = ShapeIt.ShellMetrics.VolumeFallbackCount;
+                    double integrated = ShapeIt.ShellMetrics.IntegratedVolume(measured, precision);
+                    int fallbacks = ShapeIt.ShellMetrics.VolumeFallbackCount - fallbacksBefore;
+                    double relErr = (integrated - expected) / expected;
+                    report.AppendLine($"{name,-13} {expected,14:F6} {relative,9:E2} {integrated,16:F6} {relErr,11:E2}   {measured.Volume(precision),14:F4}");
+                    if (Math.Abs(relErr) > PointedTolerance)
+                        failures.Add($"{name} at relative precision {relative:E2}: {integrated:F6} against {expected:F6}, off by {relErr:E2}");
+                    if (fallbacks > 0)
+                        failures.Add($"{name} at relative precision {relative:E2}: {fallbacks} face(s) fell back to the tetrahedron sum");
+                }
+            }
+            TestContext.WriteLine(report.ToString());
+            if (failures.Count > 0) Assert.Fail(string.Join("\n  ", failures) + "\n" + report);
+        }
+
+        /// <summary>
+        /// The volume of the pointed cone minus what <paramref name="removedFromDisc"/> takes away from the disc of
+        /// radius r, or what <paramref name="removedAtHeight"/> takes away at height z above the base, integrated
+        /// over the height by the midpoint rule. The removed areas have square root edges, which limits the rule to
+        /// about h^1.5 there; two million steps keep that far below the tolerance.
+        /// </summary>
+        private static double PointedConeVolume(Func<double, double> removedFromDisc, Func<double, double, double> removedAtHeight = null)
+        {
+            const int steps = 2000000;
+            double h = PointedH / steps, sum = 0.0;
+            for (int i = 0; i < steps; i++)
+            {
+                double z = (i + 0.5) * h;
+                double r = PointedR * (1.0 - z / PointedH);
+                double removed = removedAtHeight != null ? removedAtHeight(z, r) : removedFromDisc(r);
+                sum += (Math.PI * r * r - removed) * h;
+            }
+            return sum;
+        }
+
+        /// <summary>The circular segment of the disc of radius r beyond x = BoxCut.</summary>
+        private static double BoxCutSection(double r)
+            => r <= BoxCut ? 0.0 : r * r * Math.Acos(BoxCut / r) - BoxCut * Math.Sqrt(r * r - BoxCut * BoxCut);
+
+        /// <summary>
+        /// The bore runs along y, so at height z it removes the band |x| &lt;= w of the disc, with w the half width
+        /// of the bore at that height.
+        /// </summary>
+        private static double BoredSection(double z, double r)
+        {
+            double dz = z - BoreHeight;
+            if (Math.Abs(dz) >= BoreRadius) return 0.0;
+            double w = Math.Sqrt(BoreRadius * BoreRadius - dz * dz);
+            if (w >= r) return Math.PI * r * r;
+            return 2.0 * (w * Math.Sqrt(r * r - w * w) + r * r * Math.Asin(w / r));
         }
 
         /// <summary>
