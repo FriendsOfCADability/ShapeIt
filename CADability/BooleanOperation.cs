@@ -2457,6 +2457,7 @@ namespace CADability
                     if (otherFace == edge.PrimaryFace || otherFace == edge.SecondaryFace) continue;
                     vtxs.UnionWith(GetFaceEdgeIntersection(otherFace, edge, out bool curveIsInSurface));
                 }
+                vtxs.ExceptWith(edge.Vertices); // do not split an edge at its start or endvertex
                 if (!vtxs.Any()) continue;
                 SortedList<double, Vertex> sortedVertices = new SortedList<double, Vertex>();
                 foreach (Vertex vtx in vtxs)
