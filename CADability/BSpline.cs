@@ -491,10 +491,14 @@ namespace CADability.GeoObject
             extent = BoundingBox.EmptyBoundingBox;
         }
         /// <summary>
-        /// Approximates the provided <paramref name="curve"/> by a cubic BSpline. Starting with 11 points the curve is
-        /// sampled with more and more points until the deviation is less than <paramref name="precision"/> or
-        /// <paramref name="maxCount"/> points are used. The parameter of the resulting BSpline is the parameter of the
-        /// provided function, i.e. it runs from <paramref name="minPar"/> to <paramref name="maxPar"/>.
+        /// Approximates the provided <paramref name="curve"/> by a cubic BSpline which interpolates the curve at
+        /// adaptively chosen parameters. The deviation is checked at the quarter points of each interval between two
+        /// interpolation parameters, and an interval that deviates more than <paramref name="precision"/> is split
+        /// into as many parts as the error order of cubic interpolation (h^4) predicts to be necessary. This is repeated
+        /// until the deviation is less than <paramref name="precision"/> everywhere or <paramref name="maxCount"/>
+        /// points are used, where the intervals with the largest deviation are refined first. Every curve point is
+        /// calculated only once. The parameter of the resulting BSpline is the parameter of the provided function,
+        /// i.e. it runs from <paramref name="minPar"/> to <paramref name="maxPar"/>.
         /// </summary>
         /// <param name="curve">the curve to approximate, in terms of a parameter to point function</param>
         /// <param name="precision">the maximum deviation, 0.0: a small fraction of the extent of the curve</param>
@@ -505,59 +509,139 @@ namespace CADability.GeoObject
         public static BSpline Approximate(Func<double, GeoPoint> curve, double precision = 0.0, double minPar = 0, double maxPar = 1, int maxCount = 1000)
         {
             if (!(maxPar > minPar)) return null; // an empty parameter range, the loops below would not terminate
-            BoundingBox ext = BoundingBox.EmptyBoundingBox;
-            SortedList<double, GeoPoint> positions = [];
-            for (double par = minPar; par < maxPar + (maxPar - minPar) / 20; par += (maxPar - minPar) / 10)
+            double range = maxPar - minPar;
+            // Internally all positions are normalized to 0...1. The curve points are cached by position: when an interval
+            // is split into an even number of parts, its check positions (quarter points) become nodes or check positions
+            // of the new intervals, and the curve is not evaluated there again.
+            const int initialIntervals = 8;
+            const double minInterval = 1.0 / (1L << 40); // don't split intervals any further (e.g. at a kink of the curve)
+            const int maxSplit = 16; // the h^4 prediction is not reliable at kinks or with very large deviations
+            double[] checkPositions = [0.25, 0.5, 0.75];
+            double Par(double s) => s == 1.0 ? maxPar : minPar + s * range;
+            Dictionary<double, GeoPoint> samples = [];
+            GeoPoint Sample(double s)
             {
-                GeoPoint p = curve(par);
-                positions[par] = p;
-                ext.MinMax(p);
+                if (!samples.TryGetValue(s, out GeoPoint p)) samples[s] = p = curve(Par(s));
+                return p;
             }
-            if (precision == 0.0) precision = ext.Size * 1e-6;
-            BSpline bsp = BSpline.Construct();
-            bsp.FromNurbs(new Nurbs<GeoPoint, GeoPointPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3), minPar, maxPar);
-            // ICurve.PointAt and GeneralCurve.PositionOf use a normalized position in 0...1, whereas the keys of
-            // "positions" are the parameters of the provided function. The BSpline is built with these parameters
-            // as its startParam and endParam, so both are related linearly.
-            double Normalized(double par) => (par - minPar) / (maxPar - minPar);
-            double lastPos = minPar;
-            while (positions.Count < maxCount)
-            {
-                List<(double, GeoPoint)> toAdd = [];
-                foreach (KeyValuePair<double, GeoPoint> item in positions)
-                {
-                    if (item.Key > minPar && (item.Key - lastPos) > 1e-6)
-                    {
-                        double mpos = (item.Key + lastPos) / 2;
-                        GeoPoint p = curve(mpos);
-                        double d;
-                        double rmpos = Normalized(mpos); // to not change it in GeneralCurve.PositionOf
-                        // GeneralCurve.PositionOf is much faster then DistanceTo(p) because it doesnt need the tetraeder hull
-                        if (GeneralCurve.PositionOf(bsp, p, ref rmpos)) d = (bsp as ICurve).PointAt(rmpos) | p;
-                        else d = (bsp as ICurve).DistanceTo(p);
-                        if (d > precision)
-                        {
-                            toAdd.Add((mpos, p));
-                        }
-                    }
-                    lastPos = item.Key;
-                }
-                if (toAdd.Any())
-                {
-                    foreach ((double par, GeoPoint point) in toAdd) positions[par] = point;
-                    bsp.FromNurbs(new Nurbs<GeoPoint, GeoPointPole>(positions.Values.ToArray(), positions.Keys.ToArray(), 3), minPar, maxPar);
-                    lastPos = minPar;
 
-#if DEBUG
-                    double dbgd = 0.0;
-                    foreach (KeyValuePair<double, GeoPoint> item in positions)
-                    {
-                        dbgd += (bsp as ICurve).PointAt(Normalized(item.Key)) | item.Value;
-                    }
-#endif
-                }
-                else break;
+            List<double> nodes = [];
+            for (int i = 0; i <= initialIntervals; i++) nodes.Add((double)i / initialIntervals);
+            if (precision <= 0.0)
+            {
+                BoundingBox ext = BoundingBox.EmptyBoundingBox;
+                foreach (double s in nodes) ext.MinMax(Sample(s));
+                precision = ext.Size * 1e-6;
+                if (precision <= 0.0) precision = Precision.eps; // all points coincide
             }
+
+            Nurbs<GeoPoint, GeoPointPole> nurbs;
+            // The geometric distance of the curve point p at parameter t from the spline: the foot point is searched
+            // near t, d is the distance to the spline point at t.
+            double FootPointDistance(double t, GeoPoint p, double d)
+            {
+                double u = t;
+                for (int i = 0; i < 8; i++)
+                {
+                    nurbs.CurveDeriv1(u, out GeoPoint pu, out GeoPoint du);
+                    d = Math.Min(d, pu | p);
+                    GeoVector dir = new GeoVector(du.x, du.y, du.z);
+                    double dd = dir * dir;
+                    if (dd == 0.0) break;
+                    double delta = -(dir * (pu - p)) / dd;
+                    u = Math.Max(minPar, Math.Min(maxPar, u + delta));
+                    if (Math.Abs(delta) < range * 1e-12) break;
+                }
+                return Math.Min(d, nurbs.CurvePoint(u) | p);
+            }
+            // The total angle by which the spline tangent turns within the interval sa...sb (normalized positions),
+            // estimated from the tangents at the ends and at the check positions.
+            double TangentTurning(double sa, double sb)
+            {
+                double turning = 0.0;
+                GeoVector last = GeoVector.NullVector;
+                for (int j = 0; j <= checkPositions.Length + 1; j++)
+                {
+                    double s = j == 0 ? sa : (j > checkPositions.Length ? sb : sa + (sb - sa) * checkPositions[j - 1]);
+                    nurbs.CurveDeriv1(Par(s), out GeoPoint _, out GeoPoint du);
+                    GeoVector dir = new GeoVector(du.x, du.y, du.z);
+                    if (dir.IsNullVector()) return Math.PI; // no tangent, assume the worst
+                    dir.Norm();
+                    if (j > 0) turning += Math.Acos(Math.Max(-1.0, Math.Min(1.0, last * dir)));
+                    last = dir;
+                }
+                return turning;
+            }
+
+            while (true)
+            {
+                nurbs = new Nurbs<GeoPoint, GeoPointPole>(nodes.Select(Sample).ToArray(), nodes.Select(Par).ToArray(), 3);
+                // All intervals are checked in every round, not only the new ones: interpolation is not local, so
+                // adding points changes the spline in the neighbouring intervals as well. The curve points of the
+                // unchanged intervals are cached, so re-checking them only costs spline evaluations.
+                List<(int index, double error)> failed = [];
+                for (int i = 0; i < nodes.Count - 1; i++)
+                {
+                    double sa = nodes[i], sb = nodes[i + 1];
+                    if (sb - sa <= minInterval) continue;
+                    // The distance between the spline point and the curve point with the same parameter (the parametric
+                    // deviation) is an upper bound of the geometric deviation. Between two nodes it is a smooth bump,
+                    // which is sampled well enough by the three check positions.
+                    double parametric = 0.0, maxSin = 0.0;
+                    foreach (double q in checkPositions)
+                    {
+                        double s = sa + (sb - sa) * q;
+                        GeoPoint p = Sample(s);
+                        double d = nurbs.CurvePoint(Par(s)) | p;
+                        parametric = Math.Max(parametric, d);
+                        if (d > precision) maxSin = Math.Max(maxSin, FootPointDistance(Par(s), p, d) / d);
+                    }
+                    double error = parametric;
+                    if (parametric > precision)
+                    {   // The parametric deviation may be mostly tangential (the spline runs with a slightly different
+                        // speed), then the geometric deviation, which is only its part perpendicular to the spline, is
+                        // much smaller. It is |deviation|*sin(angle between deviation and tangent). But this sine is only
+                        // known at the check positions, and where the tangent turns quickly (e.g. at the vertex of a
+                        // sharp peak) the deviation becomes perpendicular in between. The sine cannot grow by more than
+                        // the turning of the tangent within the interval, which gives a reliable bound.
+                        error = parametric * Math.Min(1.0, maxSin + TangentTurning(sa, sb));
+                    }
+                    if (error > precision) failed.Add((i, error));
+                }
+                int budget = maxCount - nodes.Count;
+                if (failed.Count == 0 || budget <= 0) break;
+
+                // The error of cubic interpolation decreases with h^4, so splitting an interval with error e into k parts
+                // leaves about e/k^4. Aiming exactly at the precision (not below) keeps the number of points small, an
+                // interval that still fails is simply split again in the next round. The intervals with the largest error
+                // are served first, in case the budget doesn't suffice for all.
+                failed.Sort((a, b) => b.error.CompareTo(a.error));
+                Dictionary<int, int> splitInto = [];
+                foreach ((int index, double error) in failed)
+                {
+                    double needed = Math.Pow(error / precision, 0.25);
+                    int k = Math.Max(2, Math.Min(maxSplit, (int)Math.Ceiling(needed)));
+                    k = Math.Min(k, budget + 1);
+                    if (k < 2) break; // budget exhausted
+                    splitInto[index] = k;
+                    budget -= k - 1;
+                }
+                if (splitInto.Count == 0) break;
+                List<double> refined = new List<double>(maxCount);
+                for (int i = 0; i < nodes.Count - 1; i++)
+                {
+                    refined.Add(nodes[i]);
+                    if (splitInto.TryGetValue(i, out int k))
+                    {
+                        double sa = nodes[i], sb = nodes[i + 1];
+                        for (int j = 1; j < k; j++) refined.Add(sa + (sb - sa) * j / k);
+                    }
+                }
+                refined.Add(nodes[nodes.Count - 1]);
+                nodes = refined;
+            }
+            BSpline bsp = BSpline.Construct();
+            bsp.FromNurbs(nurbs, minPar, maxPar);
             return bsp;
         }
         private void InvalidateSecondaryData()

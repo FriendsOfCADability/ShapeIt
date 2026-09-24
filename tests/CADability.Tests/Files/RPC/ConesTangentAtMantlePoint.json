@@ -45,8 +45,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "1133.55540922",
-      "area": "741.610268794",
+      "volume": "1133.77152535",
+      "area": "747.070247355",
       "edgeLength": "71.9749070803",
       "extent": "-10, -7.82508045057, -1.07524822683E-14, 5, 7.82508045057, 24",
       "surfaces": "ConicalSurface:1 PlaneSurface:2"
@@ -62,10 +62,10 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "98.1964916001",
-      "area": "392.233908559",
+      "volume": "98.2109700316",
+      "area": "392.228642046",
       "edgeLength": "129.599191517",
-      "extent": "-6.9, -10, -8.881784197E-16, 10, 10, 6",
+      "extent": "-6.9, -10, -4.12151494425E-15, 10, 10, 6",
       "surfaces": "ConicalSurface:2 PlaneSurface:2"
     },
     "coneB": {
@@ -99,8 +99,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "1134.21784096",
-      "area": "742.368298121",
+      "volume": "1134.16616189",
+      "area": "740.236595459",
       "edgeLength": "71.9749070803",
       "extent": "-9.08284023669, -7.82508045057, -12, 15, 7.82508045057, 4.51084514156E-15",
       "surfaces": "ConicalSurface:1 PlaneSurface:2"
@@ -116,10 +116,10 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "98.1956255163",
-      "area": "392.233908617",
+      "volume": "98.211899595",
+      "area": "392.228642046",
       "edgeLength": "129.599191517",
-      "extent": "-6.90000000043, -10, -1.04027275682E-09, 7.5, 10, 12",
+      "extent": "-6.9, -10, -2.88542592033E-15, 7.5, 10, 12",
       "surfaces": "ConicalSurface:2 PlaneSurface:2"
     },
     "coneInter": {
@@ -133,10 +133,10 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "1280.96362028",
-      "area": "759.296377293",
+      "volume": "1280.93296914",
+      "area": "759.285832019",
       "edgeLength": "138.742207218",
-      "extent": "-6.9, -8.90444416895, -1.28807552065E-14, 10, 8.90444415345, 12",
+      "extent": "-6.9, -8.90446329454, -1.28807552065E-14, 10, 8.90446327906, 12",
       "surfaces": "ConicalSurface:2 PlaneSurface:2"
     },
     "coneUnion": {
@@ -150,8 +150,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "3743.44074514",
-      "area": "1501.49435786",
+      "volume": "3740.64405679",
+      "area": "1518.87024632",
       "edgeLength": "264.405951665",
       "extent": "-10, -10, -12, 15, 10, 24",
       "surfaces": "ConicalSurface:4 PlaneSurface:6"

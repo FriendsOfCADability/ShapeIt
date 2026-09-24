@@ -70,6 +70,89 @@ namespace CADability.Tests
             Assert.IsNull(BSpline.Approximate(Curve3d, 1e-4, 5.0, 1.0));
         }
 
+        [TestMethod]
+        public void Approximate3dMeetsThePrecision()
+        {
+            foreach (double precision in new[] { 1e-2, 1e-4, 1e-6, 1e-8 })
+            {
+                System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+                int evaluations = 0;
+                BSpline bsp = BSpline.Approximate(u => { evaluations++; return Curve3d(u); }, precision, MinPar, MaxPar);
+                sw.Stop();
+                // the distance of densely sampled curve points from the spline: the distance to the spline point at the
+                // same parameter is an exact upper bound, DistanceTo is the geometric distance, but itself only approximated
+                double maxDist = 0.0;
+                for (int i = 0; i <= 2000; i++)
+                {
+                    double t = i / 2000.0;
+                    GeoPoint p = Curve3d(MinPar + t * (MaxPar - MinPar));
+                    maxDist = Math.Max(maxDist, FootPointDistance(bsp, p, t));
+                }
+                TestContext?.WriteLine($"precision {precision}: poles {bsp.PoleCount}, curve evaluations {evaluations}, max distance {maxDist}, {sw.ElapsedMilliseconds} ms");
+                Assert.IsTrue(maxDist <= precision, $"deviation {maxDist} exceeds the precision {precision}");
+                Assert.IsTrue(bsp.PoleCount < 1000, "the maximum number of points must not be reached");
+            }
+        }
+
+        [TestMethod]
+        public void Approximate2dMeetsThePrecision()
+        {
+            foreach (double precision in new[] { 1e-2, 1e-4, 1e-6, 1e-8 })
+            {
+                int evaluations = 0;
+                BSpline2D bsp = BSpline2D.Approximate(u => { evaluations++; return Curve2d(u); }, precision, MinPar, MaxPar);
+                double maxDist = 0.0, maxAt = 0.0;
+                for (int i = 0; i <= 2000; i++)
+                {
+                    double t = i / 2000.0, t0 = t;
+                    GeoPoint2D p = Curve2d(MinPar + t * (MaxPar - MinPar));
+                    // foot point by Newton iteration, starting at the same normalized position
+                    double d = bsp.PointAt(t) | p;
+                    for (int j = 0; j < 20; j++)
+                    {
+                        GeoVector2D dir = bsp.DirectionAt(t);
+                        double delta = -(dir * (bsp.PointAt(t) - p)) / (dir * dir);
+                        t = Math.Max(0.0, Math.Min(1.0, t + delta));
+                        d = Math.Min(d, bsp.PointAt(t) | p);
+                        if (Math.Abs(delta) < 1e-15) break;
+                    }
+                    if (d > maxDist) { maxDist = d; maxAt = t0; }
+                }
+                TestContext?.WriteLine($"precision {precision}: poles {bsp.Poles.Length}, curve evaluations {evaluations}, max distance {maxDist} at {maxAt}");
+                Assert.IsTrue(maxDist <= precision, $"deviation {maxDist} exceeds the precision {precision}");
+                Assert.IsTrue(bsp.Poles.Length < 1000, "the maximum number of points must not be reached");
+            }
+        }
+
+        [TestMethod]
+        public void Approximate3dWithKinkTerminates()
+        {
+            // a curve with a tangent discontinuity at u=0.3: cannot be met by a smooth spline, must stop at maxCount at the latest
+            BSpline bsp = BSpline.Approximate(u => new GeoPoint(u, Math.Abs(u - 0.3), 0), 1e-6, 0, 1, 200);
+            Assert.IsNotNull(bsp);
+            Assert.IsTrue(bsp.PoleCount <= 200);
+            TestContext?.WriteLine($"poles at kink: {bsp.PoleCount}");
+        }
+
+        /// <summary>
+        /// The geometric distance of <paramref name="p"/> from <paramref name="curve"/>, found by a Newton iteration for
+        /// the foot point starting at the normalized position <paramref name="t"/>. DistanceTo is not precise enough
+        /// to verify small precisions.
+        /// </summary>
+        private static double FootPointDistance(ICurve curve, GeoPoint p, double t)
+        {
+            double d = curve.PointAt(t) | p;
+            for (int i = 0; i < 20; i++)
+            {
+                GeoVector dir = curve.DirectionAt(t);
+                double delta = -(dir * (curve.PointAt(t) - p)) / (dir * dir);
+                t = Math.Max(0.0, Math.Min(1.0, t + delta));
+                d = Math.Min(d, curve.PointAt(t) | p);
+                if (Math.Abs(delta) < 1e-15) break;
+            }
+            return d;
+        }
+
         /// <summary>
         /// The maximum distance between the approximation (at the normalized position 0...1) and the exact 2d curve.
         /// </summary>
