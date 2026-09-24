@@ -583,7 +583,7 @@ namespace CADability
             // 3. zunächste leere Poles erzeugen
             poles = new T[2 * throughpoints.Length];
             // 4. Matrix für das Gleichungssystem erzeugen
-            double[,] matrix = new double[poles.Length, poles.Length]; // sind alle 0
+            BandedLinearSystem matrix = new BandedLinearSystem(poles.Length);
             for (int i = 0; i < throughpoints.Length; ++i)
             {
                 double[,] bf;
@@ -633,10 +633,8 @@ namespace CADability
                     q[2 * i + 1, j] = c[j];
                 }
             }
-            Matrix lam = DenseMatrix.OfArray(matrix);
-            Matrix laq = DenseMatrix.OfArray(q);
-            LU<double> lud = lam.LU();
-            Matrix lapoles = (Matrix)lud.Solve(laq);
+            double[,] lapoles = matrix.Solve(q);
+            if (lapoles == null) throw new NurbsException("unable to construct NURBS with throughpoints and directions");
             for (int i = 0; i < poles.Length; ++i)
             {
                 double[] lap = new double[dim];
@@ -760,9 +758,7 @@ namespace CADability
             // 3. zunächste leere Poles erzeugen
             poles = new T[throughpoints.Length];
             // 4. Matrix für das Gleichungssystem erzeugen
-            // double[,] matrix = new double[poles.Length, poles.Length]; // sind alle 0
-            Matrix bmatrix = new SparseMatrix(poles.Length, poles.Length);
-            // LinearAlgebra.BandedMatrix bmatrix = new CADability.LinearAlgebra.BandedMatrix(poles.Length, degree - 1, degree - 1);
+            BandedLinearSystem bmatrix = new BandedLinearSystem(poles.Length);
             for (int i = 0; i < poles.Length; ++i)
             {
                 double[] bf;
@@ -771,11 +767,7 @@ namespace CADability
                 else u = k[i - 1];
                 int span = FindSpanU(uknots.Length - degree - 1, u);
                 BasisFunsU(span, u, degree, out bf);
-                for (int j = 0; j < bf.Length; ++j)
-                {
-                    // matrix[i, span - degree + j] = bf[j];
-                    bmatrix[i, span - degree + j] = bf[j];
-                }
+                bmatrix.SetRow(i, span - degree, bf);
             }
             // q ist der Lösungsvektor, also die Durchgangspunkte
             int dim = calc.GetComponents(throughpoints[0]).Length;
@@ -788,12 +780,7 @@ namespace CADability
                     q[i, j] = c[j];
                 }
             }
-            //LinearAlgebra.Matrix lam = new CADability.LinearAlgebra.Matrix(matrix);
-            Matrix laq = DenseMatrix.OfArray(q);
-            //LinearAlgebra.LUDecomposition lud = lam.LUD();
-            //LinearAlgebra.Matrix lapoles = lud.Solve(laq);
-            Matrix bpoles;
-            bpoles = (Matrix)bmatrix.Solve(laq);
+            double[,] bpoles = bmatrix.Solve(q);
             if (bpoles != null)
             {
                 for (int i = 0; i < poles.Length; ++i)
@@ -801,7 +788,6 @@ namespace CADability
                     double[] lap = new double[dim];
                     for (int j = 0; j < dim; ++j)
                     {
-                        // lap[j] = lapoles[i, j];
                         lap[j] = bpoles[i, j];
                     }
                     calc.SetComponents(ref poles[i], lap);
@@ -905,9 +891,7 @@ namespace CADability
             // 3. zunächste leere Poles erzeugen
             poles = new T[throughpoints.Length];
             // 4. Matrix für das Gleichungssystem erzeugen
-            // double[,] matrix = new double[poles.Length, poles.Length]; // sind alle 0
-            Matrix bmatrix = new SparseMatrix(poles.Length, poles.Length);
-            // BandedMatrix bmatrix = new BandedMatrix(poles.Length, degree - 1, degree - 1);
+            BandedLinearSystem bmatrix = new BandedLinearSystem(poles.Length);
             for (int i = 0; i < poles.Length; ++i)
             {
                 double[] bf;
@@ -916,11 +900,7 @@ namespace CADability
                 else u = k[i - 1];
                 int span = FindSpanU(uknots.Length - degree - 1, u);
                 BasisFunsU(span, u, degree, out bf);
-                for (int j = 0; j < bf.Length; ++j)
-                {
-                    // matrix[i, span - degree + j] = bf[j];
-                    bmatrix[i, span - degree + j] = bf[j];
-                }
+                bmatrix.SetRow(i, span - degree, bf);
             }
             // q ist der Lösungsvektor, also die Durchgangspunkte
             int dim = calc.GetComponents(throughpoints[0]).Length;
@@ -933,12 +913,7 @@ namespace CADability
                     q[i, j] = c[j];
                 }
             }
-            //LinearAlgebra.Matrix lam = new CADability.LinearAlgebra.Matrix(matrix);
-            Matrix laq = DenseMatrix.OfArray(q);
-            //LinearAlgebra.LUDecomposition lud = lam.LUD();
-            //LinearAlgebra.Matrix lapoles = lud.Solve(laq);
-            Matrix bpoles;
-            bpoles = (Matrix)bmatrix.Solve(laq);
+            double[,] bpoles = bmatrix.Solve(q);
             if (bpoles != null)
             {
                 for (int i = 0; i < poles.Length; ++i)
@@ -946,7 +921,6 @@ namespace CADability
                     double[] lap = new double[dim];
                     for (int j = 0; j < dim; ++j)
                     {
-                        // lap[j] = lapoles[i, j];
                         lap[j] = bpoles[i, j];
                     }
                     calc.SetComponents(ref poles[i], lap);
@@ -2565,20 +2539,14 @@ namespace CADability
                 // 3. zunächste leere Poles erzeugen
                 poles = new T[n + 1];
                 // 4. Matrix für das Gleichungssystem erzeugen
-                // double[,] matrix = new double[poles.Length, poles.Length]; // sind alle 0
-                Matrix bmatrix = new SparseMatrix(poles.Length, poles.Length);
-                //LinearAlgebra.BandedMatrix bmatrix = new CADability.LinearAlgebra.BandedMatrix(poles.Length, degree - 1, degree - 1);
+                BandedLinearSystem bmatrix = new BandedLinearSystem(poles.Length);
                 for (int i = 0; i < poles.Length; ++i)
                 {
                     double[] bf;
                     double u = throughpointsparam[i];
                     int span = FindSpanU(uknots.Length - degree - 1, u);
                     BasisFunsU(span, u, degree, out bf);
-                    for (int j = 0; j < bf.Length; ++j)
-                    {
-                        // matrix[i, span - degree + j] = bf[j];
-                        bmatrix[i, span - degree + j] = bf[j];
-                    }
+                    bmatrix.SetRow(i, span - degree, bf);
                 }
                 // q ist der Lösungsvektor, also die Durchgangspunkte
                 int dim = calc.GetComponents(throughpoints[0]).Length;
@@ -2591,20 +2559,14 @@ namespace CADability
                         q[i, j] = c[j];
                     }
                 }
-                //LinearAlgebra.Matrix lam = new CADability.LinearAlgebra.Matrix(matrix);
-                Matrix laq = DenseMatrix.OfArray(q);
-                //LinearAlgebra.LUDecomposition lud = lam.LUD();
-                //LinearAlgebra.Matrix lapoles = lud.Solve(laq);
-                Matrix bpoles;
-                bpoles = (Matrix)bmatrix.Solve(laq);
-                if (bpoles.IsValid())
+                double[,] bpoles = bmatrix.Solve(q);
+                if (bpoles != null)
                 {
                     for (int i = 0; i < poles.Length; ++i)
                     {
                         double[] lap = new double[dim];
                         for (int j = 0; j < dim; ++j)
                         {
-                            // lap[j] = lapoles[i, j];
                             lap[j] = bpoles[i, j];
                         }
                         calc.SetComponents(ref poles[i], lap);
@@ -2685,9 +2647,7 @@ namespace CADability
             // 3. zunächst leere Poles erzeugen
             poles = new T[n + 3];
             // 4. Matrix für das Gleichungssystem erzeugen
-            // double[,] matrix = new double[poles.Length, poles.Length]; // sind alle 0
-            Matrix bmatrix = new SparseMatrix(poles.Length, poles.Length);
-            //LinearAlgebra.BandedMatrix bmatrix = new CADability.LinearAlgebra.BandedMatrix(poles.Length, degree - 1, degree - 1);
+            BandedLinearSystem bmatrix = new BandedLinearSystem(poles.Length);
             bmatrix[0, 0] = 1.0;
             bmatrix[1, 0] = -1.0;
             bmatrix[1, 1] = 1.0;
@@ -2700,11 +2660,7 @@ namespace CADability
                 double u = throughpointsparam[i - 1];
                 int span = FindSpanU(uknots.Length - degree - 1, u);
                 BasisFunsU(span, u, degree, out bf);
-                for (int j = 0; j < bf.Length; ++j)
-                {
-                    // matrix[i, span - degree + j] = bf[j];
-                    bmatrix[i, span - degree + j] = bf[j];
-                }
+                bmatrix.SetRow(i, span - degree, bf);
             }
             // 5. Ableitungen in Start- und Endpunkt für das Gleichungssystem anpassen
             // (vgl. NURBS Book, S. 371, Gleichung 9.11 und 9.12)
@@ -2743,12 +2699,7 @@ namespace CADability
                     q[i, j] = c[j];
                 }
             }
-            //LinearAlgebra.Matrix lam = new CADability.LinearAlgebra.Matrix(matrix);
-            Matrix laq = DenseMatrix.OfArray(q);
-            //LinearAlgebra.LUDecomposition lud = lam.LUD();
-            //LinearAlgebra.Matrix lapoles = lud.Solve(laq);
-            Matrix bpoles;
-            bpoles = (Matrix)bmatrix.Solve(laq);
+            double[,] bpoles = bmatrix.Solve(q);
             if (bpoles != null)
             {
                 for (int i = 0; i < poles.Length; ++i)
@@ -2756,7 +2707,6 @@ namespace CADability
                     double[] lap = new double[dim];
                     for (int j = 0; j < dim; ++j)
                     {
-                        // lap[j] = lapoles[i, j];
                         lap[j] = bpoles[i, j];
                     }
                     calc.SetComponents(ref poles[i], lap);
@@ -2831,7 +2781,7 @@ namespace CADability
             // 3. zunächste leere Poles erzeugen
             poles = new T[2 * (n + 1)];
             // 4. Matrix für das Gleichungssystem erzeugen
-            double[,] matrix = new double[poles.Length, poles.Length]; // sind alle 0
+            BandedLinearSystem matrix = new BandedLinearSystem(poles.Length);
             for (int i = 0; i <= n; ++i)
             {
                 double[,] bf;
@@ -2874,10 +2824,7 @@ namespace CADability
             {
                 q[2 * n + 1, j] = c[j];
             }
-            Matrix lam = DenseMatrix.OfArray(matrix);
-            Matrix laq = DenseMatrix.OfArray(q);
-            LU<double> lud = lam.LU();
-            Matrix lapoles = (Matrix)lud.Solve(laq);
+            double[,] lapoles = matrix.Solve(q);
             if (lapoles != null)
             {
                 for (int i = 0; i < poles.Length; ++i)
@@ -2925,7 +2872,7 @@ namespace CADability
             double[] U = BuildKnotVectorByAveraging(parameters, p); // length n+p+2 = m+p+2
             this.uknots = U;
             // ---- 2) Interpolationsmatrix A aufbauen: A[j,i] = N_{i,p}(u_j) ----
-            var A = Matrix<double>.Build.Dense(m + 1, n + 1, 0.0);
+            var A = new BandedLinearSystem(n + 1);
 
             for (int j = 0; j <= m; j++)
             {
@@ -2947,40 +2894,23 @@ namespace CADability
                 }
             }
 
-            // ---- 3) Rechte Seite (x und y getrennt) ----
-            var qx = Vector<double>.Build.Dense(m + 1);
-            var qy = Vector<double>.Build.Dense(m + 1);
-            var qz = Vector<double>.Build.Dense(m + 1);
+            // ---- 3) right hand side, one column per coordinate ----
             int dim = calc.GetComponents(points[0]).Length;
-
+            double[,] q = new double[m + 1, dim];
             for (int j = 0; j <= m; j++)
             {
                 double[] c = calc.GetComponents(points[j]);
-                qx[j] = c[0];
-                qy[j] = c[1];
-                if (dim > 2) qz[j] = c[2];
+                for (int d = 0; d < dim; d++) q[j, d] = c[d];
             }
 
-            // ---- 4) Lösen: A * Px = Qx und A * Py = Qy ----
-            // LU ist ok; falls du es als Bandmatrix lösen willst, kann man das später optimieren.
-            var lu = A.LU();
-
-            var px = lu.Solve(qx);
-            var py = lu.Solve(qy);
-            Vector<double> pz = null;
-            if (dim > 2) pz = lu.Solve(qz);
-#if DEBUG
-            var rx = A * px - qx;
-            var ry = A * py - qy;
-            double res = rx.L2Norm() + ry.L2Norm();
-#endif
+            // ---- 4) solve A * P = Q (band matrix) ----
+            double[,] sol = A.Solve(q);
+            if (sol == null) throw new NurbsException("unable to construct NURBS with throughpoints and parameters");
             poles = new T[n + 1];
             for (int i = 0; i <= n; i++)
             {
                 double[] lap = new double[dim];
-                lap[0] = px[i];
-                lap[1] = py[i];
-                if (dim > 2) lap[2] = pz[i];
+                for (int d = 0; d < dim; d++) lap[d] = sol[i, d];
                 calc.SetComponents(ref poles[i], lap);
             }
         }
