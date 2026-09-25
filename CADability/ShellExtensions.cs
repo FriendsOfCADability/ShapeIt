@@ -1152,6 +1152,7 @@ namespace CADability.GeoObject
                 if (!s.HasOpenEdgesExceptPoles())
                     return new Shell[] { s }; // the offset is a perfectly closed shell, no need to do a boolean operation
             }
+            // this boolean operation is a "multipleFaces" operation, which is a special case of a "union" operation. 
             BooleanOperation bo = new BooleanOperation();
             bo.SetFaces(faces, offset > 0);
             return bo.Execute();
@@ -1251,7 +1252,7 @@ namespace CADability.GeoObject
                 {
                     filletEdges[sedge] = (e1, e2);
                 }
-                else if (sedge.Adjacency() != AdjacencyType.SameSurface && sedge.Adjacency() != AdjacencyType.Tangent) allEdgesAreConnected = false;
+                else if (sedge.Adjacency() != AdjacencyType.Open && sedge.Adjacency() != AdjacencyType.SameSurface && sedge.Adjacency() != AdjacencyType.Tangent) allEdgesAreConnected = false;
             }
             // edges which continue each other tangentially share a single fillet: only then the pipe which folds
             // over itself at a tightly curved edge can be resolved, because both sheets belong to the same surface
@@ -2432,6 +2433,153 @@ namespace CADability.GeoObject
             }
 
             return toOperateOn;
+        }
+
+        public static Shell[] Thicken(this Shell shell, double outerOffset, double innerOffset)
+        {
+            // both offsets must be positive
+            if (outerOffset <= 0 || innerOffset <= 0) return null;
+            // the shell may be open or closed
+            Face[] outerPart = GetOffsetParts(shell, outerOffset, out bool outerIsConnected);
+            Face[] innerPart = GetOffsetParts(shell, -innerOffset, out bool innerIsConnected);
+            foreach (Face face in outerPart) face.ReverseOrientation();
+            // close the open edges of the outer and inner parts with side faces
+            BoundingBox outerBB = BoundingBox.EmptyBoundingBox;
+            foreach (Face face in outerPart) outerBB.MinMax(face.GetExtent(0.0));
+            //OctTree<Edge> outeropenEdges = new OctTree<Edge>(outerBB, outerBB.Size * 1e-6);
+            //outeropenEdges.AddMany(outerPart.SelectMany(f => f.Edges).Where(e => e.SecondaryFace == null).ToHashSet());
+            //OctTree<Edge> inneropenEdges = new OctTree<Edge>(outerBB, outerBB.Size * 1e-6);
+            //inneropenEdges.AddMany(innerPart.SelectMany(f => f.Edges).Where(e => e.SecondaryFace == null).ToHashSet());
+            // OctTree of vertices of open edges for the inner and outer offset
+            OctTree<Vertex> outeropenVertices = new OctTree<Vertex>(outerBB, outerBB.Size * 1e-6);
+            outeropenVertices.AddMany(outerPart.SelectMany(f => f.Vertices).Where(v => v.Edges.Any(e => e.SecondaryFace == null)).ToHashSet());
+            OctTree<Vertex> inneropenVertices = new OctTree<Vertex>(outerBB, outerBB.Size * 1e-6);
+            inneropenVertices.AddMany(innerPart.SelectMany(f => f.Vertices).Where(v => v.Edges.Any(e => e.SecondaryFace == null)).ToHashSet());
+            // create connections to close the gap between the two offset shells. For each open edge of the outer part,
+            // find the corresponding open edge of the inner part and create a face between them
+            List<Face> connectingFaces = [];
+            Dictionary<Vertex, List<Edge>> gapAtVertex = new Dictionary<Vertex, List<Edge>>();
+            foreach (Edge edg in shell.OpenEdges)
+            {
+                GeoPoint2D uv1 = edg.Vertex1.GetPositionOnFace(edg.PrimaryFace);
+                GeoPoint2D uv2 = edg.Vertex2.GetPositionOnFace(edg.PrimaryFace);
+                GeoPoint p1 = edg.Vertex1.Position + outerOffset * edg.PrimaryFace.Surface.GetNormal(uv1);
+                GeoPoint p2 = edg.Vertex2.Position + outerOffset * edg.PrimaryFace.Surface.GetNormal(uv2);
+                Vertex v1 = outeropenVertices.GetObjectsFromPoint(p1).FirstOrDefault(v => Precision.IsEqual(v.Position, p1));
+                Vertex v2 = outeropenVertices.GetObjectsFromPoint(p2).FirstOrDefault(v => Precision.IsEqual(v.Position, p2));
+                if (v1 == null || v2 == null) continue;
+                Edge outerEdge = Vertex.ConnectingEdges(v1, v2).FirstOrDefault(e => Math.Abs(outerOffset - edg.Curve3D.DistanceTo(e.Curve3D.PointAt(0.5))) < Precision.eps);
+                if (outerEdge == null) continue;
+                p1 = edg.Vertex1.Position - innerOffset * edg.PrimaryFace.Surface.GetNormal(uv1);
+                p2 = edg.Vertex2.Position - innerOffset * edg.PrimaryFace.Surface.GetNormal(uv2);
+                v1 = inneropenVertices.GetObjectsFromPoint(p1).FirstOrDefault(v => Precision.IsEqual(v.Position, p1));
+                v2 = inneropenVertices.GetObjectsFromPoint(p2).FirstOrDefault(v => Precision.IsEqual(v.Position, p2));
+                if (v1 == null || v2 == null) continue;
+                Edge innerEdge = Vertex.ConnectingEdges(v1, v2).FirstOrDefault(e => Math.Abs(innerOffset - edg.Curve3D.DistanceTo(e.Curve3D.PointAt(0.5))) < Precision.eps);
+                if (innerEdge == null) continue;
+                ICurve outerCurve = outerEdge.Curve3D.Clone();
+                ICurve innerCurve = innerEdge.Curve3D.Clone();
+                ISurface surface = Make3D.MakeRuledSurface(outerCurve, innerCurve);
+                if (innerEdge.Forward(innerEdge.PrimaryFace) != outerEdge.Forward(outerEdge.PrimaryFace)) innerCurve.Reverse();
+                ICurve2D c1 = surface.GetProjectedCurve(outerCurve, 0.0);
+                ICurve2D c3 = surface.GetProjectedCurve(innerCurve, 0.0);
+                ICurve2D c2 = new Line2D(c1.EndPoint, c3.StartPoint);
+                ICurve2D c4 = new Line2D(c3.EndPoint, c1.StartPoint);
+
+                Face connecting = Face.MakeFace(surface, new SimpleShape(new Border(new ICurve2D[] { c1, c2, c3, c4 })));
+                if (!gapAtVertex.ContainsKey(edg.Vertex1)) gapAtVertex[edg.Vertex1] = new List<Edge>();
+                gapAtVertex[edg.Vertex1].Add(connecting.OutlineEdges[3]);
+                if (!gapAtVertex.ContainsKey(edg.Vertex2)) gapAtVertex[edg.Vertex2] = new List<Edge>();
+                gapAtVertex[edg.Vertex2].Add(connecting.OutlineEdges[1]);
+                GeoVector dir = innerEdge.ForwardOnPrimaryFace ? innerEdge.Curve3D.StartDirection : -innerEdge.Curve3D.EndDirection;
+                GeoVector nor = innerEdge.PrimaryFace.Surface.GetNormal(innerEdge.Vertex1.GetPositionOnFace(innerEdge.PrimaryFace));
+                GeoVector snor = connecting.Surface.GetNormal(connecting.Surface.PositionOf(innerEdge.Vertex1.Position));
+                if ((dir ^ nor) * snor < 0) connecting.ReverseOrientation();
+                connectingFaces.Add(connecting);
+            }
+            // gapAtVertex sholud contain 2 edges for each vertex. These edges should be lines and intersect at the vertex.
+            // Now with these two lines we either make a segment of a circle or a segment of a ring, which should close the gap
+            // the two lines are in opposite direction
+            foreach (KeyValuePair<Vertex, List<Edge>> kv in gapAtVertex)
+            {
+                if (kv.Value.Count != 2) continue;
+                Vertex v1 = outeropenVertices.GetObjectsFromPoint(kv.Value[0].Vertex2.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[0].Vertex2.Position));
+                Vertex v2 = outeropenVertices.GetObjectsFromPoint(kv.Value[1].Vertex1.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[1].Vertex1.Position));
+                if (v1 == null && v2 == null)
+                {
+                    v1 = outeropenVertices.GetObjectsFromPoint(kv.Value[0].Vertex1.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[0].Vertex1.Position));
+                    v2 = outeropenVertices.GetObjectsFromPoint(kv.Value[1].Vertex2.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[1].Vertex2.Position));
+                }
+                Edge outerRoundEdge = (v1 != null && v2 != null) ? Vertex.ConnectingEdges(v1, v2).FirstOrDefault(e => e.SecondaryFace == null) : null;
+                v1 = inneropenVertices.GetObjectsFromPoint(kv.Value[0].Vertex1.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[0].Vertex1.Position));
+                v2 = inneropenVertices.GetObjectsFromPoint(kv.Value[1].Vertex2.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[1].Vertex2.Position));
+                if (v1 == null && v2 == null)
+                {
+                    v1 = inneropenVertices.GetObjectsFromPoint(kv.Value[0].Vertex2.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[0].Vertex2.Position));
+                    v2 = inneropenVertices.GetObjectsFromPoint(kv.Value[1].Vertex1.Position).FirstOrDefault(v => Precision.IsEqual(v.Position, kv.Value[1].Vertex1.Position));
+                }
+                Edge innerRoundEdge = (v1 != null && v2 != null) ? Vertex.ConnectingEdges(v1, v2).FirstOrDefault(e => e.SecondaryFace == null) : null;
+                if (outerRoundEdge != null && innerRoundEdge != null)
+                {
+                    // segment of a ring
+                }
+                else
+                {
+                    double[] ippars = Curves.Intersect(kv.Value[0].Curve3D, kv.Value[1].Curve3D, true);
+                    if (ippars.Length == 1)
+                    {
+                        GeoPoint cnt = kv.Value[0].Curve3D.PointAt(ippars[0]);
+                        ICurve c1 = null;
+                        if (outerRoundEdge != null)
+                        {
+                            c1 = outerRoundEdge.Curve3D.Clone();
+                        }
+                        else if (innerRoundEdge != null)
+                        {
+                            c1 = innerRoundEdge.Curve3D.Clone();
+                        }
+                        else continue; // should never happen
+                        ICurve c2 = Line.TwoPoints(cnt, c1.StartPoint);
+                        ICurve c3 = Line.TwoPoints(c1.EndPoint, cnt);
+                        Face fc = Face.MakeFace(new GeoObjectList(c1 as IGeoObject, c2 as IGeoObject, c3 as IGeoObject));
+                        Edge tst = kv.Value[0];
+                        GeoVector nor1 = tst.PrimaryFace.Surface.GetNormal(tst.PrimaryFace.Area.GetSomeInnerPoint());
+                        GeoVector nor2 = fc.Surface.GetNormal(fc.Area.GetSomeInnerPoint());
+                        if (nor1 * nor2 < 0) fc.ReverseOrientation();
+                        connectingFaces.Add(fc);
+                    }
+                }
+            }
+            if (innerIsConnected) connectingFaces.AddRange(innerPart);
+            else
+            {
+                BooleanOperation bo = new BooleanOperation();
+                bo.SetFaces(innerPart, false);
+                bo.AllowOpenEdges = true;
+                Shell[] innerShells = bo.Execute();
+                for (int i = 0; i < innerShells.Length; i++)
+                {
+                    connectingFaces.AddRange(innerShells[i].Faces);
+                }
+            }
+            if (outerIsConnected) connectingFaces.AddRange(outerPart);
+            else
+            {
+                BooleanOperation bo = new BooleanOperation();
+                bo.SetFaces(outerPart, false);
+                bo.AllowOpenEdges = true;
+                Shell[] outerShells = bo.Execute();
+                for (int i = 0; i < outerShells.Length; i++)
+                {
+                    connectingFaces.AddRange(outerShells[i].Faces);
+                }
+            }
+
+            BooleanOperation boc = new BooleanOperation();
+            boc.SetFaces(connectingFaces, false);
+            return boc.Execute();
+
+            return null;
         }
 
         private static void ReplaceFace(Dictionary<Face, List<Face>> patchToFillets, Face fillet1, Face fillet1Clipped)

@@ -152,6 +152,7 @@ namespace ShapeIt
             bool debugBRep = false;
             bool nofile = false;
             bool debugRPC = false;
+            bool autoDebug = false;
             int repeatCount = 1;
             // "-e:<list>", "-f:<list>", "-v:<list>": break in the debugger when an edge, face or vertex
             // with one of the given hashCodes is created, e.g. "-e:29196" or "-e:1468,1469,2000-2010"
@@ -172,6 +173,10 @@ namespace ShapeIt
                 else if (args[i] == "-r")
                 {
                     debugRPC = true;
+                }
+                else if (args[i] == "-a")
+                {
+                    autoDebug = true;
                 }
                 else if (args[i] == "-x")
                 {   // so I can leave the file name in the command line, but don't want to open it, e.g. for debugging
@@ -196,6 +201,10 @@ namespace ShapeIt
             if (debugRPC)
             {
                 DebugRPC(fileName, repeatCount);
+            }
+            if (autoDebug)
+            {
+                AutoDebug();
             }
 
             ShowLogo();
@@ -410,7 +419,7 @@ namespace ShapeIt
         private SortedDictionary<string, string> DebugRPCOnce(string filename, string caseName)
         {
             // The calls need a project: document.commit_objects adds the solids to its active model.
-            if (CadFrame.Project!=null) CadFrame.Project.IsModified = false; // to avoid messagebox asking for saving modified project
+            if (CadFrame.Project != null) CadFrame.Project.IsModified = false; // to avoid messagebox asking for saving modified project
             CadFrame.GenerateNewProject();
             MCPServer server = new MCPServer(CadFrame, CadFrame.Project);
             // Run unattended: errors end up in the protocol instead of in a modal message box.
@@ -733,13 +742,11 @@ namespace ShapeIt
                 Application.Exit();
                 return true;
             }
-#if DEBUG
             else if (MenuId == "MenuId.Debug")
             {
-                Debug();
+                AutoDebug();
                 return true;
             }
-#endif
             else return base.OnCommand(MenuId);
         }
         public override bool OnUpdateCommand(string MenuId, CommandState CommandState)
@@ -752,6 +759,13 @@ namespace ShapeIt
         {
             modellingPropertyEntries.OnSelected(selectedMenuItem, selected);
             base.OnSelected(selectedMenuItem, selected);
+        }
+        private void AutoDebug()
+        {
+            Solid box = Make3D.MakeBox(new GeoPoint(0, 0, 0), new GeoVector(10, 0, 0), new GeoVector(0, 10, 0), new GeoVector(0, 0, 10));
+            Shell shell = box.Shell;
+            shell.AddAndRemoveFaces([], [shell.Faces[0]]);
+            shell.Thicken(1.0, 1.0);
         }
 #if DEBUG
         private static Random rnd = new Random();
@@ -770,203 +784,8 @@ namespace ShapeIt
         /// <summary>
         /// Here we can add some debug code
         /// </summary>
-        private void DebugX()
-        {
-            Model model = CadFrame.Project.GetActiveModel();
-            Style stl = CadFrame.Project.StyleList.GetDefault(CADability.Attribute.Style.EDefaultFor.Solids);
-            for (int i = 0; i < 64; i++)
-            {
-                double fx = 1.0, fy = 1.0, fz = 1.0;
-                if ((i & 0x1) != 0) fx = -fx;
-                if ((i & 0x2) != 0) fy = -fy;
-                if ((i & 0x4) != 0) fz = -fz;
-                GeoVector dir = RandomVector(RandomDouble(40, 60));
-                GeoPoint center = GeoPoint.Origin + dir;
-                Solid sld = Make3D.MakeSphere(center, 10 + 20 * rnd.NextDouble());
-                ModOp rotate = ModOp.Rotate(center, RandomVector(1.0), SweepAngle.Deg(rnd.NextDouble() * 360.0));
-                sld.Modify(rotate);
-                sld.Style = stl;
-                model.Add(sld);
-            }
-            Solid mainSphere = Make3D.MakeSphere(GeoPoint.Origin, 50);
-            mainSphere.Style = stl;
-            model.Add(mainSphere);
-        }
 
 
-        private void DebugY()
-        {
-            List<CADability.GeoObject.Solid> slds = new List<CADability.GeoObject.Solid>();
-            CADability.GeoObject.Solid sldbig = null;
-            Face cone = null;
-            Face upper = null;
-            Face lower = null;
-            foreach (CADability.GeoObject.IGeoObject go in CadFrame.Project.GetActiveModel().AllObjects)
-            {
-                if (go is CADability.GeoObject.Solid sld)
-                {
-                    if (sld.Volume(0.1) > 500000) sldbig = sld;
-                    else slds.Add(sld);
-                }
-            }
-
-            var rng = new Random(71);
-            var order = Enumerable.Range(0, slds.Count).ToArray();
-
-            // Fisher–Yates
-            for (int i = slds.Count - 1; i > 0; i--)
-            {
-                int j = rng.Next(i + 1);
-                (order[i], order[j]) = (order[j], order[i]);
-            }
-
-
-            if (slds.Count > 1 && sldbig != null)
-            {
-
-                for (int i = 0; i < slds.Count; i++)
-                {
-                    Solid[] res = NewBooleanOperation.Subtract(sldbig, slds[order[i]]);
-                    if (res != null && res.Length >= 1) sldbig = res[0];
-                    else { }
-                    //System.Diagnostics.Debug.WriteLine("Unite " + i.ToString() + " -> " + sldbig.GetExtent(0.0).Size.ToString("F0"));
-                }
-            }
-        }
-        private void Debug()
-        {
-            GeoObjectList l = modellingPropertyEntries.SelectedObjects;
-            if (l.Count == 1)
-            {
-                if (l[0] is Polyline pl && pl.IsRectangle)
-                {
-                    GeoPoint sp = pl.StartPoint;
-                    GeoVector dx = pl.GetPoint(1) - sp;
-                    GeoVector dy = pl.GetPoint(2) - pl.GetPoint(1);
-                    GeoVector n = (dx ^ dy).Normalized;
-                    double m = (dx.Length + dy.Length) / 4.0;
-                    m *= 0.4;
-                    Random rnd = new Random();
-                    // Handle rectangle case
-                    int xc = 10, yc = 10;
-                    GeoPoint[,] poles = new GeoPoint[xc, yc];
-                    for (int i = 0; i < xc; i++)
-                    {
-                        for (int j = 0; j < yc; j++)
-                        {
-                            GeoPoint p = sp + ((double)i / (xc - 1)) * dx + ((double)j / (yc - 1)) * dy;
-
-                            // lx, ly: 0 am Rand, 1 in der Mitte (linear)
-                            double lx = 1.0 - Math.Abs(2.0 * i / (xc - 1) - 1.0);
-                            double ly = 1.0 - Math.Abs(2.0 * j / (yc - 1) - 1.0);
-
-                            double rm = (1 + rnd.NextDouble()) * 0.8 * m;
-                            double t = rm * Math.Sqrt(1 - (1 - lx) * (1 - lx)) * Math.Sqrt(1 - (1 - ly) * (1 - ly));
-                            p = p + t * n;
-                            poles[i, j] = p;
-                        }
-                    }
-                    double[] uKnots = new double[xc + 3 + 1];
-                    double[] vKnots = new double[yc + 3 + 1];
-                    double dk = 1.0 / (xc - 3);
-                    for (int i = 0; i < uKnots.Length; i++)
-                    {
-                        double nom = i - 3;
-                        if (nom < 0) nom = 0;
-                        if (nom > xc - 3) nom = xc - 3;
-                        uKnots[i] = nom * dk;
-                    }
-                    dk = 1.0 / (yc - 3);
-                    for (int i = 0; i < vKnots.Length; i++)
-                    {
-                        double nom = i - 3;
-                        if (nom < 0) nom = 0;
-                        if (nom > yc - 3) nom = yc - 3;
-                        vKnots[i] = nom * dk;
-                    }
-                    NurbsSurface ns = new NurbsSurface(poles, null, uKnots, vKnots, 3, 3, false, false);
-                    Face f1 = Face.MakeFace(ns, new BoundingRect(0, 0, 1, 1));
-                    Face f2 = Face.MakeFace(new GeoObjectList(pl));
-                    Shell[] shs = Make3D.SewFaces(new Face[] { f1, f2 });
-                    if (shs.Length == 1 && shs[0].OpenEdges.Length == 0)
-                    {
-                        Solid sld = Solid.MakeSolid(shs[0]);
-                        CadFrame.Project.SetDefaults(sld);
-                        pl.Owner.Add(sld);
-                    }
-                }
-            }
-            else if (l.Count == 2)
-            {
-                int vnum = 5;
-                if (l.Count != 2) return;
-                BSpline? b1 = l[0] as BSpline;
-                BSpline? b2 = l[1] as BSpline;
-                if (b1 == null || b2 == null) return;
-                if ((b1 as ICurve).StartPoint.x > (b2 as ICurve).StartPoint.x) (b1, b2) = (b2, b1);
-                if (b1.Poles.Length != b2.Poles.Length) return;
-                GeoPoint[,] poles = new GeoPoint[b1.Poles.Length, vnum];
-                for (int i = 0; i < poles.GetLength(0); i++)
-                {
-                    GeoPoint p1 = b1.Poles[i];
-                    GeoPoint p2 = b2.Poles[i];
-                    double d = p1 | p2;
-                    double r = d / 2;
-                    double step = d / (vnum - 1);
-                    double da = Math.PI / (vnum - 1);
-                    GeoPoint cnt = new GeoPoint(p1, p2);
-                    Plane arcPlane = new Plane(cnt, p1 - p2, GeoVector.ZAxis);
-                    for (int j = 0; j < vnum; j++)
-                    {
-                        if (j == 0) poles[i, j] = p1;
-                        else if (j == vnum - 1) poles[i, j] = p2;
-                        else
-                        {
-                            double rrnd = rnd.NextDouble() / 2 + 0.5;
-                            poles[i, j] = arcPlane.ToGlobal(new GeoPoint2D(rrnd * r * Math.Cos(da * j), rrnd * 0.7 * r * Math.Sin(da * j)));
-                        }
-                    }
-                }
-                double[] uKnots = new double[b1.Poles.Length + 3 + 1];
-                for (int i = 0; i < uKnots.Length; i++)
-                {
-                    int ind = i - 3;
-                    if (ind < 0) ind = 0;
-                    if (ind >= b1.Knots.Length) ind = b1.Knots.Length - 1;
-                    uKnots[i] = b1.Knots[ind];
-                }
-                double[] vKnots = new double[vnum + 3 + 1];
-                double dk = 1.0 / (vnum - 3);
-                for (int i = 0; i < vKnots.Length; i++)
-                {
-                    double nom = i - 3;
-                    if (nom < 0) nom = 0;
-                    if (nom > vnum - 3) nom = vnum - 3;
-                    vKnots[i] = nom * dk;
-                }
-                NurbsSurface ns = new NurbsSurface(poles, null, uKnots, vKnots, 3, 3, false, false);
-                Face f1 = Face.MakeFace(ns, new BoundingRect(0, 0, 1, 1));
-                ICurve c1 = ns.FixedU(0.0, 0, 1);
-                ICurve c2 = ns.FixedU(1.0, 0, 1);
-                Plane pl1 = new Plane(c1.StartPoint, -c1.StartDirection);
-                Plane pl2 = new Plane(c1.EndPoint, c1.EndDirection);
-
-                Face f2 = Face.MakeFace(new GeoObjectList(c1 as IGeoObject, Line.TwoPoints(c1.EndPoint, c1.StartPoint)));
-                Face f3 = Face.MakeFace(new GeoObjectList(c2 as IGeoObject, Line.TwoPoints(c2.EndPoint, c2.StartPoint)));
-
-                ICurve c3 = ns.FixedV(0, 0, 1);
-                ICurve c4 = ns.FixedV(1.0, 0, 1);
-                c3.Reverse();
-                Face f4 = Face.MakeFace(new GeoObjectList(c3 as IGeoObject, Line.TwoPoints(c3.EndPoint, c4.StartPoint), c4 as IGeoObject, Line.TwoPoints(c4.EndPoint, c3.StartPoint)));
-                Shell[] shs = Make3D.SewFaces(new Face[] { f1, f2, f3, f4 });
-                if (shs.Length == 1 && shs[0].OpenEdges.Length == 0)
-                {
-                    Solid sld = Solid.MakeSolid(shs[0]);
-                    CadFrame.Project.SetDefaults(sld);
-                    b1.Owner.Add(sld);
-                }
-            }
-        }
 #endif
     }
 }
