@@ -108,5 +108,57 @@ namespace CADability.Tests
             double error = (expected - actual).Length / Math.Max(1.0, expected.Length);
             Assert.IsTrue(error < 1e-5, $"{what}: expected about {expected}, got {actual} (relative {error:E3})");
         }
+
+        /// <summary>
+        /// The same for <see cref="BSpline2D"/>: it returned the derivatives by the knot parameter, while DirectionAt
+        /// and the interface ask for the derivatives by the normalized position. Wrong by the length of the knot
+        /// range (squared for the second derivative), which made the Newton steps of GeneralCurve2D too long by that
+        /// factor and HelicalSurface.Derivative2At wrong for a BSpline2D profile.
+        /// </summary>
+        [TestMethod]
+        public void the_derivatives_of_a_BSpline2D_are_the_derivatives()
+        {
+            double r = 5.0;
+            double w = Math.Sqrt(2.0) / 2.0;
+            BSpline2D circle = new BSpline2D(new GeoPoint2D[]
+            {
+                new GeoPoint2D(r, 0), new GeoPoint2D(r, r), new GeoPoint2D(0, r), new GeoPoint2D(-r, r),
+                new GeoPoint2D(-r, 0), new GeoPoint2D(-r, -r), new GeoPoint2D(0, -r), new GeoPoint2D(r, -r),
+                new GeoPoint2D(r, 0)
+            }, new double[] { 1, w, 1, w, 1, w, 1, w, 1 }, new double[] { 0, 1, 2, 3, 4 }, new int[] { 3, 2, 2, 2, 3 }, 2, false, 0, 4);
+            BSpline2D spline = new BSpline2D(new GeoPoint2D[]
+            {
+                new GeoPoint2D(5, 0), new GeoPoint2D(8, 1), new GeoPoint2D(6, 3), new GeoPoint2D(9, 5), new GeoPoint2D(7, 8)
+            }, null, new double[] { 2, 3.5, 5 }, new int[] { 4, 1, 4 }, 3, false, 2, 5);
+            foreach ((string what, ICurve2D curve) in new (string, ICurve2D)[]
+            {
+                ("rational 2d circle with knots from 0 to 4", circle),
+                ("non rational 2d spline with knots from 2 to 5", spline)
+            })
+            {
+                const double h = 1e-6;
+                for (int i = 1; i < 10; i++)
+                {
+                    double u = (i + 0.37) / 10.0; // away from the knots, see above
+                    Assert.IsTrue(curve.TryPointDeriv2At(u, out GeoPoint2D point, out GeoVector2D deriv1, out GeoVector2D deriv2),
+                        $"{what}: no second derivative at {u}");
+                    Assert.IsTrue((point | curve.PointAt(u)) < 1e-9, $"{what} at {u}: point");
+
+                    GeoVector2D numeric1 = (1.0 / (2.0 * h)) * (curve.PointAt(u + h) - curve.PointAt(u - h));
+                    AssertClose($"{what} at {u}: first derivative", numeric1, deriv1);
+                    AssertClose($"{what} at {u}: DirectionAt", numeric1, curve.DirectionAt(u));
+
+                    curve.TryPointDeriv2At(u + h, out GeoPoint2D _, out GeoVector2D after, out GeoVector2D _);
+                    curve.TryPointDeriv2At(u - h, out GeoPoint2D _, out GeoVector2D before, out GeoVector2D _);
+                    AssertClose($"{what} at {u}: second derivative", (1.0 / (2.0 * h)) * (after - before), deriv2);
+                }
+            }
+        }
+
+        private static void AssertClose(string what, GeoVector2D expected, GeoVector2D actual)
+        {
+            double error = (expected - actual).Length / Math.Max(1.0, expected.Length);
+            Assert.IsTrue(error < 1e-5, $"{what}: expected about ({expected.x}, {expected.y}), got ({actual.x}, {actual.y}) (relative {error:E3})");
+        }
     }
 }

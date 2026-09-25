@@ -146,6 +146,21 @@ input the operation never touches. Three things were done about it on 2026-09-07
   first order correction. Held against closed forms in `VolumeTests`: the cone frustum and the torus segment
   come out bit identical on five different meshes, the hemisphere within 6.5e-4 against 0.77% for the triangle
   sum.
+- **Since 2026-09-24 the mesh does not enter the volume at all.** The domain integral is turned into an
+  integral over the 2d boundary of the face by Green's theorem (`ShellMetrics.GreenFaceIntegral`), with
+  adaptive Gauss-Kronrod along the boundary and along lines of constant v. The uv triangles are no longer the
+  partition, so the switch between "scale by domain/covered" and "fall back to the triangle sum" at 2% is
+  gone for the volume. That switch was what made trimmed **pointed cones** jump: the triangulation drops the
+  triangles next to the apex, 2 to 23% of the domain went uncovered depending on the mesh, and the recorded
+  volume moved by up to 1.8%. A pole needs no special case now - it is a line of constant v and contributes
+  nothing to a `dv` integral. The integral also refers to the center of the shell instead of the origin, which
+  keeps the terms of the single faces small. `VolumeTests.IntegratedVolumeOfPointedConeIsMeshIndependent`
+  holds it against closed forms (pointed cone, cone with a box cut away, cone with a bore through the mantle):
+  within 1.2e-8 and bit identical on five meshes. The triangulation still decides the orientation of each face,
+  and it is the fallback for a face whose boundary curves do not deliver a usable derivative. Since the
+  volume is now exact enough for mirror images to tie, `ShellMetrics.SortCanonically` compares volume and
+  area with a relative tolerance of 1e-6 and breaks the tie by position. Since the same day `area` is the
+  same boundary integral of |Su x Sv| (`VolumeTests.SurfaceAreaOfPointedConeIsExact`).
 - **The area quadrature is no longer switched off by accident.** It refused any over-coverage beyond `1e-6`
   while allowing a 2% shortfall; the uv triangles of a trimmed face routinely stick out by a few parts per
   million, so all eight cylindrical faces of `DifferenceBug9` fell back to the flat sum. Its area was 0.79%

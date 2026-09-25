@@ -42,7 +42,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "248.814138164",
-      "area": "861.567280999",
+      "area": "861.567281007",
       "edgeLength": "428.75743825",
       "extent": "-6.5, -6.5, -1.2, 6.5, 6.5, 13.2",
       "surfaces": "CylindricalSurface:1 HelicalSweepSurface:2 PlaneSurface:2"
@@ -59,7 +59,7 @@
       "closed": "true",
       "openEdges": "0",
       "volume": "1191.29193424",
-      "area": "822.611532094",
+      "area": "822.611532102",
       "edgeLength": "491.589291322",
       "extent": "-6.5, -6.5, -1.2, 6.5, 6.5, 13.2",
       "surfaces": "CylindricalSurface:3 HelicalSweepSurface:2 PlaneSurface:4"

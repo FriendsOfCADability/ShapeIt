@@ -18,8 +18,8 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "965.991316437",
-      "area": "563.734880942",
+      "volume": "965.965900749",
+      "area": "563.856195892",
       "edgeLength": "322.999653544",
       "extent": "-5.27355936697E-16, -4.4408920985E-16, -5.55111512313E-16, 10, 10, 10",
       "surfaces": "CylindricalSurface:12 PlaneSurface:6 SphericalSurface:29"
