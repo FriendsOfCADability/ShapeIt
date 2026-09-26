@@ -4214,7 +4214,7 @@ namespace CADability
             {   // the 2d outline of a face cannot be computed any more when its edges are disconnected. The geometry of these faces is still
                 // needed to decide whether an untouched part of a shell belongs to the result (see "combine shells and holes"), so we force
                 // the outline to be cached while the face is still intact
-                SimpleShape forceCalculation = fce.Area;
+                SimpleShape saveArea = fce.Area;
                 foreach (Vertex vtx in fce.Vertices) vtx.RemovePositionOnFace(fce);
                 fce.DisconnectAllEdges();
             }

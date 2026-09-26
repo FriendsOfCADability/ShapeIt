@@ -389,6 +389,15 @@ namespace CADability
             // remove overhang
             sortedList.RemoveRange(writeIndex, sortedList.Count - writeIndex);
         }
+
+        public static IEnumerable<(T, T)> Pairs<T>(this IEnumerable<T> source)
+        {
+            T[] a = source as T[] ?? source.ToArray();
+            for (int i = 0; i < a.Length; i++)
+                for (int j = i + 1; j < a.Length; j++)
+                    yield return (a[i], a[j]);
+        }
+
         public static GeoObjectList Show(this IEnumerable<Edge> edges)
         {
             GeoObjectList res = new GeoObjectList();

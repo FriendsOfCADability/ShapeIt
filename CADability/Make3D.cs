@@ -1954,6 +1954,7 @@ namespace CADability.GeoObject
                 }
             }
 #if DEBUG
+            // all faces are invalid here, because the vertices are all disconnected
             //for (int i = 0; i < faces.Length; i++)
             //{
             //    bool ok = faces[i].CheckConsistency();

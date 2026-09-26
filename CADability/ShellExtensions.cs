@@ -2442,7 +2442,7 @@ namespace CADability.GeoObject
             // the shell may be open or closed
             Face[] outerPart = GetOffsetParts(shell, outerOffset, out bool outerIsConnected);
             Face[] innerPart = GetOffsetParts(shell, -innerOffset, out bool innerIsConnected);
-            foreach (Face face in outerPart) face.ReverseOrientation();
+            foreach (Face face in outerPart) face.ReverseOrientation(); // orientation is for BooleanOperation, will be reversed at the end
             // close the open edges of the outer and inner parts with side faces
             BoundingBox outerBB = BoundingBox.EmptyBoundingBox;
             foreach (Face face in outerPart) outerBB.MinMax(face.GetExtent(0.0));
@@ -2494,7 +2494,7 @@ namespace CADability.GeoObject
                 GeoVector dir = innerEdge.ForwardOnPrimaryFace ? innerEdge.Curve3D.StartDirection : -innerEdge.Curve3D.EndDirection;
                 GeoVector nor = innerEdge.PrimaryFace.Surface.GetNormal(innerEdge.Vertex1.GetPositionOnFace(innerEdge.PrimaryFace));
                 GeoVector snor = connecting.Surface.GetNormal(connecting.Surface.PositionOf(innerEdge.Vertex1.Position));
-                if ((dir ^ nor) * snor < 0) connecting.ReverseOrientation();
+                if ((dir ^ nor) * snor > 0) connecting.ReverseOrientation();
                 connectingFaces.Add(connecting);
             }
             // gapAtVertex sholud contain 2 edges for each vertex. These edges should be lines and intersect at the vertex.
@@ -2550,6 +2550,8 @@ namespace CADability.GeoObject
                     }
                 }
             }
+            CombineOverlappingFaces(connectingFaces);
+
             if (innerIsConnected) connectingFaces.AddRange(innerPart);
             else
             {
@@ -2575,13 +2577,57 @@ namespace CADability.GeoObject
                 }
             }
 
+            // TODO: check why sewfaces fails with the non-cloned faces!
+            for (int i = 0; i < connectingFaces.Count; i++)
+            {
+                connectingFaces[i] = connectingFaces[i].Clone() as Face;
+                connectingFaces[i].ReverseOrientation();
+            }
+            Shell[] parts = Make3D.SewFaces(connectingFaces.ToArray());
+            if (parts.Length == 1 && parts[0].OpenEdgesExceptPoles.Length == 0) return parts;
+
+            for (int i = 0; i < connectingFaces.Count; i++)
+            {
+                connectingFaces[i].CheckConsistency();
+            }
+
             BooleanOperation boc = new BooleanOperation();
             boc.SetFaces(connectingFaces, false);
             return boc.Execute();
-
-            return null;
         }
 
+        private static void CombineOverlappingFaces(List<Face> connectingFaces)
+        {
+            HashSet<Face> allFaces = new HashSet<Face>(connectingFaces);
+            bool found = true;
+            while (found)
+            {
+                found = false;
+                foreach ((Face fc1, Face fc2) in allFaces.Pairs())
+                {
+                    if (fc1.Surface.SameGeometry(fc1.Domain, fc2.Surface, fc2.Domain, Precision.eps, out ModOp2D fc1ToFc2))
+                    {
+                        if (fc1ToFc2.Determinant > 0)
+                        {
+                            SimpleShape a1 = fc1.Area.GetModified(fc1ToFc2);
+                            SimpleShape a2 = fc2.Area;
+                            CompoundShape cs = CompoundShape.Union(new CompoundShape(a1), new CompoundShape(a2));
+                            if (cs.SimpleShapes.Length == 1)
+                            {
+                                Face combined = Face.MakeFace(fc2.Surface, cs.SimpleShapes[0]);
+                                allFaces.Remove(fc1);
+                                allFaces.Remove(fc2);
+                                allFaces.Add(combined);
+                                found = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            connectingFaces.Clear();
+            connectingFaces.AddRange(allFaces);
+        }
         private static void ReplaceFace(Dictionary<Face, List<Face>> patchToFillets, Face fillet1, Face fillet1Clipped)
         {
             foreach (var ptf in patchToFillets)

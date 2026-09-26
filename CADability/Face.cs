@@ -3598,6 +3598,12 @@ namespace CADability.GeoObject
             }
             if (surface is ISurfaceImpl si) si.Domain = Domain;
         }
+
+        public void Set(SimpleShape simpleShape)
+        {
+            Face tmp = Face.MakeFace(surface, simpleShape);
+            Set(this.surface, tmp.outline, tmp.holes);
+        }
         /// <summary>
         /// Create a face with the provided surface and an (unordered) set of ICurves, which define the outline
         /// </summary>
