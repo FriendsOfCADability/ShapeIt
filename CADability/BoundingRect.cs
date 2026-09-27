@@ -956,8 +956,8 @@ namespace CADability
         /// <exception cref="NotImplementedException"></exception>
         internal BoundingRect MakeInfinite(ISurface surface)
         {
-            double l = System.Double.MinValue, r = System.Double.MinValue;
-            double b = System.Double.MinValue, t = System.Double.MinValue;
+            double l = System.Double.MinValue, r = System.Double.MaxValue;
+            double b = System.Double.MinValue, t = System.Double.MaxValue;
             if (surface.IsUPeriodic)
             {
                 l = (Left + Right) / 2.0 - surface.UPeriod / 2.0;

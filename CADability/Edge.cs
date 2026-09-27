@@ -3603,6 +3603,16 @@ namespace CADability
 
         internal bool RecalcCurves()
         {
+            if (secondaryFace == null) return false;
+            // The old 2d curves tell in which period of a periodic surface the new 2d curves have to reside. This is essential for seams,
+            // where both 2d curves are on the same surface, one period apart, and for the outline of the face to stay closed.
+            GeoPoint2D oldPrimaryStart = curveOnPrimaryFace != null ? curveOnPrimaryFace.StartPoint : GeoPoint2D.Invalid;
+            GeoPoint2D oldSecondaryStart = curveOnSecondaryFace != null ? curveOnSecondaryFace.StartPoint : GeoPoint2D.Invalid;
+            void AlignToOldCurves()
+            {
+                if (oldPrimaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(primaryFace.Surface, oldPrimaryStart, PrimaryCurve2D);
+                if (oldSecondaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(secondaryFace.Surface, oldSecondaryStart, SecondaryCurve2D);
+            }
             if (this.Adjacency()==ShellExtensions.AdjacencyType.SameSurface)
             {
                 if (curve3d is Line line)
@@ -3613,6 +3623,7 @@ namespace CADability
                     if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
                     SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(line, 0.0);
                     if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+                    AlignToOldCurves();
                     return true;
                 }
                 if (curve3d is Ellipse ellipse)
@@ -3623,16 +3634,26 @@ namespace CADability
                     if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
                     SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(ellipse, 0.0);
                     if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+                    AlignToOldCurves();
                     return true;
 
                 }
             }
-            BoundingRect pDomain = new BoundingRect(primaryFace.Domain);
-            pDomain.MinMax(primaryFace.Surface.PositionOf(Vertex1.Position));
-            pDomain.MinMax(primaryFace.Surface.PositionOf(Vertex2.Position));
-            BoundingRect sDomain = new BoundingRect(secondaryFace.Domain);
-            pDomain.MinMax(secondaryFace.Surface.PositionOf(Vertex1.Position));
-            pDomain.MinMax(secondaryFace.Surface.PositionOf(Vertex2.Position));
+            // The domains of the faces are extended to contain the (moved) vertices. On periodic surfaces PositionOf may return a
+            // uv position one period away from the domain, which would extend the domain by a whole period.
+            BoundingRect ExtendedDomain(Face face)
+            {
+                BoundingRect domain = new BoundingRect(face.Domain);
+                foreach (Vertex vtx in new Vertex[] { Vertex1, Vertex2 })
+                {
+                    GeoPoint2D uv = face.Surface.PositionOf(vtx.Position);
+                    SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, ref uv);
+                    domain.MinMax(uv);
+                }
+                return domain;
+            }
+            BoundingRect pDomain = ExtendedDomain(primaryFace);
+            BoundingRect sDomain = ExtendedDomain(secondaryFace);
             IDualSurfaceCurve intcurve = primaryFace.Surface.GetDualSurfaceCurves(pDomain, secondaryFace.Surface, sDomain, [Vertex1.Position, Vertex2.Position])
                 .MinByWithDefault(null, dsc => dsc.Curve3D.DistanceTo(Curve3D.PointAt(0.5)));
             // When a cylinder meets a plane and we have two opposite seeds, there are two curves. Choose the one closer to the original edge
@@ -3646,6 +3667,7 @@ namespace CADability
             if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
             SecondaryCurve2D = intcurve.Curve2D2;
             if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+            AlignToOldCurves();
             return true;
         }
         #endregion

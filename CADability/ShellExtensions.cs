@@ -2434,8 +2434,42 @@ namespace CADability.GeoObject
 
             return toOperateOn;
         }
+        /// <summary>
+        /// Moves the provided faces by <paramref name="distance"/> along their normals (replaces their surfaces by the offset surfaces)
+        /// and extends or shortens the adjacent faces in their own surfaces. The operation is all or nothing: when it fails, the shell
+        /// is restored to its previous state and false is returned.
+        /// </summary>
         public static bool PushPull(this Shell shell, IEnumerable<Face> facesToMove, double distance)
         {
+            // The faces are moved one after the other, a later face may fail after earlier faces have been modified. So every
+            // modification is recorded before it is done and undone when the operation fails.
+            Dictionary<Vertex, GeoPoint> oldVertexPositions = [];
+            Dictionary<Face, ISurface> oldSurfaces = [];
+            Dictionary<Edge, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d)> oldEdgeCurves = [];
+            bool RecalcEdge(Edge edge)
+            {   // RecalcCurves modifies the curves of the edge in place, so they are cloned
+                if (!oldEdgeCurves.ContainsKey(edge)) oldEdgeCurves[edge] = (edge.Curve3D?.Clone(), edge.PrimaryCurve2D?.Clone(), edge.SecondaryCurve2D?.Clone());
+                return edge.RecalcCurves();
+            }
+            bool Undo()
+            {
+                foreach (KeyValuePair<Vertex, GeoPoint> kv in oldVertexPositions) kv.Key.Position = kv.Value;
+                foreach (KeyValuePair<Face, ISurface> kv in oldSurfaces) kv.Key.Surface = kv.Value;
+                foreach (KeyValuePair<Edge, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d)> kv in oldEdgeCurves)
+                {
+                    kv.Key.Curve3D = kv.Value.curve3d;
+                    kv.Key.PrimaryCurve2D = kv.Value.primary2d;
+                    kv.Key.SecondaryCurve2D = kv.Value.secondary2d;
+                }
+                HashSet<Face> touchedFaces = [.. oldSurfaces.Keys];
+                foreach (Edge edge in oldEdgeCurves.Keys)
+                {
+                    touchedFaces.Add(edge.PrimaryFace);
+                    if (edge.SecondaryFace != null) touchedFaces.Add(edge.SecondaryFace);
+                }
+                foreach (Face face in touchedFaces) face.InvalidateSecondaryData();
+                return false;
+            }
             foreach (Face face in facesToMove)
             {
                 Dictionary<Vertex, GeoPoint> modifiedVertices = [];
@@ -2448,14 +2482,14 @@ namespace CADability.GeoObject
                     Face f2 = next.OtherFace(face);
                     // look for the common edge of f1 and f2:
                     List<Edge> thirdEdges = f1.Edges.Intersect(f2.Edges).Where(e => e.Vertex1 == v || e.Vertex2 == v).ToList();
-                    if (thirdEdges.Count != 1) return false; // those cases are difficult, because the topology would change
+                    if (thirdEdges.Count != 1) return Undo(); // those cases are difficult, because the topology would change
                     Edge commonEdge = thirdEdges[0];
                     if (commonEdge.Adjacency()==AdjacencyType.SameSurface)
                     {
                         if (commonEdge.Curve3D is Line line)
                         {
                             GeoPoint2D uvOnParallel = parallelSurface.GetLineIntersection(line.StartPoint, line.StartDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => parallelSurface.PointAt(uv) | v.Position);
-                            if (!uvOnParallel.IsValid) return false;
+                            if (!uvOnParallel.IsValid) return Undo();
                             modifiedVertices[v] = parallelSurface.PointAt(uvOnParallel);
                             continue;
                         }
@@ -2468,22 +2502,27 @@ namespace CADability.GeoObject
                     if (Surfaces.IntersectThreeSurfaces(parallelSurface, face.Domain, f1.Surface, f1.Domain, f2.Surface, f2.Domain, ref ip, out GeoPoint2D uvParallel, out GeoPoint2D uv1, out GeoPoint2D uv2))
                     {
                         modifiedVertices[v] = parallelSurface.PointAt(uvParallel);
-                            continue;
+                        continue;
                     }
-                    return false;
+                    return Undo();
                 }
-                foreach (KeyValuePair<Vertex, GeoPoint> kv in modifiedVertices) kv.Key.Position = kv.Value;
+                foreach (KeyValuePair<Vertex, GeoPoint> kv in modifiedVertices)
+                {
+                    if (!oldVertexPositions.ContainsKey(kv.Key)) oldVertexPositions[kv.Key] = kv.Key.Position;
+                    kv.Key.Position = kv.Value;
+                }
+                if (!oldSurfaces.ContainsKey(face)) oldSurfaces[face] = face.Surface;
                 face.Surface = parallelSurface;
                 foreach (Edge edge in face.Edges)
                 {
-                    edge.RecalcCurves();
+                    if (!RecalcEdge(edge)) return Undo();
                 }
                 face.InvalidateSecondaryData();
                 foreach (Vertex vtx in modifiedVertices.Keys)
                 {
                     List<Edge> edgeEndingOnVtx = vtx.Edges.Where(e => e.PrimaryFace != face && e.SecondaryFace != face).ToList();
-                    if (edgeEndingOnVtx.Count != 1) return false; // has already been checked
-                    edgeEndingOnVtx[0].RecalcCurves();
+                    if (edgeEndingOnVtx.Count != 1) return Undo(); // has already been checked
+                    if (!RecalcEdge(edgeEndingOnVtx[0])) return Undo();
                 }
                 foreach (Edge edge in face.Edges)
                 {
@@ -2496,7 +2535,7 @@ namespace CADability.GeoObject
         {
             Dictionary<Face, Face> clonedFaces = [];
             Shell pushedShell = shell.Clone(null, null, clonedFaces);
-            pushedShell.PushPull(openFaces.Select(f => clonedFaces[f]), innerOffset);
+            if (!pushedShell.PushPull(openFaces.Select(f => clonedFaces[f]), innerOffset)) return [];
             Shell[] innerShell = pushedShell.GetOffset(-innerOffset);
             if (innerShell.Length==1)
             {
