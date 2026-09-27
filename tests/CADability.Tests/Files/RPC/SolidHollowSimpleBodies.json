@@ -1,0 +1,554 @@
+{
+  "Description": "First regression case for solid.hollow, on simple bodies only: a box, a trapezoid prism (both x sides slanted, all edges convex), a cylinder cut by a plane tilted by 30 degrees, a half torus and a ball cut by two parallel planes. Every body is hollowed with the wall thickness 2 and its top or cut faces open; the box is additionally hollowed without open faces into a closed body with an enclosed cavity. More complex solids follow in a separate case.",
+  "Expected": "All values in closed form. The wall is the solid minus its inward offset by 2, where the inner walls are extended through the open faces: the rim lies in the surface of the open face, not perpendicular to the wall. BOX 40x30x20 (V 24000), top open: 24000-36*26*18 = 7152, 11 faces (5 outer, 5 inner, 1 planar rim with a hole), area 4000+3168+264 = 7432. Closed: 24000-36*26*16 = 9024, a body with an enclosed cavity. PRISM: trapezoid 40 (bottom) / 20 (top) by 20 high, 30 long, V = 18000. The cavity has the width 40-z-2*sqrt(5) for z in 2..20 (the inner slanted walls continue up to the top plane) and the length 26, so the wall is 18000-(29-2*sqrt(5))*18*26 = 6520.9596, of the same thickness 2 up to the rim. CYLINDER r=15 up to the plane z = 30 + x*tan(30deg), V = 225*30*pi = 21205.7504. The cavity is r<13 from z=2 up to the oblique plane - a tube sawn at 30 degrees; the mean height of the plane over any disk around the axis is 30, so the wall is 225*30*pi - 169*28*pi = 2018*pi = 6339.7340. The rim in the oblique plane is 2 wide at the sides and 2/sin(60deg) = 2.309 wide at the highest and lowest point. HALF TORUS R=30 r=8, V = 64*30*pi^2 = 18949.6405; the rims are planar annuli in y=0: pi^2*30*(64-36) = 840*pi^2 = 8290.4677. SPHERE BAND r=20 between z=-10 and z=10, V = pi*(20*400-2000/3) = 23038.3461; the cavity is the ball of radius 18 between the same planes, so the wall is pi*20*(400-324) = 1520*pi = 4775.2208, with planar rims in z=10 and z=-10 from radius sqrt(224) = 14.967 to sqrt(300) = 17.321.",
+  "CaseStatus": "KnownFail",
+  "Status": "NOT YET IMPLEMENTED (2026-09-26). solid.hollow was changed to a single inward 'thickness' and is a stub that throws NotImplementedException, so every solid.hollow call fails for now. When it is implemented: run the case with Regenerate, compare the results with 'Expected', add the 'verified' notes and set CaseStatus to Ok.",
+  "Repeat": 1,
+  "Verify": [
+    "box",
+    "boxClassic",
+    "boxClosed",
+    "prism",
+    "prismClassic",
+    "cylCut",
+    "cylClassic",
+    "halfTorus",
+    "torusClassic",
+    "sphereBand",
+    "sphereClassic"
+  ],
+  "Baseline": {
+    "box": {
+      "verified": "2026-09-26: input, 40x30x20, exact.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleVertices": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "24000",
+      "area": "5200",
+      "edgeLength": "360",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:6"
+    },
+    "cylCut": {
+      "verified": "2026-09-26: input, V = 225*30*pi = 21205.7504 exact; the tilt does not change the volume, the plane passes through the axis at z=30.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "2",
+      "poleVertices": "0",
+      "vertices": "2",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "21205.7504117",
+      "area": "4350.50144919",
+      "edgeLength": "195.904318115",
+      "extent": "-15, -15, 0, 15, 15, 38.6602540378",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:2"
+    },
+    "halfTorus": {
+      "verified": "2026-09-26: input, V = 64*30*pi^2 = 18949.6405 exact.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "2",
+      "poleVertices": "0",
+      "vertices": "2",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "18949.6404501",
+      "area": "5139.53397218",
+      "edgeLength": "100.530964915",
+      "extent": "-38, -6.98048675514E-15, -8, 38, 38, 8",
+      "surfaces": "PlaneSurface:2 ToroidalSurface:1"
+    },
+    "prism": {
+      "verified": "2026-09-26: input, trapezoid 40/20 by 20 high and 30 long, V = 600*30 = 18000 exact, area 1200+600+2*600+2*30*sqrt(500) = 4341.6408 exact.",
+      "consistent": "true",
+      "faces": "6",
+      "edges": "12",
+      "poleVertices": "0",
+      "vertices": "8",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "18000",
+      "area": "4341.6407865",
+      "edgeLength": "329.4427191",
+      "extent": "0, 0, -3.13638004457E-15, 40, 30, 20",
+      "surfaces": "PlaneSurface:6"
+    },
+    "sphereBand": {
+      "verified": "2026-09-26: input, V = pi*(8000-2000/3) = 23038.3461, recorded 7.6e-8 below - mesh bias of the spherical face.",
+      "consistent": "true",
+      "faces": "3",
+      "edges": "2",
+      "poleVertices": "0",
+      "vertices": "2",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "23038.3443623",
+      "area": "4398.22899036",
+      "edgeLength": "217.655923708",
+      "extent": "-20, -20, -10, 20, 20, 10",
+      "surfaces": "PlaneSurface:2 SphericalSurface:1"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "box",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "workspace.select",
+      "params": {
+        "name": "boxTop",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "box",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 10
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "box",
+        "openFaces": "boxTop",
+        "thickness": 2,
+        "name": "boxClassic"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "box",
+        "thickness": 2,
+        "name": "boxClosed"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.box",
+      "params": {
+        "name": "prismBlank",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.box",
+      "params": {
+        "name": "cutLeft",
+        "origin": [
+          0,
+          -10,
+          0
+        ],
+        "sizeX": 30,
+        "sizeY": 50,
+        "sizeZ": 30,
+        "axisX": [
+          1,
+          0,
+          2
+        ],
+        "axisY": [
+          0,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "cutRight",
+        "origin": [
+          40,
+          40,
+          0
+        ],
+        "sizeX": 30,
+        "sizeY": 50,
+        "sizeZ": 30,
+        "axisX": [
+          -1,
+          0,
+          2
+        ],
+        "axisY": [
+          0,
+          -1,
+          0
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "prismBlank",
+        "b": "cutLeft",
+        "name": "prismHalf",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "prismHalf",
+        "b": "cutRight",
+        "name": "prism",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "workspace.select",
+      "params": {
+        "name": "prismTop",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "prism",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 10
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "prism",
+        "openFaces": "prismTop",
+        "thickness": 2,
+        "name": "prismClassic"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "cylBlank",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          40
+        ],
+        "radius": 15
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.box",
+      "params": {
+        "name": "cutOblique",
+        "origin": [
+          -25.980762113533157,
+          -30,
+          15.0
+        ],
+        "sizeX": 60,
+        "sizeY": 60,
+        "sizeZ": 40,
+        "axisX": [
+          0.8660254037844386,
+          0,
+          0.5
+        ],
+        "axisY": [
+          0,
+          1,
+          0
+        ]
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "cylBlank",
+        "b": "cutOblique",
+        "name": "cylCut",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "workspace.select",
+      "params": {
+        "name": "cylTop",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "cylCut",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 10
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "cylCut",
+        "openFaces": "cylTop",
+        "thickness": 2,
+        "name": "cylClassic"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.torus",
+      "params": {
+        "name": "torusFull",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "axis": [
+          0,
+          0,
+          1
+        ],
+        "majorRadius": 30,
+        "minorRadius": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.box",
+      "params": {
+        "name": "cutHalf",
+        "origin": [
+          -50,
+          -50,
+          -20
+        ],
+        "sizeX": 100,
+        "sizeY": 50,
+        "sizeZ": 40
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "torusFull",
+        "b": "cutHalf",
+        "name": "halfTorus",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "workspace.select",
+      "params": {
+        "name": "torusEnds",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "halfTorus",
+            "filter": {
+              "surfaceType": "planar"
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "halfTorus",
+        "openFaces": "torusEnds",
+        "thickness": 2,
+        "name": "torusClassic"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "solid.sphere",
+      "params": {
+        "name": "ball",
+        "center": [
+          0,
+          0,
+          0
+        ],
+        "radius": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "solid.box",
+      "params": {
+        "name": "cutTop",
+        "origin": [
+          -30,
+          -30,
+          10
+        ],
+        "sizeX": 60,
+        "sizeY": 60,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.box",
+      "params": {
+        "name": "cutBottom",
+        "origin": [
+          -30,
+          -30,
+          -30
+        ],
+        "sizeX": 60,
+        "sizeY": 60,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "ball",
+        "b": "cutTop",
+        "name": "ballHalf",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "ballHalf",
+        "b": "cutBottom",
+        "name": "sphereBand",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "workspace.select",
+      "params": {
+        "name": "bandEnds",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "sphereBand",
+            "filter": {
+              "surfaceType": "planar"
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "sphereBand",
+        "openFaces": "bandEnds",
+        "thickness": 2,
+        "name": "sphereClassic"
+      }
+    }
+  ]
+}

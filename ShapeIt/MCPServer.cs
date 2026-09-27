@@ -4225,6 +4225,49 @@ namespace ShapeIt
             }
         }
 
+        /// <summary>
+        /// solid.hollow: classic shelling with a single wall thickness, the original faces stay the
+        /// outer skin. The open faces bound the wall: the inner walls are extended through them, so the
+        /// rim lies in the surface of the open faces. Without open faces the result is a closed body
+        /// with an enclosed cavity. The result may consist of several solids or be empty.
+        /// </summary>
+        private void SolidHollowImpl(JsonElement solid, JsonElement openFaces, double thickness, string? name)
+        {
+            if (thickness < Precision.eps) throw new JsonRpcException("E_INVALID_PARAMS", "'thickness' must be greater than 0.");
+            List<Solid> solids = IterateSelector<Solid>(solid).ToList();
+            if (solids.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No solid found to hollow out.");
+            if (solids.Count > 1) throw new JsonRpcException("E_INVALID_PARAMS", "'solid' must name exactly one solid.");
+            Solid sld = solids[0];
+            // 'openFaces' is optional: without it the result is a closed body with an enclosed cavity
+            HashSet<Face> open = new HashSet<Face>(IterateSelector<Face>(openFaces));
+            if (openFaces.ValueKind != JsonValueKind.Undefined && open.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", "No face found in 'openFaces'.");
+            if (!open.All(f => f.Owner == sld.Shell)) throw new JsonRpcException("E_INVALID_PARAMS", "All 'openFaces' must belong to 'solid'.");
+            // Without a name the result replaces the input under the input's own name.
+            bool nameGiven = name != null;
+            if (name == null) name = FirstName(solid);
+
+            // The clone has new Face objects, so the open faces have to be mapped onto the clone.
+            Dictionary<Face, Face> clonedFaces = new Dictionary<Face, Face>();
+            Shell toHollow = sld.Shell.Clone(null, null, clonedFaces);
+            HashSet<Face> openOnClone = [.. open.Select(f => clonedFaces[f])];
+            Shell[] hollowShells = toHollow.MakeHollow(open.Select(f => clonedFaces[f]), thickness);
+            List<Solid> hollowSolids = [];
+            for (int i = 0; i < hollowShells.Length; i++)
+            {
+                if (hollowShells[i].OpenEdgesExceptPoles.Length == 0) hollowSolids.Add(Solid.MakeSolid(hollowShells[i]));
+            }
+            if (hollowSolids.Count == 0)
+            {
+                ReportEmptyResult("'solid.hollow' could not build a valid wall - a valid outcome, not an error.", name, nameGiven);
+                return;
+            }
+            if (name != null)
+            {
+                if (hollowSolids.Count == 1) namedItems[name] = hollowSolids[0];
+                else namedItems[name] = hollowSolids;
+            }
+        }
+
         private void PatternCircularSolidsImpl(JsonElement objects, Axis axis, int count, double angle, string name, bool suffix)
         {
 
