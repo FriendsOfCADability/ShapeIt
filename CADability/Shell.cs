@@ -1548,6 +1548,7 @@ namespace CADability.GeoObject
         public Shell Clone(Dictionary<Edge, Edge> clonedEdges, Dictionary<Vertex, Vertex> clonedVertices = null, Dictionary<Face, Face> clonedFaces = null)
         {   // hier kann es sich um ein unabhängiges oder um ein von einem Solid abhängiges Shell handeln.
             // im letzteren Fall bleiben die edges undefiniert
+            if (clonedEdges == null) clonedEdges = new Dictionary<Edge, Edge>();
             if (clonedVertices == null) clonedVertices = new Dictionary<Vertex, Vertex>();
             if (clonedFaces == null && parametricProperties != null) clonedFaces = new Dictionary<Face, Face>();
             Shell res = Shell.Construct();

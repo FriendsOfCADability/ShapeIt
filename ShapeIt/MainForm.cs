@@ -764,8 +764,7 @@ namespace ShapeIt
         {
             Solid box = Make3D.MakeBox(new GeoPoint(0, 0, 0), new GeoVector(10, 0, 0), new GeoVector(0, 10, 0), new GeoVector(0, 0, 10));
             Shell shell = box.Shell;
-            shell.AddAndRemoveFaces([], [shell.Faces[0]]);
-            shell.Thicken(1.0, 1.0);
+            Shell[] hollow = shell.MakeHollow([shell.Faces[0]], 1.0);
         }
 #if DEBUG
         private static Random rnd = new Random();

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using CADability.Substitutes;
 using System.Runtime.Serialization;
+using CADability.GeoObject;
 
 namespace CADability
 {
@@ -947,7 +948,28 @@ namespace CADability
                 return hashCode;
             }
         }
-
+        /// <summary>
+        /// Makes an infinit BoundingRect for nonperiodic surfaces. For periodic surfaces the period choosen so that the surface domain is in the middle
+        /// </summary>
+        /// <param name="surface"></param>
+        /// <returns></returns>
+        /// <exception cref="NotImplementedException"></exception>
+        internal BoundingRect MakeInfinite(ISurface surface)
+        {
+            double l = System.Double.MinValue, r = System.Double.MinValue;
+            double b = System.Double.MinValue, t = System.Double.MinValue;
+            if (surface.IsUPeriodic)
+            {
+                l = (Left + Right) / 2.0 - surface.UPeriod / 2.0;
+                r = l + surface.UPeriod;
+            }
+            if (surface.IsVPeriodic)
+            {
+                b = (Bottom + Top) / 2.0 - surface.VPeriod / 2.0;
+                t = b + surface.VPeriod;
+            }
+            return new BoundingRect(l, b, r, t);
+        }
     }
 
 }

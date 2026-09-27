@@ -3574,6 +3574,80 @@ namespace CADability
             if (curve3d != null) return (curve3d as IOctTreeInsertable).Position(fromHere, direction, precision);
             return double.MaxValue;
         }
+        /// <summary>
+        /// sets the new 3d and 2d curves of the edge
+        /// </summary>
+        /// <param name="face"></param>
+        /// <param name="intcurve"></param>
+        internal void SetCurve(Face face, IDualSurfaceCurve intcurve)
+        {
+            if ((intcurve.Curve3D.StartPoint | Vertex1.Position) + (intcurve.Curve3D.EndPoint | Vertex2.Position) >
+                (intcurve.Curve3D.StartPoint | Vertex2.Position) + (intcurve.Curve3D.EndPoint | Vertex1.Position))
+                intcurve.Reverse(); // should always com in correct orientation
+            Curve3D = intcurve.Curve3D;
+            if (face == primaryFace)
+            {
+                PrimaryCurve2D = intcurve.Curve2D1;
+                if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
+                SecondaryCurve2D = intcurve.Curve2D2;
+                if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+            }
+            else
+            {
+                PrimaryCurve2D = intcurve.Curve2D2;
+                if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
+                SecondaryCurve2D = intcurve.Curve2D1;
+                if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+            }
+        }
+
+        internal bool RecalcCurves()
+        {
+            if (this.Adjacency()==ShellExtensions.AdjacencyType.SameSurface)
+            {
+                if (curve3d is Line line)
+                {   // this might be a cylinder or a cone
+                    line.StartPoint = Vertex1.Position;
+                    line.EndPoint = Vertex2.Position;
+                    PrimaryCurve2D = primaryFace.Surface.GetProjectedCurve(line,0.0);
+                    if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
+                    SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(line, 0.0);
+                    if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+                    return true;
+                }
+                if (curve3d is Ellipse ellipse)
+                {   // this might be a torus or a sphere
+                    ellipse.StartPoint = Vertex1.Position;
+                    ellipse.EndPoint = Vertex2.Position;
+                    PrimaryCurve2D = primaryFace.Surface.GetProjectedCurve(ellipse, 0.0);
+                    if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
+                    SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(ellipse, 0.0);
+                    if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+                    return true;
+
+                }
+            }
+            BoundingRect pDomain = new BoundingRect(primaryFace.Domain);
+            pDomain.MinMax(primaryFace.Surface.PositionOf(Vertex1.Position));
+            pDomain.MinMax(primaryFace.Surface.PositionOf(Vertex2.Position));
+            BoundingRect sDomain = new BoundingRect(secondaryFace.Domain);
+            pDomain.MinMax(secondaryFace.Surface.PositionOf(Vertex1.Position));
+            pDomain.MinMax(secondaryFace.Surface.PositionOf(Vertex2.Position));
+            IDualSurfaceCurve intcurve = primaryFace.Surface.GetDualSurfaceCurves(pDomain, secondaryFace.Surface, sDomain, [Vertex1.Position, Vertex2.Position])
+                .MinByWithDefault(null, dsc => dsc.Curve3D.DistanceTo(Curve3D.PointAt(0.5)));
+            // When a cylinder meets a plane and we have two opposite seeds, there are two curves. Choose the one closer to the original edge
+            if (intcurve == null) return false;
+            if ((intcurve.Curve3D.StartPoint | Vertex1.Position) + (intcurve.Curve3D.EndPoint | Vertex2.Position) >
+                (intcurve.Curve3D.StartPoint | Vertex2.Position) + (intcurve.Curve3D.EndPoint | Vertex1.Position))
+                intcurve.Reverse(); // should always com in correct orientation
+            intcurve.Trim(Vertex1.Position, Vertex2.Position);
+            Curve3D = intcurve.Curve3D;
+            PrimaryCurve2D = intcurve.Curve2D1;
+            if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
+            SecondaryCurve2D = intcurve.Curve2D2;
+            if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+            return true;
+        }
         #endregion
 #if DEBUG
         public bool IsDebug
