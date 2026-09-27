@@ -2494,9 +2494,19 @@ namespace CADability.GeoObject
                             continue;
                         }
                         if (commonEdge.Curve3D is Ellipse ellipse)
-                        {
-                            // TODO: implement curve surface for ellipse (splitted Torus or sphere)
+                        {   // a seam of a split sphere or torus. Not necessarily a curve with constant u or v (a sphere is split like a
+                            // tennis ball, see Face.MakeNonPolarSphere), but in 3d always a circle or an ellipse, which is not changed by
+                            // the push. The new vertex is where the full circle meets the moved surface.
+                            Ellipse fullEllipse = Ellipse.Construct();
+                            fullEllipse.SetEllipseCenterAxis(ellipse.Center, ellipse.MajorAxis, ellipse.MinorAxis);
+                            parallelSurface.Intersect(fullEllipse, face.Domain, out GeoPoint[] ips, out _, out _);
+                            if (ips.Length == 0) return Undo(); // the seam does not reach the moved surface, e.g. beyond the pole of a sphere
+                            modifiedVertices[v] = ips.MinBy(p => p | v.Position);
+                            continue;
                         }
+                        // Other seam curves are not supported: the intersection of the moved surface with two identical surfaces is
+                        // underdetermined, IntersectThreeSurfaces would return a point which is not on the seam.
+                        return Undo();
                     }
                     GeoPoint ip = v.Position;
                     if (Surfaces.IntersectThreeSurfaces(parallelSurface, face.Domain, f1.Surface, f1.Domain, f2.Surface, f2.Domain, ref ip, out GeoPoint2D uvParallel, out GeoPoint2D uv1, out GeoPoint2D uv2))
