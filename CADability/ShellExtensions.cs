@@ -2501,7 +2501,7 @@ namespace CADability.GeoObject
                 if (!edge.IsTangentialEdge()) continue; // also true for a seam between two faces with the same surface
                 if (primaryMoved != moved.Contains(edge.SecondaryFace))
                 {
-                    if (edge.Vertex1 == edge.Vertex2) return false; // closed tangential edges are not supported yet
+                    if (edge.Vertex1 == edge.Vertex2) return false; // cannot happen: CADability has no closed edges, periodic faces are split
                     ICurve offsetCurve = OffsetCurve(edge, MovedFace(edge));
                     if (offsetCurve == null) return false;
                     stripEdges[edge] = offsetCurve;

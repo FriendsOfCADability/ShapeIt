@@ -181,5 +181,59 @@ namespace CADability.Tests
             double expected = 40 * (575 + Math.PI * 25 / 4) - 36 * (453 + 5 * Math.PI / 4);
             Assert.AreEqual(expected, hollow[0].Volume(0.01), expected * 1e-5);
         }
+
+        /// <summary>
+        /// CADability allows neither closed edges (an edge from a vertex back to the same vertex) nor faces with a seam (an edge
+        /// with the same face on both sides): periodic faces are split, e.g. into two halves of a cylinder. So the strip in
+        /// PushPull never has to deal with a closed tangential edge.
+        /// </summary>
+        private static void AssertNoClosedEdgesAndNoSeams(Shell shell, string name)
+        {
+            foreach (Edge edge in shell.Edges)
+            {
+                Assert.AreNotSame(edge.Vertex1, edge.Vertex2, $"{name}: closed edge");
+                Assert.AreNotSame(edge.PrimaryFace, edge.SecondaryFace, $"{name}: face with a seam");
+            }
+        }
+
+        [TestMethod]
+        public void primitives_have_no_closed_edges_and_no_seams()
+        {
+            AssertNoClosedEdgesAndNoSeams(Make3D.MakeCylinder(GeoPoint.Origin, 10 * GeoVector.XAxis, 20 * GeoVector.ZAxis).Shells[0], "cylinder");
+            AssertNoClosedEdgesAndNoSeams(Make3D.MakeCone(GeoPoint.Origin, GeoVector.XAxis, 20 * GeoVector.ZAxis, 10, 5).Shells[0], "cone");
+            AssertNoClosedEdgesAndNoSeams(Make3D.MakeSphere(GeoPoint.Origin, 10).Shells[0], "sphere");
+            AssertNoClosedEdgesAndNoSeams(Make3D.MakeTorus(GeoPoint.Origin, GeoVector.ZAxis, 20, 5).Shells[0], "torus");
+        }
+
+        /// <summary>
+        /// A cylinder (radius 10, height 20) whose top rim is rounded with the radius 2: the top face is a disk of radius 8,
+        /// tangential to the torus fillet along two arcs. Pulling the top face by 3 inserts two strips, halves of a cylinder of
+        /// radius 8, which share their straight edges. The fillet removes the corner area 4 - pi around the axis; by Pappus
+        /// this is 2*pi*(100/3 - 8*pi).
+        /// </summary>
+        [TestMethod]
+        public void pulling_the_top_of_a_cylinder_with_a_rounded_rim()
+        {
+            Shell cylinder = Make3D.MakeCylinder(GeoPoint.Origin, 10 * GeoVector.XAxis, 20 * GeoVector.ZAxis).Shells[0];
+            Edge[] rim = [.. cylinder.Edges.Where(e => e.Curve3D is Ellipse && e.Curve3D.StartPoint.z > 19.0)];
+            Assert.AreEqual(2, rim.Length, "the top rim is expected to consist of two arcs");
+            Shell shell = cylinder.RoundEdges(rim, 2.0);
+            Assert.IsNotNull(shell, "the rim could not be rounded");
+            AssertNoClosedEdgesAndNoSeams(shell, "rounded cylinder");
+            double v0 = 2000 * Math.PI - 2 * Math.PI * (100.0 / 3.0 - 8 * Math.PI);
+            Assert.AreEqual(v0, shell.Volume(0.01), v0 * 1e-5, "wrong volume of the rounded cylinder");
+            Face[] top = [.. shell.Faces.Where(f => f.Surface is PlaneSurface && f.GetExtent(0.0).Zmin > 19.0)];
+            Assert.AreEqual(1, top.Length);
+            Assert.IsTrue(top[0].AllEdges.All(e => e.IsTangentialEdge()), "the top face is expected to be tangential to the fillet");
+            int faces = shell.Faces.Length;
+
+            Assert.IsTrue(shell.PushPull(top, d));
+            AssertClosedAndConsistent(shell, faces + top[0].AllEdges.Length);
+            AssertNoClosedEdgesAndNoSeams(shell, "pulled cylinder");
+            Assert.AreEqual(2, shell.Faces.Count(f => f.Surface is CylindricalSurface cs && Math.Abs(cs.RadiusX - 8) < 1e-6), "two strips of radius 8");
+            double expected = v0 + 64 * Math.PI * d;
+            // Volume(0.01) is off by 1.4e-4 relative here, the geometry is exact: Volume(1e-4) agrees to 1e-9
+            Assert.AreEqual(expected, shell.Volume(1e-4), expected * 1e-6);
+        }
     }
 }
