@@ -41,6 +41,19 @@ namespace CADability.Forms.NET8
             }
         }
 
+        // A rectangular bitmap drawn as a textured quad. Corners are stored in the
+        // list's local coordinate system; the model matrix is applied at draw time
+        // (same convention as the geometry buffers). The texture is owned by the painter.
+        internal readonly struct TexturedQuad
+        {
+            public readonly Vector3 P0, P1, P2, P3;
+            public readonly uint Texture;
+            public TexturedQuad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, uint texture)
+            {
+                P0 = p0; P1 = p1; P2 = p2; P3 = p3; Texture = texture;
+            }
+        }
+
         // ── CPU-side staging buffers (filled during OpenList … CloseList) ──
         // Each vertex is: position (3 floats) + normal (3 floats) + color (4 floats) = 10 floats
         internal const int FloatsPerVertex = 10;
@@ -60,6 +73,8 @@ namespace CADability.Forms.NET8
         // Color == null  → inherit parent's override color
         // Color != null  → use as uColorOverride (SetColor active at record time)
         private List<(GlBufferList Sub, Matrix4x4? Model, Vector4? Color)>? _subLists;
+        // Bitmaps recorded via RectangularBitmap; drawn by the painter's callback.
+        private List<TexturedQuad>? _quads;
 
         // ── GPU-side buffers (filled on CloseList) ─────────────────────────
         private readonly List<SubBuffer> _gpuBuffers = new();
@@ -88,6 +103,14 @@ namespace CADability.Forms.NET8
             _lineDataByWidth   = new Dictionary<float, List<float>>();
             _pointDataBySymbol = new Dictionary<PointSymbol, List<float>>();
             _subLists          = new List<(GlBufferList, Matrix4x4?, Vector4?)>();
+        }
+
+        /// <summary>Append a textured quad (rectangular bitmap) to the recording buffer.</summary>
+        public void RecordTexturedQuad(Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, uint texture)
+        {
+            _quads ??= new List<TexturedQuad>();
+            HasContents = true;
+            _quads.Add(new TexturedQuad(p0, p1, p2, p3, texture));
         }
 
         /// <summary>Append a triangle mesh (indexed) to the recording buffer.</summary>
@@ -243,11 +266,14 @@ namespace CADability.Forms.NET8
         /// to both shaders; pass null when drawing a list with no sub-lists.</summary>
         /// <param name="prepareDraw">Called before each sub-buffer draw to activate the
         /// correct shader and set buffer-specific uniforms (e.g. point symbol).</param>
+        /// <param name="drawTexturedQuad">Called for each recorded bitmap quad; the painter
+        /// binds the texture and draws it with the current model matrix.</param>
         public void Draw(GL gl,
                          Matrix4x4 ownModel = default,
                          Vector4?  ownOverrideColor = null,
                          Action<Matrix4x4, Vector4?>? setModelAndColor = null,
-                         Action<SubBuffer>? prepareDraw = null)
+                         Action<SubBuffer>? prepareDraw = null,
+                         Action<TexturedQuad>? drawTexturedQuad = null)
         {
             if (_subLists != null && _subLists.Count > 0)
             {
@@ -256,7 +282,7 @@ namespace CADability.Forms.NET8
                     var modelToUse = storedModel ?? ownModel;
                     var colorToUse = ownOverrideColor ?? storedColor;
                     setModelAndColor?.Invoke(modelToUse, colorToUse);
-                    sub.Draw(gl, modelToUse, colorToUse, setModelAndColor, prepareDraw);
+                    sub.Draw(gl, modelToUse, colorToUse, setModelAndColor, prepareDraw, drawTexturedQuad);
                 }
                 setModelAndColor?.Invoke(ownModel, ownOverrideColor);
             }
@@ -275,6 +301,12 @@ namespace CADability.Forms.NET8
                 if (widthSet) gl.LineWidth(1f);
             }
             gl.BindVertexArray(0);
+
+            // Textured quads (bitmaps) are drawn by the painter via the callback,
+            // with the model matrix already set for this list by setModelAndColor.
+            if (_quads != null && drawTexturedQuad != null)
+                foreach (var q in _quads)
+                    drawTexturedQuad(q);
         }
 
         // ──────────────────────────────────────────────────────────────────
@@ -308,6 +340,7 @@ namespace CADability.Forms.NET8
                 // Sub-lists are owned by MakeList – do not double-free them here.
                 _subLists = null;
             }
+            _quads = null;   // textures are owned/freed by the painter
         }
     }
 }

@@ -76,6 +76,12 @@ namespace CADability.Forms.NET8
         // On-screen pixel size of each glyph quad
         private const int CharTexSize = 20;
 
+        // ── Rectangular bitmap rendering (textured quads) ──────────────────
+        private ShaderProgram? _textureShader;
+        private uint _texVao, _texVbo;
+        // One texture per CADability bitmap, created in PrepareBitmap
+        private readonly Dictionary<Substitutes.Bitmap, uint> _bitmapTextures = new();
+
         // ── Viewport / projection ──────────────────────────────────────────
         private int _width, _height;
         private Matrix4x4 _projection = Matrix4x4.Identity;
@@ -172,6 +178,7 @@ namespace CADability.Forms.NET8
             _unlitShader = new ShaderProgram(_gl, ShaderSources.VertexShader,      ShaderSources.UnlitFragmentShader);
             _pointShader = new ShaderProgram(_gl, ShaderSources.PointVertexShader, ShaderSources.PointFragmentShader);
             _textShader  = new ShaderProgram(_gl, ShaderSources.TextVertexShader,  ShaderSources.TextFragmentShader);
+            _textureShader = new ShaderProgram(_gl, ShaderSources.TextureVertexShader, ShaderSources.TextureFragmentShader);
             _gl.Enable(EnableCap.DepthTest);
             _gl.Enable(EnableCap.Blend);
             _gl.BlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha);
@@ -195,6 +202,26 @@ namespace CADability.Forms.NET8
             _gl.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, stride, 0);
             _gl.EnableVertexAttribArray(1);
             _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, stride, 2 * sizeof(float));
+            _gl.BindVertexArray(0);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
+
+            // Textured-quad VAO/VBO: position (3) + UV (2), 6 vertices (two triangles),
+            // re-uploaded per RectangularBitmap draw.
+            _texVao = _gl.GenVertexArray();
+            _texVbo = _gl.GenBuffer();
+            _gl.BindVertexArray(_texVao);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _texVbo);
+            unsafe
+            {
+                _gl.BufferData(BufferTargetARB.ArrayBuffer,
+                               (nuint)(6 * 5 * sizeof(float)),
+                               (void*)null, BufferUsageARB.DynamicDraw);
+            }
+            uint texStride = 5 * sizeof(float);
+            _gl.EnableVertexAttribArray(0);
+            _gl.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, texStride, 0);
+            _gl.EnableVertexAttribArray(1);
+            _gl.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, texStride, 3 * sizeof(float));
             _gl.BindVertexArray(0);
             _gl.BindBuffer(BufferTargetARB.ArrayBuffer, 0);
         }
@@ -237,10 +264,15 @@ namespace CADability.Forms.NET8
             _unlitShader?.Dispose();
             _pointShader?.Dispose();
             _textShader?.Dispose();
+            _textureShader?.Dispose();
             if (_textVao != 0) { _gl.DeleteVertexArray(_textVao); _textVao = 0; }
             if (_textVbo != 0) { _gl.DeleteBuffer(_textVbo); _textVbo = 0; }
+            if (_texVao != 0) { _gl.DeleteVertexArray(_texVao); _texVao = 0; }
+            if (_texVbo != 0) { _gl.DeleteBuffer(_texVbo); _texVbo = 0; }
             foreach (var tex in _charTextures.Values) _gl.DeleteTexture(tex);
             _charTextures.Clear();
+            foreach (var tex in _bitmapTextures.Values) _gl.DeleteTexture(tex);
+            _bitmapTextures.Clear();
             _context?.Dispose();
             if (_graphics != null)
             {
@@ -620,11 +652,48 @@ namespace CADability.Forms.NET8
         void IPaintTo3D.PreparePointSymbol(PointSymbol symbol) { }
         void IPaintTo3D.PrepareIcon(object icon) { }
         void IPaintTo3D.PrepareBitmap(object bitmap, int xoffset, int yoffset) { }
-        void IPaintTo3D.PrepareBitmap(object bitmap) { }
+        void IPaintTo3D.PrepareBitmap(object obitmap)
+        {
+            if (obitmap is not Substitutes.Bitmap bitmap)
+                throw new ArgumentException("PrepareBitmap needs a CADability Bitmap");
+            if (bitmap.IsEmpty) return;
+            if (_bitmapTextures.ContainsKey(bitmap)) return;
 
-        void IPaintTo3D.RectangularBitmap(object bitmap, GeoPoint location,
+            uint tex = _gl.GenTexture();
+            _gl.BindTexture(TextureTarget.Texture2D, tex);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.Repeat);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.Repeat);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Nearest);
+            _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
+            _gl.PixelStore(PixelStoreParameter.UnpackAlignment, 1);
+
+            // Data is tightly packed RGBA bytes (see Substitutes.Bitmap.GetPixel).
+            // Uploaded unflipped; the vertical orientation is handled in the quad UVs.
+            _gl.TexImage2D<byte>(TextureTarget.Texture2D, 0, InternalFormat.Rgba,
+                                 (uint)bitmap.Width, (uint)bitmap.Height, 0,
+                                 Silk.NET.OpenGL.PixelFormat.Rgba, PixelType.UnsignedByte,
+                                 (ReadOnlySpan<byte>)bitmap.Data);
+            _gl.BindTexture(TextureTarget.Texture2D, 0);
+            _bitmapTextures[bitmap] = tex;
+        }
+
+        void IPaintTo3D.RectangularBitmap(object obitmap, GeoPoint location,
                                            GeoVector directionWidth, GeoVector directionHeight)
-        { /* TODO: texture quad */ }
+        {
+            if (obitmap is not Substitutes.Bitmap bitmap)
+                throw new ArgumentException("RectangularBitmap needs a CADability Bitmap");
+            if (!_bitmapTextures.TryGetValue(bitmap, out uint tex)) return;
+
+            var p0 = ToVec3(location);
+            var p1 = ToVec3(location + directionWidth);
+            var p2 = ToVec3(location + directionWidth + directionHeight);
+            var p3 = ToVec3(location + directionHeight);
+
+            if (_recordingList != null)
+                _recordingList.RecordTexturedQuad(p0, p1, p2, p3, tex);
+            else
+                DrawTexturedQuad(new GlBufferList.TexturedQuad(p0, p1, p2, p3, tex));
+        }
 
         void IPaintTo3D.DisplayIcon(GeoPoint p, object icon) { /* TODO: billboard sprite */ }
         void IPaintTo3D.DisplayBitmap(GeoPoint p, object bitmap) { /* TODO: billboard sprite */ }
@@ -1101,8 +1170,40 @@ namespace CADability.Forms.NET8
                 }
             }
 
-            gbl.Draw(_gl, ownModel, overrideColor, SetModelAndColor, PrepareDraw);
+            gbl.Draw(_gl, ownModel, overrideColor, SetModelAndColor, PrepareDraw, DrawTexturedQuad);
             _model = ownModel;
+        }
+
+        private unsafe void DrawTexturedQuad(GlBufferList.TexturedQuad q)
+        {
+            // UVs map the texture so it appears upright for directionHeight pointing "up",
+            // matching the legacy PaintToOpenGL.RectangularBitmap (texture uploaded unflipped).
+            ReadOnlySpan<float> verts = stackalloc float[]
+            {
+                q.P0.X, q.P0.Y, q.P0.Z, 0f, 1f,
+                q.P1.X, q.P1.Y, q.P1.Z, 1f, 1f,
+                q.P2.X, q.P2.Y, q.P2.Z, 1f, 0f,
+                q.P0.X, q.P0.Y, q.P0.Z, 0f, 1f,
+                q.P2.X, q.P2.Y, q.P2.Z, 1f, 0f,
+                q.P3.X, q.P3.Y, q.P3.Z, 0f, 0f,
+            };
+
+            _textureShader!.Use();
+            _textureShader.SetMatrix4("uMVP", _model * _view * _projection);
+            _textureShader.SetInt("uTexture", 0);
+
+            _gl.ActiveTexture(TextureUnit.Texture0);
+            _gl.BindTexture(TextureTarget.Texture2D, q.Texture);
+
+            _gl.BindVertexArray(_texVao);
+            _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _texVbo);
+            fixed (float* ptr = verts)
+                _gl.BufferSubData(BufferTargetARB.ArrayBuffer, 0,
+                                  (nuint)(verts.Length * sizeof(float)), ptr);
+            _gl.DrawArrays(PrimitiveType.Triangles, 0, 6);
+
+            _gl.BindVertexArray(0);
+            _gl.BindTexture(TextureTarget.Texture2D, 0);
         }
 
         // ── Immediate draw: upload a temporary VAO, draw, delete ──────────

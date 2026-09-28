@@ -205,5 +205,40 @@ void main()
     FragColor = vec4(uColor.rgb, uColor.a * a);
 }
 ";
+
+        // ── Textured quad in 3-D world space (RectangularBitmap) ──────────
+        public const string TextureVertexShader = @"
+#version 330 core
+
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aUV;
+
+uniform mat4 uMVP;
+
+out vec2 vUV;
+
+void main()
+{
+    gl_Position = uMVP * vec4(aPos, 1.0);
+    vUV = aUV;
+}
+";
+
+        public const string TextureFragmentShader = @"
+#version 330 core
+
+in  vec2 vUV;
+
+uniform sampler2D uTexture;
+
+out vec4 FragColor;
+
+void main()
+{
+    vec4 c = texture(uTexture, vUV);
+    if (c.a < 0.5) discard;   // match the old GL_ALPHA_TEST > 0.5 behaviour
+    FragColor = c;
+}
+";
     }
 }
