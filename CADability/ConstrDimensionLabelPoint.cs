@@ -257,7 +257,7 @@ namespace CADability.Actions
         {
             base.OnDone();
         }
-        internal override void InputChanged(object activeInput)
+        protected override void InputChanged(object activeInput)
         {
             if (activeInput == curveInput)
             {

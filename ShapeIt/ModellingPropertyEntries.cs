@@ -2962,6 +2962,30 @@ namespace ShapeIt
                     faceEntries.Add(mate);
                 }
 
+                // hollow out the solid, the clicked face is the first opening
+                if (owningShell.Owner is Solid)
+                {
+                    DirectMenuEntry makeHollow = new DirectMenuEntry("MenuId.MakeHollow");
+                    makeHollow.ExecuteMenu = (frame) =>
+                    {
+                        MakeHollowAction mha = new MakeHollowAction(fc);
+                        cadFrame.ControlCenter.ShowPropertyPage("Action");
+                        frame.SetAction(mha);
+                        return true;
+                    };
+                    makeHollow.IsSelected = (selected, frame) =>
+                    {
+                        feedback.Clear();
+                        if (selected)
+                        {
+                            feedback.FrontFaces.Add(fc);
+                        }
+                        feedback.Refresh();
+                        return true;
+                    };
+                    faceEntries.Add(makeHollow);
+                }
+
                 // can we find a thickness or gauge in the shell?
                 double thickness = owningShell.GetGauge(fc, out HashSet<Face> frontSide, out HashSet<Face> backSide);
                 if (thickness != double.MaxValue && thickness > 0.0 && frontSide.Count > 0)

@@ -495,4 +495,19 @@
 		<info>Second point of the axis of rotation. Together with the axis point it defines the axis direction</info>
 	</data>
 
+	<data name="MenuId.MakeHollow">
+		<label>Hollow out</label>
+		<info>Hollow out the solid with a constant wall thickness, this face becomes an opening</info>
+	</data>
+	<data name="Construct.MakeHollow">
+		<label>Hollow out</label>
+	</data>
+	<data name="MakeHollow.Thickness">
+		<label>Wall thickness</label>
+		<info>Thickness of the remaining wall</info>
+	</data>
+	<data name="MakeHollow.OpenFaces">
+		<label>Openings</label>
+		<info>Faces which are removed and form the openings. Clicking a face adds or removes it</info>
+	</data>
 </root>

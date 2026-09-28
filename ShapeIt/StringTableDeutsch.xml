@@ -595,4 +595,19 @@
 		<label>Zweiter Achspunkt</label>
 		<info>Zweiter Punkt der Rotationsachse. Zusammen mit dem Achspunkt definiert er die Achsrichtung.</info>
 	</data>
+	<data name="MenuId.MakeHollow">
+		<label>Aushöhlen</label>
+		<info>Den Körper mit einer festen Wandstärke aushöhlen, diese Fläche wird zur Öffnung</info>
+	</data>
+	<data name="Construct.MakeHollow">
+		<label>Aushöhlen</label>
+	</data>
+	<data name="MakeHollow.Thickness">
+		<label>Wandstärke</label>
+		<info>Dicke der verbleibenden Wand</info>
+	</data>
+	<data name="MakeHollow.OpenFaces">
+		<label>Öffnungen</label>
+		<info>Flächen, die entfernt werden und die Öffnungen bilden. Klicken fügt eine Fläche hinzu oder entfernt sie</info>
+	</data>
 </root>
