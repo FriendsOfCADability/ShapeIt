@@ -2436,20 +2436,35 @@ namespace CADability.GeoObject
         }
         /// <summary>
         /// Moves the provided faces by <paramref name="distance"/> along their normals (replaces their surfaces by the offset surfaces)
-        /// and extends or shortens the adjacent faces in their own surfaces. The operation is all or nothing: when it fails, the shell
-        /// is restored to its previous state and false is returned.
-        /// <para>Tangential edges are handled in two cases: a tangential edge between two faces which are both not moved keeps its
-        /// curve, the moved vertex slides along this curve. A tangential edge between two moved faces is the offset of the original
-        /// edge. In both cases the vertex is the intersection of the edge curve with the third face, because intersecting three
-        /// surfaces, two of which are tangential, is ill-conditioned. A tangential edge between a moved and a not moved face cannot be
-        /// preserved: pulling separates the two surfaces, pushing makes them intersect with a kink.</para>
+        /// and extends or shortens the adjacent faces in their own surfaces. The operation is all or nothing: everything is computed
+        /// before the shell is modified, when something cannot be computed, the shell remains unchanged and false is returned.
+        /// <para>A face with the same surface as a moved face (e.g. the other half of a split cylinder) is moved as well.</para>
+        /// <para>Tangential edges: a tangential edge between two faces which are both not moved keeps its curve, the moved vertex
+        /// slides along this curve. A tangential edge between two moved faces is the offset of the original edge. In both cases the
+        /// vertex is the intersection of the edge curve with the third face, because intersecting three surfaces, two of which are
+        /// tangential, is ill-conditioned. A tangential edge between a moved face and a face which is not moved (typically a fillet)
+        /// stays where it is: the moved face is connected to it by a new face, the ruled surface between the edge and its offset
+        /// (the edge swept along the common normal). At the ends of such an edge the faces are extended by the straight line
+        /// from the old to the new vertex, which must lie in the third face (e.g. a side face perpendicular to the moved face).</para>
         /// </summary>
         public static bool PushPull(this Shell shell, IEnumerable<Face> facesToMove, double distance)
         {
-            // Everything is computed before the shell is modified: whether an edge is tangential can only be decided with the
-            // original surfaces. Only the recalculation of the edges may fail after the modification, so every modification is
-            // recorded and undone in that case.
+            if (distance == 0.0) return true;
             HashSet<Face> moved = [.. facesToMove];
+            Queue<Face> sameSurfaceCandidates = new Queue<Face>(moved);
+            while (sameSurfaceCandidates.Count > 0)
+            {
+                Face face = sameSurfaceCandidates.Dequeue();
+                foreach (Edge edge in face.AllEdges)
+                {
+                    Face other = edge.OtherFace(face);
+                    if (other != null && !moved.Contains(other) && edge.Adjacency() == AdjacencyType.SameSurface)
+                    {
+                        moved.Add(other);
+                        sameSurfaceCandidates.Enqueue(other);
+                    }
+                }
+            }
             Dictionary<Face, ISurface> parallelSurfaces = [];
             foreach (Face face in moved)
             {
@@ -2458,44 +2473,82 @@ namespace CADability.GeoObject
                 parallelSurfaces[face] = parallelSurface;
             }
             ISurface NewSurface(Face face) => parallelSurfaces.TryGetValue(face, out ISurface parallel) ? parallel : face.Surface;
+            Face MovedFace(Edge edge) => moved.Contains(edge.PrimaryFace) ? edge.PrimaryFace : edge.SecondaryFace;
+            ICurve OffsetCurve(Edge edge, Face onFace)
+            {   // The offset surfaces keep the uv system, the offset of the edge is the old 2d curve on the offset surface.
+                ICurve offsetCurve = parallelSurfaces[onFace].Make3dCurve(edge.Curve2D(onFace));
+                if (offsetCurve != null && !edge.Forward(onFace)) offsetCurve.Reverse();
+                return offsetCurve;
+            }
 
-            HashSet<Vertex> verticesToMove = [.. moved.SelectMany(f => f.Vertices)];
             // a vertex may still reference edges which do not belong to this shell (e.g. left over from a boolean operation)
             HashSet<Edge> shellEdges = [.. shell.Edges];
             Edge[] EdgesAt(Vertex vtx) => [.. vtx.Edges.Where(shellEdges.Contains)];
-            HashSet<Edge> edgesToRecalc = [.. verticesToMove.SelectMany(EdgesAt)];
+            HashSet<Vertex> verticesOfMoved = [.. moved.SelectMany(f => f.Vertices)];
+            HashSet<Edge> edgesAtMoved = [.. verticesOfMoved.SelectMany(EdgesAt)];
+
             // Curves of tangential edges, which are known before the vertices are known: the unchanged curve between two faces
-            // which are not moved, or the offset curve between two moved faces. The edges in setDirectly are later trimmed to
-            // these curves instead of intersecting their (tangential) surfaces.
+            // which are not moved, or the offset curve between two moved faces. The edges in setDirectly are trimmed to these
+            // curves instead of intersecting their (tangential) surfaces. Tangential edges between a moved face and a face which
+            // is not moved get a strip.
             Dictionary<Edge, ICurve> knownCurves = [];
             HashSet<Edge> setDirectly = [];
-            foreach (Edge edge in edgesToRecalc)
+            Dictionary<Edge, ICurve> stripEdges = []; // the tangential edges between a moved and a not moved face and their offset
+            foreach (Edge edge in edgesAtMoved)
             {
                 if (edge.SecondaryFace == null) return false; // an open edge, nothing to intersect with
                 bool primaryMoved = moved.Contains(edge.PrimaryFace);
-                if (primaryMoved != moved.Contains(edge.SecondaryFace)) continue; // the edge is recalculated by intersection
                 if (!edge.IsTangentialEdge()) continue; // also true for a seam between two faces with the same surface
-                if (primaryMoved)
-                {   // Tangential surfaces have the same normal along the edge, so the offset of the edge lies in both offset
-                    // surfaces. The offset surfaces keep the uv system, the offset curve is the old 2d curve on the offset surface.
-                    // A planar face yields the more exact curve.
-                    Face onFace = edge.PrimaryFace.Surface is PlaneSurface || !(edge.SecondaryFace.Surface is PlaneSurface) ? edge.PrimaryFace : edge.SecondaryFace;
-                    ICurve offsetCurve = parallelSurfaces[onFace].Make3dCurve(edge.Curve2D(onFace));
+                if (primaryMoved != moved.Contains(edge.SecondaryFace))
+                {
+                    if (edge.Vertex1 == edge.Vertex2) return false; // closed tangential edges are not supported yet
+                    ICurve offsetCurve = OffsetCurve(edge, MovedFace(edge));
                     if (offsetCurve == null) return false;
-                    if (!edge.Forward(onFace)) offsetCurve.Reverse();
+                    stripEdges[edge] = offsetCurve;
+                }
+                else if (primaryMoved)
+                {   // Tangential surfaces have the same normal along the edge, so the offset of the edge lies in both offset
+                    // surfaces. A planar face yields the more exact curve.
+                    Face onFace = edge.PrimaryFace.Surface is PlaneSurface || !(edge.SecondaryFace.Surface is PlaneSurface) ? edge.PrimaryFace : edge.SecondaryFace;
+                    ICurve offsetCurve = OffsetCurve(edge, onFace);
+                    if (offsetCurve == null) return false;
                     knownCurves[edge] = offsetCurve;
                     setDirectly.Add(edge);
                 }
                 else
                 {
                     knownCurves[edge] = edge.Curve3D;
-                    // seams on lines and arcs are handled by Edge.RecalcCurves, other tangential edges are kept as they are
+                    // seams on lines and arcs are handled by Edge.ComputeCurves, other tangential edges are kept as they are
                     if (edge.Adjacency() != AdjacencyType.SameSurface || !(edge.Curve3D is Line || edge.Curve3D is Ellipse)) setDirectly.Add(edge);
                 }
             }
 
+            // The vertices of the strip edges stay where they are, the moved face gets a new vertex at the other end of the strip
+            Dictionary<Vertex, GeoPoint> splitPositions = [];
+            foreach (Vertex vtx in stripEdges.Keys.SelectMany(e => new[] { e.Vertex1, e.Vertex2 }).Distinct())
+            {
+                Edge[] edges = EdgesAt(vtx);
+                HashSet<Face> faces = [.. edges.SelectMany(e => new[] { e.PrimaryFace, e.SecondaryFace })];
+                if (edges.Length != 3 || faces.Count != 3) return false;
+                Face[] movedFaces = [.. faces.Where(moved.Contains)];
+                if (movedFaces.Length != 1) return false; // the third face must stay, otherwise this vertex would have to move
+                Edge[] stripsHere = [.. edges.Where(stripEdges.ContainsKey)];
+                GeoPoint newPosition;
+                if (stripsHere.Length == 2)
+                {   // two strips meet here, the new vertex is the offset of the vertex
+                    Face m = movedFaces[0];
+                    newPosition = parallelSurfaces[m].PointAt(m.Surface.PositionOf(vtx.Position));
+                }
+                else
+                {
+                    Face third = faces.First(f => f != stripsHere[0].PrimaryFace && f != stripsHere[0].SecondaryFace);
+                    if (!IntersectKnownCurve(stripEdges[stripsHere[0]], third.Surface, third, vtx.Position, out newPosition)) return false;
+                }
+                splitPositions[vtx] = newPosition;
+            }
+
             Dictionary<Vertex, GeoPoint> newPositions = [];
-            foreach (Vertex vtx in verticesToMove)
+            foreach (Vertex vtx in verticesOfMoved.Where(v => !splitPositions.ContainsKey(v)))
             {
                 Edge[] edges = EdgesAt(vtx);
                 HashSet<Face> faces = [.. edges.SelectMany(e => new[] { e.PrimaryFace, e.SecondaryFace })];
@@ -2524,49 +2577,205 @@ namespace CADability.GeoObject
                 newPositions[vtx] = moved.Contains(ordered[0]) ? NewSurface(ordered[0]).PointAt(uv0) : p;
             }
 
-            // now modify the shell
-            Dictionary<Vertex, GeoPoint> oldVertexPositions = [];
-            Dictionary<Face, ISurface> oldSurfaces = [];
-            Dictionary<Edge, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d)> oldEdgeCurves = [];
-            bool Undo()
+            // The edges of the moved faces at a strip vertex continue at the new vertex, the others stay at the old vertex
+            bool UsesSplitVertex(Edge edge, Vertex vtx) => splitPositions.ContainsKey(vtx) && !stripEdges.ContainsKey(edge)
+                && (moved.Contains(edge.PrimaryFace) || moved.Contains(edge.SecondaryFace));
+            GeoPoint NewPosition(Edge edge, Vertex vtx)
             {
-                foreach (KeyValuePair<Vertex, GeoPoint> kv in oldVertexPositions) kv.Key.Position = kv.Value;
-                foreach (KeyValuePair<Face, ISurface> kv in oldSurfaces) kv.Key.Surface = kv.Value;
-                foreach (KeyValuePair<Edge, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d)> kv in oldEdgeCurves)
+                if (newPositions.TryGetValue(vtx, out GeoPoint p)) return p;
+                if (UsesSplitVertex(edge, vtx)) return splitPositions[vtx];
+                return vtx.Position;
+            }
+            Dictionary<Edge, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d)> newCurves = [];
+            foreach (Edge edge in edgesAtMoved)
+            {
+                if (stripEdges.ContainsKey(edge)) continue; // stays unchanged on the face which is not moved
+                bool changed = moved.Contains(edge.PrimaryFace) || moved.Contains(edge.SecondaryFace)
+                    || newPositions.ContainsKey(edge.Vertex1) || newPositions.ContainsKey(edge.Vertex2);
+                if (!changed) continue;
+                GeoPoint p1 = NewPosition(edge, edge.Vertex1);
+                GeoPoint p2 = NewPosition(edge, edge.Vertex2);
+                ISurface primarySurface = NewSurface(edge.PrimaryFace);
+                ISurface secondarySurface = NewSurface(edge.SecondaryFace);
+                (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d) curves;
+                bool ok = setDirectly.Contains(edge) ? edge.ComputeCurvesOnCurve(knownCurves[edge], primarySurface, secondarySurface, p1, p2, out curves)
+                    : edge.ComputeCurves(primarySurface, secondarySurface, p1, p2, edge.Adjacency() == AdjacencyType.SameSurface, out curves);
+                if (!ok) return false;
+                newCurves[edge] = curves;
+            }
+
+            List<StripPlan> strips = [];
+            Dictionary<Vertex, RulingPlan> rulings = [];
+            foreach (KeyValuePair<Edge, ICurve> kv in stripEdges)
+            {
+                StripPlan strip = PlanStrip(kv.Key, kv.Value, MovedFace(kv.Key), parallelSurfaces[MovedFace(kv.Key)], splitPositions, stripEdges, rulings, EdgesAt);
+                if (strip == null) return false;
+                strips.Add(strip);
+            }
+
+            // now modify the shell, nothing can fail from here on
+            foreach (Face face in moved) face.Surface = parallelSurfaces[face];
+            foreach (KeyValuePair<Vertex, GeoPoint> kv in newPositions) kv.Key.Position = kv.Value;
+            Dictionary<Vertex, Vertex> splitVertices = splitPositions.ToDictionary(kv => kv.Key, kv => new Vertex(kv.Value));
+            foreach (Edge edge in newCurves.Keys)
+            {
+                foreach (Vertex vtx in new[] { edge.Vertex1, edge.Vertex2 })
                 {
-                    kv.Key.Curve3D = kv.Value.curve3d;
-                    kv.Key.PrimaryCurve2D = kv.Value.primary2d;
-                    kv.Key.SecondaryCurve2D = kv.Value.secondary2d;
+                    if (UsesSplitVertex(edge, vtx)) edge.ReplaceVertex(vtx, splitVertices[vtx]);
                 }
-                HashSet<Face> touchedFaces = [.. oldSurfaces.Keys];
-                foreach (Edge edge in oldEdgeCurves.Keys)
+            }
+            foreach (KeyValuePair<Edge, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d)> kv in newCurves) kv.Key.SetCurves(kv.Value);
+            foreach (StripPlan strip in strips) strip.Face = Face.Construct();
+            foreach (KeyValuePair<Vertex, RulingPlan> kv in rulings)
+            {
+                RulingPlan ruling = kv.Value;
+                Face first = ruling.Third ?? ruling.Strips[0].Face;
+                Face second = ruling.Strips[ruling.Third != null ? 0 : 1].Face;
+                ruling.Edge = new Edge(first, ruling.Line, first, ruling.Curves2d[0], ruling.Forward[0], second, ruling.Curves2d[1], ruling.Forward[1]);
+                ruling.Edge.SetVertices(kv.Key, splitVertices[kv.Key]);
+                if (ruling.Third != null) ruling.Third.InsertEdgeAfter(ruling.InsertAfter, ruling.Edge);
+            }
+            foreach (StripPlan strip in strips)
+            {
+                Face m = strip.MovedFace;
+                Edge offsetEdge = new Edge(m, strip.OffsetCurve, m, strip.OffsetCurve2dOnMoved, strip.ForwardOnMoved, strip.Face, strip.Curves2d[2], !strip.ForwardOnMoved);
+                offsetEdge.SetVertices(splitVertices[strip.Edge.Vertex1], splitVertices[strip.Edge.Vertex2]);
+                m.ExchangeEdge(strip.Edge, offsetEdge);
+                if (strip.Edge.PrimaryFace == m) strip.Edge.SetPrimary(strip.Face, strip.Curves2d[0], strip.ForwardOnMoved);
+                else strip.Edge.SetSecondary(strip.Face, strip.Curves2d[0], strip.ForwardOnMoved);
+                strip.Face.Set(strip.Surface, new Edge[] { strip.Edge, strip.EndRuling.Edge, offsetEdge, strip.StartRuling.Edge }, (Edge[][])null);
+                strip.Face.CopyAttributes(m);
+                shell.AddIntegratedFace(strip.Face, false);
+            }
+            HashSet<Face> touchedFaces = [.. edgesAtMoved.SelectMany(e => new[] { e.PrimaryFace, e.SecondaryFace })];
+            touchedFaces.UnionWith(strips.Select(s => s.Face));
+            foreach (Face face in touchedFaces) face.InvalidateSecondaryData();
+            return true;
+        }
+        /// <summary>
+        /// The straight edge from a vertex, which stays, to the new vertex of the moved face at the end of a strip. It is shared by
+        /// the strip and the third face at the vertex (<see cref="Third"/>) or by two strips.
+        /// </summary>
+        private class RulingPlan
+        {
+            public Line Line;
+            public Face Third; // null, when the ruling is shared by two strips
+            public Edge InsertAfter; // the edge of Third after which the ruling is inserted
+            public List<StripPlan> Strips = [];
+            public ICurve2D[] Curves2d = new ICurve2D[2]; // on Third (or the first strip) and on the (second) strip
+            public bool[] Forward = new bool[2];
+            public Edge Edge;
+        }
+        /// <summary>
+        /// The face which connects a tangential edge between a moved and a not moved face with the offset of this edge.
+        /// Its outline is: the edge (in the direction of the moved face), the ruling at the end, the offset edge (reversed), the
+        /// ruling at the start.
+        /// </summary>
+        private class StripPlan
+        {
+            public Edge Edge;
+            public Face MovedFace;
+            public bool ForwardOnMoved; // the orientation of Edge on MovedFace
+            public ISurface Surface;
+            public ICurve OffsetCurve;
+            public ICurve2D OffsetCurve2dOnMoved;
+            public ICurve2D[] Curves2d = new ICurve2D[4]; // the 2d curves of the outline on Surface
+            public RulingPlan StartRuling, EndRuling;
+            public Face Face;
+        }
+        private static StripPlan PlanStrip(Edge edge, ICurve offsetCurve, Face moved, ISurface movedSurface, Dictionary<Vertex, GeoPoint> splitPositions,
+            Dictionary<Edge, ICurve> stripEdges, Dictionary<Vertex, RulingPlan> rulings, Func<Vertex, Edge[]> edgesAt)
+        {
+            StripPlan strip = new StripPlan { Edge = edge, MovedFace = moved, ForwardOnMoved = edge.Forward(moved) };
+            strip.OffsetCurve = Edge.TrimmedThrough(offsetCurve, splitPositions[edge.Vertex1], splitPositions[edge.Vertex2]);
+            if (strip.OffsetCurve == null) return null;
+            // the offset edge on the moved face, in the period of the original edge
+            strip.OffsetCurve2dOnMoved = movedSurface.GetProjectedCurve(strip.OffsetCurve, 0.0);
+            if (!strip.ForwardOnMoved) strip.OffsetCurve2dOnMoved.Reverse();
+            SurfaceHelper.AdjustPeriodicStartPoint(movedSurface, edge.Curve2D(moved).StartPoint, strip.OffsetCurve2dOnMoved);
+            strip.Surface = Make3D.MakeRuledSurface(edge.Curve3D, strip.OffsetCurve);
+            Vertex start = edge.StartVertex(moved), end = edge.EndVertex(moved);
+            // the strip traverses the edge in the direction of the moved face, the offset edge in the opposite direction
+            ICurve[] outline = [edge.Curve3D, null, strip.OffsetCurve, null];
+            bool[] forward = [strip.ForwardOnMoved, true, !strip.ForwardOnMoved, false];
+            RulingPlan[] rulingPlans = new RulingPlan[2];
+            for (int i = 0; i < 2; i++)
+            {
+                Vertex vtx = i == 0 ? end : start;
+                if (!rulings.TryGetValue(vtx, out RulingPlan ruling))
                 {
-                    touchedFaces.Add(edge.PrimaryFace);
-                    if (edge.SecondaryFace != null) touchedFaces.Add(edge.SecondaryFace);
+                    ruling = new RulingPlan { Line = Line.TwoPoints(vtx.Position, splitPositions[vtx]) };
+                    Edge[] edges = edgesAt(vtx);
+                    Face[] faces = [.. edges.SelectMany(e => new[] { e.PrimaryFace, e.SecondaryFace }).Distinct()];
+                    Face third = faces.First(f => f != edge.PrimaryFace && f != edge.SecondaryFace);
+                    Edge thirdToOther = edges.First(e => e != edge && (e.PrimaryFace == third || e.SecondaryFace == third) && e.OtherFace(third) != moved);
+                    Edge thirdToMoved = edges.First(e => e != edge && e != thirdToOther);
+                    if (thirdToMoved.OtherFace(third) != moved) return null;
+                    if (!stripEdges.ContainsKey(thirdToMoved))
+                    {   // the ruling runs in the third face, between the edge to the face which stays and the edge to the moved face
+                        if (!SegmentOnSurface(third.Surface, ruling.Line)) return null;
+                        ruling.Third = third;
+                        // in the third face, the ruling runs opposite to the strip: from the old to the new vertex, if the strip goes
+                        // from the new to the old vertex, i.e. at the start of the edge
+                        bool thirdForward = i == 1;
+                        ruling.Forward[0] = thirdForward;
+                        ruling.InsertAfter = thirdForward ? thirdToOther : thirdToMoved;
+                        Edge following = thirdForward ? thirdToMoved : thirdToOther;
+                        if (third.GetNextEdge(ruling.InsertAfter) != following) return null;
+                        ICurve2D c2d = third.Surface.GetProjectedCurve(ruling.Line, 0.0);
+                        if (!thirdForward) c2d.Reverse();
+                        // stay in the period of the edge to the face which stays
+                        ICurve2D neighbour = thirdToOther.Curve2D(third);
+                        if (thirdForward) SurfaceHelper.AdjustPeriodicStartPoint(third.Surface, neighbour.EndPoint, c2d);
+                        else
+                        {
+                            c2d.Reverse();
+                            SurfaceHelper.AdjustPeriodicStartPoint(third.Surface, neighbour.StartPoint, c2d);
+                            c2d.Reverse();
+                        }
+                        ruling.Curves2d[0] = c2d;
+                    }
+                    rulings[vtx] = ruling;
                 }
-                foreach (Face face in touchedFaces) face.InvalidateSecondaryData();
-                return false;
+                if (!SegmentOnSurface(strip.Surface, ruling.Line)) return null;
+                ruling.Strips.Add(strip);
+                if (ruling.Third == null && ruling.Strips.Count == 2 && ruling.Forward[0] == forward[i == 0 ? 1 : 3]) return null; // inconsistent orientation
+                rulingPlans[i] = ruling;
+                outline[i == 0 ? 1 : 3] = ruling.Line;
             }
-            foreach (Face face in moved)
+            strip.EndRuling = rulingPlans[0];
+            strip.StartRuling = rulingPlans[1];
+            // the 2d curves on the strip, which must form a counterclockwise loop. Otherwise the surface is reversed.
+            for (int pass = 0; pass < 2; pass++)
             {
-                oldSurfaces[face] = face.Surface;
-                face.Surface = parallelSurfaces[face];
+                BoundingRect domain = BoundingRect.EmptyBoundingRect;
+                for (int i = 0; i < 4; i++)
+                {
+                    ICurve2D c2d = strip.Surface.GetProjectedCurve(outline[i], 0.0);
+                    if (!forward[i]) c2d.Reverse();
+                    if (i > 0) SurfaceHelper.AdjustPeriodic(strip.Surface, domain, c2d);
+                    domain.MinMax(c2d.GetExtent());
+                    strip.Curves2d[i] = c2d;
+                }
+                if (Border.SignedArea(strip.Curves2d) > 0) break;
+                if (pass == 1) return null;
+                strip.Surface.ReverseOrientation();
             }
-            foreach (KeyValuePair<Vertex, GeoPoint> kv in newPositions)
+            for (int i = 0; i < 2; i++)
             {
-                oldVertexPositions[kv.Key] = kv.Key.Position;
-                kv.Key.Position = kv.Value;
+                RulingPlan ruling = rulingPlans[i];
+                int index = ruling.Third != null || ruling.Strips.Count == 2 ? 1 : 0;
+                ruling.Curves2d[index] = strip.Curves2d[i == 0 ? 1 : 3];
+                ruling.Forward[index] = forward[i == 0 ? 1 : 3];
             }
-            foreach (Edge edge in edgesToRecalc)
-            {   // the curves are modified in place, so they are cloned
-                oldEdgeCurves[edge] = (edge.Curve3D?.Clone(), edge.PrimaryCurve2D?.Clone(), edge.SecondaryCurve2D?.Clone());
-                bool ok = setDirectly.Contains(edge) ? edge.SetCurveThroughVertices(knownCurves[edge]) : edge.RecalcCurves();
-                if (!ok) return Undo();
-            }
-            foreach (Edge edge in edgesToRecalc)
+            return strip;
+        }
+        private static bool SegmentOnSurface(ISurface surface, Line line)
+        {
+            for (int i = 0; i <= 4; i++)
             {
-                edge.PrimaryFace.InvalidateSecondaryData();
-                edge.SecondaryFace.InvalidateSecondaryData();
+                GeoPoint p = line.PointAt(i / 4.0);
+                if ((surface.PointAt(surface.PositionOf(p)) | p) > Precision.eps * 10) return false;
             }
             return true;
         }

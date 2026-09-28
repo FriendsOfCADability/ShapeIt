@@ -3601,116 +3601,127 @@ namespace CADability
             }
         }
 
-        internal bool RecalcCurves()
+        /// <summary>
+        /// Computes the curves of this edge for modified surfaces of its two faces and modified positions of its vertices,
+        /// without changing the edge. The 3d curve is the intersection of the two surfaces, for a seam (<paramref name="sameSurface"/>)
+        /// on a line or an arc it is the old curve with the new end points. Apply the result with <see cref="SetCurves"/>.
+        /// </summary>
+        internal bool ComputeCurves(ISurface primarySurface, ISurface secondarySurface, GeoPoint p1, GeoPoint p2, bool sameSurface,
+            out (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d) curves)
         {
+            curves = default;
             if (secondaryFace == null) return false;
-            // The old 2d curves tell in which period of a periodic surface the new 2d curves have to reside. This is essential for seams,
-            // where both 2d curves are on the same surface, one period apart, and for the outline of the face to stay closed.
-            GeoPoint2D oldPrimaryStart = curveOnPrimaryFace != null ? curveOnPrimaryFace.StartPoint : GeoPoint2D.Invalid;
-            GeoPoint2D oldSecondaryStart = curveOnSecondaryFace != null ? curveOnSecondaryFace.StartPoint : GeoPoint2D.Invalid;
-            void AlignToOldCurves()
-            {
-                if (oldPrimaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(primaryFace.Surface, oldPrimaryStart, PrimaryCurve2D);
-                if (oldSecondaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(secondaryFace.Surface, oldSecondaryStart, SecondaryCurve2D);
-            }
-            if (this.Adjacency()==ShellExtensions.AdjacencyType.SameSurface)
-            {
-                if (curve3d is Line line)
-                {   // this might be a cylinder or a cone
-                    line.StartPoint = Vertex1.Position;
-                    line.EndPoint = Vertex2.Position;
-                    PrimaryCurve2D = primaryFace.Surface.GetProjectedCurve(line,0.0);
-                    if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
-                    SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(line, 0.0);
-                    if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
-                    AlignToOldCurves();
-                    return true;
-                }
-                if (curve3d is Ellipse ellipse)
-                {   // this might be a torus or a sphere
-                    ellipse.StartPoint = Vertex1.Position;
-                    ellipse.EndPoint = Vertex2.Position;
-                    PrimaryCurve2D = primaryFace.Surface.GetProjectedCurve(ellipse, 0.0);
-                    if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
-                    SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(ellipse, 0.0);
-                    if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
-                    AlignToOldCurves();
-                    return true;
-
-                }
+            if (sameSurface && (curve3d is Line || curve3d is Ellipse))
+            {   // a line might be the seam of a cylinder or a cone, an arc the seam of a torus or a sphere
+                ICurve seam = curve3d.Clone();
+                seam.StartPoint = p1;
+                seam.EndPoint = p2;
+                curves = Projected(seam, primarySurface, secondarySurface);
+                return true;
             }
             // The domains of the faces are extended to contain the (moved) vertices. On periodic surfaces PositionOf may return a
             // uv position one period away from the domain, which would extend the domain by a whole period.
-            BoundingRect ExtendedDomain(Face face)
+            BoundingRect ExtendedDomain(Face face, ISurface surface)
             {
                 BoundingRect domain = new BoundingRect(face.Domain);
-                foreach (Vertex vtx in new Vertex[] { Vertex1, Vertex2 })
+                foreach (GeoPoint p in new GeoPoint[] { p1, p2 })
                 {
-                    GeoPoint2D uv = face.Surface.PositionOf(vtx.Position);
-                    SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, ref uv);
+                    GeoPoint2D uv = surface.PositionOf(p);
+                    SurfaceHelper.AdjustPeriodic(surface, face.Domain, ref uv);
                     domain.MinMax(uv);
                 }
                 return domain;
             }
-            BoundingRect pDomain = ExtendedDomain(primaryFace);
-            BoundingRect sDomain = ExtendedDomain(secondaryFace);
-            IDualSurfaceCurve intcurve = primaryFace.Surface.GetDualSurfaceCurves(pDomain, secondaryFace.Surface, sDomain, [Vertex1.Position, Vertex2.Position])
+            BoundingRect pDomain = ExtendedDomain(primaryFace, primarySurface);
+            BoundingRect sDomain = ExtendedDomain(secondaryFace, secondarySurface);
+            IDualSurfaceCurve intcurve = primarySurface.GetDualSurfaceCurves(pDomain, secondarySurface, sDomain, [p1, p2])
                 .MinByWithDefault(null, dsc => dsc.Curve3D.DistanceTo(Curve3D.PointAt(0.5)));
             // When a cylinder meets a plane and we have two opposite seeds, there are two curves. Choose the one closer to the original edge
             if (intcurve == null) return false;
-            if ((intcurve.Curve3D.StartPoint | Vertex1.Position) + (intcurve.Curve3D.EndPoint | Vertex2.Position) >
-                (intcurve.Curve3D.StartPoint | Vertex2.Position) + (intcurve.Curve3D.EndPoint | Vertex1.Position))
+            if ((intcurve.Curve3D.StartPoint | p1) + (intcurve.Curve3D.EndPoint | p2) >
+                (intcurve.Curve3D.StartPoint | p2) + (intcurve.Curve3D.EndPoint | p1))
                 intcurve.Reverse(); // should always com in correct orientation
-            intcurve.Trim(Vertex1.Position, Vertex2.Position);
-            Curve3D = intcurve.Curve3D;
-            PrimaryCurve2D = intcurve.Curve2D1;
-            if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
-            SecondaryCurve2D = intcurve.Curve2D2;
-            if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
-            AlignToOldCurves();
+            intcurve.Trim(p1, p2);
+            ICurve2D primary2d = intcurve.Curve2D1;
+            if (!forwardOnPrimaryFace) primary2d.Reverse();
+            ICurve2D secondary2d = intcurve.Curve2D2;
+            if (!forwardOnSecondaryFace) secondary2d.Reverse();
+            curves = (intcurve.Curve3D, primary2d, secondary2d);
+            AlignToOldCurves(primarySurface, secondarySurface, curves);
             return true;
         }
         /// <summary>
-        /// Like <see cref="RecalcCurves"/>, but the 3d curve is not computed by intersecting the surfaces of the two faces:
-        /// <paramref name="curve"/> is known to lie in both surfaces and passes through both (already moved) vertices, it
-        /// only needs to be trimmed or extended. This is needed for tangential edges, where the intersection of the two
-        /// surfaces is ill-conditioned. <paramref name="curve"/> is oriented from <see cref="Vertex1"/> to <see cref="Vertex2"/>
-        /// and is not modified.
+        /// Like <see cref="ComputeCurves"/>, but the 3d curve is not computed by intersecting the two surfaces: <paramref name="curve"/>
+        /// is known to lie in both surfaces and passes through both (moved) vertices, it only needs to be trimmed or extended. This is
+        /// needed for tangential edges, where the intersection of the two surfaces is ill-conditioned. <paramref name="curve"/> is
+        /// oriented from <paramref name="p1"/> to <paramref name="p2"/> and is not modified.
         /// </summary>
-        internal bool SetCurveThroughVertices(ICurve curve)
+        internal bool ComputeCurvesOnCurve(ICurve curve, ISurface primarySurface, ISurface secondarySurface, GeoPoint p1, GeoPoint p2,
+            out (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d) curves)
         {
+            curves = default;
             if (secondaryFace == null) return false;
-            GeoPoint2D oldPrimaryStart = curveOnPrimaryFace != null ? curveOnPrimaryFace.StartPoint : GeoPoint2D.Invalid;
-            GeoPoint2D oldSecondaryStart = curveOnSecondaryFace != null ? curveOnSecondaryFace.StartPoint : GeoPoint2D.Invalid;
+            ICurve trimmed = TrimmedThrough(curve, p1, p2);
+            if (trimmed == null) return false;
+            curves = Projected(trimmed, primarySurface, secondarySurface);
+            return true;
+        }
+        /// <summary>
+        /// Returns a clone of <paramref name="curve"/>, trimmed or extended so that it starts at <paramref name="p1"/> and ends at
+        /// <paramref name="p2"/>, or null, if these points are not on the curve in this order.
+        /// </summary>
+        internal static ICurve TrimmedThrough(ICurve curve, GeoPoint p1, GeoPoint p2)
+        {
             ICurve trimmed = curve.Clone();
             if (trimmed is Line || trimmed is Ellipse)
             {   // lines and arcs can be trimmed or extended by setting their end points
-                trimmed.StartPoint = Vertex1.Position;
-                trimmed.EndPoint = Vertex2.Position;
+                trimmed.StartPoint = p1;
+                trimmed.EndPoint = p2;
             }
             else
             {
-                double p1 = trimmed.PositionOf(Vertex1.Position);
-                double p2 = trimmed.PositionOf(Vertex2.Position);
-                if (p1 < -1e-6 || p1 > 1 + 1e-6 || p2 < -1e-6 || p2 > 1 + 1e-6)
+                double pos1 = trimmed.PositionOf(p1);
+                double pos2 = trimmed.PositionOf(p2);
+                if (pos1 < -1e-6 || pos1 > 1 + 1e-6 || pos2 < -1e-6 || pos2 > 1 + 1e-6)
                 {
                     double length = trimmed.Length;
-                    if (!trimmed.Extend(length, length)) return false;
-                    p1 = trimmed.PositionOf(Vertex1.Position);
-                    p2 = trimmed.PositionOf(Vertex2.Position);
+                    if (!trimmed.Extend(length, length)) return null;
+                    pos1 = trimmed.PositionOf(p1);
+                    pos2 = trimmed.PositionOf(p2);
                 }
-                if (p1 >= p2) return false;
-                trimmed.Trim(p1, p2);
+                if (pos1 >= pos2) return null;
+                trimmed.Trim(pos1, pos2);
             }
-            if ((trimmed.StartPoint | Vertex1.Position) > Precision.eps * 100 || (trimmed.EndPoint | Vertex2.Position) > Precision.eps * 100) return false;
-            Curve3D = trimmed;
-            PrimaryCurve2D = primaryFace.Surface.GetProjectedCurve(trimmed, 0.0);
-            if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
-            SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(trimmed, 0.0);
-            if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
-            if (oldPrimaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(primaryFace.Surface, oldPrimaryStart, PrimaryCurve2D);
-            if (oldSecondaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(secondaryFace.Surface, oldSecondaryStart, SecondaryCurve2D);
-            return true;
+            if ((trimmed.StartPoint | p1) > Precision.eps * 100 || (trimmed.EndPoint | p2) > Precision.eps * 100) return null;
+            return trimmed;
+        }
+        private (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d) Projected(ICurve curve, ISurface primarySurface, ISurface secondarySurface)
+        {
+            ICurve2D primary2d = primarySurface.GetProjectedCurve(curve, 0.0);
+            if (!forwardOnPrimaryFace) primary2d.Reverse();
+            ICurve2D secondary2d = secondarySurface.GetProjectedCurve(curve, 0.0);
+            if (!forwardOnSecondaryFace) secondary2d.Reverse();
+            (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d) res = (curve, primary2d, secondary2d);
+            AlignToOldCurves(primarySurface, secondarySurface, res);
+            return res;
+        }
+        /// <summary>
+        /// The old 2d curves tell in which period of a periodic surface the new 2d curves have to reside. This is essential for seams,
+        /// where both 2d curves are on the same surface, one period apart, and for the outline of the face to stay closed.
+        /// </summary>
+        private void AlignToOldCurves(ISurface primarySurface, ISurface secondarySurface, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d) curves)
+        {
+            if (curveOnPrimaryFace != null) SurfaceHelper.AdjustPeriodicStartPoint(primarySurface, curveOnPrimaryFace.StartPoint, curves.primary2d);
+            if (curveOnSecondaryFace != null) SurfaceHelper.AdjustPeriodicStartPoint(secondarySurface, curveOnSecondaryFace.StartPoint, curves.secondary2d);
+        }
+        /// <summary>
+        /// Sets the curves computed by <see cref="ComputeCurves"/> or <see cref="ComputeCurvesOnCurve"/>.
+        /// </summary>
+        internal void SetCurves((ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d) curves)
+        {
+            Curve3D = curves.curve3d;
+            PrimaryCurve2D = curves.primary2d;
+            SecondaryCurve2D = curves.secondary2d;
         }
         #endregion
 #if DEBUG

@@ -97,5 +97,89 @@ namespace CADability.Tests
             double expected = ((40 - d) * (30 - d) - R * R + Math.PI * R * R / 4) * 20;
             Assert.AreEqual(expected, shell.Volume(0.01), expected * 1e-6);
         }
+
+        private static double V0 => (1200 - r * r + Math.PI * r * r / 4) * 20;
+
+        private static bool IsSide(Face face, bool atX) => face.Surface is PlaneSurface
+            && (atX ? face.GetExtent(0.0).Xmin > 39.0 : face.GetExtent(0.0).Ymin > 29.0);
+
+        private static void AssertClosedAndConsistent(Shell shell, int faces)
+        {
+            Assert.AreEqual(0, shell.OpenEdgesExceptPoles.Length, "the shell has open edges");
+            Assert.IsTrue(shell.CheckConsistency(), "the shell is not consistent");
+            Assert.AreEqual(faces, shell.Faces.Length);
+        }
+
+        /// <summary>
+        /// Pulling the side face x = 40 while the fillet stays: the fillet keeps its tangential edge, a planar strip at y = 25
+        /// connects it with the moved face.
+        /// </summary>
+        [TestMethod]
+        public void pulling_a_face_next_to_a_fillet_inserts_a_strip()
+        {
+            Shell shell = RoundedPrism();
+            Assert.IsTrue(shell.PushPull(FacesWhere(shell, f => IsSide(f, true)), d));
+            AssertClosedAndConsistent(shell, 8);
+            double expected = V0 + d * 25 * 20;
+            Assert.AreEqual(expected, shell.Volume(0.01), expected * 1e-6);
+        }
+
+        [TestMethod]
+        public void pushing_a_face_next_to_a_fillet_inserts_a_strip()
+        {
+            Shell shell = RoundedPrism();
+            Assert.IsTrue(shell.PushPull(FacesWhere(shell, f => IsSide(f, true)), -d));
+            AssertClosedAndConsistent(shell, 8);
+            double expected = V0 - d * 25 * 20;
+            Assert.AreEqual(expected, shell.Volume(0.01), expected * 1e-6);
+        }
+
+        /// <summary>both faces tangential to the fillet are pulled, the fillet stays: one strip on each side</summary>
+        [TestMethod]
+        public void pulling_both_faces_next_to_a_fillet_inserts_two_strips()
+        {
+            Shell shell = RoundedPrism();
+            Assert.IsTrue(shell.PushPull(FacesWhere(shell, f => IsSide(f, true) || IsSide(f, false)), d));
+            AssertClosedAndConsistent(shell, 9);
+            double expected = V0 + d * 25 * 20 + d * 35 * 20;
+            Assert.AreEqual(expected, shell.Volume(0.01), expected * 1e-6);
+        }
+
+        /// <summary>the lateral face of a cylinder is split into two halves with the same surface: pulling one pulls both</summary>
+        [TestMethod]
+        public void pulling_half_of_a_cylinder_pulls_the_other_half()
+        {
+            Solid cylinder = Make3D.MakeCylinder(GeoPoint.Origin, 10 * GeoVector.XAxis, 20 * GeoVector.ZAxis);
+            Shell shell = cylinder.Shells[0];
+            Face[] lateral = [.. shell.Faces.Where(f => f.Surface is CylindricalSurface)];
+            Assert.AreEqual(2, lateral.Length, "the cylinder is expected to be split");
+            Assert.IsTrue(shell.PushPull(new[] { lateral[0] }, 2.0));
+            AssertClosedAndConsistent(shell, 4);
+            double expected = Math.PI * 12 * 12 * 20;
+            Assert.AreEqual(expected, shell.Volume(0.01), expected * 1e-5);
+        }
+
+        /// <summary>
+        /// A box 40 x 30 x 20 whose top edge at y = 30 is rounded with the radius 5, hollowed with the wall thickness 2 and
+        /// the top face open. The top face is pulled out by 2 with a strip at y = 25, then the shell is offset inwards. The
+        /// cross section of the cavity is [2, 28] x [2, 20] without the corner above the inner fillet (radius 3 around
+        /// (25, 15)) and the rounding of the inner edge at the strip (radius 2 around (25, 20)): 453 + 5*pi/4, 36 long.
+        /// </summary>
+        [TestMethod]
+        public void make_hollow_with_a_fillet_at_the_open_face()
+        {
+            Solid box = Make3D.MakeBox(GeoPoint.Origin, 40 * GeoVector.XAxis, 30 * GeoVector.YAxis, 20 * GeoVector.ZAxis);
+            Edge top = box.Shells[0].Edges.Single(e => e.Curve3D is Line line && Math.Abs(line.StartDirection.x) > 0.5
+                && Math.Abs(line.StartPoint.y - 30) < 1e-6 && Math.Abs(line.StartPoint.z - 20) < 1e-6);
+            Shell shell = box.Shells[0].RoundEdges(new[] { top }, r);
+            Assert.IsNotNull(shell);
+            Face[] open = [.. shell.Faces.Where(f => f.Surface is PlaneSurface && f.GetExtent(0.0).Zmin > 19.0)];
+            Assert.AreEqual(1, open.Length);
+            Shell[] hollow = shell.MakeHollow(open, 2.0);
+            Assert.AreEqual(1, hollow.Length);
+            AssertClosedAndConsistent(hollow[0], hollow[0].Faces.Length);
+            double expected = 40 * (575 + Math.PI * 25 / 4) - 36 * (453 + 5 * Math.PI / 4);
+            Assert.AreEqual(expected, hollow[0].Volume(0.01), expected * 1e-5);
+        }
     }
 }

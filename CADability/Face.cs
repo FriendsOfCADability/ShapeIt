@@ -10570,6 +10570,49 @@ namespace CADability.GeoObject
             }
             return false;
         }
+        /// <summary>
+        /// Replaces <paramref name="toReplace"/> by <paramref name="replaceWith"/> in the outline or hole, which contains it. Unlike
+        /// <see cref="ReplaceEdge(Edge, Edge)"/> nothing else is changed: <paramref name="replaceWith"/> must already refer to this
+        /// face and connect the same (or replaced) vertices.
+        /// </summary>
+        internal void ExchangeEdge(Edge toReplace, Edge replaceWith)
+        {
+            foreach (Edge[] loop in new[] { outline }.Concat(holes))
+            {
+                int i = Array.IndexOf(loop, toReplace);
+                if (i >= 0)
+                {
+                    loop[i] = replaceWith;
+                    InvalidateSecondaryData();
+                    return;
+                }
+            }
+            throw new ApplicationException("ExchangeEdge: the edge is not an edge of this face");
+        }
+        /// <summary>
+        /// Inserts <paramref name="toInsert"/> into the outline or hole, which contains <paramref name="after"/>, directly after
+        /// <paramref name="after"/>. <paramref name="toInsert"/> must already refer to this face.
+        /// </summary>
+        internal void InsertEdgeAfter(Edge after, Edge toInsert)
+        {
+            if (Array.IndexOf(outline, after) >= 0)
+            {
+                outline = Inserted(outline);
+            }
+            else
+            {
+                int h = Array.FindIndex(holes, hole => Array.IndexOf(hole, after) >= 0);
+                if (h < 0) throw new ApplicationException("InsertEdgeAfter: the edge is not an edge of this face");
+                holes[h] = Inserted(holes[h]);
+            }
+            InvalidateSecondaryData();
+            Edge[] Inserted(Edge[] loop)
+            {
+                List<Edge> res = new List<Edge>(loop);
+                res.Insert(Array.IndexOf(loop, after) + 1, toInsert);
+                return res.ToArray();
+            }
+        }
         internal void ReplaceEdge(Edge toReplace, Edge replaceWith)
         {
 #if DEBUG
