@@ -3670,6 +3670,48 @@ namespace CADability
             AlignToOldCurves();
             return true;
         }
+        /// <summary>
+        /// Like <see cref="RecalcCurves"/>, but the 3d curve is not computed by intersecting the surfaces of the two faces:
+        /// <paramref name="curve"/> is known to lie in both surfaces and passes through both (already moved) vertices, it
+        /// only needs to be trimmed or extended. This is needed for tangential edges, where the intersection of the two
+        /// surfaces is ill-conditioned. <paramref name="curve"/> is oriented from <see cref="Vertex1"/> to <see cref="Vertex2"/>
+        /// and is not modified.
+        /// </summary>
+        internal bool SetCurveThroughVertices(ICurve curve)
+        {
+            if (secondaryFace == null) return false;
+            GeoPoint2D oldPrimaryStart = curveOnPrimaryFace != null ? curveOnPrimaryFace.StartPoint : GeoPoint2D.Invalid;
+            GeoPoint2D oldSecondaryStart = curveOnSecondaryFace != null ? curveOnSecondaryFace.StartPoint : GeoPoint2D.Invalid;
+            ICurve trimmed = curve.Clone();
+            if (trimmed is Line || trimmed is Ellipse)
+            {   // lines and arcs can be trimmed or extended by setting their end points
+                trimmed.StartPoint = Vertex1.Position;
+                trimmed.EndPoint = Vertex2.Position;
+            }
+            else
+            {
+                double p1 = trimmed.PositionOf(Vertex1.Position);
+                double p2 = trimmed.PositionOf(Vertex2.Position);
+                if (p1 < -1e-6 || p1 > 1 + 1e-6 || p2 < -1e-6 || p2 > 1 + 1e-6)
+                {
+                    double length = trimmed.Length;
+                    if (!trimmed.Extend(length, length)) return false;
+                    p1 = trimmed.PositionOf(Vertex1.Position);
+                    p2 = trimmed.PositionOf(Vertex2.Position);
+                }
+                if (p1 >= p2) return false;
+                trimmed.Trim(p1, p2);
+            }
+            if ((trimmed.StartPoint | Vertex1.Position) > Precision.eps * 100 || (trimmed.EndPoint | Vertex2.Position) > Precision.eps * 100) return false;
+            Curve3D = trimmed;
+            PrimaryCurve2D = primaryFace.Surface.GetProjectedCurve(trimmed, 0.0);
+            if (!forwardOnPrimaryFace) PrimaryCurve2D.Reverse();
+            SecondaryCurve2D = secondaryFace.Surface.GetProjectedCurve(trimmed, 0.0);
+            if (!forwardOnSecondaryFace) SecondaryCurve2D.Reverse();
+            if (oldPrimaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(primaryFace.Surface, oldPrimaryStart, PrimaryCurve2D);
+            if (oldSecondaryStart.IsValid) SurfaceHelper.AdjustPeriodicStartPoint(secondaryFace.Surface, oldSecondaryStart, SecondaryCurve2D);
+            return true;
+        }
         #endregion
 #if DEBUG
         public bool IsDebug

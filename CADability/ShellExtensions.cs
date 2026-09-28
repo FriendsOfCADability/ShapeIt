@@ -2438,19 +2438,96 @@ namespace CADability.GeoObject
         /// Moves the provided faces by <paramref name="distance"/> along their normals (replaces their surfaces by the offset surfaces)
         /// and extends or shortens the adjacent faces in their own surfaces. The operation is all or nothing: when it fails, the shell
         /// is restored to its previous state and false is returned.
+        /// <para>Tangential edges are handled in two cases: a tangential edge between two faces which are both not moved keeps its
+        /// curve, the moved vertex slides along this curve. A tangential edge between two moved faces is the offset of the original
+        /// edge. In both cases the vertex is the intersection of the edge curve with the third face, because intersecting three
+        /// surfaces, two of which are tangential, is ill-conditioned. A tangential edge between a moved and a not moved face cannot be
+        /// preserved: pulling separates the two surfaces, pushing makes them intersect with a kink.</para>
         /// </summary>
         public static bool PushPull(this Shell shell, IEnumerable<Face> facesToMove, double distance)
         {
-            // The faces are moved one after the other, a later face may fail after earlier faces have been modified. So every
-            // modification is recorded before it is done and undone when the operation fails.
+            // Everything is computed before the shell is modified: whether an edge is tangential can only be decided with the
+            // original surfaces. Only the recalculation of the edges may fail after the modification, so every modification is
+            // recorded and undone in that case.
+            HashSet<Face> moved = [.. facesToMove];
+            Dictionary<Face, ISurface> parallelSurfaces = [];
+            foreach (Face face in moved)
+            {
+                ISurface parallelSurface = face.Surface.GetOffsetSurface(distance);
+                if (parallelSurface == null) return false; // e.g. a cylinder whose radius would become 0
+                parallelSurfaces[face] = parallelSurface;
+            }
+            ISurface NewSurface(Face face) => parallelSurfaces.TryGetValue(face, out ISurface parallel) ? parallel : face.Surface;
+
+            HashSet<Vertex> verticesToMove = [.. moved.SelectMany(f => f.Vertices)];
+            // a vertex may still reference edges which do not belong to this shell (e.g. left over from a boolean operation)
+            HashSet<Edge> shellEdges = [.. shell.Edges];
+            Edge[] EdgesAt(Vertex vtx) => [.. vtx.Edges.Where(shellEdges.Contains)];
+            HashSet<Edge> edgesToRecalc = [.. verticesToMove.SelectMany(EdgesAt)];
+            // Curves of tangential edges, which are known before the vertices are known: the unchanged curve between two faces
+            // which are not moved, or the offset curve between two moved faces. The edges in setDirectly are later trimmed to
+            // these curves instead of intersecting their (tangential) surfaces.
+            Dictionary<Edge, ICurve> knownCurves = [];
+            HashSet<Edge> setDirectly = [];
+            foreach (Edge edge in edgesToRecalc)
+            {
+                if (edge.SecondaryFace == null) return false; // an open edge, nothing to intersect with
+                bool primaryMoved = moved.Contains(edge.PrimaryFace);
+                if (primaryMoved != moved.Contains(edge.SecondaryFace)) continue; // the edge is recalculated by intersection
+                if (!edge.IsTangentialEdge()) continue; // also true for a seam between two faces with the same surface
+                if (primaryMoved)
+                {   // Tangential surfaces have the same normal along the edge, so the offset of the edge lies in both offset
+                    // surfaces. The offset surfaces keep the uv system, the offset curve is the old 2d curve on the offset surface.
+                    // A planar face yields the more exact curve.
+                    Face onFace = edge.PrimaryFace.Surface is PlaneSurface || !(edge.SecondaryFace.Surface is PlaneSurface) ? edge.PrimaryFace : edge.SecondaryFace;
+                    ICurve offsetCurve = parallelSurfaces[onFace].Make3dCurve(edge.Curve2D(onFace));
+                    if (offsetCurve == null) return false;
+                    if (!edge.Forward(onFace)) offsetCurve.Reverse();
+                    knownCurves[edge] = offsetCurve;
+                    setDirectly.Add(edge);
+                }
+                else
+                {
+                    knownCurves[edge] = edge.Curve3D;
+                    // seams on lines and arcs are handled by Edge.RecalcCurves, other tangential edges are kept as they are
+                    if (edge.Adjacency() != AdjacencyType.SameSurface || !(edge.Curve3D is Line || edge.Curve3D is Ellipse)) setDirectly.Add(edge);
+                }
+            }
+
+            Dictionary<Vertex, GeoPoint> newPositions = [];
+            foreach (Vertex vtx in verticesToMove)
+            {
+                Edge[] edges = EdgesAt(vtx);
+                HashSet<Face> faces = [.. edges.SelectMany(e => new[] { e.PrimaryFace, e.SecondaryFace })];
+                if (edges.Length != 3 || faces.Count != 3) return false; // those cases are difficult, because the topology would change
+                bool found = false;
+                bool hasKnownCurve = false;
+                foreach (Edge edge in edges)
+                {
+                    if (!knownCurves.TryGetValue(edge, out ICurve curve)) continue;
+                    hasKnownCurve = true;
+                    Face third = faces.First(f => f != edge.PrimaryFace && f != edge.SecondaryFace);
+                    if (IntersectKnownCurve(curve, NewSurface(third), third, vtx.Position, out GeoPoint ip))
+                    {
+                        newPositions[vtx] = ip;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) continue;
+                if (hasKnownCurve) return false; // the tangential edge does not reach the third face, e.g. beyond the pole of a sphere
+                // no tangential edges: intersect the three surfaces, the moved faces first
+                Face[] ordered = [.. faces.OrderBy(f => moved.Contains(f) ? 0 : 1)];
+                GeoPoint p = vtx.Position;
+                if (!Surfaces.IntersectThreeSurfaces(NewSurface(ordered[0]), ordered[0].Domain, NewSurface(ordered[1]), ordered[1].Domain,
+                    NewSurface(ordered[2]), ordered[2].Domain, ref p, out GeoPoint2D uv0, out _, out _)) return false;
+                newPositions[vtx] = moved.Contains(ordered[0]) ? NewSurface(ordered[0]).PointAt(uv0) : p;
+            }
+
+            // now modify the shell
             Dictionary<Vertex, GeoPoint> oldVertexPositions = [];
             Dictionary<Face, ISurface> oldSurfaces = [];
             Dictionary<Edge, (ICurve curve3d, ICurve2D primary2d, ICurve2D secondary2d)> oldEdgeCurves = [];
-            bool RecalcEdge(Edge edge)
-            {   // RecalcCurves modifies the curves of the edge in place, so they are cloned
-                if (!oldEdgeCurves.ContainsKey(edge)) oldEdgeCurves[edge] = (edge.Curve3D?.Clone(), edge.PrimaryCurve2D?.Clone(), edge.SecondaryCurve2D?.Clone());
-                return edge.RecalcCurves();
-            }
             bool Undo()
             {
                 foreach (KeyValuePair<Vertex, GeoPoint> kv in oldVertexPositions) kv.Key.Position = kv.Value;
@@ -2470,75 +2547,61 @@ namespace CADability.GeoObject
                 foreach (Face face in touchedFaces) face.InvalidateSecondaryData();
                 return false;
             }
-            foreach (Face face in facesToMove)
+            foreach (Face face in moved)
             {
-                Dictionary<Vertex, GeoPoint> modifiedVertices = [];
-                ISurface parallelSurface = face.Surface.GetOffsetSurface(distance);
-                foreach (Edge edge in face.Edges)
+                oldSurfaces[face] = face.Surface;
+                face.Surface = parallelSurfaces[face];
+            }
+            foreach (KeyValuePair<Vertex, GeoPoint> kv in newPositions)
+            {
+                oldVertexPositions[kv.Key] = kv.Key.Position;
+                kv.Key.Position = kv.Value;
+            }
+            foreach (Edge edge in edgesToRecalc)
+            {   // the curves are modified in place, so they are cloned
+                oldEdgeCurves[edge] = (edge.Curve3D?.Clone(), edge.PrimaryCurve2D?.Clone(), edge.SecondaryCurve2D?.Clone());
+                bool ok = setDirectly.Contains(edge) ? edge.SetCurveThroughVertices(knownCurves[edge]) : edge.RecalcCurves();
+                if (!ok) return Undo();
+            }
+            foreach (Edge edge in edgesToRecalc)
+            {
+                edge.PrimaryFace.InvalidateSecondaryData();
+                edge.SecondaryFace.InvalidateSecondaryData();
+            }
+            return true;
+        }
+        /// <summary>
+        /// Intersects a curve, which lies in two surfaces around a vertex, with the (maybe moved) surface of the third face at
+        /// this vertex and returns the intersection point closest to <paramref name="closeTo"/>. The curve is extended beyond
+        /// its ends, because the vertex may move outside of the original edge.
+        /// </summary>
+        private static bool IntersectKnownCurve(ICurve curve, ISurface surface, Face face, GeoPoint closeTo, out GeoPoint ip)
+        {
+            ip = GeoPoint.Invalid;
+            GeoPoint[] ips;
+            if (curve is Line line)
+            {
+                ips = [.. surface.GetLineIntersection(line.StartPoint, line.StartDirection).Select(uv => surface.PointAt(uv))];
+            }
+            else if (curve is Ellipse ellipse)
+            {   // e.g. a seam of a split sphere or torus. Not necessarily a curve with constant u or v (a sphere is split like a
+                // tennis ball, see Face.MakeNonPolarSphere), but in 3d always a circle or an ellipse
+                Ellipse fullEllipse = Ellipse.Construct();
+                fullEllipse.SetEllipseCenterAxis(ellipse.Center, ellipse.MajorAxis, ellipse.MinorAxis);
+                surface.Intersect(fullEllipse, face.Domain, out ips, out _, out _);
+            }
+            else
+            {
+                surface.Intersect(curve, face.Domain, out ips, out _, out _);
+                if (ips.Length == 0)
                 {
-                    Edge next = face.GetNextEdge(edge);
-                    Vertex v = edge.EndVertex(face);
-                    Face f1 = edge.OtherFace(face);
-                    Face f2 = next.OtherFace(face);
-                    // look for the common edge of f1 and f2:
-                    List<Edge> thirdEdges = f1.Edges.Intersect(f2.Edges).Where(e => e.Vertex1 == v || e.Vertex2 == v).ToList();
-                    if (thirdEdges.Count != 1) return Undo(); // those cases are difficult, because the topology would change
-                    Edge commonEdge = thirdEdges[0];
-                    if (commonEdge.Adjacency()==AdjacencyType.SameSurface)
-                    {
-                        if (commonEdge.Curve3D is Line line)
-                        {
-                            GeoPoint2D uvOnParallel = parallelSurface.GetLineIntersection(line.StartPoint, line.StartDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => parallelSurface.PointAt(uv) | v.Position);
-                            if (!uvOnParallel.IsValid) return Undo();
-                            modifiedVertices[v] = parallelSurface.PointAt(uvOnParallel);
-                            continue;
-                        }
-                        if (commonEdge.Curve3D is Ellipse ellipse)
-                        {   // a seam of a split sphere or torus. Not necessarily a curve with constant u or v (a sphere is split like a
-                            // tennis ball, see Face.MakeNonPolarSphere), but in 3d always a circle or an ellipse, which is not changed by
-                            // the push. The new vertex is where the full circle meets the moved surface.
-                            Ellipse fullEllipse = Ellipse.Construct();
-                            fullEllipse.SetEllipseCenterAxis(ellipse.Center, ellipse.MajorAxis, ellipse.MinorAxis);
-                            parallelSurface.Intersect(fullEllipse, face.Domain, out GeoPoint[] ips, out _, out _);
-                            if (ips.Length == 0) return Undo(); // the seam does not reach the moved surface, e.g. beyond the pole of a sphere
-                            modifiedVertices[v] = ips.MinBy(p => p | v.Position);
-                            continue;
-                        }
-                        // Other seam curves are not supported: the intersection of the moved surface with two identical surfaces is
-                        // underdetermined, IntersectThreeSurfaces would return a point which is not on the seam.
-                        return Undo();
-                    }
-                    GeoPoint ip = v.Position;
-                    if (Surfaces.IntersectThreeSurfaces(parallelSurface, face.Domain, f1.Surface, f1.Domain, f2.Surface, f2.Domain, ref ip, out GeoPoint2D uvParallel, out GeoPoint2D uv1, out GeoPoint2D uv2))
-                    {
-                        modifiedVertices[v] = parallelSurface.PointAt(uvParallel);
-                        continue;
-                    }
-                    return Undo();
-                }
-                foreach (KeyValuePair<Vertex, GeoPoint> kv in modifiedVertices)
-                {
-                    if (!oldVertexPositions.ContainsKey(kv.Key)) oldVertexPositions[kv.Key] = kv.Key.Position;
-                    kv.Key.Position = kv.Value;
-                }
-                if (!oldSurfaces.ContainsKey(face)) oldSurfaces[face] = face.Surface;
-                face.Surface = parallelSurface;
-                foreach (Edge edge in face.Edges)
-                {
-                    if (!RecalcEdge(edge)) return Undo();
-                }
-                face.InvalidateSecondaryData();
-                foreach (Vertex vtx in modifiedVertices.Keys)
-                {
-                    List<Edge> edgeEndingOnVtx = vtx.Edges.Where(e => e.PrimaryFace != face && e.SecondaryFace != face).ToList();
-                    if (edgeEndingOnVtx.Count != 1) return Undo(); // has already been checked
-                    if (!RecalcEdge(edgeEndingOnVtx[0])) return Undo();
-                }
-                foreach (Edge edge in face.Edges)
-                {
-                    edge.OtherFace(face).InvalidateSecondaryData();
+                    ICurve extended = curve.Clone();
+                    double length = face.GetBoundingCube().DiagonalLength + curve.Length;
+                    if (extended.Extend(length, length)) surface.Intersect(extended, face.Domain, out ips, out _, out _);
                 }
             }
+            if (ips.Length == 0) return false;
+            ip = ips.MinBy(p => p | closeTo);
             return true;
         }
         public static Shell[] MakeHollow(this Shell shell, IEnumerable<Face> openFaces, double innerOffset)
