@@ -2818,14 +2818,29 @@ namespace CADability.GeoObject
             Dictionary<Face, Face> clonedFaces = [];
             Shell pushedShell = shell.Clone(null, null, clonedFaces);
             if (!pushedShell.PushPull(openFaces.Select(f => clonedFaces[f]), innerOffset)) return [];
-            Shell[] innerShell = pushedShell.GetOffset(-innerOffset);
-            if (innerShell.Length==1)
+            // The inward offset may consist of several parts, e.g. when a section of the solid thinner than twice the wall
+            // thickness vanishes: each part is a cavity (or, through the open faces, a pocket) of its own.
+            Shell[] innerShells = pushedShell.GetOffset(-innerOffset);
+            if (innerShells.Length == 0) return [];
+            List<Shell> result = [shell];
+            foreach (Shell inner in innerShells)
             {
-                BooleanOperation bo = new BooleanOperation();
-                bo.SetShells(shell, innerShell[0], BooleanOperation.Operation.difference);
-                return bo.Execute();
+                BoundingBox innerExtent = inner.GetExtent(0.0);
+                List<Shell> next = [];
+                foreach (Shell part in result)
+                {   // a cavity in one part of the result does not touch the other parts
+                    if (BoundingBox.Disjoint(part.GetExtent(0.0), innerExtent))
+                    {
+                        next.Add(part);
+                        continue;
+                    }
+                    BooleanOperation bo = new BooleanOperation();
+                    bo.SetShells(part, inner, BooleanOperation.Operation.difference);
+                    next.AddRange(bo.Execute());
+                }
+                result = next;
             }
-            return [];
+            return [.. result];
         }
 
         public static Shell[] Thicken(this Shell shell, double outerOffset, double innerOffset)

@@ -1,0 +1,305 @@
+{
+  "Description": "solid.hollow with several open faces: a box 40x30x20 open at top and bottom (a rectangular tube), open at the top and at the side x = 40 (two adjacent open faces), open at the top and at both ends x = 0 and x = 40 (a U channel), and a cylinder r = 15, 30 high, open at both caps (a pipe). Wall thickness 2.",
+  "Expected": "Closed form. The open faces are pushed out by 2 and stay the rim of the wall. TUBE: 24000 - 36*26*20 = 5280.000000. TOP AND SIDE: the cavity is [2,40]x[2,28]x[2,20], 24000 - 38*26*18 = 6216.000000. U CHANNEL: the cavity is [0,40]x[2,28]x[2,20], 24000 - 40*26*18 = 5280.000000, bottom and the two long walls. PIPE: pi*(225-169)*30 = 1680*pi = 5277.875658.",
+  "CaseStatus": "Ok",
+  "Status": "PASSES (2026-09-28). Every result hits its closed form in volume, is closed and consistent, with the expected euler characteristic; the fingerprint was identical over two runs when the baseline was recorded. Covers several open faces, also adjacent ones.",
+  "History": "2026-09-28: written together with the support for several inner shells in Shell.MakeHollow.",
+  "Repeat": 2,
+  "Verify": [
+    "tube",
+    "cornerOpen",
+    "channel",
+    "pipe"
+  ],
+  "Baseline": {
+    "channel": {
+      "verified": "2026-09-28: exact. V = 24000 - 40*26*18 = 5280, a U channel: bottom and the two long walls.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5280",
+      "area": "5704",
+      "edgeLength": "592",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:10"
+    },
+    "cornerOpen": {
+      "verified": "2026-09-28: exact. V = 24000 - 38*26*18 = 6216, the cavity reaches the two adjacent open faces.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "6216",
+      "area": "6568",
+      "edgeLength": "636",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:10"
+    },
+    "pipe": {
+      "verified": "2026-09-28: exact to 1e-13. V = 1680*pi, a pipe (euler 0).",
+      "consistent": "true",
+      "faces": "4",
+      "edges": "4",
+      "poleVertices": "0",
+      "vertices": "4",
+      "holeLoops": "4",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5277.87565803",
+      "area": "5629.73403523",
+      "edgeLength": "351.858377202",
+      "extent": "-15, -15, 0, 15, 15, 30",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:2"
+    },
+    "tube": {
+      "verified": "2026-09-28: exact. V = 24000 - 36*26*20 = 5280, a rectangular tube (euler 0).",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "2",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5280",
+      "area": "5808",
+      "edgeLength": "688",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:10"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "box",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "workspace.select",
+      "params": {
+        "name": "topBottom",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "faces",
+                "from": "box",
+                "filter": {
+                  "extreme": {
+                    "axis": "z",
+                    "which": "max"
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "faces",
+                "from": "box",
+                "filter": {
+                  "extreme": {
+                    "axis": "z",
+                    "which": "min"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "box",
+        "openFaces": "topBottom",
+        "thickness": 2,
+        "name": "tube"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "workspace.select",
+      "params": {
+        "name": "topSide",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "faces",
+                "from": "box",
+                "filter": {
+                  "extreme": {
+                    "axis": "z",
+                    "which": "max"
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "faces",
+                "from": "box",
+                "filter": {
+                  "extreme": {
+                    "axis": "x",
+                    "which": "max"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "box",
+        "openFaces": "topSide",
+        "thickness": 2,
+        "name": "cornerOpen"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "workspace.select",
+      "params": {
+        "name": "topEnds",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "faces",
+                "from": "box",
+                "filter": {
+                  "extreme": {
+                    "axis": "z",
+                    "which": "max"
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "faces",
+                "from": "box",
+                "filter": {
+                  "extreme": {
+                    "axis": "x",
+                    "which": "max"
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "faces",
+                "from": "box",
+                "filter": {
+                  "extreme": {
+                    "axis": "x",
+                    "which": "min"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "box",
+        "openFaces": "topEnds",
+        "thickness": 2,
+        "name": "channel"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "cyl",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          30
+        ],
+        "radius": 15
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "workspace.select",
+      "params": {
+        "name": "cylCaps",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "cyl",
+            "filter": {
+              "surfaceType": "planar"
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "cyl",
+        "openFaces": "cylCaps",
+        "thickness": 2,
+        "name": "pipe"
+      }
+    }
+  ]
+}

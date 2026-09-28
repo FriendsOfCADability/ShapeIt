@@ -1,0 +1,446 @@
+{
+  "Description": "solid.hollow where the open face is bounded by rounded edges: a box 40x30x20 with one top edge rounded (radius 5), with two opposite top edges rounded, a box with a rounded vertical edge (the fillet meets the open face at a right angle, not tangentially) and a cylinder r = 10, 20 high, with the top rim rounded by 4 (the open face is tangential to the torus fillet all around). Wall thickness 2, top open.",
+  "Expected": "Closed form. Where the open face is tangential to a fillet, the pushed open face is connected to the fillet by a strip (Shell.PushPull), and the fillet stays the outer skin: the rim of the wall is the flat ring inside the fillet. The cross section of the cavity is the erosion of the pushed cross section by a disk of radius 2: the fillet offset (radius 5-2 = 3) and a rounding of radius 2 around the concave edge between strip and fillet. ONE TOP EDGE ROUNDED (y = 30): cavity section 26*18 - (25 - (10 + 5*pi/4)) = 453 + 5*pi/4, 36 long; V = 40*(575 + 25*pi/4) - 36*(453 + 5*pi/4) = 6692 + 205*pi = 7336.026494. TWO TOP EDGES ROUNDED (y = 0 and y = 30): V = 40*(550 + 25*pi/2) - 36*(438 + 5*pi/2) = 6232 + 410*pi = 7520.052988. VERTICAL EDGE ROUNDED (x = 40, y = 30): the cavity section is [2,38]x[2,28] with the corner rounded by 3 around (35,25): 927 + 9*pi/4, 18 high; V = 20*(1175 + 25*pi/4) - 18*(927 + 9*pi/4) = 6814 + 84.5*pi = 7079.464579. CUP: in (r,z) the cavity is r <= 8 for z in [2,16], the torus offset (radius 2 around (6,16)) up to (6,18), the rounding of radius 2 around (6,20) up to r = 4 at z = 20; by integration its volume is pi*(896 + 160 - 16/3). The fillet removes 2*pi*(320/3 - 24*pi) from the cylinder (Pappus). V = 2000*pi - 2*pi*(320/3 - 24*pi) - pi*(1056 - 16/3) = 736*pi + 48*pi^2 = 2785.953204.",
+  "CaseStatus": "Ok",
+  "Status": "PASSES (2026-09-28). Every result hits its closed form in volume, is closed and consistent, with the expected euler characteristic; the fingerprint was identical over two runs when the baseline was recorded. Covers open faces bounded by fillets, tangential (strips in Shell.PushPull) and at a right angle.",
+  "History": "2026-09-28: written together with the support for several inner shells in Shell.MakeHollow.",
+  "Repeat": 2,
+  "Verify": [
+    "oneRoundedOpen",
+    "twoRoundedOpen",
+    "verticalRoundedOpen",
+    "cupOpen"
+  ],
+  "Baseline": {
+    "cupOpen": {
+      "verified": "2026-09-28: exact to 4e-11. V = 736*pi + 48*pi^2; the open face is tangential to the torus fillet along two arcs, two half cylinder strips.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "7",
+      "poleVertices": "0",
+      "vertices": "7",
+      "holeLoops": "6",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "2785.95320438",
+      "area": "2861.35142814",
+      "edgeLength": "326.725635973",
+      "extent": "-10, -10, 0, 10, 10, 20.0000000026",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:3 ToroidalSurface:3"
+    },
+    "oneRoundedOpen": {
+      "verified": "2026-09-28: exact to 3e-10. V = 6692 + 205*pi; the fillet stays the outer skin, the rim is the flat part of the top face.",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "33",
+      "poleVertices": "0",
+      "vertices": "22",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7336.02649576",
+      "area": "7596.02649378",
+      "edgeLength": "783.415926536",
+      "extent": "0, 0, 0, 40, 30.0000000083, 20",
+      "surfaces": "CylindricalSurface:3 PlaneSurface:11"
+    },
+    "twoRoundedOpen": {
+      "verified": "2026-09-28: exact to 5e-10. V = 6232 + 410*pi.",
+      "consistent": "true",
+      "faces": "17",
+      "edges": "42",
+      "poleVertices": "0",
+      "vertices": "28",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7520.05299147",
+      "area": "7760.05298731",
+      "edgeLength": "886.831853072",
+      "extent": "0, -8.28135249265E-09, 0, 40, 30.0000000083, 20",
+      "surfaces": "CylindricalSurface:6 PlaneSurface:11"
+    },
+    "verticalRoundedOpen": {
+      "verified": "2026-09-28: exact to 2e-11. V = 6814 + 84.5*pi; the inner corner is rounded by 3.",
+      "consistent": "true",
+      "faces": "13",
+      "edges": "30",
+      "poleVertices": "0",
+      "vertices": "20",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7079.46457933",
+      "area": "7355.17254252",
+      "edgeLength": "711.132741231",
+      "extent": "0, 0, 0, 40, 30.000000001, 20",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:11"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "box1",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "workspace.select",
+      "params": {
+        "name": "edge1",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box1",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 41,
+                "ymin": 29,
+                "ymax": 31,
+                "zmin": 19,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "box1",
+        "edges": "edge1",
+        "radius": 5,
+        "name": "oneRounded",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "workspace.select",
+      "params": {
+        "name": "top1",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "oneRounded",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "oneRounded",
+        "openFaces": "top1",
+        "thickness": 2,
+        "name": "oneRoundedOpen"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.box",
+      "params": {
+        "name": "box2",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "workspace.select",
+      "params": {
+        "name": "edges2",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "edges",
+                "from": "box2",
+                "filter": {
+                  "inside": {
+                    "xmin": -1,
+                    "xmax": 41,
+                    "ymin": 29,
+                    "ymax": 31,
+                    "zmin": 19,
+                    "zmax": 21
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "edges",
+                "from": "box2",
+                "filter": {
+                  "inside": {
+                    "xmin": -1,
+                    "xmax": 41,
+                    "ymin": -1,
+                    "ymax": 1,
+                    "zmin": 19,
+                    "zmax": 21
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "box2",
+        "edges": "edges2",
+        "radius": 5,
+        "name": "twoRounded",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "workspace.select",
+      "params": {
+        "name": "top2",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "twoRounded",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "twoRounded",
+        "openFaces": "top2",
+        "thickness": 2,
+        "name": "twoRoundedOpen"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.box",
+      "params": {
+        "name": "box3",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "workspace.select",
+      "params": {
+        "name": "edge3",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box3",
+            "filter": {
+              "inside": {
+                "xmin": 39,
+                "xmax": 41,
+                "ymin": 29,
+                "ymax": 31,
+                "zmin": -1,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "box3",
+        "edges": "edge3",
+        "radius": 5,
+        "name": "verticalRounded",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "workspace.select",
+      "params": {
+        "name": "top3",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "verticalRounded",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "verticalRounded",
+        "openFaces": "top3",
+        "thickness": 2,
+        "name": "verticalRoundedOpen"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "cyl",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          20
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "workspace.select",
+      "params": {
+        "name": "rim",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "cyl",
+            "filter": {
+              "inside": {
+                "xmin": -11,
+                "xmax": 11,
+                "ymin": -11,
+                "ymax": 11,
+                "zmin": 19,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "cyl",
+        "edges": "rim",
+        "radius": 4,
+        "name": "cup",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "workspace.select",
+      "params": {
+        "name": "cupTop",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "cup",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "cup",
+        "openFaces": "cupTop",
+        "thickness": 2,
+        "name": "cupOpen"
+      }
+    }
+  ]
+}

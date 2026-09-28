@@ -1,0 +1,164 @@
+{
+  "Description": "solid.hollow where the inward offset falls apart into several parts: two blocks 20x20x20 standing on a common base plate 1.5 thick, 10 apart. The plate is thinner than twice the wall thickness 2, so the offset has one part in each block. Closed, and with both block tops open.",
+  "Expected": "Closed form. V = 2*8000 + 10*20*1.5 = 16300. The cavities are [2,18]x[2,18]x[2,18] and [32,48]x[2,18]x[2,18]: the concave edges where the plate meets the blocks lie at z = 1.5, below the bottom of the cavities, so they leave no trace. CLOSED: 16300 - 2*4096 = 8108.000000, one body with two enclosed cavities. TOPS OPEN (two open faces, two pockets 16x16x18): 16300 - 2*4608 = 7084.000000.",
+  "CaseStatus": "Ok",
+  "Status": "PASSES (2026-09-28). Every result hits its closed form in volume, is closed and consistent, with the expected euler characteristic; the fingerprint was identical over two runs when the baseline was recorded. Covers an inward offset in two parts, which needs several inner shells in Shell.MakeHollow (with only one inner shell both results were empty).",
+  "History": "2026-09-28: written together with the support for several inner shells in Shell.MakeHollow.",
+  "Repeat": 2,
+  "Verify": [
+    "twoCavities",
+    "twoPockets"
+  ],
+  "Baseline": {
+    "twoCavities": {
+      "verified": "2026-09-28: exact. V = 16300 - 2*4096 = 8108, one body with two enclosed cavities (euler 6: the skin and two cavities).",
+      "consistent": "true",
+      "faces": "22",
+      "edges": "48",
+      "poleVertices": "0",
+      "vertices": "32",
+      "holeLoops": "0",
+      "euler": "6",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "8108",
+      "area": "8242",
+      "edgeLength": "898",
+      "extent": "0, 0, 0, 50, 20, 20",
+      "surfaces": "PlaneSurface:22"
+    },
+    "twoPockets": {
+      "verified": "2026-09-28: exact. V = 16300 - 2*4608 = 7084, two pockets open at the block tops.",
+      "consistent": "true",
+      "faces": "20",
+      "edges": "48",
+      "poleVertices": "0",
+      "vertices": "32",
+      "holeLoops": "2",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "7084",
+      "area": "7474",
+      "edgeLength": "914",
+      "extent": "0, 0, 0, 50, 20, 20",
+      "surfaces": "PlaneSurface:20"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "blockA",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 20,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "blockB",
+        "origin": [
+          30,
+          0,
+          0
+        ],
+        "sizeX": 20,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.box",
+      "params": {
+        "name": "plate",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 50,
+        "sizeY": 20,
+        "sizeZ": 1.5
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "plate",
+        "b": "blockA",
+        "name": "plateA",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "plateA",
+        "b": "blockB",
+        "name": "twoBlocks",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "twoBlocks",
+        "thickness": 2,
+        "name": "twoCavities"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "workspace.select",
+      "params": {
+        "name": "blockTops",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "twoBlocks",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "twoBlocks",
+        "openFaces": "blockTops",
+        "thickness": 2,
+        "name": "twoPockets"
+      }
+    }
+  ]
+}

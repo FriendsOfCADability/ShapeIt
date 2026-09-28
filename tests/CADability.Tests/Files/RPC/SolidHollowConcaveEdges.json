@@ -1,0 +1,261 @@
+{
+  "Description": "solid.hollow on solids with concave edges and faces: an L shaped prism (one concave vertical edge) and a box with a vertical bore (a concave cylindrical face). Each hollowed with the wall thickness 2, once with the top face open and once closed.",
+  "Expected": "All values in closed form; the cavity is the solid, offset inwards by 2 (the open face pushed out first), so its cross section is the erosion of the cross section by a disk of radius 2. L PRISM: L = [0,40]x[0,10] + [0,10]x[10,30], 20 high, V = 12000. The eroded L is [2,38]x[2,8] + [2,8]x[2,28] plus, at the concave corner (10,10), the square [8,10]x[8,10] without the quarter disk of radius 2 around (10,10): 216 + 156 - 36 + 4 - pi = 340 - pi. Open top (cavity 18 high): 12000 - 18*(340-pi) = 5880 + 18*pi = 5936.548668. Closed (16 high): 12000 - 16*(340-pi) = 6560 + 16*pi = 6610.265482. The concave edge becomes a quarter cylinder of radius 2 in the cavity. BOX WITH BORE: 40x30x20 with a bore of radius 5 at (20,15), V = 24000 - 500*pi. The cavity is [2,38]x[2,28] without the disk of radius 7: open top 24000 - 500*pi - 18*(936 - 49*pi) = 7152 + 382*pi = 8352.088394; closed 24000 - 500*pi - 16*(936 - 49*pi) = 9024 + 284*pi = 9916.212314, the cavity is a ring around the bore (genus 1).",
+  "CaseStatus": "Ok",
+  "Status": "PASSES (2026-09-28). Every result hits its closed form in volume, is closed and consistent, with the expected euler characteristic; the fingerprint was identical over two runs when the baseline was recorded. Covers concave edges and a concave cylindrical face.",
+  "History": "2026-09-28: written together with the support for several inner shells in Shell.MakeHollow.",
+  "Repeat": 2,
+  "Verify": [
+    "lOpen",
+    "lClosed",
+    "holedOpen",
+    "holedClosed"
+  ],
+  "Baseline": {
+    "holedClosed": {
+      "verified": "2026-09-28: exact to 1e-13. V = 9024 + 284*pi; the cavity is a ring around the bore, outer skin and cavity both of genus 1 (euler 0).",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "28",
+      "poleVertices": "0",
+      "vertices": "20",
+      "holeLoops": "6",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "9916.21231362",
+      "area": "9923.07957239",
+      "edgeLength": "822.796447372",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:12"
+    },
+    "holedOpen": {
+      "verified": "2026-09-28: exact to 1e-12. V = 7152 + 382*pi; the bore stays a tube through the cup (euler 0).",
+      "consistent": "true",
+      "faces": "14",
+      "edges": "28",
+      "poleVertices": "0",
+      "vertices": "20",
+      "holeLoops": "6",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "8352.08839367",
+      "area": "8694.92024674",
+      "edgeLength": "830.796447372",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:12"
+    },
+    "lClosed": {
+      "verified": "2026-09-28: exact to 1e-12. V = 6560 + 16*pi, one body with an enclosed cavity (euler 4).",
+      "consistent": "true",
+      "faces": "17",
+      "edges": "39",
+      "poleVertices": "0",
+      "vertices": "26",
+      "holeLoops": "0",
+      "euler": "4",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "6610.26548246",
+      "area": "6643.98229715",
+      "edgeLength": "758.283185307",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:16"
+    },
+    "lOpen": {
+      "verified": "2026-09-28: exact to 1e-12. V = 5880 + 18*pi; the concave vertical edge becomes a quarter cylinder of radius 2 in the cavity.",
+      "consistent": "true",
+      "faces": "16",
+      "edges": "39",
+      "poleVertices": "0",
+      "vertices": "26",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "5936.54866776",
+      "area": "6216.54866776",
+      "edgeLength": "772.283185307",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:15"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "lFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "lArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lFoot",
+        "b": "lArm",
+        "name": "lShape",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "workspace.select",
+      "params": {
+        "name": "lTop",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "lShape",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "lShape",
+        "openFaces": "lTop",
+        "thickness": 2,
+        "name": "lOpen"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "lShape",
+        "thickness": 2,
+        "name": "lClosed"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "holeBlank",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "bore",
+        "start": [
+          20,
+          15,
+          -1
+        ],
+        "end": [
+          20,
+          15,
+          21
+        ],
+        "radius": 5
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "holeBlank",
+        "b": "bore",
+        "name": "holedBox",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "workspace.select",
+      "params": {
+        "name": "holedTop",
+        "selector": {
+          "query": {
+            "target": "faces",
+            "from": "holedBox",
+            "filter": {
+              "surfaceType": "planar",
+              "boundingBox": {
+                "component": "bottom",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "holedBox",
+        "openFaces": "holedTop",
+        "thickness": 2,
+        "name": "holedOpen"
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.hollow",
+      "params": {
+        "solid": "holedBox",
+        "thickness": 2,
+        "name": "holedClosed"
+      }
+    }
+  ]
+}
