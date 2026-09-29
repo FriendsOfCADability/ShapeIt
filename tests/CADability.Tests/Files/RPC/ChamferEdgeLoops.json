@@ -1,0 +1,252 @@
+{
+  "Description": "feature.chamfer on several edges of one call. topLoop: the four top edges of a 40x30x20 box with distance 4, the vertical edges stay sharp, adjacent chamfers meet in a miter. verticalFour: the four vertical edges. octagonLoop: first the vertical edges with 4, then the eight top edges of that octagonal prism with 2 - a closed loop of eight chamfers meeting at 135 degree corners.",
+  "Expected": "Closed forms (a prism cut by two miter planes has the volume area * length of its centroid line; the chamfer triangle d^2/2 has its centroid d/3 from each face). topLoop: 24000 - 8 (140 - 8*4/3) = 22965.333333. verticalFour: 24000 - 4*8*20 = 23360. octagonLoop: all 3d chamfer planes are half spaces of a convex polytope; half space intersection gives 23107.581722, 18 faces, 24 vertices.",
+  "CaseStatus": "Ok",
+  "Status": "PASSES (2026-09-28). All three results are exact: planar chamfers meeting in miters, the octagon loop equals the half space polytope.",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
+  "Repeat": 2,
+  "Verify": [
+    "topLoop",
+    "verticalFour",
+    "octagonLoop"
+  ],
+  "Baseline": {
+    "octagonLoop": {
+      "verified": "2026-09-28: exact against the half space polytope, 23107.581722, 18 faces, 24 vertices.",
+      "consistent": "true",
+      "faces": "18",
+      "edges": "40",
+      "poleVertices": "0",
+      "vertices": "24",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "23107.581722",
+      "area": "4790.01846943",
+      "edgeLength": "546.205429129",
+      "extent": "-8.881784197E-16, -1.33226762955E-15, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:18"
+    },
+    "topLoop": {
+      "verified": "2026-09-28: exact to 1e-11, 24000 - 8 (140 - 32/3).",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "20",
+      "poleVertices": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "22965.3333333",
+      "area": "4845.44992694",
+      "edgeLength": "479.712812921",
+      "extent": "-8.881784197E-16, -2.6645352591E-15, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:10"
+    },
+    "verticalFour": {
+      "verified": "2026-09-28: exact, 24000 - 640.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "23360",
+      "area": "4948.54833996",
+      "edgeLength": "421.254833996",
+      "extent": "-8.881784197E-16, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:10"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "box1",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "workspace.select",
+      "params": {
+        "name": "top1",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box1",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 41,
+                "ymin": -1,
+                "ymax": 31,
+                "zmin": 19,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "box1",
+        "edges": "top1",
+        "distance": 4,
+        "name": "topLoop",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.box",
+      "params": {
+        "name": "box2",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "workspace.select",
+      "params": {
+        "name": "vert2",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box2",
+            "filter": {
+              "boundingBox": {
+                "component": "zDiff",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "box2",
+        "edges": "vert2",
+        "distance": 4,
+        "name": "verticalFour",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "box3",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "workspace.select",
+      "params": {
+        "name": "vert3",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box3",
+            "filter": {
+              "boundingBox": {
+                "component": "zDiff",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "box3",
+        "edges": "vert3",
+        "distance": 4,
+        "name": "box3Chamfered",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "workspace.select",
+      "params": {
+        "name": "top3",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box3Chamfered",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 41,
+                "ymin": -1,
+                "ymax": 31,
+                "zmin": 19,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "box3Chamfered",
+        "edges": "top3",
+        "distance": 2,
+        "name": "octagonLoop",
+        "rebind": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,603 @@
+{
+  "Description": "feature.chamfer at vertices where more than three edges meet (the same pyramids as FilletPyramidApex). pyrApex: the four slope edges of a square pyramid (base 40x40, height 20), distance 2. pyrAll: all eight edges. hexApex: the six slope edges of a hexagonal pyramid (apothem 20, height 20).",
+  "Expected": "The results are convex polytopes: pyramid intersected with the chamfer half spaces, the chamfer plane of an edge has the normal n1+n2 and passes through the lines at distance 2 from the edge on both faces. Computed by half space intersection: pyrApex 10441.363605 (9 faces, the four chamfer planes meet in one point on the axis), pyrAll 10241.471702, hexApex 9014.019354 (13 faces).",
+  "CaseStatus": "KnownFail",
+  "Status": "KNOWN FAIL (2026-09-28): pyrApex and hexApex are exact against the half space polytopes (the 4 resp. 6 chamfer planes meet in one point on the axis). pyrAll SUCCEEDS WITHOUT CHANGING THE SOLID: the unchanged pyramid (10666.667, 5 faces) instead of 10241.471702.",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
+  "Repeat": 2,
+  "Verify": [
+    "pyrApex",
+    "pyrAll",
+    "hexApex"
+  ],
+  "Baseline": {
+    "hexApex": {
+      "verified": "2026-09-28: exact to 1e-10 against the half space polytope, 13 faces.",
+      "consistent": "true",
+      "faces": "13",
+      "edges": "30",
+      "poleVertices": "0",
+      "vertices": "19",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "9014.01935434",
+      "area": "3274.14373955",
+      "edgeLength": "461.173819332",
+      "extent": "-20, -22.0138873179, -3.51788315254E-15, 20, 22.0138873179, 19.0645856533",
+      "surfaces": "PlaneSurface:13"
+    },
+    "pyrAll": {
+      "verified": "2026-09-28: WRONG: the unchanged pyramid, expected 10241.471702.",
+      "consistent": "true",
+      "faces": "5",
+      "edges": "8",
+      "poleVertices": "0",
+      "vertices": "5",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "10666.6666667",
+      "area": "3862.7416998",
+      "edgeLength": "298.564064606",
+      "extent": "-20, -20, 0, 20, 20, 20",
+      "surfaces": "PlaneSurface:5"
+    },
+    "pyrApex": {
+      "verified": "2026-09-28: exact to 1e-11 against the half space polytope, 9 faces.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "20",
+      "poleVertices": "0",
+      "vertices": "13",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "10441.3636051",
+      "area": "3766.3357515",
+      "edgeLength": "408.401943382",
+      "extent": "-20, -20, -3.5527136788E-15, 20, 20, 18.7752551286",
+      "surfaces": "PlaneSurface:9"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "sketch.create",
+      "params": {
+        "name": "pyr1RoofXSk",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "pyr1RoofXSk"
+        },
+        "vertices": [
+          {
+            "x": -20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 0,
+            "y": 20,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.extrude",
+      "params": {
+        "name": "pyr1RoofX",
+        "profile": "pyr1RoofXSk",
+        "direction": [
+          0,
+          1,
+          0
+        ],
+        "offset": -30,
+        "length": 60
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "sketch.create",
+      "params": {
+        "name": "pyr1RoofYSk",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            0,
+            1,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "pyr1RoofYSk"
+        },
+        "vertices": [
+          {
+            "x": -20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 0,
+            "y": 20,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.extrude",
+      "params": {
+        "name": "pyr1RoofY",
+        "profile": "pyr1RoofYSk",
+        "direction": [
+          1,
+          0,
+          0
+        ],
+        "offset": -30,
+        "length": 60
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "pyr1RoofX",
+        "b": "pyr1RoofY",
+        "name": "pyr1",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "workspace.select",
+      "params": {
+        "name": "apex1",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "pyr1",
+            "filter": {
+              "touchedBy": {
+                "xmin": -0.5,
+                "xmax": 0.5,
+                "ymin": -0.5,
+                "ymax": 0.5,
+                "zmin": 19.5,
+                "zmax": 20.5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "pyr1",
+        "edges": "apex1",
+        "distance": 2,
+        "name": "pyrApex",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "sketch.create",
+      "params": {
+        "name": "pyr2RoofXSk",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "pyr2RoofXSk"
+        },
+        "vertices": [
+          {
+            "x": -20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 0,
+            "y": 20,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.extrude",
+      "params": {
+        "name": "pyr2RoofX",
+        "profile": "pyr2RoofXSk",
+        "direction": [
+          0,
+          1,
+          0
+        ],
+        "offset": -30,
+        "length": 60
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "sketch.create",
+      "params": {
+        "name": "pyr2RoofYSk",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            0,
+            1,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "pyr2RoofYSk"
+        },
+        "vertices": [
+          {
+            "x": -20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 0,
+            "y": 20,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "solid.extrude",
+      "params": {
+        "name": "pyr2RoofY",
+        "profile": "pyr2RoofYSk",
+        "direction": [
+          1,
+          0,
+          0
+        ],
+        "offset": -30,
+        "length": 60
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "pyr2RoofX",
+        "b": "pyr2RoofY",
+        "name": "pyr2",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "workspace.select",
+      "params": {
+        "name": "all2",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "pyr2"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "pyr2",
+        "edges": "all2",
+        "distance": 2,
+        "name": "pyrAll",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "sketch.create",
+      "params": {
+        "name": "hex1Roof0Sk",
+        "plane": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "xAxis": [
+            1,
+            0,
+            0
+          ],
+          "yAxis": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "sketch.add_polycurve",
+      "params": {
+        "sketch": {
+          "name": "hex1Roof0Sk"
+        },
+        "vertices": [
+          {
+            "x": -20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 20,
+            "y": 0,
+            "b": 0
+          },
+          {
+            "x": 0,
+            "y": 20,
+            "b": 0
+          }
+        ],
+        "isClosed": true
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "solid.extrude",
+      "params": {
+        "name": "hex1Roof0",
+        "profile": "hex1Roof0Sk",
+        "direction": [
+          0,
+          1,
+          0
+        ],
+        "offset": -30,
+        "length": 60
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "transform.rotate",
+      "params": {
+        "objects": "hex1Roof0",
+        "name": "hex1Roof60",
+        "angle": 60,
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "transform.rotate",
+      "params": {
+        "objects": "hex1Roof0",
+        "name": "hex1Roof120",
+        "angle": 120,
+        "axis": {
+          "origin": [
+            0,
+            0,
+            0
+          ],
+          "direction": [
+            0,
+            0,
+            1
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "hex1Roof0",
+        "b": "hex1Roof60",
+        "name": "hex1Half",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "solid.boolean",
+      "params": {
+        "op": "intersect",
+        "a": "hex1Half",
+        "b": "hex1Roof120",
+        "name": "hex1",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "workspace.select",
+      "params": {
+        "name": "hexApex1",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "hex1",
+            "filter": {
+              "touchedBy": {
+                "xmin": -0.5,
+                "xmax": 0.5,
+                "ymin": -0.5,
+                "ymax": 0.5,
+                "zmin": 19.5,
+                "zmax": 20.5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "hex1",
+        "edges": "hexApex1",
+        "distance": 2,
+        "name": "hexApex",
+        "rebind": false
+      }
+    }
+  ]
+}

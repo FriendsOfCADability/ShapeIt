@@ -1,0 +1,245 @@
+{
+  "Description": "feature.fillet on several edges of one call. topLoop: the four top edges of a box with r=5, the vertical edges stay sharp, so two fillets meet in every top corner and intersect in a miter (two cylinders of equal radius, the seam is an ellipse in the bisecting plane). verticalFour: the four parallel vertical edges, no two fillets meet. tangentLoop: first the vertical edges with r=5, then the top edge loop of that body with r=3 - a tangent continuous chain of lines and arcs, rounded by cylinders and torus quarters.",
+  "Expected": "Closed forms, A(r) = r^2 (1 - pi/4), M(r) = r^3 (5/6 - pi/4) (see FilletSingleEdges). A prism cut by two miter planes has the volume area * length of its centroid line. topLoop: the centroid line is the top rectangle inset by M/A on every side, removed = 140 A(5) - 8 M(5): 24000 - 3500 + 875 pi + 833.333 - 250 pi = 21333.333 + 625 pi = 23296.828742. verticalFour: 24000 - 80 A(5) = 22000 + 500 pi = 23570.796327. tangentLoop: 22000 + 500 pi minus the loop fillet: straight parts 100 A(3), arcs by Pappus 2 pi (5 A(3) - M(3)): 23325.109444.",
+  "CaseStatus": "KnownFail",
+  "Status": "KNOWN FAIL (2026-09-28): topLoop (miter corners) and verticalFour hit their closed forms. tangentLoop, the top loop of a box whose vertical edges were rounded before (a tangent chain of lines and arcs), throws a NullReferenceException (call id 11, declared in ExpectError).",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
+  "Repeat": 2,
+  "Verify": [
+    "topLoop",
+    "verticalFour",
+    "tangentLoop"
+  ],
+  "ExpectError": [
+    {
+      "id": 11,
+      "code": "Object reference not set"
+    }
+  ],
+  "Baseline": {
+    "tangentLoop": {
+      "verified": "2026-09-28: WRONG: missing, feature.fillet throws (NullReferenceException) on the tangent chain. Expected 23325.109444.",
+      "exists": "false"
+    },
+    "topLoop": {
+      "verified": "2026-09-28: exact to 1e-11, 21333.333 + 625 pi; four cylinders meeting in miters.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "20",
+      "poleVertices": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "23296.8287422",
+      "area": "4885.39816345",
+      "edgeLength": "478.200133914",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:6"
+    },
+    "verticalFour": {
+      "verified": "2026-09-28: exact to 1e-11, 22000 + 500 pi.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "23570.7963269",
+      "area": "4985.39816343",
+      "edgeLength": "422.831853077",
+      "extent": "-1.84918746982E-10, -1.0378249371E-09, 0, 40.0000000002, 30.000000001, 20",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "box1",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "workspace.select",
+      "params": {
+        "name": "top1",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box1",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 41,
+                "ymin": -1,
+                "ymax": 31,
+                "zmin": 19,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "box1",
+        "edges": "top1",
+        "radius": 5,
+        "name": "topLoop",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "solid.box",
+      "params": {
+        "name": "box2",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "workspace.select",
+      "params": {
+        "name": "vert2",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box2",
+            "filter": {
+              "boundingBox": {
+                "component": "zDiff",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "box2",
+        "edges": "vert2",
+        "radius": 5,
+        "name": "verticalFour",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "box3",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "workspace.select",
+      "params": {
+        "name": "vert3",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box3",
+            "filter": {
+              "boundingBox": {
+                "component": "zDiff",
+                "minValue": 19
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "box3",
+        "edges": "vert3",
+        "radius": 5,
+        "name": "box3Rounded",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "workspace.select",
+      "params": {
+        "name": "top3",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "box3Rounded",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 41,
+                "ymin": -1,
+                "ymax": 31,
+                "zmin": 19,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "box3Rounded",
+        "edges": "top3",
+        "radius": 3,
+        "name": "tangentLoop",
+        "rebind": false
+      }
+    }
+  ]
+}

@@ -1,0 +1,410 @@
+{
+  "Description": "feature.chamfer at vertices where convex and concave edges meet (the same bodies as FilletConcaveConvexVertex). A boss 20x10x10 on a 40x30x20 base: bossFoot chamfers the four concave foot edges with 3; bossFootAndVertical adds the four vertical boss edges. lTopAndConcave: the six top edges of an L shaped prism and its concave vertical edge. lAllEdges: every edge of the L.",
+  "Expected": "bossFoot: the concave chamfer adds the triangle 4.5 along its centroid line, 1 outside the boss faces: 26000 + 4.5 (60 + 8) = 26306. The mixed vertices are judged by closedness, consistency, the face and surface counts and plausibility of the volume. CORRECTION after the first run: ChamferEdges sweeps the chamfer triangle around the convex boss corners (a quarter cone, surfaces ConicalSurface:4) instead of mitering it, consistent with the rolling ball fillet. By Pappus each corner adds (pi/2) * 4.5 * 1, so bossFoot = 26000 + 270 + 9 pi = 26298.274334 - the recorded value. The miter value 26306 would be the classical chamfer; the swept one is accepted here as the chosen semantics.",
+  "CaseStatus": "KnownFail",
+  "Status": "KNOWN FAIL (2026-09-28): bossFoot is right under the swept chamfer rule. bossFootAndVertical and lAllEdges SUCCEED WITHOUT CHANGING THE SOLID (26000 / 12000, the original face counts). lTopAndConcave throws a NullReferenceException (call id 15, in ExpectError).",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
+  "Repeat": 2,
+  "Verify": [
+    "bossFoot",
+    "bossFootAndVertical",
+    "lTopAndConcave",
+    "lAllEdges"
+  ],
+  "ExpectError": [
+    {
+      "id": 15,
+      "code": "Object reference not set"
+    }
+  ],
+  "Baseline": {
+    "bossFoot": {
+      "verified": "2026-09-28: exact to 1e-11 against 26000 + 60*4.5 + 2 pi*4.5 = 26298.274334: like the fillet the chamfer is swept around each convex boss corner (a cone quarter) instead of meeting in a miter (26306).",
+      "consistent": "true",
+      "faces": "19",
+      "edges": "40",
+      "poleVertices": "4",
+      "vertices": "24",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "26298.2743339",
+      "area": "5706.27005379",
+      "edgeLength": "620.790681418",
+      "extent": "0, 0, 0, 40, 30, 30",
+      "surfaces": "ConicalSurface:4 PlaneSurface:15"
+    },
+    "bossFootAndVertical": {
+      "verified": "2026-09-28: WRONG: the unchanged solid, no chamfer at all.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "26000",
+      "area": "5800",
+      "edgeLength": "520",
+      "extent": "0, 0, 0, 40, 30, 30",
+      "surfaces": "PlaneSurface:11"
+    },
+    "lAllEdges": {
+      "verified": "2026-09-28: WRONG: the unchanged L, no chamfer at all.",
+      "consistent": "true",
+      "faces": "8",
+      "edges": "18",
+      "poleVertices": "0",
+      "vertices": "12",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "12000",
+      "area": "4000",
+      "edgeLength": "400",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:8"
+    },
+    "lTopAndConcave": {
+      "verified": "2026-09-28: WRONG: missing, feature.chamfer throws (NullReferenceException).",
+      "exists": "false"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "boss1Base",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "boss1Top",
+        "origin": [
+          10,
+          10,
+          20
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "boss1Base",
+        "b": "boss1Top",
+        "name": "boss1",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "workspace.select",
+      "params": {
+        "name": "foot1",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "boss1",
+            "filter": {
+              "inside": {
+                "xmin": 9,
+                "xmax": 31,
+                "ymin": 9,
+                "ymax": 21,
+                "zmin": 19.5,
+                "zmax": 20.5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "boss1",
+        "edges": "foot1",
+        "distance": 3,
+        "name": "bossFoot",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.box",
+      "params": {
+        "name": "boss2Base",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "boss2Top",
+        "origin": [
+          10,
+          10,
+          20
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "boss2Base",
+        "b": "boss2Top",
+        "name": "boss2",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "workspace.select",
+      "params": {
+        "name": "fv2",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "boss2",
+            "filter": {
+              "inside": {
+                "xmin": 9,
+                "xmax": 31,
+                "ymin": 9,
+                "ymax": 21,
+                "zmin": 19.5,
+                "zmax": 30.5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "boss2",
+        "edges": "fv2",
+        "distance": 3,
+        "name": "bossFootAndVertical",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.box",
+      "params": {
+        "name": "lShapeFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.box",
+      "params": {
+        "name": "lShapeArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lShapeFoot",
+        "b": "lShapeArm",
+        "name": "lShape",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "workspace.select",
+      "params": {
+        "name": "lTop",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "edges",
+                "from": "lShape",
+                "filter": {
+                  "inside": {
+                    "xmin": -1,
+                    "xmax": 41,
+                    "ymin": -1,
+                    "ymax": 31,
+                    "zmin": 19,
+                    "zmax": 21
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "edges",
+                "from": "lShape",
+                "filter": {
+                  "inside": {
+                    "xmin": 9,
+                    "xmax": 11,
+                    "ymin": 9,
+                    "ymax": 11,
+                    "zmin": -1,
+                    "zmax": 21
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lShape",
+        "edges": "lTop",
+        "distance": 3,
+        "name": "lTopAndConcave",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.box",
+      "params": {
+        "name": "lAllFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.box",
+      "params": {
+        "name": "lAllArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lAllFoot",
+        "b": "lAllArm",
+        "name": "lAll",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "workspace.select",
+      "params": {
+        "name": "lAllSet",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lAll"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lAll",
+        "edges": "lAllSet",
+        "distance": 3,
+        "name": "lAllEdges",
+        "rebind": false
+      }
+    }
+  ]
+}

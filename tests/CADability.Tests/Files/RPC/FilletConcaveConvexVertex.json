@@ -1,0 +1,392 @@
+{
+  "Description": "feature.fillet at vertices where convex and concave edges meet. A boss 20x10x10 on a 40x30x20 base: bossFoot rounds only the four concave foot edges with r=3 (they meet in a miter outside the boss corners, the vertical boss edges stay sharp); bossFootAndVertical adds the four vertical boss edges, so at each foot corner one convex and two concave fillets meet. lTopAndConcave: the six top edges of an L shaped prism and its concave vertical edge, r=3 - at the top of the concave edge two convex and one concave fillet meet. lAllEdges: every edge of the L, both ends of the concave edge are such mixed vertices.",
+  "Expected": "bossFoot has a closed form: the concave fillet adds A(3) = 9 (1 - pi/4) along its centroid line, which runs outside the boss at the distance M/A = 3 (5/6 - pi/4)/(1 - pi/4) = 0.6700, total length 60 + 8 M/A; V = 26000 + 60 A(3) + 8 M(3) = 26126.238988. The mixed vertices have no simple closed form; judged by closedness, consistency, the surface histogram and by the volume lying between the neighbouring simple cases (bossFootAndVertical < bossFoot, lTopAndConcave < 12000 + 20 A(3)). CORRECTION after the first run: the miter value above is wrong for a rolling ball fillet. With the vertical boss edges sharp the ball rolls around each convex boss corner, pivoting about the vertical edge, so each corner is a quarter torus (major radius = minor radius = 3) instead of two cylinders meeting in a miter. By Pappus a corner adds (pi/2) M(3), so V = 26000 + 60 A(3) + 2 pi M(3) = 26124.017002 - the recorded value, exact to 1e-11, and the surfaces are 4 cylinders + 4 tori.",
+  "CaseStatus": "KnownFail",
+  "Status": "KNOWN FAIL (2026-09-28): bossFoot is right. bossFootAndVertical (call id 10), lTopAndConcave (call id 15) and lAllEdges (call id 20) all throws a NullReferenceException - every call where a concave fillet meets a convex fillet in a vertex. Declared in ExpectError.",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
+  "Repeat": 2,
+  "Verify": [
+    "bossFoot",
+    "bossFootAndVertical",
+    "lTopAndConcave",
+    "lAllEdges"
+  ],
+  "ExpectError": [
+    {
+      "id": 10,
+      "code": "Object reference not set"
+    },
+    {
+      "id": 15,
+      "code": "Object reference not set"
+    },
+    {
+      "id": 20,
+      "code": "Object reference not set"
+    }
+  ],
+  "Baseline": {
+    "bossFoot": {
+      "verified": "2026-09-28: exact to 1e-11 against the rolling ball closed form 26000 + 60 A(3) + 2 pi M(3) = 26124.017002: at the convex boss corners the concave fillet is a torus, not a miter.",
+      "consistent": "true",
+      "faces": "19",
+      "edges": "40",
+      "poleVertices": "4",
+      "vertices": "24",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "26124.0170018",
+      "area": "5726.74677679",
+      "edgeLength": "624.548667765",
+      "extent": "0, 0, 0, 40, 30, 30",
+      "surfaces": "CylindricalSurface:4 PlaneSurface:11 ToroidalSurface:4"
+    },
+    "bossFootAndVertical": {
+      "verified": "2026-09-28: WRONG: missing, feature.fillet throws (NullReferenceException).",
+      "exists": "false"
+    },
+    "lAllEdges": {
+      "verified": "2026-09-28: WRONG: missing, feature.fillet throws (NullReferenceException).",
+      "exists": "false"
+    },
+    "lTopAndConcave": {
+      "verified": "2026-09-28: WRONG: missing, feature.fillet throws (NullReferenceException).",
+      "exists": "false"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.box",
+      "params": {
+        "name": "boss1Base",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.box",
+      "params": {
+        "name": "boss1Top",
+        "origin": [
+          10,
+          10,
+          20
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "boss1Base",
+        "b": "boss1Top",
+        "name": "boss1",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "workspace.select",
+      "params": {
+        "name": "foot1",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "boss1",
+            "filter": {
+              "inside": {
+                "xmin": 9,
+                "xmax": 31,
+                "ymin": 9,
+                "ymax": 21,
+                "zmin": 19.5,
+                "zmax": 20.5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "boss1",
+        "edges": "foot1",
+        "radius": 3,
+        "name": "bossFoot",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "solid.box",
+      "params": {
+        "name": "boss2Base",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.box",
+      "params": {
+        "name": "boss2Top",
+        "origin": [
+          10,
+          10,
+          20
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "boss2Base",
+        "b": "boss2Top",
+        "name": "boss2",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "workspace.select",
+      "params": {
+        "name": "fv2",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "boss2",
+            "filter": {
+              "inside": {
+                "xmin": 9,
+                "xmax": 31,
+                "ymin": 9,
+                "ymax": 21,
+                "zmin": 19.5,
+                "zmax": 30.5
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "boss2",
+        "edges": "fv2",
+        "radius": 3,
+        "name": "bossFootAndVertical",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "solid.box",
+      "params": {
+        "name": "lShapeFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.box",
+      "params": {
+        "name": "lShapeArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lShapeFoot",
+        "b": "lShapeArm",
+        "name": "lShape",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "workspace.select",
+      "params": {
+        "name": "lTop",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "edges",
+                "from": "lShape",
+                "filter": {
+                  "inside": {
+                    "xmin": -1,
+                    "xmax": 41,
+                    "ymin": -1,
+                    "ymax": 31,
+                    "zmin": 19,
+                    "zmax": 21
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "edges",
+                "from": "lShape",
+                "filter": {
+                  "inside": {
+                    "xmin": 9,
+                    "xmax": 11,
+                    "ymin": 9,
+                    "ymax": 11,
+                    "zmin": -1,
+                    "zmax": 21
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "lShape",
+        "edges": "lTop",
+        "radius": 3,
+        "name": "lTopAndConcave",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "solid.box",
+      "params": {
+        "name": "lAllFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.box",
+      "params": {
+        "name": "lAllArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lAllFoot",
+        "b": "lAllArm",
+        "name": "lAll",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "workspace.select",
+      "params": {
+        "name": "lAllSet",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lAll"
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "lAll",
+        "edges": "lAllSet",
+        "radius": 3,
+        "name": "lAllEdges",
+        "rebind": false
+      }
+    }
+  ]
+}
