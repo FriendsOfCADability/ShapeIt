@@ -534,6 +534,10 @@ namespace CADability
                         if (edgb.Curve3D == null) continue;
                         if (edga == edgb) continue; // same edge, no intersection
                         if (edga.Curve3D.SameGeometry(edgb.Curve3D, precision)) continue; // same curve, no intersection
+                        if (edga.Curve3D.DistanceTo(edgb.Curve3D.StartPoint) < precision) continue; // the intersectionpoint already exists:
+                        if (edga.Curve3D.DistanceTo(edgb.Curve3D.EndPoint) < precision) continue; // necessary for tangential intersections as in DifferenzBug10
+                        if (edgb.Curve3D.DistanceTo(edga.Curve3D.StartPoint) < precision) continue;
+                        if (edgb.Curve3D.DistanceTo(edga.Curve3D.EndPoint) < precision) continue;
                         Curves.Intersect(edga.Curve3D, edgb.Curve3D, out double[] par1, out double[] par2, out GeoPoint[] ip);
                         for (int i = 0; i < ip.Length; i++)
                         {
@@ -3987,7 +3991,7 @@ namespace CADability
                     {
                         if (Math.Abs(item.Key) <= loop.Key) continue; // too small, cannot be a container, or same loop
                         if (keysToRemove.Contains(item.Key)) continue; // already marked as to remove
-                        if (Border.IsInside(item.Value.Item2, loop.Value.Item2[0].StartPoint) == item.Key > 0)
+                        if (Border.IsInside(item.Value.Item2, loop.Value.Item2[0].PointAt(0.5)) == item.Key > 0) // PointAt(0.5): StartPoint may be coincident with a vertex of the outer loop
                         {   // item contains loop
                             if (containingLoop.HasValue && Math.Abs(containingLoop.Value.Key) < Math.Abs(item.Key)) continue; // we already hav a smaller container, don't want this one
                             containingLoop = item;
@@ -4257,18 +4261,19 @@ namespace CADability
                         connecting.Remove(edg);
                         if (!allFaces.Contains(edg.PrimaryFace))
                         {
-                            bool edgeFound = false;
-                            foreach (Edge ce in connecting)
-                            {
-                                if (allFaces.Contains(ce.PrimaryFace))
-                                {   // this is probably an overlapping face, which is not connected to the trimmed faces but already belongs to allFaces
-                                    if (SameEdge(ce, edg, precision))
-                                    {
-                                        edgeFound = true;
-                                    }
-                                }
-                            }
-                            if (!discardedFaces.Contains(edg.PrimaryFace) && edg.IsOrientedConnection && !edgeFound)
+                            // the following seems to be not necessary, it cannot be used with "UniteBug25.cdb.json"
+                            //bool edgeFound = false;
+                            //foreach (Edge ce in connecting)
+                            //{
+                            //    if (allFaces.Contains(ce.PrimaryFace))
+                            //    {   // this is probably an overlapping face, which is not connected to the trimmed faces but already belongs to allFaces
+                            //        if (SameEdge(ce, edg, precision) && !discardedFaces.Contains(edg.PrimaryFace))
+                            //        {
+                            //            edgeFound = true;
+                            //        }
+                            //    }
+                            //}
+                            if (!discardedFaces.Contains(edg.PrimaryFace) && edg.IsOrientedConnection)
                             {
                                 allFaces.Add(edg.PrimaryFace);
                                 added = true;
@@ -4281,18 +4286,18 @@ namespace CADability
                         }
                         if (edg.SecondaryFace != null && !allFaces.Contains(edg.SecondaryFace))
                         {
-                            bool edgeFound = false;
-                            foreach (Edge ce in connecting)
-                            {
-                                if (allFaces.Contains(ce.PrimaryFace))
-                                {// this is probably an overlapping face, which is not connected to the trimmed faces but already belongs to allFaces
-                                    if (SameEdge(ce, edg, precision))
-                                    {
-                                        edgeFound = true;
-                                    }
-                                }
-                            }
-                            if (!discardedFaces.Contains(edg.SecondaryFace) && edg.IsOrientedConnection && !edgeFound)
+                            //bool edgeFound = false;
+                            //foreach (Edge ce in connecting)
+                            //{
+                            //    if (allFaces.Contains(ce.PrimaryFace))
+                            //    {   // this is probably an overlapping face, which is not connected to the trimmed faces but already belongs to allFaces
+                            //        if (SameEdge(ce, edg, precision) && !discardedFaces.Contains(edg.SecondaryFace))
+                            //        {
+                            //            edgeFound = true;
+                            //        }
+                            //    }
+                            //}
+                            if (!discardedFaces.Contains(edg.SecondaryFace) && edg.IsOrientedConnection)
                             {
                                 allFaces.Add(edg.SecondaryFace);
                                 added = true;
