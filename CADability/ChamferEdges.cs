@@ -5,8 +5,10 @@ using CADability.GeoObject;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using static CADability.GeoObject.ShellExtensions;
 
 namespace CADability.GeoObject
 {
@@ -45,6 +47,13 @@ namespace CADability.GeoObject
             // of two offset surfaces of the adjacent faces. The chamfer starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the chamfer faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
             edgeToCutter = createChamfers();
+#if DEBUG
+            DebuggerContainer dccut = new DebuggerContainer();
+            foreach (Shell s in edgeToCutter.Values)
+            {
+                dccut.Add(s);
+            }
+#endif
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges.Concat(concaveEdges));
 
@@ -53,21 +62,42 @@ namespace CADability.GeoObject
             foreach (var ve in vertexToEdges)
             {
                 HashSet<Shell>? chamferAndExtension = null;
-                if (ve.Value.Count == 1)
+                List<Edge> convexEdges = [];
+                List<Edge> concaveEdges = [];
+                foreach (Edge edge in ve.Value)
+                {
+                    if (edge.Adjacency() == AdjacencyType.Convex) convexEdges.Add(edge);
+                    else if (edge.Adjacency() == AdjacencyType.Concave) concaveEdges.Add(edge);
+                }
+                if (convexEdges.Count == 1)
                 { // the chamfer ends here, there are different cases:
                     // There is one or more "impact" faces
-                    chamferAndExtension = createDeadEndExtension(ve.Key, ve.Value[0], Math.Max(length1, length2));
+                    chamferAndExtension = createDeadEndExtension(ve.Key, convexEdges[0], Math.Max(length1, length2));
                     if (chamferAndExtension != null) convexRoundingShells.Add(chamferAndExtension);
                 }
-                else if (ve.Value.Count == 2)
-                {
-                    chamferAndExtension = createExtensionTwoEdges(ve.Key, ve.Value[0], ve.Value[1], Math.Max(length1, length2));
+                if (convexEdges.Count == 2 )
+                {   // both convex
+                    chamferAndExtension = createExtensionTwoEdges(ve.Key, convexEdges[0], convexEdges[1], Math.Max(length1, length2));
                     if (chamferAndExtension != null) convexRoundingShells.Add(chamferAndExtension);
                 }
-                if (chamferAndExtension != null)
-                {
-                    if (convexEdges.Contains(ve.Value[0])) convexRoundingShells.Add(chamferAndExtension);
-                    else concaveRoundingShells.Add(chamferAndExtension);
+                if (concaveEdges.Count == 1)
+                { // the chamfer ends here, there are different cases:
+                    // There is one or more "impact" faces
+                    chamferAndExtension = createDeadEndExtension(ve.Key, concaveEdges[0], Math.Max(length1, length2));
+                    if (chamferAndExtension != null) concaveRoundingShells.Add(chamferAndExtension);
+                }
+                if (concaveEdges.Count == 2)
+                {   // both concave 
+                    chamferAndExtension = createExtensionTwoEdges(ve.Key, concaveEdges[0], concaveEdges[1], Math.Max(length1, length2));
+                    if (chamferAndExtension != null) concaveRoundingShells.Add(chamferAndExtension);
+                }
+                if (chamferAndExtension==null) // no other case
+                {   // three or more edges or mixed concave/convex
+                    foreach (Edge edge in ve.Value)
+                    {
+                        if (edge.Adjacency() == AdjacencyType.Convex) convexRoundingShells.Add([edgeToCutter?[edge]]);
+                        else if (edge.Adjacency() == AdjacencyType.Concave) concaveRoundingShells.Add([edgeToCutter?[edge]]);
+                    }
                 }
             }
             Combine(convexRoundingShells);

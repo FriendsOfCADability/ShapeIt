@@ -103,6 +103,7 @@ namespace CADability.GeoObject
             }
             endingFaces.Remove(edge.PrimaryFace);
             endingFaces.Remove(edge.SecondaryFace);
+            endingFaces.Remove(null);
             // beamDirection: the direction where the fillet is pointing to
             GeoPoint2D uv = vtx.GetPositionOnFace(endFace);
             GeoVector beamDirection = endFace.Surface.GetNormal(uv).Normalized;
