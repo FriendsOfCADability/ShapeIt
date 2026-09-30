@@ -24,6 +24,60 @@ namespace CADability.GeoObject
             concaveEdges = edges.Where(e => e.Adjacency() == ShellExtensions.AdjacencyType.Concave);
         }
 
+        /// <summary>
+        /// Checks whether the selection can be blended in one operation. It cannot, when a convex and a concave
+        /// edge of the selection meet in a common vertex: blending one kind first changes or removes the edges of
+        /// the other kind, the result would depend on the order and neither order does what the selection asks
+        /// for. The same holds for a single edge whose convexity changes along its way. Such selections have to be
+        /// split into two operations: first the convex edges, then the concave edges of the result (or vice versa).
+        /// Convex and concave edges which do not touch each other may be blended together.
+        /// </summary>
+        /// <returns>null, if the selection is valid, otherwise a description of the problem</returns>
+        public string? CheckSelection()
+        {
+            List<string> problems = new List<string>();
+            int mixedEdges = convexEdges.Concat(concaveEdges).Count(e => HasChangingConvexity(e));
+            if (mixedEdges > 0)
+                problems.Add($"{mixedEdges} edge(s) change from convex to concave along their way");
+            HashSet<Vertex> convexVertices = new HashSet<Vertex>(convexEdges.SelectMany(e => new[] { e.Vertex1, e.Vertex2 }));
+            List<Vertex> mixedVertices = concaveEdges.SelectMany(e => new[] { e.Vertex1, e.Vertex2 }).Distinct()
+                .Where(v => convexVertices.Contains(v)).ToList();
+            if (mixedVertices.Count > 0)
+            {
+                GeoPoint p = mixedVertices[0].Position;
+                problems.Add($"convex and concave edges meet in {mixedVertices.Count} vertex/vertices, e.g. at ({p.x:G6}, {p.y:G6}, {p.z:G6})");
+            }
+            if (problems.Count == 0) return null;
+            return "Convex and concave edges cannot be blended together where they meet: " + string.Join("; ", problems)
+                + ". Blend the convex edges first and then the concave edges of the result, or the other way round.";
+        }
+
+        /// <summary>
+        /// True, if the edge is convex in some parts and concave in others. <see cref="ShellExtensions.Adjacency"/>
+        /// only looks at the start of the edge, so it is sampled here along the whole edge. Tangential sample points
+        /// (no clear sign) are ignored.
+        /// </summary>
+        private static bool HasChangingConvexity(Edge edge)
+        {
+            if (edge.SecondaryFace == null || edge.Curve3D == null) return false;
+            bool convex = false, concave = false;
+            const int samples = 8;
+            for (int i = 0; i <= samples; i++)
+            {
+                double t = (double)i / samples;
+                GeoPoint p = edge.Curve3D.PointAt(t);
+                GeoVector dir = edge.Curve3D.DirectionAt(t);
+                if (!edge.Forward(edge.PrimaryFace)) dir = -dir;
+                GeoVector n1 = edge.PrimaryFace.Surface.GetNormal(edge.PrimaryFace.Surface.PositionOf(p));
+                GeoVector n2 = edge.SecondaryFace.Surface.GetNormal(edge.SecondaryFace.Surface.PositionOf(p));
+                if (dir.IsNullVector() || n1.IsNullVector() || n2.IsNullVector()) continue;
+                double orientation = dir.Normalized * (n1.Normalized ^ n2.Normalized);
+                if (orientation > 1e-3) convex = true;
+                else if (orientation < -1e-3) concave = true;
+            }
+            return convex && concave;
+        }
+
         public Dictionary<Vertex, List<Edge>> createVertexToEdges(IEnumerable<Edge> edges)
         {
             Dictionary<Vertex, List<Edge>> vertexToEdges = new Dictionary<Vertex, List<Edge>>();

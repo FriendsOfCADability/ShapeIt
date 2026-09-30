@@ -1300,7 +1300,7 @@
 		},
 		{
 			"name": "feature.chamfer",
-			"description": "Chamfers the specified edges of a solid. 'edges' names an edge or a named edge set; to chamfer the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. For an unsymmetric chamfer you must provide 'primaryFace' and 'secondaryDistance'",
+			"description": "Chamfers the specified edges of a solid. 'edges' names an edge or a named edge set; to chamfer the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. For an unsymmetric chamfer you must provide 'primaryFace' and 'secondaryDistance'. Convex and concave edges must not meet in a common vertex (the call is rejected): blend the convex edges first, then select and blend the concave edges of the result.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
@@ -1349,7 +1349,7 @@
 		},
 		{
 			"name": "feature.fillet",
-			"description": "Rounds (fillets) the specified edges of a solid. 'edges' names an edge or a named edge set; to round the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes.",
+			"description": "Rounds (fillets) the specified edges of a solid. 'edges' names an edge or a named edge set; to round the result of a query or a set operation, create that set with workspace.select first. Supports automatic topology rebind (default: rebind=true) after the operation so that named faces/edges remain usable across feature/boolean changes. Convex and concave edges must not meet in a common vertex (the call is rejected): blend the convex edges first, then select and blend the concave edges of the result.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {

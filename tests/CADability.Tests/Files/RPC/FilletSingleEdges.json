@@ -1,8 +1,8 @@
 {
   "Description": "feature.fillet on one edge at a time, the simplest cases: a convex straight edge of a box lying horizontally (oneTop) and vertically (oneVertical), the circular top rim of a cylinder (cylRim, a torus fillet) and the concave vertical edge of an L shaped prism (lConcave, adds material). The fillet ends in the planar end faces, no vertex blend is needed.",
   "Expected": "Closed forms, A(r) = r^2 (1 - pi/4) is the spandrel between the corner and the arc, M(r) = r^3 (5/6 - pi/4) its first moment about a face. oneTop: 40x30x20 box, r=5 on the 40 long edge: 24000 - 40 A(5) = 23000 + 250 pi = 23785.398163. oneVertical: r=5 on the 20 long edge: 23500 + 125 pi = 23892.699082. cylRim: cylinder R=10, h=20, r=3; by Pappus the ring removed is 2 pi (R A(3) - M(3)): 1865 pi + 31.5 pi^2 = 6169.962838, surfaces 2 planes + cylinder + torus. lConcave: L = [0,40]x[0,10] + [0,10]x[10,30], 20 high (12000); r=4 on the concave edge adds 20 A(4) = 320 - 80 pi: 12068.672588.",
-  "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-09-28): oneTop, oneVertical and cylRim hit their closed forms (1e-10) with the expected surfaces. lConcave, the single concave vertical edge of the L, throws a NullReferenceException (call id 14, declared in ExpectError). Promote to Ok once the concave edge rounds to 12068.672588.",
+  "CaseStatus": "Ok",
+  "Status": "OK (2026-09-30): all four results hit their closed forms. lConcave threw a NullReferenceException until 2026-09-29.",
   "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
   "Repeat": 2,
   "Verify": [
@@ -11,12 +11,7 @@
     "cylRim",
     "lConcave"
   ],
-  "ExpectError": [
-    {
-      "id": 14,
-      "code": "Object reference not set"
-    }
-  ],
+  "ExpectError": [],
   "Baseline": {
     "cylRim": {
       "verified": "2026-09-28: exact to 1e-11, 1865 pi + 31.5 pi^2, torus fillet.",
@@ -36,8 +31,21 @@
       "surfaces": "CylindricalSurface:1 PlaneSurface:2 ToroidalSurface:1"
     },
     "lConcave": {
-      "verified": "2026-09-28: WRONG: missing, feature.fillet throws (NullReferenceException). Expected 12068.672588.",
-      "exists": "false"
+      "verified": "2026-09-30: exact against 12000 + 20 A(4) = 12320 - 80 pi = 12068.672588, one cylinder.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "21",
+      "poleVertices": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "12068.6725877",
+      "area": "3972.53096492",
+      "edgeLength": "416.566370615",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:8"
     },
     "oneTop": {
       "verified": "2026-09-28: exact to 1e-10, 23000 + 250 pi, one cylinder.",

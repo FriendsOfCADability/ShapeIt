@@ -4659,6 +4659,8 @@ namespace ShapeIt
             if (double.IsNaN(secondaryDistance)) secondaryDistance = distance;
             // maybe flip distances
             ChamferEdges ce = new ChamferEdges(shell, edgesToRound, distance, secondaryDistance);
+            string? selectionProblem = ce.CheckSelection();
+            if (selectionProblem != null) throw new JsonRpcException("E_INVALID_PARAMS", selectionProblem);
             Shell? rounded = ce.Execute();
             if (rounded == null) throw new JsonRpcException("E_OPERATION_FAILED", "Filletting failed.");
             namedItems[string.IsNullOrEmpty(name) ? solidName : name] = Solid.MakeSolid(rounded);
@@ -4675,6 +4677,8 @@ namespace ShapeIt
             // no new name is given. Check it before doing the work so a mismatch fails fast.
             string solidName = RequireSolidNameFor(solid, shell);
             RoundEdges re = new RoundEdges(shell, edgesToRound, radius);
+            string? selectionProblem = re.CheckSelection();
+            if (selectionProblem != null) throw new JsonRpcException("E_INVALID_PARAMS", selectionProblem);
             Shell? rounded = re.Execute();
             if (rounded == null) throw new JsonRpcException("E_OPERATION_FAILED", "Filletting failed.");
             namedItems[string.IsNullOrEmpty(name) ? solidName : name] = Solid.MakeSolid(rounded);

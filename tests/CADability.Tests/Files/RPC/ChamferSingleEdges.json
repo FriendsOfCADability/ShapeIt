@@ -2,7 +2,7 @@
   "Description": "feature.chamfer on one edge at a time: a horizontal (oneTop) and a vertical (oneVertical) convex edge of a 40x30x20 box with distance 4, the same top edge unsymmetric with 4 on the top face ('primaryFace') and 2 on the front face (asymmetric), the circular top rim of a cylinder (cylRim, a conical chamfer) and the concave vertical edge of an L shaped prism (lConcave, adds material). asymmetricFront chamfers the same edge with the roles of the faces swapped: 4 on the front face ('primaryFace'), 2 on the top face.",
   "Expected": "Closed forms. oneTop: 24000 - 8*40 = 23680. oneVertical: 24000 - 8*20 = 23840. asymmetric: 24000 - 4*2/2*40 = 23840; the top face must end at y=4 and the front face at z=18, so the chamfer face runs from (y=0, z=18) to (y=4, z=20). Volume, area and extent are the same with swapped distances, so asymmetricSlice intersects the result with the slab y <= 3: right 2400 - 40 * integral_0^3 (2 - y/2) dy = 2400 - 150 = 2250, swapped 2400 - 40 * integral_0^2 (4 - 2y) dy = 2240. cylRim: R=10, h=20, d=2, the triangle 2*2/2 revolved at the radius 10 - 2/3: 2000 pi - 2 pi (28/3) 2 = 5888/3 pi = 6165.899181, surfaces 2 planes + cylinder + cone. lConcave: 12000 + 8*20 = 12160. asymmetricFront: same volume 23840, but the chamfer face runs from (y=0, z=16) to (y=2, z=20), so asymmetricFrontSlice = 2240. The two slices differ only if 'primaryFace' is honoured: with the distances bound to the edge's own PrimaryFace one of the two slices is wrong.",
   "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-09-28): oneTop, oneVertical, asymmetric, asymmetricSlice and cylRim hit their closed forms exactly. (1) lConcave, the concave vertical edge of the L, throws a NullReferenceException (call id 20, in ExpectError). (2) 'primaryFace' is ignored: FeatureChamferImpl (ShapeIt/MCPServer.cs) does not pass it on to ChamferEdges, so the first distance lands on the edge's own PrimaryFace. For this edge that is the top face: asymmetric is right by chance, asymmetricFront (4 on the front face) comes out identical to asymmetric, asymmetricFrontSlice = 2250 instead of 2240.",
+  "Status": "KNOWN FAIL (2026-09-30): oneTop, oneVertical, asymmetric, asymmetricSlice, cylRim and lConcave hit their closed forms exactly (lConcave threw a NullReferenceException until 2026-09-29). Still open: 'primaryFace' is ignored - FeatureChamferImpl (ShapeIt/MCPServer.cs) does not pass it on to ChamferEdges, so the first distance lands on the edge's own PrimaryFace. For this edge that is the top face: asymmetric is right by chance, asymmetricFront (4 on the front face) comes out identical to asymmetric, asymmetricFrontSlice = 2250 instead of 2240.",
   "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
   "Repeat": 2,
   "Verify": [
@@ -15,12 +15,7 @@
     "asymmetricFront",
     "asymmetricFrontSlice"
   ],
-  "ExpectError": [
-    {
-      "id": 20,
-      "code": "Object reference not set"
-    }
-  ],
+  "ExpectError": [],
   "Baseline": {
     "asymmetric": {
       "verified": "2026-09-28: exact 23840; the slice confirms 4 on the top face.",
@@ -108,8 +103,21 @@
       "surfaces": "ConicalSurface:1 CylindricalSurface:1 PlaneSurface:2"
     },
     "lConcave": {
-      "verified": "2026-09-28: WRONG: missing, feature.chamfer throws (NullReferenceException). Expected 12160.",
-      "exists": "false"
+      "verified": "2026-09-30: exact against 12000 + 8*20 = 12160, 9 planes.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "21",
+      "poleVertices": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "12160",
+      "area": "3969.13708499",
+      "edgeLength": "415.313708499",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:9"
     },
     "oneTop": {
       "verified": "2026-09-28: exact, 24000 - 8*40.",

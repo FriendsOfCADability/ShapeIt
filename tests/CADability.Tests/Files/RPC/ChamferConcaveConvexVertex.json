@@ -1,20 +1,29 @@
 {
-  "Description": "feature.chamfer at vertices where convex and concave edges meet (the same bodies as FilletConcaveConvexVertex). A boss 20x10x10 on a 40x30x20 base: bossFoot chamfers the four concave foot edges with 3; bossFootAndVertical adds the four vertical boss edges. lTopAndConcave: the six top edges of an L shaped prism and its concave vertical edge. lAllEdges: every edge of the L.",
-  "Expected": "bossFoot: the concave chamfer adds the triangle 4.5 along its centroid line, 1 outside the boss faces: 26000 + 4.5 (60 + 8) = 26306. The mixed vertices are judged by closedness, consistency, the face and surface counts and plausibility of the volume. CORRECTION after the first run: ChamferEdges sweeps the chamfer triangle around the convex boss corners (a quarter cone, surfaces ConicalSurface:4) instead of mitering it, consistent with the rolling ball fillet. By Pappus each corner adds (pi/2) * 4.5 * 1, so bossFoot = 26000 + 270 + 9 pi = 26298.274334 - the recorded value. The miter value 26306 would be the classical chamfer; the swept one is accepted here as the chosen semantics.",
+  "Description": "feature.chamfer (distance 3) at vertices where convex and concave edges meet. A boss 20x10x10 on a 40x30x20 base: bossFoot chamfers the four concave foot edges. bossFootAndVertical selects the foot, the four vertical and the four top edges of the boss (the selection box reaches z=30.5), lTopAndConcave the six top edges of an L shaped prism and its concave vertical edge, lAllEdges every edge of the L - these three mixed selections must be rejected. Two step versions: bossVerticalThenFoot chamfers the four vertical boss edges (bossVertical) and then the eight concave foot edges of the result; lTopThenConcave the six top edges of the L (lTop), then its concave edge; lConvexThenConcave all convex edges of the L (lConvex), then its concave edge. lApartMixed: one convex top edge (y=0) and the concave vertical edge of the L in one call, they share no vertex. Since 2026-09-30 a feature.chamfer / feature.fillet call is rejected when a selected convex and a selected concave edge meet in a common vertex (BlendEdges.CheckSelection): blending one kind first changes or removes the edges of the other kind, so the result would depend on an order the selection does not state. bossFootAndVertical (call id 10), lTopAndConcave (15) and lAllEdges (20) are such selections and must fail with that error. The same bodies are then built in two steps, convex edges first, then the concave edges of the result selected with isConvex=false. lApartMixed selects a convex top edge and the concave vertical edge of an L, which do not touch: that stays allowed.",
+  "Expected": "bossFoot: ChamferEdges sweeps the chamfer triangle around the convex boss corners (a quarter cone each, consistent with the rolling ball fillet), by Pappus each corner adds (pi/2) * 4.5 * 1: 26000 + 270 + 9 pi = 26298.274334 (the classical miter would give 26306). bossVerticalThenFoot: the vertical chamfers remove 4 * 4.5 * 10 = 180, the foot ring runs along the octagon of perimeter 36 + 12 sqrt(2) and sweeps 45 degrees at each of its 8 corners: 26000 - 180 + 4.5 (36 + 12 sqrt(2)) + 9 pi = 26086.641866, 8 cones. lApartMixed: 12000 - 4.5*40 + 4.5*20 = 11910, 10 planes. lTop = 12000 - (630 - 5*9 + (pi/2)*4.5) = 11407.931417 (five mitred corners, a quarter cone at the reflex corner), lConvex = 12000 - (1710 - 10*20.25 + 2*(pi/2)*4.5) = 10478.362833. The concave edge of lTop runs from z=0 to the cone apex at z=17, the one of lConvex from z=3 to z=17. Where the concave chamfer ends at a cone apex it should be cut by both adjacent chamfer planes (a roof, symmetric in x and y), as at the lower end of lConvexThenConcave: the average height lost at such an end is 1.5, so lTopThenConcave = lTop + 4.5 * 15.5 = 11477.681417 and lConvexThenConcave = lConvex + 4.5 * 11 = 10527.862833.",
   "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-09-28): bossFoot is right under the swept chamfer rule. bossFootAndVertical and lAllEdges SUCCEED WITHOUT CHANGING THE SOLID (26000 / 12000, the original face counts). lTopAndConcave throws a NullReferenceException (call id 15, in ExpectError).",
-  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
+  "Status": "KNOWN FAIL (2026-09-30): the three mixed selections are rejected as intended. bossFoot, bossVerticalThenFoot and lApartMixed are exact. lTopThenConcave (11479.931417) and lConvexThenConcave (10530.112833) are closed and consistent, but the upper end of the concave chamfer (at the cone apex (10,10,17)) is cut by only ONE of the two chamfer planes: y+z=27 in lTopThenConcave, x+z=27 in lConvexThenConcave, so a symmetric input gives an asymmetric result (vertices (13,10,17) and (10,13,14), resp. the mirror). The lower end of lConvexThenConcave is cut by both planes, as expected. Each wrong end adds 4.5 * 0.5 = 2.25 - exactly the difference to the expected values.",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet. 2026-09-30: mixed convex/concave selections are rejected now; the old mixed results replaced by two step versions and lApartMixed.",
   "Repeat": 2,
   "Verify": [
     "bossFoot",
-    "bossFootAndVertical",
-    "lTopAndConcave",
-    "lAllEdges"
+    "bossVerticalThenFoot",
+    "lTopThenConcave",
+    "lConvexThenConcave",
+    "lApartMixed"
   ],
   "ExpectError": [
     {
+      "id": 10,
+      "code": "cannot be blended together"
+    },
+    {
       "id": 15,
-      "code": "Object reference not set"
+      "code": "cannot be blended together"
+    },
+    {
+      "id": 20,
+      "code": "cannot be blended together"
     }
   ],
   "Baseline": {
@@ -35,43 +44,73 @@
       "extent": "0, 0, 0, 40, 30, 30",
       "surfaces": "ConicalSurface:4 PlaneSurface:15"
     },
-    "bossFootAndVertical": {
-      "verified": "2026-09-28: WRONG: the unchanged solid, no chamfer at all.",
+    "bossVerticalThenFoot": {
       "consistent": "true",
-      "faces": "11",
-      "edges": "24",
-      "poleVertices": "0",
-      "vertices": "16",
+      "faces": "31",
+      "edges": "68",
+      "poleVertices": "8",
+      "vertices": "40",
       "holeLoops": "1",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "26000",
-      "area": "5800",
-      "edgeLength": "520",
+      "volume": "26086.6418663",
+      "area": "5648.32892829",
+      "edgeLength": "661.643495161",
       "extent": "0, 0, 0, 40, 30, 30",
-      "surfaces": "PlaneSurface:11"
+      "surfaces": "ConicalSurface:8 PlaneSurface:23",
+      "verified": "2026-09-30: exact against 26000 - 180 + 4.5 (36 + 12 sqrt(2)) + 9 pi = 26086.641866, 8 cones of 45 degrees, 31 faces."
     },
-    "lAllEdges": {
-      "verified": "2026-09-28: WRONG: the unchanged L, no chamfer at all.",
+    "lApartMixed": {
       "consistent": "true",
-      "faces": "8",
-      "edges": "18",
+      "faces": "10",
+      "edges": "24",
       "poleVertices": "0",
-      "vertices": "12",
+      "vertices": "16",
       "holeLoops": "0",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "12000",
-      "area": "4000",
-      "edgeLength": "400",
-      "extent": "0, 0, 0, 40, 30, 20",
-      "surfaces": "PlaneSurface:8"
+      "volume": "11910",
+      "area": "3894.55844123",
+      "edgeLength": "452.970562748",
+      "extent": "0, -1.90125692967E-15, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:10",
+      "verified": "2026-09-30: exact against 11910, 10 planes: the two chamfers do not interact."
     },
-    "lTopAndConcave": {
-      "verified": "2026-09-28: WRONG: missing, feature.chamfer throws (NullReferenceException).",
-      "exists": "false"
+    "lConvexThenConcave": {
+      "consistent": "true",
+      "faces": "30",
+      "edges": "79",
+      "poleVertices": "2",
+      "vertices": "51",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "10530.1128331",
+      "area": "3307.39601011",
+      "edgeLength": "726.055930168",
+      "extent": "-1.55431223448E-15, -3.33066907388E-15, -3.39311911901E-15, 40, 30, 20",
+      "surfaces": "ConicalSurface:2 PlaneSurface:28",
+      "verified": "2026-09-30: WRONG: the lower end is the expected symmetric roof, the upper end is cut by x+z=27 only; expected 10527.862833 instead of 10530.112833."
+    },
+    "lTopThenConcave": {
+      "consistent": "true",
+      "faces": "16",
+      "edges": "36",
+      "poleVertices": "1",
+      "vertices": "22",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "11479.9314165",
+      "area": "3717.38288071",
+      "edgeLength": "549.859866265",
+      "extent": "-1.31492039479E-15, -4.94743135349E-15, 0, 40, 30, 20",
+      "surfaces": "ConicalSurface:1 PlaneSurface:15",
+      "verified": "2026-09-30: WRONG: the upper end of the concave chamfer is cut by the plane y+z=27 only, not by x+z=27 as well; expected 11477.681417 instead of 11479.931417."
     }
   },
   "RPCCalls": [
@@ -403,6 +442,439 @@
         "edges": "lAllSet",
         "distance": 3,
         "name": "lAllEdges",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "solid.box",
+      "params": {
+        "name": "boss3Base",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "solid.box",
+      "params": {
+        "name": "boss3Top",
+        "origin": [
+          10,
+          10,
+          20
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "boss3Base",
+        "b": "boss3Top",
+        "name": "boss3",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "workspace.select",
+      "params": {
+        "name": "vert3",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "boss3",
+            "filter": {
+              "inside": {
+                "xmin": 9,
+                "xmax": 31,
+                "ymin": 9,
+                "ymax": 21,
+                "zmin": 19.5,
+                "zmax": 30.5
+              },
+              "boundingBox": {
+                "component": "zDiff",
+                "minValue": 9
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "boss3",
+        "edges": "vert3",
+        "distance": 3,
+        "name": "bossVertical",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "workspace.select",
+      "params": {
+        "name": "foot3",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "bossVertical",
+            "filter": {
+              "inside": {
+                "xmin": 9,
+                "xmax": 31,
+                "ymin": 9,
+                "ymax": 21,
+                "zmin": 19.5,
+                "zmax": 20.5
+              },
+              "isConvex": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "bossVertical",
+        "edges": "foot3",
+        "distance": 3,
+        "name": "bossVerticalThenFoot",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "solid.box",
+      "params": {
+        "name": "lTCFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "solid.box",
+      "params": {
+        "name": "lTCArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lTCFoot",
+        "b": "lTCArm",
+        "name": "lTC",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "workspace.select",
+      "params": {
+        "name": "lTCTop",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lTC",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 41,
+                "ymin": -1,
+                "ymax": 31,
+                "zmin": 19,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lTC",
+        "edges": "lTCTop",
+        "distance": 3,
+        "name": "lTop",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "workspace.select",
+      "params": {
+        "name": "lTopConcave",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lTop",
+            "filter": {
+              "isConvex": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lTop",
+        "edges": "lTopConcave",
+        "distance": 3,
+        "name": "lTopThenConcave",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "method": "solid.box",
+      "params": {
+        "name": "lACFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "method": "solid.box",
+      "params": {
+        "name": "lACArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 37,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lACFoot",
+        "b": "lACArm",
+        "name": "lAC",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 38,
+      "method": "workspace.select",
+      "params": {
+        "name": "lACConvex",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lAC",
+            "filter": {
+              "isConvex": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 39,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lAC",
+        "edges": "lACConvex",
+        "distance": 3,
+        "name": "lConvex",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 40,
+      "method": "workspace.select",
+      "params": {
+        "name": "lConvexConcave",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lConvex",
+            "filter": {
+              "isConvex": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 41,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lConvex",
+        "edges": "lConvexConcave",
+        "distance": 3,
+        "name": "lConvexThenConcave",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 42,
+      "method": "solid.box",
+      "params": {
+        "name": "lApFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 43,
+      "method": "solid.box",
+      "params": {
+        "name": "lApArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 44,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lApFoot",
+        "b": "lApArm",
+        "name": "lAp",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 45,
+      "method": "workspace.select",
+      "params": {
+        "name": "lApEdges",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "edges",
+                "from": "lAp",
+                "filter": {
+                  "inside": {
+                    "xmin": -1,
+                    "xmax": 41,
+                    "ymin": -1,
+                    "ymax": 1,
+                    "zmin": 19,
+                    "zmax": 21
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "edges",
+                "from": "lAp",
+                "filter": {
+                  "inside": {
+                    "xmin": 9,
+                    "xmax": 11,
+                    "ymin": 9,
+                    "ymax": 11,
+                    "zmin": -1,
+                    "zmax": 21
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 46,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lAp",
+        "edges": "lApEdges",
+        "distance": 3,
+        "name": "lApartMixed",
         "rebind": false
       }
     }

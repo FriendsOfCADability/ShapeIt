@@ -1,8 +1,8 @@
 {
   "Description": "feature.chamfer where three convex edges meet in one vertex. cornerThree: the three edges of one corner of a 40x30x20 box, distance 4. topAndVertical: the four top and the four vertical edges. allTwelve: every edge of the box.",
   "Expected": "The chamfered box is a convex polytope, the intersection of the box with the chamfer half spaces x+y >= d etc. (symmetric chamfers of a convex body with a natural corner: the three chamfer planes meet in the single point (d/2, d/2, d/2) from the corner). Inclusion-exclusion over the removed prisms: two adjacent prisms share d^3/3, three share d^3/4. cornerThree: 24000 - (8*90 - 64 + 16) = 23328. allTwelve: 24000 - (8*360 - 24*64/3 + 8*16) = 21504 (verified against a half space polytope). topAndVertical: only the top corners are shared, 24000 - (8*220 - 12*64/3 + 4*16) = 22432.",
-  "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-09-28): cornerThree is exact (the three chamfer faces meet in one vertex). topAndVertical and allTwelve SUCCEED WITHOUT DOING THE JOB: topAndVertical comes back with only the four vertical edges chamfered (23360 = verticalFour of ChamferEdgeLoops, 10 faces), allTwelve comes back as the unchanged box (24000, 6 faces). As soon as more than one corner has three chamfered edges, chamfers are silently dropped; no error is reported.",
+  "CaseStatus": "Ok",
+  "Status": "OK (2026-09-30): all three results are the exact half space polytopes. Until 2026-09-29 topAndVertical and allTwelve came back with chamfers silently dropped (23360 / 24000).",
   "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
   "Repeat": 2,
   "Verify": [
@@ -12,21 +12,21 @@
   ],
   "Baseline": {
     "allTwelve": {
-      "verified": "2026-09-28: WRONG: the unchanged box, expected 21504.",
+      "verified": "2026-09-30: exact against the polytope 24000 - (8*360 - 24*64/3 + 8*16) = 21504, 18 planes (6 + 12 chamfers), the three chamfer planes of every corner meet in one vertex.",
       "consistent": "true",
-      "faces": "6",
-      "edges": "12",
+      "faces": "18",
+      "edges": "48",
       "poleVertices": "0",
-      "vertices": "8",
+      "vertices": "32",
       "holeLoops": "0",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "24000",
-      "area": "5200",
-      "edgeLength": "360",
-      "extent": "0, 0, 0, 40, 30, 20",
-      "surfaces": "PlaneSurface:6"
+      "volume": "21504",
+      "area": "4333.17402385",
+      "edgeLength": "611.138438763",
+      "extent": "0, -8.881784197E-16, -2.56739074445E-15, 40, 30, 20",
+      "surfaces": "PlaneSurface:18"
     },
     "cornerThree": {
       "verified": "2026-09-28: exact, 24000 - (8*90 - 64 + 16) = 23328, equal to the half space polytope.",
@@ -46,23 +46,24 @@
       "surfaces": "PlaneSurface:9"
     },
     "topAndVertical": {
-      "verified": "2026-09-28: WRONG: only the vertical chamfers, expected 22432.",
+      "verified": "2026-09-30: exact against 24000 - (8*220 - 12*64/3 + 4*16) = 22432, 14 planes.",
       "consistent": "true",
-      "faces": "10",
-      "edges": "24",
+      "faces": "14",
+      "edges": "36",
       "poleVertices": "0",
-      "vertices": "16",
+      "vertices": "24",
       "holeLoops": "0",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "23360",
-      "area": "4948.54833996",
-      "edgeLength": "421.254833996",
-      "extent": "-8.881784197E-16, 0, 0, 40, 30, 20",
-      "surfaces": "PlaneSurface:10"
+      "volume": "22432",
+      "area": "4640.86118191",
+      "edgeLength": "516.19663638",
+      "extent": "-2.6645352591E-15, -8.881784197E-16, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:14"
     }
   },
+  "ExpectError": [],
   "RPCCalls": [
     {
       "jsonrpc": "2.0",

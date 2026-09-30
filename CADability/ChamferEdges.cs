@@ -43,6 +43,7 @@ namespace CADability.GeoObject
 
         public Shell? Execute()
         {
+            if (CheckSelection() != null) return null; // convex and concave edges meet, see CheckSelection
             // 1. make a raw chamfer for each edge. The chamfer is a swept circle around a spine curve. The spine curve is the intersection
             // of two offset surfaces of the adjacent faces. The chamfer starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the chamfer faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
