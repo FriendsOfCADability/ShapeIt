@@ -1,25 +1,32 @@
 {
   "Description": "feature.fillet on several edges of one call. topLoop: the four top edges of a box with r=5, the vertical edges stay sharp, so two fillets meet in every top corner and intersect in a miter (two cylinders of equal radius, the seam is an ellipse in the bisecting plane). verticalFour: the four parallel vertical edges, no two fillets meet. tangentLoop: first the vertical edges with r=5, then the top edge loop of that body with r=3 - a tangent continuous chain of lines and arcs, rounded by cylinders and torus quarters.",
   "Expected": "Closed forms, A(r) = r^2 (1 - pi/4), M(r) = r^3 (5/6 - pi/4) (see FilletSingleEdges). A prism cut by two miter planes has the volume area * length of its centroid line. topLoop: the centroid line is the top rectangle inset by M/A on every side, removed = 140 A(5) - 8 M(5): 24000 - 3500 + 875 pi + 833.333 - 250 pi = 21333.333 + 625 pi = 23296.828742. verticalFour: 24000 - 80 A(5) = 22000 + 500 pi = 23570.796327. tangentLoop: 22000 + 500 pi minus the loop fillet: straight parts 100 A(3), arcs by Pappus 2 pi (5 A(3) - M(3)): 23325.109444.",
-  "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-09-28): topLoop (miter corners) and verticalFour hit their closed forms. tangentLoop, the top loop of a box whose vertical edges were rounded before (a tangent chain of lines and arcs), throws a NullReferenceException (call id 11, declared in ExpectError).",
-  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet.",
+  "CaseStatus": "Ok",
+  "Status": "OK (2026-10-04): topLoop, verticalFour and tangentLoop hit their closed forms.",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet. 2026-10-04: tangentLoop fixed - the NullReferenceException came from the fillet cutter of the one arc whose tangent curve on the rounded side crosses the seam of its full circle: BlendEdges.TrimCurve kept the complementary 3/4 arc. TrimCurve now takes an inner point and moves the seam of a closed ellipse out of the wanted part.",
   "Repeat": 2,
   "Verify": [
     "topLoop",
     "verticalFour",
     "tangentLoop"
   ],
-  "ExpectError": [
-    {
-      "id": 11,
-      "code": "Object reference not set"
-    }
-  ],
   "Baseline": {
     "tangentLoop": {
-      "verified": "2026-09-28: WRONG: missing, feature.fillet throws (NullReferenceException) on the tangent chain. Expected 23325.109444.",
-      "exists": "false"
+      "verified": "2026-10-04: exact against 22000 + 500 pi - 100 A(3) - 2 pi (5 A(3) - M(3)) = 23325.109444; four cylinders and four torus quarters along the loop.",
+      "consistent": "true",
+      "faces": "18",
+      "edges": "40",
+      "poleVertices": "0",
+      "vertices": "24",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "23325.1094441",
+      "area": "4812.18213028",
+      "edgeLength": "549.097335532",
+      "extent": "-1.84918746982E-10, -4.9688115844E-09, 0, 40.0000000002, 30.000000005, 20",
+      "surfaces": "CylindricalSurface:8 PlaneSurface:6 ToroidalSurface:4"
     },
     "topLoop": {
       "verified": "2026-09-28: exact to 1e-11, 21333.333 + 625 pi; four cylinders meeting in miters.",

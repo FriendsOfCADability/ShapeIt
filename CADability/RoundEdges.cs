@@ -693,7 +693,9 @@ namespace CADability.GeoObject
                 topCurve = tcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lt) + c.DistanceTo(rt));
             }
             if (topCurve == null) return null;
-            TrimCurve(topCurve, lt, rt); // with exactely half arcs thies reverses the arc whereas "Trimm" yields the other half
+            // with exactely half arcs this reverses the arc whereas "Trimm" yields the other half
+            // the inner point decides which part of a closed curve (e.g. a full circle) is the tangential curve
+            TrimCurve(topCurve, lt, rt, FootPoint(topSurface, filletAxisCurve.Curve3D.PointAt(0.5)));
 
             ICurve? bottomCurve = null;
             if (sweptCircle is SweptCircleSurface scb)
@@ -714,7 +716,7 @@ namespace CADability.GeoObject
                 bottomCurve = bcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lb) + c.DistanceTo(rb));
             }
             if (bottomCurve == null) return null;
-            TrimCurve(bottomCurve, rb, lb);
+            TrimCurve(bottomCurve, rb, lb, FootPoint(bottomSurface, filletAxisCurve.Curve3D.PointAt(0.5)));
 
             // end of the provisional phase: drop the guessed domain so MakeFace derives the real one
             // from the edges below (see the remarks on ISurface.Domain)

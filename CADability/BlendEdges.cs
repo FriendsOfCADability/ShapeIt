@@ -313,6 +313,26 @@ namespace CADability.GeoObject
             while (mergedSomething);
         }
 
+        /// <summary>
+        /// Trims <paramref name="curve"/> to the part between <paramref name="startPoint"/> and <paramref name="endPoint"/>
+        /// which contains <paramref name="innerPoint"/>. This only makes a difference for closed curves: when the seam of the
+        /// closed curve lies inside the wanted part, a plain trim between the two positions yields the complement.
+        /// </summary>
+        protected void TrimCurve(ICurve curve, GeoPoint startPoint, GeoPoint endPoint, GeoPoint innerPoint)
+        {
+            if (curve.IsClosed && curve is Ellipse elli)
+            {
+                double pos1 = curve.PositionOf(startPoint);
+                double pos2 = curve.PositionOf(endPoint);
+                double posInner = curve.PositionOf(innerPoint);
+                if (posInner < Math.Min(pos1, pos2) || posInner > Math.Max(pos1, pos2))
+                {   // the wanted part crosses the seam: move the seam into the middle of the unwanted part
+                    elli.StartParameter = elli.StartParameter + (pos1 + pos2) / 2.0 * elli.SweepParameter;
+                }
+            }
+            TrimCurve(curve, startPoint, endPoint);
+        }
+
         protected void TrimCurve(ICurve curve, GeoPoint startPoint, GeoPoint endPoint)
         {
             double pos1 = curve.PositionOf(startPoint);

@@ -235,7 +235,7 @@ namespace CADability.GeoObject
             if (dscs == null) return null; // there should only be one
             ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
             if (topCurve == null) return null;
-            TrimCurve(topCurve, sp, ep);
+            TrimCurve(topCurve, sp, ep, mp); // mp decides which part of a closed curve is meant
 
             if (length2 != length1) sweptCircle = hullAroundEdge(leadingEdge, length2, n1 + n2);
             sweptCircleExtrusion = sweptCircle as ISurfaceOfExtrusion;
@@ -264,7 +264,7 @@ namespace CADability.GeoObject
             if (dscs == null) return null; // there should only be one
             ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
             if (bottomCurve == null) return null;
-            TrimCurve(bottomCurve, sp, ep);
+            TrimCurve(bottomCurve, sp, ep, mp);
 
             ISurface chamferSurface = Make3D.MakeRuledSurface(topCurve, bottomCurve);
             foreach (GeoPoint p in new List<GeoPoint>([topCurve.StartPoint, topCurve.PointAt(0.5), topCurve.EndPoint, bottomCurve.StartPoint, bottomCurve.EndPoint]))
