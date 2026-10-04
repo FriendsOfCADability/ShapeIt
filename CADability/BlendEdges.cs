@@ -366,8 +366,7 @@ namespace CADability.GeoObject
         }
         protected HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge, double length)
         {   // rounding ends here at vertex vtx. vtx and edge is on the shell to be rounded
-            if (edgeToCutter == null) return null;
-            Shell cutter = edgeToCutter[edge];
+            if (edgeToCutter == null || !edgeToCutter.TryGetValue(edge, out Shell? cutter)) return null; // no cutter for this edge
             Face? endFace = cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
             if (endFace == null) return [cutter]; // should not happen
             Edge freeEdge = endFace.AllEdges
@@ -424,8 +423,8 @@ namespace CADability.GeoObject
         }
         protected HashSet<Shell>? createExtensionTwoEdges(Vertex vtx, Edge edge1, Edge edge2, double length)
         {
-            Shell? fillet1 = edgeToCutter?[edge1];
-            Shell? fillet2 = edgeToCutter?[edge2];
+            Shell? fillet1 = CutterOf(edge1);
+            Shell? fillet2 = CutterOf(edge2);
             if (fillet1 == null || fillet2 == null) return null;
             Face? commonFace = Edge.CommonFace(edge1, edge2);
             Edge? thirdEdge = vtx.AllEdges.Except([edge1, edge2]).TheOnlyOrDefault();
@@ -480,6 +479,15 @@ namespace CADability.GeoObject
             return [fillet1, fillet2];
 
         }
+        /// <summary>
+        /// The cutter of this edge, null if there is none (creating it may have failed).
+        /// </summary>
+        protected Shell? CutterOf(Edge edge)
+        {
+            if (edgeToCutter != null && edgeToCutter.TryGetValue(edge, out Shell? cutter)) return cutter;
+            return null;
+        }
+
         protected virtual Shell? CreateConcavePatch(Shell chamfer1, Shell chamfer2, Face commonFace, Vertex vtx, Edge edge1, Edge edge2)
         {
             Face? endFace1 = chamfer1.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));

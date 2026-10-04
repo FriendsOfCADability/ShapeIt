@@ -3482,9 +3482,11 @@ namespace CADability
             if ((primaryFace.Surface is PlaneSurface && (secondaryFace.Surface is CylindricalSurface || secondaryFace.Surface is ConicalSurface || secondaryFace.Surface is ToroidalSurface)) ||
                 (secondaryFace.Surface is PlaneSurface && (primaryFace.Surface is CylindricalSurface || primaryFace.Surface is ConicalSurface || primaryFace.Surface is ToroidalSurface)))
             {
-                // we only need to check a single position
-                GeoVector n1 = primaryFace.Surface.GetNormal(Vertex1.GetPositionOnFace(primaryFace));
-                GeoVector n2 = secondaryFace.Surface.GetNormal(Vertex1.GetPositionOnFace(secondaryFace));
+                // we only need to check a single position. We use the middle of the edge, not a vertex:
+                // a vertex may be a singular point of the surface (e.g. the apex of a cone), where the normal is undefined
+                GeoPoint m = curve3d.PointAt(0.5);
+                GeoVector n1 = primaryFace.Surface.GetNormal(primaryFace.Surface.PositionOf(m));
+                GeoVector n2 = secondaryFace.Surface.GetNormal(secondaryFace.Surface.PositionOf(m));
                 return Precision.SameNotOppositeDirection(n1, n2);
             }
             else

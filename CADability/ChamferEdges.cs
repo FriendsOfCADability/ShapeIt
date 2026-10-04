@@ -117,8 +117,10 @@ namespace CADability.GeoObject
                 {   // three or more edges or mixed concave/convex
                     foreach (Edge edge in ve.Value)
                     {
-                        if (edge.Adjacency() == AdjacencyType.Convex) convexRoundingShells.Add([edgeToCutter?[edge]]);
-                        else if (edge.Adjacency() == AdjacencyType.Concave) concaveRoundingShells.Add([edgeToCutter?[edge]]);
+                        Shell? cutter = CutterOf(edge);
+                        if (cutter == null) continue; // creating the cutter failed
+                        if (edge.Adjacency() == AdjacencyType.Convex) convexRoundingShells.Add([cutter]);
+                        else if (edge.Adjacency() == AdjacencyType.Concave) concaveRoundingShells.Add([cutter]);
                     }
                 }
             }
@@ -254,7 +256,7 @@ namespace CADability.GeoObject
 
             IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
-            ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
+            ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(ep) + c.DistanceTo(mp));
             if (topCurve == null) return null;
             TrimCurve(topCurve, sp, ep, mp); // mp decides which part of a closed curve is meant
 
@@ -275,7 +277,7 @@ namespace CADability.GeoObject
             ep = ips.MinBy(p => convexFactor * (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside
             // we need a middle point to discriminate between the two halves of a circle
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.PointAt(0.5), leadingEdge.DirectionAt(0.5)), leadingEdge.PointAt(0.5), length2);
-            bottomSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.PointAt(0.5)));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
@@ -283,7 +285,7 @@ namespace CADability.GeoObject
 
             dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
-            ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(sp) + c.DistanceTo(mp));
+            ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(ep) + c.DistanceTo(mp));
             if (bottomCurve == null) return null;
             TrimCurve(bottomCurve, sp, ep, mp);
 

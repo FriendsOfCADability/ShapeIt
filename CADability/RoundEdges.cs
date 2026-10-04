@@ -152,9 +152,9 @@ namespace CADability.GeoObject
         private HashSet<Shell>? createExtensionThreeEdges(Vertex vtx, Edge edge1, Edge edge2, Edge edge3)
         {
             // find the fillets for these edges
-            Shell? fillet1 = edgeToCutter?[edge1];
-            Shell? fillet2 = edgeToCutter?[edge2];
-            Shell? fillet3 = edgeToCutter?[edge3];
+            Shell? fillet1 = CutterOf(edge1);
+            Shell? fillet2 = CutterOf(edge2);
+            Shell? fillet3 = CutterOf(edge3);
             if (fillet1 == null || fillet2 == null || fillet3 == null) return null;
 
             // find the end faces of the fillets at this vertex
