@@ -1,9 +1,9 @@
 {
-  "Description": "feature.chamfer (distance 3) at vertices where convex and concave edges meet. A boss 20x10x10 on a 40x30x20 base: bossFoot chamfers the four concave foot edges. bossFootAndVertical selects the foot, the four vertical and the four top edges of the boss (the selection box reaches z=30.5), lTopAndConcave the six top edges of an L shaped prism and its concave vertical edge, lAllEdges every edge of the L - these three are mixed selections. Two step versions: bossVerticalThenFoot chamfers the four vertical boss edges (bossVertical) and then the eight concave foot edges of the result; lTopThenConcave the six top edges of the L (lTop), then its concave edge; lConvexThenConcave all convex edges of the L (lConvex), then its concave edge. lApartMixed: one convex top edge (y=0) and the concave vertical edge of the L in one call, they share no vertex. Since 2026-09-30 a feature.chamfer / feature.fillet call is rejected when a selected convex and a selected concave edge meet in a common vertex (BlendEdges.CheckSelection): blending one kind first changes or removes the edges of the other kind, so the result would depend on an order the selection does not state. The same bodies are then built in two steps, convex edges first, then the concave edges of the result selected with isConvex=false. lApartMixed selects a convex top edge and the concave vertical edge of an L, which do not touch: that stays allowed. Since 2026-10-04 such selections are blended in stages (BlendEdges.PlanStages): at a vertex of three faces with two edges of one kind and one odd edge of the other kind, the odd edge is blended first; then the two other edges together with the new bridge edges between their common face and the first blend, a tangent chain of one kind. bossFootAndVertical (call id 10): convex group (vertical and top edges of the boss) first, then the foot; lTopAndConcave (15) and lAllEdges (20): the concave vertical edge first, then the convex edges.",
-  "Expected": "bossFoot: ChamferEdges sweeps the chamfer triangle around the convex boss corners (a quarter cone each, consistent with the rolling ball fillet), by Pappus each corner adds (pi/2) * 4.5 * 1: 26000 + 270 + 9 pi = 26298.274334 (the classical miter would give 26306). bossVerticalThenFoot: the vertical chamfers remove 4 * 4.5 * 10 = 180, the foot ring runs along the octagon of perimeter 36 + 12 sqrt(2) and sweeps 45 degrees at each of its 8 corners: 26000 - 180 + 4.5 (36 + 12 sqrt(2)) + 9 pi = 26086.641866, 8 cones. lApartMixed: 12000 - 4.5*40 + 4.5*20 = 11910, 10 planes. lTop = 12000 - (630 - 5*9 + (pi/2)*4.5) = 11407.931417 (five mitred corners, a quarter cone at the reflex corner), lConvex = 12000 - (1710 - 10*20.25 + 2*(pi/2)*4.5) = 10478.362833. The concave edge of lTop runs from z=0 to the cone apex at z=17, the one of lConvex from z=3 to z=17. Where the concave chamfer ends at a cone apex it should be cut by both adjacent chamfer planes (a roof, symmetric in x and y), as at the lower end of lConvexThenConcave: the average height lost at such an end is 1.5, so lTopThenConcave = lTop + 4.5 * 15.5 = 11477.681417 and lConvexThenConcave = lConvex + 4.5 * 11 = 10527.862833. Mixed selections (blended in stages), T = 6.75 the common volume of three chamfer wedges at a box corner: bossFootAndVertical = bossVerticalThenFoot minus the top edges of the boss with three edge corners: 26086.641866 - (4.5*60 - 4 (27 - T)) = 25897.641866. lTopAndConcave: concave chamfer first (12090), then the top loop with a 3 sqrt(2) bridge, five mitred corners and two 45 degree cones at the two reflex corners of the bridge: 12090 - (4.5 (134 + 3 sqrt(2)) - 45 + 2 (pi/4) 4.5) = 11505.839533. lAllEdges: concave chamfer first, then top and bottom loop and the five convex vertical edges: 12090 - (4.5 (2 (134 + 3 sqrt(2)) + 100) - 10 (27 - T) + 4 (pi/4) 4.5) = 10584.179067.",
+  "Description": "feature.chamfer (distance 3) at vertices where convex and concave edges meet. A boss 20x10x10 on a 40x30x20 base: bossFoot chamfers the four concave foot edges. bossFootAndVertical selects the foot, the four vertical and the four top edges of the boss (the selection box reaches z=30.5), lTopAndConcave the six top edges of an L shaped prism and its concave vertical edge, lAllEdges every edge of the L - these three are mixed selections. Two step versions: bossVerticalThenFoot chamfers the four vertical boss edges (bossVertical) and then the eight concave foot edges of the result; lTopThenConcave the six top edges of the L (lTop), then its concave edge; lConvexThenConcave all convex edges of the L (lConvex), then its concave edge. lApartMixed: one convex top edge (y=0) and the concave vertical edge of the L in one call, they share no vertex. Since 2026-09-30 a feature.chamfer / feature.fillet call is rejected when a selected convex and a selected concave edge meet in a common vertex (BlendEdges.CheckSelection): blending one kind first changes or removes the edges of the other kind, so the result would depend on an order the selection does not state. The same bodies are then built in two steps, convex edges first, then the concave edges of the result selected with isConvex=false. lApartMixed selects a convex top edge and the concave vertical edge of an L, which do not touch: that stays allowed. Since 2026-10-04 such selections are blended in stages (BlendEdges.PlanStages): at a vertex of three faces with two edges of one kind and one odd edge of the other kind, the odd edge is blended first; then the two other edges together with the new bridge edges between their common face and the first blend, a tangent chain of one kind. bossFootAndVertical (call id 10): convex group (vertical and top edges of the boss) first, then the foot; lTopAndConcave (15) and lAllEdges (20): the concave vertical edge first, then the convex edges. bossOnePair: one vertical boss edge (10,10) and only one of the two foot edges at its lower end (y=10); lOnePair: the concave vertical edge of the L and only one of the two top edges at its upper end (y=10). The odd edge is blended first, there is no bridge: the pair edge ends at the first blend.",
+  "Expected": "bossFoot: ChamferEdges sweeps the chamfer triangle around the convex boss corners (a quarter cone each, consistent with the rolling ball fillet), by Pappus each corner adds (pi/2) * 4.5 * 1: 26000 + 270 + 9 pi = 26298.274334 (the classical miter would give 26306). bossVerticalThenFoot: the vertical chamfers remove 4 * 4.5 * 10 = 180, the foot ring runs along the octagon of perimeter 36 + 12 sqrt(2) and sweeps 45 degrees at each of its 8 corners: 26000 - 180 + 4.5 (36 + 12 sqrt(2)) + 9 pi = 26086.641866, 8 cones. lApartMixed: 12000 - 4.5*40 + 4.5*20 = 11910, 10 planes. lTop = 12000 - (630 - 5*9 + (pi/2)*4.5) = 11407.931417 (five mitred corners, a quarter cone at the reflex corner), lConvex = 12000 - (1710 - 10*20.25 + 2*(pi/2)*4.5) = 10478.362833. The concave edge of lTop runs from z=0 to the cone apex at z=17, the one of lConvex from z=3 to z=17. Where the concave chamfer ends at a cone apex it should be cut by both adjacent chamfer planes (a roof, symmetric in x and y), as at the lower end of lConvexThenConcave: the average height lost at such an end is 1.5, so lTopThenConcave = lTop + 4.5 * 15.5 = 11477.681417 and lConvexThenConcave = lConvex + 4.5 * 11 = 10527.862833. Mixed selections (blended in stages), T = 6.75 the common volume of three chamfer wedges at a box corner: bossFootAndVertical = bossVerticalThenFoot minus the top edges of the boss with three edge corners: 26086.641866 - (4.5*60 - 4 (27 - T)) = 25897.641866. lTopAndConcave: concave chamfer first (12090), then the top loop with a 3 sqrt(2) bridge, five mitred corners and two 45 degree cones at the two reflex corners of the bridge: 12090 - (4.5 (134 + 3 sqrt(2)) - 45 + 2 (pi/4) 4.5) = 11505.839533. lAllEdges: concave chamfer first, then top and bottom loop and the five convex vertical edges: 12090 - (4.5 (2 (134 + 3 sqrt(2)) + 100) - 10 (27 - T) + 4 (pi/4) 4.5) = 10584.179067. bossOnePair: vertical chamfer -45, the foot chamfer runs from x=13 to x=30 (+76.5) and its end at x=13 is cut by the vertical chamfer plane x+y=23, which takes 4.5 more: 26027. lOnePair: concave chamfer +90, top chamfer from x=13 to x=40 (-121.5), its end cut by the concave chamfer plane leaves 4.5 more: 11973.",
   "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-10-04): the three mixed selections bossFootAndVertical, lTopAndConcave and lAllEdges are blended in stages and exact. Still open (as of 2026-09-30): bossFoot, bossVerticalThenFoot and lApartMixed are exact. lTopThenConcave (11479.931417) and lConvexThenConcave (10530.112833) are closed and consistent, but the upper end of the concave chamfer (at the cone apex (10,10,17)) is cut by only ONE of the two chamfer planes: y+z=27 in lTopThenConcave, x+z=27 in lConvexThenConcave, so a symmetric input gives an asymmetric result (vertices (13,10,17) and (10,13,14), resp. the mirror). The lower end of lConvexThenConcave is cut by both planes, as expected. Each wrong end adds 4.5 * 0.5 = 2.25 - exactly the difference to the expected values.",
-  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet. 2026-09-30: mixed convex/concave selections are rejected now; the old mixed results replaced by two step versions and lApartMixed. 2026-10-04: mixed selections are blended in stages again (odd edge first), with exact results.",
+  "Status": "KNOWN FAIL (2026-10-04): the three mixed selections bossFootAndVertical, lTopAndConcave and lAllEdges are blended in stages and exact. Still open (as of 2026-09-30): bossFoot, bossVerticalThenFoot and lApartMixed are exact. lTopThenConcave (11479.931417) and lConvexThenConcave (10530.112833) are closed and consistent, but the upper end of the concave chamfer (at the cone apex (10,10,17)) is cut by only ONE of the two chamfer planes: y+z=27 in lTopThenConcave, x+z=27 in lConvexThenConcave, so a symmetric input gives an asymmetric result (vertices (13,10,17) and (10,13,14), resp. the mirror). The lower end of lConvexThenConcave is cut by both planes, as expected. Each wrong end adds 4.5 * 0.5 = 2.25 - exactly the difference to the expected values. bossOnePair and lOnePair (2026-10-04) are exact.",
+  "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet. 2026-09-30: mixed convex/concave selections are rejected now; the old mixed results replaced by two step versions and lApartMixed. 2026-10-04: mixed selections are blended in stages again (odd edge first), with exact results. 2026-10-04: bossOnePair and lOnePair added, mixed vertices where only one of the two pair edges is selected.",
   "Repeat": 2,
   "Verify": [
     "bossFoot",
@@ -13,7 +13,9 @@
     "lApartMixed",
     "bossFootAndVertical",
     "lTopAndConcave",
-    "lAllEdges"
+    "lAllEdges",
+    "bossOnePair",
+    "lOnePair"
   ],
   "Baseline": {
     "bossFoot": {
@@ -49,6 +51,23 @@
       "edgeLength": "687.849846949",
       "extent": "0, 0, 0, 40, 30, 30",
       "surfaces": "ConicalSurface:8 PlaneSurface:27"
+    },
+    "bossOnePair": {
+      "verified": "2026-10-04: exact against 26027: the foot chamfer ends obliquely at the vertical chamfer plane.",
+      "consistent": "true",
+      "faces": "13",
+      "edges": "30",
+      "poleVertices": "0",
+      "vertices": "20",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "26027",
+      "area": "5761.55129855",
+      "edgeLength": "551.166715171",
+      "extent": "0, 0, 0, 40, 30, 30",
+      "surfaces": "PlaneSurface:13"
     },
     "bossVerticalThenFoot": {
       "verified": "2026-09-30: exact against 26000 - 180 + 4.5 (36 + 12 sqrt(2)) + 9 pi = 26086.641866, 8 cones of 45 degrees, 31 faces.",
@@ -117,6 +136,23 @@
       "edgeLength": "726.055930168",
       "extent": "-1.55431223448E-15, -3.33066907388E-15, -3.39311911901E-15, 40, 30, 20",
       "surfaces": "ConicalSurface:2 PlaneSurface:28"
+    },
+    "lOnePair": {
+      "verified": "2026-10-04: exact against 11973: the top chamfer ends obliquely at the concave chamfer plane.",
+      "consistent": "true",
+      "faces": "10",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "16",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "11973",
+      "area": "3926.40411229",
+      "edgeLength": "445.166715171",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "PlaneSurface:10"
     },
     "lTopAndConcave": {
       "verified": "2026-10-04: exact against 11505.839533 (see Expected): two 45 degree cones at the ends of the bridge.",
@@ -915,6 +951,208 @@
         "edges": "lApEdges",
         "distance": 3,
         "name": "lApartMixed",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 47,
+      "method": "solid.box",
+      "params": {
+        "name": "bopBase",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 30,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 48,
+      "method": "solid.box",
+      "params": {
+        "name": "bopTop",
+        "origin": [
+          10,
+          10,
+          20
+        ],
+        "sizeX": 20,
+        "sizeY": 10,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 49,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "bopBase",
+        "b": "bopTop",
+        "name": "bop",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 50,
+      "method": "workspace.select",
+      "params": {
+        "name": "bopEdges",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "edges",
+                "from": "bop",
+                "filter": {
+                  "inside": {
+                    "xmin": 9,
+                    "xmax": 11,
+                    "ymin": 9,
+                    "ymax": 11,
+                    "zmin": 19.5,
+                    "zmax": 30.5
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "edges",
+                "from": "bop",
+                "filter": {
+                  "inside": {
+                    "xmin": 9,
+                    "xmax": 31,
+                    "ymin": 9,
+                    "ymax": 11,
+                    "zmin": 19.5,
+                    "zmax": 20.5
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 51,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "bop",
+        "edges": "bopEdges",
+        "distance": 3,
+        "name": "bossOnePair",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 52,
+      "method": "solid.box",
+      "params": {
+        "name": "lopFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 53,
+      "method": "solid.box",
+      "params": {
+        "name": "lopArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 54,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lopFoot",
+        "b": "lopArm",
+        "name": "lop",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 55,
+      "method": "workspace.select",
+      "params": {
+        "name": "lopEdges",
+        "selector": {
+          "op": "union",
+          "items": [
+            {
+              "query": {
+                "target": "edges",
+                "from": "lop",
+                "filter": {
+                  "inside": {
+                    "xmin": 9,
+                    "xmax": 11,
+                    "ymin": 9,
+                    "ymax": 11,
+                    "zmin": -1,
+                    "zmax": 21
+                  }
+                }
+              }
+            },
+            {
+              "query": {
+                "target": "edges",
+                "from": "lop",
+                "filter": {
+                  "inside": {
+                    "xmin": 9,
+                    "xmax": 41,
+                    "ymin": 9,
+                    "ymax": 11,
+                    "zmin": 19,
+                    "zmax": 21
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 56,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "lop",
+        "edges": "lopEdges",
+        "distance": 3,
+        "name": "lOnePair",
         "rebind": false
       }
     }
