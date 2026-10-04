@@ -4418,6 +4418,21 @@ namespace CADability
                     if (allUserDataKeys[i].StartsWith("BRep")) fc.UserData.RemoveUserData(allUserDataKeys[i]);
                 }
             }
+            // vertices in allFaces are still connected to edges of discarded faces. These edges have been disconnected from the discarded faces, but not from the vertices.
+            // Remove all edges from the vertices, which are not part of allFaces. This is important, because otherwise we would get a connection to discarded faces via these edges.
+            HashSet<Edge> allEdges = new HashSet<Edge>();
+            allFaces.SelectMany(fc => fc.Edges).ToList().ForEach(edg => allEdges.Add(edg));
+            HashSet<Vertex> allVertices = new HashSet<Vertex>();
+            allEdges.SelectMany(edg => new Vertex[] { edg.Vertex1, edg.Vertex2 }).ToList().ForEach(vtx => allVertices.Add(vtx));
+            foreach (Vertex vtx in allVertices)
+            {
+                HashSet<Edge> edgesToRemove = new HashSet<Edge>();
+                foreach (Edge edg in vtx.Edges)
+                {
+                    if (!allEdges.Contains(edg)) edgesToRemove.Add(edg);
+                }
+                foreach (Edge edg in edgesToRemove) vtx.RemoveEdge(edg);
+            }
             while (allFaces.Count > 0)
             {
                 HashSet<Face> connected = extractConnectedFaces(allFaces, allFaces.First());
@@ -4436,6 +4451,11 @@ namespace CADability
                                                                                    // reversing the orientation moved to the end, ater the shells and the holes are combined
 #if DEBUG
                     System.Diagnostics.Debug.Assert(shell.CheckConsistency());
+                    HashSet<Edge> allEdges1=shell.Edges.ToHashSet();
+                    foreach (Vertex vtx in shell.Vertices)
+                    {
+                        if (vtx.Edges.Except(allEdges1).Any()) { }
+                    }
 #endif
                     res.Add(shell);
                 }
