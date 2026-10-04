@@ -1,8 +1,8 @@
 {
-  "Description": "feature.fillet (radius 3) at vertices where convex and concave edges meet - the same bodies as ChamferConcaveConvexVertex. bossFoot rounds the four concave foot edges of the boss. bossFootAndVertical (foot, vertical and top edges of the boss), lTopAndConcave (six top edges and the concave vertical edge of the L) and lAllEdges (every edge of the L) are mixed selections and must be rejected. Two step versions: bossVertical / bossVerticalThenFoot, lTop / lTopThenConcave, lConvex / lConvexThenConcave (first the convex edges, then the concave edges of the result). lApartMixed: one convex top edge (y=0) and the concave vertical edge of the L, no common vertex. Since 2026-09-30 a feature.chamfer / feature.fillet call is rejected when a selected convex and a selected concave edge meet in a common vertex (BlendEdges.CheckSelection): blending one kind first changes or removes the edges of the other kind, so the result would depend on an order the selection does not state. bossFootAndVertical (call id 10), lTopAndConcave (15) and lAllEdges (20) are such selections and must fail with that error. The same bodies are then built in two steps, convex edges first, then the concave edges of the result selected with isConvex=false. lApartMixed selects a convex top edge and the concave vertical edge of an L, which do not touch: that stays allowed.",
-  "Expected": "A(r) = r^2 (1 - pi/4), M(r) = r^3 (5/6 - pi/4). bossFoot: rolling ball, the concave fillet turns around each convex boss corner as a quarter torus: 26000 + 60 A(3) + 2 pi M(3) = 26124.017002. bossVertical: 26000 - 40 A(3) = 25922.743339. bossVerticalThenFoot: the foot is a tangent chain of 4 lines and 4 quarter arcs (radius 3), rounded by cylinders and tori: 25922.743339 + 36 A(3) + 2 pi (3 A(3) + M(3)) = 26036.812688. lTop: 12000 - (140 A(3) - 10 M(3) + (pi/2) M(3)) = 11740.511179 (five mitred corners, at the reflex corner the ball pivots around the vertical edge: a quarter horn torus). lConvex: the morphological opening of the L: 14 (600 - 5 A(3)) + 2 (3 C + P 9 pi/4 + 18 pi) with the eroded core C = 225 - 9 pi/4 and its perimeter P = 110 + 3 pi/2: 11307.194871, 17 cylinders, 10 spheres, 2 tori, 8 planes. lApartMixed: 12000 - 40 A(3) + 20 A(3) = 11961.371678. lTopThenConcave and lConvexThenConcave: no closed form, judged like the chamfer versions.",
+  "Description": "feature.fillet (radius 3) at vertices where convex and concave edges meet - the same bodies as ChamferConcaveConvexVertex. bossFoot rounds the four concave foot edges of the boss. bossFootAndVertical (foot, vertical and top edges of the boss), lTopAndConcave (six top edges and the concave vertical edge of the L) and lAllEdges (every edge of the L) are mixed selections and must be rejected. Two step versions: bossVertical / bossVerticalThenFoot, lTop / lTopThenConcave, lConvex / lConvexThenConcave (first the convex edges, then the concave edges of the result). lApartMixed: one convex top edge (y=0) and the concave vertical edge of the L, no common vertex. Since 2026-09-30 a feature.chamfer / feature.fillet call is rejected when a selected convex and a selected concave edge meet in a common vertex (BlendEdges.CheckSelection): blending one kind first changes or removes the edges of the other kind, so the result would depend on an order the selection does not state. bossFootAndVertical (call id 10), lTopAndConcave (15) and lAllEdges (20) are such selections and must fail with that error. The same bodies are then built in two steps, convex edges first, then the concave edges of the result selected with isConvex=false. lApartMixed selects a convex top edge and the concave vertical edge of an L, which do not touch: that stays allowed. lConcave / lConcaveThenTop: the same L in the other order, first the concave vertical edge, then the convex top edges of the result - a tangent chain of lines and one reflex quarter arc around the concave fillet. This is the order in which the odd edge of the mixed vertex (the concave one among the three edges) is blended first.",
+  "Expected": "A(r) = r^2 (1 - pi/4), M(r) = r^3 (5/6 - pi/4). bossFoot: rolling ball, the concave fillet turns around each convex boss corner as a quarter torus: 26000 + 60 A(3) + 2 pi M(3) = 26124.017002. bossVertical: 26000 - 40 A(3) = 25922.743339. bossVerticalThenFoot: the foot is a tangent chain of 4 lines and 4 quarter arcs (radius 3), rounded by cylinders and tori: 25922.743339 + 36 A(3) + 2 pi (3 A(3) + M(3)) = 26036.812688. lTop: 12000 - (140 A(3) - 10 M(3) + (pi/2) M(3)) = 11740.511179 (five mitred corners, at the reflex corner the ball pivots around the vertical edge: a quarter horn torus). lConvex: the morphological opening of the L: 14 (600 - 5 A(3)) + 2 (3 C + P 9 pi/4 + 18 pi) with the eroded core C = 225 - 9 pi/4 and its perimeter P = 110 + 3 pi/2: 11307.194871, 17 cylinders, 10 spheres, 2 tori, 8 planes. lApartMixed: 12000 - 40 A(3) + 20 A(3) = 11961.371678. lTopThenConcave and lConvexThenConcave: no closed form, judged like the chamfer versions. lConcave: 12000 + 20 A(3) = 12038.628331. lConcaveThenTop: the top loop of lConcave has 134 straight length, five mitred convex corners and a reflex quarter arc of radius 3 (Pappus, centroid at radius 3 + M/A): 12038.628331 - (134 A(3) - 10 M(3) + (pi/2) (3 A(3) + M(3))) = 11781.626423, 7 cylinders, 1 torus (major radius 6, minor radius 3), 8 planes.",
   "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-09-30): the three mixed selections are rejected as intended. bossFoot, bossVertical, lTop and lApartMixed are exact. (1) The second, concave step fails in two of the three two step versions: lTopThenConcave (34) and lConvexThenConcave (41, both 'Error in the application'); declared in ExpectError. bossVerticalThenFoot (27) is exact since 2026-10-04 (the fillet cutter of one foot arc crossed the seam of its full circle, see FilletEdgeLoops). Possibly the L cases fail because convex-first is the degenerate order at the reflex corner: the vertical edge then ends in the apex of the horn torus; concave-first would leave a tangent chain for the second step. (2) lConvex, convex edges only, is 11309.227872 instead of 11307.194871: exactly (pi/2) M(3) too much, with 1 torus instead of 2 and 10 planes instead of 8 - one of the two reflex corners has no pivot torus. The chamfer counterpart (two cones) is right.",
+  "Status": "KNOWN FAIL (2026-09-30): the three mixed selections are rejected as intended. bossFoot, bossVertical, lTop and lApartMixed are exact. (1) The second, concave step fails in two of the three two step versions: lTopThenConcave (34) and lConvexThenConcave (41, both 'Error in the application'); declared in ExpectError. bossVerticalThenFoot (27) is exact since 2026-10-04 (the fillet cutter of one foot arc crossed the seam of its full circle, see FilletEdgeLoops). Possibly the L cases fail because convex-first is the degenerate order at the reflex corner: the vertical edge then ends in the apex of the horn torus; concave-first would leave a tangent chain for the second step. (2) lConvex, convex edges only, is 11309.227872 instead of 11307.194871: exactly (pi/2) M(3) too much, with 1 torus instead of 2 and 10 planes instead of 8 - one of the two reflex corners has no pivot torus. The chamfer counterpart (two cones) is right. lConcave and lConcaveThenTop (2026-10-04) are exact: blending the odd edge first leaves a tangent chain for the second step, which supports the guess about lTopThenConcave above.",
   "History": "2026-09-28: written as part of the feature.fillet / feature.chamfer corpus, from simple edges up to vertices where several rounded or chamfered edges meet. 2026-09-30: mixed convex/concave selections are rejected now; the old mixed results replaced by two step versions and lApartMixed.",
   "Repeat": 2,
   "Verify": [
@@ -13,7 +13,9 @@
     "lTopThenConcave",
     "lConvex",
     "lConvexThenConcave",
-    "lApartMixed"
+    "lApartMixed",
+    "lConcave",
+    "lConcaveThenTop"
   ],
   "ExpectError": [
     {
@@ -105,6 +107,40 @@
       "edgeLength": "454.849556034",
       "extent": "0, -8.881784197E-16, 0, 40, 30, 20.0000000562",
       "surfaces": "CylindricalSurface:2 PlaneSurface:8"
+    },
+    "lConcave": {
+      "verified": "2026-10-04: exact against 12000 + 20 A(3) = 12038.628331.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "21",
+      "poleVertices": "0",
+      "vertices": "14",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "12038.6283306",
+      "area": "3978.11061267",
+      "edgeLength": "417.424777961",
+      "extent": "0, 0, 0, 40, 30, 20",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:8"
+    },
+    "lConcaveThenTop": {
+      "verified": "2026-10-04: exact against 11781.626423 (see Expected); one torus quarter around the concave fillet, mitres at the five convex corners.",
+      "consistent": "true",
+      "faces": "16",
+      "edges": "35",
+      "poleVertices": "0",
+      "vertices": "21",
+      "holeLoops": "0",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "11781.6264229",
+      "area": "3794.13220209",
+      "edgeLength": "547.924434334",
+      "extent": "-2.22044604925E-15, -3.5527136788E-15, 0, 40, 30, 20.0000000158",
+      "surfaces": "CylindricalSurface:7 PlaneSurface:8 ToroidalSurface:1"
     },
     "lConvex": {
       "verified": "2026-09-30: WRONG: 11309.227872 instead of 11307.194871 (opening of the L), one reflex corner has no torus (ToroidalSurface:1, PlaneSurface:10).",
@@ -911,6 +947,123 @@
         "edges": "lApEdges",
         "radius": 3,
         "name": "lApartMixed",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 47,
+      "method": "solid.box",
+      "params": {
+        "name": "lCTFoot",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 40,
+        "sizeY": 10,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 48,
+      "method": "solid.box",
+      "params": {
+        "name": "lCTArm",
+        "origin": [
+          0,
+          10,
+          0
+        ],
+        "sizeX": 10,
+        "sizeY": 20,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 49,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "lCTFoot",
+        "b": "lCTArm",
+        "name": "lCT",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 50,
+      "method": "workspace.select",
+      "params": {
+        "name": "lCTConcave",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lCT",
+            "filter": {
+              "inside": {
+                "xmin": 9,
+                "xmax": 11,
+                "ymin": 9,
+                "ymax": 11,
+                "zmin": -1,
+                "zmax": 21
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 51,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "lCT",
+        "edges": "lCTConcave",
+        "radius": 3,
+        "name": "lConcave",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 52,
+      "method": "workspace.select",
+      "params": {
+        "name": "lConcaveTop",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "lConcave",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 41,
+                "ymin": -1,
+                "ymax": 31,
+                "zmin": 19,
+                "zmax": 21
+              },
+              "isConvex": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 53,
+      "method": "feature.fillet",
+      "params": {
+        "solid": "lConcave",
+        "edges": "lConcaveTop",
+        "radius": 3,
+        "name": "lConcaveThenTop",
         "rebind": false
       }
     }
