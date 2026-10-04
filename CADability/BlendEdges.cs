@@ -364,6 +364,18 @@ namespace CADability.GeoObject
             return Face.MakeFace(surface, new BoundingRect(left, bottom, right, top));
 
         }
+        /// <summary>
+        /// The blend ends at <paramref name="vtx"/>. The cutter of <paramref name="edge"/> has a planar end face there,
+        /// perpendicular to the edge. It is trimmed (and maybe extended) so that it ends where the faces of the edge end:
+        /// <list type="bullet">
+        /// <item>when there is a single ending face (the normal dead end), it is trimmed by this face (extended)</item>
+        /// <item>when there are several ending faces, it is trimmed by the plane spanned by the two edges which continue the
+        /// two faces of the edge at the vertex: the sides of the cutter then end exactly where these faces end.
+        /// Extending all the ending faces would give a roof, which leaves parts of the faces of the edge uncovered,
+        /// and an ending face may not be extendable at all (a cone beyond its apex)</item>
+        /// </list>
+        /// Ending faces which touch the vertex only with a singular point (e.g. the apex of a cone) are ignored.
+        /// </summary>
         protected HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge, double length)
         {   // rounding ends here at vertex vtx. vtx and edge is on the shell to be rounded
             if (edgeToCutter == null || !edgeToCutter.TryGetValue(edge, out Shell? cutter)) return null; // no cutter for this edge
@@ -375,25 +387,40 @@ namespace CADability.GeoObject
             // the chamfer or rounding edge, the one with the widest opening angle to the vertex (and not coinciding with the vertex)
             if (freeEdge == null) return [cutter]; // should not happen
 
+            // the edges at the vertex: a vertex may still reference edges of the shells it was made from (e.g. by a boolean operation)
+            HashSet<Edge> shellEdges = new HashSet<Edge>(shell.Edges);
+            List<Edge> vertexEdges = vtx.Edges.Where(e => shellEdges.Contains(e)).Distinct().ToList();
             HashSet<Face> endingFaces = []; // faces on the shell to be rounded where the edge ends
-            // this is only one face in most cases. 
-            foreach (Edge edg in vtx.Edges)
+            // this is only one face in most cases.
+            foreach (Edge edg in vertexEdges)
             {
                 endingFaces.Add(edg.PrimaryFace);
-                endingFaces.Add(edg.SecondaryFace);
+                if (edg.SecondaryFace != null) endingFaces.Add(edg.SecondaryFace);
             }
             endingFaces.Remove(edge.PrimaryFace);
             endingFaces.Remove(edge.SecondaryFace);
-            endingFaces.Remove(null);
+            endingFaces.RemoveWhere(f => IsSingularAt(f, vtx));
             // beamDirection: the direction where the fillet is pointing to
             GeoPoint2D uv = vtx.GetPositionOnFace(endFace);
             GeoVector beamDirection = endFace.Surface.GetNormal(uv).Normalized;
+            List<ISurface> trimBy = [];
+            if (endingFaces.Count == 1) trimBy.Add(endingFaces.First().Surface.Clone());
+            else if (endingFaces.Count > 1)
+            {   // the plane spanned by the edges, which continue the two faces of the edge at the vertex
+                Edge? side1 = vertexEdges.Where(e => e != edge && (e.PrimaryFace == edge.PrimaryFace || e.SecondaryFace == edge.PrimaryFace)).TheOnlyOrDefault();
+                Edge? side2 = vertexEdges.Where(e => e != edge && (e.PrimaryFace == edge.SecondaryFace || e.SecondaryFace == edge.SecondaryFace)).TheOnlyOrDefault();
+                if (side1 == null || side2 == null) return [cutter]; // end straight with the end face of the cutter
+                GeoVector normal = DirectionFrom(side1, vtx) ^ DirectionFrom(side2, vtx);
+                if (normal.Length < Precision.eps) return [cutter]; // degenerate, end straight
+                if (endFace.Surface is PlaneSurface endPlane && Precision.SameDirection(normal, endPlane.Normal, false))
+                    return [cutter]; // the cutter already ends in this plane
+                trimBy.Add(new PlaneSurface(new Plane(vtx.Position, normal)));
+            }
             Shell? extension = (Make3D.Extrude(endFace.Clone(), 3 * length * beamDirection, null) as Solid)?.Shells[0];
             bool useExtension = false;
             // extension of the cutter, maybe we need part of it
-            foreach (Face fc in endingFaces)
-            {
-                ISurface surface = fc.Surface.Clone(); // with this surface we try to trim the cutter or the extension
+            foreach (ISurface surface in trimBy)
+            {   // with this surface we try to trim the cutter or the extension
                 GeoPoint2D ip1 = surface.PositionOf(vtx.Position); // vtx is on surface
                 if (surface.GetNormal(ip1) * beamDirection < 0) surface.ReverseOrientation(); // below is good, above is bad
                 GeoPoint2D ip2 = surface.GetLineIntersection(freeEdge.Curve3D.StartPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
@@ -409,17 +436,41 @@ namespace CADability.GeoObject
                         cutter = lowerPart[0];
                         edgeToCutter[edge] = cutter; // overwrite existing
                     }
-                    (upperPart, lowerPart) = BooleanOperation.SplitByFace(extension, splitWith);
-                    if (upperPart.Length > 0 && lowerPart.Length > 0)
-                    {   // the ending face did split the cutter
-                        extension = lowerPart[0];
-                        useExtension = true;
+                    if (extension != null)
+                    {
+                        (upperPart, lowerPart) = BooleanOperation.SplitByFace(extension, splitWith);
+                        if (upperPart.Length > 0 && lowerPart.Length > 0)
+                        {   // the ending face did split the extension
+                            extension = lowerPart[0];
+                            useExtension = true;
+                        }
                     }
                 }
             }
-            if (useExtension) return [cutter, extension];
+            if (useExtension && extension != null) return [cutter, extension];
             else return [cutter];
+        }
 
+        /// <summary>
+        /// True, if <paramref name="vtx"/> is a singular point of the surface of <paramref name="face"/> (e.g. the apex of a cone):
+        /// the face touches the vertex in a pole, and its surface cannot be extended beyond it in a meaningful way.
+        /// </summary>
+        private static bool IsSingularAt(Face face, Vertex vtx)
+        {
+            if (face.AllEdges.Any(e => e.Curve3D == null && Precision.IsEqual(e.Vertex1.Position, vtx.Position))) return true; // a pole edge
+            GeoPoint2D uv = face.Surface.PositionOf(vtx.Position);
+            if (face.Surface.GetUSingularities().Any(u => Math.Abs(u - uv.x) < 1e-6)) return true;
+            if (face.Surface.GetVSingularities().Any(v => Math.Abs(v - uv.y) < 1e-6)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// The direction of <paramref name="edge"/> at <paramref name="vtx"/>, pointing away from the vertex.
+        /// </summary>
+        private static GeoVector DirectionFrom(Edge edge, Vertex vtx)
+        {
+            if (edge.Vertex1 == vtx) return edge.Curve3D.StartDirection.Normalized;
+            else return -edge.Curve3D.EndDirection.Normalized;
         }
         protected HashSet<Shell>? createExtensionTwoEdges(Vertex vtx, Edge edge1, Edge edge2, double length)
         {
