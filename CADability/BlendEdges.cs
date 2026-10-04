@@ -25,31 +25,259 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// Checks whether the selection can be blended in one operation. It cannot, when a convex and a concave
-        /// edge of the selection meet in a common vertex: blending one kind first changes or removes the edges of
-        /// the other kind, the result would depend on the order and neither order does what the selection asks
-        /// for. The same holds for a single edge whose convexity changes along its way. Such selections have to be
-        /// split into two operations: first the convex edges, then the concave edges of the result (or vice versa).
-        /// Convex and concave edges which do not touch each other may be blended together.
+        /// A vertex where a selected convex and a selected concave edge meet. Exactly three faces and three edges meet
+        /// there: two edges of one kind (<see cref="Pair"/>) and one edge of the other kind (<see cref="Odd"/>), which
+        /// runs into <see cref="PairFace"/>, the face common to the two pair edges.
+        /// </summary>
+        protected class MixedVertex
+        {
+            public Vertex Vertex;
+            public Edge Odd;
+            public Edge[] Pair;
+            public Face PairFace;
+            public MixedVertex(Vertex vertex, Edge odd, Edge[] pair, Face pairFace)
+            {
+                Vertex = vertex;
+                Odd = odd;
+                Pair = pair;
+                PairFace = pairFace;
+            }
+        }
+        /// <summary>
+        /// The selected edges, split into stages which are blended one after the other, see <see cref="PlanStages"/>.
+        /// </summary>
+        private List<List<Edge>>? stages;
+        private List<MixedVertex> mixedVertices = [];
+
+        /// <summary>
+        /// Checks whether the selection can be blended. Where a convex and a concave edge of the selection meet in a
+        /// common vertex, the order of blending matters, see <see cref="PlanStages"/>. Selections, for which there is
+        /// no consistent order, are rejected, as well as edges whose convexity changes along their way.
         /// </summary>
         /// <returns>null, if the selection is valid, otherwise a description of the problem</returns>
         public string? CheckSelection()
         {
-            List<string> problems = new List<string>();
             int mixedEdges = convexEdges.Concat(concaveEdges).Count(e => HasChangingConvexity(e));
             if (mixedEdges > 0)
-                problems.Add($"{mixedEdges} edge(s) change from convex to concave along their way");
-            HashSet<Vertex> convexVertices = new HashSet<Vertex>(convexEdges.SelectMany(e => new[] { e.Vertex1, e.Vertex2 }));
-            List<Vertex> mixedVertices = concaveEdges.SelectMany(e => new[] { e.Vertex1, e.Vertex2 }).Distinct()
-                .Where(v => convexVertices.Contains(v)).ToList();
-            if (mixedVertices.Count > 0)
+                return $"Convex and concave edges cannot be blended together: {mixedEdges} edge(s) change from convex to concave along their way. "
+                    + "Blend the convex parts first and then the concave parts of the result, or the other way round.";
+            string? problem = PlanStages();
+            if (problem == null) return null;
+            return "Convex and concave edges cannot be blended together where they meet: " + problem
+                + ". Blend them in separate steps: at a vertex where one convex and two concave edges meet (or vice versa), the single edge first.";
+        }
+
+        /// <summary>
+        /// Splits the selection into stages. At a vertex where a convex and a concave edge of the selection meet (and
+        /// three faces), there are two edges of one kind and one "odd" edge of the other kind. The odd edge has to be
+        /// blended first: its blend turns the corner of the face common to the other two edges into a tangential
+        /// transition, and the two edges together with the new edge between this face and the blend (the "bridge")
+        /// form a tangent chain of one kind. In the other order the odd edge would end in the apex of the corner
+        /// patch of the two other edges (a horn torus or a cone), which cannot be blended any more.
+        /// Selected edges of the same kind, which are connected by a common vertex, stay in the same stage, because
+        /// the corners between them are made in one operation. When the order of these groups is contradictory,
+        /// or a mixed vertex is not a simple vertex of three faces, the selection is rejected.
+        /// </summary>
+        /// <returns>null, if there is a valid plan, otherwise a description of the problem</returns>
+        protected string? PlanStages()
+        {
+            stages = null;
+            mixedVertices = [];
+            HashSet<Edge> convex = new HashSet<Edge>(convexEdges);
+            HashSet<Edge> concave = new HashSet<Edge>(concaveEdges);
+            List<Edge> selected = convex.Concat(concave).ToList();
+            // group the selected edges: edges of the same kind, connected by a common vertex
+            Dictionary<Edge, int> group = new Dictionary<Edge, int>();
+            for (int i = 0; i < selected.Count; i++) group[selected[i]] = i;
+            int find(Edge e)
             {
-                GeoPoint p = mixedVertices[0].Position;
-                problems.Add($"convex and concave edges meet in {mixedVertices.Count} vertex/vertices, e.g. at ({p.x:G6}, {p.y:G6}, {p.z:G6})");
+                int g = group[e];
+                while (group[selected[g]] != g) g = group[selected[g]];
+                group[e] = g;
+                return g;
             }
-            if (problems.Count == 0) return null;
-            return "Convex and concave edges cannot be blended together where they meet: " + string.Join("; ", problems)
-                + ". Blend the convex edges first and then the concave edges of the result, or the other way round.";
+            HashSet<Vertex> vertices = new HashSet<Vertex>(selected.SelectMany(e => new[] { e.Vertex1, e.Vertex2 }));
+            // a vertex may still reference edges of the shells it was made from (e.g. by a boolean operation)
+            HashSet<Edge> shellEdges = new HashSet<Edge>(shell.Edges);
+            foreach (Vertex vtx in vertices)
+            {
+                foreach (HashSet<Edge> kind in new[] { convex, concave })
+                {
+                    List<Edge> sameKind = vtx.Edges.Where(e => kind.Contains(e)).Distinct().ToList();
+                    for (int i = 1; i < sameKind.Count; i++) group[selected[find(sameKind[i])]] = find(sameKind[0]);
+                }
+            }
+            // the order between the groups, given by the mixed vertices
+            HashSet<(int before, int after)> order = new HashSet<(int, int)>();
+            foreach (Vertex vtx in vertices)
+            {
+                Edge[] vedges = vtx.Edges.Where(e => shellEdges.Contains(e)).Distinct().ToArray();
+                if (!vedges.Any(e => convex.Contains(e)) || !vedges.Any(e => concave.Contains(e))) continue;
+                GeoPoint p = vtx.Position;
+                string where = $"({p.x:G6}, {p.y:G6}, {p.z:G6})";
+                if (vedges.Length != 3) return $"{vedges.Length} edges meet at {where}, only vertices with three edges are supported";
+                ShellExtensions.AdjacencyType[] kinds = vedges.Select(e => e.Adjacency()).ToArray();
+                if (kinds.Any(k => k != ShellExtensions.AdjacencyType.Convex && k != ShellExtensions.AdjacencyType.Concave))
+                    return $"a tangential edge meets the selected edges at {where}";
+                int oddIndex = Enumerable.Range(0, 3).Single(i => kinds.Count(k => k == kinds[i]) == 1);
+                Edge odd = vedges[oddIndex];
+                Edge[] pair = vedges.Where((e, i) => i != oddIndex).ToArray();
+                Face? pairFace = Edge.CommonFace(pair[0], pair[1]);
+                if (pairFace == null) return $"the edges at {where} have no common face";
+                mixedVertices.Add(new MixedVertex(vtx, odd, pair, pairFace));
+                // the odd edge is selected: otherwise the selected edges at this vertex would be of the same kind
+                foreach (Edge e in pair)
+                {
+                    if (group.ContainsKey(e)) order.Add((find(odd), find(e)));
+                }
+            }
+            // longest path levels of the groups (Kahn's algorithm), a cycle means a contradictory order
+            List<int> groups = selected.Select(e => find(e)).Distinct().ToList();
+            Dictionary<int, int> level = groups.ToDictionary(g => g, g => 0);
+            Dictionary<int, int> incoming = groups.ToDictionary(g => g, g => order.Count(o => o.after == g));
+            Queue<int> ready = new Queue<int>(groups.Where(g => incoming[g] == 0));
+            int done = 0;
+            while (ready.Count > 0)
+            {
+                int g = ready.Dequeue();
+                done++;
+                foreach ((int before, int after) in order.Where(o => o.before == g))
+                {
+                    level[after] = Math.Max(level[after], level[g] + 1);
+                    if (--incoming[after] == 0) ready.Enqueue(after);
+                }
+            }
+            if (done < groups.Count)
+            {
+                GeoPoint p = mixedVertices[0].Vertex.Position;
+                return $"the order of blending convex and concave edges is contradictory, e.g. at ({p.x:G6}, {p.y:G6}, {p.z:G6})";
+            }
+            stages = selected.GroupBy(e => level[find(e)]).OrderBy(g => g.Key).Select(g => g.ToList()).ToList();
+            return null;
+        }
+
+        /// <summary>
+        /// Blends the selection stage by stage, see <see cref="PlanStages"/>. <paramref name="executeStage"/> blends the
+        /// provided edges of the provided shell in one operation. For the later stages, the edges are looked up in the
+        /// result of the previous stage, and the bridges between pair edges, which are both blended in this stage, are
+        /// added.
+        /// </summary>
+        protected Shell? ExecuteStaged(Func<Shell, List<Edge>, Shell?> executeStage)
+        {
+            if (CheckSelection() != null || stages == null) return null;
+            Dictionary<Edge, int> stageOf = new Dictionary<Edge, int>();
+            for (int i = 0; i < stages.Count; i++)
+            {
+                foreach (Edge e in stages[i]) stageOf[e] = i;
+            }
+            Shell current = shell;
+            for (int i = 0; i < stages.Count; i++)
+            {
+                List<Edge> edges;
+                if (i == 0) edges = stages[0];
+                else
+                {
+                    edges = stages[i].SelectMany(e => FindImages(current, e)).ToList();
+                    foreach (MixedVertex mv in mixedVertices)
+                    {
+                        if (stageOf.TryGetValue(mv.Pair[0], out int s0) && s0 == i && stageOf.TryGetValue(mv.Pair[1], out int s1) && s1 == i
+                            && stageOf[mv.Odd] < i) edges.AddRange(FindBridge(current, mv));
+                    }
+                    edges = edges.Distinct().ToList();
+                    if (edges.Count == 0) return null;
+                }
+                Shell? next = executeStage(current, edges);
+                if (next == null) return null;
+                current = next;
+            }
+            return current;
+        }
+
+        /// <summary>
+        /// The edges of <paramref name="inShell"/>, which are what is left of <paramref name="original"/> after a blending
+        /// stage: they lie on the curve of the original edge and between the same surfaces (same normals).
+        /// </summary>
+        private static List<Edge> FindImages(Shell inShell, Edge original)
+        {
+            List<Edge> res = [];
+            if (original.SecondaryFace == null) return res;
+            ICurve curve = original.Curve3D;
+            double tolerance = 10 * Precision.eps;
+            foreach (Edge edge in inShell.Edges)
+            {
+                if (edge.SecondaryFace == null || edge.Curve3D == null) continue;
+                bool onCurve = true;
+                foreach (double t in new[] { 0.0, 0.5, 1.0 })
+                {
+                    GeoPoint p = edge.Curve3D.PointAt(t);
+                    double pos = curve.PositionOf(p);
+                    if (pos < -1e-6 || pos > 1 + 1e-6 || (curve.PointAt(pos) | p) > tolerance)
+                    {
+                        onCurve = false;
+                        break;
+                    }
+                }
+                if (!onCurve) continue;
+                GeoPoint m = edge.Curve3D.PointAt(0.5);
+                GeoVector n1 = NormalAt(edge.PrimaryFace, m), n2 = NormalAt(edge.SecondaryFace, m);
+                GeoVector o1 = NormalAt(original.PrimaryFace, m), o2 = NormalAt(original.SecondaryFace, m);
+                if ((SameNormal(n1, o1) && SameNormal(n2, o2)) || (SameNormal(n1, o2) && SameNormal(n2, o1))) res.Add(edge);
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// The bridge at a mixed vertex after the odd edge has been blended: the edges of the face on the surface of
+        /// <see cref="MixedVertex.PairFace"/>, which connect the remainder of the first pair edge with the remainder of
+        /// the second pair edge (the edges between this face and the blend of the odd edge).
+        /// </summary>
+        private static List<Edge> FindBridge(Shell inShell, MixedVertex mv)
+        {
+            HashSet<Edge> imagesA = new HashSet<Edge>(FindImages(inShell, mv.Pair[0]));
+            HashSet<Edge> imagesB = new HashSet<Edge>(FindImages(inShell, mv.Pair[1]));
+            List<Edge>? best = null;
+            foreach (Edge a in imagesA)
+            {
+                GeoPoint m = a.Curve3D.PointAt(0.5);
+                GeoVector pairNormal = NormalAt(mv.PairFace, m);
+                foreach (Face face in new[] { a.PrimaryFace, a.SecondaryFace })
+                {
+                    if (!SameNormal(NormalAt(face, m), pairNormal)) continue;
+                    List<Edge[]> loops = [face.OutlineEdges];
+                    for (int h = 0; h < face.HoleCount; h++) loops.Add(face.HoleEdges(h));
+                    foreach (Edge[] loop in loops)
+                    {
+                        int ind = Array.IndexOf(loop, a);
+                        if (ind < 0) continue;
+                        foreach (int dir in new[] { 1, -1 })
+                        {   // walk along the loop until we reach the second pair edge
+                            List<Edge> path = [];
+                            for (int k = 1; k < loop.Length && path.Count <= 8; k++)
+                            {
+                                Edge e = loop[((ind + dir * k) % loop.Length + loop.Length) % loop.Length];
+                                if (imagesB.Contains(e))
+                                {
+                                    if (best == null || path.Count < best.Count) best = path;
+                                    break;
+                                }
+                                if (imagesA.Contains(e)) break;
+                                path.Add(e);
+                            }
+                        }
+                    }
+                }
+            }
+            return best ?? [];
+        }
+
+        private static GeoVector NormalAt(Face face, GeoPoint p)
+        {
+            return face.Surface.GetNormal(face.Surface.PositionOf(p)).Normalized;
+        }
+
+        private static bool SameNormal(GeoVector n1, GeoVector n2)
+        {
+            return n1 * n2 > 1 - 1e-6;
         }
 
         /// <summary>

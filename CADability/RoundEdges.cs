@@ -34,9 +34,20 @@ namespace CADability.GeoObject
             concaveEdges = edges.Where(e => e.Adjacency() == ShellExtensions.AdjacencyType.Concave);
         }
 
+        /// <summary>
+        /// Rounds the edges. Where convex and concave edges meet, this is done in stages, see <see cref="BlendEdges.PlanStages"/>.
+        /// </summary>
+        /// <returns>the rounded shell or null, if the selection is invalid (see <see cref="BlendEdges.CheckSelection"/>) or rounding failed</returns>
         public Shell? Execute()
         {
-            if (CheckSelection() != null) return null; // convex and concave edges meet, see CheckSelection
+            return ExecuteStaged((s, edges) => new RoundEdges(s, edges, radius).ExecuteStage());
+        }
+
+        /// <summary>
+        /// Rounds all edges in one operation. Convex and concave edges must not meet.
+        /// </summary>
+        private Shell? ExecuteStage()
+        {
             // 1. make a raw fillet for each edge. The fillet is a swept circle around a spine curve. The spine curve is the intersection
             // of two offset surfaces of the adjacent faces. The fillet starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the fillet faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
