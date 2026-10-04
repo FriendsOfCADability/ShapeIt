@@ -1591,8 +1591,10 @@ namespace CADability.GeoObject
                 double dist = dir.Length;
                 if (dist < Precision.eps) return false; // intersection point: perpendicularity is undefined, reject
                 dir = (1.0 / dist) * dir;
+                GeoVector n1 = s1u ^ s1v, n2 = s2u ^ s2v;
+                if (n1.IsNullVector() || n2.IsNullVector()) return false; // a singular point (pole): the normal and thus perpendicularity is undefined, reject
                 // |dir ^ n| is the sine of the angle between the connection and the surface normal; it must be ~0.
-                if ((dir ^ (s1u ^ s1v).Normalized).Length > 1e-6 || (dir ^ (s2u ^ s2v).Normalized).Length > 1e-6) return false;
+                if ((dir ^ n1.Normalized).Length > 1e-6 || (dir ^ n2.Normalized).Length > 1e-6) return false;
 
                 r1 = ruv1; r2 = ruv2;
                 return true;

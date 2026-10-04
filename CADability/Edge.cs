@@ -3491,18 +3491,32 @@ namespace CADability
             }
             else
             {
-                GeoVector n1 = primaryFace.Surface.GetNormal(Vertex1.GetPositionOnFace(primaryFace));
-                GeoVector n2 = secondaryFace.Surface.GetNormal(Vertex1.GetPositionOnFace(secondaryFace));
-                if (!Precision.SameNotOppositeDirection(n1, n2)) return false;
-                n1 = primaryFace.Surface.GetNormal(Vertex2.GetPositionOnFace(primaryFace));
-                n2 = secondaryFace.Surface.GetNormal(Vertex2.GetPositionOnFace(secondaryFace));
-                if (!Precision.SameNotOppositeDirection(n1, n2)) return false;
+                GeoVector n1, n2;
+                foreach (Vertex vtx in new[] { Vertex1, Vertex2 })
+                {   // a vertex may be a singular point of one of the surfaces (e.g. the apex of a horn torus), where the normal is undefined
+                    GeoPoint2D uv1 = vtx.GetPositionOnFace(primaryFace), uv2 = vtx.GetPositionOnFace(secondaryFace);
+                    if (IsSingularPoint(primaryFace.Surface, uv1) || IsSingularPoint(secondaryFace.Surface, uv2)) continue;
+                    n1 = primaryFace.Surface.GetNormal(uv1);
+                    n2 = secondaryFace.Surface.GetNormal(uv2);
+                    if (!Precision.SameNotOppositeDirection(n1, n2)) return false;
+                }
                 // now there could be cases, where we would have to check more points, and I don't know, how to tell, so we check only the middle point
                 GeoPoint m = curve3d.PointAt(0.5);
                 n1 = primaryFace.Surface.GetNormal(primaryFace.Surface.PositionOf(m));
                 n2 = secondaryFace.Surface.GetNormal(secondaryFace.Surface.PositionOf(m));
                 return Precision.SameNotOppositeDirection(n1, n2);
             }
+        }
+
+        /// <summary>
+        /// True, if <paramref name="uv"/> lies on a singular line of <paramref name="surface"/> (a pole, e.g. the apex of a cone
+        /// or of a horn torus), where the normal is not defined.
+        /// </summary>
+        private static bool IsSingularPoint(ISurface surface, GeoPoint2D uv)
+        {
+            foreach (double u in surface.GetUSingularities()) if (Math.Abs(u - uv.x) < 1e-6) return true;
+            foreach (double v in surface.GetVSingularities()) if (Math.Abs(v - uv.y) < 1e-6) return true;
+            return false;
         }
         public bool IsPartOfHole(Face onThisFace)
         {
