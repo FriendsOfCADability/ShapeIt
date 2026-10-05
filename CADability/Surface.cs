@@ -3432,6 +3432,15 @@ namespace CADability.GeoObject
                         u = atEnd;
                         ip = new GeoPoint(PointAt(uv), endPoint);
                     }
+                    else if ((PointAt(uvOnFaces[i]) | endPoint) <= Precision.eps)
+                    {   // The curve touches the surface tangentially at its end: the candidate was already there, but at a
+                        // tangential contact the refinement converges to the point where the distance is stationary, and
+                        // that may lie on the extension of the curve, far from the end in terms of the precision (the
+                        // distance grows only with the square of the displacement there). Keep the candidate.
+                        u = atEnd;
+                        uv = uvOnFaces[i];
+                        ip = new GeoPoint(PointAt(uv), endPoint);
+                    }
                 }
                 // No duplicate elimination here: on a surface which overlaps itself (a helical sweep, for instance)
                 // one position on the curve legitimately belongs to two different uv positions, one per sheet. The

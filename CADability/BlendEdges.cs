@@ -622,8 +622,8 @@ namespace CADability.GeoObject
 
         protected void TrimCurve(ICurve curve, GeoPoint startPoint, GeoPoint endPoint)
         {
-            double pos1 = curve.PositionOf(startPoint);
-            double pos2 = curve.PositionOf(endPoint);
+            double pos1 = PositionOnCurve(curve, startPoint);
+            double pos2 = PositionOnCurve(curve, endPoint);
             if (pos1 > pos2)
             {
                 curve.Reverse();
@@ -635,6 +635,20 @@ namespace CADability.GeoObject
                 curve.Trim(pos1, pos2);
             }
 
+        }
+        /// <summary>
+        /// The position of <paramref name="p"/> on <paramref name="curve"/>, exactly 0 or 1 when it is one of its end
+        /// points. The end points of the curves which are trimmed here are mostly already the wanted ones, and they are
+        /// exact, while <see cref="ICurve.PositionOf(GeoPoint)"/> of an approximated curve may be off by a little,
+        /// and trimming there would replace an exact end point by an approximated one. Not for a closed curve, whose
+        /// start and end point coincide.
+        /// </summary>
+        private static double PositionOnCurve(ICurve curve, GeoPoint p)
+        {
+            if (curve.IsClosed) return curve.PositionOf(p);
+            if (Precision.IsEqual(p, curve.StartPoint)) return 0.0;
+            if (Precision.IsEqual(p, curve.EndPoint)) return 1.0;
+            return curve.PositionOf(p);
         }
         public static List<(Vertex, Vertex)> ConnectedVertices(IEnumerable<Vertex> v1, IEnumerable<Vertex> v2)
         {

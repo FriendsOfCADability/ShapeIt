@@ -116,6 +116,7 @@ namespace CADability.GeoObject
         private double radius; // radius of the pipe, when negative, the normal of the surface points towwards the spine curve
         private GeoVector normal; // when spine curve is planar, this is the normal vector to the plane. When n is the nullvector we use the Frenet frame
         private double[] criticalPositions; // the u parameters, where the spines curvature changes from greater than radius to smaller than radius
+        private ICurve preciseSpine; // the curve used to evaluate the points of the spine, see PreciseSpine
 
         /// <summary>
         /// create a surface which is defined by a curve along which a circle is beeing moved.
@@ -172,6 +173,55 @@ namespace CADability.GeoObject
         public ICurve Spine
         {
             get { return spine; }
+        }
+        /// <summary>
+        /// The curve which is used to evaluate the points of the spine. Usually this is the spine itself. But an
+        /// <see cref="InterpolatedDualSurfaceCurve"/> evaluates an approximating BSpline with a tolerance of about 1e-6
+        /// of its size, and every deviation of a spine point perpendicular to the spine is a deviation of this surface: a
+        /// fillet, whose spine is the intersection of two offset surfaces, then no longer touches the faces it is
+        /// tangential to. So a much more precise approximation of the exact intersection points is used here. It has the
+        /// same parametrization as the spine.
+        /// <para>
+        /// Only the points are taken from this curve, the directions and higher derivatives, which define the frame of
+        /// the circles (and with it the v parameter), still come from the spine, see <see cref="SpineDerivatives"/>: the
+        /// tangents of two approximations of the same curve differ much more than their points, and taking them from
+        /// here would change the uv positions of the edges of existing faces. A deviation of the tangent only tilts the
+        /// plane of the circle, which changes the distance to a touched surface only in the second order.
+        /// </para>
+        /// </summary>
+        internal ICurve PreciseSpine
+        {
+            get
+            {
+                if (preciseSpine == null)
+                {
+                    ICurve precise = null;
+                    if (spine is InterpolatedDualSurfaceCurve idsc) precise = idsc.PreciseApproximation(1e-9);
+                    preciseSpine = precise ?? spine;
+                }
+                return preciseSpine;
+            }
+        }
+        /// <summary>
+        /// The evaluation spine for this surface modified by <paramref name="m"/>, null when it is the spine itself
+        /// (or has not been calculated yet), so that it will be derived from the modified spine.
+        /// </summary>
+        private ICurve ModifiedPreciseSpine(ModOp m)
+        {
+            if (preciseSpine == null || ReferenceEquals(preciseSpine, spine)) return null;
+            return preciseSpine.CloneModified(m);
+        }
+        /// <summary>
+        /// The point and the derivatives of the spine at <paramref name="u"/>, like <see cref="ICurve.PointAndDerivativesAt"/>,
+        /// but with the point from <see cref="PreciseSpine"/>.
+        /// </summary>
+        private IReadOnlyList<GeoVector> SpineDerivatives(double u, int grad)
+        {
+            IReadOnlyList<GeoVector> deriv = spine.PointAndDerivativesAt(u, grad);
+            if (ReferenceEquals(PreciseSpine, spine)) return deriv;
+            GeoVector[] res = deriv.ToArray();
+            res[0] = PreciseSpine.PointAt(u).ToVector();
+            return res;
         }
         public double Radius
         {
@@ -396,8 +446,8 @@ namespace CADability.GeoObject
 
         public override ICurve FixedU(double u, double vmin, double vmax)
         {
-            Plane circlePlane = new Plane(spine.PointAt(u), spine.DirectionAt(u));
-            GeoPoint spinePoint = spine.PointAt(u);
+            Plane circlePlane = new Plane(PreciseSpine.PointAt(u), spine.DirectionAt(u));
+            GeoPoint spinePoint = PreciseSpine.PointAt(u);
             GeoVector tangent = spine.DirectionAt(u).Normalized;
             GeoVector yAxis = (normal ^ tangent).Normalized;
             GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
@@ -424,7 +474,7 @@ namespace CADability.GeoObject
 
         public override ISurface GetModified(ModOp m)
         {
-            if (m.IsIsogonal) return new SweptCircleSurface(spine.CloneModified(m), m.Factor * radius);
+            if (m.IsIsogonal) return new SweptCircleSurface(spine.CloneModified(m), m.Factor * radius) { preciseSpine = ModifiedPreciseSpine(m) };
             else throw new NotImplementedException();
         }
 
@@ -458,7 +508,7 @@ namespace CADability.GeoObject
             double v = uv.y;
             if (normal != GeoVector.NullVector)
             {
-                GeoPoint spinePoint = spine.PointAt(u);
+                GeoPoint spinePoint = PreciseSpine.PointAt(u);
                 GeoVector tangent = spine.DirectionAt(u).Normalized;
                 GeoVector yAxis = (normal ^ tangent).Normalized;
                 GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
@@ -468,7 +518,7 @@ namespace CADability.GeoObject
             }
             else
             {
-                var deriv = spine.PointAndDerivativesAt(u, 2).ToArray();
+                var deriv = SpineDerivatives(u, 2).ToArray();
                 GeoPoint spinePoint = GeoPoint.Origin + deriv[0];
                 GeoVector vel = deriv[1];
                 GeoVector acc = deriv[2];
@@ -498,13 +548,13 @@ namespace CADability.GeoObject
             else u = spine.PositionOf(p);
             double absRadius = Abs(radius);
             double tolerance = Max(absRadius * 1e-6, Precision.eps);
-            if (Abs((spine.PointAt(u) | p) - absRadius) < tolerance) return u; // the usual case: p is on the pipe there
+            if (Abs((PreciseSpine.PointAt(u) | p) - absRadius) < tolerance) return u; // the usual case: p is on the pipe there
             // when the curvature radius of the spine never falls below the radius, the pipe does not fold anywhere
             // and the closest point of the spine is the only candidate
             if (CriticalPositions.Length == 0 && Abs(spine.CurvatureAt(0.5).radius) >= absRadius) return u;
             // p lies in the normal plane of the spine at every root of this function, and when it is a point of a
             // folded part of the surface, one of these roots has it at the distance of the radius
-            Func<double, double> perpendicular = t => (p - spine.PointAt(NormalizedSpineParameter(t))) * spine.DirectionAt(NormalizedSpineParameter(t));
+            Func<double, double> perpendicular = t => (p - PreciseSpine.PointAt(NormalizedSpineParameter(t))) * spine.DirectionAt(NormalizedSpineParameter(t));
             const int samples = 64;
             double last = perpendicular(0.0);
             for (int i = 1; i <= samples; i++)
@@ -524,7 +574,7 @@ namespace CADability.GeoObject
                     double root = (lo + hi) / 2.0;
                     // only an exact hit is accepted: for a point which is not on the surface at all the closest
                     // point of the spine stays the best answer
-                    if (Abs((spine.PointAt(root) | p) - absRadius) < tolerance) return root;
+                    if (Abs((PreciseSpine.PointAt(root) | p) - absRadius) < tolerance) return root;
                 }
                 last = current;
             }
@@ -534,43 +584,181 @@ namespace CADability.GeoObject
         public override GeoPoint2D PositionOf(GeoPoint p)
         {
             double u = SpineParameterOf(p);
+            GeoPoint2D uv = CircleParameter(u, p);
             if (normal != GeoVector.NullVector)
             {
-#if DEBUG
-                // GeoObjectList dbgl = this.DebugGrid;
-#endif
-                GeoPoint spinePoint = spine.PointAt(u);
+                GeoPoint2D unadjusted = uv;
+                // commented out, because it too often throws exceptions
+                //if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
+                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uv); // must be adjusted to domain
+                if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out double dist)) return uv;
+                return unadjusted;
+            }
+            else
+            {
+                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uv); // must be adjusted to domain
+                return uv;
+            }
+        }
+
+        /// <summary>
+        /// The uv position of <paramref name="p"/>, when the spine parameter <paramref name="u"/> is already known: v
+        /// is the angle of <paramref name="p"/> in the circle at <paramref name="u"/>. Not adjusted to the domain.
+        /// </summary>
+        private GeoPoint2D CircleParameter(double u, GeoPoint p)
+        {
+            if (normal != GeoVector.NullVector)
+            {
+                GeoPoint spinePoint = PreciseSpine.PointAt(u);
                 GeoVector tangent = spine.DirectionAt(u).Normalized;
                 GeoVector yAxis = (normal ^ tangent).Normalized;
                 GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
                 double v = Atan2((p - spinePoint) * yAxis, (p - spinePoint) * xAxis);
                 if (radius < 0) v = PI + v;
-                GeoPoint2D uv = new GeoPoint2D(u, v);
-#if DEBUG
-                // DebuggerContainer dc = this.ParallelepipedHull.Debug;
-#endif
-                // commented out, because it too often throws exceptions
-                //if (BoxedSurfaceExtension.PositionOfMN(this, p, ref uv, out double dist)) return uv;
-                //uv = new GeoPoint2D(u, v);
-                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uv); // must be adjusted to domain
-                if (BoxedSurfaceExtension.PositionOfLM(this, p, ref uv, out double dist)) return uv;
                 return new GeoPoint2D(u, v);
             }
             else
             {
-                var deriv = spine.PointAndDerivativesAt(u, 2).ToArray();
+                var deriv = SpineDerivatives(u, 2).ToArray();
                 GeoPoint spinePoint = GeoPoint.Origin + deriv[0];
                 GeoVector vel = deriv[1];
                 GeoVector acc = deriv[2];
                 GeoVector T = vel.Normalized;
-                // Frenet-Frame 
+                // Frenet-Frame
                 GeoVector N = (acc - (acc * T) * T).Normalized;   // Hauptnormalen­vektor
                 GeoVector B = Sign(radius) * T ^ N;                              // Binormale
                 double v = Atan2((p - spinePoint) * B, (p - spinePoint) * N);
-                GeoPoint2D res = new GeoPoint2D(u, v);
-                if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref res); // must be adjusted to domain
-                return res;
+                return new GeoPoint2D(u, v);
             }
+        }
+
+        /// <summary>
+        /// The point where this pipe touches <paramref name="other"/> in <paramref name="plane"/>, when the pipe is
+        /// tangential to <paramref name="other"/> along a curve, as a fillet is to the faces it connects.
+        /// <para>
+        /// The pipe touches a surface in the foot point of a spine point, which is at the distance of the radius. So
+        /// instead of solving the ill-conditioned tangential intersection of two surfaces, the spine parameter is
+        /// searched whose foot point on <paramref name="other"/> lies in <paramref name="plane"/> (by the secant method).
+        /// The result is exactly on <paramref name="other"/>, and on this surface as precisely as the spine is known.
+        /// A deviation along <paramref name="other"/> is harmless: since both surfaces are tangential there, it only
+        /// causes a distance of second order from this surface.
+        /// </para>
+        /// </summary>
+        /// <param name="other">The surface which this pipe touches</param>
+        /// <param name="plane">The plane, which contains the contact point</param>
+        /// <param name="startU">An estimate of the spine parameter of the contact point, NaN if there is none</param>
+        /// <param name="uvThis">The uv position of the contact point on this surface</param>
+        /// <param name="uvOther">The uv position of the contact point on <paramref name="other"/></param>
+        /// <param name="contact">The contact point</param>
+        /// <returns>false, if there is no such contact point, e.g. because the surfaces are not tangential</returns>
+        internal bool TryContactPoint(ISurface other, Plane plane, double startU, out GeoPoint2D uvThis, out GeoPoint2D uvOther, out GeoPoint contact)
+        {
+            uvThis = uvOther = GeoPoint2D.Origin;
+            contact = GeoPoint.Origin;
+            ICurve evaluation = PreciseSpine;
+            double absRadius = Abs(radius);
+            GeoVector n = plane.Normal.Normalized;
+            bool closed = spine.IsClosed;
+            // The curve of contact may end exactly where the spine ends, and its normal plane there may require a spine
+            // parameter a hair beyond the end. A BSpline extrapolates its end segments, which keeps the function smooth
+            // there; other curves are not evaluated beyond their ends.
+            double overshoot = evaluation is BSpline ? 1e-3 : 0.0;
+            double lowest = closed ? double.MinValue : -overshoot, highest = closed ? double.MaxValue : 1.0 + overshoot;
+            // the foot point on other of the spine point at t, which is closest to the distance of the radius,
+            // and its signed distance from the plane
+            bool ContactAt(double t, out GeoPoint c, out GeoPoint2D uv, out double f)
+            {
+                GeoPoint sp = evaluation.PointAt(closed ? NormalizedSpineParameter(t) : t);
+                c = GeoPoint.Origin;
+                uv = GeoPoint2D.Origin;
+                f = 0.0;
+                double best = double.MaxValue;
+                foreach (GeoPoint2D fp in other.PerpendicularFoot(sp))
+                {
+                    GeoPoint pt = other.PointAt(fp);
+                    double deviation = Abs((pt | sp) - absRadius);
+                    if (deviation < best)
+                    {
+                        best = deviation;
+                        c = pt;
+                        uv = fp;
+                    }
+                }
+                if (best == double.MaxValue) return false;
+                f = (c - plane.Location) * n;
+                return true;
+            }
+            // without an estimate: the contact point lies in the circle of its spine point, so the spine point closest to
+            // the plane location (which is close to the curve of contact) is a good start
+            double ta = double.IsNaN(startU) ? spine.PositionOf(plane.Location) : startU;
+            ta = Max(lowest, Min(highest, ta));
+            if (!ContactAt(ta, out GeoPoint ca, out GeoPoint2D uva, out double fa)) return false;
+            // bracket the root: widen an interval around the start in both directions until the sign changes
+            double tb = ta, fb = fa;
+            GeoPoint cb = ca;
+            GeoPoint2D uvb = uva;
+            bool bracketed = fa == 0.0;
+            for (double h = 1e-4; !bracketed && h < 4.0; h *= 4.0)
+            {
+                foreach (double t in new double[] { ta + h, ta - h })
+                {
+                    double tc = Max(lowest, Min(highest, t));
+                    if (tc == ta) continue;
+                    if (!ContactAt(tc, out GeoPoint c, out GeoPoint2D uv, out double f)) continue;
+                    if (Sign(f) != Sign(fa))
+                    {
+                        tb = tc; fb = f; cb = c; uvb = uv;
+                        bracketed = true;
+                        break;
+                    }
+                }
+            }
+            if (!bracketed) return false; // the plane does not cut the curve of contact
+            // Illinois variant of regula falsi: superlinear and always inside the bracket
+            double t1 = ta, f1 = fa;
+            GeoPoint c1 = ca;
+            GeoPoint2D uv1 = uva;
+            int side = 0;
+            for (int i = 0; i < 100 && fa != 0.0 && fb != 0.0; i++)
+            {
+                t1 = (ta * fb - tb * fa) / (fb - fa);
+                if (!ContactAt(t1, out c1, out uv1, out f1)) return false;
+                if (Abs(f1) <= 1e-3 * Precision.eps || Abs(tb - ta) < 1e-15) break;
+                if (Sign(f1) == Sign(fa))
+                {
+                    ta = t1; fa = f1;
+                    if (side == -1) fb /= 2.0;
+                    side = -1;
+                }
+                else
+                {
+                    tb = t1; fb = f1;
+                    if (side == 1) fa /= 2.0;
+                    side = 1;
+                }
+            }
+            if (fb == 0.0) { t1 = tb; f1 = fb; c1 = cb; uv1 = uvb; }
+            if (Abs(f1) > Precision.eps) return false; // did not converge
+            double u = closed ? NormalizedSpineParameter(t1) : t1;
+            // only a real contact: the foot point is at the distance of the radius from the spine
+            if (Abs((c1 | evaluation.PointAt(u)) - absRadius) > 1e-5 * absRadius + Precision.eps) return false;
+            // The circles of this surface are perpendicular to the tangent of the spine, which is not exactly the tangent of
+            // the precise spine (see PreciseSpine). So the circle which contains the contact point belongs to a slightly
+            // different parameter: the one where the contact point lies in the plane of the circle.
+            double uCircle = t1;
+            for (int i = 0; i < 10; i++)
+            {
+                double uc = closed ? NormalizedSpineParameter(uCircle) : uCircle;
+                GeoVector dir = spine.DirectionAt(uc);
+                double step = ((c1 - evaluation.PointAt(uc)) * dir) / (dir * dir);
+                uCircle += step;
+                if (Abs(step) < 1e-15) break;
+            }
+            contact = c1;
+            uvOther = uv1;
+            uvThis = CircleParameter(closed ? NormalizedSpineParameter(uCircle) : uCircle, c1);
+            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uvThis);
+            return true;
         }
 
         public override GeoVector UDirection(GeoPoint2D uv)
@@ -581,7 +769,7 @@ namespace CADability.GeoObject
             if (normal != GeoVector.NullVector)
             {
                 // curve derivatives
-                var deriv = spine.PointAndDerivativesAt(u, 2);
+                var deriv = SpineDerivatives(u, 2);
                 GeoVector vel = deriv[1]; // C'(u)
                 GeoVector acc = deriv[2]; // C''(u)
 
@@ -626,7 +814,7 @@ namespace CADability.GeoObject
             }
             else
             {
-                var deriv = spine.PointAndDerivativesAt(u, 3).ToArray();
+                var deriv = SpineDerivatives(u, 3).ToArray();
 
                 GeoVector vel = deriv[1];                    // c′
                 GeoVector acc = deriv[2];                    // c″
@@ -671,7 +859,7 @@ namespace CADability.GeoObject
             if (normal != GeoVector.NullVector)
             {
                 // Derivatives of the spine curve
-                var deriv = spine.PointAndDerivativesAt(u, 2);
+                var deriv = SpineDerivatives(u, 2);
                 var derivdbg = SurfaceIntersectionSolvers.NumericalPointAndDerivativesAt(spine, u, 2);
                 GeoVector vel = deriv[1];         // 1st  derivative  c'(u)
                 GeoVector acc = deriv[2];         // 2nd derivative   c''(u)
@@ -690,7 +878,7 @@ namespace CADability.GeoObject
             }
             else
             {
-                var deriv = spine.PointAndDerivativesAt(u, 3).ToArray();
+                var deriv = SpineDerivatives(u, 3).ToArray();
 
                 GeoVector vel = deriv[1];                    // c′
                 GeoVector acc = deriv[2];                    // c″
@@ -752,7 +940,7 @@ namespace CADability.GeoObject
             }
             else
             {
-                var deriv = spine.PointAndDerivativesAt(u, 2).ToArray();
+                var deriv = SpineDerivatives(u, 2).ToArray();
 
                 GeoVector vel = deriv[1];                    // c′
                 GeoVector acc = deriv[2];                    // c″
@@ -775,7 +963,7 @@ namespace CADability.GeoObject
             if (curve is Ellipse e && e.IsCircle && Precision.IsEqual(e.Radius, Math.Abs(Radius)))
             {   // the circle might be the fixedU curve of this surface
                 double cu = spine.PositionOf(e.Center);
-                if (Precision.IsEqual(spine.PointAt(cu), e.Center))
+                if (Precision.IsEqual(PreciseSpine.PointAt(cu), e.Center))
                 {
                     GeoPoint2D sp = PositionOf(e.StartPoint);
                     GeoPoint2D ep = PositionOf(e.EndPoint);
@@ -792,7 +980,7 @@ namespace CADability.GeoObject
             if (normal != GeoVector.NullVector)
             {
                 // Derivatives of the spine curve
-                var deriv = spine.PointAndDerivativesAt(u, 3);
+                var deriv = SpineDerivatives(u, 3);
                 GeoPoint spinePoint = GeoPoint.Origin + deriv[0];
 
                 GeoVector vel = deriv[1];         // 1st  derivative  c'(u)
@@ -834,7 +1022,7 @@ namespace CADability.GeoObject
             }
             else
             {
-                var deriv = spine.PointAndDerivativesAt(u, 3).ToArray();
+                var deriv = SpineDerivatives(u, 3).ToArray();
                 GeoPoint spinePoint = GeoPoint.Origin + deriv[0];
 
                 GeoVector vel = deriv[1];                    // c′
@@ -941,12 +1129,14 @@ namespace CADability.GeoObject
         }
         public override ISurface Clone()
         {
-            return new SweptCircleSurface(spine, radius);
+            // share the evaluation spine, it is expensive to calculate
+            return new SweptCircleSurface(spine, radius) { preciseSpine = preciseSpine };
         }
         public override void Modify(ModOp m)
         {
             if (m.IsIsogonal)
             {
+                preciseSpine = ModifiedPreciseSpine(m);
                 spine = spine.CloneModified(m);
                 radius = m.Factor * radius;
                 normal = m * normal;
@@ -968,6 +1158,7 @@ namespace CADability.GeoObject
             if (cc != null)
             {
                 this.spine = cc.spine;
+                this.preciseSpine = cc.preciseSpine;
                 this.radius = cc.radius;
                 this.normal = cc.normal;
             }
@@ -999,7 +1190,7 @@ namespace CADability.GeoObject
         /// </summary>
         private double InverseV(double u, GeoPoint p)
         {
-            GeoPoint spinePoint = spine.PointAt(u);
+            GeoPoint spinePoint = PreciseSpine.PointAt(u);
             GeoVector tangent = spine.DirectionAt(u).Normalized;
             GeoVector yAxis = (normal ^ tangent).Normalized;
             GeoVector xAxis = Sign(radius) * tangent ^ yAxis;
@@ -1029,7 +1220,7 @@ namespace CADability.GeoObject
         /// </summary>
         private double SpineCurvature(double u, GeoVector unitNormal)
         {
-            IReadOnlyList<GeoVector> deriv = spine.PointAndDerivativesAt(NormalizedSpineParameter(u), 2);
+            IReadOnlyList<GeoVector> deriv = SpineDerivatives(NormalizedSpineParameter(u), 2);
             double l = deriv[1].Length;
             if (l < 1e-13) return 0.0;
             return ((deriv[1] ^ deriv[2]) * unitNormal) / (l * l * l);
@@ -1045,7 +1236,7 @@ namespace CADability.GeoObject
         /// </summary>
         private void OffsetCurveAt(double u, double dist, GeoVector unitNormal, Plane pln, out GeoPoint2D point, out GeoVector2D dir)
         {
-            IReadOnlyList<GeoVector> deriv = spine.PointAndDerivativesAt(NormalizedSpineParameter(u), 2);
+            IReadOnlyList<GeoVector> deriv = SpineDerivatives(NormalizedSpineParameter(u), 2);
             double l = deriv[1].Length;
             double curvature = ((deriv[1] ^ deriv[2]) * unitNormal) / (l * l * l);
             GeoVector yAxis = (unitNormal ^ deriv[1]).Normalized;
@@ -1333,7 +1524,7 @@ namespace CADability.GeoObject
             double absRadius = Abs(radius);
             if (absRadius < Precision.eps) return res.ToArray();
             GeoVector unitNormal = normal.Normalized;
-            Plane pln = new Plane(spine.PointAt(0.0), unitNormal); // to express the offset curves of the spine in 2d
+            Plane pln = new Plane(PreciseSpine.PointAt(0.0), unitNormal); // to express the offset curves of the spine in 2d
 
             // the surface is folded where the curvature radius of the spine is smaller than the radius of the circle.
             // A fold may be narrow, so the initial grid must be fine enough to see it at all.
@@ -1615,7 +1806,7 @@ namespace CADability.GeoObject
             //for (int i = 0; i <= samples; ++i)
             //{
             //    double u = (double)i / (double)samples;
-            //    var d = spine.PointAndDerivativesAt(u, 2);
+            //    var d = SpineDerivatives(u, 2);
             //    GeoVector v1 = d[1], v2 = d[2];
 
             //    double speed = v1.Length;
