@@ -9198,6 +9198,10 @@ namespace CADability.GeoObject
                     }
                 }
             }
+            // An edge which ends on this surface within the precision is not always found by the intersection
+            // above: when the edge meets the surface tangentially there, the curve may stay a hair outside the
+            // surface, so there is no intersection at all within Precision.eps.
+            AddCurveEndsOnSurface(edg.Curve3D, prec, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
             List<GeoPoint> lip = new List<GeoPoint>();
             List<GeoPoint2D> luvOnFace = new List<GeoPoint2D>();
             List<double> luOnCurve3D = new List<double>();
@@ -9253,6 +9257,50 @@ namespace CADability.GeoObject
             uvOnFace = luvOnFace.ToArray();
             uOnCurve3D = luOnCurve3D.ToArray();
             position = lposition.ToArray();
+        }
+
+        /// <summary>
+        /// Appends the start and end point of <paramref name="curve"/> to the intersection points, when they are
+        /// closer to the surface than <paramref name="prec"/> and not yet contained in the result.
+        /// </summary>
+        private void AddCurveEndsOnSurface(ICurve curve, double prec, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
+        {
+            List<GeoPoint> lips = null;
+            List<GeoPoint2D> luvs = null;
+            List<double> lus = null;
+            for (int end = 0; end < 2; ++end)
+            {
+                double u = end;
+                // not PointAt(u): the ends of an approximated curve are the vertices, PointAt may deviate slightly
+                GeoPoint p = end == 0 ? curve.StartPoint : curve.EndPoint;
+                bool known = false;
+                for (int i = 0; i < ips.Length; ++i)
+                {
+                    if ((ips[i] | p) < prec)
+                    {
+                        known = true;
+                        break;
+                    }
+                }
+                if (known) continue;
+                GeoPoint2D uv = surface.PositionOf(p);
+                if ((surface.PointAt(uv) | p) >= prec) continue;
+                if (lips == null)
+                {
+                    lips = new List<GeoPoint>(ips);
+                    luvs = new List<GeoPoint2D>(uvOnFaces);
+                    lus = new List<double>(uOnCurve3Ds);
+                }
+                lips.Add(p);
+                luvs.Add(uv);
+                lus.Add(u);
+            }
+            if (lips != null)
+            {
+                ips = lips.ToArray();
+                uvOnFaces = luvs.ToArray();
+                uOnCurve3Ds = lus.ToArray();
+            }
         }
 
         internal void Intersect(Edge edg, out GeoPoint[] ip, out GeoPoint2D[] uvOnFace, out double[] uOnCurve3D)
