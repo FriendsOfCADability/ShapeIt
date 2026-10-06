@@ -3024,6 +3024,18 @@ namespace CADability.GeoObject
             }
             return false;
         }
+
+        public double Distance(GeoPoint toTest)
+        {
+            double minDist = double.MaxValue;
+            foreach (Face fc in faces)
+            {
+                double d = fc.Distance(toTest);
+                if (Math.Abs(d) < Math.Abs(minDist)) minDist = d;
+            }
+            return minDist;
+        }
+
         internal void PreCalcTriangulation(double precisiton)
         {
             for (int i = 0; i < faces.Length; ++i)
