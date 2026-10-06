@@ -3332,6 +3332,21 @@ namespace CADability.GeoObject
         public virtual void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            for (int i = 0; i < uOnCurve3Ds.Length; i++)
+            {
+                if (uOnCurve3Ds[i] > 1 - 1e-2)
+                {
+                    ips[i] = curve.EndPoint;
+                    uvOnFaces[i] = PositionOf(ips[i]);
+                    uOnCurve3Ds[i] = 1.0;
+                }
+                if (uOnCurve3Ds[i] < 1e-2)
+                {
+                    ips[i] = curve.StartPoint;
+                    uvOnFaces[i] = PositionOf(ips[i]);
+                    uOnCurve3Ds[i] = 0.0;
+                }
+            }
             RefineCurveIntersections(curve, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
         }
 
@@ -5753,8 +5768,8 @@ namespace CADability.GeoObject
                 GeoVector dir = (GetNormal(seeduvthis).Normalized ^ other.GetNormal(seeduvother).Normalized);
                 if (Precision.IsNullVector(dir))
                 {
-                    SurfaceContact sc = Surfaces.ContactAt(this,seeduvthis,other, seeduvother,Precision.eps);
-                    if (sc==null) continue; // tangential surfaces, cannot proceed
+                    SurfaceContact sc = Surfaces.ContactAt(this, seeduvthis, other, seeduvother, Precision.eps);
+                    if (sc == null) continue; // tangential surfaces, cannot proceed
                     if (sc.Type != ContactType.Crossing) continue; // probably tangential only in isolated single point or on a tangential curve
                 }
                 dir.Norm();
