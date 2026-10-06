@@ -9179,6 +9179,11 @@ namespace CADability.GeoObject
             {   // this point is the intersection point of three surfaces, Surfaces.IntersectThreeSurfaces makes a better newton approximation of the point
                 for (int i = 0; i < ips.Length; i++)
                 {
+                    if ((ips[i] == edg.Curve3D.StartPoint || ips[i] == edg.Curve3D.EndPoint) && surface.GetDistance(ips[i]) < prec)
+                    {   // an end point of the curve on this surface (see ISurfaceImpl.Intersect): exact already. Near a tangential
+                        // contact the intersection of three surfaces is ill-conditioned and would only move it away
+                        continue;
+                    }
                     GeoPoint tmp = ips[i];
                     GeoPoint2D uv1 = dsc.Surface1.PositionOf(tmp);
                     GeoPoint2D uv2 = dsc.Surface2.PositionOf(tmp);

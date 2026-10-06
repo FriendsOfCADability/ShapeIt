@@ -3332,22 +3332,10 @@ namespace CADability.GeoObject
         public virtual void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
-            for (int i = 0; i < uOnCurve3Ds.Length; i++)
-            {
-                if (Math.Abs(uOnCurve3Ds[i] - 1.0) < 1e-2)
-                {
-                    ips[i] = curve.EndPoint;
-                    uvOnFaces[i] = PositionOf(ips[i]);
-                    uOnCurve3Ds[i] = 1.0;
-                }
-                if (Math.Abs(uOnCurve3Ds[i]) < 1e-2)
-                {
-                    ips[i] = curve.StartPoint;
-                    uvOnFaces[i] = PositionOf(ips[i]);
-                    uOnCurve3Ds[i] = 0.0;
-                }
-            }
+            SnapCandidatesToCurveEnds(curve, uvExtent, ref ips, ref uvOnFaces, ref uOnCurve3Ds); // a good starting point for the refinement
             RefineCurveIntersections(curve, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
+            // at a tangential contact the refinement may move the point away from the end again (the distance is flat there)
+            SnapCandidatesToCurveEnds(curve, uvExtent, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
         }
 
         /// <summary>
@@ -3503,6 +3491,49 @@ namespace CADability.GeoObject
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// When the curve ends on this surface, intersections close to that end are moved exactly onto the end point.
+        /// A tangential intersection may be found quite imprecisely (sometimes more than once), and
+        /// <see cref="RefineCurveIntersections"/> cannot do much about it (the distance is flat there, it may even move
+        /// a good starting point away); a point a little off the end point would give an almost duplicate vertex in a
+        /// boolean operation. The safety conditions: the end point itself lies on this surface, and the intersection is
+        /// within 1% of the curve parameter range and within 0.1% of the curve length of the end (a genuine second
+        /// intersection a little further away must stay where it is). Intersections which become identical are removed.
+        /// </summary>
+        private void SnapCandidatesToCurveEnds(ICurve curve, BoundingRect uvExtent, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
+        {
+            if (ips == null || uvOnFaces == null || uOnCurve3Ds == null || ips.Length == 0) return;
+            double maxDist = 1e-3 * curve.Length;
+            bool[] snapped = new bool[ips.Length];
+            bool[] remove = new bool[ips.Length];
+            foreach (double end in new[] { 0.0, 1.0 })
+            {
+                GeoPoint endPoint = end == 0.0 ? curve.StartPoint : curve.EndPoint;
+                GeoPoint2D uv = GeoPoint2D.Invalid;
+                bool first = true;
+                for (int i = 0; i < ips.Length; i++)
+                {
+                    if (snapped[i] || Math.Abs(uOnCurve3Ds[i] - end) >= 1e-2 || (ips[i] | endPoint) > maxDist) continue;
+                    if (!uv.IsValid)
+                    {
+                        uv = PositionOf(endPoint);
+                        if (!uvExtent.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, uvExtent, ref uv);
+                        if ((PointAt(uv) | endPoint) > Precision.eps) break; // the curve doesn't end on this surface
+                    }
+                    ips[i] = endPoint;
+                    uvOnFaces[i] = uv;
+                    uOnCurve3Ds[i] = end;
+                    snapped[i] = true;
+                    remove[i] = !first; // the same intersection found more than once
+                    first = false;
+                }
+            }
+            if (!remove.Any(r => r)) return;
+            ips = ips.Where((p, i) => !remove[i]).ToArray();
+            uvOnFaces = uvOnFaces.Where((p, i) => !remove[i]).ToArray();
+            uOnCurve3Ds = uOnCurve3Ds.Where((p, i) => !remove[i]).ToArray();
         }
 
         /// <summary>

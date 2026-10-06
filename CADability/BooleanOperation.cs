@@ -1536,8 +1536,18 @@ namespace CADability
                 // A tangential intersection (e.g. an edge lying in a surface which a fillet touches) is imprecise: the
                 // distance grows only with the square of the displacement. When a vertex of the face lies on the edge,
                 // this vertex is the exact intersection, use it instead of an almost identical new vertex.
-                ip[i] = SnapToFaceVertex(face, edge, ip[i]);
+                Vertex? faceVertex = FaceVertexOnEdge(face, edge, ip[i]);
+                if (faceVertex != null)
+                {   // the position and the uv position of the vertex are exact, the ones of the intersection are not
+                    ip[i] = faceVertex.Position;
+                    uvOnFace[i] = faceVertex.GetPositionOnFace(face);
+                }
                 Vertex v = CreateOrFindVertex(ip[i]);
+                if (v.Position != ip[i])
+                {   // an existing vertex close to the intersection point: its uv position is that of its own (better) position
+                    uvOnFace[i] = face.Surface.PositionOf(v.Position);
+                    SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, ref uvOnFace[i]);
+                }
                 v.AddPositionOnFace(face, uvOnFace[i]);
                 // not sure whether we still need IntersectionVertex
                 if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
@@ -1566,14 +1576,13 @@ namespace CADability
         }
 
         /// <summary>
-        /// Returns the position of a vertex of <paramref name="face"/>, which lies on the curve of <paramref name="edge"/>
-        /// (within the precision) and close to the intersection point <paramref name="ip"/>, or <paramref name="ip"/> itself,
-        /// if there is no such vertex. "Close" is much more generous than the precision, because tangential intersections
-        /// may be that imprecise.
+        /// Returns a vertex of <paramref name="face"/>, which lies on the curve of <paramref name="edge"/> (within the
+        /// precision) and close to the intersection point <paramref name="ip"/>, or null, if there is no such vertex.
+        /// "Close" is much more generous than the precision, because tangential intersections may be that imprecise.
         /// </summary>
-        private GeoPoint SnapToFaceVertex(Face face, Edge edge, GeoPoint ip)
+        private Vertex? FaceVertexOnEdge(Face face, Edge edge, GeoPoint ip)
         {
-            GeoPoint res = ip;
+            Vertex? res = null;
             double minDist = 100 * precision;
             foreach (Vertex fv in face.Vertices)
             {
@@ -1581,7 +1590,7 @@ namespace CADability
                 if (d < minDist && edge.Curve3D.DistanceTo(fv.Position) < precision)
                 {
                     minDist = d;
-                    res = fv.Position;
+                    res = fv;
                 }
             }
             return res;
