@@ -1533,6 +1533,10 @@ namespace CADability
                     // Beim Aufteilen der kanten dürfen die Endpunkte allerdings nicht mit verwendet werden
                     continue;
                 }
+                // A tangential intersection (e.g. an edge lying in a surface which a fillet touches) is imprecise: the
+                // distance grows only with the square of the displacement. When a vertex of the face lies on the edge,
+                // this vertex is the exact intersection, use it instead of an almost identical new vertex.
+                ip[i] = SnapToFaceVertex(face, edge, ip[i]);
                 Vertex v = CreateOrFindVertex(ip[i]);
                 v.AddPositionOnFace(face, uvOnFace[i]);
                 // not sure whether we still need IntersectionVertex
@@ -1558,6 +1562,28 @@ namespace CADability
                 if (operation == Operation.testonly) return res; // ein Schnittpunkt reicht hier
             }
             FaceEdgeIntersections[(edge, face)] = (res.ToList(), curveIsInSurface);
+            return res;
+        }
+
+        /// <summary>
+        /// Returns the position of a vertex of <paramref name="face"/>, which lies on the curve of <paramref name="edge"/>
+        /// (within the precision) and close to the intersection point <paramref name="ip"/>, or <paramref name="ip"/> itself,
+        /// if there is no such vertex. "Close" is much more generous than the precision, because tangential intersections
+        /// may be that imprecise.
+        /// </summary>
+        private GeoPoint SnapToFaceVertex(Face face, Edge edge, GeoPoint ip)
+        {
+            GeoPoint res = ip;
+            double minDist = 100 * precision;
+            foreach (Vertex fv in face.Vertices)
+            {
+                double d = fv.Position | ip;
+                if (d < minDist && edge.Curve3D.DistanceTo(fv.Position) < precision)
+                {
+                    minDist = d;
+                    res = fv.Position;
+                }
+            }
             return res;
         }
 

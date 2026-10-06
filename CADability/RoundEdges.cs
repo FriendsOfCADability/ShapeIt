@@ -55,6 +55,8 @@ namespace CADability.GeoObject
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToConvexEdges = createVertexToEdges(convexEdges);
             Dictionary<Vertex, List<Edge>> vertexToConcaveEdges = createVertexToEdges(concaveEdges);
+            // at the dead ends the fillets must reach beyond the vertex, so that trimming them with the ending face closes the gap
+            ExtendCuttersAtDeadEnds(vertexToConvexEdges.Concat(vertexToConcaveEdges));
 
             List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
             List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
@@ -496,6 +498,15 @@ namespace CADability.GeoObject
         /// <returns></returns>
         private Shell? MakeFilletShell(Edge edgeToRound, double radius, bool convex)
         {
+            return MakeExtendedFilletShell(edgeToRound, radius, convex, 0.0, 0.0);
+        }
+
+        /// <summary>
+        /// Like <see cref="MakeFilletShell"/>, but the fillet is made along the edge extended by <paramref name="extendStart"/>
+        /// and <paramref name="extendEnd"/> beyond its start and end point (with respect to the primary face).
+        /// </summary>
+        private Shell? MakeExtendedFilletShell(Edge edgeToRound, double radius, bool convex, double extendStart, double extendEnd)
+        {
             /* Zum Weitermachen:
              * Die Spine Kurve für die SweptCircleSurface Fläche entsteht natürlich aus dem Schnitt der beiden Offset Flächen.
              * Aber wie lang soll die werden?
@@ -511,6 +522,17 @@ namespace CADability.GeoObject
             ISurface bottomSurface = edgeToRound.SecondaryFace.Surface.Clone();
             ICurve leadingEdge = edgeToRound.Curve3D.Clone();
             if (!edgeToRound.Forward(edgeToRound.PrimaryFace)) leadingEdge.Reverse(); // always forward on topSurface
+            // the domains of the two faces, extended when the fillet has to reach beyond the edge
+            BoundingRect topFaceDomain = edgeToRound.PrimaryFace.Domain;
+            BoundingRect bottomFaceDomain = edgeToRound.SecondaryFace.Domain;
+            bool extended = extendStart > 0.0 || extendEnd > 0.0;
+            if (extended)
+            {   // the fillet is made along a longer edge: the intersection of the two surfaces beyond the vertices
+                ICurve? longer = ExtendIntersectionCurve(leadingEdge, topSurface, ref topFaceDomain, bottomSurface, ref bottomFaceDomain, extendStart, extendEnd);
+                if (longer == null) return null;
+                leadingEdge = longer;
+            }
+            ICurve edgeCurve = extended ? leadingEdge : edgeToRound.Curve3D; // used to find domains
             ISurface topOffset, bottomOffset;
             if (convex)
             {
@@ -523,16 +545,16 @@ namespace CADability.GeoObject
                 bottomOffset = bottomSurface.GetOffsetSurface(radius);
             }
             if (topOffset == null || bottomOffset == null) return null; // e.g. a sphere shrinking to a point
-            topOffset.Domain = edgeToRound.PrimaryFace.Domain;
-            bottomOffset.Domain = edgeToRound.SecondaryFace.Domain;
+            topOffset.Domain = topFaceDomain;
+            bottomOffset.Domain = bottomFaceDomain;
             // construct the two planes at the front and end side of the fillet
             // we did move them a little bit outwards but rejected this solution again, because we need it at the exact endposition sometimes
             GeoPoint filletAxisLeft = leadingEdge.StartPoint; // a first guess for the intersection, typically a good start
             GeoPoint filletAxisRight = leadingEdge.EndPoint; // the start and endpoint of the axis (spine) of the swept circle
             BoundingRect plnBounds = new BoundingRect(GeoPoint2D.Origin, radius, radius);
-            BoundingRect topDomain = edgeToRound.PrimaryFace.Domain; // the domains of the top and bottom surfaces may be a little bit bigger than the original domains
-            BoundingRect bottomDomain = edgeToRound.SecondaryFace.Domain;
-            // if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, leftPlane, plnBounds, ref filletAxisLeft, out GeoPoint2D uv11, out GeoPoint2D uv12, out GeoPoint2D uv13)) return null;
+            BoundingRect topDomain = topFaceDomain; // the domains of the top and bottom surfaces may be a little bit bigger than the original domains
+            BoundingRect bottomDomain = bottomFaceDomain;
+            // if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, topFaceDomain, bottomOffset, bottomFaceDomain, leftPlane, plnBounds, ref filletAxisLeft, out GeoPoint2D uv11, out GeoPoint2D uv12, out GeoPoint2D uv13)) return null;
 
             // find start and endpoint for the fillet axis
             // these are the points where the endpoints of the leading edge have their perpendicular foot points 
@@ -572,7 +594,7 @@ namespace CADability.GeoObject
             SurfaceHelper.AdjustPeriodic(bottomSurface, bottomDomain, ref uv12);
             topDomain.MinMax(uv11);
             bottomDomain.MinMax(uv12);
-            // if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, edgeToRound.PrimaryFace.Domain, bottomOffset, edgeToRound.SecondaryFace.Domain, rightPlane, plnBounds, ref filletAxisRight, out GeoPoint2D uv21, out GeoPoint2D uv22, out GeoPoint2D uv23)) return null;
+            // if (!CADability.GeoObject.Surfaces.IntersectThreeSurfaces(topOffset, topFaceDomain, bottomOffset, bottomFaceDomain, rightPlane, plnBounds, ref filletAxisRight, out GeoPoint2D uv21, out GeoPoint2D uv22, out GeoPoint2D uv23)) return null;
             SurfaceHelper.AdjustPeriodic(topSurface, topDomain, ref uv21);
             SurfaceHelper.AdjustPeriodic(bottomSurface, bottomDomain, ref uv22);
             topDomain.MinMax(uv21);
@@ -591,15 +613,15 @@ namespace CADability.GeoObject
 
             // we need bounds for sweptCircle to enable Makeface to use BoxedSurface methods
             // we use the middle point of the axis to round as a starting position for the bounds
-            GeoPoint2D uvm = sweptCircle.PositionOf(edgeToRound.Curve3D.PointAt(0.3));
+            GeoPoint2D uvm = sweptCircle.PositionOf(edgeCurve.PointAt(0.3));
             BoundingRect ext = new BoundingRect(uvm);
-            uvm = sweptCircle.PositionOf(edgeToRound.Curve3D.PointAt(0.7));
+            uvm = sweptCircle.PositionOf(edgeCurve.PointAt(0.7));
             SurfaceHelper.AdjustPeriodic(sweptCircle, ext, ref uvm);
             ext.MinMax(uvm);
             sweptCircle.Domain = ext;
-            uvm = sweptCircle.PositionOf(edgeToRound.Curve3D.StartPoint); // sweptCircle mus adjust the period according to its bounds
+            uvm = sweptCircle.PositionOf(edgeCurve.StartPoint); // sweptCircle mus adjust the period according to its bounds
             ext.MinMax(uvm);
-            uvm = sweptCircle.PositionOf(edgeToRound.Curve3D.EndPoint); // sweptCircle mus adjust the period according to its bounds
+            uvm = sweptCircle.PositionOf(edgeCurve.EndPoint); // sweptCircle mus adjust the period according to its bounds
             ext.MinMax(uvm);
             // the extent goes along the spine of the sweptCircle, in the other direction (of the circle) we go from -90° to +90° relative to the edge
             if (sweptCircleExtrusion.ExtrusionDirectionIsV)
@@ -676,9 +698,9 @@ namespace CADability.GeoObject
             // if sweptCircle has a periodic spine, which is more than half the period, it is not egnough to use the middle point and the two endpoints
             // for calculationg the domain. instead we use points at 0.3 and 0.7, which is with a distanc of 0.4 less than half the period
             // and the other points are close to the bounds of the interval
-            GeoPoint2D cntuv = sweptCircle.PositionOf(edgeToRound.Curve3D.PointAt(0.3));
+            GeoPoint2D cntuv = sweptCircle.PositionOf(edgeCurve.PointAt(0.3));
             BoundingRect sweptBounds = new BoundingRect(cntuv);
-            foreach (GeoPoint p in new List<GeoPoint>([edgeToRound.Curve3D.PointAt(0.7), rt, rb, lt, lb]))
+            foreach (GeoPoint p in new List<GeoPoint>([edgeCurve.PointAt(0.7), rt, rb, lt, lb]))
             {
                 GeoPoint2D uv = sweptCircle.PositionOf(p);
                 SurfaceHelper.AdjustPeriodic(sweptCircle, sweptBounds, ref uv);
@@ -696,11 +718,11 @@ namespace CADability.GeoObject
                 // and easier trimming
                 if ((lt | pnts[0]) + (rt | pnts[pnts.Length - 1]) < (lt | pnts[pnts.Length - 1]) + (rt | pnts[0])) { pnts[0] = lt; pnts[pnts.Length - 1] = rt; }
                 else { pnts[0] = rt; pnts[pnts.Length - 1] = lt; }
-                topCurve = new InterpolatedDualSurfaceCurve(topSurface, edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, pnts, null, null, true);
+                topCurve = new InterpolatedDualSurfaceCurve(topSurface, topFaceDomain, sweptCircle, sweptBounds, pnts, null, null, true);
             }
             else
             {
-                IDualSurfaceCurve[] tcCandidates = topSurface.GetDualSurfaceCurves(edgeToRound.PrimaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([lt, rt]));
+                IDualSurfaceCurve[] tcCandidates = topSurface.GetDualSurfaceCurves(topFaceDomain, sweptCircle, sweptBounds, new List<GeoPoint>([lt, rt]));
                 topCurve = tcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lt) + c.DistanceTo(rt));
             }
             if (topCurve == null) return null;
@@ -719,11 +741,11 @@ namespace CADability.GeoObject
                 // and easier trimming
                 if ((lb | pnts[0]) + (rb | pnts[pnts.Length - 1]) < (lb | pnts[pnts.Length - 1]) + (rb | pnts[0])) { pnts[0] = lb; pnts[pnts.Length - 1] = rb; }
                 else { pnts[0] = rb; pnts[pnts.Length - 1] = lb; }
-                bottomCurve = new InterpolatedDualSurfaceCurve(bottomSurface, edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, pnts, null, null, true);
+                bottomCurve = new InterpolatedDualSurfaceCurve(bottomSurface, bottomFaceDomain, sweptCircle, sweptBounds, pnts, null, null, true);
             }
             else
             {
-                IDualSurfaceCurve[] bcCandidates = bottomSurface.GetDualSurfaceCurves(edgeToRound.SecondaryFace.Domain, sweptCircle, sweptBounds, new List<GeoPoint>([rb, lb]));
+                IDualSurfaceCurve[] bcCandidates = bottomSurface.GetDualSurfaceCurves(bottomFaceDomain, sweptCircle, sweptBounds, new List<GeoPoint>([rb, lb]));
                 bottomCurve = bcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lb) + c.DistanceTo(rb));
             }
             if (bottomCurve == null) return null;
@@ -743,24 +765,24 @@ namespace CADability.GeoObject
             // Now we want to construct the right end face of the rounding wedge. All edges are forward on the swept circle, i.e. Vertex1 and Vertex2 are start and endpoints.
             // The swept circle points to the outward.
             ICurve? topRight = null, topLeft = null, bottomRight = null, bottomLeft = null;
-            IDualSurfaceCurve[] dsctr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [leadingEdge.EndPoint, lid2crv3.StartPoint], null);
+            IDualSurfaceCurve[] dsctr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, topFaceDomain, [leadingEdge.EndPoint, lid2crv3.StartPoint], null);
             topRight = dsctr.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.EndPoint) + dsc.Curve3D.DistanceTo(lid2crv3.StartPoint))?.Curve3D; // when there are more, , take the one closest to the endpoints
             // we should not trim topLeft and topRight, it may lead to numerical problems
             // but we need to trimm it. There must be another solution for numerical precision
             topRight?.Trim(topRight.PositionOf(leadingEdge.EndPoint), topRight.PositionOf(lid2crv3.StartPoint));
-            IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, edgeToRound.PrimaryFace.Domain, [lid1crv3.EndPoint, leadingEdge.StartPoint], null);
+            IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, topFaceDomain, [lid1crv3.EndPoint, leadingEdge.StartPoint], null);
             topLeft = dsctl.MinBy(dsc => dsc.Curve3D.DistanceTo(lid1crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
             topLeft?.Trim(topLeft.PositionOf(lid1crv3.EndPoint), topLeft.PositionOf(leadingEdge.StartPoint));
             // leadingEdge.StartPoint | topLeft.EndPoint should be 0
             Face topFace = Face.MakeFace(topSurface, [topRight, topCurve, topLeft, leadingEdge]);
 
-            IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [lid2crv3.EndPoint, leadingEdge.EndPoint], null);
+            IDualSurfaceCurve[] dscbr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, bottomFaceDomain, [lid2crv3.EndPoint, leadingEdge.EndPoint], null);
 #if DEBUG
             Face rightPlaneFace = Face.MakeFace(rightPlane, plnBounds);
 #endif
             bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(lid2crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
             bottomRight?.Trim(bottomRight.PositionOf(lid2crv3.EndPoint), bottomRight.PositionOf(leadingEdge.EndPoint));
-            IDualSurfaceCurve[] dscbl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, edgeToRound.SecondaryFace.Domain, [leadingEdge.StartPoint, lid1crv3.StartPoint], null);
+            IDualSurfaceCurve[] dscbl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.SecondaryFace.Surface, bottomFaceDomain, [leadingEdge.StartPoint, lid1crv3.StartPoint], null);
             bottomLeft = dscbl.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.StartPoint) + dsc.Curve3D.DistanceTo(lid1crv3.StartPoint))?.Curve3D; // when there are more, take the shortest
             bottomLeft?.Trim(bottomLeft.PositionOf(leadingEdge.StartPoint), bottomLeft.PositionOf(lid1crv3.StartPoint));
 
@@ -772,8 +794,10 @@ namespace CADability.GeoObject
             Shell? res = (sf != null && sf.Length > 0) ? sf[0] : null;
             rightEndFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
             leftEndFace.UserData.Add("CADability.Cutter.EndFace", "endface");
+            if (extendStart > 0.0) leftEndFace.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
+            if (extendEnd > 0.0) rightEndFace.UserData.Add("CADability.Cutter.Extended", "extended");
             sweptFace.UserData.Add("CADability.Cutter.SweptFace", "sweptface");
-            if (res != null)
+            if (res != null && !extended)
             {   // the edges play a role in the BooleanOperation, so we store which edge lies or ends in which face
                 // BooleanOperation doesn't need to calculate intersections which are already known
                 Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace = [];
@@ -795,6 +819,64 @@ namespace CADability.GeoObject
 #if DEBUG
             bool? ok = res?.CheckConsistency();
 #endif
+            return res;
+        }
+
+        /// <summary>
+        /// Rebuilds the fillet of <paramref name="edge"/> along a longer edge, which reaches the provided distances beyond
+        /// the vertices of the edge, see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>.
+        /// </summary>
+        protected override Shell? MakeExtendedCutter(Edge edge, Dictionary<Vertex, double> extensions)
+        {
+            // MakeFilletShell works on the edge oriented forward on the primary face
+            Vertex start = edge.StartVertex(edge.PrimaryFace);
+            Vertex end = edge.EndVertex(edge.PrimaryFace);
+            extensions.TryGetValue(start, out double extendStart);
+            extensions.TryGetValue(end, out double extendEnd);
+            bool convex = convexEdges.Contains(edge);
+            Shell? res = MakeExtendedFilletShell(edge, radius, convex, extendStart, extendEnd);
+            res?.CopyAttributes(edge.PrimaryFace);
+            return res;
+        }
+
+        /// <summary>
+        /// Extends <paramref name="curve"/>, the intersection curve of <paramref name="surface1"/> and <paramref name="surface2"/>,
+        /// by about <paramref name="extendStart"/> beyond its start point and <paramref name="extendEnd"/> beyond its end point.
+        /// The domains are enlarged to contain the extended curve. Returns null, if the intersection cannot be followed.
+        /// </summary>
+        private ICurve? ExtendIntersectionCurve(ICurve curve, ISurface surface1, ref BoundingRect domain1, ISurface surface2, ref BoundingRect domain2,
+            double extendStart, double extendEnd)
+        {
+            GeoPoint startPoint = curve.StartPoint, endPoint = curve.EndPoint, middlePoint = curve.PointAt(0.5);
+            GeoPoint? beyond(GeoPoint guess, ref BoundingRect d1, ref BoundingRect d2)
+            {   // the point on the intersection curve close to guess
+                GeoPoint2D uv1 = surface1.PositionOf(guess), uv2 = surface2.PositionOf(guess);
+                if (!SurfaceIntersectionFootPoint.TryFootPointOnIntersectionCurveLM(surface1, surface2, guess, ref uv1, ref uv2, out GeoPoint fp)) return null;
+                uv1 = surface1.PositionOf(fp);
+                uv2 = surface2.PositionOf(fp);
+                SurfaceHelper.AdjustPeriodic(surface1, d1, ref uv1);
+                SurfaceHelper.AdjustPeriodic(surface2, d2, ref uv2);
+                d1.MinMax(uv1);
+                d2.MinMax(uv2);
+                return fp;
+            }
+            if (extendStart > 0.0)
+            {
+                GeoPoint? p = beyond(startPoint - extendStart * curve.StartDirection.Normalized, ref domain1, ref domain2);
+                if (p == null) return null;
+                startPoint = p.Value;
+            }
+            if (extendEnd > 0.0)
+            {
+                GeoPoint? p = beyond(endPoint + extendEnd * curve.EndDirection.Normalized, ref domain1, ref domain2);
+                if (p == null) return null;
+                endPoint = p.Value;
+            }
+            if (curve is Line) return Line.TwoPoints(startPoint, endPoint);
+            ICurve? res = surface1.GetDualSurfaceCurves(domain1, surface2, domain2, [startPoint, endPoint])
+                .Select(dsc => dsc.Curve3D).MinBy(c => c.DistanceTo(startPoint) + c.DistanceTo(endPoint) + c.DistanceTo(middlePoint));
+            if (res == null) return null;
+            TrimCurve(res, startPoint, endPoint, middlePoint);
             return res;
         }
 
