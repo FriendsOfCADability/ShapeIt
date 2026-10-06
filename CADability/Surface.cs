@@ -3334,13 +3334,13 @@ namespace CADability.GeoObject
             GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
             for (int i = 0; i < uOnCurve3Ds.Length; i++)
             {
-                if (uOnCurve3Ds[i] > 1 - 1e-2)
+                if (Math.Abs(uOnCurve3Ds[i] - 1.0) < 1e-2)
                 {
                     ips[i] = curve.EndPoint;
                     uvOnFaces[i] = PositionOf(ips[i]);
                     uOnCurve3Ds[i] = 1.0;
                 }
-                if (uOnCurve3Ds[i] < 1e-2)
+                if (Math.Abs(uOnCurve3Ds[i]) < 1e-2)
                 {
                     ips[i] = curve.StartPoint;
                     uvOnFaces[i] = PositionOf(ips[i]);
