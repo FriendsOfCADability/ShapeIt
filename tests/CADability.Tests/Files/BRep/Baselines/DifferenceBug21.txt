@@ -1,3 +1,7 @@
+# verified 2026-10-07: RE-RECORDED, only the edge lengths moved: out0.edgeLength 977.898757682 -> 978.048086029.
+# ICurve.Length is now the arc length of ellipses and intersection curves instead of a polygon estimate, which was
+# too short; every edge was checked against a polyline of 20000 points. Everything else below still stands.
+#
 # verified 2026-09-12: an oblique cylinder subtracted from a box, checked by GH and correct. The tool
 # reaches far beyond the box - 10276.38 of its 21687.62 lie inside - and it goes right through, so the
 # result is the box with one through hole: 389578.9568 - 10276.38 = 379302.576001, euler 0 for genus 1,
@@ -45,6 +49,6 @@ out0.closed       = true
 out0.openEdges    = 0
 out0.volume       = 379303.750646
 out0.area         = 35207.8638882
-out0.edgeLength   = 977.898757682
+out0.edgeLength   = 978.048086029
 out0.extent       = 22.632, 16.648, -20, 92.68, 86.168, 60
 out0.surfaces     = CylindricalSurface:1 PlaneSurface:6

@@ -52,7 +52,7 @@
       "solids": "2"
     },
     "obliqueAminusB#0": {
-      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure. Re-recorded 2026-10-07: only edgeLength moved (147.700451078 -> 147.705429462), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -64,12 +64,12 @@
       "openEdges": "0",
       "volume": "14023.3606913",
       "area": "3769.91118426",
-      "edgeLength": "147.700451078",
+      "edgeLength": "147.705429462",
       "extent": "-10, -10, -1.02584607475E-13, 10, 10, 55",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "obliqueAminusB#1": {
-      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure. Re-recorded 2026-10-07: only edgeLength moved (147.656599527 -> 147.705429462), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -81,7 +81,7 @@
       "openEdges": "0",
       "volume": "9310.97171125",
       "area": "2827.43338815",
-      "edgeLength": "147.656599527",
+      "edgeLength": "147.705429462",
       "extent": "-10, -10, -40, 10, 10, 3.10862446895E-15",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
@@ -90,7 +90,7 @@
       "solids": "2"
     },
     "obliqueBminusA#0": {
-      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure. Re-recorded 2026-10-07: only edgeLength moved (147.700451078 -> 147.705429462), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -102,12 +102,12 @@
       "openEdges": "0",
       "volume": "14023.3606913",
       "area": "3769.91118426",
-      "edgeLength": "147.700451078",
+      "edgeLength": "147.705429462",
       "extent": "-5.44639035025, -8.38670567939, -5.20567050552, 45.0515154141, 33.4874408179, 39.7382244422",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "obliqueBminusA#1": {
-      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure. Re-recorded 2026-10-07: only edgeLength moved (147.656599527 -> 147.705429462), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -119,12 +119,12 @@
       "openEdges": "0",
       "volume": "9310.97171116",
       "area": "2827.43338815",
-      "edgeLength": "147.656599527",
+      "edgeLength": "147.705429462",
       "extent": "-34.7465347609, -26.7953081338, -31.1345778969, 5.44639035025, 8.38670567939, 5.20567050552",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "obliqueInter": {
-      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure. Re-recorded 2026-10-07: only edgeLength moved (169.647578818 -> 169.747152781), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "4",
@@ -136,12 +136,12 @@
       "openEdges": "0",
       "volume": "6510.79780451",
       "area": "1953.23934135",
-      "edgeLength": "169.647578818",
+      "edgeLength": "169.747152781",
       "extent": "-10, -10, -19.2098212697, 10, 10, 19.2098212697",
       "surfaces": "CylindricalSurface:4"
     },
     "obliqueUnion": {
-      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure.",
+      "verified": "2026-09-14: confirmed by Gerhard as correct - the recorded result is the right one, not a defect, so this case is no longer a known failure. Re-recorded 2026-10-07: only edgeLength moved (421.0646083 -> 421.074565068), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "8",
       "edges": "8",
@@ -153,7 +153,7 @@
       "openEdges": "0",
       "volume": "53179.4626112",
       "area": "11241.449803",
-      "edgeLength": "421.0646083",
+      "edgeLength": "421.074565068",
       "extent": "-34.7465347609, -26.7953081338, -40, 45.0515154141, 33.4874408179, 55",
       "surfaces": "CylindricalSurface:4 PlaneSurface:4"
     }

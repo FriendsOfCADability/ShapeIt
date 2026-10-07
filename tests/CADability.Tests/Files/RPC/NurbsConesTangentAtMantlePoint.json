@@ -34,7 +34,7 @@
       "solids": "2"
     },
     "coneAminusB#0": {
-      "verified": "2026-09-20 GH: the main body. Congruent to coneBminusA#0 by the involution and measures it: 6756.14381266 against 6756.00752183, 2.0e-05.",
+      "verified": "2026-09-20 GH: the main body. Congruent to coneBminusA#0 by the involution and measures it: 6756.14381266 against 6756.00752183, 2.0e-05. Re-recorded 2026-10-07: only edgeLength moved (223.277296958 -> 223.306942731), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "5",
       "edges": "9",
@@ -46,12 +46,12 @@
       "openEdges": "0",
       "volume": "6754.2536596",
       "area": "2311.08878673",
-      "edgeLength": "223.277296958",
+      "edgeLength": "223.306942731",
       "extent": "-19, -18.3966708945, 1.42108547152E-14, 8.75000000036, 18.3966708945, 18",
       "surfaces": "PlaneSurface:3 RuledSurface:2"
     },
     "coneAminusB#1": {
-      "verified": "2026-09-21 GH: the pair of lobes. Its AREA moved with the fix, 867.679962462 -> 970.708699597, its VOLUME did not - the planar face of this part lies in z = 0, where the flux density is zero, so an area error there never reached the volume. Congruent to coneBminusA#1 by the involution, and now 8.5e-05 from it in volume instead of 39 %.",
+      "verified": "2026-09-21 GH: the pair of lobes. Its AREA moved with the fix, 867.679962462 -> 970.708699597, its VOLUME did not - the planar face of this part lies in z = 0, where the flux density is zero, so an area error there never reached the volume. Congruent to coneBminusA#1 by the involution, and now 8.5e-05 from it in volume instead of 39 %. Re-recorded 2026-10-07: only edgeLength moved (225.358717434 -> 225.445432625), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "6",
       "edges": "11",
@@ -63,7 +63,7 @@
       "openEdges": "0",
       "volume": "333.264386633",
       "area": "970.662045711",
-      "edgeLength": "225.358717434",
+      "edgeLength": "225.445432625",
       "extent": "-4.75, -19, -3.84193628022E-07, 19, 19, 9.50000053432",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
     },
@@ -88,7 +88,7 @@
       "solids": "2"
     },
     "coneBminusA#0": {
-      "verified": "2026-09-20 GH: congruent to coneAminusB#0, 6756.00752183 against 6756.14381266.",
+      "verified": "2026-09-20 GH: congruent to coneAminusB#0, 6756.00752183 against 6756.14381266. Re-recorded 2026-10-07: only edgeLength moved (223.274465641 -> 223.306942731), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "5",
       "edges": "9",
@@ -100,12 +100,12 @@
       "openEdges": "0",
       "volume": "6754.25374043",
       "area": "2311.08878484",
-      "edgeLength": "223.274465641",
+      "edgeLength": "223.306942731",
       "extent": "-13.3, -18.3966708945, -15, 17.75, 18.3966708945, 1.6447336396E-09",
       "surfaces": "PlaneSurface:3 RuledSurface:2"
     },
     "coneBminusA#1": {
-      "verified": "2026-09-21 GH: RE-RECORDED 202.675680244 -> 333.178747282. This is the value that proved the measurement defect: congruent to coneAminusB#1 by the involution, same area to 5e-08 and same edgeLength to 3e-09, and now the same volume to 8.5e-05.",
+      "verified": "2026-09-21 GH: RE-RECORDED 202.675680244 -> 333.178747282. This is the value that proved the measurement defect: congruent to coneAminusB#1 by the involution, same area to 5e-08 and same edgeLength to 3e-09, and now the same volume to 8.5e-05. Re-recorded 2026-10-07: only edgeLength moved (225.361548004 -> 225.445432661), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "6",
       "edges": "11",
@@ -117,12 +117,12 @@
       "openEdges": "0",
       "volume": "333.264450087",
       "area": "970.662059207",
-      "edgeLength": "225.361548004",
+      "edgeLength": "225.445432661",
       "extent": "-4.75, -19, -6.20392626161E-13, 14.2500002751, 19, 19",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
     },
     "coneInter": {
-      "verified": "2026-09-20 GH: the recorded volume 5183.9537577 is ShellMetrics and is NOT the value to trust - see Status. Solid.Volume gives 5183.538, against 5182.3 +- 3.7 by Monte Carlo, 0.3 sigma. One solid of Euler 2, eight faces, four RuledSurface and four planar.",
+      "verified": "2026-09-20 GH: the recorded volume 5183.9537577 is ShellMetrics and is NOT the value to trust - see Status. Solid.Volume gives 5183.538, against 5182.3 +- 3.7 by Monte Carlo, 0.3 sigma. One solid of Euler 2, eight faces, four RuledSurface and four planar. Re-recorded 2026-10-07: only edgeLength moved (265.395418242 -> 265.511778846), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "8",
       "edges": "15",
@@ -134,12 +134,12 @@
       "openEdges": "0",
       "volume": "5183.54280566",
       "area": "2017.29952613",
-      "edgeLength": "265.395418242",
+      "edgeLength": "265.511778846",
       "extent": "-4.75000002678, -18.3966708945, -3.84193628022E-07, 18.5, 18.3966708945, 18",
       "surfaces": "PlaneSurface:4 RuledSurface:4"
     },
     "coneUnion": {
-      "verified": "2026-09-21 GH: RE-RECORDED 18928.1196638 -> 19364.9500935 with the rational area fix. Now 3.3e-04 from the 19358.58 that union + intersect = coneA + coneB forces, where the old value was 2.2 % low. Solid.Volume gives 19358.560 and is unchanged by the fix, as it must be - it never went through Border.Area.",
+      "verified": "2026-09-21 GH: RE-RECORDED 18928.1196638 -> 19364.9500935 with the rational area fix. Now 3.3e-04 from the 19358.58 that union + intersect = coneA + coneB forces, where the old value was 2.2 % low. Solid.Volume gives 19358.560 and is unchanged by the fix, as it must be - it never went through Border.Area. Re-recorded 2026-10-07: only edgeLength moved (631.876608113 -> 631.992969477), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "14",
       "edges": "25",
@@ -151,7 +151,7 @@
       "openEdges": "0",
       "volume": "19358.5788463",
       "area": "4546.20210812",
-      "edgeLength": "631.876608113",
+      "edgeLength": "631.992969477",
       "extent": "-19, -19, -15, 19, 19, 19",
       "surfaces": "PlaneSurface:6 RuledSurface:8"
     }

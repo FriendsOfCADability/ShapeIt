@@ -1283,18 +1283,20 @@ namespace CADability
         {   // FindSnapPoint uses this
             return (ApproxBSpline as ICurve).PositionOf(p, pl);
         }
-        public override double Length
+        /// <summary>
+        /// The length for <see cref="GeneralCurve.Length"/>, which caches it. <see cref="PointAt"/> evaluates the approximating
+        /// spline, so the length is measured with points which lie exactly on both surfaces: <see cref="ApproximatePosition"/>
+        /// moves the point of the spline onto both surfaces in its normal plane, so it has the parametrization of the spline,
+        /// and the base points are where <see cref="GetBasePoints"/> says. The sum of the distances of the base points, which
+        /// was used before, is too short (0.65% for a bore of radius 5 through a tube of radius 30).
+        /// </summary>
+        protected override double ComputeLength()
         {
-            get
-            {   // nur eine grobe Annäherung hier, die nie 0 sein sollte.
-                // man müsste irgendwie extrapolieren
-                double d = 0.0;
-                for (int i = 0; i < basePoints.Length - 1; ++i)
-                {
-                    d += basePoints[i].p3d | basePoints[i + 1].p3d;
-                }
-                return d;
-            }
+            return ArcLength.FromPoints(position =>
+            {
+                ApproximatePosition(position, out GeoPoint2D _, out GeoPoint2D _, out GeoPoint p);
+                return p;
+            }, 0.0, 1.0, GetBasePoints(), 1e-9); // the points are refined to about 1e-10, a tighter tolerance only adds levels
         }
         /// <summary>
         /// The positions of the base points on this curve. They come from the approximating spline, which is
@@ -1470,8 +1472,30 @@ namespace CADability
             ApproximatePosition(EndPos, out uv1, out uv2, out p);
             spl.Add(new SurfacePoint(p, uv1, uv2));
             basePoints = spl.ToArray();
+            MakeTrimmedPointsContinuous(spl.Count > 2 ? 1 : 0);
             InvalidateSecondaryData();
             BSpline init = ApproxBSpline;
+        }
+        /// <summary>
+        /// The new end points of a trimmed curve come from <see cref="ApproximatePosition"/>, which takes their uv values from
+        /// PositionOf. A point on the seam of a periodic surface may then lie one period away from its neighbour, and the 2d
+        /// curves get a jump. So the uv values are made continuous, starting at the base point <paramref name="keep"/>, which
+        /// is one of the original base points and stays in its period.
+        /// </summary>
+        private void MakeTrimmedPointsContinuous(int keep)
+        {
+            double u1 = surface1.IsUPeriodic ? surface1.UPeriod : 0.0, v1 = surface1.IsVPeriodic ? surface1.VPeriod : 0.0;
+            double u2 = surface2.IsUPeriodic ? surface2.UPeriod : 0.0, v2 = surface2.IsVPeriodic ? surface2.VPeriod : 0.0;
+            for (int i = keep + 1; i < basePoints.Length; i++)
+            {
+                SurfacePoint.FixSurfacePoint2D(ref basePoints[i].psurface1, basePoints[i - 1].psurface1, surface1.IsUPeriodic, u1, surface1.IsVPeriodic, v1);
+                SurfacePoint.FixSurfacePoint2D(ref basePoints[i].psurface2, basePoints[i - 1].psurface2, surface2.IsUPeriodic, u2, surface2.IsVPeriodic, v2);
+            }
+            for (int i = keep - 1; i >= 0; i--)
+            {
+                SurfacePoint.FixSurfacePoint2D(ref basePoints[i].psurface1, basePoints[i + 1].psurface1, surface1.IsUPeriodic, u1, surface1.IsVPeriodic, v1);
+                SurfacePoint.FixSurfacePoint2D(ref basePoints[i].psurface2, basePoints[i + 1].psurface2, surface2.IsUPeriodic, u2, surface2.IsVPeriodic, v2);
+            }
         }
         public override IGeoObject Clone()
         {

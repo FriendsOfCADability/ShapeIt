@@ -34,7 +34,7 @@
       "solids": "2"
     },
     "cylMinusSphere#0": {
-      "verified": "2026-08-28 GH: the lower part. Together with #1 it gives 10873.9120 against the calculated 18849.5559215388 - 7975.6460 = 10873.9100, 1.8e-7. The split into two solids is CORRECT: at z = 7 the sphere covers the whole cross section of the cylinder and touches its wall at one point, so the cylinder is cut through there. Both extents meet at z = 7 exactly.",
+      "verified": "2026-08-28 GH: the lower part. Together with #1 it gives 10873.9120 against the calculated 18849.5559215388 - 7975.6460 = 10873.9100, 1.8e-7. The split into two solids is CORRECT: at z = 7 the sphere covers the whole cross section of the cylinder and touches its wall at one point, so the cylinder is cut through there. Both extents meet at z = 7 exactly. Re-recorded 2026-10-07: only edgeLength moved (134.181159014 -> 134.229695697), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -46,12 +46,12 @@
       "openEdges": "0",
       "volume": "7636.069308",
       "area": "2457.13860676",
-      "edgeLength": "134.181159014",
+      "edgeLength": "134.229695697",
       "extent": "-10, -10, -30, 10, 10, 7",
       "surfaces": "CylindricalSurface:1 PlaneSurface:1 SphericalSurface:1"
     },
     "cylMinusSphere#1": {
-      "verified": "2026-08-28 GH: the upper part, see #0.",
+      "verified": "2026-08-28 GH: the upper part, see #0. Re-recorded 2026-10-07: only edgeLength moved (134.224250282 -> 134.229695695), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -63,12 +63,12 @@
       "openEdges": "0",
       "volume": "3237.84024085",
       "area": "1577.49258312",
-      "edgeLength": "134.224250282",
+      "edgeLength": "134.229695695",
       "extent": "-10, -10, 7, 10, 10, 30",
       "surfaces": "CylindricalSurface:1 PlaneSurface:1 SphericalSurface:1"
     },
     "cylSphereInter": {
-      "verified": "2026-08-28 GH: CALCULATED. 7975.60851249 against 7975.6460, integrated over z as the area of the lens of the two circles (radius 10 at the axis, radius sqrt(256-(z-7)^2) at distance 6), Simpson on 400000 intervals. Monte Carlo 7970.4 +- 3.6 agrees within 1.4 sigma. One manifold solid, euler 2; its extent touches the cylinder wall (x = 10, y = -9.9999) at the contact.",
+      "verified": "2026-08-28 GH: CALCULATED. 7975.60851249 against 7975.6460, integrated over z as the area of the lens of the two circles (radius 10 at the axis, radius sqrt(256-(z-7)^2) at distance 6), Simpson on 400000 intervals. Monte Carlo 7970.4 +- 3.6 agrees within 1.4 sigma. One manifold solid, euler 2; its extent touches the cylinder wall (x = 10, y = -9.9999) at the contact. Re-recorded 2026-10-07: only edgeLength moved (142.741703152 -> 142.795685249), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -80,12 +80,12 @@
       "openEdges": "0",
       "volume": "7975.64512279",
       "area": "2115.11071672",
-      "edgeLength": "142.741703152",
+      "edgeLength": "142.795685249",
       "extent": "-10, -9.99990331309, -9, 10, 9.99813689834, 23",
       "surfaces": "CylindricalSurface:1 SphericalSurface:2"
     },
     "cylSphereUnion": {
-      "verified": "2026-08-28 GH: CALCULATED. 28031.1893069 against 18849.5559215388 + 17157.2846788051 - 7975.6460 = 28031.1946. Together with the intersection it meets the exact identity union + intersect = 36006.8406 to 1.2e-6.",
+      "verified": "2026-08-28 GH: CALCULATED. 28031.1893069 against 18849.5559215388 + 17157.2846788051 - 7975.6460 = 28031.1946. Together with the intersection it meets the exact identity union + intersect = 36006.8406 to 1.2e-6. Re-recorded 2026-10-07: only edgeLength moved (268.405406456 -> 268.459391392), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "5",
       "edges": "4",
@@ -97,7 +97,7 @@
       "openEdges": "0",
       "volume": "28031.1995213",
       "area": "5500.11002408",
-      "edgeLength": "268.405406456",
+      "edgeLength": "268.459391392",
       "extent": "-17.9534089267, -21.6731114536, -30, 14.0465910733, 10.3268885464, 30",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2 SphericalSurface:1"
     },
@@ -119,7 +119,7 @@
       "surfaces": "CylindricalSurface:1 PlaneSurface:2"
     },
     "sphereMinusCyl": {
-      "verified": "2026-08-28 GH: CALCULATED. 9181.66000941 against 17157.2846788051 - 7975.6460 = 9181.6387, 2.3e-6. euler 1: the body is pinched at the contact point, where the annular cross section at z = 7 closes to a point.",
+      "verified": "2026-08-28 GH: CALCULATED. 9181.66000941 against 17157.2846788051 - 7975.6460 = 9181.6387, 2.3e-6. euler 1: the body is pinched at the contact point, where the annular cross section at z = 7 closes to a point. Re-recorded 2026-10-07: only edgeLength moved (142.741700319 -> 142.795685249), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "2",
       "edges": "2",
@@ -131,7 +131,7 @@
       "openEdges": "0",
       "volume": "9181.64067218",
       "area": "3580.5896178",
-      "edgeLength": "142.741700319",
+      "edgeLength": "142.795685249",
       "extent": "-17.9534089267, -21.6731114536, -8.48164818386, 14.0465910733, 10.3268885464, 22.4918900089",
       "surfaces": "CylindricalSurface:1 SphericalSurface:1"
     }
