@@ -1,0 +1,846 @@
+{
+  "Description": "feature.chamfer on edges between cylinders and planes at oblique angles, the same bodies as FilletComplexShapes. Bodies: tiltedCylinders - a vertical cylinder (r 25, z 0..70) united with a tilted cylinder (r 20, axis from (20,10,5) to (20,-12,75)), like RoundEdges5: two concave intersection curves between the mantles, each ending at a cap (dead ends at faces oblique to the edge). tee - a vertical pipe (r 15) crossed by a horizontal one (r 10): two closed concave saddle curves. obliqueTee - the same with the cross pipe tilted (z 22..38). uprightBoss / tiltedBoss - a cylinder (r 12) standing on a plate 80x60x10, upright or tilted (axis (35,30,5)-(45,30,40)): the concave foot curve (circle resp. ellipse) and the convex rim at the top cap. uprightHoled / tiltedHoled - a block 60x60x20 drilled through by a cylinder (r 8), upright or tilted (axis (25,30,-10)-(35,30,30)): two convex rims. The upright variants have closed forms and anchor the tilted ones. Chamfers: tiltedCylindersMid / Big (distance 3 / 5), teeSaddles and obliqueTeeSaddles (2), uprightBossFoot / tiltedBossFoot (2), uprightBossRim / tiltedBossRim (2), uprightHoleRims / tiltedHoleRims (2).",
+  "Expected": "A chamfer with the distance d is a triangle of area d^2/2 whose centroid is d/3 away from both faces; by Pappus along a circle of radius R it adds or removes 2 pi (R +- d/3) d^2/2. uprightBoss = 61571.680264. uprightBossFoot: concave, centroid outside the pin: + 2 pi (12 + 2/3) 2 = 61730.854291, one cone. uprightBossRim: convex, centroid inside: - 2 pi (12 - 2/3) 2 = 61429.261397, one cone. uprightHoleRims: 72000 - 1280 pi - 2 * 2 pi (8 + 2/3) 2 = 67760.944313, two cones. The tilted and crossing variants have no closed form; expected: closed and consistent, the original faces plus one chamfer face per chamfered edge. tiltedHoleRims should remove roughly as much as uprightHoleRims (217.8, a little more because the rims are longer).",
+  "CaseStatus": "KnownFail",
+  "Status": "KNOWN FAIL (2026-10-07): exact: uprightBossFoot, uprightBossRim, uprightHoleRims. Plausible: teeSaddles (11 faces, four RuledSurfaces) and tiltedBossRim (a cone). Wrong: (1) extra planes and SurfaceOfLinearExtrusion faces, the extruded end faces of createDeadEndExtension, which ChamferEdges still uses (RoundEdges extends its cutters since 377c84d5): tiltedCylindersMid (9 planes instead of 4, 4 extrusions), tiltedCylindersBig (7 planes, 2 extrusions), obliqueTeeSaddles (35 planes, 5 extrusions), tiltedBossFoot (9 planes instead of 7). (2) tiltedHoleRims removes only 107.4 (72000 - 1280 pi / cos 14.04 deg - 67747.576) instead of about 218, and has 10 planes instead of 6: probably one rim is chamfered only partly.",
+  "History": "2026-10-07: written after the dead end and tangential intersection fixes for RoundEdges5 (377c84d5, fbdad961): fillets and chamfers on cylinders which meet each other or planes at oblique angles.",
+  "Repeat": 2,
+  "Verify": [
+    "tiltedCylindersMid",
+    "tiltedCylindersBig",
+    "teeSaddles",
+    "obliqueTeeSaddles",
+    "uprightBossFoot",
+    "uprightBossRim",
+    "tiltedBossFoot",
+    "tiltedBossRim",
+    "uprightHoleRims",
+    "tiltedHoleRims"
+  ],
+  "Baseline": {
+    "obliqueTeeSaddles": {
+      "verified": "2026-10-07: WRONG: 35 planes and 5 SurfaceOfLinearExtrusion faces besides the chamfer faces.",
+      "consistent": "true",
+      "faces": "50",
+      "edges": "108",
+      "poleVertices": "0",
+      "vertices": "65",
+      "holeLoops": "5",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "59215.0458594",
+      "area": "10405.8749938",
+      "edgeLength": "745.208178641",
+      "extent": "-41.9611613514, -15, 0, 41.9611613514, 15, 60",
+      "surfaces": "CylindricalSurface:3 PlaneSurface:35 RuledSurface:7 SurfaceOfLinearExtrusion:5"
+    },
+    "teeSaddles": {
+      "verified": "2026-10-07: plausible, no closed form: consistent, 11 faces, four RuledSurfaces along the two saddle curves.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "16",
+      "poleVertices": "0",
+      "vertices": "12",
+      "holeLoops": "5",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "58919.4610714",
+      "area": "10320.8437581",
+      "edgeLength": "610.300148475",
+      "extent": "-40, -15, 0, 40, 15, 60",
+      "surfaces": "CylindricalSurface:3 PlaneSurface:4 RuledSurface:4"
+    },
+    "tiltedBossFoot": {
+      "verified": "2026-10-07: WRONG: 9 planes instead of 7.",
+      "consistent": "true",
+      "faces": "11",
+      "edges": "22",
+      "poleVertices": "0",
+      "vertices": "15",
+      "holeLoops": "2",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "62193.5250524",
+      "area": "14705.1753026",
+      "edgeLength": "809.472819701",
+      "extent": "0, 0, 0, 80, 60, 43.2966535348",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:9 RuledSurface:1"
+    },
+    "tiltedBossRim": {
+      "verified": "2026-10-07: plausible, no closed form: one cone along the rim of the tilted cap.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "15",
+      "poleVertices": "0",
+      "vertices": "11",
+      "holeLoops": "3",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "61972.3416617",
+      "area": "14640.8177378",
+      "edgeLength": "815.143572197",
+      "extent": "0, 0, 0, 80, 60, 42.747211279",
+      "surfaces": "ConicalSurface:1 CylindricalSurface:1 PlaneSurface:7"
+    },
+    "tiltedCylindersBig": {
+      "verified": "2026-10-07: WRONG: 7 planes instead of 4 and 2 SurfaceOfLinearExtrusion faces (extruded end faces at the dead ends).",
+      "consistent": "true",
+      "faces": "12",
+      "edges": "24",
+      "poleVertices": "0",
+      "vertices": "15",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "184159.039301",
+      "area": "18784.3551944",
+      "edgeLength": "864.047068299",
+      "extent": "-25, -31.079874338, -0.996531934808, 40, 29.079874338, 80.9965319348",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:7 RuledSurface:1 SurfaceOfLinearExtrusion:2"
+    },
+    "tiltedCylindersMid": {
+      "verified": "2026-10-07: WRONG: 9 planes instead of 4 and 4 SurfaceOfLinearExtrusion faces (extruded end faces at the dead ends).",
+      "consistent": "true",
+      "faces": "17",
+      "edges": "37",
+      "poleVertices": "0",
+      "vertices": "23",
+      "holeLoops": "1",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "184018.611782",
+      "area": "18757.2177486",
+      "edgeLength": "929.209404756",
+      "extent": "-25, -31.079874338, -0.996531934808, 40, 29.079874338, 80.9965319348",
+      "surfaces": "CylindricalSurface:2 PlaneSurface:9 RuledSurface:2 SurfaceOfLinearExtrusion:4"
+    },
+    "tiltedHoleRims": {
+      "verified": "2026-10-07: WRONG: removes only 107.4 instead of about 218, 10 planes instead of 6.",
+      "consistent": "true",
+      "faces": "13",
+      "edges": "30",
+      "poleVertices": "0",
+      "vertices": "20",
+      "holeLoops": "3",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "67747.5759051",
+      "area": "12586.2518795",
+      "edgeLength": "750.898382116",
+      "extent": "0, 0, -1.42551452698E-14, 60, 60, 20",
+      "surfaces": "CylindricalSurface:1 PlaneSurface:10 RuledSurface:2"
+    },
+    "uprightBossFoot": {
+      "verified": "2026-10-07: exact against 61730.854291 (Pappus), one cone.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "15",
+      "poleVertices": "0",
+      "vertices": "11",
+      "holeLoops": "3",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "61730.8542913",
+      "area": "14578.817358",
+      "edgeLength": "838.761041673",
+      "extent": "0, 0, 0, 80, 60, 40",
+      "surfaces": "ConicalSurface:1 CylindricalSurface:1 PlaneSurface:7"
+    },
+    "uprightBossRim": {
+      "verified": "2026-10-07: exact against 61429.261397 (Pappus), one cone.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "15",
+      "poleVertices": "0",
+      "vertices": "11",
+      "holeLoops": "3",
+      "euler": "2",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "61429.2613965",
+      "area": "14568.4070357",
+      "edgeLength": "813.628300444",
+      "extent": "0, 0, 0, 80, 60, 40",
+      "surfaces": "ConicalSurface:1 CylindricalSurface:1 PlaneSurface:7"
+    },
+    "uprightHoleRims": {
+      "verified": "2026-10-07: exact against 67760.944313 (Pappus), two cones.",
+      "consistent": "true",
+      "faces": "9",
+      "edges": "16",
+      "poleVertices": "0",
+      "vertices": "12",
+      "holeLoops": "5",
+      "euler": "0",
+      "closed": "true",
+      "openEdges": "0",
+      "volume": "67760.9443128",
+      "area": "12495.8167601",
+      "edgeLength": "786.194671058",
+      "extent": "0, 0, 0, 60, 60, 20",
+      "surfaces": "ConicalSurface:2 CylindricalSurface:1 PlaneSurface:6"
+    }
+  },
+  "RPCCalls": [
+    {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "tuV",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          70
+        ],
+        "radius": 25
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "tuT",
+        "start": [
+          20,
+          10,
+          5
+        ],
+        "end": [
+          20,
+          -12,
+          75
+        ],
+        "radius": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tuV",
+        "b": "tuT",
+        "name": "tiltedCylinders",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "workspace.select",
+      "params": {
+        "name": "tuEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "tiltedCylinders",
+            "filter": {
+              "isConvex": false,
+              "notOnFace": {
+                "query": {
+                  "target": "faces",
+                  "from": "tiltedCylinders",
+                  "filter": {
+                    "surfaceType": "planar"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "tiltedCylinders",
+        "edges": "tuEdges",
+        "distance": 3,
+        "name": "tiltedCylindersMid",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "tiltedCylinders",
+        "edges": "tuEdges",
+        "distance": 5,
+        "name": "tiltedCylindersBig",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "teeV",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          60
+        ],
+        "radius": 15
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "teeH",
+        "start": [
+          -40,
+          0,
+          30
+        ],
+        "end": [
+          40,
+          0,
+          30
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "teeV",
+        "b": "teeH",
+        "name": "tee",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "workspace.select",
+      "params": {
+        "name": "teeEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "tee",
+            "filter": {
+              "isConvex": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "tee",
+        "edges": "teeEdges",
+        "distance": 2,
+        "name": "teeSaddles",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "oteeV",
+        "start": [
+          0,
+          0,
+          0
+        ],
+        "end": [
+          0,
+          0,
+          60
+        ],
+        "radius": 15
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "oteeH",
+        "start": [
+          -40,
+          0,
+          22
+        ],
+        "end": [
+          40,
+          0,
+          38
+        ],
+        "radius": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "oteeV",
+        "b": "oteeH",
+        "name": "obliqueTee",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "workspace.select",
+      "params": {
+        "name": "oteeEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "obliqueTee",
+            "filter": {
+              "isConvex": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "obliqueTee",
+        "edges": "oteeEdges",
+        "distance": 2,
+        "name": "obliqueTeeSaddles",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "solid.box",
+      "params": {
+        "name": "uprightPlate",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 80,
+        "sizeY": 60,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "uprightPin",
+        "start": [
+          40,
+          30,
+          5
+        ],
+        "end": [
+          40,
+          30,
+          40
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "uprightPlate",
+        "b": "uprightPin",
+        "name": "uprightBoss",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "workspace.select",
+      "params": {
+        "name": "uprightFootEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "uprightBoss",
+            "filter": {
+              "isConvex": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "uprightBoss",
+        "edges": "uprightFootEdges",
+        "distance": 2,
+        "name": "uprightBossFoot",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "workspace.select",
+      "params": {
+        "name": "uprightRimEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "uprightBoss",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 81,
+                "ymin": -1,
+                "ymax": 61,
+                "zmin": 30,
+                "zmax": 50
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "uprightBoss",
+        "edges": "uprightRimEdges",
+        "distance": 2,
+        "name": "uprightBossRim",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "solid.box",
+      "params": {
+        "name": "tiltedPlate",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 80,
+        "sizeY": 60,
+        "sizeZ": 10
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "tiltedPin",
+        "start": [
+          35,
+          30,
+          5
+        ],
+        "end": [
+          45,
+          30,
+          40
+        ],
+        "radius": 12
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "solid.boolean",
+      "params": {
+        "op": "union",
+        "a": "tiltedPlate",
+        "b": "tiltedPin",
+        "name": "tiltedBoss",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "workspace.select",
+      "params": {
+        "name": "tiltedFootEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "tiltedBoss",
+            "filter": {
+              "isConvex": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "tiltedBoss",
+        "edges": "tiltedFootEdges",
+        "distance": 2,
+        "name": "tiltedBossFoot",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "workspace.select",
+      "params": {
+        "name": "tiltedRimEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "tiltedBoss",
+            "filter": {
+              "inside": {
+                "xmin": -1,
+                "xmax": 81,
+                "ymin": -1,
+                "ymax": 61,
+                "zmin": 30,
+                "zmax": 50
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "tiltedBoss",
+        "edges": "tiltedRimEdges",
+        "distance": 2,
+        "name": "tiltedBossRim",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "solid.box",
+      "params": {
+        "name": "uprightBlock",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 60,
+        "sizeY": 60,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "uprightDrill",
+        "start": [
+          30,
+          30,
+          -10
+        ],
+        "end": [
+          30,
+          30,
+          30
+        ],
+        "radius": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "uprightBlock",
+        "b": "uprightDrill",
+        "name": "uprightHoled",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "workspace.select",
+      "params": {
+        "name": "uprightHoleEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "uprightHoled",
+            "filter": {
+              "isConvex": true,
+              "onFace": {
+                "query": {
+                  "target": "faces",
+                  "from": "uprightHoled",
+                  "filter": {
+                    "surfaceType": "cylindrical"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "uprightHoled",
+        "edges": "uprightHoleEdges",
+        "distance": 2,
+        "name": "uprightHoleRims",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "method": "solid.box",
+      "params": {
+        "name": "tiltedBlock",
+        "origin": [
+          0,
+          0,
+          0
+        ],
+        "sizeX": 60,
+        "sizeY": 60,
+        "sizeZ": 20
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 37,
+      "method": "solid.cylinder",
+      "params": {
+        "name": "tiltedDrill",
+        "start": [
+          25,
+          30,
+          -10
+        ],
+        "end": [
+          35,
+          30,
+          30
+        ],
+        "radius": 8
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 38,
+      "method": "solid.boolean",
+      "params": {
+        "op": "difference",
+        "a": "tiltedBlock",
+        "b": "tiltedDrill",
+        "name": "tiltedHoled",
+        "rebind": false
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 39,
+      "method": "workspace.select",
+      "params": {
+        "name": "tiltedHoleEdges",
+        "selector": {
+          "query": {
+            "target": "edges",
+            "from": "tiltedHoled",
+            "filter": {
+              "isConvex": true,
+              "onFace": {
+                "query": {
+                  "target": "faces",
+                  "from": "tiltedHoled",
+                  "filter": {
+                    "surfaceType": "cylindrical"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "jsonrpc": "2.0",
+      "id": 40,
+      "method": "feature.chamfer",
+      "params": {
+        "solid": "tiltedHoled",
+        "edges": "tiltedHoleEdges",
+        "distance": 2,
+        "name": "tiltedHoleRims",
+        "rebind": false
+      }
+    }
+  ]
+}
