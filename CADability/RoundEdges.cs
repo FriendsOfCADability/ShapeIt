@@ -52,6 +52,13 @@ namespace CADability.GeoObject
             // of two offset surfaces of the adjacent faces. The fillet starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the fillet faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
             edgeToCutter = createFillets();
+#if DEBUG
+            DebuggerContainer dcRaw = new DebuggerContainer();
+            foreach (var item in edgeToCutter)
+            {
+                dcRaw.Add(item.Value, Color.FromArgb(0xFF, 0xFF, 0x00, 0x00), 0);
+            }
+#endif
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToConvexEdges = createVertexToEdges(convexEdges);
             Dictionary<Vertex, List<Edge>> vertexToConcaveEdges = createVertexToEdges(concaveEdges);
