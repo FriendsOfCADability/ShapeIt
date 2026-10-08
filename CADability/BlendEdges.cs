@@ -645,8 +645,8 @@ namespace CADability.GeoObject
             GeoVector n1 = (endFace1.Surface as PlaneSurface)!.Normal.Normalized; // endfaces are always PlaneSurfaces
             GeoVector n2 = (endFace2.Surface as PlaneSurface)!.Normal.Normalized;
 
-            SweepAngle sw = new SweepAngle(edge1.Curve2D(commonFace).EndDirection, edge2.Curve2D(commonFace).StartDirection);
-            if (Math.Abs(sw) < 1e-5)
+            double sw = TurnAngle(edge1, edge2, commonFace, vtx);
+            if (Math.Abs(sw) < 1e-3)
             {   // tangential connection, we need the two fillets without any connection patch in between
                 return [fillet1, fillet2];
             }
@@ -681,6 +681,26 @@ namespace CADability.GeoObject
         {
             if (edgeToCutter != null && edgeToCutter.TryGetValue(edge, out Shell? cutter)) return cutter;
             return null;
+        }
+
+        /// <summary>
+        /// The angle by which the outline of <paramref name="commonFace"/> turns at <paramref name="vtx"/>, where
+        /// <paramref name="edge1"/> ends and <paramref name="edge2"/> starts: positive for a convex corner of the face,
+        /// negative for a reflex one, 0 when the edges continue each other tangentially. It is calculated from the 3d
+        /// directions around the normal of the face: the directions of the 2d curves are only as precise as their
+        /// approximation (a ProjectedCurve), and a tangential connection then looks like a corner of 0.1 degree.
+        /// </summary>
+        private static double TurnAngle(Edge edge1, Edge edge2, Face commonFace, Vertex vtx)
+        {
+            GeoVector dir1 = edge1.Forward(commonFace) ? edge1.Curve3D.EndDirection : -edge1.Curve3D.StartDirection;
+            GeoVector dir2 = edge2.Forward(commonFace) ? edge2.Curve3D.StartDirection : -edge2.Curve3D.EndDirection;
+            GeoVector normal = commonFace.Surface.GetNormal(vtx.GetPositionOnFace(commonFace));
+            if (dir1.IsNullVector() || dir2.IsNullVector() || normal.IsNullVector())
+            {   // degenerate, fall back to the 2d curves
+                return new SweepAngle(edge1.Curve2D(commonFace).EndDirection, edge2.Curve2D(commonFace).StartDirection).Radian;
+            }
+            dir1.Norm(); dir2.Norm(); normal.Norm();
+            return Math.Atan2((dir1 ^ dir2) * normal, dir1 * dir2);
         }
 
         protected virtual Shell? CreateConcavePatch(Shell chamfer1, Shell chamfer2, Face commonFace, Vertex vtx, Edge edge1, Edge edge2)

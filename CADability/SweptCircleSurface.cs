@@ -1093,6 +1093,15 @@ namespace CADability.GeoObject
         }
         public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface otherSurface, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {   // test, whether it is a tangential intersection, e.g. when rounding edges
+            if (!(otherSurface is SweptCircleSurface))
+            {   // the general case: the spine lies on an offset of the other surface, the curve of contact goes from seed to seed
+                IDualSurfaceCurve contact = TangentialPipeIntersection(otherSurface, otherBounds, this, thisBounds, seeds);
+                if (contact != null)
+                {
+                    contact.SwapSurfaces();
+                    return [contact];
+                }
+            }
             double ds = otherSurface.GetDistance(spine.StartPoint);
             if (Abs(Abs(ds) - radius) < Precision.eps)
             {

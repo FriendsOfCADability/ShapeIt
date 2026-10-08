@@ -710,6 +710,51 @@ namespace CADability.Tests
             }
         }
 
+        /// <summary>A pipe of radius r along a BSpline through points of the circular arc (centre, radius, angles).</summary>
+        private static SweptCircleSurface PipeAlongArc(GeoPoint centre, double radius, double from, double to, double r)
+        {
+            int n = 20;
+            GeoPoint[] pnts = new GeoPoint[n + 1];
+            for (int i = 0; i <= n; i++)
+            {
+                double t = from + (to - from) * i / n;
+                pnts[i] = centre + radius * new GeoVector(System.Math.Cos(t), System.Math.Sin(t), 0.0);
+            }
+            BSpline bsp = BSpline.Construct();
+            Assert.IsTrue(bsp.ThroughPoints(pnts, 3, false));
+            return new SweptCircleSurface(bsp, r);
+        }
+
+        /// <summary>
+        /// Two pieces of a fillet which abut along a common circle, as a fillet split at a vertex produces them:
+        /// pipes of radius 3 along two arcs (radius 20 and 30) which meet at (20,0,0) with a common tangent. The
+        /// pipes touch along the whole circle there and nowhere cross. The spines are interpolating BSplines, so
+        /// the tangency is only as exact as in a real model.
+        /// <para>
+        /// This used to come out as several nodes, spread arbitrarily along the circle: the difference of the
+        /// second fundamental forms is singular there, d11 = 0 along the circle, and the small mixed term d12 that
+        /// is measured anyway made its determinant -d12^2, i.e. negative.
+        /// </para>
+        /// </summary>
+        [TestMethod]
+        public void abutting_pipes_touch_along_their_common_circle()
+        {
+            SweptCircleSurface pipe1 = PipeAlongArc(GeoPoint.Origin, 20.0, -0.9, 0.0, 3.0);
+            SweptCircleSurface pipe2 = PipeAlongArc(new GeoPoint(-10, 0, 0), 30.0, 0.0, 0.6, 3.0);
+            BoundingRect domain = new BoundingRect(0.0, 0.0, 1.0, 2.0 * System.Math.PI);
+            SurfaceContact[] contacts = Surfaces.TangentialContacts(pipe1, domain, pipe2, domain, precision);
+            Dump("two pipes abutting along a circle", contacts);
+
+            Assert.IsTrue(contacts.Length > 0, "the common circle is a contact curve, samples of it must be found");
+            foreach (SurfaceContact c in contacts)
+            {
+                // the common circle: centre (20,0,0), radius 3, in the plane y = 0
+                Assert.AreEqual(3.0, c.Location | new GeoPoint(20, 0, 0), 1e-4, "a contact lies on the common circle");
+                Assert.AreEqual(0.0, c.Location.y, 1e-4, "a contact lies on the common circle");
+                Assert.AreEqual(ContactType.Degenerate, c.Type, "the pipes touch along the circle, there is no node");
+            }
+        }
+
         /// <summary>
         /// A plane that does not reach the NURBS cylinder has no contact - and, just as important, costs the
         /// coarse scan and nothing else: the bounding boxes do not even overlap.

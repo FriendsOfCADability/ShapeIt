@@ -2,8 +2,8 @@
   "Description": "feature.chamfer on edges between cylinders and planes at oblique angles, the same bodies as FilletComplexShapes. Bodies: tiltedCylinders - a vertical cylinder (r 25, z 0..70) united with a tilted cylinder (r 20, axis from (20,10,5) to (20,-12,75)), like RoundEdges5: two concave intersection curves between the mantles, each ending at a cap (dead ends at faces oblique to the edge). tee - a vertical pipe (r 15) crossed by a horizontal one (r 10): two closed concave saddle curves. obliqueTee - the same with the cross pipe tilted (z 22..38). uprightBoss / tiltedBoss - a cylinder (r 12) standing on a plate 80x60x10, upright or tilted (axis (35,30,5)-(45,30,40)): the concave foot curve (circle resp. ellipse) and the convex rim at the top cap. uprightHoled / tiltedHoled - a block 60x60x20 drilled through by a cylinder (r 8), upright or tilted (axis (25,30,-10)-(35,30,30)): two convex rims. The upright variants have closed forms and anchor the tilted ones. Chamfers: tiltedCylindersMid / Big (distance 3 / 5), teeSaddles and obliqueTeeSaddles (2), uprightBossFoot / tiltedBossFoot (2), uprightBossRim / tiltedBossRim (2), uprightHoleRims / tiltedHoleRims (2).",
   "Expected": "A chamfer with the distance d is a triangle of area d^2/2 whose centroid is d/3 away from both faces; by Pappus along a circle of radius R it adds or removes 2 pi (R +- d/3) d^2/2. uprightBoss = 61571.680264. uprightBossFoot: concave, centroid outside the pin: + 2 pi (12 + 2/3) 2 = 61730.854291, one cone. uprightBossRim: convex, centroid inside: - 2 pi (12 - 2/3) 2 = 61429.261397, one cone. uprightHoleRims: 72000 - 1280 pi - 2 * 2 pi (8 + 2/3) 2 = 67760.944313, two cones. The tilted and crossing variants have no closed form; expected: closed and consistent, the original faces plus one chamfer face per chamfered edge. tiltedHoleRims should remove roughly as much as uprightHoleRims (217.8, a little more because the rims are longer).",
   "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-10-07): exact: uprightBossFoot, uprightBossRim, uprightHoleRims. Plausible: teeSaddles (11 faces, four RuledSurfaces) and tiltedBossRim (a cone). Wrong: (1) extra planes and SurfaceOfLinearExtrusion faces, the extruded end faces of createDeadEndExtension, which ChamferEdges still uses (RoundEdges extends its cutters since 377c84d5): tiltedCylindersMid (9 planes instead of 4, 4 extrusions), tiltedCylindersBig (7 planes, 2 extrusions), obliqueTeeSaddles (35 planes, 5 extrusions), tiltedBossFoot (9 planes instead of 7). (2) tiltedHoleRims removes only 107.4 (72000 - 1280 pi / cos 14.04 deg - 67747.576) instead of about 218, and has 10 planes instead of 6: probably one rim is chamfered only partly.",
-  "History": "2026-10-07: written after the dead end and tangential intersection fixes for RoundEdges5 (377c84d5, fbdad961): fillets and chamfers on cylinders which meet each other or planes at oblique angles.",
+  "Status": "KNOWN FAIL (2026-10-07): exact: uprightBossFoot, uprightBossRim, uprightHoleRims. Plausible: teeSaddles (11 faces, four RuledSurfaces) and tiltedBossRim (a cone). Wrong: (1) extra planes and SurfaceOfLinearExtrusion faces, the extruded end faces of createDeadEndExtension, which ChamferEdges still uses (RoundEdges extends its cutters since 377c84d5): tiltedCylindersMid (9 planes instead of 4, 4 extrusions), tiltedCylindersBig (7 planes, 2 extrusions), obliqueTeeSaddles (before 2026-10-07 35 planes and 5 extrusions, now 6 planes and only 7 of the 8 chamfer faces: probably a failed union as in FilletComplexShapes), tiltedBossFoot (9 planes instead of 7). (2) tiltedHoleRims removes only 107.4 (72000 - 1280 pi / cos 14.04 deg - 67747.576) instead of about 218, and has 10 planes instead of 6: probably one rim is chamfered only partly.",
+  "History": "2026-10-07: written after the dead end and tangential intersection fixes for RoundEdges5 (377c84d5, fbdad961): fillets and chamfers on cylinders which meet each other or planes at oblique angles. 2026-10-07: BlendEdges.createExtensionTwoEdges decides tangential connections from the 3d directions (TurnAngle), obliqueTeeSaddles has no extruded end faces any more.",
   "Repeat": 2,
   "Verify": [
     "tiltedCylindersMid",
@@ -19,21 +19,21 @@
   ],
   "Baseline": {
     "obliqueTeeSaddles": {
-      "verified": "2026-10-07: WRONG: 35 planes and 5 SurfaceOfLinearExtrusion faces besides the chamfer faces.",
+      "verified": "2026-10-07: WRONG: 7 of 8 chamfer faces, 6 planes instead of 4.",
       "consistent": "true",
-      "faces": "50",
-      "edges": "108",
+      "faces": "16",
+      "edges": "31",
       "poleVertices": "0",
-      "vertices": "65",
+      "vertices": "22",
       "holeLoops": "5",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "59215.0458594",
-      "area": "10405.8749938",
-      "edgeLength": "745.208178641",
+      "volume": "59208.7785996",
+      "area": "10388.3479223",
+      "edgeLength": "615.479681885",
       "extent": "-41.9611613514, -15, 0, 41.9611613514, 15, 60",
-      "surfaces": "CylindricalSurface:3 PlaneSurface:35 RuledSurface:7 SurfaceOfLinearExtrusion:5"
+      "surfaces": "CylindricalSurface:3 PlaneSurface:6 RuledSurface:7"
     },
     "teeSaddles": {
       "verified": "2026-10-07: plausible, no closed form: consistent, 11 faces, four RuledSurfaces along the two saddle curves.",

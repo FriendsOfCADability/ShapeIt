@@ -1890,6 +1890,7 @@ namespace CADability.GeoObject
                 }
                 if (res.Count > 0) return res.ToArray();
             }
+            // a pipe touching this cylinder (rounding edges) is handled by ISurfaceImpl.TangentialPipeIntersection in the base implementation
             return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
         }
 

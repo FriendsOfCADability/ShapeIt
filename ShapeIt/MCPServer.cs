@@ -4677,7 +4677,7 @@ namespace ShapeIt
             // no new name is given. Check it before doing the work so a mismatch fails fast.
             string solidName = RequireSolidNameFor(solid, shell);
 #if DEBUG
-            // if (name != "obliqueTeeSaddles") return; // debugging a specific case
+            if (name != "obliqueTeeSaddles") return; // debugging a specific case
 #endif
             RoundEdges re = new RoundEdges(shell, edgesToRound, radius);
             string? selectionProblem = re.CheckSelection();

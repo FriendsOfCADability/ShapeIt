@@ -598,28 +598,36 @@ namespace CADability
                 {
                     if (edge.Curve3D != null) // not a pole
                     {
+                        bool handled = false;
                         if (edgeLiesInFace != null && edgeLiesInFace.TryGetValue(edge, out (Face fc, bool fw) f) && f.fc == fca)
                         {   // this is a tangential intersection provided by the user of this BoolenOperation
                             // the orientation of the curve is also provided (which is difficult to calculate
                             // because it is tangential)
                             // We don't have to clip the curve of this edge with the face, because the intersection vertices
                             // are calculated by other edge/face intersections
-                            if (knownIntersectionCurves == null)
-                            {
-                                knownIntersectionCurves = [];
-                                knownIntersectionCurveDirections = [];
-                            }
-                            knownIntersectionCurves.Add(edge.Curve3D.Clone());
-                            knownIntersectionCurveDirections.Add((fca == fc1) ? f.fw : !f.fw);
+                            int inside = 0;
                             if (fca.Contains(edge.Vertex1.Position, true))
                             {
                                 intersectionVertices.Add(edge.Vertex1);
                                 usedVerticedByKnownIntersections.Add(edge.Vertex1);
+                                ++inside;
                             }
                             if (fca.Contains(edge.Vertex2.Position, true))
                             {
                                 intersectionVertices.Add(edge.Vertex2);
                                 usedVerticedByKnownIntersections.Add(edge.Vertex2);
+                                ++inside;
+                            }
+                            if (inside == 2)
+                            {   // the edge is completely inside the face, if not, we need to calculate it the traditional way to get the intersection with the edge of the other face
+                                if (knownIntersectionCurves == null)
+                                {
+                                    knownIntersectionCurves = [];
+                                    knownIntersectionCurveDirections = [];
+                                }
+                                knownIntersectionCurves.Add(edge.Curve3D.Clone());
+                                knownIntersectionCurveDirections.Add((fca == fc1) ? f.fw : !f.fw);
+                                handled = true;
                             }
                         }
                         else if (edgeEndsInFace != null && edgeEndsInFace.TryGetValue(edge, out var faces) && faces.Contains(fca))
@@ -628,20 +636,38 @@ namespace CADability
                             if (fca.Surface.GetDistance(edge.Vertex1.Position) < Precision.eps && fca.Contains(edge.Vertex1.Position, true))
                             {
                                 intersectionVertices.Add(edge.Vertex1);
+                                handled = true;
                             }
                             else if (fca.Surface.GetDistance(edge.Vertex2.Position) < Precision.eps && fca.Contains(edge.Vertex2.Position, true))
                             {
                                 intersectionVertices.Add(edge.Vertex2);
+                                handled = true;
                             }
                         }
-                        else
+                        if (!handled)
                         {
                             List<Vertex> vtxs = GetFaceEdgeIntersection(fca, edge, out bool curveIsInSurface).ToList();
-                            if (curveIsInSurface) foreach (Vertex vtx in surfaceContactVertices)
+                            if (curveIsInSurface)
                             {
-                                if (!vtxs.Contains(vtx) && edge.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps)
+                                foreach (Vertex vtx in surfaceContactVertices)
                                 {
-                                    vtxs.Add(vtx);
+                                    if (!vtxs.Contains(vtx) && edge.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps) vtxs.Add(vtx);
+                                }
+                                // when a curve is in the surface of a face, it might also be clipped by this face. We need those intersections as well
+                                foreach (Edge edga in fca.Edges)
+                                {
+                                    if (edga.Curve3D.SameGeometry(edge.Curve3D, precision)) continue;
+                                    Curves.Intersect(edga.Curve3D, edge.Curve3D, out double[] par1, out double[] par2, out GeoPoint[] ips);
+                                    for (int i = 0; i < ips.Length; i++)
+                                    {
+                                        Vertex vv = CreateOrFindVertex(ips[i]);
+                                        if (!vtxs.Contains(vv) && edge.Curve3D.DistanceTo(vv.Position) < 10 * Precision.eps) vtxs.Add(vv);
+                                        if (par1[i] > Precision.eps && par1[i] < 1 - Precision.eps )
+                                        {
+                                            if (!edgesToSplit.TryGetValue(edga, out List<Vertex> lv)) edgesToSplit[edga] = lv = [];
+                                            lv.Add(vv);
+                                        }
+                                    }
                                 }
                             }
                             vtxs.Sort((v1, v2) => edge.Curve3D.PositionOf(v1.Position).CompareTo(edge.Curve3D.PositionOf(v2.Position)));
@@ -4486,7 +4512,7 @@ namespace CADability
                                                                                    // reversing the orientation moved to the end, ater the shells and the holes are combined
 #if DEBUG
                     System.Diagnostics.Debug.Assert(shell.CheckConsistency());
-                    HashSet<Edge> allEdges1=shell.Edges.ToHashSet();
+                    HashSet<Edge> allEdges1 = shell.Edges.ToHashSet();
                     foreach (Vertex vtx in shell.Vertices)
                     {
                         if (vtx.Edges.Except(allEdges1).Any()) { }

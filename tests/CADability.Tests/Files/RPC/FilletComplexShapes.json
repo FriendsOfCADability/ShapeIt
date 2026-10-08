@@ -2,8 +2,8 @@
   "Description": "feature.fillet on edges between cylinders and planes at oblique angles. Bodies: tiltedCylinders - a vertical cylinder (r 25, z 0..70) united with a tilted cylinder (r 20, axis from (20,10,5) to (20,-12,75)), like RoundEdges5: two concave intersection curves between the mantles, each ending at a cap (dead ends at faces oblique to the edge). tee - a vertical pipe (r 15) crossed by a horizontal one (r 10): two closed concave saddle curves. obliqueTee - the same with the cross pipe tilted (z 22..38). uprightBoss / tiltedBoss - a cylinder (r 12) standing on a plate 80x60x10, upright or tilted (axis (35,30,5)-(45,30,40)): the concave foot curve (circle resp. ellipse) and the convex rim at the top cap. uprightHoled / tiltedHoled - a block 60x60x20 drilled through by a cylinder (r 8), upright or tilted (axis (25,30,-10)-(35,30,30)): two convex rims. The upright variants have closed forms and anchor the tilted ones. Fillets: tiltedCylindersMid / Big (r 4 / 8, the two concave mantle curves), teeSaddles and obliqueTeeSaddles (r 3, the saddle curves), uprightBossFoot / tiltedBossFoot (r 3, the foot), uprightBossRim / tiltedBossRim (r 2, the top rim), uprightHoleRims / tiltedHoleRims (r 2, both rims).",
   "Expected": "A(r) = r^2 (1 - pi/4), M(r) = r^3 (5/6 - pi/4) (see FilletSingleEdges); by Pappus a fillet along a circle of radius R adds or removes 2 pi (R A +- M). uprightBoss = 48000 + 4320 pi = 61571.680264. uprightBossFoot: concave, the centroid lies outside the pin: 61571.680264 + 2 pi (12 A(3) + M(3)) = 61725.437649, one torus. uprightBossRim: convex, centroid inside: 61571.680264 - 2 pi (12 A(2) - M(2)) = 61509.367359, one torus. uprightHoleRims: convex, centroid outside the hole: 72000 - 1280 pi - 2 * 2 pi (8 A(2) + M(2)) = 67887.645916, two tori. The tilted and crossing variants have no closed form; expected: closed and consistent, the original faces plus one SweptCircleSurface or torus per rounded edge, no planes or extrusions beyond those of the body.",
   "CaseStatus": "KnownFail",
-  "Status": "KNOWN FAIL (2026-10-07): exact: uprightBossFoot, uprightBossRim, uprightHoleRims. Plausible: tiltedCylindersMid and Big (8 faces, only the two SweptCircleSurfaces added, the caps unchanged), teeSaddles (11 faces, four SweptCircleSurfaces) and tiltedBossRim (a torus). Wrong: (1) tiltedBossFoot (call id 28) and tiltedHoleRims (40) fail with 'Error in the application'. (2) obliqueTeeSaddles has 8 planes and 8 SurfaceOfLinearExtrusion faces besides the 4 SweptCircleSurfaces: extruded end faces (createDeadEndExtension) where the closed saddle curves are split into several edges. Slow: teeSaddles about 29 s, obliqueTeeSaddles 15 s, tiltedHoleRims 62 s before failing (Repeat is 1 for that reason).",
-  "History": "2026-10-07: written after the dead end and tangential intersection fixes for RoundEdges5 (377c84d5, fbdad961): fillets and chamfers on cylinders which meet each other or planes at oblique angles.",
+  "Status": "KNOWN FAIL (2026-10-07): exact: uprightBossFoot, uprightBossRim, uprightHoleRims. Plausible: tiltedCylindersMid and Big (8 faces, only the two SweptCircleSurfaces added, the caps unchanged), teeSaddles (11 faces, four SweptCircleSurfaces) and tiltedBossRim (a torus). Wrong: (1) tiltedBossFoot (call id 28) and tiltedHoleRims (40) fail with 'Error in the application'. (2) obliqueTeeSaddles: each saddle curve is split into 4 edges (vertices at y=0 and y=+-10), the 8 fillets meet tangentially. Half of the unions with the cutters fail silently: only 4 SweptCircleSurfaces, and the end faces of their neighbours stay visible as 4 extra planes. (The 8 SurfaceOfLinearExtrusion faces of the first baseline are gone since 2026-10-07: the tangential connections were taken for corners, see History.) Slow: teeSaddles about 29 s, obliqueTeeSaddles 15 s, tiltedHoleRims 62 s before failing (Repeat is 1 for that reason).",
+  "History": "2026-10-07: written after the dead end and tangential intersection fixes for RoundEdges5 (377c84d5, fbdad961): fillets and chamfers on cylinders which meet each other or planes at oblique angles. 2026-10-07: BlendEdges.createExtensionTwoEdges decides tangential connections from the 3d directions (TurnAngle): the 2d directions of the ProjectedCurves on the common face made a tangential connection look like a corner of 0.1 degree, and both end faces were extruded (obliqueTeeSaddles).",
   "Repeat": 1,
   "Verify": [
     "tiltedCylindersMid",
@@ -29,21 +29,21 @@
   ],
   "Baseline": {
     "obliqueTeeSaddles": {
-      "verified": "2026-10-07: WRONG: 8 planes and 8 SurfaceOfLinearExtrusion faces which do not belong to a fillet (extruded end faces).",
+      "verified": "2026-10-07: WRONG: only 4 of 8 fillets (4 unions fail), the 4 end faces of their neighbours remain as planes.",
       "consistent": "true",
-      "faces": "27",
-      "edges": "56",
+      "faces": "15",
+      "edges": "28",
       "poleVertices": "0",
-      "vertices": "36",
+      "vertices": "20",
       "holeLoops": "5",
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "59043.5441768",
-      "area": "10489.0382936",
-      "edgeLength": "657.013065962",
+      "volume": "59038.9852767",
+      "area": "10429.9746897",
+      "edgeLength": "546.871006953",
       "extent": "-41.9611613514, -15, 0, 41.9611613514, 15, 60",
-      "surfaces": "CylindricalSurface:7 PlaneSurface:8 SurfaceOfLinearExtrusion:8 SweptCircleSurface:4"
+      "surfaces": "CylindricalSurface:3 PlaneSurface:8 SweptCircleSurface:4"
     },
     "teeSaddles": {
       "verified": "2026-10-07: plausible, no closed form: consistent, 11 faces, four SweptCircleSurfaces along the two saddle curves.",

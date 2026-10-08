@@ -9207,6 +9207,8 @@ namespace CADability.GeoObject
             // above: when the edge meets the surface tangentially there, the curve may stay a hair outside the
             // surface, so there is no intersection at all within Precision.eps.
             AddCurveEndsOnSurface(edg.Curve3D, prec, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
+            // a tangential intersection may be found more than once, at slightly different positions
+            MergeTangentialDuplicates(edg.Curve3D, prec, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
             List<GeoPoint> lip = new List<GeoPoint>();
             List<GeoPoint2D> luvOnFace = new List<GeoPoint2D>();
             List<double> luOnCurve3D = new List<double>();
@@ -9306,6 +9308,70 @@ namespace CADability.GeoObject
                 uvOnFaces = luvs.ToArray();
                 uOnCurve3Ds = lus.ToArray();
             }
+        }
+
+        /// <summary>
+        /// Removes intersection points which are in truth one single tangential intersection: two points closer than
+        /// 10 * <paramref name="prec"/> to each other, where the curve is tangential to the surface at both of them
+        /// (the normalized curve direction is perpendicular to the surface normal within 1e-4). A tangential
+        /// intersection is ill-conditioned, the intersection methods may find it more than once at slightly
+        /// different positions, which would give almost duplicate vertices. Of such a group the point is kept which
+        /// is an end point of the curve (it is exact), otherwise the one where the point on the surface and the
+        /// point on the curve are closest to each other.
+        /// </summary>
+        private void MergeTangentialDuplicates(ICurve curve, double prec, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
+        {
+            if (ips.Length < 2) return;
+            bool[] tangential = new bool[ips.Length];
+            for (int i = 0; i < ips.Length; ++i)
+            {
+                GeoVector normal = surface.GetNormal(uvOnFaces[i]);
+                GeoVector dir = curve.DirectionAt(uOnCurve3Ds[i]);
+                if (normal.IsNullVector() || dir.IsNullVector()) continue;
+                tangential[i] = Math.Abs(normal.Normalized * dir.Normalized) < 1e-4;
+            }
+            bool[] remove = new bool[ips.Length];
+            for (int i = 0; i < ips.Length; ++i)
+            {
+                if (remove[i] || !tangential[i]) continue;
+                for (int j = i + 1; j < ips.Length; ++j)
+                {
+                    if (remove[j] || !tangential[j]) continue;
+                    if ((ips[i] | ips[j]) >= 10 * prec) continue;
+                    // i and j are the same tangential intersection: keep the better one at position i
+                    if (IntersectionQuality(curve, uvOnFaces[j], uOnCurve3Ds[j]) < IntersectionQuality(curve, uvOnFaces[i], uOnCurve3Ds[i]))
+                    {
+                        ips[i] = ips[j];
+                        uvOnFaces[i] = uvOnFaces[j];
+                        uOnCurve3Ds[i] = uOnCurve3Ds[j];
+                    }
+                    remove[j] = true;
+                }
+            }
+            if (!remove.Any(r => r)) return;
+            List<GeoPoint> lips = new List<GeoPoint>();
+            List<GeoPoint2D> luvs = new List<GeoPoint2D>();
+            List<double> lus = new List<double>();
+            for (int i = 0; i < ips.Length; ++i)
+            {
+                if (remove[i]) continue;
+                lips.Add(ips[i]);
+                luvs.Add(uvOnFaces[i]);
+                lus.Add(uOnCurve3Ds[i]);
+            }
+            ips = lips.ToArray();
+            uvOnFaces = luvs.ToArray();
+            uOnCurve3Ds = lus.ToArray();
+        }
+
+        /// <summary>
+        /// The quality of an intersection point for <see cref="MergeTangentialDuplicates"/>, smaller is better: an end
+        /// point of the curve is exact (-1), otherwise the distance between the point on the surface and the point on the curve.
+        /// </summary>
+        private double IntersectionQuality(ICurve curve, GeoPoint2D uvOnFace, double uOnCurve)
+        {
+            if (uOnCurve == 0.0 || uOnCurve == 1.0) return -1.0;
+            return surface.PointAt(uvOnFace) | curve.PointAt(uOnCurve);
         }
 
         internal void Intersect(Edge edg, out GeoPoint[] ip, out GeoPoint2D[] uvOnFace, out double[] uOnCurve3D)

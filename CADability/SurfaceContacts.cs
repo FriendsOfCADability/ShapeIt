@@ -1252,11 +1252,30 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
+        /// How far the difference of the second fundamental forms may be from singular, relative to the
+        /// curvatures of the two surfaces, and still count as singular. Below this the second order cannot
+        /// decide the type, see <see cref="Classify"/>.
+        /// </summary>
+        private const double relativeCurvatureTolerance = 1e-3;
+
+        /// <summary>
         /// Decides what the intersection curve does at a contact point, from D = II1 - II2, the difference
         /// of the second fundamental forms taken in a common orthonormal basis of the tangent plane and
         /// with the SAME normal orientation. D indefinite means the two branches of the intersection curve
         /// cross here, and the null directions of D are their tangents; D definite means the surfaces touch
         /// without crossing; D singular means the contact is of higher order.
+        /// <para>
+        /// Singular is judged against the curvatures of the surfaces, not against D itself. Along a curve of
+        /// contact D vanishes in the direction of the curve, and so does its mixed term; measured, both are only
+        /// nearly zero, and a mixed term d12 next to d11 = 0 makes the determinant -d12^2 - always negative, so
+        /// every sample of a contact curve used to come out as a node. Two pieces of a fillet which abut along a
+        /// common circle with a normal deviation of 1e-4 have curvatures of 1/r and a D of some 1e-4/r.
+        /// </para>
+        /// <para>
+        /// A contact of higher order can still be a node - two equal cones turned against each other about the
+        /// common normal have identical second fundamental forms at the contact point and nevertheless cross
+        /// there. That is decided by <see cref="ProbeNode"/>, which looks at the surfaces around the point.
+        /// </para>
         /// </summary>
         private static void Classify(ISurface surface1, GeoPoint2D uv1, ISurface surface2, GeoPoint2D uv2,
             GeoVector normal, SurfaceContact contact)
@@ -1269,8 +1288,17 @@ namespace CADability.GeoObject
             if (!SecondFundamentalForm(surface2, uv2, normal, e1, e2, out double l2, out double m2, out double n2)) return;
 
             double d11 = l1 - l2, d12 = m1 - m2, d22 = n1 - n2;
+            double curvature = 0.0;
+            foreach (double c in new[] { l1, m1, n1, l2, m2, n2 }) curvature = Math.Max(curvature, Math.Abs(c));
+            double mean = (d11 + d22) / 2.0, half = (d11 - d22) / 2.0;
+            double spread = Math.Sqrt(half * half + d12 * d12);
+            double smallerEigenvalue = Math.Min(Math.Abs(mean + spread), Math.Abs(mean - spread));
             double scale = Math.Max(Math.Abs(d11), Math.Max(Math.Abs(d12), Math.Abs(d22)));
-            if (scale < 1e-12) return; // the surfaces osculate: contact of higher order
+            if (scale < 1e-12 || smallerEigenvalue <= relativeCurvatureTolerance * curvature)
+            {   // contact of higher order: a curve of contact, or a node the second order cannot see
+                if (curvature > 1e-12) ProbeNode(surface1, surface2, contact.Location, normal, e1, e2, 0.05 / curvature, contact);
+                return;
+            }
             double det = d11 * d22 - d12 * d12;
             double tol = 1e-6 * scale * scale;
             if (det > tol) { contact.Type = ContactType.Isolated; return; }
@@ -1297,6 +1325,128 @@ namespace CADability.GeoObject
                 branches.Add((e1 + ((-d12 - disc) / d22) * e2).Normalized);
             }
             contact.BranchDirections = branches.ToArray();
+        }
+
+        /// <summary>
+        /// Samples of the gap on the circle around the contact point, see <see cref="ProbeNode"/>.
+        /// </summary>
+        private const int probeSamples = 48;
+
+        /// <summary>
+        /// Number of circles, each a tenth of the previous one, on which <see cref="ProbeNode"/> has to find a node.
+        /// </summary>
+        private const int probeRadii = 3;
+
+        /// <summary>
+        /// Decides whether a contact of higher order is a node, by looking at the surfaces themselves instead
+        /// of at their derivatives: on a circle of radius <paramref name="probeRadius"/> around the contact
+        /// point in the common tangent plane, the gap between the two surfaces is sampled. Each branch of the
+        /// intersection curve leaving the point crosses that circle and the gap changes its sign there, so a
+        /// node shows four sign changes. A curve of contact shows at most two - where the curve itself leaves
+        /// the circle, and only when the surfaces cross along it - and an isolated touching point none.
+        /// <para>
+        /// Only a node is reported, as <see cref="ContactType.Crossing"/> with the directions of the sign
+        /// changes as its branches. Everything else stays <see cref="ContactType.Degenerate"/>: the gap on a
+        /// contact curve is zero up to round-off, so the absence of sign changes is no proof of an isolated
+        /// contact.
+        /// </para>
+        /// </summary>
+        private static void ProbeNode(ISurface surface1, ISurface surface2, GeoPoint location, GeoVector normal,
+            GeoVector e1, GeoVector e2, double probeRadius, SurfaceContact contact)
+        {
+            // A point on a curve of contact close to a node sees the node's other branch inside a large circle as
+            // well, so the node is only accepted when the circles keep showing it while they shrink: then it is at
+            // this point and not just nearby. The branches are taken from the smallest circle for the same reason.
+            List<double> changes = null;
+            for (int k = 0; k < probeRadii; k++)
+            {
+                changes = ZeroDirections(surface1, surface2, location, normal, e1, e2, probeRadius);
+                if (changes == null) return;
+                probeRadius /= 10.0;
+            }
+
+            // the branches are lines through the point: opposite zero directions belong to the same branch
+            GeoVector[] branches = new GeoVector[2];
+            for (int b = 0; b < 2; b++)
+            {
+                double a = changes[b], o = changes[b + 2] - Math.PI;
+                double phi = Math.Atan2(Math.Sin(a) + Math.Sin(o), Math.Cos(a) + Math.Cos(o));
+                branches[b] = (Math.Cos(phi) * e1 + Math.Sin(phi) * e2).Normalized;
+            }
+            contact.Type = ContactType.Crossing;
+            contact.BranchDirections = branches;
+        }
+
+        /// <summary>
+        /// The directions - as angles to <paramref name="e1"/>, sorted - in which the gap between the two surfaces
+        /// vanishes on a circle of the given radius around the contact point, see <see cref="ProbeNode"/>. Null
+        /// unless there are exactly four of them.
+        /// </summary>
+        private static List<double> ZeroDirections(ISurface surface1, ISurface surface2, GeoPoint location,
+            GeoVector normal, GeoVector e1, GeoVector e2, double probeRadius)
+        {
+            // below this a gap is round-off, not a side
+            double zero = 1e-8 * probeRadius;
+            double[] gap = new double[probeSamples];
+            for (int i = 0; i < probeSamples; i++)
+            {
+                double phi = i * 2.0 * Math.PI / probeSamples;
+                GeoPoint q = location + probeRadius * (Math.Cos(phi) * e1 + Math.Sin(phi) * e2);
+                GeoPoint p1 = surface1.PointAt(surface1.PositionOf(q));
+                if ((p1 | q) > probeRadius) return null; // not the sheet of the contact point
+                GeoPoint2D uv2 = surface2.PositionOf(p1);
+                GeoPoint p2 = surface2.PointAt(uv2);
+                if ((p2 | q) > probeRadius) return null;
+                GeoVector n2 = surface2.GetNormal(uv2);
+                if (n2.IsNullVector()) return null;
+                n2.Norm();
+                if (n2 * normal < 0.0) n2 = -n2;
+                gap[i] = (p1 - p2) * n2;
+            }
+
+            // The directions in which the gap vanishes. A branch along which the surfaces cross is a sign change;
+            // a branch along which they only touch - a common line of two cones, where the gap is of the form
+            // x*y^2 - is a zero without a sign change, i.e. a local minimum of |gap| close to zero, or a run of
+            // samples which are zero up to round-off.
+            double angleStep = 2.0 * Math.PI / probeSamples;
+            double largest = 0.0;
+            foreach (double g in gap) largest = Math.Max(largest, Math.Abs(g));
+            if (largest <= zero) return null; // zero all around: coincident surfaces
+            double touching = 0.02 * largest;
+            int first = -1;
+            for (int i = 0; i < probeSamples; i++) if (Math.Abs(gap[i]) > zero) { first = i; break; }
+            List<double> changes = new List<double>();
+            int last = first;
+            for (int k = 1; k <= probeSamples; k++)
+            {
+                int i = (first + k) % probeSamples;
+                if (Math.Abs(gap[i]) <= zero) continue;
+                int distance = (i - last + probeSamples) % probeSamples;
+                if (distance == 0) distance = probeSamples;
+                if (Math.Sign(gap[i]) != Math.Sign(gap[last]))
+                {   // a sign change, interpolated linearly - or the middle of the zero run in between
+                    double t = distance > 1 ? 0.5 : gap[last] / (gap[last] - gap[i]);
+                    changes.Add((last + t * distance) * angleStep);
+                }
+                else if (distance > 1) changes.Add((last + 0.5 * distance) * angleStep); // touching, sampled exactly
+                else
+                {   // touching between samples: a local minimum of |gap|, refined by a parabola
+                    int before = (last - 1 + probeSamples) % probeSamples, after = i;
+                    double a = Math.Abs(gap[before]), b = Math.Abs(gap[last]), c = Math.Abs(gap[after]);
+                    if (Math.Abs(gap[before]) > zero && Math.Sign(gap[before]) == Math.Sign(gap[last])
+                        && b < a && b <= c && b < touching)
+                    {
+                        double curvatureOfFit = a - 2.0 * b + c;
+                        double shift = curvatureOfFit > 0.0 ? 0.5 * (a - c) / curvatureOfFit : 0.0;
+                        changes.Add((last + shift) * angleStep);
+                    }
+                }
+                last = i;
+            }
+            if (changes.Count != 4) return null;
+            for (int k = 0; k < changes.Count; k++) changes[k] = ((changes[k] % (2.0 * Math.PI)) + 2.0 * Math.PI) % (2.0 * Math.PI);
+            changes.Sort();
+            return changes;
         }
 
         /// <summary>

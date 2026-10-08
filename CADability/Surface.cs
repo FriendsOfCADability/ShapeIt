@@ -6023,8 +6023,111 @@ namespace CADability.GeoObject
             }
             return res.ToArray();
         }
+        /// <summary>
+        /// The intersection of <paramref name="surface"/> with a pipe (a <see cref="SweptCircleSurface"/>), whose spine lies on
+        /// an offset of <paramref name="surface"/> at the distance of the radius of the pipe. This is the usual case when
+        /// rounding edges: the pipe touches the surface along the curve of the foot points of its spine. The connection from
+        /// a spine point to its foot point is the normal of the surface, so it is perpendicular to the spine (whose tangent
+        /// lies in the tangent plane of the offset, which is parallel to the tangent plane of the surface), lies in the plane
+        /// of the circle of the pipe and has the length of the radius: the foot point is on the pipe and both surfaces are
+        /// tangential there. The general intersection methods have a hard time with such a tangential intersection.
+        /// <para>The side of the offset follows from the <paramref name="seeds"/>, which must lie on the curve of contact
+        /// (on <paramref name="surface"/> and at the distance of the radius from the spine); then the offset surface must
+        /// contain the spine: when the spine is an <see cref="InterpolatedDualSurfaceCurve"/> on a surface of the same type,
+        /// this is tested with <see cref="ISurface.SameGeometry"/>, otherwise with some points of the spine.</para>
+        /// The resulting curve goes from the seed with the smallest to the seed with the largest position on the spine.
+        /// </summary>
+        /// <returns>the curve of contact with <paramref name="surface"/> as the first and <paramref name="pipe"/> as the second
+        /// surface, or null, if this is not such a case</returns>
+        internal static IDualSurfaceCurve TangentialPipeIntersection(ISurface surface, BoundingRect surfaceBounds, SweptCircleSurface pipe, BoundingRect pipeBounds, List<GeoPoint> seeds)
+        {
+            if (seeds == null || seeds.Count < 2) return null;
+            ICurve spine = pipe.Spine;
+            if (spine == null || spine.IsClosed) return null;
+            double radius = pipe.Radius;
+            double tolerance = 1e-3 * radius; // the spine itself is only approximated
+            // the seeds: on the surface, at the distance of the radius from the spine, all on the same side
+            int side = 0;
+            double tMin = double.MaxValue, tMax = double.MinValue;
+            GeoPoint startSeed = GeoPoint.Invalid, endSeed = GeoPoint.Invalid;
+            foreach (GeoPoint seed in seeds)
+            {
+                if (Math.Abs(surface.GetDistance(seed)) > tolerance) return null;
+                double t = spine.PositionOf(seed);
+                GeoVector toSpine = spine.PointAt(t) - seed;
+                if (Math.Abs(toSpine.Length - radius) > tolerance) return null; // not on the curve of contact
+                GeoVector normal = surface.GetNormal(surface.PositionOf(seed));
+                if (normal.IsNullVector()) return null;
+                int s = Math.Sign(toSpine * normal);
+                if (s == 0 || (side != 0 && s != side)) return null;
+                side = s;
+                if (t < tMin) { tMin = t; startSeed = seed; }
+                if (t > tMax) { tMax = t; endSeed = seed; }
+            }
+            if (tMax - tMin < 1e-6) return null;
+            // the spine must lie on the offset of the surface
+            ISurface offset = surface.GetOffsetSurface(side * radius);
+            if (offset == null) return null;
+            bool onOffset = false;
+            if (spine is InterpolatedDualSurfaceCurve idsc)
+            {
+                for (int i = 0; i < 2 && !onOffset; i++)
+                {
+                    ISurface spineSurface = i == 0 ? idsc.Surface1 : idsc.Surface2;
+                    if (spineSurface.GetType() != surface.GetType()) continue;
+                    onOffset = offset.SameGeometry(surfaceBounds, spineSurface, idsc.GetBoundingRect(i == 0), Precision.eps, out ModOp2D _);
+                }
+            }
+            if (!onOffset)
+            {
+                onOffset = true;
+                for (int i = 0; i <= 4 && onOffset; i++)
+                {
+                    onOffset = Math.Abs(offset.GetDistance(spine.PointAt(tMin + i * (tMax - tMin) / 4))) < tolerance;
+                }
+            }
+            if (!onOffset) return null;
+            // points on the curve of contact: the seeds at both ends, the foot points of the spine in between
+            List<double> positions = [.. spine.GetSavePositions().Where(t => t > tMin && t < tMax)];
+            positions.Insert(0, tMin);
+            positions.Add(tMax);
+            GapInserter.FillLargestGaps(positions, 9);
+            GeoPoint[] points = new GeoPoint[positions.Count];
+            for (int i = 1; i < points.Length - 1; i++)
+            {
+                GeoPoint p = spine.PointAt(positions[i]);
+                GeoPoint foot = surface.PointAt(surface.PositionOf(p)); // the foot point for most surfaces
+                if (Math.Abs((foot | p) - radius) > tolerance)
+                {   // PositionOf didn't find the foot point, use the perpendicular foot at the distance of the radius
+                    GeoPoint2D[] feet = surface.PerpendicularFoot(p);
+                    if (feet.Length == 0) return null;
+                    foot = feet.Select(uv => surface.PointAt(uv)).MinBy(f => Math.Abs((f | p) - radius));
+                    if (Math.Abs((foot | p) - radius) > tolerance) return null;
+                }
+                points[i] = foot;
+            }
+            points[0] = startSeed;
+            points[points.Length - 1] = endSeed;
+            return new InterpolatedDualSurfaceCurve(surface, surfaceBounds, pipe, pipeBounds, points, null, null, true);
+        }
+
         public virtual IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {
+            // a pipe touching a surface along the curve of the foot points of its spine (rounding edges)
+            if (other is SweptCircleSurface otherPipe)
+            {
+                IDualSurfaceCurve contact = TangentialPipeIntersection(this, thisBounds, otherPipe, otherBounds, seeds);
+                if (contact != null) return new IDualSurfaceCurve[] { contact };
+            }
+            else if (this is SweptCircleSurface thisPipe)
+            {
+                IDualSurfaceCurve contact = TangentialPipeIntersection(other, otherBounds, thisPipe, thisBounds, seeds);
+                if (contact != null)
+                {
+                    contact.SwapSurfaces();
+                    return new IDualSurfaceCurve[] { contact };
+                }
+            }
             if ((extremePositions == null || extremePositions.Count == 0) && seeds.Count >= 2)
             {
                 // we are testing here with a new and hopefully more robust and faster approach

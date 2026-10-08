@@ -1727,7 +1727,7 @@ namespace CADability.GeoObject
                             // z in der Abbildung wird hier ignoriert
                             if (IsLinear)
                             {
-                                // mach das Sinn: die Linie auf (0,0)->(1,0) abbilden
+                                // macht das Sinn: die Linie auf (0,0)->(1,0) abbilden
                                 toUnit = ModOp.Fit(new GeoPoint[] { t1, t4 }, new GeoPoint[] { GeoPoint.Origin, new GeoPoint(1.0, 0.0, 0.0) }, true);
                             }
                             else
@@ -1735,15 +1735,9 @@ namespace CADability.GeoObject
                                 GeoVector v1 = t2 - t1;
                                 GeoVector v2 = t4 - t1;
                                 GeoVector v3 = v1 ^ v2;
-                                Matrix m = (Matrix)DenseMatrix.OfRowArrays(new double[][] { v1, v2, v3 }).Inverse();
-                                if (m != null)
-                                {
-                                    toUnit.SetData(m, t1);
-                                }
-                                else
-                                {
-                                    toUnit = ModOp.Fit(new GeoPoint[] { t1, t4 }, new GeoPoint[] { GeoPoint.Origin, new GeoPoint(1.0, 0.0, 0.0) }, true);
-                                }
+                                Matrix m = (Matrix)DenseMatrix.OfColumnArrays(new double[][] { v1, v2, v3 }).Inverse();
+                                GeoPoint trans = m * t1;
+                                toUnit.SetData(m, new GeoPoint(-trans.x, -trans.y, -trans.z));
                             }
                         }
                         else
@@ -1751,7 +1745,7 @@ namespace CADability.GeoObject
                             GeoVector v1 = t2 - t1;
                             GeoVector v2 = t3 - t1;
                             GeoVector v3 = t4 - t1;
-                            Matrix m = (Matrix)DenseMatrix.OfRowArrays(new double[][] { v1, v2, v3 }).Inverse();
+                            Matrix m = (Matrix)DenseMatrix.OfColumnArrays(new double[][] { v1, v2, v3 }).Inverse();
                             GeoPoint trans = m * t1;
                             toUnit.SetData(m, new GeoPoint(-trans.x, -trans.y, -trans.z));
                         }
