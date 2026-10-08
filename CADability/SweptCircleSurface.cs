@@ -742,23 +742,34 @@ namespace CADability.GeoObject
             double u = closed ? NormalizedSpineParameter(t1) : t1;
             // only a real contact: the foot point is at the distance of the radius from the spine
             if (Abs((c1 | evaluation.PointAt(u)) - absRadius) > 1e-5 * absRadius + Precision.eps) return false;
+            contact = c1;
+            uvOther = uv1;
+            uvThis = CirclePosition(c1, t1);
+            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uvThis);
+            return true;
+        }
+
+        /// <summary>
+        /// The uv position of <paramref name="p"/>, a point of this surface, whose spine parameter is close to
+        /// <paramref name="u"/>. Not adjusted to the domain.
+        /// </summary>
+        internal GeoPoint2D CirclePosition(GeoPoint p, double u)
+        {
             // The circles of this surface are perpendicular to the tangent of the spine, which is not exactly the tangent of
-            // the precise spine (see PreciseSpine). So the circle which contains the contact point belongs to a slightly
-            // different parameter: the one where the contact point lies in the plane of the circle.
-            double uCircle = t1;
+            // the precise spine (see PreciseSpine). So the circle which contains the point belongs to a slightly
+            // different parameter: the one where the point lies in the plane of the circle.
+            bool closed = spine.IsClosed;
+            ICurve evaluation = PreciseSpine;
+            double uCircle = u;
             for (int i = 0; i < 10; i++)
             {
                 double uc = closed ? NormalizedSpineParameter(uCircle) : uCircle;
                 GeoVector dir = spine.DirectionAt(uc);
-                double step = ((c1 - evaluation.PointAt(uc)) * dir) / (dir * dir);
+                double step = ((p - evaluation.PointAt(uc)) * dir) / (dir * dir);
                 uCircle += step;
                 if (Abs(step) < 1e-15) break;
             }
-            contact = c1;
-            uvOther = uv1;
-            uvThis = CircleParameter(closed ? NormalizedSpineParameter(uCircle) : uCircle, c1);
-            if (!domain.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, domain, ref uvThis);
-            return true;
+            return CircleParameter(closed ? NormalizedSpineParameter(uCircle) : uCircle, p);
         }
 
         public override GeoVector UDirection(GeoPoint2D uv)

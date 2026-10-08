@@ -714,49 +714,27 @@ namespace CADability.GeoObject
                 sweptBounds.MinMax(uv);
             }
 
-            ICurve? topCurve = null;
+            ICurve? topCurve = null, bottomCurve = null;
             if (sweptCircle is SweptCircleSurface sc)
-            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircleSurface surfaces
-                List<double> spos = [.. sc.Spine.GetSavePositions()];
-                GapInserter.FillLargestGaps(spos, 9);
-                GeoPoint[] pnts = new GeoPoint[spos.Count];
-                for (int i = 0; i < pnts.Length; i++) pnts[i] = topSurface.PerpendicularFoot(sc.Spine.PointAt(spos[i])).Select(p => topSurface.PointAt(p)).MinBy(p => p | sc.Spine.PointAt(spos[i]));
-                // lt and rt must be close to the beginning and end of pnts, so lets substitute them there for better precision
-                // and easier trimming
-                if ((lt | pnts[0]) + (rt | pnts[pnts.Length - 1]) < (lt | pnts[pnts.Length - 1]) + (rt | pnts[0])) { pnts[0] = lt; pnts[pnts.Length - 1] = rt; }
-                else { pnts[0] = rt; pnts[pnts.Length - 1] = lt; }
-                topCurve = new InterpolatedDualSurfaceCurve(topSurface, topFaceDomain, sweptCircle, sweptBounds, pnts, null, null, true);
+            {   // The intersections with the two surfaces are tangential and not very stable, but they are known: the contact
+                // point of a spine point is the point of the surface, whose offset is the spine point (see PipeContact).
+                SpineRange(sc.Spine, filletAxisLeft, filletAxisRight, out double tLeft, out double tRight);
+                topCurve = PipeContactCurve.Create(topSurface, sc, lt, tLeft, rt, tRight);
+                bottomCurve = PipeContactCurve.Create(bottomSurface, sc, rb, tRight, lb, tLeft);
             }
             else
             {
                 IDualSurfaceCurve[] tcCandidates = topSurface.GetDualSurfaceCurves(topFaceDomain, sweptCircle, sweptBounds, new List<GeoPoint>([lt, rt]));
                 topCurve = tcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lt) + c.DistanceTo(rt));
-            }
-            if (topCurve == null) return null;
-            // with exactely half arcs this reverses the arc whereas "Trimm" yields the other half
-            // the inner point decides which part of a closed curve (e.g. a full circle) is the tangential curve
-            TrimCurve(topCurve, lt, rt, FootPoint(topSurface, filletAxisCurve.Curve3D.PointAt(0.5)));
-
-            ICurve? bottomCurve = null;
-            if (sweptCircle is SweptCircleSurface scb)
-            {   // we know that an intersection exists, but it is tangential and not very stable for SweptCircleSurface surfaces
-                List<double> spos = [.. scb.Spine.GetSavePositions()];
-                GapInserter.FillLargestGaps(spos, 9);
-                GeoPoint[] pnts = new GeoPoint[spos.Count];
-                for (int i = 0; i < pnts.Length; i++) pnts[i] = bottomSurface.PerpendicularFoot(scb.Spine.PointAt(spos[i])).Select(p => bottomSurface.PointAt(p)).MinBy(p => p | scb.Spine.PointAt(spos[i]));
-                // lb and rb must be close to the beginning and end of pnts, so lets substitute them there for better precision
-                // and easier trimming
-                if ((lb | pnts[0]) + (rb | pnts[pnts.Length - 1]) < (lb | pnts[pnts.Length - 1]) + (rb | pnts[0])) { pnts[0] = lb; pnts[pnts.Length - 1] = rb; }
-                else { pnts[0] = rb; pnts[pnts.Length - 1] = lb; }
-                bottomCurve = new InterpolatedDualSurfaceCurve(bottomSurface, bottomFaceDomain, sweptCircle, sweptBounds, pnts, null, null, true);
-            }
-            else
-            {
+                if (topCurve == null) return null;
+                // with exactely half arcs this reverses the arc whereas "Trimm" yields the other half
+                // the inner point decides which part of a closed curve (e.g. a full circle) is the tangential curve
+                TrimCurve(topCurve, lt, rt, FootPoint(topSurface, filletAxisCurve.Curve3D.PointAt(0.5)));
                 IDualSurfaceCurve[] bcCandidates = bottomSurface.GetDualSurfaceCurves(bottomFaceDomain, sweptCircle, sweptBounds, new List<GeoPoint>([rb, lb]));
                 bottomCurve = bcCandidates.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(lb) + c.DistanceTo(rb));
+                if (bottomCurve == null) return null;
+                TrimCurve(bottomCurve, rb, lb, FootPoint(bottomSurface, filletAxisCurve.Curve3D.PointAt(0.5)));
             }
-            if (bottomCurve == null) return null;
-            TrimCurve(bottomCurve, rb, lb, FootPoint(bottomSurface, filletAxisCurve.Curve3D.PointAt(0.5)));
 
             // end of the provisional phase: drop the guessed domain so MakeFace derives the real one
             // from the edges below (see the remarks on ISurface.Domain)
@@ -885,6 +863,31 @@ namespace CADability.GeoObject
             if (res == null) return null;
             TrimCurve(res, startPoint, endPoint, middlePoint);
             return res;
+        }
+
+        /// <summary>
+        /// The parameters of <paramref name="left"/> and <paramref name="right"/> on <paramref name="spine"/>, exactly 0 or 1
+        /// at its end points. On a closed spine the fillet goes along the part which contains the middle of the spine (the
+        /// parameter 0.5), then a parameter may be greater than 1.
+        /// </summary>
+        private static void SpineRange(ICurve spine, GeoPoint left, GeoPoint right, out double tLeft, out double tRight)
+        {
+            double parameter(GeoPoint p)
+            {
+                if (!spine.IsClosed)
+                {
+                    if ((spine.StartPoint | p) < Precision.eps && (spine.StartPoint | p) <= (spine.EndPoint | p)) return 0.0;
+                    if ((spine.EndPoint | p) < Precision.eps) return 1.0;
+                }
+                return spine.PositionOf(p);
+            }
+            tLeft = parameter(left);
+            tRight = parameter(right);
+            if (spine.IsClosed && (0.5 < Math.Min(tLeft, tRight) || 0.5 > Math.Max(tLeft, tRight)))
+            {   // the wanted part crosses the seam
+                if (tLeft < tRight) tLeft += 1.0;
+                else tRight += 1.0;
+            }
         }
 
         private GeoPoint FootPoint(ISurface surface, GeoPoint p)

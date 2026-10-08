@@ -3266,6 +3266,11 @@ namespace CADability.GeoObject
                 }
                 return new Path2D(res.ToArray());
             }
+            if (curve is PipeContactCurve pipeContact)
+            {   // the exact 2d curve, when this is the touched surface or the pipe
+                ICurve2D onThis = pipeContact.CurveOnSurface(this);
+                if (onThis != null) return onThis;
+            }
             if (curve is InterpolatedDualSurfaceCurve)
             {
                 if (this == (curve as InterpolatedDualSurfaceCurve).Surface1) // oder besser geometrische Gleichheit prüfen
@@ -3344,8 +3349,8 @@ namespace CADability.GeoObject
         /// there for the division of labour: the results of this method are starting values, they are made exact
         /// afterwards. So an implementation may (and should) stop as soon as it is close to the solution, but it must
         /// not miss an intersection and it should not return more than one candidate per intersection.
-        /// <para>This implementation covers the general case: for a <see cref="BSpline"/> or an
-        /// <see cref="InterpolatedDualSurfaceCurve"/> the tetraeder hull of the curve is used, which is typically much
+        /// <para>This implementation covers the general case: for a <see cref="BSpline"/>, an
+        /// <see cref="InterpolatedDualSurfaceCurve"/> or a <see cref="PipeContactCurve"/> the tetraeder hull of the curve is used, which is typically much
         /// slimmer than the parallelepiped hull of the surface, for all other curves the parallelepiped hull.</para>
         /// </summary>
         /// <param name="curve">The curve to intersect with this surface</param>
@@ -3363,7 +3368,7 @@ namespace CADability.GeoObject
                     return;
                 }
             }
-            if (curve is InterpolatedDualSurfaceCurve || curve is BSpline)
+            if (curve is InterpolatedDualSurfaceCurve || curve is PipeContactCurve || curve is BSpline)
             {
                 //for some curves it is alot faster to use the TetraederHull for intersection.
                 // it is typically much slimmer than the ParallelepipedHull
@@ -6044,7 +6049,7 @@ namespace CADability.GeoObject
             if (seeds == null || seeds.Count < 2) return null;
             ICurve spine = pipe.Spine;
             if (spine == null || spine.IsClosed) return null;
-            double radius = pipe.Radius;
+            double radius = Math.Abs(pipe.Radius); // negative, when the orientation of the pipe is reversed
             double tolerance = 1e-3 * radius; // the spine itself is only approximated
             // the seeds: on the surface, at the distance of the radius from the spine, all on the same side
             int side = 0;
@@ -6087,28 +6092,19 @@ namespace CADability.GeoObject
                 }
             }
             if (!onOffset) return null;
-            // points on the curve of contact: the seeds at both ends, the foot points of the spine in between
-            List<double> positions = [.. spine.GetSavePositions().Where(t => t > tMin && t < tMax)];
-            positions.Insert(0, tMin);
-            positions.Add(tMax);
-            GapInserter.FillLargestGaps(positions, 9);
-            GeoPoint[] points = new GeoPoint[positions.Count];
-            for (int i = 1; i < points.Length - 1; i++)
-            {
-                GeoPoint p = spine.PointAt(positions[i]);
-                GeoPoint foot = surface.PointAt(surface.PositionOf(p)); // the foot point for most surfaces
-                if (Math.Abs((foot | p) - radius) > tolerance)
-                {   // PositionOf didn't find the foot point, use the perpendicular foot at the distance of the radius
-                    GeoPoint2D[] feet = surface.PerpendicularFoot(p);
-                    if (feet.Length == 0) return null;
-                    foot = feet.Select(uv => surface.PointAt(uv)).MinBy(f => Math.Abs((f | p) - radius));
-                    if (Math.Abs((foot | p) - radius) > tolerance) return null;
-                }
-                points[i] = foot;
+            // the curve of contact is defined by the spine: each contact point is the point of the surface, whose offset is the
+            // spine point, see PipeContact. It goes from the seed with the smallest to the seed with the largest spine parameter.
+            PipeContactCurve contact = PipeContactCurve.Create(surface, pipe, startSeed, tMin, endSeed, tMax);
+            for (int i = 0; i <= 4; i++)
+            {   // only a real contact: the points are at the distance of the radius from the spine
+                double t = tMin + i * (tMax - tMin) / 4;
+                if (Math.Abs((contact.PointAt(i / 4.0) | spine.PointAt(t)) - radius) > tolerance) return null;
             }
-            points[0] = startSeed;
-            points[points.Length - 1] = endSeed;
-            return new InterpolatedDualSurfaceCurve(surface, surfaceBounds, pipe, pipeBounds, points, null, null, true);
+            ICurve2D onSurface = contact.CurveOnSurface(surface) ?? surface.GetProjectedCurve(contact, 0.0);
+            ICurve2D onPipe = contact.CurveOnSurface(pipe) ?? pipe.GetProjectedCurve(contact, 0.0);
+            if (!surfaceBounds.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, surfaceBounds, onSurface);
+            if (!pipeBounds.IsEmpty()) SurfaceHelper.AdjustPeriodic(pipe, pipeBounds, onPipe);
+            return new DualSurfaceCurve(contact, surface, onSurface, pipe, onPipe);
         }
 
         public virtual IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)

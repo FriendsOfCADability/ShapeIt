@@ -522,6 +522,11 @@ namespace CADability.GeoObject
         }
         public override ICurve2D GetProjectedCurve(ICurve curve, double precision)
         {
+            if (curve is PipeContactCurve pipeContact)
+            {   // the exact 2d curve, when this is the touched surface
+                ICurve2D onThis = pipeContact.CurveOnSurface(this);
+                if (onThis != null) return onThis;
+            }
             if (curve is Ellipse elli)
             {
                 if (Geometry.DistPL(elli.Center, axisLocation, axisDirection) < Precision.eps && Precision.SameDirection(elli.Normal, axisDirection, false))
