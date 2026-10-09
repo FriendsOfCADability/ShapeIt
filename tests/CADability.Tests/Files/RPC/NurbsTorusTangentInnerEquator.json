@@ -31,7 +31,7 @@
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2"
     },
     "nurbsTorus": {
-      "verified": "2026-09-17 GH: volume 22739.5684875 against 22739.5685401, 2.3e-09. the operand is correct: four SweptCurveSurface faces, no lid, area 5684.89212186 against the exact 4*pi^2*R*r = 5684.8921350275.",
+      "verified": "2026-09-17 GH: volume 22739.5684875 against 22739.5685401, 2.3e-09. the operand is correct: four SweptCurveSurface faces, no lid, area 5684.89212186 against the exact 4*pi^2*R*r = 5684.8921350275. Re-recorded 2026-10-07: only edgeLength moved (327.010406919 -> 326.725635973), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "8",
@@ -43,7 +43,7 @@
       "openEdges": "0",
       "volume": "22739.5685401",
       "area": "5684.89213503",
-      "edgeLength": "327.010406919",
+      "edgeLength": "326.725635973",
       "extent": "-26, -26, -8, 26, 26, 8",
       "surfaces": "SweptCurveSurface:4"
     },
@@ -65,7 +65,7 @@
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2"
     },
     "torusMinusRod": {
-      "verified": "2026-09-20 GH: the torus given back unchanged - volume, area, edgeLength, extent and surface histogram are identical to the nurbsTorus operand to the last recorded digit, which is what a subtraction along a pure tangential contact has to do.",
+      "verified": "2026-09-20 GH: the torus given back unchanged - volume, area, edgeLength, extent and surface histogram are identical to the nurbsTorus operand to the last recorded digit, which is what a subtraction along a pure tangential contact has to do. Re-recorded 2026-10-07: only edgeLength moved (327.010406919 -> 326.725635973), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "8",
@@ -77,7 +77,7 @@
       "openEdges": "0",
       "volume": "22739.5685401",
       "area": "5684.89213503",
-      "edgeLength": "327.010406919",
+      "edgeLength": "326.725635973",
       "extent": "-26, -26, -8, 26, 26, 8",
       "surfaces": "SweptCurveSurface:4"
     },
@@ -89,7 +89,7 @@
       "solids": "2"
     },
     "torusRodUnion#0": {
-      "verified": "2026-09-20 GH: the torus part. Together with #1 the volumes sum to 35305.9390709 against the exact 22739.5685401099 + 12566.3706143592 = 35305.9391544691 and the areas to 8826.48476616 against 8826.4847886173, both 2.5e-09 - no material added, none lost.",
+      "verified": "2026-09-20 GH: the torus part. Together with #1 the volumes sum to 35305.9390709 against the exact 22739.5685401099 + 12566.3706143592 = 35305.9391544691 and the areas to 8826.48476616 against 8826.4847886173, both 2.5e-09 - no material added, none lost. Re-recorded 2026-10-07: only edgeLength moved (327.010406919 -> 326.725635973), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "8",
@@ -101,7 +101,7 @@
       "openEdges": "0",
       "volume": "22739.5685401",
       "area": "5684.89213503",
-      "edgeLength": "327.010406919",
+      "edgeLength": "326.725635973",
       "extent": "-26, -26, -8, 26, 26, 8",
       "surfaces": "SweptCurveSurface:4"
     },
