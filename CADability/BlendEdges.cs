@@ -144,7 +144,7 @@ namespace CADability.GeoObject
             if (endFace == null) return [cutter]; // should not happen
             Edge freeEdge = endFace.AllEdges
                 .Where(e => !Precision.IsEqual(e.Vertex1.Position, vtx.Position) && !Precision.IsEqual(e.Vertex2.Position, vtx.Position))
-                .MinBy(e => -new Angle(e.Curve3D.StartPoint-vtx.Position, e.Curve3D.EndPoint-vtx.Position).Radian);
+                .MinBy(e => -new Angle(e.Curve3D.StartPoint - vtx.Position, e.Curve3D.EndPoint - vtx.Position).Radian);
             // the chamfer or rounding edge, the one with the widest opening angle to the vertex (and not coinciding with the vertex)
             if (freeEdge == null) return [cutter]; // should not happen
 
@@ -166,6 +166,7 @@ namespace CADability.GeoObject
             // extension of the cutter, maybe we need part of it
             foreach (Face fc in endingFaces)
             {
+                if (fc.Surface is ConicalSurface cs && (Precision.IsEqual(cs.PointAt(GeoPoint2D.Origin), vtx.Position))) continue; // no meaningfull way to extend
                 ISurface surface = fc.Surface.Clone(); // with this surface we try to trim the cutter or the extension
                 GeoPoint2D ip1 = surface.PositionOf(vtx.Position); // vtx is on surface
                 if (surface.GetNormal(ip1) * beamDirection < 0) surface.ReverseOrientation(); // below is good, above is bad
@@ -173,7 +174,11 @@ namespace CADability.GeoObject
                 GeoPoint2D ip3 = surface.GetLineIntersection(freeEdge.Curve3D.EndPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
                 if (ip2.IsValid && ip3.IsValid)
                 {
-                    surface.SetDomainTo(vtx.Position, surface.PointAt(ip2), surface.PointAt(ip3));
+                    BoundingRect domain = fc.Surface.Domain;
+                    domain.MinMax(ip1);
+                    domain.MinMax(ip2);
+                    domain.MinMax(ip3);
+                    surface.Domain = domain;
                     Face splitWith = MakeBigFace(surface);
                     (Shell[] upperPart, Shell[] lowerPart) = BooleanOperation.SplitByFace(cutter, splitWith);
                     if (upperPart.Length > 0 && lowerPart.Length > 0)

@@ -317,12 +317,12 @@ namespace CADability.Actions
             else
             {
                 ICurve clone = trimInfo.curve.Clone();
-                if (trimInfo.startParam == 0.0)
+                if (trimInfo.startParam < 1e-10)
                 {
                     clone.Trim(trimInfo.endParam, 1.0);
                     remaining.Add(clone);
                 }
-                else if (trimInfo.endParam == 1.0)
+                else if (trimInfo.endParam > 1.0 - 1e-10)
                 {
                     clone.Trim(0.0, trimInfo.startParam);
                     remaining.Add(clone);
