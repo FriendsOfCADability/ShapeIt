@@ -330,6 +330,11 @@ namespace CADability.GeoObject
         {
             // Hier muss beachtet werden, dass dieses PlaneSurface Objekt ein anderes uv System haben kann als
             // Plane, also begeben wir uns in das Unit System
+            if (curve is PipeContactCurve pipeContact)
+            {   // the exact 2d curve, when this is the touched surface
+                ICurve2D onThis = pipeContact.CurveOnSurface(this);
+                if (onThis != null) return onThis;
+            }
             if (curve is InterpolatedDualSurfaceCurve)
             {
                 return base.GetProjectedCurve(curve, precision);

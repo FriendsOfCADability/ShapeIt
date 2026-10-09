@@ -3266,6 +3266,11 @@ namespace CADability.GeoObject
                 }
                 return new Path2D(res.ToArray());
             }
+            if (curve is PipeContactCurve pipeContact)
+            {   // the exact 2d curve, when this is the touched surface or the pipe
+                ICurve2D onThis = pipeContact.CurveOnSurface(this);
+                if (onThis != null) return onThis;
+            }
             if (curve is InterpolatedDualSurfaceCurve)
             {
                 if (this == (curve as InterpolatedDualSurfaceCurve).Surface1) // oder besser geometrische Gleichheit prüfen
@@ -3332,7 +3337,10 @@ namespace CADability.GeoObject
         public virtual void Intersect(ICurve curve, BoundingRect uvExtent, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
         {
             GetCurveIntersectionCandidates(curve, uvExtent, out ips, out uvOnFaces, out uOnCurve3Ds);
+            SnapCandidatesToCurveEnds(curve, uvExtent, ref ips, ref uvOnFaces, ref uOnCurve3Ds); // a good starting point for the refinement
             RefineCurveIntersections(curve, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
+            // at a tangential contact the refinement may move the point away from the end again (the distance is flat there)
+            SnapCandidatesToCurveEnds(curve, uvExtent, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
         }
 
         /// <summary>
@@ -3341,8 +3349,8 @@ namespace CADability.GeoObject
         /// there for the division of labour: the results of this method are starting values, they are made exact
         /// afterwards. So an implementation may (and should) stop as soon as it is close to the solution, but it must
         /// not miss an intersection and it should not return more than one candidate per intersection.
-        /// <para>This implementation covers the general case: for a <see cref="BSpline"/> or an
-        /// <see cref="InterpolatedDualSurfaceCurve"/> the tetraeder hull of the curve is used, which is typically much
+        /// <para>This implementation covers the general case: for a <see cref="BSpline"/>, an
+        /// <see cref="InterpolatedDualSurfaceCurve"/> or a <see cref="PipeContactCurve"/> the tetraeder hull of the curve is used, which is typically much
         /// slimmer than the parallelepiped hull of the surface, for all other curves the parallelepiped hull.</para>
         /// </summary>
         /// <param name="curve">The curve to intersect with this surface</param>
@@ -3360,7 +3368,7 @@ namespace CADability.GeoObject
                     return;
                 }
             }
-            if (curve is InterpolatedDualSurfaceCurve || curve is BSpline)
+            if (curve is InterpolatedDualSurfaceCurve || curve is PipeContactCurve || curve is BSpline)
             {
                 //for some curves it is alot faster to use the TetraederHull for intersection.
                 // it is typically much slimmer than the ParallelepipedHull
@@ -3432,6 +3440,15 @@ namespace CADability.GeoObject
                         u = atEnd;
                         ip = new GeoPoint(PointAt(uv), endPoint);
                     }
+                    else if ((PointAt(uvOnFaces[i]) | endPoint) <= Precision.eps)
+                    {   // The curve touches the surface tangentially at its end: the candidate was already there, but at a
+                        // tangential contact the refinement converges to the point where the distance is stationary, and
+                        // that may lie on the extension of the curve, far from the end in terms of the precision (the
+                        // distance grows only with the square of the displacement there). Keep the candidate.
+                        u = atEnd;
+                        uv = uvOnFaces[i];
+                        ip = new GeoPoint(PointAt(uv), endPoint);
+                    }
                 }
                 // No duplicate elimination here: on a surface which overlaps itself (a helical sweep, for instance)
                 // one position on the curve legitimately belongs to two different uv positions, one per sheet. The
@@ -3479,6 +3496,49 @@ namespace CADability.GeoObject
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// When the curve ends on this surface, intersections close to that end are moved exactly onto the end point.
+        /// A tangential intersection may be found quite imprecisely (sometimes more than once), and
+        /// <see cref="RefineCurveIntersections"/> cannot do much about it (the distance is flat there, it may even move
+        /// a good starting point away); a point a little off the end point would give an almost duplicate vertex in a
+        /// boolean operation. The safety conditions: the end point itself lies on this surface, and the intersection is
+        /// within 1% of the curve parameter range and within 0.1% of the curve length of the end (a genuine second
+        /// intersection a little further away must stay where it is). Intersections which become identical are removed.
+        /// </summary>
+        private void SnapCandidatesToCurveEnds(ICurve curve, BoundingRect uvExtent, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
+        {
+            if (ips == null || uvOnFaces == null || uOnCurve3Ds == null || ips.Length == 0) return;
+            double maxDist = 1e-3 * curve.Length;
+            bool[] snapped = new bool[ips.Length];
+            bool[] remove = new bool[ips.Length];
+            foreach (double end in new[] { 0.0, 1.0 })
+            {
+                GeoPoint endPoint = end == 0.0 ? curve.StartPoint : curve.EndPoint;
+                GeoPoint2D uv = GeoPoint2D.Invalid;
+                bool first = true;
+                for (int i = 0; i < ips.Length; i++)
+                {
+                    if (snapped[i] || Math.Abs(uOnCurve3Ds[i] - end) >= 1e-2 || (ips[i] | endPoint) > maxDist) continue;
+                    if (!uv.IsValid)
+                    {
+                        uv = PositionOf(endPoint);
+                        if (!uvExtent.IsEmpty()) SurfaceHelper.AdjustPeriodic(this, uvExtent, ref uv);
+                        if ((PointAt(uv) | endPoint) > Precision.eps) break; // the curve doesn't end on this surface
+                    }
+                    ips[i] = endPoint;
+                    uvOnFaces[i] = uv;
+                    uOnCurve3Ds[i] = end;
+                    snapped[i] = true;
+                    remove[i] = !first; // the same intersection found more than once
+                    first = false;
+                }
+            }
+            if (!remove.Any(r => r)) return;
+            ips = ips.Where((p, i) => !remove[i]).ToArray();
+            uvOnFaces = uvOnFaces.Where((p, i) => !remove[i]).ToArray();
+            uOnCurve3Ds = uOnCurve3Ds.Where((p, i) => !remove[i]).ToArray();
         }
 
         /// <summary>
@@ -5744,8 +5804,8 @@ namespace CADability.GeoObject
                 GeoVector dir = (GetNormal(seeduvthis).Normalized ^ other.GetNormal(seeduvother).Normalized);
                 if (Precision.IsNullVector(dir))
                 {
-                    SurfaceContact sc = Surfaces.ContactAt(this,seeduvthis,other, seeduvother,Precision.eps);
-                    if (sc==null) continue; // tangential surfaces, cannot proceed
+                    SurfaceContact sc = Surfaces.ContactAt(this, seeduvthis, other, seeduvother, Precision.eps);
+                    if (sc == null) continue; // tangential surfaces, cannot proceed
                     if (sc.Type != ContactType.Crossing) continue; // probably tangential only in isolated single point or on a tangential curve
                 }
                 dir.Norm();
@@ -5968,8 +6028,102 @@ namespace CADability.GeoObject
             }
             return res.ToArray();
         }
+        /// <summary>
+        /// The intersection of <paramref name="surface"/> with a pipe (a <see cref="SweptCircleSurface"/>), whose spine lies on
+        /// an offset of <paramref name="surface"/> at the distance of the radius of the pipe. This is the usual case when
+        /// rounding edges: the pipe touches the surface along the curve of the foot points of its spine. The connection from
+        /// a spine point to its foot point is the normal of the surface, so it is perpendicular to the spine (whose tangent
+        /// lies in the tangent plane of the offset, which is parallel to the tangent plane of the surface), lies in the plane
+        /// of the circle of the pipe and has the length of the radius: the foot point is on the pipe and both surfaces are
+        /// tangential there. The general intersection methods have a hard time with such a tangential intersection.
+        /// <para>The side of the offset follows from the <paramref name="seeds"/>, which must lie on the curve of contact
+        /// (on <paramref name="surface"/> and at the distance of the radius from the spine); then the offset surface must
+        /// contain the spine: when the spine is an <see cref="InterpolatedDualSurfaceCurve"/> on a surface of the same type,
+        /// this is tested with <see cref="ISurface.SameGeometry"/>, otherwise with some points of the spine.</para>
+        /// The resulting curve goes from the seed with the smallest to the seed with the largest position on the spine.
+        /// </summary>
+        /// <returns>the curve of contact with <paramref name="surface"/> as the first and <paramref name="pipe"/> as the second
+        /// surface, or null, if this is not such a case</returns>
+        internal static IDualSurfaceCurve TangentialPipeIntersection(ISurface surface, BoundingRect surfaceBounds, SweptCircleSurface pipe, BoundingRect pipeBounds, List<GeoPoint> seeds)
+        {
+            if (seeds == null || seeds.Count < 2) return null;
+            ICurve spine = pipe.Spine;
+            if (spine == null || spine.IsClosed) return null;
+            double radius = Math.Abs(pipe.Radius); // negative, when the orientation of the pipe is reversed
+            double tolerance = 1e-3 * radius; // the spine itself is only approximated
+            // the seeds: on the surface, at the distance of the radius from the spine, all on the same side
+            int side = 0;
+            double tMin = double.MaxValue, tMax = double.MinValue;
+            GeoPoint startSeed = GeoPoint.Invalid, endSeed = GeoPoint.Invalid;
+            foreach (GeoPoint seed in seeds)
+            {
+                if (Math.Abs(surface.GetDistance(seed)) > tolerance) return null;
+                double t = spine.PositionOf(seed);
+                GeoVector toSpine = spine.PointAt(t) - seed;
+                if (Math.Abs(toSpine.Length - radius) > tolerance) return null; // not on the curve of contact
+                GeoVector normal = surface.GetNormal(surface.PositionOf(seed));
+                if (normal.IsNullVector()) return null;
+                int s = Math.Sign(toSpine * normal);
+                if (s == 0 || (side != 0 && s != side)) return null;
+                side = s;
+                if (t < tMin) { tMin = t; startSeed = seed; }
+                if (t > tMax) { tMax = t; endSeed = seed; }
+            }
+            if (tMax - tMin < 1e-6) return null;
+            // the spine must lie on the offset of the surface
+            ISurface offset = surface.GetOffsetSurface(side * radius);
+            if (offset == null) return null;
+            bool onOffset = false;
+            if (spine is InterpolatedDualSurfaceCurve idsc)
+            {
+                for (int i = 0; i < 2 && !onOffset; i++)
+                {
+                    ISurface spineSurface = i == 0 ? idsc.Surface1 : idsc.Surface2;
+                    if (spineSurface.GetType() != surface.GetType()) continue;
+                    onOffset = offset.SameGeometry(surfaceBounds, spineSurface, idsc.GetBoundingRect(i == 0), Precision.eps, out ModOp2D _);
+                }
+            }
+            if (!onOffset)
+            {
+                onOffset = true;
+                for (int i = 0; i <= 4 && onOffset; i++)
+                {
+                    onOffset = Math.Abs(offset.GetDistance(spine.PointAt(tMin + i * (tMax - tMin) / 4))) < tolerance;
+                }
+            }
+            if (!onOffset) return null;
+            // the curve of contact is defined by the spine: each contact point is the point of the surface, whose offset is the
+            // spine point, see PipeContact. It goes from the seed with the smallest to the seed with the largest spine parameter.
+            PipeContactCurve contact = PipeContactCurve.Create(surface, pipe, startSeed, tMin, endSeed, tMax);
+            for (int i = 0; i <= 4; i++)
+            {   // only a real contact: the points are at the distance of the radius from the spine
+                double t = tMin + i * (tMax - tMin) / 4;
+                if (Math.Abs((contact.PointAt(i / 4.0) | spine.PointAt(t)) - radius) > tolerance) return null;
+            }
+            ICurve2D onSurface = contact.CurveOnSurface(surface) ?? surface.GetProjectedCurve(contact, 0.0);
+            ICurve2D onPipe = contact.CurveOnSurface(pipe) ?? pipe.GetProjectedCurve(contact, 0.0);
+            if (!surfaceBounds.IsEmpty()) SurfaceHelper.AdjustPeriodic(surface, surfaceBounds, onSurface);
+            if (!pipeBounds.IsEmpty()) SurfaceHelper.AdjustPeriodic(pipe, pipeBounds, onPipe);
+            return new DualSurfaceCurve(contact, surface, onSurface, pipe, onPipe);
+        }
+
         public virtual IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {
+            // a pipe touching a surface along the curve of the foot points of its spine (rounding edges)
+            if (other is SweptCircleSurface otherPipe)
+            {
+                IDualSurfaceCurve contact = TangentialPipeIntersection(this, thisBounds, otherPipe, otherBounds, seeds);
+                if (contact != null) return new IDualSurfaceCurve[] { contact };
+            }
+            else if (this is SweptCircleSurface thisPipe)
+            {
+                IDualSurfaceCurve contact = TangentialPipeIntersection(other, otherBounds, thisPipe, thisBounds, seeds);
+                if (contact != null)
+                {
+                    contact.SwapSurfaces();
+                    return new IDualSurfaceCurve[] { contact };
+                }
+            }
             if ((extremePositions == null || extremePositions.Count == 0) && seeds.Count >= 2)
             {
                 // we are testing here with a new and hopefully more robust and faster approach

@@ -1014,6 +1014,55 @@ namespace CADability
             InvalidateSecondaryData();
         }
 
+        /// <summary>
+        /// The relative precision of the approximation of the curve of contact of a pipe, see <see cref="SweptContact"/>.
+        /// With the default precision of <see cref="BSpline.Approximate"/> (1e-6 of the size) the curve would be that far
+        /// off both surfaces between its exact points. A higher precision is affordable here, because the points of such
+        /// a curve are cheap to calculate.
+        /// </summary>
+        private const double contactPrecision = 1e-9;
+
+        /// <summary>
+        /// When this is the curve along which a <see cref="SweptCircleSurface"/> touches the other surface (as a fillet
+        /// touches the faces it connects), the pipe, otherwise null. The points of such a curve are calculated by
+        /// <see cref="SweptCircleSurface.TryContactPoint"/> instead of the general tangential intersection.
+        /// </summary>
+        private SweptCircleSurface SweptContact
+        {
+            get
+            {
+                if (!isTangential) return null;
+                SweptCircleSurface swept1 = surface1 as SweptCircleSurface, swept2 = surface2 as SweptCircleSurface;
+                if (swept1 != null && swept2 == null) return swept1;
+                if (swept2 != null && swept1 == null) return swept2;
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// A BSpline through the exact points of this curve, which deviates less than <paramref name="relativePrecision"/>
+        /// times the size of the curve from it. It has the same parametrization as this curve. Used where the default
+        /// precision of the approximation, which <see cref="PointAt"/> evaluates, is not good enough.
+        /// </summary>
+        internal BSpline PreciseApproximation(double relativePrecision)
+        {
+            _ = ApproxBSpline; // the exact points are calculated in the normal planes of this spline, so it must exist
+            BoundingBox ext = BasePointExtent();
+            if (ext.IsEmpty || ext.Size == 0.0) return null;
+            return BSpline.Approximate(pos =>
+            {
+                ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
+                return p;
+            }, ext.Size * relativePrecision);
+        }
+
+        private BoundingBox BasePointExtent()
+        {
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
+            foreach (SurfacePoint sp in basePoints) ext.MinMax(sp.p3d);
+            return ext;
+        }
+
         private BSpline ApproxBSpline
         {
             get
@@ -1031,7 +1080,9 @@ namespace CADability
                     ApproximatePosition(pos, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint p);
                     return p;
                 };
-                approxBSpline = BSpline.Approximate(curve);
+                double precision = 0.0; // the default precision of BSpline.Approximate
+                if (SweptContact != null) precision = BasePointExtent().Size * contactPrecision;
+                approxBSpline = BSpline.Approximate(curve, precision);
                 hashedPositions.Clear(); // don't use hashed positions, they are no more correct
                 return approxBSpline;
             }
@@ -1118,7 +1169,19 @@ namespace CADability
                         uv2s = surface2.PositionOf(normalPlane.Location);
                     }
 
-                    if (BoxedSurfaceExtension.FindTangentialIntersectionPoint(normalPlane.Location, normalPlane.Normal, surface1, surface2, out uv1, out uv2, uv1s, uv2s))
+                    bool found = false;
+                    uv1 = uv1s;
+                    uv2 = uv2s;
+                    SweptCircleSurface sweptContact = SweptContact;
+                    if (sweptContact != null)
+                    {   // the curve along which a pipe touches the other surface: the contact point follows from the spine
+                        // the u parameter of the pipe is the parameter of its spine, the neighbours give a good estimate
+                        double startU = (hasLower || hasUpper) ? (sweptContact == surface1 ? uv1s.x : uv2s.x) : double.NaN;
+                        if (sweptContact == surface1) found = sweptContact.TryContactPoint(surface2, normalPlane, startU, out uv1, out uv2, out p);
+                        else found = sweptContact.TryContactPoint(surface1, normalPlane, startU, out uv2, out uv1, out p);
+                    }
+                    if (!found) found = BoxedSurfaceExtension.FindTangentialIntersectionPoint(normalPlane.Location, normalPlane.Normal, surface1, surface2, out uv1, out uv2, uv1s, uv2s);
+                    if (found)
                     {
                         // if (BoxedSurfaceExtension.FindTangentialIntersectionPointJ(normalPlane.Location, normalPlane.Normal, surface1, surface2, out uv1, out uv2))
                         // FindTangentialIntersectionPointJ is maybe faster, but we will have to check its reliability

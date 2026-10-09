@@ -2773,6 +2773,57 @@ namespace CADability.GeoObject
             return null;
         }
 
+        /// <summary>
+        /// Moves the end points of the curves of <paramref name="path"/>, which are close to the axis (within
+        /// Precision.eps) but not exactly on it, exactly onto the axis. Near the apex of a horn torus (or the
+        /// tip of a cone) the parametric distance to the singular line grows like the square root of the
+        /// distance to the axis, so a point a few nanometers off the axis is far off the pole in the (u,v)
+        /// system and Face.MakeFace would not insert the pole edge. Lines get the new end point, circular arcs
+        /// are rebuilt through the new end points with the center moved as little as possible.
+        /// </summary>
+        /// <returns>true, if the path has been changed</returns>
+        private static bool SnapPathToAxis(ref Path path, Axis axis)
+        {
+            GeoPoint snapped(GeoPoint p, out bool changed)
+            {
+                GeoPoint onAxis = Geometry.DropPL(p, axis.Location, axis.Direction);
+                double d = p | onAxis;
+                changed = d > 0.0 && d < Precision.eps;
+                return changed ? onAxis : p;
+            }
+            ICurve[] curves = new ICurve[path.CurveCount];
+            bool anyChange = false;
+            for (int i = 0; i < path.CurveCount; i++)
+            {
+                ICurve curve = path.Curve(i);
+                curves[i] = curve;
+                GeoPoint sp = snapped(curve.StartPoint, out bool startChanged);
+                GeoPoint ep = snapped(curve.EndPoint, out bool endChanged);
+                if (!startChanged && !endChanged) continue;
+                if (curve is Line)
+                {
+                    curves[i] = Line.TwoPoints(sp, ep);
+                    anyChange = true;
+                }
+                else if (curve is Ellipse elli && elli.IsCircle && elli.IsArc)
+                {   // new center on the perpendicular bisector of the new end points, as close as possible to the old center
+                    Plane pln = elli.Plane;
+                    GeoPoint2D sp2 = pln.Project(sp), ep2 = pln.Project(ep), c2 = pln.Project(elli.Center);
+                    GeoPoint2D m = new GeoPoint2D(sp2, ep2);
+                    GeoVector2D d = (ep2 - sp2).ToLeft();
+                    if (d.Length == 0.0) continue;
+                    GeoPoint2D center = m + ((c2 - m) * d / (d * d)) * d;
+                    Ellipse arc = Ellipse.Construct();
+                    arc.SetArcPlaneCenterStartEndPoint(pln, center, sp2, ep2, pln, elli.SweepParameter > 0.0);
+                    if ((arc.PointAt(0.5) | elli.PointAt(0.5)) > 1e-3 * elli.Radius) continue; // the other part of the circle, should not happen
+                    curves[i] = arc;
+                    anyChange = true;
+                }
+            }
+            if (anyChange) path = Path.FromSegments(curves, true);
+            return anyChange;
+        }
+
         static public IGeoObject Rotate(IGeoObject faceShellPathCurve, Axis axis, SweepAngle rotation, SweepAngle offset, Project project)
         {
             // TODO: check whether the axis is valid for the given face/shell/path/curve. If not, return null.
@@ -2875,6 +2926,7 @@ namespace CADability.GeoObject
                         }
                     }
                 } while (splitted);
+                if (SnapPathToAxis(ref path, axis)) originalFace = null; // to recreate the face
                 bool fullRotation = rotation.IsCloseTo(Math.PI * 2.0);
                 if (originalFace == null)
                 {
