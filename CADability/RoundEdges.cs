@@ -825,47 +825,6 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// Extends <paramref name="curve"/>, the intersection curve of <paramref name="surface1"/> and <paramref name="surface2"/>,
-        /// by about <paramref name="extendStart"/> beyond its start point and <paramref name="extendEnd"/> beyond its end point.
-        /// The domains are enlarged to contain the extended curve. Returns null, if the intersection cannot be followed.
-        /// </summary>
-        private ICurve? ExtendIntersectionCurve(ICurve curve, ISurface surface1, ref BoundingRect domain1, ISurface surface2, ref BoundingRect domain2,
-            double extendStart, double extendEnd)
-        {
-            GeoPoint startPoint = curve.StartPoint, endPoint = curve.EndPoint, middlePoint = curve.PointAt(0.5);
-            GeoPoint? beyond(GeoPoint guess, ref BoundingRect d1, ref BoundingRect d2)
-            {   // the point on the intersection curve close to guess
-                GeoPoint2D uv1 = surface1.PositionOf(guess), uv2 = surface2.PositionOf(guess);
-                if (!SurfaceIntersectionFootPoint.TryFootPointOnIntersectionCurveLM(surface1, surface2, guess, ref uv1, ref uv2, out GeoPoint fp)) return null;
-                uv1 = surface1.PositionOf(fp);
-                uv2 = surface2.PositionOf(fp);
-                SurfaceHelper.AdjustPeriodic(surface1, d1, ref uv1);
-                SurfaceHelper.AdjustPeriodic(surface2, d2, ref uv2);
-                d1.MinMax(uv1);
-                d2.MinMax(uv2);
-                return fp;
-            }
-            if (extendStart > 0.0)
-            {
-                GeoPoint? p = beyond(startPoint - extendStart * curve.StartDirection.Normalized, ref domain1, ref domain2);
-                if (p == null) return null;
-                startPoint = p.Value;
-            }
-            if (extendEnd > 0.0)
-            {
-                GeoPoint? p = beyond(endPoint + extendEnd * curve.EndDirection.Normalized, ref domain1, ref domain2);
-                if (p == null) return null;
-                endPoint = p.Value;
-            }
-            if (curve is Line) return Line.TwoPoints(startPoint, endPoint);
-            ICurve? res = surface1.GetDualSurfaceCurves(domain1, surface2, domain2, [startPoint, endPoint])
-                .Select(dsc => dsc.Curve3D).MinBy(c => c.DistanceTo(startPoint) + c.DistanceTo(endPoint) + c.DistanceTo(middlePoint));
-            if (res == null) return null;
-            TrimCurve(res, startPoint, endPoint, middlePoint);
-            return res;
-        }
-
-        /// <summary>
         /// The parameters of <paramref name="left"/> and <paramref name="right"/> on <paramref name="spine"/>, exactly 0 or 1
         /// at its end points. On a closed spine the fillet goes along the part which contains the middle of the spine (the
         /// parameter 0.5), then a parameter may be greater than 1.
