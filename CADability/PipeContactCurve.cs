@@ -618,6 +618,19 @@ namespace CADability.GeoObject
             }
             return base.SameGeometry(other, precision);
         }
+        public override PlanarState GetPlanarState()
+        {
+            return contact.Surface is PlaneSurface ps ? PlanarState.Planar : PlanarState.NonPlanar;
+        }
+        public override Plane GetPlane()
+        {
+            return contact.Surface is PlaneSurface ps ? ps.Plane : base.GetPlane(); // must be a PlaneSurface
+        }
+
+        public override ICurve2D GetProjectedCurve(Plane pln)
+        {
+            return base.GetProjectedCurve(pln); 
+        }
         protected override double[] GetBasePoints()
         {
             List<double> res = new List<double> { 0.0, 0.25, 0.5, 0.75, 1.0 };

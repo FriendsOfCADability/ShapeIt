@@ -389,6 +389,17 @@ namespace CADability.GeoObject
                 return true;
             }
 
+            public override PlanarState GetPlanarState()
+            {
+                return sweptCircle.spine.GetPlanarState();
+            }
+
+            public override Plane GetPlane()
+            {
+                Plane pln = sweptCircle.spine.GetPlane(); // must exist
+                pln.Location = PointAt(0.0); // parallel to the spines plane, but through some point of this curve
+                return pln;
+            }
             protected override double[] GetBasePoints()
             {
                 List<double> parPositions = new List<double>(sweptCircle.spine.GetSavePositions()); // maybe we must do better here, because the curve on the inside of the curvature may become wild!

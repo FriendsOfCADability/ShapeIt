@@ -788,7 +788,7 @@ namespace CADability.GeoObject
         public virtual double DistanceTo(GeoPoint p)
         {
             double pos = PositionOf(p);
-            if (pos > 1e-6 && pos <= 1.0 - 1e-6)
+            if (pos > 1e-6 && pos < 1.0 - 1e-6)
             {   // at the start and enpoint, especially when the curve is an intersection curve with tangential surfaces, we also should consider start- end endpoint
                 GeoPoint pCurve = PointAt(pos);
                 return pCurve | p;
@@ -805,7 +805,7 @@ namespace CADability.GeoObject
                     GeoPoint pCurve = PointAt(pos);
                     return Math.Min(p | EndPoint, pCurve | p);
                 }
-                else return Math.Min(p | StartPoint, p | EndPoint);
+                else return Math.Min(p | StartPoint, p | EndPoint); // this will never be called
             }
         }
         /// <summary>
