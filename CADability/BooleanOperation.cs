@@ -555,35 +555,40 @@ namespace CADability
                 }
                 return; // don't intersect overlapping faces
             }
+            HashSet<Edge> sameEdges = FindSameEdges(fc1, fc2);
 
             bool tangentialIntersectionFound = false;
             HashSet<Vertex> intersectionVertices = new HashSet<Vertex>();
             List<ICurve> knownIntersectionCurves = null;
             List<bool?> knownIntersectionCurveDirections = null;
             List<Vertex> usedVerticedByKnownIntersections = [];
-            // Tangential contacts, e.g. one cylinder inside another one, touching along a single point: the
-            // surfaces meet there without crossing, so the ordinary intersection finds nothing.
-            SurfaceContact[] surfaceContact = Surfaces.TangentialContacts(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain, Precision.eps);
             List<Vertex> surfaceContactVertices = [];
-            for (int i = 0; i < surfaceContact.Length; i++)
-            {
-                if (surfaceContact[i].Type == ContactType.Crossing)
+            if (!sameEdges.Any())
+            {   // faces with common edges should not have contacts. Surfaces.TangentialContacts doesn't work with such faces
+                
+                // Tangential contacts, e.g. one cylinder inside another one, touching along a single point: the
+                // surfaces meet there without crossing, so the ordinary intersection finds nothing.
+                SurfaceContact[] surfaceContact = Surfaces.TangentialContacts(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain, Precision.eps);
+                for (int i = 0; i < surfaceContact.Length; i++)
                 {
-                    Vertex v = CreateOrFindVertex(surfaceContact[i].Location);
-                    //Vertex v = new Vertex(surfaceContact[i].Location);
-                    v.AddPositionOnFace(fc1, surfaceContact[i].uv1);
-                    v.AddPositionOnFace(fc2, surfaceContact[i].uv2);
-                    intersectionVertices.Add(v);
-                    surfaceContactVertices.Add(v);
-                    // this touching point may or may not lie on an edge
-                    foreach (Edge edge in fc1.Edges.Concat(fc2.Edges))
+                    if (surfaceContact[i].Type == ContactType.Crossing)
                     {
-                        if (edge.Curve3D != null && edge.Curve3D.DistanceTo(v.Position) < 10 * Precision.eps)
+                        Vertex v = CreateOrFindVertex(surfaceContact[i].Location);
+                        //Vertex v = new Vertex(surfaceContact[i].Location);
+                        v.AddPositionOnFace(fc1, surfaceContact[i].uv1);
+                        v.AddPositionOnFace(fc2, surfaceContact[i].uv2);
+                        intersectionVertices.Add(v);
+                        surfaceContactVertices.Add(v);
+                        // this touching point may or may not lie on an edge
+                        foreach (Edge edge in fc1.Edges.Concat(fc2.Edges))
                         {
-                            double pos = edge.Curve3D.PositionOf(v.Position);
-                            if (pos > Precision.eps && pos < 1 - Precision.eps)
+                            if (edge.Curve3D != null && edge.Curve3D.DistanceTo(v.Position) < 10 * Precision.eps)
                             {
-                                AddEdgeSplitVertex(edge, v);
+                                double pos = edge.Curve3D.PositionOf(v.Position);
+                                if (pos > Precision.eps && pos < 1 - Precision.eps)
+                                {
+                                    AddEdgeSplitVertex(edge, v);
+                                }
                             }
                         }
                     }
@@ -812,6 +817,34 @@ namespace CADability
                     CreateIntersectionEdges(fc1, fc2, intersectionVertices, null, null);
                 }
             }
+        }
+
+        private HashSet<Edge> FindSameEdges(Face fc1, Face fc2)
+        {
+            HashSet<Vertex> commonVertices = fc1.Vertices.Intersect(fc2.Vertices).ToHashSet();
+            if (commonVertices.Count < 2) return new HashSet<Edge>();
+            HashSet<Edge> sameEdges = new HashSet<Edge>();
+            foreach ((Vertex v1, Vertex v2) v in commonVertices.Pairs())
+            {
+                Edge edgeInfc1 = null, edgeInfc2 = null;
+                foreach (Edge e in Vertex.ConnectingEdges(v.v1, v.v2))
+                {
+                    if (fc1.Edges.Contains(e) )
+                    {
+                        edgeInfc1 = e;
+                    }
+                    if (fc2.Edges.Contains(e) )
+                    {
+                        edgeInfc2 = e;
+                    }
+                }
+                if (edgeInfc1 != null && edgeInfc2 != null && SameEdge(edgeInfc1, edgeInfc2, precision))
+                {
+                    sameEdges.Add(edgeInfc1);
+                    sameEdges.Add(edgeInfc2);
+                }
+            }
+            return sameEdges;
         }
 
         private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices, IList<ICurve> alreadyCalculated = null, IList<bool?> orientation = null)
@@ -4539,6 +4572,7 @@ namespace CADability
                     res.Add(shell);
                 }
                 else
+                
                 {
                     if (nonManifoldEdges.ContainsAll(shell.OpenEdges, precision))
                     {
