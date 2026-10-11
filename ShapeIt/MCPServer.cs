@@ -379,8 +379,9 @@ namespace ShapeIt
                     recordingTemplate = null;
                     currentTemplatName = null;
                 }
-                else if (recordingTemplate != null)
-                {
+                else if (recordingTemplate != null && !executeTemplate)
+                {   // steps replayed by a nested template.instantiate belong to the inner template:
+                    // the outer recording only gets the template.instantiate call itself
                     recordingTemplate.Add(root.Clone());
                 }
                 return response;
