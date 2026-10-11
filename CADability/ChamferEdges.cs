@@ -177,6 +177,30 @@ namespace CADability.GeoObject
             return edgeToCutter;
         }
 
+        /// <summary>
+        /// The relative precision of the boundary curves of the chamfer surface, see <see cref="PreciseCurve"/>.
+        /// </summary>
+        private const double boundaryPrecision = 1e-9;
+
+        /// <summary>
+        /// A precise replacement of <paramref name="curve"/>, when it is an <see cref="InterpolatedDualSurfaceCurve"/>, to
+        /// build the chamfer surface with. Such a curve is exact only at its base points, in between it is off its surfaces
+        /// by up to 1e-6 of its size. The ruled chamfer surface between two such curves would inherit this error: its
+        /// boundary would not lie in the faces of the edge, and the edges, which are later recalculated as the intersection
+        /// of the chamfer surface with these faces, would run beside the boundary of the chamfer surface (1e-4 at the dead
+        /// ends of tiltedCylinders, where the plane of a cap then cuts the edge outside the chamfer surface).
+        /// Only for the surface: as the curves of the edges, the BSplines make the unions fail (teeSaddles).
+        /// </summary>
+        private static ICurve PreciseCurve(ICurve curve)
+        {
+            if (curve is InterpolatedDualSurfaceCurve idsc)
+            {
+                BSpline? precise = idsc.PreciseApproximation(boundaryPrecision);
+                if (precise != null) return precise;
+            }
+            return curve;
+        }
+
         private static ISurface? hullAroundEdge(ICurve edge, double radius, GeoVector seam)
         {
             ISurface sweptCircle = SweptCircleSurface.MakePipeSurface(edge, radius, seam); // a cylindrical hull around the edge
@@ -327,7 +351,9 @@ namespace CADability.GeoObject
             if (bottomCurve == null) return null;
             TrimCurve(bottomCurve, sp, ep, mp);
 
-            ISurface chamferSurface = Make3D.MakeRuledSurface(topCurve, bottomCurve);
+            // the chamfer surface is ruled between these curves, so it is only as precise as they are. The edges keep the
+            // intersection curves: they are recalculated as the intersections of the chamfer surface with the faces anyhow
+            ISurface chamferSurface = Make3D.MakeRuledSurface(PreciseCurve(topCurve), PreciseCurve(bottomCurve));
             foreach (GeoPoint p in new List<GeoPoint>([topCurve.StartPoint, topCurve.PointAt(0.5), topCurve.EndPoint, bottomCurve.StartPoint, bottomCurve.EndPoint]))
             {
                 chamferSurface.ExtendDomainTo(p);

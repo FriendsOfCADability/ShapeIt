@@ -428,6 +428,16 @@ namespace CADability
         /// <returns></returns>
         public override IDualSurfaceCurve[] GetPlaneIntersection(PlaneSurface pl, double umin, double umax, double vmin, double vmax, double precision)
         {
+            return ExactPlaneIntersection(pl, umin, umax) ?? base.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
+        }
+
+        /// <summary>
+        /// The intersection with a plane in the special cases where it is known exactly: two lines or two circles parallel
+        /// to the plane, or two planar curves in planes parallel to each other and perpendicular to the plane (the intersection
+        /// is a curve of constant v). Null, if none of these cases applies.
+        /// </summary>
+        private IDualSurfaceCurve[] ExactPlaneIntersection(PlaneSurface pl, double umin, double umax)
+        {
             if (firstCurve is Line && secondCurve is Line)
             {
                 if (Precision.IsPerpendicular(firstCurve.StartDirection, pl.Normal, false) &&
@@ -533,13 +543,31 @@ namespace CADability
                     return new IDualSurfaceCurve[] { dsc };
                 }
             }
-            return base.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
+            return null;
         }
+        /// <summary>
+        /// With a plane: the exact intersection in the special cases (see <see cref="ExactPlaneIntersection"/>), otherwise the
+        /// curves through the <paramref name="seeds"/>. The general plane intersection follows the hull of this surface and
+        /// ends exactly at the boundary curves (v = 0 and v = 1), but the seeds are usually intersections of edges with the
+        /// plane: when such an edge is only close to a boundary curve, e.g. the intersection of this surface with another
+        /// face, the seed lies a little outside, and the curve would end short of it.
+        /// </summary>
         public override IDualSurfaceCurve[] GetDualSurfaceCurves(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, List<GeoPoint> seeds, List<Tuple<double, double, double, double>> extremePositions)
         {
             if (other is PlaneSurface ps)
             {
-                return GetPlaneIntersection(ps, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, 0.0);
+                IDualSurfaceCurve[] exact = ExactPlaneIntersection(ps, thisBounds.Left, thisBounds.Right);
+                if (exact != null) return exact;
+                if (seeds != null && seeds.Count >= 2)
+                {
+                    try
+                    {
+                        IDualSurfaceCurve[] throughSeeds = Surfaces.GetIntersectionCurves(this, thisBounds, other, otherBounds, seeds);
+                        if (throughSeeds.Length > 0) return throughSeeds;
+                    }
+                    catch (Exception) { } // fall back to the general plane intersection
+                }
+                return base.GetPlaneIntersection(ps, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top, 0.0);
             }
             return base.GetDualSurfaceCurves(thisBounds, other, otherBounds, seeds, extremePositions);
         }
