@@ -10878,7 +10878,7 @@ namespace CADability.GeoObject
                     outline = subst.ToArray();
                     area = null;
 #if DEBUG
-                    CheckConsistency();
+                    // CheckConsistency();
 #endif
                     return;
                 }
@@ -10895,7 +10895,7 @@ namespace CADability.GeoObject
                         holes[i] = subst.ToArray();
                         area = null;
 #if DEBUG
-                        CheckConsistency();
+                        // CheckConsistency();
 #endif
                         return;
                     }

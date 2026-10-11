@@ -443,28 +443,71 @@ namespace CADability.GeoObject
         private double Position(double t) => (t - t0) / (t1 - t0);
 
         /// <summary>
-        /// The exact 2d curve of this curve on <paramref name="onThis"/>, when it is the touched surface or the pipe (or has
-        /// the same parametrization), otherwise null.
+        /// The exact 2d curve of this curve on <paramref name="onThis"/>, when it is the touched surface or the pipe, otherwise
+        /// null. <paramref name="onThis"/> may also be a geometrically identical surface with a different uv system (e.g. the
+        /// surface of a face, which a boolean operation has reversed or reparametrized), then the 2d curve is transformed.
         /// </summary>
         public ICurve2D CurveOnSurface(ISurface onThis)
         {
+            double[] positions = { 0.0, 0.25, 0.5, 0.75, 1.0 };
+            GeoPoint[] points = new GeoPoint[positions.Length];
+            GeoPoint2D[] uvSurface = new GeoPoint2D[positions.Length], uvPipe = new GeoPoint2D[positions.Length];
+            for (int i = 0; i < positions.Length; i++) points[i] = contact.Evaluate(SpineParameter(positions[i]), out uvSurface[i], out uvPipe[i]);
+            // does onThis map the uv positions, transformed by m, to the points of this curve?
+            bool maps(GeoPoint2D[] uvs, ModOp2D m)
+            {
+                for (int i = 0; i < uvs.Length; i++)
+                {
+                    if ((onThis.PointAt(m * uvs[i]) | points[i]) > 10 * Precision.eps) return false;
+                }
+                return true;
+            }
             foreach (bool onPipe in new bool[] { false, true })
             {
                 ISurface s = onPipe ? contact.Pipe : contact.Surface;
                 if (onThis.GetType() != s.GetType()) continue;
-                bool same = true;
-                foreach (double pos in new double[] { 0.0, 0.25, 0.5, 0.75, 1.0 })
+                GeoPoint2D[] uvs = onPipe ? uvPipe : uvSurface;
+                if (maps(uvs, ModOp2D.Identity)) return new PipeContactCurve2D(contact, onPipe, t0, t1, ModOp2D.Identity);
+                if (points.Any(p => Math.Abs(onThis.GetDistance(p)) > 10 * Precision.eps)) continue; // not the same surface, the usual case
+                if (UvSystemOf(s, uvs, onThis, out ModOp2D toOnThis) && maps(uvs, toOnThis))
                 {
-                    GeoPoint p = contact.Evaluate(SpineParameter(pos), out GeoPoint2D uvSurface, out GeoPoint2D uvPipe);
-                    if ((onThis.PointAt(onPipe ? uvPipe : uvSurface) | p) > 10 * Precision.eps)
-                    {
-                        same = false;
-                        break;
-                    }
+                    return new PipeContactCurve2D(contact, onPipe, t0, t1, toOnThis);
                 }
-                if (same) return new PipeContactCurve2D(contact, onPipe, t0, t1, ModOp2D.Identity);
             }
             return null;
+        }
+
+        /// <summary>
+        /// A candidate for the transformation from the uv system of <paramref name="s"/> to the uv system of <paramref name="other"/>,
+        /// when both describe the same surface; the caller checks it. <paramref name="uvs"/> are some uv positions of this curve
+        /// on <paramref name="s"/>.
+        /// </summary>
+        private static bool UvSystemOf(ISurface s, GeoPoint2D[] uvs, ISurface other, out ModOp2D toOther)
+        {
+            BoundingRect bounds = BoundingRect.EmptyBoundingRect, otherBounds = BoundingRect.EmptyBoundingRect;
+            foreach (GeoPoint2D uv in uvs)
+            {
+                bounds.MinMax(uv);
+                otherBounds.MinMax(other.PositionOf(s.PointAt(uv)));
+            }
+            if (s.SameGeometry(bounds, other, otherBounds, Precision.eps, out toOther) && !toOther.IsNull) return true;
+            if (s is PlaneSurface && other is PlaneSurface)
+            {   // PlaneSurface.SameGeometry requires the same orientation, but the uv systems of two coincident planes are
+                // always related by an affine transformation (CurveOnSurface checks, whether the planes coincide)
+                GeoPoint2D[] src = { uvs[0], uvs[0] + GeoVector2D.XAxis, uvs[0] + GeoVector2D.YAxis };
+                GeoPoint2D[] dst = new GeoPoint2D[src.Length];
+                for (int i = 0; i < src.Length; i++) dst[i] = other.PositionOf(s.PointAt(src[i]));
+                toOther = ModOp2D.Fit(src, dst, true);
+                return true;
+            }
+            if (s is SweptCircleSurface && other is SweptCircleSurface)
+            {   // SweptCircleSurface.SameGeometry doesn't provide the transformation. A pipe with the reversed orientation has the
+                // negated v (see SweptCircleSurface.ReverseOrientation), which is the case after a boolean operation
+                toOther = new ModOp2D(1, 0, 0, 0, -1, 0);
+                return true;
+            }
+            toOther = ModOp2D.Null;
+            return false;
         }
 
         public override IGeoObject Clone()
@@ -574,6 +617,19 @@ namespace CADability.GeoObject
                 if ((pcc.t0 == t0 && pcc.t1 == t1) || (pcc.t0 == t1 && pcc.t1 == t0)) return true;
             }
             return base.SameGeometry(other, precision);
+        }
+        public override PlanarState GetPlanarState()
+        {
+            return contact.Surface is PlaneSurface ps ? PlanarState.Planar : PlanarState.NonPlanar;
+        }
+        public override Plane GetPlane()
+        {
+            return contact.Surface is PlaneSurface ps ? ps.Plane : base.GetPlane(); // must be a PlaneSurface
+        }
+
+        public override ICurve2D GetProjectedCurve(Plane pln)
+        {
+            return base.GetProjectedCurve(pln); 
         }
         protected override double[] GetBasePoints()
         {

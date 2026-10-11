@@ -78,6 +78,8 @@ namespace CADability.GeoObject
 #endif
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges.Concat(concaveEdges));
+            // at the dead ends the chamfers must reach beyond the vertex, so that trimming them with the ending face closes the gap
+            ExtendCuttersAtDeadEnds(createVertexToEdges(convexEdges).Concat(createVertexToEdges(concaveEdges)));
 
             List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
             List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
@@ -175,6 +177,30 @@ namespace CADability.GeoObject
             return edgeToCutter;
         }
 
+        /// <summary>
+        /// The relative precision of the boundary curves of the chamfer surface, see <see cref="PreciseCurve"/>.
+        /// </summary>
+        private const double boundaryPrecision = 1e-9;
+
+        /// <summary>
+        /// A precise replacement of <paramref name="curve"/>, when it is an <see cref="InterpolatedDualSurfaceCurve"/>, to
+        /// build the chamfer surface with. Such a curve is exact only at its base points, in between it is off its surfaces
+        /// by up to 1e-6 of its size. The ruled chamfer surface between two such curves would inherit this error: its
+        /// boundary would not lie in the faces of the edge, and the edges, which are later recalculated as the intersection
+        /// of the chamfer surface with these faces, would run beside the boundary of the chamfer surface (1e-4 at the dead
+        /// ends of tiltedCylinders, where the plane of a cap then cuts the edge outside the chamfer surface).
+        /// Only for the surface: as the curves of the edges, the BSplines make the unions fail (teeSaddles).
+        /// </summary>
+        private static ICurve PreciseCurve(ICurve curve)
+        {
+            if (curve is InterpolatedDualSurfaceCurve idsc)
+            {
+                BSpline? precise = idsc.PreciseApproximation(boundaryPrecision);
+                if (precise != null) return precise;
+            }
+            return curve;
+        }
+
         private static ISurface? hullAroundEdge(ICurve edge, double radius, GeoVector seam)
         {
             ISurface sweptCircle = SweptCircleSurface.MakePipeSurface(edge, radius, seam); // a cylindrical hull around the edge
@@ -205,10 +231,46 @@ namespace CADability.GeoObject
         }
         public Shell? MakeChamferShell(Edge edgeToCutter, double length1, double length2, bool convex)
         {
+            return MakeExtendedChamferShell(edgeToCutter, length1, length2, convex, 0.0, 0.0);
+        }
+
+        /// <summary>
+        /// Rebuilds the chamfer of <paramref name="edge"/> along a longer edge, which reaches the provided distances beyond
+        /// the vertices of the edge, see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>.
+        /// </summary>
+        protected override Shell? MakeExtendedCutter(Edge edge, Dictionary<Vertex, double> extensions)
+        {
+            // MakeExtendedChamferShell works on the edge oriented forward on the primary face
+            Vertex start = edge.StartVertex(edge.PrimaryFace);
+            Vertex end = edge.EndVertex(edge.PrimaryFace);
+            extensions.TryGetValue(start, out double extendStart);
+            extensions.TryGetValue(end, out double extendEnd);
+            bool convex = convexEdges.Contains(edge);
+            (double first, double second) = lengthsFor(edge);
+            Shell? res = MakeExtendedChamferShell(edge, first, second, convex, extendStart, extendEnd);
+            res?.CopyAttributes(edge.PrimaryFace);
+            return res;
+        }
+
+        /// <summary>
+        /// Like <see cref="MakeChamferShell"/>, but the chamfer is made along the edge extended by <paramref name="extendStart"/>
+        /// and <paramref name="extendEnd"/> beyond its start and end point (with respect to the primary face).
+        /// </summary>
+        private Shell? MakeExtendedChamferShell(Edge edgeToCutter, double length1, double length2, bool convex, double extendStart, double extendEnd)
+        {
             ISurface topSurface = edgeToCutter.PrimaryFace.Surface.Clone(); // for previty
             ISurface bottomSurface = edgeToCutter.SecondaryFace.Surface.Clone();
             ICurve leadingEdge = edgeToCutter.Curve3D.Clone();
             if (!edgeToCutter.Forward(edgeToCutter.PrimaryFace)) leadingEdge.Reverse(); // always forward on topSurface
+            // the domains of the two faces, extended when the chamfer has to reach beyond the edge
+            BoundingRect topFaceDomain = edgeToCutter.PrimaryFace.Domain;
+            BoundingRect bottomFaceDomain = edgeToCutter.SecondaryFace.Domain;
+            if (extendStart > 0.0 || extendEnd > 0.0)
+            {   // the chamfer is made along a longer edge: the intersection of the two surfaces beyond the vertices
+                ICurve? longer = ExtendIntersectionCurve(leadingEdge, topSurface, ref topFaceDomain, bottomSurface, ref bottomFaceDomain, extendStart, extendEnd);
+                if (longer == null) return null;
+                leadingEdge = longer;
+            }
             GeoPoint tstPoint = leadingEdge.PointAt(0.5);
             GeoVector n1 = topSurface.GetNormal(topSurface.PositionOf(tstPoint));
             GeoVector n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(tstPoint));
@@ -235,26 +297,26 @@ namespace CADability.GeoObject
             int convexFactor = convex ? 1 : -1;
             Ellipse tstCircle = Ellipse.Construct();
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.StartPoint, leadingEdge.StartDirection), leadingEdge.StartPoint, length1);
-            topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve);
+            topSurface.Intersect(tstCircle, topFaceDomain, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.StartPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.StartPoint));
             GeoPoint sp = ips.MinBy(p => convexFactor*(p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside (concave: outlide)
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length1);
-            topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            topSurface.Intersect(tstCircle, topFaceDomain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.EndPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.EndPoint));
             GeoPoint ep = ips.MinBy(p => convexFactor * (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside (concave: outlide)
             // we need a middle point to discriminate between the two halves of a circle
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.PointAt(0.5), leadingEdge.DirectionAt(0.5)), leadingEdge.PointAt(0.5), length1);
-            topSurface.Intersect(tstCircle, edgeToCutter.PrimaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            topSurface.Intersect(tstCircle, topFaceDomain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.PointAt(0.5)));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
             GeoPoint mp = ips.MinBy(p => convexFactor*(p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
-            IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, sweptCircle, sweptCircle.Domain, [sp, ep]);
+            IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(topFaceDomain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
             ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(ep) + c.DistanceTo(mp));
             if (topCurve == null) return null;
@@ -264,32 +326,34 @@ namespace CADability.GeoObject
             sweptCircleExtrusion = sweptCircle as ISurfaceOfExtrusion;
             if (sweptCircle == null || sweptCircleExtrusion == null) return null; // to satisfy the compiler
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.StartPoint, leadingEdge.StartDirection), leadingEdge.StartPoint, length2);
-            bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            bottomSurface.Intersect(tstCircle, bottomFaceDomain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.StartPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.StartPoint));
             sp = ips.MinBy(p => convexFactor * (p - leadingEdge.StartPoint) * (n1 + n2)); // the one to the inside
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.EndPoint, leadingEdge.EndDirection), leadingEdge.EndPoint, length2);
-            bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            bottomSurface.Intersect(tstCircle, bottomFaceDomain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.EndPoint));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.EndPoint));
             ep = ips.MinBy(p => convexFactor * (p - leadingEdge.EndPoint) * (n1 + n2)); // the one to the inside
             // we need a middle point to discriminate between the two halves of a circle
             tstCircle.SetCirclePlaneCenterRadius(new Plane(leadingEdge.PointAt(0.5), leadingEdge.DirectionAt(0.5)), leadingEdge.PointAt(0.5), length2);
-            bottomSurface.Intersect(tstCircle, edgeToCutter.SecondaryFace.Domain, out ips, out uvOnFaces, out uOnCurve);
+            bottomSurface.Intersect(tstCircle, bottomFaceDomain, out ips, out uvOnFaces, out uOnCurve);
             if (ips.Length == 0) return null;
             n1 = topSurface.GetNormal(topSurface.PositionOf(leadingEdge.PointAt(0.5)));
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
             mp = ips.MinBy(p => convexFactor * (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
-            dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, sweptCircle, sweptCircle.Domain, [sp, ep]);
+            dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(bottomFaceDomain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
             ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(ep) + c.DistanceTo(mp));
             if (bottomCurve == null) return null;
             TrimCurve(bottomCurve, sp, ep, mp);
 
-            ISurface chamferSurface = Make3D.MakeRuledSurface(topCurve, bottomCurve);
+            // the chamfer surface is ruled between these curves, so it is only as precise as they are. The edges keep the
+            // intersection curves: they are recalculated as the intersections of the chamfer surface with the faces anyhow
+            ISurface chamferSurface = Make3D.MakeRuledSurface(PreciseCurve(topCurve), PreciseCurve(bottomCurve));
             foreach (GeoPoint p in new List<GeoPoint>([topCurve.StartPoint, topCurve.PointAt(0.5), topCurve.EndPoint, bottomCurve.StartPoint, bottomCurve.EndPoint]))
             {
                 chamferSurface.ExtendDomainTo(p);
@@ -301,19 +365,19 @@ namespace CADability.GeoObject
             ISurface leftSurface = new PlaneSurface(leftPlane);
             ISurface rightSurface = new PlaneSurface(rightPlane);
             double d = Math.Max(length1, length2);
-            dscs = topSurface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, leftSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.StartPoint, topCurve.StartPoint]);
+            dscs = topSurface.GetDualSurfaceCurves(topFaceDomain, leftSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.StartPoint, topCurve.StartPoint]);
             ICurve? leftTopCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(leadingEdge.StartPoint) + c.DistanceTo(topCurve.StartPoint));
             if (leftTopCurve == null) return null;
             TrimCurve(leftTopCurve, leadingEdge.StartPoint, topCurve.StartPoint);
-            dscs = bottomSurface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, leftSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.StartPoint, bottomCurve.StartPoint]);
+            dscs = bottomSurface.GetDualSurfaceCurves(bottomFaceDomain, leftSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.StartPoint, bottomCurve.StartPoint]);
             ICurve? leftBottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(leadingEdge.StartPoint) + c.DistanceTo(bottomCurve.StartPoint));
             if (leftBottomCurve == null) return null;
             TrimCurve(leftBottomCurve, leadingEdge.StartPoint, bottomCurve.StartPoint);
-            dscs = topSurface.GetDualSurfaceCurves(edgeToCutter.PrimaryFace.Domain, rightSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.EndPoint, topCurve.EndPoint]);
+            dscs = topSurface.GetDualSurfaceCurves(topFaceDomain, rightSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.EndPoint, topCurve.EndPoint]);
             ICurve? rightTopCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(leadingEdge.EndPoint) + c.DistanceTo(topCurve.EndPoint));
             if (rightTopCurve == null) return null;
             TrimCurve(rightTopCurve, leadingEdge.EndPoint, topCurve.EndPoint);
-            dscs = bottomSurface.GetDualSurfaceCurves(edgeToCutter.SecondaryFace.Domain, rightSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.EndPoint, bottomCurve.EndPoint]);
+            dscs = bottomSurface.GetDualSurfaceCurves(bottomFaceDomain, rightSurface, new BoundingRect(GeoPoint2D.Origin, d, d), [leadingEdge.EndPoint, bottomCurve.EndPoint]);
             ICurve? rightBottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(leadingEdge.EndPoint) + c.DistanceTo(bottomCurve.EndPoint));
             if (rightBottomCurve == null) return null;
             TrimCurve(rightBottomCurve, leadingEdge.EndPoint, bottomCurve.EndPoint);
@@ -328,6 +392,8 @@ namespace CADability.GeoObject
             if (res == null || res.Length == 0) return null;
             rightFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
             leftFace.UserData.Add("CADability.Cutter.EndFace", "endface");
+            if (extendStart > 0.0) leftFace.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
+            if (extendEnd > 0.0) rightFace.UserData.Add("CADability.Cutter.Extended", "extended");
             chamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");
 
 #if DEBUG

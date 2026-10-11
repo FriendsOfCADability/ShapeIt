@@ -2977,14 +2977,8 @@ namespace CADability
             // diese Kante soll ja rausgelöst und ersetzt werden
             if (v2 != null) v2.RemoveEdge(this);
 #if DEBUG
-            //if (primaryFace.GetHashCode()==2098 || primaryFace.GetHashCode() == 2198)
-            //{
-            //    dc = primaryFace.DebugEdges2D;
-            //}
-            //if (secondaryFace.GetHashCode() == 2098 || secondaryFace.GetHashCode() == 2198)
-            //{
-            //    dc = secondaryFace.DebugEdges2D;
-            //}
+            if (primaryFace != null) primaryFace.CheckConsistency();
+            if (secondaryFace != null ) secondaryFace.CheckConsistency();
 #endif
             return resa;
         }

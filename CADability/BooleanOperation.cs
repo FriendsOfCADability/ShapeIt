@@ -396,7 +396,7 @@ namespace CADability
         Dictionary<Face, HashSet<Edge>> faceToIntersectionEdges; // faces of both shells with their intersection edges
         Dictionary<Face, HashSet<Face>> faceToCommonFaces; // faces which have overlapping common parts on them
         HashSet<Face> totalyCoveredByOppositeFace = new HashSet<Face>(); // faces which are totally covered by an opposite oriented face
-        Dictionary<Edge, List<Vertex>> edgesToSplit;
+        Dictionary<Edge, HashSet<Vertex>> edgesToSplit;
         HashSet<(Face face, Edge edge)> tangentialEdges = new HashSet<(Face, Edge)>(); // these edges are tangential to a face on the other shell
         Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace;
         public Dictionary<Edge, HashSet<Face>> edgeEndsInFace;
@@ -544,49 +544,51 @@ namespace CADability
                             Vertex v = CreateOrFindVertex(ip[i]);
                             if (par1[i] > Precision.eps && par1[i] < 1 - Precision.eps && par2[i] > -Precision.eps && par2[i] < 1 + Precision.eps)
                             {
-                                if (!edgesToSplit.TryGetValue(edga, out List<Vertex> lv)) edgesToSplit[edga] = lv = [];
-                                lv.Add(v);
+                                AddEdgeSplitVertex(edga, v);
                             }
                             if (par2[i] > Precision.eps && par2[i] < 1 - Precision.eps && par1[i] > -Precision.eps && par1[i] < 1 + Precision.eps)
                             {
-                                if (!edgesToSplit.TryGetValue(edgb, out List<Vertex> lv)) edgesToSplit[edgb] = lv = [];
-                                lv.Add(v);
+                                AddEdgeSplitVertex(edgb, v);
                             }
                         }
                     }
                 }
                 return; // don't intersect overlapping faces
             }
+            HashSet<Edge> sameEdges = FindSameEdges(fc1, fc2);
 
             bool tangentialIntersectionFound = false;
             HashSet<Vertex> intersectionVertices = new HashSet<Vertex>();
             List<ICurve> knownIntersectionCurves = null;
             List<bool?> knownIntersectionCurveDirections = null;
             List<Vertex> usedVerticedByKnownIntersections = [];
-            // Tangential contacts, e.g. one cylinder inside another one, touching along a single point: the
-            // surfaces meet there without crossing, so the ordinary intersection finds nothing.
-            SurfaceContact[] surfaceContact = Surfaces.TangentialContacts(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain, Precision.eps);
             List<Vertex> surfaceContactVertices = [];
-            for (int i = 0; i < surfaceContact.Length; i++)
-            {
-                if (surfaceContact[i].Type == ContactType.Crossing)
+            if (!sameEdges.Any())
+            {   // faces with common edges should not have contacts. Surfaces.TangentialContacts doesn't work with such faces
+                
+                // Tangential contacts, e.g. one cylinder inside another one, touching along a single point: the
+                // surfaces meet there without crossing, so the ordinary intersection finds nothing.
+                SurfaceContact[] surfaceContact = Surfaces.TangentialContacts(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain, Precision.eps);
+                for (int i = 0; i < surfaceContact.Length; i++)
                 {
-                    Vertex v = CreateOrFindVertex(surfaceContact[i].Location);
-                    //Vertex v = new Vertex(surfaceContact[i].Location);
-                    v.AddPositionOnFace(fc1, surfaceContact[i].uv1);
-                    v.AddPositionOnFace(fc2, surfaceContact[i].uv2);
-                    intersectionVertices.Add(v);
-                    surfaceContactVertices.Add(v);
-                    // this touching point may or may not lie on an edge
-                    foreach (Edge edge in fc1.Edges.Concat(fc2.Edges))
+                    if (surfaceContact[i].Type == ContactType.Crossing)
                     {
-                        if (edge.Curve3D != null && edge.Curve3D.DistanceTo(v.Position) < 10 * Precision.eps)
+                        Vertex v = CreateOrFindVertex(surfaceContact[i].Location);
+                        //Vertex v = new Vertex(surfaceContact[i].Location);
+                        v.AddPositionOnFace(fc1, surfaceContact[i].uv1);
+                        v.AddPositionOnFace(fc2, surfaceContact[i].uv2);
+                        intersectionVertices.Add(v);
+                        surfaceContactVertices.Add(v);
+                        // this touching point may or may not lie on an edge
+                        foreach (Edge edge in fc1.Edges.Concat(fc2.Edges))
                         {
-                            double pos = edge.Curve3D.PositionOf(v.Position);
-                            if (pos > Precision.eps && pos < 1 - Precision.eps)
+                            if (edge.Curve3D != null && edge.Curve3D.DistanceTo(v.Position) < 10 * Precision.eps)
                             {
-                                if (!edgesToSplit.TryGetValue(edge, out List<Vertex> lv)) edgesToSplit[edge] = lv = [];
-                                lv.Add(v);
+                                double pos = edge.Curve3D.PositionOf(v.Position);
+                                if (pos > Precision.eps && pos < 1 - Precision.eps)
+                                {
+                                    AddEdgeSplitVertex(edge, v);
+                                }
                             }
                         }
                     }
@@ -660,12 +662,39 @@ namespace CADability
                                     Curves.Intersect(edga.Curve3D, edge.Curve3D, out double[] par1, out double[] par2, out GeoPoint[] ips);
                                     for (int i = 0; i < ips.Length; i++)
                                     {
-                                        Vertex vv = CreateOrFindVertex(ips[i]);
-                                        if (!vtxs.Contains(vv) && edge.Curve3D.DistanceTo(vv.Position) < 10 * Precision.eps) vtxs.Add(vv);
-                                        if (par1[i] > Precision.eps && par1[i] < 1 - Precision.eps )
+                                        if (Math.Abs(par1[i]) < 0.001 && edge.Curve3D.DistanceTo(edga.Curve3D.StartPoint) < edge.Curve3D.DistanceTo(edga.Curve3D.PointAt(par1[i])))
                                         {
-                                            if (!edgesToSplit.TryGetValue(edga, out List<Vertex> lv)) edgesToSplit[edga] = lv = [];
-                                            lv.Add(vv);
+                                            par1[i] = 0.0;
+                                            ips[i] = edga.Curve3D.StartPoint;
+                                            par2[i] = edge.Curve3D.PositionOf(ips[i]);
+                                        }
+                                        if (Math.Abs(1.0-par1[i]) < 0.001 && edge.Curve3D.DistanceTo(edga.Curve3D.EndPoint) < edge.Curve3D.DistanceTo(edga.Curve3D.PointAt(par1[i])))
+                                        {
+                                            par1[i] = 1.0;
+                                            ips[i] = edga.Curve3D.EndPoint;
+                                            par2[i] = edge.Curve3D.PositionOf(ips[i]);
+                                        }
+                                        if (Math.Abs(par2[i]) < 0.001 && edga.Curve3D.DistanceTo(edge.Curve3D.StartPoint) < edga.Curve3D.DistanceTo(edge.Curve3D.PointAt(par2[i])))
+                                        {
+                                            par2[i] = 0.0;
+                                            ips[i] = edge.Curve3D.StartPoint;
+                                            par1[i] = edga.Curve3D.PositionOf(ips[i]);
+                                        }
+                                        if (Math.Abs(1.0 - par2[i]) < 0.001 && edga.Curve3D.DistanceTo(edge.Curve3D.EndPoint) < edga.Curve3D.DistanceTo(edge.Curve3D.PointAt(par2[i])))
+                                        {
+                                            par2[i] = 1.0;
+                                            ips[i] = edge.Curve3D.EndPoint;
+                                            par1[i] = edga.Curve3D.PositionOf(ips[i]);
+                                        }
+                                        if (par1[i] > -Precision.eps && par1[i] < 1 + Precision.eps && par2[i] > -Precision.eps && par2[i] < 1 + Precision.eps)
+                                        {   // only add intersection points which are on both curves
+                                            if (edge.Curve3D.DistanceTo(ips[i]) > 10 * precision || edga.Curve3D.DistanceTo(ips[i]) > 10 * precision) continue;
+                                            Vertex vv = CreateOrFindVertex(ips[i]);
+                                            if (!vtxs.Contains(vv)) vtxs.Add(vv);
+                                            if (par1[i] > Precision.eps && par1[i] < 1 - Precision.eps)
+                                            {
+                                                AddEdgeSplitVertex(edga, vv);
+                                            }
                                         }
                                     }
                                 }
@@ -700,12 +729,11 @@ namespace CADability
                                 foreach (Vertex vtx in vtxs) foreach (Edge e in edgesOctTree.GetObjectsFromPoint(vtx.Position))
                                 {   // this intersection curve lies in the surface of a face. It might also lie on an edge of the face. In this case, we have to split the edge as well
                                     if (e == edge) continue;
-                                    if (edgesToSplit.TryGetValue(e, out var l)) if (l.Contains(vtx)) continue;
                                     if (e.Vertex1 == vtx || e.Vertex2 == vtx) continue; // the vertex is already on the edge
                                     if (e.Curve3D != null && e.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps)
                                     {
-                                        if (!edgesToSplit.ContainsKey(e)) edgesToSplit[e] = new List<Vertex>();
-                                        edgesToSplit[e].Add(vtx);
+                                        double pos = e.Curve3D.PositionOf(vtx.Position);
+                                        if (pos > 0 && pos < 1) AddEdgeSplitVertex(e, vtx);
                                     }
                                 }
 
@@ -789,6 +817,34 @@ namespace CADability
                     CreateIntersectionEdges(fc1, fc2, intersectionVertices, null, null);
                 }
             }
+        }
+
+        private HashSet<Edge> FindSameEdges(Face fc1, Face fc2)
+        {
+            HashSet<Vertex> commonVertices = fc1.Vertices.Intersect(fc2.Vertices).ToHashSet();
+            if (commonVertices.Count < 2) return new HashSet<Edge>();
+            HashSet<Edge> sameEdges = new HashSet<Edge>();
+            foreach ((Vertex v1, Vertex v2) v in commonVertices.Pairs())
+            {
+                Edge edgeInfc1 = null, edgeInfc2 = null;
+                foreach (Edge e in Vertex.ConnectingEdges(v.v1, v.v2))
+                {
+                    if (fc1.Edges.Contains(e) )
+                    {
+                        edgeInfc1 = e;
+                    }
+                    if (fc2.Edges.Contains(e) )
+                    {
+                        edgeInfc2 = e;
+                    }
+                }
+                if (edgeInfc1 != null && edgeInfc2 != null && SameEdge(edgeInfc1, edgeInfc2, precision))
+                {
+                    sameEdges.Add(edgeInfc1);
+                    sameEdges.Add(edgeInfc2);
+                }
+            }
+            return sameEdges;
         }
 
         private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices, IList<ICurve> alreadyCalculated = null, IList<bool?> orientation = null)
@@ -1510,8 +1566,7 @@ namespace CADability
                                     Vertex v = CreateOrFindVertex(ipoints[i]);
                                     v.AddPositionOnFace(face, face.PositionOf(ipoints[i]));
                                     // not sure whether we still need IntersectionVertex
-                                    if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
-                                    edgesToSplit[edge].Add(v);
+                                    AddEdgeSplitVertex(edge, v);
                                     res.Add(v);
                                 }
                             }
@@ -1532,8 +1587,7 @@ namespace CADability
                         Vertex v = CreateOrFindVertex(p);
                         v.AddPositionOnFace(face, uv);
                         // not sure whether we still need IntersectionVertex
-                        if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
-                        edgesToSplit[edge].Add(v);
+                        AddEdgeSplitVertex(edge, v);
                         res.Add(v);
                     }
                 }
@@ -1541,8 +1595,7 @@ namespace CADability
                 {
                     if (!res.Contains(v) && face.Contains(v.Position, true))
                     {
-                        if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
-                        edgesToSplit[edge].Add(v);
+                        AddEdgeSplitVertex(edge, v);
                         res.Add(v);
                     }
                 }
@@ -1576,8 +1629,7 @@ namespace CADability
                 }
                 v.AddPositionOnFace(face, uvOnFace[i]);
                 // not sure whether we still need IntersectionVertex
-                if (!edgesToSplit.ContainsKey(edge)) edgesToSplit[edge] = new List<Vertex>();
-                edgesToSplit[edge].Add(v);
+                AddEdgeSplitVertex(edge, v);
                 res.Add(v);
                 // not sure what the following is good for:
                 if (position[i] == Border.Position.OnCurve)
@@ -1590,8 +1642,7 @@ namespace CADability
                         double pos = touchedEdges[j].Curve3D.PositionOf(v.Position);
                         if (pos > cprec && pos < 1 - cprec)
                         {
-                            if (!edgesToSplit.ContainsKey(touchedEdges[j])) edgesToSplit[touchedEdges[j]] = new List<Vertex>();
-                            edgesToSplit[touchedEdges[j]].Add(v);
+                            AddEdgeSplitVertex(touchedEdges[j], v);
                         }
                     }
                 }
@@ -2303,7 +2354,7 @@ namespace CADability
             AddToVertexOctTree(shell1);
             AddToVertexOctTree(shell2);
 
-            edgesToSplit = new Dictionary<Edge, List<Vertex>>();
+            edgesToSplit = new Dictionary<Edge, HashSet<Vertex>>();
             faceToIntersectionEdges = new Dictionary<Face, HashSet<Edge>>();
             faceToOverlappingFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
             faceToOppositeFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
@@ -2444,7 +2495,7 @@ namespace CADability
             }
             combineVertices(verticesOctTree);
 
-            edgesToSplit = new Dictionary<Edge, List<Vertex>>();
+            edgesToSplit = new Dictionary<Edge, HashSet<Vertex>>();
             faceToIntersectionEdges = new Dictionary<Face, HashSet<Edge>>();
             faceToOverlappingFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
             faceToOppositeFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
@@ -4521,6 +4572,7 @@ namespace CADability
                     res.Add(shell);
                 }
                 else
+                
                 {
                     if (nonManifoldEdges.ContainsAll(shell.OpenEdges, precision))
                     {
@@ -5689,8 +5741,15 @@ namespace CADability
         {   // it is assumed that the two edges connect the same vertices 
             // it is tested whether they have the same geometry (but maybe different directions) 
             // (two half circles may connect the same vertices but are not geometrically identical when they describe differnt parts of the same circle)
-            if (e1.Curve3D != null && e2.Curve3D != null) return e1.Curve3D.SameGeometry(e2.Curve3D, precision) && e1.Curve3D.DistanceTo(e2.Curve3D.PointAt(0.5)) < 100 * precision; // there are cases where precision is too strong
-                                                                                                                                                                                     // SameGeometry was added because of UniteBug31
+            if (e1.Curve3D != null && e2.Curve3D != null)
+            {
+                if (e1.Curve3D.SameGeometry(e2.Curve3D, precision) && e1.Curve3D.DistanceTo(e2.Curve3D.PointAt(0.5)) < 100 * precision)
+                {
+                    double pos = e1.Curve3D.PositionOf(e2.Curve3D.PointAt(0.5));
+                    return pos > 0 && pos < 1; // to make sure two half arcs or splines of the same circle are not considered the same edge,
+                                               // when they connect the same vertices but describe different parts of the circle 
+                }
+            }
             return false;
         }
 
@@ -5777,13 +5836,21 @@ namespace CADability
         }
 
 
+        /// <summary>
+        /// Registers <paramref name="v"/> as a point where <paramref name="edge"/> must be split. All additions to
+        /// <see cref="edgesToSplit"/> go through here, so a single conditional breakpoint catches them.
+        /// </summary>
+        private void AddEdgeSplitVertex(Edge edge, Vertex v)
+        {
+            if (!edgesToSplit.TryGetValue(edge, out HashSet<Vertex> vertices)) edgesToSplit[edge] = vertices = [];
+            vertices.Add(v);
+        }
         private void SplitEdges()
         {
             // Split all edges at the vertices provided in edgesToSplit
-            foreach (KeyValuePair<Edge, List<Vertex>> kv in edgesToSplit)
+            foreach (KeyValuePair<Edge, HashSet<Vertex>> kv in edgesToSplit)
             {
                 Edge edge = kv.Key;
-                HashSet<Vertex> vertexSet = new HashSet<Vertex>(kv.Value); // einzelne vertices können doppelt vorkommen
                 SortedList<double, Vertex> sortedVertices = new SortedList<double, Vertex>();
                 // A tolerance in curve parameters, converted from the 3d precision the vertices were merged
                 // with. Dividing by the curve length assumes the curve is parameterized at constant speed.
@@ -5791,7 +5858,7 @@ namespace CADability
                 // should never have been created. Kept because that is the tolerance to reach for if the strict
                 // test ever turns out to be too strict.
                 double prec = precision / edge.Curve3D.Length;
-                foreach (Vertex v in vertexSet)
+                foreach (Vertex v in kv.Value)
                 {   // the edge's own end vertices are no split points, they would only produce pieces of length 0
                     if (v == edge.Vertex1 || v == edge.Vertex2) { continue; }
                     double pos = edge.Curve3D.PositionOf(v.Position);
