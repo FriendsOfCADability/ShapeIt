@@ -5377,7 +5377,8 @@ namespace ShapeIt
             {   // use a clone of the named items dictionary during evaluation of the template
                 foreach (var element in jsons)
                 {
-                    string methodName = RequireString(element, "method");
+                    // templates recorded via MCP store the underscore tool names ("template_commit")
+                    string methodName = NormalizeMethodName(RequireString(element, "method"));
                     if (methodName == "template.commit")
                     {
                         if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
@@ -5390,7 +5391,17 @@ namespace ShapeIt
                     }
                     else
                     {
-                        ProcessMethod(element, true);
+                        string response = ProcessMethod(element, true);
+                        // ProcessMethod turns every failure into an error response rather than throwing,
+                        // so the only way to notice one is to read the response back.
+                        string? failure = JsonRpcErrorMessage(response);
+                        if (failure != null)
+                        {
+                            // template.begin pushed a clone of the named items first thing (even when it fails
+                            // afterwards): restore the outer workspace
+                            namedItemClones.Pop().Dispose();
+                            throw new JsonRpcException("E_TEMPLATE_FAILED", failure);
+                        }
                         if (stopExecution) return null;
                         if (methodName == "template.begin")
                         {   // here we overwrite the workspace values of the parameters
@@ -5609,7 +5620,8 @@ namespace ShapeIt
                 foreach (var element in jsons)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-                    string methodName = RequireString(element, "method");
+                    // templates recorded via MCP store the underscore tool names ("template_commit")
+                    string methodName = NormalizeMethodName(RequireString(element, "method"));
                     if (methodName == "template.commit")
                     {
                         if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
