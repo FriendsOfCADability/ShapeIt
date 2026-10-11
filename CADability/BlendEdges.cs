@@ -398,21 +398,15 @@ namespace CADability.GeoObject
             Shell? extension = extended ? null : (Make3D.Extrude(endFace.Clone(), 3 * length * beamDirection, null) as Solid)?.Shells[0];
             bool useExtension = false;
             // extension of the cutter, maybe we need part of it
-            foreach (Face fc in endingFaces)
-            {
-                if (fc.Surface is ConicalSurface cs && (Precision.IsEqual(cs.PointAt(GeoPoint2D.Origin), vtx.Position))) continue; // no meaningfull way to extend
-                ISurface surface = fc.Surface.Clone(); // with this surface we try to trim the cutter or the extension
+            foreach (ISurface surface in trimBy)
+            {   // with this surface we try to trim the cutter or the extension
                 GeoPoint2D ip1 = surface.PositionOf(vtx.Position); // vtx is on surface
                 if (surface.GetNormal(ip1) * beamDirection < 0) surface.ReverseOrientation(); // below is good, above is bad
                 GeoPoint2D ip2 = surface.GetLineIntersection(freeEdge.Curve3D.StartPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
                 GeoPoint2D ip3 = surface.GetLineIntersection(freeEdge.Curve3D.EndPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
                 if (ip2.IsValid && ip3.IsValid)
                 {
-                    BoundingRect domain = fc.Surface.Domain;
-                    domain.MinMax(ip1);
-                    domain.MinMax(ip2);
-                    domain.MinMax(ip3);
-                    surface.Domain = domain;
+                    surface.SetDomainTo(vtx.Position, surface.PointAt(ip2), surface.PointAt(ip3));
                     Face splitWith = MakeBigFace(surface);
                     (Shell[] upperPart, Shell[] lowerPart) = BooleanOperation.SplitByFace(cutter, splitWith);
                     if (upperPart.Length > 0 && lowerPart.Length > 0)
