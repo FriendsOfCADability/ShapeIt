@@ -11898,6 +11898,16 @@ namespace CADability.GeoObject
             }
             return null;
         }
+
+        internal double DistanceToEdges(GeoPoint p)
+        {
+            double mindist = double.MaxValue;
+            foreach (Edge edge in Edges)
+            {
+                if (edge.Curve3D!=null) mindist=Math.Min(mindist, edge.Curve3D.DistanceTo(p));
+            }
+            return mindist;
+        }
     }
 }
 

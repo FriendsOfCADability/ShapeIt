@@ -4515,8 +4515,9 @@ namespace CADability.GeoObject
             res.CopyAttributes(shell1); // not sure whether this is intended
             return res;
         }
-        internal void TryConnectOpenEdges()
+        internal void TryConnectOpenEdges(double precision = 0.0)
         {
+            if (precision == 0.0) precision = Precision.eps;
             HashSet<Edge> openEdges = new HashSet<Edge>(OpenEdges);
             foreach (Edge openEdge in openEdges)
             {
@@ -4533,13 +4534,13 @@ namespace CADability.GeoObject
                 {
                     if (edg == openEdge) continue;
                     if (!openEdges.Contains(edg)) continue;
-                    if ((edg.PrimaryFace == openEdge.PrimaryFace || edg.SecondaryFace == openEdge.PrimaryFace) && BooleanOperation.SameEdge(edg, openEdge, Precision.eps))
+                    if ((edg.PrimaryFace == openEdge.PrimaryFace || edg.SecondaryFace == openEdge.PrimaryFace) && BooleanOperation.SameEdge(edg, openEdge, precision))
                     {
                         edg.RemoveFace(openEdge.PrimaryFace);
                         openEdge.PrimaryFace.ReplaceEdge(openEdge, edg);
                         break;
                     }
-                    else if (edg.SecondaryFace == null && openEdge.SecondaryFace == null && BooleanOperation.SameEdge(edg, openEdge, Precision.eps))
+                    else if (edg.SecondaryFace == null && openEdge.SecondaryFace == null && BooleanOperation.SameEdge(edg, openEdge, precision))
                     {
                         openEdge.MergeWith(edg);
                         edg.DisconnectFromFace(openEdge.SecondaryFace);
@@ -4660,7 +4661,7 @@ namespace CADability.GeoObject
         internal void ReduceFaces(double precision)
         {
             HashSet<Face> facesset = new HashSet<Face>(faces); // die Faces ändern sich ggf.
-                                                       // zuerst mal degenerierte Edges entfernen:
+                                                               // zuerst mal degenerierte Edges entfernen:
             Edge[] alledges = this.Edges;
             // Pure grouping by vertex pair: the order of the keys plays no role here, every entry is
             // examined on its own.
