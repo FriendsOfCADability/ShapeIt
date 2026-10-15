@@ -379,24 +379,34 @@ namespace CADability.GeoObject
             {
 
                 if (dscs[i].Curve3D.IsClosed)
-                {
-                    List<GeoPoint> pointsOnCurve = new List<GeoPoint>();
+                {   // replace the closed curve with several open curves, if there are points on the curve
+                    SortedList<double, GeoPoint> pointsOnCurve = new SortedList<double, GeoPoint>();
                     for (int j = 0; j < points.Count; j++)
                     {
                         if (dscs[i].Curve3D.DistanceTo(points[j]) < precision)
                         {
-                            pointsOnCurve.Add(points[j]);
+                            pointsOnCurve[dscs[i].Curve3D.PositionOf(points[j])] = points[j];
                         }
                     }
                     if (pointsOnCurve.Count > 1)
                     {
-                        ICurve[] parts3D = dscs[i].Curve3D.Split(dscs[i].Curve3D.PositionOf(pointsOnCurve[0]), dscs[i].Curve3D.PositionOf(pointsOnCurve[1]));
-                        if (parts3D.Length == 2)
+                        for (int j = 0; j < pointsOnCurve.Count - 1; j++)
                         {
-                            brokenClosedCurves.Add(new DualSurfaceCurve(parts3D[0], surface1, surface1.GetProjectedCurve(parts3D[0], precision), surface2, surface2.GetProjectedCurve(parts3D[0], precision)));
-                            brokenClosedCurves.Add(new DualSurfaceCurve(parts3D[1], surface1, surface1.GetProjectedCurve(parts3D[1], precision), surface2, surface2.GetProjectedCurve(parts3D[1], precision)));
-                            toRemove.Add(i);
+                            ICurve tr = dscs[i].Curve3D.Clone();
+                            tr.Trim(pointsOnCurve.Keys[j], pointsOnCurve.Keys[j + 1]);
+                            brokenClosedCurves.Add(new DualSurfaceCurve(tr, surface1, surface1.GetProjectedCurve(tr, precision), surface2, surface2.GetProjectedCurve(tr, precision)));
                         }
+                        ICurve[] parts3D = dscs[i].Curve3D.Split(pointsOnCurve.Keys.Last(), pointsOnCurve.Keys.First());
+                        GeoPoint testPoint = dscs[i].Curve3D.PointAt((pointsOnCurve.Keys.Last() + pointsOnCurve.Keys.First()) / 2.0 + 0.5);
+                        for (int j = 0; j < parts3D.Length; j++)
+                        {
+                            double ppos = parts3D[j].PositionOf(testPoint);
+                            if (ppos > 0 && ppos < 1)
+                            {
+                                brokenClosedCurves.Add(new DualSurfaceCurve(parts3D[j], surface1, surface1.GetProjectedCurve(parts3D[j], precision), surface2, surface2.GetProjectedCurve(parts3D[j], precision)));
+                            }
+                        }
+                        toRemove.Add(i);
                     }
                 }
             }
@@ -1230,14 +1240,14 @@ namespace CADability.GeoObject
                     // if (Precision.IsEqual(seeds.First(), seeds.Last())) seeds.RemoveAt(seeds.Count - 1);
                     // there might be a problem with only two seed points: we need two different curves as a result, which go one way or the other from seed0 to seed1. GetDualSurfaceCurves maybe returns only one.
                     IDualSurfaceCurve[] candidates = surface1.GetDualSurfaceCurves(ext1, surface2, ext2, seeds, null);
-                    if (candidates.Length>1)
+                    if (candidates.Length > 1)
                     {
                         List<IDualSurfaceCurve> tmp = new List<IDualSurfaceCurve>(candidates);
                         for (int i = tmp.Count - 1; i > 0; --i)
                         {
                             for (int j = 0; j < i; j++)
                             {
-                                if (tmp[j].Curve3D.SameGeometry(tmp[i].Curve3D,Precision.eps))
+                                if (tmp[j].Curve3D.SameGeometry(tmp[i].Curve3D, Precision.eps))
                                 {
                                     tmp.RemoveAt(i);
                                     break;

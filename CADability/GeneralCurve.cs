@@ -794,18 +794,19 @@ namespace CADability.GeoObject
                 return pCurve | p;
             }
             else
-            {
-                if (pos <= 1e-6)
+            {   // here we accepted distances to the extended curve. I think, this was wrong
+                // e.g. Line explicitely requires the position of the point to be on the line segment and otherwise returns the distance to the closest endpoint
+                if (pos <= 1e-6 && pos > 0)
                 {
                     GeoPoint pCurve = PointAt(pos);
                     return Math.Min(p | StartPoint, pCurve | p);
                 }
-                else if (pos >= 1.0 - 1e-6)
+                else if (pos >= 1.0 - 1e-6 && pos < 1)
                 {
                     GeoPoint pCurve = PointAt(pos);
                     return Math.Min(p | EndPoint, pCurve | p);
                 }
-                else return Math.Min(p | StartPoint, p | EndPoint); // this will never be called
+                else return Math.Min(p | StartPoint, p | EndPoint); // this will be called when the position ist outside the curve
             }
         }
         /// <summary>
@@ -1395,11 +1396,11 @@ namespace CADability.GeoObject
                     GeoPoint p4 = pl4.Intersect(ip, id);
                     // Orientierung überprüfen
                     GeoPoint pm = new GeoPoint(p1, p2, p3, p4);
-                    Plane plt = new Plane(p1, p3, p2);
-                    GeoPoint p11 = plt.ToLocal(pm);
                     double dist = (p1 | p2) * 2;
-                    if (dist > (p1 | p3) && dist > (p1 | p4) && dist > (p2 | p3) && dist > (p2 | p4))
+                    if (dist > Precision.eps && dist > (p1 | p3) && dist > (p1 | p4) && dist > (p2 | p3) && dist > (p2 | p4))
                     {
+                        Plane plt = new Plane(p1, p3, p2);
+                        GeoPoint p11 = plt.ToLocal(pm);
                         if (p11.z > 0) // war vorher anders so sind die Ebenen alle so orientiert, dass sie nach außen zeigen
                                        // if ((((p2 - p1) ^ (p3 - p1)) * (p4 - p1)) < 0)
                         {

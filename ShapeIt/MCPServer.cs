@@ -4659,9 +4659,6 @@ namespace ShapeIt
             string solidName = RequireSolidNameFor(solid, shell);
             if (double.IsNaN(secondaryDistance)) secondaryDistance = distance;
             // maybe flip distances
-#if DEBUG
-            if (name != "tiltedBossFoot") return; // debugging a specific case
-#endif
             ChamferEdges ce = new ChamferEdges(shell, edgesToRound, distance, secondaryDistance);
             string? selectionProblem = ce.CheckSelection();
             if (selectionProblem != null) throw new JsonRpcException("E_INVALID_PARAMS", selectionProblem);
@@ -4680,6 +4677,9 @@ namespace ShapeIt
             // The geometry comes from the edges, 'solid' only names the workspace item to replace when
             // no new name is given. Check it before doing the work so a mismatch fails fast.
             string solidName = RequireSolidNameFor(solid, shell);
+#if DEBUG
+            // if (name != "tiltedBossFoot") return; // debugging a specific case
+#endif
             RoundEdges re = new RoundEdges(shell, edgesToRound, radius);
             string? selectionProblem = re.CheckSelection();
             if (selectionProblem != null) throw new JsonRpcException("E_INVALID_PARAMS", selectionProblem);

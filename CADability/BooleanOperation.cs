@@ -565,7 +565,7 @@ namespace CADability
             List<Vertex> surfaceContactVertices = [];
             if (!sameEdges.Any())
             {   // faces with common edges should not have contacts. Surfaces.TangentialContacts doesn't work with such faces
-                
+
                 // Tangential contacts, e.g. one cylinder inside another one, touching along a single point: the
                 // surfaces meet there without crossing, so the ordinary intersection finds nothing.
                 SurfaceContact[] surfaceContact = Surfaces.TangentialContacts(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain, Precision.eps);
@@ -656,48 +656,94 @@ namespace CADability
                                     if (!vtxs.Contains(vtx) && edge.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps) vtxs.Add(vtx);
                                 }
                                 // when a curve is in the surface of a face, it might also be clipped by this face. We need those intersections as well
-                                foreach (Edge edga in fca.Edges)
+                                ICurve2D edgeProjected = fca.GetProjectedCurve(edge.Curve3D, true);
+                                double[] clipped = fca.Area.Clip(edgeProjected, true);
+                                for (int i = 0; i < clipped.Length; i++)
                                 {
-                                    if (edga.Curve3D.SameGeometry(edge.Curve3D, precision)) continue;
-                                    Curves.Intersect(edga.Curve3D, edge.Curve3D, out double[] par1, out double[] par2, out GeoPoint[] ips);
-                                    for (int i = 0; i < ips.Length; i++)
+                                    if (clipped[i] > -Precision.eps && clipped[i] < 1 + Precision.eps)
                                     {
-                                        if (Math.Abs(par1[i]) < 0.001 && edge.Curve3D.DistanceTo(edga.Curve3D.StartPoint) < edge.Curve3D.DistanceTo(edga.Curve3D.PointAt(par1[i])))
+                                        GeoPoint p = fca.Surface.PointAt(edgeProjected.PointAt(clipped[i]));
+                                        if (clipped[i] < Precision.eps) p = edge.Curve3D.StartPoint;
+                                        else if (clipped[i] > 1 - Precision.eps) p = edge.Curve3D.EndPoint;
+                                        else if (clipped[i] < 0.001)
                                         {
-                                            par1[i] = 0.0;
-                                            ips[i] = edga.Curve3D.StartPoint;
-                                            par2[i] = edge.Curve3D.PositionOf(ips[i]);
+                                            if (fca.DistanceToEdges(p) >= fca.DistanceToEdges(edge.Curve3D.StartPoint)) p = edge.Curve3D.StartPoint;
                                         }
-                                        if (Math.Abs(1.0-par1[i]) < 0.001 && edge.Curve3D.DistanceTo(edga.Curve3D.EndPoint) < edge.Curve3D.DistanceTo(edga.Curve3D.PointAt(par1[i])))
+                                        else if (clipped[i] > 1 - 0.001)
                                         {
-                                            par1[i] = 1.0;
-                                            ips[i] = edga.Curve3D.EndPoint;
-                                            par2[i] = edge.Curve3D.PositionOf(ips[i]);
+                                            if (fca.DistanceToEdges(p) >= fca.DistanceToEdges(edge.Curve3D.EndPoint)) p = edge.Curve3D.EndPoint;
                                         }
-                                        if (Math.Abs(par2[i]) < 0.001 && edga.Curve3D.DistanceTo(edge.Curve3D.StartPoint) < edga.Curve3D.DistanceTo(edge.Curve3D.PointAt(par2[i])))
-                                        {
-                                            par2[i] = 0.0;
-                                            ips[i] = edge.Curve3D.StartPoint;
-                                            par1[i] = edga.Curve3D.PositionOf(ips[i]);
-                                        }
-                                        if (Math.Abs(1.0 - par2[i]) < 0.001 && edga.Curve3D.DistanceTo(edge.Curve3D.EndPoint) < edga.Curve3D.DistanceTo(edge.Curve3D.PointAt(par2[i])))
-                                        {
-                                            par2[i] = 1.0;
-                                            ips[i] = edge.Curve3D.EndPoint;
-                                            par1[i] = edga.Curve3D.PositionOf(ips[i]);
-                                        }
-                                        if (par1[i] > -Precision.eps && par1[i] < 1 + Precision.eps && par2[i] > -Precision.eps && par2[i] < 1 + Precision.eps)
-                                        {   // only add intersection points which are on both curves
-                                            if (edge.Curve3D.DistanceTo(ips[i]) > 10 * precision || edga.Curve3D.DistanceTo(ips[i]) > 10 * precision) continue;
-                                            Vertex vv = CreateOrFindVertex(ips[i]);
-                                            if (!vtxs.Contains(vv)) vtxs.Add(vv);
-                                            if (par1[i] > Precision.eps && par1[i] < 1 - Precision.eps)
+                                        if (edge.Curve3D.DistanceTo(p) > 10 * precision) continue;
+                                        foreach (Vertex va in fca.Vertices)
+                                        {   // we need a different mechanism to exclude such cases before intersecting
+                                            if ((va.Position|p)<10*precision)
                                             {
-                                                AddEdgeSplitVertex(edga, vv);
+                                                if (edge.Curve3D.DistanceTo(va.Position) <= edge.Curve3D.DistanceTo(p)) p = va.Position;
                                             }
                                         }
+                                        Vertex vv = CreateOrFindVertex(p);
+                                        bool found = false;
+                                        foreach (Edge edga in fca.Edges)
+                                        {
+                                            if (edga.Curve3D != null && edga.Curve3D.DistanceTo(p) < 10 * precision)
+                                            {
+                                                AddEdgeSplitVertex(edga, vv);
+                                                found = true;
+                                            }
+                                        }
+                                        if (found && !vtxs.Contains(vv)) vtxs.Add(vv);
                                     }
                                 }
+                                foreach (Vertex vtx in fca.Vertices)
+                                {
+                                    if (edge.Curve3D.DistanceTo(vtx.Position) < precision)
+                                    {
+                                        if (!vtxs.Contains(vtx)) vtxs.Add(vtx);
+                                    }
+                                }
+                                // 3d intersections of curves is unsafe
+                                //foreach (Edge edga in fca.Edges)
+                                //{
+                                //    if (edga.Curve3D.SameGeometry(edge.Curve3D, precision)) continue;
+                                //    Curves.Intersect(edga.Curve3D, edge.Curve3D, out double[] par1, out double[] par2, out GeoPoint[] ips);
+                                //    for (int i = 0; i < ips.Length; i++)
+                                //    {
+                                //        if (Math.Abs(par1[i]) < 0.001 && edge.Curve3D.DistanceTo(edga.Curve3D.StartPoint) < edge.Curve3D.DistanceTo(edga.Curve3D.PointAt(par1[i])))
+                                //        {
+                                //            par1[i] = 0.0;
+                                //            ips[i] = edga.Curve3D.StartPoint;
+                                //            par2[i] = edge.Curve3D.PositionOf(ips[i]);
+                                //        }
+                                //        if (Math.Abs(1.0-par1[i]) < 0.001 && edge.Curve3D.DistanceTo(edga.Curve3D.EndPoint) < edge.Curve3D.DistanceTo(edga.Curve3D.PointAt(par1[i])))
+                                //        {
+                                //            par1[i] = 1.0;
+                                //            ips[i] = edga.Curve3D.EndPoint;
+                                //            par2[i] = edge.Curve3D.PositionOf(ips[i]);
+                                //        }
+                                //        if (Math.Abs(par2[i]) < 0.001 && edga.Curve3D.DistanceTo(edge.Curve3D.StartPoint) < edga.Curve3D.DistanceTo(edge.Curve3D.PointAt(par2[i])))
+                                //        {
+                                //            par2[i] = 0.0;
+                                //            ips[i] = edge.Curve3D.StartPoint;
+                                //            par1[i] = edga.Curve3D.PositionOf(ips[i]);
+                                //        }
+                                //        if (Math.Abs(1.0 - par2[i]) < 0.001 && edga.Curve3D.DistanceTo(edge.Curve3D.EndPoint) < edga.Curve3D.DistanceTo(edge.Curve3D.PointAt(par2[i])))
+                                //        {
+                                //            par2[i] = 1.0;
+                                //            ips[i] = edge.Curve3D.EndPoint;
+                                //            par1[i] = edga.Curve3D.PositionOf(ips[i]);
+                                //        }
+                                //        if (par1[i] > -Precision.eps && par1[i] < 1 + Precision.eps && par2[i] > -Precision.eps && par2[i] < 1 + Precision.eps)
+                                //        {   // only add intersection points which are on both curves
+                                //            if (edge.Curve3D.DistanceTo(ips[i]) > 10 * precision || edga.Curve3D.DistanceTo(ips[i]) > 10 * precision) continue;
+                                //            Vertex vv = CreateOrFindVertex(ips[i]);
+                                //            if (!vtxs.Contains(vv)) vtxs.Add(vv);
+                                //            if (par1[i] > Precision.eps && par1[i] < 1 - Precision.eps)
+                                //            {
+                                //                AddEdgeSplitVertex(edga, vv);
+                                //            }
+                                //        }
+                                //    }
+                                //}
                             }
                             vtxs.Sort((v1, v2) => edge.Curve3D.PositionOf(v1.Position).CompareTo(edge.Curve3D.PositionOf(v2.Position)));
                             if (curveIsInSurface)
@@ -728,9 +774,9 @@ namespace CADability
                                 }
                                 foreach (Vertex vtx in vtxs) foreach (Edge e in edgesOctTree.GetObjectsFromPoint(vtx.Position))
                                 {   // this intersection curve lies in the surface of a face. It might also lie on an edge of the face. In this case, we have to split the edge as well
-                                    if (e == edge) continue;
+                                    // if (e == edge) continue; why? we need to split this edge as well!
                                     if (e.Vertex1 == vtx || e.Vertex2 == vtx) continue; // the vertex is already on the edge
-                                    if (e.Curve3D != null && e.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps)
+                                    if (e.Curve3D != null && e.Curve3D.DistanceTo(vtx.Position) < 10 * precision)
                                     {
                                         double pos = e.Curve3D.PositionOf(vtx.Position);
                                         if (pos > 0 && pos < 1) AddEdgeSplitVertex(e, vtx);
@@ -779,27 +825,27 @@ namespace CADability
             }
             if (intersectionVertices.Count > 1)
             {
-                if (knownIntersectionCurves != null)
-                {
-                    foreach (Vertex v in intersectionVertices.Except(usedVerticedByKnownIntersections))
-                    {   // additional intersections may lie on the known intersection curves. E.g.when the curve extends beyond the boundary of the face.
-                        for (int i = 0; i < knownIntersectionCurves.Count; i++)
-                        {
-                            double pos = knownIntersectionCurves[i].PositionOf(v.Position);
-                            if (pos > Precision.eps && pos < 1 - Precision.eps)
-                            {
-                                if (knownIntersectionCurves[i].DistanceTo(v.Position) < Precision.eps)
-                                {
-                                    usedVerticedByKnownIntersections.Add(v);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    CreateIntersectionEdges(fc1, fc2, usedVerticedByKnownIntersections.ToHashSet(), knownIntersectionCurves, knownIntersectionCurveDirections);
-                    intersectionVertices.ExceptWith(usedVerticedByKnownIntersections);
-                    intersectionVertices.UnionWith(surfaceContactVertices);
-                }
+                //if (knownIntersectionCurves != null)
+                //{
+                //    foreach (Vertex v in intersectionVertices.Except(usedVerticedByKnownIntersections))
+                //    {   // additional intersections may lie on the known intersection curves. E.g.when the curve extends beyond the boundary of the face.
+                //        for (int i = 0; i < knownIntersectionCurves.Count; i++)
+                //        {
+                //            double pos = knownIntersectionCurves[i].PositionOf(v.Position);
+                //            if (pos > Precision.eps && pos < 1 - Precision.eps)
+                //            {
+                //                if (knownIntersectionCurves[i].DistanceTo(v.Position) < Precision.eps)
+                //                {
+                //                    usedVerticedByKnownIntersections.Add(v);
+                //                    break;
+                //                }
+                //            }
+                //        }
+                //    }
+                //    CreateIntersectionEdges(fc1, fc2, usedVerticedByKnownIntersections.ToHashSet(), knownIntersectionCurves, knownIntersectionCurveDirections);
+                //    intersectionVertices.ExceptWith(usedVerticedByKnownIntersections);
+                //    intersectionVertices.UnionWith(surfaceContactVertices);
+                //}
                 if (intersectionVertices.Count > 1)
                 {
                     if (multipleFaces != null)
@@ -814,7 +860,21 @@ namespace CADability
                         }
                         if (intersectionVertices.Count < 2) return;
                     }
-                    CreateIntersectionEdges(fc1, fc2, intersectionVertices, null, null);
+                    // we ant to exclude common edges of fc1 and fc2 from the intersection edges, because they are already present in the faces
+                    // a problem is the mixed state: we have both common edges and new intersection edges between the same two vertices. 
+                    // so preliminary we exclude only common edges when there is nothing else
+                    HashSet<Vertex> usedByCommonEdges = [];
+                    foreach ((Vertex v1, Vertex v2) in intersectionVertices.Pairs())
+                    {
+                        var common = Vertex.ConnectingEdges(v1, v2);
+                        if (fc1.Edges.Intersect(common).Any() && fc2.Edges.Intersect(common).Any())
+                        {
+                            usedByCommonEdges.Add(v1);
+                            usedByCommonEdges.Add(v2);
+                        }
+                    }
+                    if (usedByCommonEdges.Count < intersectionVertices.Count)
+                        CreateIntersectionEdges(fc1, fc2, intersectionVertices, null, null);
                 }
             }
         }
@@ -829,11 +889,11 @@ namespace CADability
                 Edge edgeInfc1 = null, edgeInfc2 = null;
                 foreach (Edge e in Vertex.ConnectingEdges(v.v1, v.v2))
                 {
-                    if (fc1.Edges.Contains(e) )
+                    if (fc1.Edges.Contains(e))
                     {
                         edgeInfc1 = e;
                     }
-                    if (fc2.Edges.Contains(e) )
+                    if (fc2.Edges.Contains(e))
                     {
                         edgeInfc2 = e;
                     }
@@ -877,7 +937,10 @@ namespace CADability
                 from j in Enumerable.Range(i + 1, list.Count - i - 1)
                 select (list[i], list[j]);
 
-            if (alreadyCalculated == null || alreadyCalculated.Count == 0)
+            // The idea was to find existing edges, which can serve as intersection edges.
+            // But this is not good, because we also have mixed situations, which even share intersection vertices.
+            // if (alreadyCalculated == null || alreadyCalculated.Count == 0)
+            if (false)
             {
                 foreach (var (a, b) in pairs)
                 {   // find already existing edges, which can serve as intersection edges
@@ -1161,6 +1224,9 @@ namespace CADability
                             if (fc1.Area.GetPosition(uv1, fc1.Domain.Size * 1e-5) == Border.Position.Outside &&
                                 fc2.Area.GetPosition(uv2, fc2.Domain.Size * 1e-5) == Border.Position.Outside) continue;
                         }
+                        // we still need this adjustment, because the 2d curves are part of a single long 2d curve and have been trimmed after intersection, trimmed parts may fall into the wrong domain
+                        SurfaceHelper.AdjustPeriodic(fc1.Surface, fc1.Domain, con1);
+                        SurfaceHelper.AdjustPeriodic(fc2.Surface, fc2.Domain, con2);
                         Edge edge = new Edge(fc1, tr, fc1, con1, dirs1, fc2, con2, !dirs1);
                         //edge.edgeInfo = new EdgeInfo(edge);
                         //edge.edgeInfo.isIntersection = true;
@@ -2375,8 +2441,8 @@ namespace CADability
             // don't know, whether we need the followin:
             if (shell1 != null && shell2 != null)
             {
-                if (shell1IsClosed && shell1.HasOpenEdgesExceptPoles() && shell1IsClosed) shell1.TryConnectOpenEdges();
-                if (shell2IsClosed && shell2.HasOpenEdgesExceptPoles() && shell2IsClosed) shell2.TryConnectOpenEdges();
+                if (shell1IsClosed && shell1.HasOpenEdgesExceptPoles() && shell1IsClosed) shell1.TryConnectOpenEdges(precision);
+                if (shell2IsClosed && shell2.HasOpenEdgesExceptPoles() && shell2IsClosed) shell2.TryConnectOpenEdges(precision);
                 //shell1.RecalcVertices();
                 //shell2.RecalcVertices();
                 if (shell1IsClosed) shell1.CombineConnectedFaces();
@@ -4555,7 +4621,7 @@ namespace CADability
                 // res should not have open edges! If so, something went wrong
                 if (!allowOpenEdges && shell.HasOpenEdgesExceptPoles())
                 {
-                    shell.TryConnectOpenEdges();
+                    shell.TryConnectOpenEdges(precision);
                 }
                 if (allowOpenEdges || !shell.HasOpenEdgesExceptPoles())
                 {
@@ -4572,13 +4638,13 @@ namespace CADability
                     res.Add(shell);
                 }
                 else
-                
+
                 {
                     if (nonManifoldEdges.ContainsAll(shell.OpenEdges, precision))
                     {
                         nonManifoldParts.AddRange(shell.Faces);
                         shell = Shell.MakeShell(nonManifoldParts.ToArray());
-                        shell.TryConnectOpenEdges();
+                        shell.TryConnectOpenEdges(precision);
                         if (!shell.HasOpenEdgesExceptPoles())
                         {
                             if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(); // two connected faces which have the same surface are merged into one face
