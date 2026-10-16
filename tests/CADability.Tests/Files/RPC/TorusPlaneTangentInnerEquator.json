@@ -30,7 +30,7 @@
       "surfaces": "PlaneSurface:6"
     },
     "tangentPlaneInter": {
-      "verified": "2026-08-28 GH: CALCULATED, not captured. 7352.61372249 against 7352.7245, integrated in cylindrical coordinates by Simpson (converged to 7 digits over 400x800, 800x1600 and 1600x3200 points) and confirmed by Monte Carlo 7356.4 +- 4.1. y = +-25.2982212815 is sqrt(28^2 - 12^2) = sqrt(640) to the last digit. The z extent +-7.95304469067 is 6e-3 below the true +-8 - a mesh artefact, see Status.",
+      "verified": "2026-08-28 GH: CALCULATED, not captured. 7352.61372249 against 7352.7245, integrated in cylindrical coordinates by Simpson (converged to 7 digits over 400x800, 800x1600 and 1600x3200 points) and confirmed by Monte Carlo 7356.4 +- 4.1. y = +-25.2982212815 is sqrt(28^2 - 12^2) = sqrt(640) to the last digit. The z extent +-7.95304469067 is 6e-3 below the true +-8 - a mesh artefact, see Status. Re-recorded 2026-10-07: only edgeLength moved (127.441418382 -> 127.678461129), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -42,12 +42,12 @@
       "openEdges": "0",
       "volume": "7352.72373703",
       "area": "2351.66338782",
-      "edgeLength": "127.441418382",
+      "edgeLength": "127.678461129",
       "extent": "11.9999999996, -25.2982212815, -7.95304469067, 28, 25.2982212815, 7.95304469067",
       "surfaces": "PlaneSurface:2 ToroidalSurface:1"
     },
     "tangentPlaneRest": {
-      "verified": "2026-08-28 GH: CALCULATED. 17913.3080799 against 25266.1872672626 - 7352.7245 = 17913.4628, 8.6e-6. euler 1 is the essential field: the tangential contact cuts the ring open at the single point (12,0,0), genus 1 becomes genus 0 and the body is non manifold there. Its maximum x is 12.0000000005, the tangent plane.",
+      "verified": "2026-08-28 GH: CALCULATED. 17913.3080799 against 25266.1872672626 - 7352.7245 = 17913.4628, 8.6e-6. euler 1 is the essential field: the tangential contact cuts the ring open at the single point (12,0,0), genus 1 becomes genus 0 and the body is non manifold there. Its maximum x is 12.0000000005, the tangent plane. Re-recorded 2026-10-07: only edgeLength moved (127.441418382 -> 127.678461129), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -59,12 +59,12 @@
       "openEdges": "0",
       "volume": "17913.4620462",
       "area": "5094.33629084",
-      "edgeLength": "127.441418382",
+      "edgeLength": "127.678461129",
       "extent": "-28, -28, -8, 12.0000000005, 28, 8",
       "surfaces": "PlaneSurface:2 ToroidalSurface:1"
     },
     "tangentPlaneUnion": {
-      "verified": "2026-08-28 GH: CALCULATED. 145913.297026 against 128000 + 17913.4628 = 145913.4628. euler 0 with one hole loop: the ring stays closed.",
+      "verified": "2026-08-28 GH: CALCULATED. 145913.297026 against 128000 + 17913.4628 = 145913.4628. euler 0 with one hole loop: the ring stays closed. Re-recorded 2026-10-07: only edgeLength moved (767.441418366 -> 767.678461129), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "7",
       "edges": "14",
@@ -76,7 +76,7 @@
       "openEdges": "0",
       "volume": "145913.463067",
       "area": "19964.8834326",
-      "edgeLength": "767.441418366",
+      "edgeLength": "767.678461129",
       "extent": "-28, -40, -20, 52, 40, 20",
       "surfaces": "PlaneSurface:6 ToroidalSurface:1"
     },

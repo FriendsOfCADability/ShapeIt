@@ -14,7 +14,7 @@
   ],
   "Baseline": {
     "crossInter": {
-      "verified": "2026-09-17 GH: volume 6809.9772993 against 6810.02501687, 7.0e-06. against the quadrature value given in Expected. Four SurfaceOfLinearExtrusion faces and no lid: the body stays clear of both pairs of caps, as it must.",
+      "verified": "2026-09-17 GH: volume 6809.9772993 against 6810.02501687, 7.0e-06. against the quadrature value given in Expected. Four SurfaceOfLinearExtrusion faces and no lid: the body stays clear of both pairs of caps, as it must. Re-recorded 2026-10-07: only edgeLength moved (160.526090453 -> 160.807280692), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -26,7 +26,7 @@
       "openEdges": "0",
       "volume": "6810.02422253",
       "area": "1901.70103104",
-      "edgeLength": "160.526090453",
+      "edgeLength": "160.807280692",
       "extent": "-10, -9.95147864784, -11.9595952639, 10, 9.95147864784, 11.9595952639",
       "surfaces": "SurfaceOfLinearExtrusion:4"
     },
@@ -42,7 +42,7 @@
       "openEdges": "0",
       "volume": "29255.4594116",
       "area": "6165.90889955",
-      "edgeLength": "573.920247304",
+      "edgeLength": "574.201437563",
       "extent": "-12, -20, -20, 12, 25, 30",
       "surfaces": "PlaneSurface:4 SurfaceOfLinearExtrusion:6"
     },
@@ -58,7 +58,7 @@
       "openEdges": "0",
       "volume": "13547.4961456",
       "area": "4786.33795536",
-      "edgeLength": "401.322537825",
+      "edgeLength": "401.603728065",
       "extent": "-12, -20, -12, 12, 25, 12",
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:4"
     },
@@ -66,7 +66,7 @@
       "solids": "2"
     },
     "crossZminusY#0": {
-      "verified": "2026-09-17 GH: volume 6019.81396645 against 6019.76545233, 8.1e-06. the upper part. Its lower extent 6.63324958071 is exactly sqrt(44) = sqrt(144-100), the smallest half thickness of the slab the wide cylinder removes - so the cut is where it belongs.",
+      "verified": "2026-09-17 GH: volume 6019.81396645 against 6019.76545233, 8.1e-06. the upper part. Its lower extent 6.63324958071 is exactly sqrt(44) = sqrt(144-100), the smallest half thickness of the slab the wide cylinder removes - so the cut is where it belongs. Re-recorded 2026-10-07: only edgeLength moved (176.561899976 -> 176.702495095), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -78,12 +78,12 @@
       "openEdges": "0",
       "volume": "6019.76587256",
       "area": "1954.79523394",
-      "edgeLength": "176.561899976",
+      "edgeLength": "176.702495095",
       "extent": "-10, -10, 6.63324958071, 10, 10, 30",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
     "crossZminusY#1": {
-      "verified": "2026-09-17 GH: volume 2878.21280417 against 2878.17279874, 1.4e-05. the lower part, upper extent -sqrt(44) by the same argument.",
+      "verified": "2026-09-17 GH: volume 2878.21280417 against 2878.17279874, 1.4e-05. the lower part, upper extent -sqrt(44) by the same argument. Re-recorded 2026-10-07: only edgeLength moved (156.561899976 -> 156.702495095), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -95,7 +95,7 @@
       "openEdges": "0",
       "volume": "2878.17320032",
       "area": "1326.47670305",
-      "edgeLength": "156.561899976",
+      "edgeLength": "156.702495095",
       "extent": "-10, -10, -20, 10, 10, -6.63324958071",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
