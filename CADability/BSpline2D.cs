@@ -2882,39 +2882,198 @@ namespace CADability.Curve2D
             }
             return true;
         }
+        /// <summary>
+        /// Overrides <see cref="CADability.Curve2D.GeneralCurve2D.GetInflectionPoints"/>.
+        /// <para>
+        /// The points where the curvature changes its sign, found without iteration: on a knot span the curve is a
+        /// polynomial of degree p, so the curvature numerator w = x'y'' - y'x'' is a polynomial too. Its leading terms
+        /// cancel, which leaves the degree 2p-4. For a rational curve the numerator is taken as W^3*w = det(H, H', H''),
+        /// H the homogeneous curve, a polynomial of degree 3p-6 (W > 0, so the sign is the same). Sampling it at
+        /// degree+1 interior points of the span determines it exactly, and its roots are computed directly: in closed
+        /// form up to degree 2 (the non-rational cubic, by far the most frequent case), with a polynomial root finder
+        /// above. Quadratic and conic splines have no inflection points at all.
+        /// </para>
+        /// <para>
+        /// A root is an inflection point only if the sign really changes there, so double roots are skipped. A sign
+        /// change across a knot, where the curve may be only C1, is reported at the knot. Spans of zero curvature
+        /// (straight pieces) are passed over, the change is reported where the curvature becomes non zero again.
+        /// </para>
+        /// </summary>
+        /// <returns>the normalized positions (0..1) of the inflection points, ascending</returns>
         public override double[] GetInflectionPoints()
         {
+            bool rational = nurbs != null && !HasEqualWeights();
+            int wdegree = rational ? 3 * degree - 6 : 2 * degree - 4;
+            if (wdegree <= 0) return new double[0];
+
+            double umin = Math.Min(startParam, endParam), umax = Math.Max(startParam, endParam);
             List<double> inflections = new List<double>();
+            int lastSign = 0; // the last non zero sign of the curvature, carried over knots and straight spans
+            double[] roots = new double[wdegree];
             for (int i = 0; i < knots.Length - 1; ++i)
             {
-                double u1 = knots[i];
-                double u2 = knots[i + 1];
-                if (u2 > u1)
-                {
-                    int cnt = 0;
-                    Func<double, double> f = u =>
-                    {
-                        ++cnt;
-                        PointDirAt2(u, out GeoPoint2D ptmp, out GeoVector2D dir1, out GeoVector2D dir2);
-                        return dir1.x * dir2.y - dir1.y * dir2.x;
-                    };
-                    // im Intervall [u1,u2] nach Wendepunkten suchen
-                    GeoVector2D dir1start, dir2start, dir1end, dir2end;
-                    GeoPoint2D ptmp;
-                    PointDirAt2(u1, out ptmp, out dir1start, out dir2start);
-                    PointDirAt2(u2, out ptmp, out dir1end, out dir2end);
-                    double wstart = dir1start.x * dir2start.y - dir1start.y * dir2start.x;
-                    double wend = dir1end.x * dir2end.y - dir1end.y * dir2end.x;
-                    if (Math.Sign(wstart) != Math.Sign(wend))
-                    {
+                double u1 = Math.Max(knots[i], umin);
+                double u2 = Math.Min(knots[i + 1], umax);
+                if (u2 <= u1) continue;
+                // the span is mapped to t in [-1, 1]
+                double mid = (u1 + u2) / 2.0, half = (u2 - u1) / 2.0;
+                double[] coeff; // monomial coefficients of the curvature numerator in t, constant term first
+                double zero; // values up to this magnitude count as zero
+                if (wdegree == 2)
+                {   // non-rational cubic: sample at t = -c, 0, c (the three Chebyshev nodes) and interpolate the quadratic
+                    const double c = 0.86602540378443865; // sqrt(3)/2
+                    double wm = CurvatureNumerator(mid - c * half, false, out double sm);
+                    double w0 = CurvatureNumerator(mid, false, out double s0);
+                    double wp = CurvatureNumerator(mid + c * half, false, out double sp);
+                    coeff = new double[] { w0, (wp - wm) / (2.0 * c), (wp + wm - 2.0 * w0) / (2.0 * c * c) };
+                    zero = 1e-10 * Math.Max(s0, Math.Max(sm, sp));
+                }
+                else coeff = CurvatureNumeratorPolynomial(mid, half, wdegree, rational, out zero);
 
-                        double infpar = Brent.FindRoot(f, u1, u2, Math.Max(Math.Abs(startParam), Math.Abs(endParam)) * 1e-6, 100);
-                        infpar = (infpar - startParam) / (endParam - startParam);
-                        inflections.Add(infpar);
+                int nroots = PolynomialRootsInOpenInterval(coeff, zero, roots);
+                // check the sign on each piece between the knots and the roots, report where it changes
+                double tprev = -1.0;
+                for (int k = 0; k <= nroots; ++k)
+                {
+                    double tnext = (k < nroots) ? roots[k] : 1.0;
+                    int sign = SignWithTolerance(EvaluatePolynomial(coeff, (tprev + tnext) / 2.0), zero);
+                    if (sign != 0)
+                    {
+                        if (lastSign != 0 && sign != lastSign) inflections.Add(mid + half * tprev); // at a root or at the knot
+                        lastSign = sign;
                     }
+                    tprev = tnext;
                 }
             }
+            for (int i = 0; i < inflections.Count; ++i) inflections[i] = (inflections[i] - startParam) / (endParam - startParam);
+            inflections.Sort();
             return inflections.ToArray();
+        }
+        /// <summary>
+        /// True, if all weights are the same, i.e. the rational spline is in fact a polynomial one.
+        /// </summary>
+        private bool HasEqualWeights()
+        {
+            if (weights == null) return true;
+            for (int i = 1; i < weights.Length; ++i)
+            {
+                if (Math.Abs(weights[i] - weights[0]) > 1e-12 * Math.Abs(weights[0])) return false;
+            }
+            return true;
+        }
+        /// <summary>
+        /// The numerator of the curvature at the knot parameter <paramref name="u"/>: x'y'' - y'x'', for a rational curve
+        /// multiplied by W^3. <paramref name="scale"/> is the magnitude the value is to be compared with, |C'|*|C''|
+        /// (times W^3), so that numerical noise on straight pieces can be told from a true sign.
+        /// </summary>
+        private double CurvatureNumerator(double u, bool rational, out double scale)
+        {
+            GeoVector2D d1, d2;
+            double w3 = 1.0;
+            if (nubs != null)
+            {
+                nubs.CurveDeriv2(u, out GeoPoint2D p, out GeoPoint2D n1, out GeoPoint2D n2);
+                d1 = n1.ToVector();
+                d2 = n2.ToVector();
+            }
+            else
+            {
+                nurbs.CurveDeriv2(u, out GeoPoint2DH p, out GeoPoint2DH n1, out GeoPoint2DH n2);
+                d1 = n1;
+                d2 = n2;
+                if (rational) w3 = p.w * p.w * p.w;
+            }
+            scale = Math.Abs(w3) * d1.Length * d2.Length;
+            return w3 * (d1.x * d2.y - d1.y * d2.x);
+        }
+        /// <summary>
+        /// The curvature numerator on the span mid +- half as a polynomial of degree <paramref name="n"/> in t (u = mid + t*half),
+        /// monomial coefficients, constant term first. It is sampled at the n+1 Chebyshev nodes, which are interior points,
+        /// so a knot at the span boundary, where the curve may switch to another polynomial, is never evaluated.
+        /// </summary>
+        private double[] CurvatureNumeratorPolynomial(double mid, double half, int n, bool rational, out double zero)
+        {
+            int m = n + 1;
+            double[] values = new double[m];
+            double[] theta = new double[m];
+            double scale = 0.0;
+            for (int k = 0; k < m; ++k)
+            {
+                theta[k] = Math.PI * (2 * k + 1) / (2 * m);
+                values[k] = CurvatureNumerator(mid + half * Math.Cos(theta[k]), rational, out double s);
+                scale = Math.Max(scale, s);
+            }
+            zero = 1e-10 * scale;
+            // Chebyshev coefficients by the discrete cosine transform, then converted to the monomial basis
+            double[] coeff = new double[m];
+            double[] tprev = new double[m], tcur = new double[m], tnext = new double[m];
+            tprev[0] = 1.0; // T0
+            tcur[1] = 1.0; // T1
+            for (int j = 0; j < m; ++j)
+            {
+                double cj = 0.0;
+                for (int k = 0; k < m; ++k) cj += values[k] * Math.Cos(j * theta[k]);
+                cj *= (j == 0 ? 1.0 : 2.0) / m;
+                double[] tj = (j == 0) ? tprev : tcur;
+                for (int l = 0; l <= j; ++l) coeff[l] += cj * tj[l];
+                if (j >= 1)
+                {   // T(j+1) = 2t*T(j) - T(j-1)
+                    for (int l = 0; l < m; ++l) tnext[l] = (l > 0 ? 2.0 * tcur[l - 1] : 0.0) - tprev[l];
+                    double[] tmp = tprev; tprev = tcur; tcur = tnext; tnext = tmp;
+                }
+            }
+            return coeff;
+        }
+        /// <summary>
+        /// The real roots of the polynomial <paramref name="coeff"/> (constant term first) in the open interval (-1, 1),
+        /// ascending, written to <paramref name="roots"/>. Returns their number. Leading coefficients that are
+        /// negligible against the polynomial's magnitude on [-1, 1] are dropped before solving.
+        /// </summary>
+        private static int PolynomialRootsInOpenInterval(double[] coeff, double zero, double[] roots)
+        {
+            double size = 0.0;
+            for (int i = 0; i < coeff.Length; ++i) size += Math.Abs(coeff[i]); // bounds |p(t)| on [-1, 1]
+            if (size <= zero) return 0; // vanishing curvature: no roots, the caller sees no sign
+            int n = coeff.Length - 1;
+            while (n > 0 && Math.Abs(coeff[n]) <= 1e-14 * size) --n;
+            List<double> found = new List<double>(n);
+            if (n == 1) found.Add(-coeff[0] / coeff[1]);
+            else if (n == 2)
+            {
+                double a = coeff[2], b = coeff[1], c = coeff[0];
+                double disc = b * b - 4.0 * a * c;
+                if (disc > 0.0)
+                {   // the numerically stable form, no cancellation of b and the root of the discriminant
+                    double q = -0.5 * (b + Math.Sign(b == 0.0 ? 1.0 : b) * Math.Sqrt(disc));
+                    found.Add(q / a);
+                    if (q != 0.0) found.Add(c / q);
+                }
+            }
+            else if (n > 2)
+            {
+                double[] highestFirst = new double[n + 1];
+                for (int i = 0; i <= n; ++i) highestFirst[i] = coeff[n - i];
+                found.AddRange(RealPolynomialRootFinder.FindRoots(highestFirst));
+            }
+            int cnt = 0;
+            foreach (double t in found)
+            {
+                if (t > -1.0 && t < 1.0 && cnt < roots.Length) roots[cnt++] = t;
+            }
+            Array.Sort(roots, 0, cnt);
+            return cnt;
+        }
+        private static double EvaluatePolynomial(double[] coeff, double t)
+        {
+            double res = 0.0;
+            for (int i = coeff.Length - 1; i >= 0; --i) res = res * t + coeff[i];
+            return res;
+        }
+        private static int SignWithTolerance(double val, double zero)
+        {
+            if (val > zero) return 1;
+            if (val < -zero) return -1;
+            return 0;
         }
         public override double GetArea()
         {
