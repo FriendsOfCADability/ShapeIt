@@ -1,0 +1,711 @@
+{
+  "templates": [
+    {
+      "name": "superEgg",
+      "items": [
+        {
+          "method": "template_begin",
+          "id": 14,
+          "params": {
+            "name": "superEgg",
+            "label": "Superei",
+            "category": "Freiform",
+            "description": "Body with superellipse cross-sections. The bottom (z=0), widest (z=zMid) and top (z=height) sections can be set independently. Each end can be made almost flat, so the body rests nearly flat on its base and ends nearly flat at the top.",
+            "tags": [
+              "superellipse",
+              "egg",
+              "parametric surface"
+            ],
+            "parameters": [
+              {
+                "name": "widthXBottom",
+                "value": 100,
+                "label": "Breite X unten",
+                "input": {
+                  "kind": "length",
+                  "group": "Unten",
+                  "order": 1,
+                  "min": 1
+                }
+              },
+              {
+                "name": "widthYBottom",
+                "value": 80,
+                "label": "Breite Y unten",
+                "input": {
+                  "kind": "length",
+                  "group": "Unten",
+                  "order": 2,
+                  "min": 1
+                }
+              },
+              {
+                "name": "flatBottom",
+                "value": 0.5,
+                "label": "Flachheit unten",
+                "input": {
+                  "kind": "length",
+                  "group": "Unten",
+                  "order": 3,
+                  "min": 0.01,
+                  "description": "Distance below z=0 at which the wall would become horizontal. Smaller = flatter contact; too small may make the split with the base unreliable."
+                }
+              },
+              {
+                "name": "widthXMid",
+                "value": 200,
+                "label": "Breite X Mitte",
+                "input": {
+                  "kind": "length",
+                  "group": "Mitte",
+                  "order": 4,
+                  "min": 1
+                }
+              },
+              {
+                "name": "widthYMid",
+                "value": 160,
+                "label": "Breite Y Mitte",
+                "input": {
+                  "kind": "length",
+                  "group": "Mitte",
+                  "order": 5,
+                  "min": 1
+                }
+              },
+              {
+                "name": "zMid",
+                "value": 100,
+                "label": "H\u00F6he der breitesten Stelle",
+                "input": {
+                  "kind": "length",
+                  "group": "Mitte",
+                  "order": 6,
+                  "min": 1
+                }
+              },
+              {
+                "name": "widthXTop",
+                "value": 100,
+                "label": "Breite X oben",
+                "input": {
+                  "kind": "length",
+                  "group": "Oben",
+                  "order": 7,
+                  "min": 1
+                }
+              },
+              {
+                "name": "widthYTop",
+                "value": 80,
+                "label": "Breite Y oben",
+                "input": {
+                  "kind": "length",
+                  "group": "Oben",
+                  "order": 8,
+                  "min": 1
+                }
+              },
+              {
+                "name": "flatTop",
+                "value": 0.5,
+                "label": "Flachheit oben",
+                "input": {
+                  "kind": "length",
+                  "group": "Oben",
+                  "order": 9,
+                  "min": 0.01,
+                  "description": "Distance above z=height at which the wall would become horizontal. Smaller = flatter end."
+                }
+              },
+              {
+                "name": "height",
+                "value": 200,
+                "label": "Gesamth\u00F6he",
+                "input": {
+                  "kind": "length",
+                  "group": "Allgemein",
+                  "order": 10,
+                  "min": 2
+                }
+              },
+              {
+                "name": "exponent",
+                "value": 3,
+                "label": "Superellipsen-Exponent",
+                "input": {
+                  "kind": "number",
+                  "group": "Allgemein",
+                  "order": 11,
+                  "min": 1,
+                  "step": 0.5,
+                  "description": "2 = ellipse, larger = more rectangular"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "surface_parametric",
+          "id": 15,
+          "params": {
+            "name": "eggSurface",
+            "approximation": {
+              "uParameter": "u",
+              "vParameter": "t",
+              "uMin": 0,
+              "uMax": "2*pi",
+              "vMin": "-(zMid\u002BflatBottom)*(asin(zMid/(zMid\u002BflatBottom))\u002Bpi/2)/2",
+              "vMax": "(height-zMid\u002BflatTop)*(asin((height-zMid)/(height-zMid\u002BflatTop))\u002Bpi/2)/2",
+              "uPeriodic": true,
+              "vPeriodic": false,
+              "xExpr": "((widthXBottom/2\u002B(widthXTop-widthXBottom)/2*((1\u002Bsign(t))/2))\u002B(widthXMid/2-(widthXBottom/2\u002B(widthXTop-widthXBottom)/2*((1\u002Bsign(t))/2)))*((cos((t/((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))))-(sqrt((flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))*(2*(zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))))/((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))))/(1-(sqrt((flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))*(2*(zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))))/((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))))))*cos(u)/pow(pow(abs(cos(u)),exponent)\u002Bpow(abs(sin(u)),exponent),1/exponent)",
+              "yExpr": "((widthYBottom/2\u002B(widthYTop-widthYBottom)/2*((1\u002Bsign(t))/2))\u002B(widthYMid/2-(widthYBottom/2\u002B(widthYTop-widthYBottom)/2*((1\u002Bsign(t))/2)))*((cos((t/((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))))-(sqrt((flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))*(2*(zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))))/((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))))/(1-(sqrt((flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))*(2*(zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2))))/((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))))))*sin(u)/pow(pow(abs(cos(u)),exponent)\u002Bpow(abs(sin(u)),exponent),1/exponent)",
+              "zExpr": "zMid\u002B((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))*sin((t/((zMid\u002B(height-2*zMid)*((1\u002Bsign(t))/2))\u002B(flatBottom\u002B(flatTop-flatBottom)*((1\u002Bsign(t))/2)))))",
+              "tolerance": 0.05,
+              "minSamplesU": 24,
+              "minSamplesV": 16,
+              "maxSamplesU": 100,
+              "maxSamplesV": 100,
+              "sampling": "adaptive"
+            }
+          }
+        },
+        {
+          "method": "solid_box",
+          "id": 16,
+          "params": {
+            "name": "eggBlock",
+            "origin": [
+              "-(max(max(widthXBottom,widthXMid),widthXTop)/2\u002B20)",
+              "-(max(max(widthYBottom,widthYMid),widthYTop)/2\u002B20)",
+              0
+            ],
+            "sizeX": "max(max(widthXBottom,widthXMid),widthXTop)\u002B40",
+            "sizeY": "max(max(widthYBottom,widthYMid),widthYTop)\u002B40",
+            "sizeZ": "height"
+          }
+        },
+        {
+          "method": "feature_split",
+          "id": 17,
+          "params": {
+            "solid": "eggBlock",
+            "splitBy": "eggSurface",
+            "nameInner": "egg"
+          }
+        },
+        {
+          "method": "template_commit",
+          "id": 18,
+          "params": {
+            "result": "egg"
+          }
+        }
+      ]
+    },
+    {
+      "name": "lampShade",
+      "items": [
+        {
+          "method": "template_begin",
+          "id": 38,
+          "params": {
+            "name": "lampShade",
+            "label": "Lampenschirm (Superei)",
+            "category": "Freiform",
+            "description": "Hollow superEgg with approximately constant wall thickness and a centered hole in the flat bottom and top faces.",
+            "tags": [
+              "superellipse",
+              "egg",
+              "lamp",
+              "shade"
+            ],
+            "parameters": [
+              {
+                "name": "bottomX",
+                "value": 100,
+                "label": "Breite X unten",
+                "input": {
+                  "kind": "length",
+                  "group": "Unten",
+                  "order": 1,
+                  "min": 1
+                }
+              },
+              {
+                "name": "bottomY",
+                "value": 80,
+                "label": "Breite Y unten",
+                "input": {
+                  "kind": "length",
+                  "group": "Unten",
+                  "order": 2,
+                  "min": 1
+                }
+              },
+              {
+                "name": "bottomFlat",
+                "value": 0.5,
+                "label": "Flachheit unten",
+                "input": {
+                  "kind": "length",
+                  "group": "Unten",
+                  "order": 3,
+                  "min": 0.01,
+                  "description": "Distance below z=0 at which the wall would become horizontal. Smaller = flatter."
+                }
+              },
+              {
+                "name": "holeBottom",
+                "value": 40,
+                "label": "Bohrung unten \u00D8",
+                "input": {
+                  "kind": "length",
+                  "group": "Unten",
+                  "order": 4,
+                  "min": 0
+                }
+              },
+              {
+                "name": "midX",
+                "value": 200,
+                "label": "Breite X Mitte",
+                "input": {
+                  "kind": "length",
+                  "group": "Mitte",
+                  "order": 5,
+                  "min": 1
+                }
+              },
+              {
+                "name": "midY",
+                "value": 160,
+                "label": "Breite Y Mitte",
+                "input": {
+                  "kind": "length",
+                  "group": "Mitte",
+                  "order": 6,
+                  "min": 1
+                }
+              },
+              {
+                "name": "midZ",
+                "value": 100,
+                "label": "H\u00F6he der breitesten Stelle",
+                "input": {
+                  "kind": "length",
+                  "group": "Mitte",
+                  "order": 7,
+                  "min": 1
+                }
+              },
+              {
+                "name": "topX",
+                "value": 100,
+                "label": "Breite X oben",
+                "input": {
+                  "kind": "length",
+                  "group": "Oben",
+                  "order": 8,
+                  "min": 1
+                }
+              },
+              {
+                "name": "topY",
+                "value": 80,
+                "label": "Breite Y oben",
+                "input": {
+                  "kind": "length",
+                  "group": "Oben",
+                  "order": 9,
+                  "min": 1
+                }
+              },
+              {
+                "name": "topFlat",
+                "value": 0.5,
+                "label": "Flachheit oben",
+                "input": {
+                  "kind": "length",
+                  "group": "Oben",
+                  "order": 10,
+                  "min": 0.01,
+                  "description": "Distance above the top at which the wall would become horizontal. Smaller = flatter."
+                }
+              },
+              {
+                "name": "holeTop",
+                "value": 70,
+                "label": "Bohrung oben \u00D8",
+                "input": {
+                  "kind": "length",
+                  "group": "Oben",
+                  "order": 11,
+                  "min": 0
+                }
+              },
+              {
+                "name": "totalHeight",
+                "value": 200,
+                "label": "Gesamth\u00F6he",
+                "input": {
+                  "kind": "length",
+                  "group": "Allgemein",
+                  "order": 12,
+                  "min": 2
+                }
+              },
+              {
+                "name": "superExponent",
+                "value": 3,
+                "label": "Superellipsen-Exponent",
+                "input": {
+                  "kind": "number",
+                  "group": "Allgemein",
+                  "order": 13,
+                  "min": 1,
+                  "step": 0.5,
+                  "description": "2 = ellipse, larger = more rectangular"
+                }
+              },
+              {
+                "name": "wall",
+                "value": 2,
+                "label": "Wandst\u00E4rke",
+                "input": {
+                  "kind": "length",
+                  "group": "Allgemein",
+                  "order": 14,
+                  "min": 0.1,
+                  "description": "Approximate wall thickness: the inner body is smaller by this amount on every side."
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template_instantiate",
+          "id": 39,
+          "params": {
+            "template": "superEgg",
+            "name": "shadeOuter",
+            "arguments": {
+              "widthXBottom": "bottomX",
+              "widthYBottom": "bottomY",
+              "flatBottom": "bottomFlat",
+              "widthXMid": "midX",
+              "widthYMid": "midY",
+              "zMid": "midZ",
+              "widthXTop": "topX",
+              "widthYTop": "topY",
+              "flatTop": "topFlat",
+              "height": "totalHeight",
+              "exponent": "superExponent"
+            }
+          }
+        },
+        {
+          "method": "template_instantiate",
+          "id": 40,
+          "params": {
+            "template": "superEgg",
+            "name": "shadeInner",
+            "arguments": {
+              "widthXBottom": "bottomX-2*wall",
+              "widthYBottom": "bottomY-2*wall",
+              "flatBottom": "bottomFlat",
+              "widthXMid": "midX-2*wall",
+              "widthYMid": "midY-2*wall",
+              "zMid": "midZ-wall",
+              "widthXTop": "topX-2*wall",
+              "widthYTop": "topY-2*wall",
+              "flatTop": "topFlat",
+              "height": "totalHeight-2*wall",
+              "exponent": "superExponent"
+            },
+            "transform": "move(0,0,wall)"
+          }
+        },
+        {
+          "method": "solid_boolean",
+          "id": 41,
+          "params": {
+            "op": "difference",
+            "a": "shadeOuter",
+            "b": "shadeInner",
+            "name": "shadeShell"
+          }
+        },
+        {
+          "method": "solid_cylinder",
+          "id": 42,
+          "params": {
+            "name": "holeCylBottom",
+            "start": [
+              0,
+              0,
+              -1
+            ],
+            "end": [
+              0,
+              0,
+              "wall\u002B1"
+            ],
+            "radius": "holeBottom/2"
+          }
+        },
+        {
+          "method": "solid_cylinder",
+          "id": 43,
+          "params": {
+            "name": "holeCylTop",
+            "start": [
+              0,
+              0,
+              "totalHeight-wall-1"
+            ],
+            "end": [
+              0,
+              0,
+              "totalHeight\u002B1"
+            ],
+            "radius": "holeTop/2"
+          }
+        },
+        {
+          "method": "solid_boolean",
+          "id": 44,
+          "params": {
+            "op": "difference",
+            "a": "shadeShell",
+            "b": [
+              "holeCylBottom",
+              "holeCylTop"
+            ],
+            "name": "lampShade"
+          }
+        },
+        {
+          "method": "template_commit",
+          "id": 45,
+          "params": {
+            "result": "lampShade"
+          }
+        }
+      ]
+    },
+    {
+      "name": "raindrops",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "raindrops",
+            "label": "Regentropfen",
+            "description": "Strahlen aus einem Profil, spiralf\u00F6rmig gleichm\u00E4\u00DFig zwischen zwei Breitengraden verteilt (goldener Winkel); mit Lampenschirm werden sie gleich als L\u00F6cher ausgestanzt",
+            "category": "Lampen",
+            "parameters": [
+              {
+                "name": "profile",
+                "value": "rain_sketch",
+                "label": "Tropfenprofil",
+                "input": {
+                  "kind": "profile",
+                  "description": "Geschlossene ebene Kurve im Ursprung, Spitze in \u002BY",
+                  "order": 1
+                }
+              },
+              {
+                "name": "shade",
+                "value": "noShade",
+                "label": "Lampenschirm",
+                "input": {
+                  "kind": "solid",
+                  "optional": true,
+                  "replace": true,
+                  "description": "Optional: der K\u00F6rper, aus dem die L\u00F6cher gestanzt werden. Die Strahlen gehen von der Mitte seines H\u00FCllquaders aus",
+                  "order": 2
+                }
+              },
+              {
+                "name": "n",
+                "value": 25,
+                "label": "Anzahl",
+                "input": {
+                  "kind": "integer",
+                  "min": 2,
+                  "order": 3
+                }
+              },
+              {
+                "name": "latTop",
+                "value": 75,
+                "label": "Oberer Breitengrad (\u00B0)",
+                "input": {
+                  "kind": "number",
+                  "min": -90,
+                  "max": 90,
+                  "order": 4
+                }
+              },
+              {
+                "name": "latBottom",
+                "value": -75,
+                "label": "Unterer Breitengrad (\u00B0)",
+                "input": {
+                  "kind": "number",
+                  "min": -90,
+                  "max": 90,
+                  "order": 5
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 1,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "assert.check",
+                "params": {
+                  "condition": "n \u003E= 2",
+                  "message": "Es werden mindestens 2 Strahlen gebraucht."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "when": "defined(\u0022shade\u0022)",
+                "method": "workspace.set",
+                "params": {
+                  "name": "center",
+                  "value": "shade.GetExtent(0.0).GetCenter()"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "when": "defined(\u0022shade\u0022)",
+                "method": "workspace.set",
+                "params": {
+                  "name": "len",
+                  "value": "0.5*shade.GetExtent(0.0).Size \u002B 10"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "when": "!defined(\u0022shade\u0022)",
+                "method": "workspace.set",
+                "params": {
+                  "name": "center",
+                  "value": "p(0,0,0)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "when": "!defined(\u0022shade\u0022)",
+                "method": "workspace.set",
+                "params": {
+                  "name": "len",
+                  "value": "200"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sTop",
+                  "value": "sin(latTop*pi/180)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sBottom",
+                  "value": "sin(latBottom*pi/180)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "solid.extrude",
+                "params": {
+                  "profile": "profile",
+                  "length": "len",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "name": "rod"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "pattern.by_formula_solids",
+                "params": {
+                  "solids": "rod",
+                  "variables": [
+                    {
+                      "name": "i",
+                      "start": 0,
+                      "step": 1,
+                      "count": "n"
+                    }
+                  ],
+                  "formulas": {
+                    "lat": "asin(sTop - (sTop-sBottom)*i/(n-1))*180/pi",
+                    "azi": "i*137.50776405"
+                  },
+                  "transform": "translate(center.x, center.y, center.z) * rotate(p(0,0,0), v(0,0,1), azi*pi/180) * rotate(p(0,0,0), v(0,1,0), (90-lat)*pi/180) * rotate(p(0,0,0), v(0,0,1), pi/2)",
+                  "name": "rays"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "when": "defined(\u0022shade\u0022)",
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "shade",
+                  "b": "rays",
+                  "name": "raindrops"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "when": "!defined(\u0022shade\u0022)",
+                "method": "workspace.select",
+                "params": {
+                  "selector": "rays",
+                  "name": "raindrops"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 1,
+          "params": {
+            "result": "raindrops"
+          }
+        }
+      ]
+    }
+  ]
+}

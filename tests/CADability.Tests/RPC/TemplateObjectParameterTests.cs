@@ -99,5 +99,80 @@ namespace CADability.Tests
             Assert.IsNull(Error(response), response);
             Assert.IsInstanceOfType(server.namedItems["rays3"], typeof(List<Solid>));
         }
+
+        private static string TemplateFile([System.Runtime.CompilerServices.CallerFilePath] string thisFile = "")
+            => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(thisFile)!, "..", "Files", "Templates", "SupereiTemplate.json");
+
+        /// <summary>Loads the templates of a template file the way the application does.</summary>
+        private static void LoadTemplates(MCPServer server, string file)
+        {
+            using JsonDocument document = JsonDocument.Parse(System.IO.File.ReadAllText(file));
+            foreach (JsonElement template in document.RootElement.GetProperty("templates").EnumerateArray())
+            {
+                List<JsonElement> items = new List<JsonElement>();
+                foreach (JsonElement item in template.GetProperty("items").EnumerateArray()) items.Add(item.Clone());
+                server.templates[template.GetProperty("name").GetString()!] = items;
+            }
+        }
+
+        [TestMethod]
+        public void SavedRaindropsTemplateStaysBetweenTheLatitudes()
+        {
+            // the "raindrops" template of the template file: rays from the origin (no shade), spread with the golden
+            // angle between latTop and latBottom - whatever the count, no ray may leave that band
+            Project project = Project.CreateSimpleProject();
+            MCPServer server = new MCPServer(null!, project) { SuppressDialogs = true };
+            LoadTemplates(server, TemplateFile());
+            Assert.IsNull(Error(Call(server, "sketch.create", "{\"plane\":{\"standard\":\"XY\"},\"name\":\"prof\"}")));
+            Assert.IsNull(Error(Call(server, "sketch.add_circle", "{\"sketch\":\"prof\",\"center\":[0,0],\"radius\":3}")));
+            foreach ((int n, double top, double bottom) in new[] { (25, 75.0, -75.0), (120, 75.0, -75.0), (9, 60.0, 10.0) })
+            {
+                string response = Call(server, "template.instantiate",
+                    $"{{\"template\":\"raindrops\",\"arguments\":{{\"profile\":\"prof\",\"n\":\"{n}\",\"latTop\":\"{top}\",\"latBottom\":\"{bottom}\"}},\"name\":\"rays{n}\"}}");
+                Assert.IsNull(Error(response), response);
+                List<Solid> rays = (List<Solid>)server.namedItems[$"rays{n}"];
+                Assert.AreEqual(n, rays.Count);
+                BoundingBox ext = BoundingBox.EmptyBoundingBox;
+                foreach (Solid ray in rays) ext.MinMax(ray.GetExtent(0.0));
+                // rays of length 200 start at the origin; 3 is the radius of the profile
+                Assert.IsTrue(ext.Zmax <= 200 * Math.Sin(top * Math.PI / 180) + 3 + 1e-6, $"n={n}: a ray is above {top}°");
+                Assert.IsTrue(ext.Zmin >= Math.Min(0.0, 200 * Math.Sin(bottom * Math.PI / 180)) - 3 - 1e-6, $"n={n}: a ray is below {bottom}°");
+            }
+        }
+
+        [TestMethod]
+        public void SavedValueTemplatesStillRun()
+        {
+            // superEgg, and lampShade which instantiates superEgg twice: arguments are now evaluated in the caller's
+            // workspace before template.begin, which must not change these templates
+            Project project = Project.CreateSimpleProject();
+            MCPServer server = new MCPServer(null!, project) { SuppressDialogs = true };
+            LoadTemplates(server, TemplateFile());
+            foreach (string template in new[] { "superEgg", "lampShade" })
+            {
+                string response = Call(server, "template.instantiate", $"{{\"template\":\"{template}\",\"name\":\"{template}Instance\"}}");
+                Assert.IsNull(Error(response), response);
+                Assert.IsTrue(server.namedItems.ContainsKey(template + "Instance"), template + " produced no result");
+            }
+        }
+
+        [TestMethod]
+        public void SavedRaindropsTemplatePerforatesTheShade()
+        {
+            Project project = Project.CreateSimpleProject();
+            MCPServer server = new MCPServer(null!, project) { SuppressDialogs = true };
+            LoadTemplates(server, TemplateFile());
+            Assert.IsNull(Error(Call(server, "sketch.create", "{\"plane\":{\"standard\":\"XY\"},\"name\":\"prof\"}")));
+            Assert.IsNull(Error(Call(server, "sketch.add_circle", "{\"sketch\":\"prof\",\"center\":[0,0],\"radius\":3}")));
+            // a hollow box around (0,0,100) as shade: the rays start in the center of its bounding box
+            Assert.IsNull(Error(Call(server, "solid.box", "{\"name\":\"outer\",\"origin\":[-100,-100,0],\"sizeX\":200,\"sizeY\":200,\"sizeZ\":200}")));
+            Assert.IsNull(Error(Call(server, "solid.box", "{\"name\":\"inner\",\"origin\":[-95,-95,5],\"sizeX\":190,\"sizeY\":190,\"sizeZ\":190}")));
+            Assert.IsNull(Error(Call(server, "solid.boolean", "{\"op\":\"difference\",\"a\":\"outer\",\"b\":\"inner\",\"name\":\"shade\"}")));
+            int shadeFaces = FirstSolid(server.namedItems["shade"]).Shells[0].Faces.Length;
+            string response = Call(server, "template.instantiate", "{\"template\":\"raindrops\",\"arguments\":{\"profile\":\"prof\",\"shade\":\"shade\",\"n\":\"10\"},\"name\":\"holed\"}");
+            Assert.IsNull(Error(response), response);
+            Solid holed = FirstSolid(server.namedItems["holed"]);
+            Assert.IsTrue(holed.Shells[0].Faces.Length > shadeFaces, "the rays must have made holes into the shade");
+        }
     }
 }

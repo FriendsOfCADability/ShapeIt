@@ -64,6 +64,20 @@ namespace ShapeIt
                     switch (parameterInfo.kind)
                     {
                         case "number":
+                            {   // a plain signed number without unit (a LengthInput would show it as a length)
+                                if (parameterInfo.defaultValue is double d)
+                                {
+                                    string name = parameterNames[i]; // capture
+                                    parameterValues[name] = d;
+                                    DoubleInput di = new DoubleInput("@" + parameterInfo.label + "@" + parameterInfo.description, d);
+                                    di.SetDoubleEvent += v => { parameterValues[name] = v; RequestPreview(); return true; };
+                                    di.GetDoubleEvent += () => Convert.ToDouble(parameterValues[name]);
+                                    di.Optional = true;
+                                    inputs.Add(di);
+                                    errorTargets.Add(di);
+                                }
+                            }
+                            break;
                         case "length":
                             {
                                 if (parameterInfo.defaultValue is double d)
@@ -99,15 +113,18 @@ namespace ShapeIt
                             break;
                         case "angle":
                             {
-                                int intVal = int.MaxValue;
-                                if (parameterInfo.defaultValue is int ii) intVal = ii;
-                                if (parameterInfo.defaultValue is double dd) intVal = (int)dd;
-                                if (intVal != int.MaxValue)
+                                // degrees as double: the default was truncated to whole degrees before
+                                double deg = double.NaN;
+                                if (parameterInfo.defaultValue is int ii) deg = ii;
+                                if (parameterInfo.defaultValue is double dd) deg = dd;
+                                if (!double.IsNaN(deg))
                                 {
                                     string name = parameterNames[i]; // capture
-                                    parameterValues[name] = intVal;
-                                    AngleInput AngleInput = new AngleInput("@" + parameterInfo.label + "@" + parameterInfo.description, intVal);
-                                    AngleInput.SetAngleEvent += l => { parameterValues[name] = l.Degree; RequestPreview(); return true; };
+                                    parameterValues[name] = deg;
+                                    AngleInput AngleInput = new AngleInput("@" + parameterInfo.label + "@" + parameterInfo.description, Angle.Deg(deg));
+                                    // Angle is normalized to [0, 360°): a default of -75° would come back as 285°, so the
+                                    // template gets the signed value in (-180°, 180°]
+                                    AngleInput.SetAngleEvent += l => { double v = l.Degree; parameterValues[name] = v > 180.0 ? v - 360.0 : v; RequestPreview(); return true; };
                                     AngleInput.GetAngleEvent += () => Angle.Deg(Convert.ToDouble(parameterValues[name]));
                                     AngleInput.Optional = true;
                                     inputs.Add(AngleInput);

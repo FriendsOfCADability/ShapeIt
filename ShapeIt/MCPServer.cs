@@ -6122,6 +6122,25 @@ namespace ShapeIt
         {
 
             if (!templates.TryGetValue(template, out var jsons)) throw new JsonRpcException("E_INVALID_PARAMETER", $"Template '{template}' not found.");
+            // The arguments are expressions of the caller, so they are evaluated in the caller's workspace, before
+            // template.begin binds the template's own defaults: otherwise "height": "height" would see the template's
+            // default instead of the caller's value, and an object parameter of the same name would not be found at all.
+            List<(string name, object value)> argumentValues = [];
+            if (arguments.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var item in arguments.EnumerateObject())
+                {
+                    if (item.Value.ValueKind == JsonValueKind.Number) argumentValues.Add((item.Name, item.Value.GetDouble()));
+                    else if (item.Value.ValueKind == JsonValueKind.String)
+                    {
+                        object value = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
+                        // an object argument is the caller's workspace item: the template works on a copy,
+                        // so that a step modifying it in place cannot reach outside the template
+                        if (value is IGeoObject go) value = go.Clone();
+                        argumentValues.Add((item.Name, value));
+                    }
+                }
+            }
             object? res = null; // the result
             {   // use a clone of the named items dictionary during evaluation of the template
                 foreach (var element in jsons)
@@ -6155,22 +6174,7 @@ namespace ShapeIt
                         if (methodName == "template.begin")
                         {   // here we overwrite the workspace values of the parameters
                             // template.begin createt a new copy of the named items, so we can safely overwrite values here without affecting the outside
-                            if (arguments.ValueKind == JsonValueKind.Object)
-                            {
-                                foreach (var item in arguments.EnumerateObject())
-                                {
-                                    string parName = item.Name;
-                                    if (item.Value.ValueKind == JsonValueKind.Number) namedItems[parName] = item.Value.GetDouble();
-                                    else if (item.Value.ValueKind == JsonValueKind.String)
-                                    {
-                                        object value = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
-                                        // an object argument is the caller's workspace item: the template works on a copy,
-                                        // so that a step modifying it in place cannot reach outside the template
-                                        if (value is IGeoObject go) value = go.Clone();
-                                        namedItems[parName] = value;
-                                    }
-                                }
-                            }
+                            foreach ((string parName, object value) in argumentValues) namedItems[parName] = value;
                             try
                             {
                                 CheckTemplateObjectArguments(template);

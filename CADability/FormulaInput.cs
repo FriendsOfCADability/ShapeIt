@@ -410,7 +410,7 @@ public static class Parser
                                 IsFunction = isFunction, // a method of the property? not implemented yet
                                 IsProperty = true
                             });
-                            if (opStack.Peek() is Token tt && tt.Type == TokenType.Dot)
+                            if (opStack.Count > 0 && opStack.Peek() is Token tt && tt.Type == TokenType.Dot)
                             {   // we need to add the dot here because of chains of properties a.x.y to apper in the correct order.
                                 output.Add(opStack.Pop());
                             }
@@ -462,7 +462,7 @@ public static class Parser
                                 ArgCount = 1, // sobald wir in Klammern sind, erwarten wir mindestens 1 Argument
                                 IsObjectMehtod = function.Value.IsProperty // there was a dot left of the name
                             });
-                            if (function.Value.IsProperty && opStack.Peek() is Token ptk && ptk.Type == TokenType.Dot) opStack.Pop(); // pop the dot operand, because it is not needed after the function call
+                            if (function.Value.IsProperty && opStack.Count > 0 && opStack.Peek() is Token ptk && ptk.Type == TokenType.Dot) opStack.Pop(); // pop the dot operand, because it is not needed after the function call (usually it was already moved to the output, and the stack may be empty)
                             paranIsFunc.Push(true);
                         }
                         else
@@ -507,6 +507,8 @@ public static class Parser
                             // Das erkennen wir aber nur über funcStack.
                         }
                         bool isFunc = paranIsFunc.Pop();
+                        // "f()": the count starts at 1 when the '(' is read, but there is no argument at all
+                        if (isFunc && funcStack.Count > 0 && i > 0 && tokens[i - 1].Type == TokenType.LParen) funcStack.Peek().ArgCount = 0;
                         if (funcStack.Count > 0 && isFunc)
                         {
                             // Aber Achtung: Wir wissen NICHT sicher, ob dieses ')' wirklich zu der obersten Funktion gehört
@@ -1098,36 +1100,21 @@ public static class Evaluator
                         if (call.IsObjectMember)
                         {
                             object toCallWith = stack.Pop();
+                            // The '.' operator only knows the name, so it hands over the first method of that name.
+                            // Choose among all overloads the one whose parameters accept the arguments.
+                            object target = toCallWith is ObjectMethodPair om ? om.obj : toCallWith;
                             MethodInfo? toCall = null;
-                            object target = null;
-                            if (toCallWith is ObjectMethodPair om)
+                            object?[]? coercedArgs = null;
+                            MethodInfo[] methods = target.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            for (int i = 0; i < methods.Length && toCall == null; i++)
                             {
-                                toCall = om.method;
-                                target = om.obj;
-                            }
-                            else
-                            {
-                                MethodInfo[] methods = toCallWith.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-                                for (int i = 0; i < methods.Length; i++)
-                                {
-                                    if (!string.Equals(methods[i].Name, call.Name, StringComparison.OrdinalIgnoreCase))
-                                        continue;
-
-                                    var parameters = methods[i].GetParameters();
-                                    if (parameters.Length != call.ArgCount)
-                                        continue;
-                                    toCall = methods[i];
-                                    target = toCallWith;
-                                    break;
-                                }
-                            }
-                            if (toCall != null)
-                            {
-                                var parameters = toCall.GetParameters();
-
-                                object?[] coercedArgs = new object?[parameters.Length];
+                                if (!string.Equals(methods[i].Name, call.Name, StringComparison.OrdinalIgnoreCase))
+                                    continue;
+                                var parameters = methods[i].GetParameters();
+                                if (parameters.Length != call.ArgCount)
+                                    continue;
+                                object?[] coerced = new object?[parameters.Length];
                                 bool ok = true;
-
                                 for (int j = 0; j < parameters.Length; j++)
                                 {
                                     if (!TryCoerceArg(args[j], parameters[j], out var c))
@@ -1135,13 +1122,15 @@ public static class Evaluator
                                         ok = false;
                                         break;
                                     }
-                                    coercedArgs[j] = c;
+                                    coerced[j] = c;
                                 }
-
                                 if (!ok) continue;
-
-                                fres = toCall.Invoke(target, coercedArgs);
+                                toCall = methods[i];
+                                coercedArgs = coerced;
                             }
+                            if (toCall == null)
+                                throw new Exception($"{target.GetType().Name} has no method {call.Name} accepting {call.ArgCount} argument(s) of the given types.");
+                            fres = toCall.Invoke(target, coercedArgs);
                         }
                         else
                         {
