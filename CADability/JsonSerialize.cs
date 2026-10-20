@@ -357,113 +357,7 @@ namespace CADability
             {
                 object val = this[name];
                 if (root.typeVersions.TryGetValue(type.FullName, out int tv) && tv == -1) return val; // maybe it was ISerialize in an old version and is now SerializeAsStruct: this would fail
-                if (SerializeAsStruct(type))
-                {
-                    ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(IJsonReadStruct) }, null);
-                    return cie.Invoke(new object[] { new JsonArray(val as List<object>, root) });
-                }
-                if ((type.IsPrimitive || type.IsEnum) && val is string)
-                {
-                    return Parse(val, type);
-                }
-                if (type.IsPrimitive && val is double) // all numbers are read as double
-                {
-                    return Convert.ChangeType(val, type);
-                }
-                if (type.IsArray)
-                {
-                    int dim = type.GetArrayRank();
-                    Array sar = null;
-                    Type eltp = type.GetElementType();
-                    // only one ore twodimensional arrays are currently supported
-                    // for more dimensions 
-                    if (dim == 1)
-                    {
-                        ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, [typeof(int)], null);
-                        sar = cie.Invoke(new object[] { (val as List<object>).Count }) as Array;
-                    }
-                    else if (dim == 2)
-                    {
-                        ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, [typeof(int), typeof(int)], null);
-                        sar = cie.Invoke(new object[] { (val as List<object>).Count, ((val as List<object>)[0] as List<object>).Count }) as Array;
-                    }
-                    if (eltp.IsArray)
-                    {
-                        ConstructorInfo subci = eltp.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(int) }, null);
-                        List<object> kve = val as List<object>;
-                        for (int i = 0; i < kve.Count; i++)
-                        {
-                            List<object> sublist = kve[i] as List<object>;
-                            Array ssar = subci.Invoke(new object[] { sublist.Count }) as Array;
-                            for (int j = 0; j < sublist.Count; j++)
-                            {
-                                ssar.SetValue(sublist[j], j);
-                            }
-                            sar.SetValue(ssar, i);
-                        }
-                        return sar;
-                    }
-                    else if (SerializeAsStruct(eltp))
-                    {
-                        ConstructorInfo cieltp = eltp.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(IJsonReadStruct) }, null);
-
-                        List<object> kve = val as List<object>;
-                        for (int i = 0; i < kve.Count; i++)
-                        {
-                            if (dim == 1)
-                            {
-                                sar.SetValue(cieltp.Invoke(new object[] { new JsonArray(kve[i] as List<object>, root) }), i);
-                            }
-                            else if (dim == 2)
-                            {
-                                var kk = kve[i] as List<object>;
-                                for (int j = 0; j < kk.Count; j++)
-                                {
-                                    sar.SetValue(cieltp.Invoke(new object[] { new JsonArray(kk[j] as List<object>, root) }), i, j);
-                                }
-                            }
-                        }
-                        return sar;
-                    }
-                    else
-                    {
-                        List<object> kve = val as List<object>;
-                        for (int i = 0; i < kve.Count; i++)
-                        {
-                            if (dim == 1)
-                            {
-                                if (eltp == typeof(int)) kve[i] = Convert.ChangeType(kve[i], eltp); // changeType: maybe double->int
-                                sar.SetValue(kve[i], i);
-                            }
-                            else if (dim == 2)
-                            {
-                                var kk = kve[i] as List<object>;
-                                for (int j = 0; j < kk.Count; j++)
-                                {
-                                    if (eltp == typeof(int)) kk[j] = Convert.ChangeType(kk[j], eltp); // changeType: maybe double->int
-                                    sar.SetValue(kk[j], i, j);
-                                }
-                            }
-                        }
-                        return sar;
-                    }
-                }
-                else if (type.GetInterface("IList") != null)
-                {
-
-                    ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[0], null);
-                    IList ar = cie.Invoke(new object[0]) as IList;
-                    List<object> kve = val as List<object>;
-                    for (int i = 0; i < kve.Count; i++)
-                    {
-
-                        try { ar.Add(kve[i]); } catch { }
-                        ; // could fail when kve[i] is a JsonUnknownType
-                    }
-                    return ar;
-                }
-
-                return val;
+                return ConvertToType(val, type, root);
             }
             bool IsList(Type t)
             {
@@ -601,6 +495,144 @@ namespace CADability
         {
             for (Type? t = start; t != null && t != typeof(object); t = t.BaseType)
                 yield return t;
+        }
+
+        /// <summary>
+        /// Converts a value as it comes from the json parser into an instance of <paramref name="type"/>.
+        /// The parser yields doubles for numbers, strings, bools, already created objects for references and
+        /// List&lt;object&gt; for every json array. Arrays and lists are converted element by element, so nested
+        /// collections like List&lt;List&lt;Solid&gt;&gt; or GeoPoint[][] are restored with their element types.
+        /// If <paramref name="type"/> is null or object, or no conversion applies, the value is returned unchanged.
+        /// </summary>
+        internal static object ConvertToType(object val, Type type, JsonSerialize root = null)
+        {
+            if (val == null || type == null || type == typeof(object)) return val;
+            if (type.IsInstanceOfType(val)) return val;
+            Type underlying = Nullable.GetUnderlyingType(type);
+            if (underlying != null) return ConvertToType(val, underlying, root);
+            if (val is List<object> lo)
+            {
+                if (SerializeAsStruct(type))
+                {
+                    ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(IJsonReadStruct) }, null);
+                    return cie.Invoke(new object[] { new JsonArray(lo, root) });
+                }
+                if (type.IsArray) return ConvertToArray(lo, type, root);
+                Type eltp = CollectionElementType(type);
+                IList res = CreateList(type, eltp);
+                if (res == null) return val;
+                foreach (object item in lo)
+                {
+                    object converted = ConvertToType(item, eltp, root);
+                    // elements of unknown types (JsonProxyType) cannot be added to a typed list and are skipped
+                    if (converted == null || eltp == null || eltp.IsInstanceOfType(converted)) res.Add(converted);
+                }
+                return res;
+            }
+            if (type.IsEnum)
+            {
+                if (val is string) return Parse(val, type);
+                return Enum.ToObject(type, Convert.ChangeType(val, Enum.GetUnderlyingType(type), CultureInfo.InvariantCulture));
+            }
+            if (type.IsPrimitive && val is string) return Parse(val, type);
+            if (val is IConvertible) return Convert.ChangeType(val, type, CultureInfo.InvariantCulture);
+            return val;
+        }
+        private static Array ConvertToArray(List<object> lo, Type type, JsonSerialize root)
+        {
+            Type eltp = type.GetElementType();
+            int rank = type.GetArrayRank();
+            if (rank == 1)
+            {
+                Array res = Array.CreateInstance(eltp, lo.Count);
+                for (int i = 0; i < lo.Count; i++)
+                {
+                    object converted = ConvertToType(lo[i], eltp, root);
+                    if (converted == null || eltp.IsInstanceOfType(converted)) res.SetValue(converted, i);
+                }
+                return res;
+            }
+            if (rank == 2)
+            {
+                int columns = lo.Count > 0 && lo[0] is List<object> first ? first.Count : 0;
+                Array res = Array.CreateInstance(eltp, lo.Count, columns);
+                for (int i = 0; i < lo.Count; i++)
+                {
+                    if (!(lo[i] is List<object> row)) continue;
+                    for (int j = 0; j < Math.Min(row.Count, columns); j++)
+                    {
+                        object converted = ConvertToType(row[j], eltp, root);
+                        if (converted == null || eltp.IsInstanceOfType(converted)) res.SetValue(converted, i, j);
+                    }
+                }
+                return res;
+            }
+            throw new ApplicationException("more than two dimensions for array deserialisation is not supported");
+        }
+        /// <summary>
+        /// The element type of a generic collection type (List&lt;T&gt;, IList&lt;T&gt;, IEnumerable&lt;T&gt; ...), null if there is none.
+        /// </summary>
+        private static Type CollectionElementType(Type type)
+        {
+            IEnumerable<Type> candidates = type.IsInterface ? new[] { type }.Concat(type.GetInterfaces()) : type.GetInterfaces();
+            foreach (Type t in candidates)
+            {
+                if (t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IEnumerable<>)) return t.GetGenericArguments()[0];
+            }
+            return null;
+        }
+        /// <summary>
+        /// Creates an empty list which is an instance of <paramref name="type"/>: either via its parameterless constructor
+        /// or, for an interface like IList&lt;T&gt;, as a List&lt;T&gt;. Returns null if <paramref name="type"/> is no list type.
+        /// </summary>
+        private static IList CreateList(Type type, Type eltp)
+        {
+            if (type.IsInterface)
+            {
+                Type list = typeof(List<>).MakeGenericType(eltp ?? typeof(object));
+                return type.IsAssignableFrom(list) ? (IList)Activator.CreateInstance(list) : null;
+            }
+            if (!typeof(IList).IsAssignableFrom(type)) return null;
+            ConstructorInfo cie = type.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, Type.EmptyTypes, null);
+            return cie?.Invoke(new object[0]) as IList;
+        }
+        /// <summary>
+        /// Resolves a type name as written by <see cref="Type.FullName"/> or <see cref="Type.ToString"/>. Assembly versions
+        /// in the name (e.g. of generic arguments) are ignored: the assemblies are matched by their simple name against the
+        /// loaded assemblies, so files written by another CADability or .NET version can still be read. Returns null if the
+        /// type cannot be found (e.g. it is defined in an assembly that is not loaded).
+        /// </summary>
+        internal static Type ResolveTypeName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return null;
+            name = RenamedTypes.Resolve(name);
+            Type res = Type.GetType(name, false);
+            if (res != null) return res;
+            Assembly[] loaded = AppDomain.CurrentDomain.GetAssemblies();
+            Type FindInLoaded(string typeName, bool ignoreCase) => loaded.Select(a => a.GetType(typeName, false, ignoreCase)).FirstOrDefault(t => t != null);
+            try
+            {
+                res = Type.GetType(name,
+                    an => loaded.FirstOrDefault(a => a.GetName().Name == an.Name),
+                    (assembly, typeName, ignoreCase) => assembly != null ? assembly.GetType(typeName, false, ignoreCase) : FindInLoaded(typeName, ignoreCase),
+                    false);
+            }
+            catch (Exception e) when (e is ArgumentException || e is TypeLoadException || e is IOException || e is BadImageFormatException)
+            {
+                res = null;
+            }
+            return res ?? FindInLoaded(name, false);
+        }
+        /// <summary>
+        /// Replaces references ("#n", read as ulong) in a json array and all its nested arrays by the created objects.
+        /// </summary>
+        private void ResolveReferences(List<object> lo, List<object> entities, HashSet<ulong> underConstruction)
+        {
+            for (int i = 0; i < lo.Count; i++)
+            {
+                if (lo[i] is ulong) lo[i] = CreateEntity(entities, (ulong)lo[i], underConstruction);
+                else if (lo[i] is List<object> sub) ResolveReferences(sub, entities, underConstruction);
+            }
         }
 
         private void RegisterForSerializationDoneCallback(IJsonSerializeDone toCall)
@@ -1135,22 +1167,7 @@ namespace CADability
                                 foreach (string key in keys)
                                 {
                                     if (data[key] is ulong) data[key] = CreateEntity(entities, (ulong)data[key], underConstruction);
-                                    else if (data[key] is List<object>)
-                                    {
-                                        List<object> lo = data[key] as List<object>;
-                                        for (int i = 0; i < lo.Count; i++)
-                                        {
-                                            if (lo[i] is ulong) lo[i] = CreateEntity(entities, (ulong)lo[i], underConstruction);
-                                            if (lo[i] is List<object>) // only max. twodimensional arrays implemented
-                                            {
-                                                List<object> llo = lo[i] as List<object>;
-                                                for (int j = 0; j < llo.Count; j++)
-                                                {
-                                                    if (llo[j] is ulong) llo[j] = CreateEntity(entities, (ulong)llo[j], underConstruction);
-                                                }
-                                            }
-                                        }
-                                    }
+                                    else if (data[key] is List<object> lo) ResolveReferences(lo, entities, underConstruction);
                                 }
                                 // (created as IJsonSerialize).SetObjectData(data);
                                 CallSetObjectDataAllLevels(created, data);
@@ -1193,22 +1210,7 @@ namespace CADability
             foreach (string key in keys)
             {
                 if (data[key] is ulong) data[key] = CreateEntity(entities, (ulong)data[key], underConstruction);
-                else if (data[key] is List<object>)
-                {
-                    List<object> lo = data[key] as List<object>;
-                    for (int i = 0; i < lo.Count; i++)
-                    {
-                        if (lo[i] is ulong) lo[i] = CreateEntity(entities, (ulong)lo[i], underConstruction);
-                        if (lo[i] is List<object>) // only max. twodimensional arrays implemented
-                        {
-                            List<object> llo = lo[i] as List<object>;
-                            for (int j = 0; j < llo.Count; j++)
-                            {
-                                if (llo[j] is ulong) llo[j] = CreateEntity(entities, (ulong)llo[j], underConstruction);
-                            }
-                        }
-                    }
-                }
+                else if (data[key] is List<object> lo) ResolveReferences(lo, entities, underConstruction);
             }
             // obj.SetObjectData(data);
             CallSetObjectDataAllLevels(obj, data);
@@ -1869,7 +1871,6 @@ namespace CADability
             Type valType = null;
             bool firstItem = true;
             bool keyIsPrimitv = false;
-            bool valIsPrimitv = false;
             List<string> valTypes = new List<string>();
             foreach (DictionaryEntry item in this)
             {
@@ -1877,7 +1878,6 @@ namespace CADability
                 Type vt = item.Value == null ? typeof(object) : item.Value.GetType();
                 valTypes.Add(vt.FullName);
                 if (kt.IsPrimitive || JsonSerialize.SerializeAsStruct(kt)) keyIsPrimitv = true;
-                if (vt != null && (vt.IsPrimitive || JsonSerialize.SerializeAsStruct(kt))) valIsPrimitv = true;
                 if (firstItem)
                 {
                     keyType = kt; // cannot be null
@@ -1894,7 +1894,8 @@ namespace CADability
             List<object[]> asList = new List<object[]>();
             if (keyType == null && !keyIsPrimitv) keyType = typeof(object); // objects are read with the correct type
             else if (keyType == null) throw new ApplicationException("unable to save dictionary with different types for the key");
-            if (valType == null && !valIsPrimitv) valType = typeof(object);
+            // Mixed value types are always listed per value: a json array (List<Solid>, GeoPoint[] ...) or a struct
+            // doesn't carry its type, only references to objects do.
             if (keyType != null) data.AddProperty("$KeyType", keyType.ToString());
             if (valType != null) data.AddProperty("$ValueType", valType.ToString());
             else data.AddProperty("$ValueTypes", valTypes.ToArray()); // the types, synchronous to the values
@@ -1905,19 +1906,12 @@ namespace CADability
             data.AddProperty("$Entries", asList.ToArray());
         }
 
-        static Type? FindType(string fullName)
-        {
-            return AppDomain.CurrentDomain
-                .GetAssemblies()
-                .Select(a => a.GetType(fullName, false, false))
-                .FirstOrDefault(t => t != null);
-        }
         public void SetObjectData(IJsonReadData data)
         {
             Type keyType = null, valType = null;
             string[] valTypes = null;
-            if (data.HasProperty("$KeyType")) keyType = Type.GetType(RenamedTypes.Resolve(data.GetProperty<string>("$KeyType")));
-            if (data.HasProperty("$ValueType")) valType = Type.GetType(RenamedTypes.Resolve(data.GetProperty<string>("$ValueType")));
+            if (data.HasProperty("$KeyType")) keyType = JsonSerialize.ResolveTypeName(data.GetProperty<string>("$KeyType"));
+            if (data.HasProperty("$ValueType")) valType = JsonSerialize.ResolveTypeName(data.GetProperty<string>("$ValueType"));
             if (data.HasProperty("$ValueTypes")) valTypes = data.GetProperty<string[]>("$ValueTypes");
             List<object> entries = data.GetProperty<List<object>>("$Entries");
             for (int i = 0; i < entries.Count; i++)
@@ -1925,34 +1919,16 @@ namespace CADability
                 List<object> kv = entries[i] as List<object>;
                 object key = kv[0];
                 if (key == null) continue;
-                Type vt;
-                if (valTypes != null)
-                {
-                    string valType_i = RenamedTypes.Resolve(valTypes[i]);
-                    vt = Type.GetType(valType_i) ?? FindType(valType_i);
-                }
-                else vt = valType;
-                object val = kv[1];
-                if (!key.GetType().IsSubclassOf(keyType)) key = Convert.ChangeType(key, keyType);
-                if (val != null && !val.GetType().IsSubclassOf(vt))
-                {
-                    if (JsonSerialize.SerializeAsStruct(vt) && val is List<object> lo)
-                    {
-                        JsonSerialize.JsonArray jsonArray = new JsonSerialize.JsonArray(lo, null);
-                        ConstructorInfo cie = vt.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { typeof(IJsonReadStruct) }, null);
-                        val = cie.Invoke(new object[] { jsonArray });
-                    }
-                    else
-                    {
-                        val = Convert.ChangeType(val, vt);
-                    }
-                }
-                this[key] = val;
+                Type vt = valTypes != null ? JsonSerialize.ResolveTypeName(valTypes[i]) : valType;
+                // an unresolvable type (e.g. from an assembly which is not loaded) leaves the value as it was read
+                key = JsonSerialize.ConvertToType(key, keyType);
+                this[key] = JsonSerialize.ConvertToType(kv[1], vt);
             }
-            originalType = Type.GetType(RenamedTypes.Resolve(data.GetProperty<string>("$OriginalType")));
+            originalType = JsonSerialize.ResolveTypeName(data.GetProperty<string>("$OriginalType"));
         }
         object IJsonConvert.Convert()
         {
+            if (originalType == null) return new Hashtable(this); // the dictionary type is unknown here, keep the content
             ConstructorInfo construct = originalType.GetConstructor(BindingFlags.CreateInstance | BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, Type.DefaultBinder, new Type[] { }, null);
             // original typenames contain version specific information: [System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089], which we would like to avoid
             // we could strip that information, but with System.Windows.Forms.Shortcut this doesn't work. Maybe we need special handling of enums
@@ -2043,7 +2019,7 @@ namespace CADability
 
         public void SetObjectData(IJsonReadData data)
         {
-            originalType = Type.GetType(RenamedTypes.Resolve(data.GetProperty<string>("$OriginalType")));
+            originalType = JsonSerialize.ResolveTypeName(data.GetProperty<string>("$OriginalType"));
 
             itemTypes = data.GetProperty<string[]>("$ItemTypes");
             // Je nach deinem JSON-Parser kann "$Items" als List<object> oder object[] kommen
@@ -2130,31 +2106,18 @@ namespace CADability
         }
 
         /// <summary>
-        /// Versucht value auf targetType zu bringen (für primitive, enums, nullables).
-        /// Optional kannst du hier dein SerializeAsStruct-Handling einhängen.
+        /// Converts a tuple item to the type of its tuple component (see <see cref="JsonSerialize.ConvertToType"/>).
         /// </summary>
         private static object Coerce(object value, Type targetType)
         {
             if (value == null)
             {
-                // null für Nullable oder Referenztypen ok; für non-nullable ValueTypes -> default
+                // null is fine for nullable and reference types, non-nullable value types get their default
                 if (!targetType.IsValueType || Nullable.GetUnderlyingType(targetType) != null) return null;
                 return Activator.CreateInstance(targetType);
             }
 
-            Type vtype = value.GetType();
-            if (targetType.IsAssignableFrom(vtype)) return value;
-
-            Type nn = Nullable.GetUnderlyingType(targetType);
-            if (nn != null) targetType = nn;
-
-            if (targetType.IsEnum)
-            {
-                if (value is string s) return Enum.Parse(targetType, s);
-                return Enum.ToObject(targetType, Convert.ChangeType(value, Enum.GetUnderlyingType(targetType)));
-            }
-
-            return Convert.ChangeType(value, targetType);
+            return JsonSerialize.ConvertToType(value, targetType);
         }
     }
 
