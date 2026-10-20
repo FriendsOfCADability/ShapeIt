@@ -3466,66 +3466,76 @@ namespace CADability
                 return double.MaxValue;
             }
         }
+        /// <summary>
+        /// Fits a line to the points by orthogonal least squares: the sum of the squared perpendicular distances is minimal.
+        /// The line passes through the centroid, its direction is the principal axis of the centered second moments,
+        /// which in 2d has the closed form angle = atan2(2*sxy, sxx - syy) / 2.
+        /// </summary>
+        /// <param name="points">at least two points</param>
+        /// <param name="location">the centroid of the points</param>
+        /// <param name="direction">the normalized direction of the line</param>
+        /// <returns>the maximum distance of a point from the line</returns>
         public static double LineFit(GeoPoint2D[] points, out GeoPoint2D location, out GeoVector2D direction)
-        {   // nach http://stackoverflow.com/questions/2352256/fit-a-3d-line-to-3d-point-data-in-java
-            if (points.Length < 3) throw new ApplicationException("Invalid parameter at LineFit: points must contain more than two points");
-            Matrix P = new DenseMatrix(points.Length, 2);
-            for (int i = 0; i < points.Length; i++)
-            {
-                P[i, 0] = points[i].x;
-                P[i, 1] = points[i].y;
-            }
-            Svd<double> svd = (P.Transpose() * P).Svd();
-            int maxind = 0;
-            for (int i = 1; i < 2; i++)
-            {
-                if (svd.S[i] > svd.S[maxind]) maxind = i;
-            }
-            direction = new GeoVector2D(svd.VT[0, maxind], svd.VT[1, maxind]);
+        {
+            if (points.Length < 2) throw new ApplicationException("Invalid parameter at LineFit: points must contain at least two points");
             location = new GeoPoint2D(points);
-            double d = 0.0;
-            double dl = direction.Length;
-            if (dl > 0.0)
-            {
-                for (int i = 0; i < points.Length; i++)
-                {
-                    d = Math.Max(((new GeoVector(points[i] - location)) ^ new GeoVector(direction)).Length / dl, d);
-                }
-                return d;
-            }
-            return double.MaxValue;
-        }
-        public static double LineFit(GeoPoint[] points, out GeoPoint location, out GeoVector direction)
-        {   // nach http://stackoverflow.com/questions/2352256/fit-a-3d-line-to-3d-point-data-in-java
-            // better use GaussNewtonMinimizer.LineFit
-            if (points.Length < 3) throw new ApplicationException("Invalid parameter at LineFit: points must contain more than two points");
-            Matrix P = new DenseMatrix(points.Length, 3);
+            double sxx = 0.0, syy = 0.0, sxy = 0.0;
             for (int i = 0; i < points.Length; i++)
             {
-                P[i, 0] = points[i].x;
-                P[i, 1] = points[i].y;
-                P[i, 2] = points[i].z;
+                double dx = points[i].x - location.x;
+                double dy = points[i].y - location.y;
+                sxx += dx * dx;
+                syy += dy * dy;
+                sxy += dx * dy;
             }
-            Svd<double> svd = (P.Transpose() * P).Svd();
-            int maxind = 0;
+            double angle = 0.5 * Math.Atan2(2.0 * sxy, sxx - syy);
+            direction = new GeoVector2D(Math.Cos(angle), Math.Sin(angle));
+            double d = 0.0;
+            for (int i = 0; i < points.Length; i++)
+            {
+                d = Math.Max(d, Math.Abs((points[i].x - location.x) * direction.y - (points[i].y - location.y) * direction.x));
+            }
+            return d;
+        }
+        /// <summary>
+        /// Fits a line to the points by orthogonal least squares: the sum of the squared perpendicular distances is minimal.
+        /// The line passes through the centroid, its direction is the eigenvector of the largest eigenvalue of the
+        /// covariance matrix of the centered points.
+        /// </summary>
+        /// <param name="points">at least two points</param>
+        /// <param name="location">the centroid of the points</param>
+        /// <param name="direction">the normalized direction of the line</param>
+        /// <returns>the maximum distance of a point from the line</returns>
+        public static double LineFit(GeoPoint[] points, out GeoPoint location, out GeoVector direction)
+        {
+            if (points.Length < 2) throw new ApplicationException("Invalid parameter at LineFit: points must contain at least two points");
+            location = new GeoPoint(points);
+            Matrix cov = new DenseMatrix(3, 3);
+            for (int i = 0; i < points.Length; i++)
+            {
+                GeoVector v = points[i] - location;
+                double[] c = { v.x, v.y, v.z };
+                for (int j = 0; j < 3; j++)
+                {
+                    for (int k = 0; k < 3; k++) cov[j, k] += c[j] * c[k];
+                }
+            }
+            Evd<double> evd = cov.Evd(Symmetricity.Symmetric);
+            int maxind = 0; // don't rely on the order of the eigenvalues
             for (int i = 1; i < 3; i++)
             {
-                if (svd.S[i] > svd.S[maxind]) maxind = i;
+                if (evd.EigenValues[i].Real > evd.EigenValues[maxind].Real) maxind = i;
             }
-            direction = new GeoVector(svd.VT[0, maxind], svd.VT[1, maxind], svd.VT[2, maxind]);
-            location = new GeoPoint(points);
-            double d = 0.0;
+            direction = new GeoVector(evd.EigenVectors[0, maxind], evd.EigenVectors[1, maxind], evd.EigenVectors[2, maxind]);
             double dl = direction.Length;
-            if (dl > 0.0)
+            if (!(dl > 0.0)) return double.MaxValue;
+            direction = (1.0 / dl) * direction;
+            double d = 0.0;
+            for (int i = 0; i < points.Length; i++)
             {
-                for (int i = 0; i < points.Length; i++)
-                {
-                    d = Math.Max(((points[i] - location) ^ direction).Length / dl, d);
-                    double dd = Geometry.DistPL(points[i], location, direction);
-                }
-                return d;
+                d = Math.Max(d, ((points[i] - location) ^ direction).Length);
             }
-            return double.MaxValue;
+            return d;
         }
         public static GeoPoint2D GetPosition(GeoPoint2D p, GeoPoint2D sysLoc, GeoVector2D sysDirx, GeoVector2D sysDiry)
         {
