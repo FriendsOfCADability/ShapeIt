@@ -1283,7 +1283,30 @@ namespace CADability
             }
             return PK;
         }
+        // Derivative control points per maxderiv. They only depend on poles and knots, which are never changed
+        // after construction (the same assumption InitDerivS makes for derivs), so they are computed once.
+        // Without the cache every SurfaceDeriv call rebuilt them for the whole pole net, which dominated
+        // NurbsSurface.DerivativeAt/Derivative2At. The arrays are only read after being filled, so sharing them
+        // between threads is fine; a race merely computes the same values twice.
+        private DerivsKL[] surfaceDerivCptsCache;
         private DerivsKL SurfaceDeriveCpts(int maxderiv)
+        {
+            DerivsKL[] cache = surfaceDerivCptsCache;
+            if (cache == null || cache.Length <= maxderiv)
+            {
+                DerivsKL[] larger = new DerivsKL[maxderiv + 1];
+                if (cache != null) Array.Copy(cache, larger, cache.Length);
+                cache = larger;
+            }
+            DerivsKL res = cache[maxderiv];
+            if (res == null)
+            {
+                res = cache[maxderiv] = ComputeSurfaceDeriveCpts(maxderiv);
+                surfaceDerivCptsCache = cache;
+            }
+            return res;
+        }
+        private DerivsKL ComputeSurfaceDeriveCpts(int maxderiv)
         {   // Buch S. 114: n,m: Anzahl der Poles, p,q: u/vdegree, U,V: knots, P: poles, d: maxderiv, r1,s1: 0, r2,s2: n,m
             DerivsKL PKL = new Nurbs<T, C>.DerivsKL(this, maxderiv);
             int du = Math.Min(maxderiv, udegree);
@@ -1569,7 +1592,7 @@ namespace CADability
             double[][] Nu, Nv;
             AllBasisFunsU(uspan, u, out Nu);
             AllBasisFunsV(vspan, v, out Nv);
-            DerivsKL PKL = SurfaceDeriveCpts(maxderiv); // muss natürlich in einen cache
+            DerivsKL PKL = SurfaceDeriveCpts(maxderiv); // cached, see SurfaceDeriveCpts
 
             int uind = uspan - udegree;
             int vind = vspan - vdegree;
