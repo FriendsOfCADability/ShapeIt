@@ -1,16 +1,17 @@
 {
-	"toolsetVersion": "shapeit.mcp.tools.v1.4",
+	"toolsetVersion": "shapeit.mcp.tools.v1.5",
 	"conventions": {
 		"names": "The workspace is a name-to-object map; a name is the only handle on an object, there are no object ids. Tools that create something from scratch therefore require 'name'. Tools that derive a result from an input object have an optional 'name': given, the result is stored under it and the input is left untouched; omitted, the result replaces the input under the input's own name. A name may hold a single object or a list; a list of one behaves like the object itself.",
 		"units": "Unless otherwise specified, length units are millimeters in numeric literals. Angles are degrees.",
-		"documentModel": "Objects can exist in a temporary workspace until committed into the document model.",
+		"documentModel": "Objects can exist in a temporary workspace until committed into the document model. Objects of the document are never modified directly: they enter the workspace as copies (see uiSelection), and the modified copy is written back with document.update_objects ('replace').",
+		"uiSelection": "The objects the user has selected in the application are the way to reach existing document objects, which mostly have no name. document.get_selection describes the current selection and, with 'store', copies it into the workspace; workspace.select accepts the same parts through the selector form { \"uiSelection\": ... }. Solids are copied, and the selected faces and edges are mapped onto the faces and edges of the copy, so they can be used together with it (e.g. 'sameSurface', 'onFace', feature.fillet on the selected edges). All reads of one selection state - identified by 'selectionVersion' - yield the same copy, so several uiSelection selectors in one call or batch refer to the same objects. Every copied item remembers its document original ('document origin'); a tool that replaces an item under its own name keeps the origin, a result stored under a new name has none. document.update_objects with 'replace' puts the modified copy in place of its original. The selection is a snapshot: when the user selects something else, items stored before are not updated, a new read yields a new copy and a new selectionVersion. Coplanar curves are converted into a sketch; other curves are kept as 3D curves (type 'curves').",
 		"expressions": "Numeric/point/vector fields that allow expressions accept either a literal value or an Expression object.",
 		"sketchCoordinates": "Sketch entities use 2D coordinates (Point2/Vec2) in the sketch plane coordinate system.",
 		"results": "Every successful tool call returns a result envelope describing the workspace changes it made: 'created' and 'modified' list affected named items with type and a compact geometry summary (value, bounding box or element counts), 'removed' lists removed names, 'warnings' lists non-fatal problems. 'empty': true marks a successful call whose result is legitimately nothing (e.g. intersecting disjoint solids); nothing is stored in that case and a warning says which operation was empty - do not infer this from a missing 'created', an in-place modification has none either. A summary omits the bounding box when the item has no extent; 'count': 0 then says the item is empty. Tools with an explicit output schema add their own fields to the same result object.",
 		"selection": "Tools reference workspace items by name (NameRef: a single name or an array of names). To select objects by query (e.g. faces/edges with filters) or by set operations, first call workspace.select, which stores the selection result under a name; then pass that name to the next tool. Selections are snapshots: modifying a solid does not update a previously selected set of its faces or edges - and a feature that consumes edges or faces usually invalidates them, so re-select after every modelling step rather than reusing the name. Do not send the select and the call that consumes it as two separate requests; bundle them (see batching).",
 		"batching": "rpc.batch executes several calls in one request, in order, and later calls see the names created by earlier ones. The select-then-operate pattern belongs in a single batch: workspace.select together with the feature/transform call that consumes the selection is one round trip instead of two. With the default 'atomic': true the batch is also a single undo step that rolls back completely if any call fails, so a failed feature cannot leave half-built helper objects behind. The same holds for a chain of construction steps, e.g. creating the tool bodies and the solid.boolean that consumes them.",
 		"periodicFaces": "Faces on periodic surfaces (cylindrical, conical, spherical, toroidal) are split into two faces when the periodic parameter range exceeds half the period; closed circular edges are split the same way. One bore can therefore be two cylindrical faces: a bore reduced to 324 degrees by a slot reports two faces, one reduced to exactly 180 degrees reports a single face. Two consequences: face and edge counts are topological, not a stable fingerprint of a shape, so do not use them to judge whether a result is geometrically correct - use Volume, the bounding box, or a rendered section (inspect.scene with includeImage) instead. And a face or edge query never guarantees one hit per geometric surface, so an operation built on such a selection may silently affect only half of a bore.",
-		"templates": "'Create a template' means: build the object once with concrete values and check the result, then repeat the same construction between template.begin and template.commit, this time driving every varying dimension from the declared parameters. Testing first is not optional - a template records a construction, not a result, so recording an untested one produces a template of something that does not build. Inside the recording, reference parameters by name in expression strings ('dPipe/2', 'rA*sqrt(2)'); a literal where a parameter belongs silently freezes the template. Derive intermediate values with workspace.set: they are recorded, re-evaluated on every instantiation, and keep the geometry calls readable. An rpc.batch inside the recording is stored as one step and replayed as a batch, so the batching advice above still applies. template.commit names the resulting solid. Nothing is written to a file: the template lives in the session, appears in the application's template list where the user can edit its parameters interactively, and the user can save it to a template file and load it again in a later session. document.commit_objects is rejected while recording unless allowDocumentCommit is set - commit the instances afterwards, never the template body. document.get_state lists the templates defined so far."
+		"templates": "'Create a template' means: build the object once with concrete values and check the result, then repeat the same construction between template.begin and template.commit, this time driving every varying dimension from the declared parameters. Testing first is not optional - a template records a construction, not a result, so recording an untested one produces a template of something that does not build. Inside the recording, reference parameters by name in expression strings ('dPipe/2', 'rA*sqrt(2)'); a literal where a parameter belongs silently freezes the template. Derive intermediate values with workspace.set: they are recorded, re-evaluated on every instantiation, and keep the geometry calls readable. An rpc.batch inside the recording is stored as one step and replayed as a batch, so the batching advice above still applies. template.commit names the resulting solid. Nothing is written to a file: the template lives in the session, appears in the application's template list where the user can edit its parameters interactively, and the user can save it to a template file and load it again in a later session. document.commit_objects is rejected while recording unless allowDocumentCommit is set - commit the instances afterwards, never the template body. document.get_state lists the templates defined so far. Object parameters: a parameter with input kind 'solid' or 'profile' takes an object instead of a value - in the application the user picks it (a solid, or a closed planar curve that becomes a sketch), with template.instantiate it is passed as the workspace name of a solid or sketch. Record the template with real objects (their names as 'value'); they are no defaults. Mark an object parameter 'optional' to let the template work without it, and make the steps that need it conditional with the 'when' property of rpc.batch calls: e.g. one call with \"when\": \"defined(\\\"hull\\\")\" subtracts the tools from the hull, another with \"when\": \"!defined(\\\"hull\\\")\" just names the tools as result. Such a batch is recorded and replayed with its conditions. 'replace' on a solid parameter lets the application put the result in place of the picked solid."
 	},
 	"types": {
 		"ParameterInputSpec": {
@@ -28,9 +29,11 @@
 						"point2",
 						"point3",
 						"enum",
-						"bool"
+						"bool",
+						"solid",
+						"profile"
 					],
-					"description": "The logical input type shown to the user."
+					"description": "The logical input type shown to the user. 'solid' and 'profile' are object parameters of a template (see conventions.templates): the user picks a solid, or a closed planar curve that becomes a sketch, instead of entering a value."
 				},
 				"description": {
 					"type": "string",
@@ -48,6 +51,16 @@
 					"type": "boolean",
 					"default": true,
 					"description": "If true, the parameter is intended to be editable by the user."
+				},
+				"optional": {
+					"type": "boolean",
+					"default": false,
+					"description": "Object parameters ('solid', 'profile') only: the parameter may be left empty. The template body tests it with defined(\"name\") in the 'when' condition of rpc.batch calls."
+				},
+				"replace": {
+					"type": "boolean",
+					"default": false,
+					"description": "'solid' parameters only: when the template is run in the application, the result takes the place of the picked solid in the document (e.g. the body that gets holes). Has no effect on template.instantiate, which never changes the document."
 				},
 				"min": {
 					"$ref": "#/types/ExpressionNumber",
@@ -879,8 +892,40 @@
 				}
 			]
 		},
+		"UiSelectionFocus": {
+			"type": "string",
+			"enum": [ "none", "solid", "face", "edge", "curve", "other" ],
+			"description": "The category the user has focused in the property page of the application, i.e. what the user most likely means. 'none' when nothing is focused."
+		},
+		"UiSelectionCounts": {
+			"type": "object",
+			"description": "Number of selected items per type in the user's selection.",
+			"properties": {
+				"solids": { "type": "integer" },
+				"faces": { "type": "integer" },
+				"edges": { "type": "integer" },
+				"curves": { "type": "integer" },
+				"other": { "type": "integer" }
+			},
+			"required": [ "solids", "faces", "edges", "curves", "other" ]
+		},
+		"UiSelectionPart": {
+			"type": "string",
+			"description": "Part of the current selection in the application (see conventions.uiSelection). 'objects': all selected objects of the document; 'solids', 'faces', 'edges', 'curves': the selected items of that type; 'focused': the item(s) of the category the user has focused in the property page (what the user means right now); 'picked_face', 'picked_edge': the face or edge directly under the last click; 'picked_solid': the solid owning the picked face or edge. Fails with E_NOT_FOUND when the part is empty.",
+			"enum": [
+				"objects",
+				"solids",
+				"faces",
+				"edges",
+				"curves",
+				"focused",
+				"picked_solid",
+				"picked_face",
+				"picked_edge"
+			]
+		},
 		"Selector": {
-			"description": "Select one or many items of a given target type. Accepts name, a named set, a query, an explicit list of references, or set expressions (union/except/intersect).",
+			"description": "Select one or many items of a given target type. Accepts name, a named set, a query, an explicit list of references, set expressions (union/except/intersect), or a part of the user's selection in the application (uiSelection).",
 			"oneOf": [
 				{
 					"type": "array",
@@ -954,6 +999,18 @@
 						"items"
 					],
 					"additionalProperties": false
+				},
+				{
+					"properties": {
+						"uiSelection": {
+							"$ref": "#/types/UiSelectionPart"
+						}
+					},
+					"required": [
+						"uiSelection"
+					],
+					"additionalProperties": false,
+					"description": "A part of the current selection in the application, copied into the workspace (see conventions.uiSelection). May be used wherever a Selector is accepted, e.g. as 'from' of a query or inside a set expression."
 				}
 			]
 		},
@@ -1035,7 +1092,7 @@
 				},
 				"value": {
 					"$ref": "#/types/ExpressionAny",
-					"description": "Default value used when no explicit value is supplied during instantiation."
+					"description": "Default value used when no explicit value is supplied during instantiation. For an object parameter (input kind 'solid' or 'profile') it is the workspace name of the object the template is recorded with; it is not a default - the object has to be supplied on every instantiation."
 				},
 				"label": {
 					"type": "string",
@@ -1201,22 +1258,51 @@
 		},
 		{
 			"name": "document.update_objects",
-			"description": "Updates the document model by removing existing committed objects and adding new workspace objects in a single operation. Both 'remove' and 'add' accept selectors and may reference one or many objects. This operation is typically used in iterative modeling workflows where a previously committed result is replaced by an improved version.",
+			"description": "Updates the document model by removing existing committed objects, replacing document objects by their modified workspace copies and adding new workspace objects in a single operation. 'remove', 'replace' and 'add' accept names and may reference one or many objects. This operation is typically used in iterative modeling workflows where a previously committed result is replaced by an improved version, and to write back a document object that was copied into the workspace from the user's selection (see conventions.uiSelection).",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
 					"remove": {
 						"$ref": "#/types/NameRef",
-						"description": "Selector identifying one or more existing objects in the document to be removed."
+						"description": "Names identifying one or more existing objects in the document to be removed. A workspace item with a document origin removes its original."
+					},
+					"replace": {
+						"description": "Document objects to be replaced by workspace objects. Either names of workspace items with a document origin - each one takes the place of its own original - or an explicit list of pairs, where 'original' names an item with a document origin and 'with' names the workspace object(s) that take its place (e.g. a result stored under a new name). The replacement keeps layer and style of the original. An item without a document origin fails with E_INVALID_PARAMS.",
+						"oneOf": [
+							{
+								"$ref": "#/types/NameRef"
+							},
+							{
+								"type": "array",
+								"minItems": 1,
+								"items": {
+									"type": "object",
+									"properties": {
+										"original": {
+											"type": "string",
+											"minLength": 1,
+											"description": "Workspace name of an item with a document origin."
+										},
+										"with": {
+											"$ref": "#/types/NameRef",
+											"description": "Workspace object(s) replacing the original in the document."
+										}
+									},
+									"required": [ "original", "with" ],
+									"additionalProperties": false
+								}
+							}
+						]
 					},
 					"add": {
 						"$ref": "#/types/NameRef",
-						"description": "Selector identifying one or more workspace objects to be committed to the document."
+						"description": "Names identifying one or more workspace objects to be committed to the document."
 					}
 				},
 				"additionalProperties": false,
 				"anyOf": [
 					{ "required": [ "remove" ] },
+					{ "required": [ "replace" ] },
 					{ "required": [ "add" ] }
 				]
 			},
@@ -1228,6 +1314,21 @@
 						"description": "Names of the objects that were actually removed from the document model. Entries of 'remove' with no matching document object are omitted and reported as a warning.",
 						"items": { "type": "string" }
 					},
+					"replacedInDocument": {
+						"type": "array",
+						"description": "One entry per replaced document object: the workspace name of the original's copy and the workspace names of the objects that took its place.",
+						"items": {
+							"type": "object",
+							"properties": {
+								"original": { "type": "string" },
+								"with": {
+									"type": "array",
+									"items": { "type": "string" }
+								}
+							},
+							"required": [ "original", "with" ]
+						}
+					},
 					"addedToDocument": {
 						"type": "array",
 						"description": "Names of the objects that were added to the document model.",
@@ -1236,6 +1337,7 @@
 				},
 				"required": [
 					"removedFromDocument",
+					"replacedInDocument",
 					"addedToDocument"
 				]
 			}
@@ -1288,13 +1390,106 @@
 					"templates": {
 						"type": "array",
 						"items": { "type": "string" }
+					},
+					"uiSelection": {
+						"type": "object",
+						"description": "Short summary of the user's current selection in the application; call document.get_selection for details. A changed selectionVersion means the user has selected something else since the last read.",
+						"properties": {
+							"selectionVersion": { "type": "integer" },
+							"focus": { "$ref": "#/types/UiSelectionFocus" },
+							"counts": { "$ref": "#/types/UiSelectionCounts" }
+						},
+						"required": [ "selectionVersion", "focus", "counts" ]
 					}
 				},
 				"required": [
 					"docVersion",
 					"lengthUnit",
 					"workspace",
-					"templates"
+					"templates",
+					"uiSelection"
+				]
+			}
+		},
+		{
+			"name": "document.get_selection",
+			"description": "Describes the objects the user has currently selected in the application: the selected solids, faces, edges and curves, the category the user has focused in the property page, and the last click (picked face/edge, point and surface normal). This is the way to work on existing document objects, which mostly have no name (see conventions.uiSelection). Without 'store' the call only reads. With 'store' the selection is copied into the workspace under names built from the prefix: <store>_objects, <store>_solids, <store>_faces, <store>_edges, <store>_sketch (coplanar curves), <store>_curves (other curves), <store>_picked_solid, <store>_picked_face, <store>_picked_edge, <store>_point and <store>_normal; only non-empty parts are stored, and 'stored' lists the names actually written. Faces and edges refer to the copied solids, and every copied item has a document origin for document.update_objects ('replace'). An empty selection succeeds with zero counts; with 'store' nothing is stored and a warning is returned.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"store": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Optional name prefix. When given, the selection is copied into the workspace under names built from this prefix."
+					}
+				},
+				"additionalProperties": false
+			},
+			"x-outputSchema": {
+				"type": "object",
+				"properties": {
+					"selectionVersion": {
+						"type": "integer",
+						"description": "Monotonic counter; increments whenever the user changes the selection in the application. Identifies the selection state, all reads of the same version yield the same copies."
+					},
+					"focus": {
+						"$ref": "#/types/UiSelectionFocus"
+					},
+					"counts": {
+						"$ref": "#/types/UiSelectionCounts"
+					},
+					"objects": {
+						"type": "array",
+						"description": "The selected objects of the document with type, their name if they have one and a compact summary (as in document.get_state).",
+						"items": {
+							"type": "object",
+							"properties": {
+								"type": { "type": "string" },
+								"documentName": { "type": "string" },
+								"summary": { "type": "object" }
+							},
+							"required": [ "type" ]
+						}
+					},
+					"pick": {
+						"type": [ "object", "null" ],
+						"description": "The last click of the user, or null when the selection was not made by a click (e.g. by a selection rectangle).",
+						"properties": {
+							"point": {
+								"$ref": "#/types/Point3",
+								"description": "Point on the picked face or edge, where the user has clicked."
+							},
+							"normal": {
+								"$ref": "#/types/Vec3",
+								"description": "Outward surface normal of the picked face at 'point'; absent when no face was picked."
+							},
+							"viewDirection": {
+								"$ref": "#/types/Vec3",
+								"description": "Viewing direction of the click."
+							},
+							"pickedType": {
+								"type": "string",
+								"enum": [ "face", "edge", "curve" ]
+							},
+							"solidName": {
+								"type": "string",
+								"description": "Document name of the solid owning the picked face or edge, if it has one."
+							}
+						},
+						"required": [ "point", "viewDirection", "pickedType" ]
+					},
+					"stored": {
+						"type": "array",
+						"description": "Workspace names written by this call (only with 'store').",
+						"items": { "type": "string" }
+					}
+				},
+				"required": [
+					"selectionVersion",
+					"focus",
+					"counts",
+					"objects",
+					"pick"
 				]
 			}
 		},
@@ -4324,7 +4519,7 @@
 					},
 					"arguments": {
 						"$ref": "#/types/NamedExpressionMap",
-						"description": "Optional explicit parameter assignments. Parameters not listed here use their template default values."
+						"description": "Optional explicit parameter assignments. Parameters not listed here use their template default values. An object parameter ('solid', 'profile') gets the workspace name of the object; the template works on a copy of it. A required object parameter must be given, an optional one that is left out stays undefined."
 					},
 					"transform": {
 						"type": "string",
@@ -4538,6 +4733,10 @@
 								"params": {
 									"type": "object",
 									"description": "Method parameters as defined in the individual tool schemas."
+								},
+								"when": {
+									"type": "string",
+									"description": "Optional boolean expression. The call is only executed when it evaluates to true, otherwise it is skipped and reported with 'skipped': true. Typically used in templates for optional object parameters, e.g. defined(\"hull\") or !defined(\"hull\")."
 								}
 							},
 							"required": [ "jsonrpc", "id", "method", "params" ],

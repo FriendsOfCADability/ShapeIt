@@ -78,7 +78,7 @@ namespace ShapeIt
                 }
                 objects = roots;
             }
-            ComposeModellingEntries(objects, vw, pickArea, true, addRemove, preferMostSpecific: true);
+            ComposeModellingEntries(objects, vw, pickArea, true, addRemove, preferMostSpecific: true, singlePick: !wholeSolid);
             IsOpen = true;
             Refresh();
             return true;

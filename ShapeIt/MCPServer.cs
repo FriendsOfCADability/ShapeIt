@@ -176,18 +176,20 @@ namespace ShapeIt
         {
             this.frame = frame;
             this.project = project;
-            // we store the named items in the project user data, so we can save the session and proceed with executing RPC Code, which relies on the existing named items.
-            // CADability has no concept of MCPServer
-            if (false) // saving a string:object dictionary is not working yet //if (project.UserData.ContainsData("MCPServer.NamedItems"))
-            {
-                namedItems = new NamedItemsDictionary();
-            }
-            else
-            {
-                namedItems = new NamedItemsDictionary();
-                project.UserData.Add("MCPServer.NamedItems", namedItems.Dict);
-            }
+            // The named items (the MCP workspace) are not stored in the project's UserData: they were never
+            // restored when reading, and the plain Dictionary<string, object> could not be read back at all
+            // (List<Solid> values, ShapeIt types unknown to CADability), which made the whole file unreadable.
+            namedItems = new NamedItemsDictionary();
             AttachChangeTracking(namedItems);
+        }
+
+        /// <summary>
+        /// Constructs a server that can access the user's selection in the application through
+        /// <paramref name="selectionSource"/> (document.get_selection, selector uiSelection).
+        /// </summary>
+        internal MCPServer(IFrame frame, Project project, ModellingPropertyEntries? selectionSource) : this(frame, project)
+        {
+            this.selectionSource = selectionSource;
         }
 
         #endregion
@@ -195,6 +197,10 @@ namespace ShapeIt
         #region RPC processing and errors
 
         private List<JsonElement>? recordingTemplate = null;
+
+        /// <summary>True while a recorded template step is replayed (template.instantiate, the template action),
+        /// false while it is called directly, e.g. when the template is being recorded.</summary>
+        private bool replayingTemplate = false;
 
         private string? currentTemplatName = null;
 
@@ -365,7 +371,17 @@ namespace ShapeIt
 
             if (method != null)
             {
-                string response = ProcessMethod(method, id ?? 0, @params);
+                bool wasReplaying = replayingTemplate;
+                replayingTemplate = executeTemplate;
+                string response;
+                try
+                {
+                    response = ProcessMethod(method, id ?? 0, @params);
+                }
+                finally
+                {
+                    replayingTemplate = wasReplaying;
+                }
                 if (method == "template.begin" && !executeTemplate)
                 {
                     currentTemplatName = RequireString(@params, "name");
@@ -1279,6 +1295,11 @@ namespace ShapeIt
 
         private IEnumerable<object> ExpandResolved(JsonElement el)
         {
+            if (el.ValueKind == JsonValueKind.Object && !el.TryGetProperty("name", out _))
+            {   // not an ObjectRef but another Selector form (uiSelection, query, op), e.g. as 'from' of a query
+                foreach (object item in IterateSelector<object>(el)) yield return item;
+                yield break;
+            }
             var resolved = ResolveObjectRef(el);
 
             if (resolved is System.Collections.IEnumerable enumerable
@@ -1414,6 +1435,10 @@ namespace ShapeIt
                         break;
                     default: throw new JsonRpcException(-32602, $"Unknown query target '{target}'");
                 }
+            }
+            else if (selector.TryGetProperty("uiSelection", out je))
+            {   // a part of the user's selection in the application, copied into the workspace
+                foreach (T t in IterateUiSelection<T>(RequireString(selector, "uiSelection"))) yield return t;
             }
         }
 
@@ -2088,7 +2113,8 @@ namespace ShapeIt
                 ["docVersion"] = stateVersion,
                 ["lengthUnit"] = "mm",
                 ["workspace"] = workspace,
-                ["templates"] = templateNames
+                ["templates"] = templateNames,
+                ["uiSelection"] = DescribeUiSelectionSummary()
             };
         }
 
@@ -2330,7 +2356,7 @@ namespace ShapeIt
             return new JsonObject { ["committed"] = committed };
         }
 
-        private JsonNode DocumentUpdateObjectsImpl(JsonElement remove, JsonElement add)
+        private JsonNode DocumentUpdateObjectsImpl(JsonElement remove, JsonElement replace, JsonElement add)
         {
             // See DocumentCommitObjectsImpl: live project first, the one this server was constructed with when
             // there is no frame. TODO: project should be property of this
@@ -2341,8 +2367,73 @@ namespace ShapeIt
             // Like document.commit_objects: report the affected names explicitly, because the
             // result envelope only covers namedItems and this tool changes the document model.
             JsonArray removedFromDocument = new JsonArray();
+            JsonArray replacedInDocument = new JsonArray();
             JsonArray addedToDocument = new JsonArray();
-            foreach (Solid sld in IterateSelector<Solid>(remove))
+            // remove, replace and add are one undo step (CADability merges it into an enclosing frame)
+            object undoFrame = project.Undo.OpenUndoFrame();
+            try
+            {
+                // 'replace' first: it checks everything before it changes the model, so a refused replace
+                // leaves the document untouched
+                if (replace.ValueKind != JsonValueKind.Undefined) replacedInDocument = ReplaceDocumentObjects(replace, model);
+                RemoveDocumentObjects(remove, model, removedFromDocument);
+                foreach (Solid sld in IterateSelector<Solid>(add))
+                {
+                    if (style != null) { sld.Style = style; }
+                    model.Add(sld);
+                    addedToDocument.Add(sld.Name);
+                }
+            }
+            finally
+            {
+                project.Undo.CloseUndoFrame(undoFrame);
+            }
+            return new JsonObject
+            {
+                ["removedFromDocument"] = removedFromDocument,
+                ["replacedInDocument"] = replacedInDocument,
+                ["addedToDocument"] = addedToDocument
+            };
+        }
+
+        /// <summary>
+        /// The 'remove' part of document.update_objects. A workspace item with a document origin removes its
+        /// originals; any other item removes its solids when they are committed, or a committed solid of the same name.
+        /// </summary>
+        private void RemoveDocumentObjects(JsonElement remove, Model model, JsonArray removedFromDocument)
+        {
+            if (remove.ValueKind == JsonValueKind.Undefined) return;
+            List<string> names = AllNames(remove).ToList();
+            IEnumerable<Solid> solidsToRemove;
+            if (names.Count == 0) solidsToRemove = IterateSelector<Solid>(remove); // not a NameRef, accepted as before
+            else
+            {
+                List<Solid> solids = [];
+                foreach (string name in names)
+                {
+                    List<IGeoObject>? originals = GetDocumentOrigin(name);
+                    if (originals != null)
+                    {
+                        bool removed = false;
+                        foreach (IGeoObject original in originals)
+                        {
+                            if (original.Owner == model)
+                            {
+                                model.Remove(original);
+                                removed = true;
+                            }
+                        }
+                        if (removed) removedFromDocument.Add(name);
+                        else AddCallWarning($"'{name}' was not removed: the document object it was copied from is no longer in the document.");
+                        documentOrigins.Remove(name);
+                        continue;
+                    }
+                    if (!namedItems.TryGetValue(name, out object? item) || item == null) throw NamedItemNotFound(name);
+                    solids.AddRange(GeoObjectsOfItem(item).OfType<Solid>());
+                }
+                solidsToRemove = solids;
+            }
+            foreach (Solid sld in solidsToRemove)
             {
                 if (sld.Owner == model)
                 {
@@ -2368,17 +2459,598 @@ namespace ShapeIt
                     if (!found) AddCallWarning($"'{sld.Name}' was not removed: no matching object is present in the document.");
                 }
             }
-            foreach (Solid sld in IterateSelector<Solid>(add))
+        }
+
+        #endregion
+
+        #region Access to the user's selection (uiSelection)
+
+        // Design (see conventions.uiSelection in McpToolsetDefinition.json):
+        // - The selection comes from ModellingPropertyEntries only (CurrentSelection, LastClickPickArea/-Objects and
+        //   the focused first level entry). SelectObjectsAction is being phased out and is not considered.
+        // - Document objects are never handed out directly: solids are copied with Solid.Clone(edges, vertices, faces),
+        //   whose maps lead from the selected faces and edges to the same faces and edges of the copy.
+        // - One copy per selection state: the snapshot is cached together with the SelectionVersion, so that several
+        //   uiSelection selectors in one call or batch resolve to the same objects - filters like sameSurface or onFace
+        //   compare by identity.
+        // - Every copied root object knows its original (copyOrigins). A workspace name that is bound to copies gets a
+        //   document origin (documentOrigins), which stays when a tool replaces the item under its own name and is
+        //   used by document.update_objects ('replace', 'remove').
+        // - Coplanar curves are converted into a sketch, other curves are kept as 3D curves.
+
+        /// <summary>The source of the user's selection, null when the server runs without application (tests, debug runs).</summary>
+        private readonly ModellingPropertyEntries? selectionSource;
+
+        /// <summary>Copied root object (solid, shell, curve, ...) -> its original in the document.</summary>
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<IGeoObject, IGeoObject> copyOrigins = new();
+
+        /// <summary>Workspace name -> the document objects this item was copied from (the document origin).
+        /// A list item has one original per copied element, in the same order.</summary>
+        private readonly Dictionary<string, List<IGeoObject>> documentOrigins = new(StringComparer.Ordinal);
+
+        private UiSelectionSnapshot? cachedUiSelection;
+
+        /// <summary>
+        /// The user's selection at one SelectionVersion: the originals sorted into categories, the last pick and -
+        /// created on demand by <see cref="EnsureCopies"/> - the copies handed out to the workspace.
+        /// </summary>
+        private sealed class UiSelectionSnapshot
+        {
+            public int Version;
+            public string Focus = "none";
+            // originals, all of them belong to the active model
+            public readonly List<Solid> Solids = []; // selected solids and the solids owning selected faces or edges
+            public readonly List<Shell> Shells = []; // open shells (not part of a solid) owning selected faces or edges
+            public readonly List<Face> Faces = [];
+            public readonly List<Edge> Edges = [];
+            public readonly List<ICurve> Curves = []; // curves directly in the model, not edges
+            public readonly List<IGeoObject> Others = []; // other selected objects of the model (texts, blocks, ...)
+            public readonly List<IGeoObject> Roots = []; // all original root objects: Solids, Shells, Curves, Others
+            // the last single click
+            public bool HasPick;
+            public string PickedType = "face";
+            public Face? PickedFace;
+            public Edge? PickedEdge;
+            public ICurve? PickedCurve;
+            public Solid? PickedSolid;
+            public GeoPoint PickPoint;
+            public GeoVector PickNormal = GeoVector.NullVector;
+            public GeoVector ViewDirection;
+            // the copies
+            public bool Copied;
+            public readonly Dictionary<IGeoObject, IGeoObject> RootCopies = new();
+            public readonly Dictionary<Face, Face> FaceMap = new();
+            public readonly Dictionary<Edge, Edge> EdgeMap = new();
+            public Sketch? Sketch; // the copied curves as a sketch, if they are coplanar
+
+            public int OtherCount => Shells.Count + Others.Count;
+            public bool IsEmpty => Roots.Count == 0;
+        }
+
+        /// <summary>
+        /// Returns the current selection. The snapshot is cached and reused as long as the SelectionVersion is the
+        /// same and all its objects are still in the model, so all reads of one selection state share the copies.
+        /// </summary>
+        private UiSelectionSnapshot GetUiSelectionSnapshot(bool withCopies)
+        {
+            Project? prj = FrameImpl.MainFrame?.Project ?? this.project;
+            Model? model = prj?.GetActiveModel();
+            int version = selectionSource?.SelectionVersion ?? 0;
+            UiSelectionSnapshot? snapshot = cachedUiSelection;
+            if (snapshot == null || snapshot.Version != version || snapshot.Roots.Any(r => r.Owner != model))
             {
-                if (style != null) { sld.Style = style; }
-                model.Add(sld);
-                addedToDocument.Add(sld.Name);
+                snapshot = CollectUiSelection(model, version);
+                cachedUiSelection = snapshot;
             }
+            if (withCopies) EnsureCopies(snapshot);
+            return snapshot;
+        }
+
+        /// <summary>
+        /// Sorts the selection of <see cref="selectionSource"/> into categories the same way ModellingPropertyEntries
+        /// composes its entries: a face also selects its solid, curves of edges stand for the edges, axis curves are
+        /// ignored. Objects which are no longer part of the model are dropped.
+        /// </summary>
+        private UiSelectionSnapshot CollectUiSelection(Model? model, int version)
+        {
+            UiSelectionSnapshot s = new UiSelectionSnapshot { Version = version };
+            if (selectionSource == null || model == null) return s;
+            HashSet<object> seen = new HashSet<object>();
+            void AddOwner(Shell? shell)
+            {   // the solid or the open shell owning a selected face or edge
+                if (shell == null) return;
+                if (shell.Owner is Solid sld) { if (sld.Owner == model && seen.Add(sld)) s.Solids.Add(sld); }
+                else if (shell.Owner == model && seen.Add(shell)) s.Shells.Add(shell);
+            }
+            foreach (IGeoObject go in selectionSource.CurrentSelection)
+            {
+                IGeoObject? root = RootInModel(go, model);
+                if (root == null) continue; // removed from the model meanwhile
+                switch (go)
+                {
+                    case Solid sld:
+                        if (seen.Add(sld)) s.Solids.Add(sld);
+                        break;
+                    case Shell sh:
+                        if (seen.Add(sh)) s.Shells.Add(sh);
+                        break;
+                    case Face fc:
+                        if (seen.Add(fc)) s.Faces.Add(fc);
+                        AddOwner(fc.Owner as Shell);
+                        break;
+                    case ICurve when go.Owner is Edge edge:
+                        if (edge.ConnectsSameSurfaces()) break; // seams are not offered by the UI either
+                        if (seen.Add(edge)) s.Edges.Add(edge);
+                        AddOwner(edge.PrimaryFace?.Owner as Shell);
+                        break;
+                    case ICurve when go.UserData.Contains("CADability.AxisOf"):
+                        break; // the axis of a face, only a display helper
+                    case ICurve crv when go.Owner == model:
+                        if (seen.Add(go)) s.Curves.Add(crv);
+                        break;
+                    default:
+                        if (seen.Add(root)) s.Others.Add(root);
+                        break;
+                }
+            }
+            s.Roots.AddRange(s.Solids);
+            s.Roots.AddRange(s.Shells);
+            s.Roots.AddRange(s.Curves.Cast<IGeoObject>());
+            foreach (IGeoObject other in s.Others) if (!s.Roots.Contains(other)) s.Roots.Add(other);
+
+            // the property page may still show entries of objects that have been removed meanwhile
+            string? category = s.Roots.Count == 0 ? null : selectionSource.FocusedCategoryResourceId;
+            if (category == null) s.Focus = "none";
+            else if (category.Contains("Edge")) s.Focus = "edge";
+            else if (category.Contains("Face")) s.Focus = "face";
+            else if (category.Contains("Solid")) s.Focus = "solid";
+            else if (category.Contains("Curve")) s.Focus = "curve";
+            else s.Focus = "other";
+
+            CollectPick(s);
+            return s;
+        }
+
+        /// <summary>
+        /// Evaluates the last single click: the frontmost selected face, edge or curve under the click, the point
+        /// where the pick beam hits it and the surface normal there.
+        /// </summary>
+        private void CollectPick(UiSelectionSnapshot s)
+        {
+            Projection.PickArea? pickArea = selectionSource?.LastClickPickArea;
+            if (pickArea == null) return;
+            double precision = pickArea.ToUnitBox.Determinant * 0.01; // as used by ModellingPropertyEntries
+            // only what the click selected and what is still selected (a Ctrl+click may have deselected it)
+            HashSet<IGeoObject> selected = new HashSet<IGeoObject>(selectionSource!.CurrentSelection);
+            List<IGeoObject> clicked = selectionSource.LastClickObjects.Where(selected.Contains).ToList();
+            HashSet<Face> faces = new HashSet<Face>(s.Faces);
+            HashSet<Edge> edges = new HashSet<Edge>(s.Edges);
+            HashSet<ICurve> curves = new HashSet<ICurve>(s.Curves);
+            double faceZ = double.MaxValue, edgeZ = double.MaxValue, curveZ = double.MaxValue;
+            foreach (IGeoObject go in clicked)
+            {
+                double z = go.Position(pickArea.FrontCenter, pickArea.Direction, precision);
+                if (go is Face fc && faces.Contains(fc))
+                {
+                    if (z < faceZ) { faceZ = z; s.PickedFace = fc; }
+                }
+                else if (go is ICurve && go.Owner is Edge edge && edges.Contains(edge))
+                {
+                    if (z < edgeZ) { edgeZ = z; s.PickedEdge = edge; }
+                }
+                else if (go is ICurve crv && curves.Contains(crv))
+                {
+                    if (z < curveZ) { curveZ = z; s.PickedCurve = crv; }
+                }
+            }
+            s.ViewDirection = pickArea.Direction.Normalized;
+            if (s.PickedFace != null && faceZ < double.MaxValue)
+            {   // the point where the beam hits the face, refined on the surface
+                GeoPoint2D uv = s.PickedFace.PositionOf(pickArea.FrontCenter + faceZ * pickArea.Direction);
+                s.PickPoint = s.PickedFace.Surface.PointAt(uv);
+                GeoVector normal = s.PickedFace.Surface.GetNormal(uv);
+                if (!normal.IsNullVector()) s.PickNormal = normal.Normalized;
+                s.HasPick = true;
+            }
+            else if (s.PickedEdge?.Curve3D != null && edgeZ < double.MaxValue)
+            {
+                ICurve crv = s.PickedEdge.Curve3D;
+                s.PickPoint = crv.PointAt(crv.PositionOf(pickArea.FrontCenter + edgeZ * pickArea.Direction));
+                s.HasPick = true;
+            }
+            else if (s.PickedCurve != null && curveZ < double.MaxValue)
+            {
+                s.PickPoint = s.PickedCurve.PointAt(s.PickedCurve.PositionOf(pickArea.FrontCenter + curveZ * pickArea.Direction));
+                s.HasPick = true;
+            }
+            // an edge in front of its face is what the UI pre-selects, so it is the picked type
+            if (s.PickedEdge != null) s.PickedType = "edge";
+            else if (s.PickedFace != null) s.PickedType = "face";
+            else if (s.PickedCurve != null) s.PickedType = "curve";
+            if (!s.HasPick) return;
+            Shell? owner = (s.PickedFace?.Owner ?? s.PickedEdge?.PrimaryFace?.Owner) as Shell;
+            s.PickedSolid = owner?.Owner as Solid;
+        }
+
+        /// <summary>
+        /// Walks up the owner chain of <paramref name="go"/> (a face, the curve of an edge, ...) to the object that is
+        /// directly contained in <paramref name="model"/>. Returns null when the chain does not end in that model.
+        /// </summary>
+        private static IGeoObject? RootInModel(IGeoObject go, Model model)
+        {
+            IGeoObject current = go;
+            IGeoObjectOwner? owner = go.Owner;
+            try
+            {
+                while (owner != null && !(owner is Model))
+                {
+                    if (owner is Edge edge) owner = edge.Owner?.Owner;
+                    else if (owner is IGeoObject goo) owner = goo.Owner;
+                    else owner = null;
+                    if (owner is IGeoObject g) current = g;
+                }
+            }
+            catch { return null; } // incomplete owner chain
+            return owner == model ? current : null;
+        }
+
+        /// <summary>
+        /// Creates the copies of the selected root objects, the face and edge maps onto the copies and the sketch of
+        /// coplanar curves. Every copy is registered with its original in <see cref="copyOrigins"/>.
+        /// </summary>
+        private void EnsureCopies(UiSelectionSnapshot s)
+        {
+            if (s.Copied) return;
+            s.Copied = true;
+            foreach (Solid sld in s.Solids)
+            {
+                Dictionary<Edge, Edge> edgeMap = new Dictionary<Edge, Edge>();
+                Dictionary<Face, Face> faceMap = new Dictionary<Face, Face>();
+                Solid copy = sld.Clone(edgeMap, new Dictionary<Vertex, Vertex>(), faceMap);
+                foreach (var kv in edgeMap) s.EdgeMap[kv.Key] = kv.Value;
+                foreach (var kv in faceMap) s.FaceMap[kv.Key] = kv.Value;
+                s.RootCopies[sld] = copy;
+            }
+            foreach (Shell sh in s.Shells)
+            {
+                Dictionary<Edge, Edge> edgeMap = new Dictionary<Edge, Edge>();
+                Dictionary<Face, Face> faceMap = new Dictionary<Face, Face>();
+                Shell copy = sh.Clone(edgeMap, new Dictionary<Vertex, Vertex>(), faceMap);
+                foreach (var kv in edgeMap) s.EdgeMap[kv.Key] = kv.Value;
+                foreach (var kv in faceMap) s.FaceMap[kv.Key] = kv.Value;
+                s.RootCopies[sh] = copy;
+            }
+            foreach (ICurve crv in s.Curves) s.RootCopies[(IGeoObject)crv] = ((IGeoObject)crv).Clone();
+            foreach (IGeoObject other in s.Others) s.RootCopies[other] = other.Clone();
+            foreach (var kv in s.RootCopies) copyOrigins.AddOrUpdate(kv.Value, kv.Key);
+
+            s.Sketch = SketchFromCurves(CurveCopies(s));
+        }
+
+        /// <summary>
+        /// Makes a sketch of curves which lie in a common plane, null when they don't. The curves are projected into
+        /// that plane and joined into paths, so that a closed chain of lines can be used as a profile.
+        /// </summary>
+        internal static Sketch? SketchFromCurves(IList<ICurve> curves)
+        {
+            // GetCommonPlane only looks for the plane containing most of the curves, so all of them are checked
+            if (curves.Count == 0 || !Curves.GetCommonPlane(curves, out Plane plane) || !curves.All(c => c.IsInPlane(plane))) return null;
+            Reduce2D r2d = new Reduce2D();
+            r2d.Add(curves.Select(c => c.GetProjectedCurve(plane)).Where(c => c != null).ToArray());
+            r2d.OutputMode = Reduce2D.Mode.Paths;
+            Sketch sketch = new Sketch(plane);
+            foreach (ICurve2D c2d in r2d.Reduced) sketch.Add(c2d);
+            return sketch.Curves.Count > 0 ? sketch : null;
+        }
+
+        private static List<ICurve> CurveCopies(UiSelectionSnapshot s) => s.Curves.Select(c => (ICurve)s.RootCopies[(IGeoObject)c]).ToList();
+
+        /// <summary>
+        /// The copies of one part of the selection (a value of UiSelectionPart). For 'curves' and an untyped request
+        /// the sketch stands for coplanar curves; a typed request (2D or 3D curves) gets the curves themselves.
+        /// </summary>
+        private List<object> UiSelectionPartItems(UiSelectionSnapshot s, string part, Type requested)
+        {
+            EnsureCopies(s);
+            List<object> res = [];
+            switch (part)
+            {
+                case "objects":
+                    foreach (IGeoObject root in s.Roots)
+                    {
+                        if (root is ICurve && s.Sketch != null) continue; // represented by the sketch
+                        res.Add(s.RootCopies[root]);
+                    }
+                    if (s.Sketch != null) res.Add(s.Sketch);
+                    break;
+                case "solids":
+                    foreach (Solid sld in s.Solids) res.Add(s.RootCopies[sld]);
+                    break;
+                case "faces":
+                    foreach (Face fc in s.Faces) if (s.FaceMap.TryGetValue(fc, out Face? copy)) res.Add(copy);
+                    break;
+                case "edges":
+                    foreach (Edge edge in s.Edges) if (s.EdgeMap.TryGetValue(edge, out Edge? copy)) res.Add(copy);
+                    break;
+                case "curves":
+                    if (s.Sketch != null && (requested == typeof(object) || requested == typeof(Sketch))) res.Add(s.Sketch);
+                    else if (s.Sketch != null && typeof(ICurve2D).IsAssignableFrom(requested)) res.AddRange(s.Sketch.Curves);
+                    else res.AddRange(CurveCopies(s));
+                    break;
+                case "focused":
+                    switch (s.Focus)
+                    {
+                        case "solid": return UiSelectionPartItems(s, "solids", requested);
+                        case "face": return UiSelectionPartItems(s, "faces", requested);
+                        case "edge": return UiSelectionPartItems(s, "edges", requested);
+                        case "curve": return UiSelectionPartItems(s, "curves", requested);
+                        default: return UiSelectionPartItems(s, "objects", requested);
+                    }
+                case "picked_solid":
+                    if (s.PickedSolid != null && s.RootCopies.TryGetValue(s.PickedSolid, out IGeoObject? pickedSolid)) res.Add(pickedSolid);
+                    break;
+                case "picked_face":
+                    if (s.PickedFace != null && s.FaceMap.TryGetValue(s.PickedFace, out Face? pickedFace)) res.Add(pickedFace);
+                    break;
+                case "picked_edge":
+                    if (s.PickedEdge != null && s.EdgeMap.TryGetValue(s.PickedEdge, out Edge? pickedEdge)) res.Add(pickedEdge);
+                    break;
+                default:
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"Unknown uiSelection part '{part}'. Use one of objects, solids, faces, edges, curves, focused, picked_solid, picked_face, picked_edge.");
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Implements the selector form { "uiSelection": part }: yields the copied items of the requested part
+        /// of the current selection. Throws E_NOT_FOUND when the part is empty.
+        /// </summary>
+        private IEnumerable<T> IterateUiSelection<T>(string part) where T : class
+        {
+            if (selectionSource == null) throw new JsonRpcException("E_NOT_FOUND", "The user's selection is not available: the server runs without the application.");
+            UiSelectionSnapshot s = GetUiSelectionSnapshot(true);
+            List<object> items = UiSelectionPartItems(s, part, typeof(T));
+            if (items.Count == 0)
+            {
+                string hint = s.IsEmpty ? " Nothing is selected in the application; ask the user to select the objects first."
+                    : $" The selection contains {s.Solids.Count} solid(s), {s.Faces.Count} face(s), {s.Edges.Count} edge(s), {s.Curves.Count} curve(s) and {s.OtherCount} other object(s); call document.get_selection for details.";
+                throw new JsonRpcException("E_NOT_FOUND", $"The part '{part}' of the user's selection is empty." + hint);
+            }
+            foreach (object item in items)
+            {
+                if (item is T t) yield return t;
+            }
+        }
+
+        /// <summary>The short selection summary for document.get_state.</summary>
+        private JsonObject DescribeUiSelectionSummary()
+        {
+            UiSelectionSnapshot s = GetUiSelectionSnapshot(false);
             return new JsonObject
             {
-                ["removedFromDocument"] = removedFromDocument,
-                ["addedToDocument"] = addedToDocument
+                ["selectionVersion"] = s.Version,
+                ["focus"] = s.Focus,
+                ["counts"] = UiSelectionCounts(s)
             };
+        }
+
+        private static JsonObject UiSelectionCounts(UiSelectionSnapshot s) => new JsonObject
+        {
+            ["solids"] = s.Solids.Count,
+            ["faces"] = s.Faces.Count,
+            ["edges"] = s.Edges.Count,
+            ["curves"] = s.Curves.Count,
+            ["other"] = s.OtherCount
+        };
+
+        private static JsonObject PointJson(GeoPoint p) => new JsonObject { ["x"] = p.x, ["y"] = p.y, ["z"] = p.z };
+        private static JsonObject VectorJson(GeoVector v) => new JsonObject { ["x"] = v.x, ["y"] = v.y, ["z"] = v.z };
+
+        /// <summary>
+        /// Implements document.get_selection: describes the current selection (selectionVersion, focus, counts,
+        /// objects, pick). With <paramref name="store"/> the copied parts are stored in the workspace under
+        /// &lt;store&gt;_objects, &lt;store&gt;_solids, &lt;store&gt;_faces, ... and listed in "stored".
+        /// </summary>
+        private JsonNode DocumentGetSelectionImpl(string? store)
+        {
+            UiSelectionSnapshot s = GetUiSelectionSnapshot(store != null);
+            JsonArray objects = new JsonArray();
+            foreach (IGeoObject root in s.Roots)
+            {
+                JsonObject description = DescribeNamedItem("", root);
+                description.Remove("name");
+                string? documentName = root switch { Solid sld => sld.Name, Shell sh => sh.Name, _ => null };
+                if (!string.IsNullOrEmpty(documentName)) description["documentName"] = documentName;
+                if (root is Shell) description["type"] = "shell";
+                objects.Add(description);
+            }
+            JsonNode? pick = null;
+            if (s.HasPick)
+            {
+                JsonObject p = new JsonObject
+                {
+                    ["point"] = PointJson(s.PickPoint),
+                    ["viewDirection"] = VectorJson(s.ViewDirection),
+                    ["pickedType"] = s.PickedType
+                };
+                if (!s.PickNormal.IsNullVector()) p["normal"] = VectorJson(s.PickNormal);
+                if (!string.IsNullOrEmpty(s.PickedSolid?.Name)) p["solidName"] = s.PickedSolid!.Name;
+                pick = p;
+            }
+            JsonObject result = new JsonObject
+            {
+                ["selectionVersion"] = s.Version,
+                ["focus"] = s.Focus,
+                ["counts"] = UiSelectionCounts(s),
+                ["objects"] = objects,
+                ["pick"] = pick
+            };
+            if (store == null) return result;
+
+            JsonArray stored = new JsonArray();
+            if (s.IsEmpty)
+            {
+                AddCallWarning(selectionSource == null
+                    ? "Nothing was stored: the user's selection is not available, the server runs without the application."
+                    : "Nothing was stored: nothing is selected in the application.");
+            }
+            else
+            {
+                void Put(string suffix, List<object> items)
+                {
+                    if (items.Count == 0) return;
+                    string name = store + "_" + suffix;
+                    namedItems[name] = items.Count == 1 ? items[0] : (MakeTypedList(items) ?? items);
+                    stored.Add(name);
+                }
+                // Storing a solid renames it after the workspace name (see NamedItemsDictionary), so the
+                // part that should give the copies their names (_solids) comes last.
+                Put("objects", UiSelectionPartItems(s, "objects", typeof(object)));
+                Put("picked_solid", UiSelectionPartItems(s, "picked_solid", typeof(object)));
+                Put("picked_face", UiSelectionPartItems(s, "picked_face", typeof(object)));
+                Put("picked_edge", UiSelectionPartItems(s, "picked_edge", typeof(object)));
+                Put("faces", UiSelectionPartItems(s, "faces", typeof(object)));
+                Put("edges", UiSelectionPartItems(s, "edges", typeof(object)));
+                if (s.Sketch != null) Put("sketch", [s.Sketch]);
+                else Put("curves", CurveCopies(s).Cast<object>().ToList());
+                Put("solids", UiSelectionPartItems(s, "solids", typeof(object)));
+                if (s.HasPick)
+                {
+                    Put("point", [s.PickPoint]);
+                    if (!s.PickNormal.IsNullVector()) Put("normal", [s.PickNormal]);
+                }
+            }
+            result["stored"] = stored;
+            return result;
+        }
+
+        /// <summary>
+        /// Called for every value stored in the workspace: a value consisting of copies from the user's selection
+        /// gives the name a document origin. Any other value keeps the origin the name already has, so a tool that
+        /// replaces the item under its own name (e.g. feature.fillet without 'name') keeps it.
+        /// </summary>
+        private void RegisterDocumentOrigin(string name, object value)
+        {
+            List<IGeoObject> originals = [];
+            if (value is IGeoObject single)
+            {
+                if (copyOrigins.TryGetValue(single, out IGeoObject? original)) originals.Add(original);
+            }
+            else if (value is IEnumerable list && value is not string)
+            {
+                foreach (object item in list)
+                {
+                    if (item is IGeoObject go && copyOrigins.TryGetValue(go, out IGeoObject? original)) originals.Add(original);
+                }
+            }
+            if (originals.Count > 0) documentOrigins[name] = originals;
+        }
+
+        /// <summary>
+        /// Returns the original document objects of the workspace item <paramref name="name"/>, or null when the
+        /// item has no document origin.
+        /// </summary>
+        private List<IGeoObject>? GetDocumentOrigin(string name)
+        {
+            return documentOrigins.TryGetValue(name, out List<IGeoObject>? originals) ? originals : null;
+        }
+
+        /// <summary>The geometric objects held by a workspace item: the object itself or the objects of a list.</summary>
+        private static List<IGeoObject> GeoObjectsOfItem(object item)
+        {
+            if (item is IGeoObject go) return [go];
+            if (item is IEnumerable list && item is not string) return list.OfType<IGeoObject>().ToList();
+            return [];
+        }
+
+        /// <summary>
+        /// Implements the 'replace' parameter of document.update_objects: either names of workspace items with a
+        /// document origin, each replacing its own original, or a list of { original, with } pairs. The replacement
+        /// keeps layer, style and name of the original; an item without document origin fails with E_INVALID_PARAMS.
+        /// Everything is checked before the model is changed. Returns one entry { original, with } per item.
+        /// </summary>
+        private JsonArray ReplaceDocumentObjects(JsonElement replace, Model model)
+        {
+            // collect (original name, replacing objects, names of the replacing items)
+            List<(string original, List<IGeoObject> with, List<string> withNames)> requests = [];
+            bool pairs = replace.ValueKind == JsonValueKind.Array && replace.EnumerateArray().Any(el => el.ValueKind == JsonValueKind.Object);
+            if (pairs)
+            {
+                foreach (JsonElement el in replace.EnumerateArray())
+                {
+                    if (el.ValueKind != JsonValueKind.Object) throw new JsonRpcException("E_INVALID_PARAMS", "'replace' must either be a list of names or a list of { original, with } pairs, not a mixture.");
+                    string original = RequireString(el, "original");
+                    JsonElement with = RequireProperty(el, "with");
+                    requests.Add((original, IterateSelector<IGeoObject>(with).ToList(), AllNames(with).ToList()));
+                }
+            }
+            else
+            {
+                foreach (string name in AllNames(replace))
+                {
+                    if (!namedItems.TryGetValue(name, out object? item) || item == null) throw NamedItemNotFound(name);
+                    requests.Add((name, GeoObjectsOfItem(item), [name]));
+                }
+            }
+            // validate and pair originals with their replacements
+            List<(IGeoObject original, List<IGeoObject> replacements)> work = [];
+            foreach (var (original, with, _) in requests)
+            {
+                List<IGeoObject>? originals = GetDocumentOrigin(original);
+                if (originals == null)
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"'{original}' has no document origin: only items copied from the user's selection (document.get_selection with 'store', or workspace.select with a uiSelection selector) and results stored under their name can replace a document object. Use 'add' for new objects.");
+                if (with.Count == 0)
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"Nothing to replace '{original}' with: the replacement holds no geometric object.");
+                foreach (IGeoObject orig in originals)
+                {
+                    if (orig.Owner != model)
+                        throw new JsonRpcException("E_REF_GONE", $"The document object '{original}' was copied from is no longer in the document (it was removed or replaced meanwhile).");
+                }
+                if (originals.Count == with.Count)
+                {
+                    for (int i = 0; i < originals.Count; i++) work.Add((originals[i], [with[i]]));
+                }
+                else if (originals.Count == 1)
+                {
+                    work.Add((originals[0], with));
+                }
+                else
+                {
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"'{original}' was copied from {originals.Count} document objects but is to be replaced by {with.Count} objects; the assignment is ambiguous. Replace them one by one with {{ original, with }} pairs.");
+                }
+            }
+            // apply
+            foreach (var (original, replacements) in work)
+            {
+                bool keepOriginal = replacements.Contains(original); // modified in place after an earlier replace
+                if (!keepOriginal) model.Remove(original);
+                for (int i = 0; i < replacements.Count; i++)
+                {
+                    IGeoObject repl = replacements[i];
+                    if (repl == original) continue;
+                    if (original.Layer != null) repl.Layer = original.Layer;
+                    if (repl.Style == null && original.Style != null) repl.Style = original.Style;
+                    string? originalName = original switch { Solid sld => sld.Name, Shell sh => sh.Name, _ => null };
+                    if (!string.IsNullOrEmpty(originalName))
+                    {
+                        string replName = replacements.Count == 1 ? originalName : $"{originalName}_{i}";
+                        if (repl is Solid rs) rs.Name = replName;
+                        else if (repl is Shell rsh) rsh.Name = replName;
+                    }
+                    model.Add(repl);
+                }
+            }
+            // the replacements are the document objects now: a further modification can replace them again
+            JsonArray replaced = new JsonArray();
+            foreach (var (original, with, withNames) in requests)
+            {
+                if (withNames.Count == 1) documentOrigins[withNames[0]] = with;
+                if (!withNames.Contains(original)) documentOrigins.Remove(original);
+                JsonArray names = new JsonArray();
+                foreach (string n in withNames) names.Add(n);
+                replaced.Add(new JsonObject { ["original"] = original, ["with"] = names });
+            }
+            return replaced;
         }
 
         #endregion
@@ -5359,8 +6031,84 @@ namespace ShapeIt
                 if (!item.TryGetProperty("value", out JsonElement parValue)) { throw new JsonRpcException("E_INVALID_PARAMETER", $"No value found for {parName}."); }
                 string? parLabel = GetOptionalString(item, "label");
                 item.TryGetProperty("input", out var parInput);
+                if (ObjectParameterSpec(item) is ObjectParameter objectParameter)
+                {   // An object parameter (solid, profile) has no default: its 'value' names the object the template is
+                    // recorded with, which does not exist when the template is replayed later. The object comes from the
+                    // instantiation (argument or the user's pick); an optional one that is not given stays undefined,
+                    // also when the outer workspace happens to hold an item of that name - see defined("name").
+                    if (replayingTemplate) namedItems.Remove(parName);
+                    else
+                    {
+                        try { WorkspaceSetImpl(parName, parValue, parLabel, parInput); }
+                        catch (Exception ex) when (objectParameter.Optional)
+                        {
+                            AddCallWarning($"The optional {objectParameter.Kind} parameter '{parName}' is not defined for this recording: {ex.Message}");
+                        }
+                    }
+                    continue;
+                }
                 WorkspaceSetImpl(parName, parValue, parLabel, parInput);
             }
+        }
+
+        /// <summary>A template parameter that takes an object instead of a value (input kind "solid" or "profile").</summary>
+        internal sealed record ObjectParameter(string Name, string Kind, bool Optional, bool Replace);
+
+        internal static bool IsObjectParameterKind(string? kind) => kind == "solid" || kind == "profile";
+
+        /// <summary>The object parameter described by one entry of template.begin's 'parameters', null for a value parameter.</summary>
+        private static ObjectParameter? ObjectParameterSpec(JsonElement parameterSpec)
+        {
+            if (parameterSpec.ValueKind != JsonValueKind.Object) return null;
+            if (!parameterSpec.TryGetProperty("name", out JsonElement nameEl) || nameEl.ValueKind != JsonValueKind.String) return null;
+            if (!parameterSpec.TryGetProperty("input", out JsonElement input) || input.ValueKind != JsonValueKind.Object) return null;
+            if (!input.TryGetProperty("kind", out JsonElement kindEl) || kindEl.ValueKind != JsonValueKind.String) return null;
+            string? kind = kindEl.GetString();
+            if (!IsObjectParameterKind(kind)) return null;
+            bool optional = input.TryGetProperty("optional", out JsonElement o) && o.ValueKind == JsonValueKind.True;
+            bool replace = input.TryGetProperty("replace", out JsonElement r) && r.ValueKind == JsonValueKind.True;
+            return new ObjectParameter(nameEl.GetString()!, kind!, optional, replace);
+        }
+
+        /// <summary>The object parameters of a template, in the order of their declaration.</summary>
+        internal List<ObjectParameter> GetTemplateObjectParameters(string templateName)
+        {
+            List<ObjectParameter> res = [];
+            if (templates.TryGetValue(templateName, out var jsons) && jsons.Count > 0
+                && jsons[0].TryGetProperty("params", out var prms) && prms.ValueKind == JsonValueKind.Object
+                && prms.TryGetProperty("parameters", out var parameters) && parameters.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement item in parameters.EnumerateArray())
+                {
+                    if (ObjectParameterSpec(item) is ObjectParameter op) res.Add(op);
+                }
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Checks the object parameters after the arguments of an instantiation have been applied: a required one must
+        /// be given and of the right kind - a solid for "solid", a sketch or sketch geometry for "profile".
+        /// </summary>
+        private void CheckTemplateObjectArguments(string templateName)
+        {
+            foreach (ObjectParameter op in GetTemplateObjectParameters(templateName))
+            {
+                if (!namedItems.TryGetValue(op.Name, out object? value) || value == null)
+                {
+                    if (op.Optional) continue;
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"Template '{templateName}' needs the {op.Kind} parameter '{op.Name}': pass the workspace name of a {(op.Kind == "solid" ? "solid" : "sketch")} as argument.");
+                }
+                object unwrapped = UnwrapSingletonList(value);
+                bool ok = op.Kind == "solid" ? unwrapped is Solid
+                    : unwrapped is Sketch || unwrapped is CompoundShape || unwrapped is ICurve2D || unwrapped is IEnumerable<ICurve2D> || unwrapped is IEnumerable<CompoundShape>;
+                if (!ok) throw new JsonRpcException("E_INVALID_PARAMS", $"The {op.Kind} parameter '{op.Name}' of template '{templateName}' got a {GetObjectTypeName(unwrapped)}.");
+            }
+        }
+
+        private static string GetObjectTypeName(object o)
+        {
+            try { return GetItemTypeName(o); } catch (Exception) { return o.GetType().Name; }
         }
 
         private object? TemplateCommitImpl(JsonElement result, string? resultKind, bool suffixInternalNames)
@@ -5413,8 +6161,24 @@ namespace ShapeIt
                                 {
                                     string parName = item.Name;
                                     if (item.Value.ValueKind == JsonValueKind.Number) namedItems[parName] = item.Value.GetDouble();
-                                    else if (item.Value.ValueKind == JsonValueKind.String) namedItems[parName] = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
+                                    else if (item.Value.ValueKind == JsonValueKind.String)
+                                    {
+                                        object value = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
+                                        // an object argument is the caller's workspace item: the template works on a copy,
+                                        // so that a step modifying it in place cannot reach outside the template
+                                        if (value is IGeoObject go) value = go.Clone();
+                                        namedItems[parName] = value;
+                                    }
                                 }
+                            }
+                            try
+                            {
+                                CheckTemplateObjectArguments(template);
+                            }
+                            catch (Exception)
+                            {   // like a failing step: restore the outer workspace pushed by template.begin
+                                namedItemClones.Pop().Dispose();
+                                throw;
                             }
                         }
                     }
@@ -5457,7 +6221,8 @@ namespace ShapeIt
             ["E_DOC_CHANGED"] = 1003,
             ["E_CENTER_OUTSIDE_FACE"] = 1203,
             ["E_REF_GONE"] = 1302,
-            ["E_BOOLEAN_FAIL"] = 1401
+            ["E_BOOLEAN_FAIL"] = 1401,
+            ["E_NOT_IMPLEMENTED"] = 1901
         };
 
         public struct ParameterInfo
@@ -5468,6 +6233,10 @@ namespace ShapeIt
             public string? description;
             public string? group;
             public int order;
+            /// <summary>Object parameters (kind "solid", "profile") only: may be left empty.</summary>
+            public bool optional;
+            /// <summary>Solid parameters only: the template result takes the place of the picked document solid.</summary>
+            public bool replace;
         }
 
         internal string? GetTemplateLabel(string key)
@@ -5511,7 +6280,12 @@ namespace ShapeIt
                 {
                     using (new NamedItemClone(this))
                     {
-                        ProcessMethod(jsons[0], false); // now we should find the values of the parameters in the (temporary) namedItems
+                        // Replayed, not recorded: with executeTemplate false this started a recording of all later calls.
+                        // template.begin pushes a workspace clone of its own, which is dropped again in the finally block.
+                        int clonesBefore = namedItemClones.Count;
+                        ProcessMethod(jsons[0], true); // now we should find the values of the parameters in the (temporary) namedItems
+                        try
+                        {
                         if (stopExecution) return res;
                         if (jsons[0].TryGetProperty("params", out var prms) && prms.ValueKind == JsonValueKind.Object)
                         {
@@ -5538,6 +6312,8 @@ namespace ShapeIt
                                                         res.group = group.GetString();
                                                     if (input.TryGetProperty("order", out var order) && order.ValueKind == JsonValueKind.Number)
                                                         res.order = order.GetInt32();
+                                                    res.optional = input.TryGetProperty("optional", out var optional) && optional.ValueKind == JsonValueKind.True;
+                                                    res.replace = input.TryGetProperty("replace", out var replace) && replace.ValueKind == JsonValueKind.True;
                                                 }
                                             }
 
@@ -5545,6 +6321,11 @@ namespace ShapeIt
                                     }
                                 }
                             }
+                        }
+                        }
+                        finally
+                        {
+                            while (namedItemClones.Count > clonesBefore) namedItemClones.Pop();
                         }
                     }
                 }
@@ -5649,6 +6430,7 @@ namespace ShapeIt
                             {
                                 namedItems[item.Key] = item.Value;
                             }
+                            CheckTemplateObjectArguments(template);
                         }
                     }
                 }
@@ -5906,6 +6688,29 @@ namespace ShapeIt
                 string method = methodEl.GetString()!;
                 int callId = callEl.TryGetProperty("id", out var idEl) && idEl.TryGetInt32(out int idInt) ? idInt : i;
                 JsonElement paramsEl = callEl.TryGetProperty("params", out var p) ? p : default;
+
+                if (callEl.TryGetProperty("when", out JsonElement whenEl) && whenEl.ValueKind == JsonValueKind.String)
+                {   // a conditional call, typically in a template: e.g. "defined(\"hull\")" for an optional parameter
+                    string? error = null;
+                    bool run = false;
+                    try
+                    {
+                        object condition = Evaluator.Evaluate(whenEl.GetString(), namedItems.Dict);
+                        if (condition is bool b) run = b;
+                        else error = $"'when' must evaluate to true or false, but '{whenEl.GetString()}' gave {condition}.";
+                    }
+                    catch (Exception ex) { error = $"'when' expression '{whenEl.GetString()}' could not be evaluated: {ex.Message}"; }
+                    if (error != null)
+                    {
+                        results.Add(new JsonObject { ["index"] = i, ["method"] = method, ["error"] = error });
+                        return true;
+                    }
+                    if (!run)
+                    {
+                        results.Add(new JsonObject { ["index"] = i, ["method"] = method, ["skipped"] = true });
+                        continue;
+                    }
+                }
 
                 string rpcResponse = ProcessMethod(method, callId, paramsEl);
 

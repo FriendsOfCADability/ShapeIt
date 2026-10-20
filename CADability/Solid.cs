@@ -422,6 +422,31 @@ namespace CADability.GeoObject
             return res;
         }
         /// <summary>
+        /// Clones this solid like <see cref="Clone()"/> and reports which face, edge and vertex of the clone
+        /// corresponds to which one of this solid (original -> clone). Use it when a face or edge of this solid
+        /// has been selected and the same face or edge of the copy is needed.
+        /// </summary>
+        /// <param name="clonedEdges">Filled with the mapping of the edges</param>
+        /// <param name="clonedVertices">Filled with the mapping of the vertices</param>
+        /// <param name="clonedFaces">Filled with the mapping of the faces</param>
+        /// <returns>The cloned solid</returns>
+        public Solid Clone(Dictionary<Edge, Edge> clonedEdges, Dictionary<Vertex, Vertex> clonedVertices, Dictionary<Face, Face> clonedFaces)
+        {
+            Solid res = Solid.Construct();
+            res.CopyAttributes(this); // before the shells exist, so that the faces keep their own colors (see Clone())
+            if (shells != null)
+            {
+                res.shells = new Shell[shells.Length];
+                for (int i = 0; i < shells.Length; ++i)
+                {
+                    res.shells[i] = shells[i].Clone(clonedEdges, clonedVertices, clonedFaces);
+                    res.shells[i].Owner = res;
+                }
+            }
+            res.name = name;
+            return res;
+        }
+        /// <summary>
         /// Overrides <see cref="CADability.GeoObject.IGeoObjectImpl.CopyGeometry (IGeoObject)"/>
         /// </summary>
         /// <param name="ToCopyFrom"></param>

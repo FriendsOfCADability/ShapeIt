@@ -16,6 +16,8 @@ namespace ShapeIt
         private MCPServer mcpServer;
         private string templateName;
         Dictionary<string, object> parameterValues = new Dictionary<string, object>();
+        // picked document solids of "solid" parameters marked 'replace': the template result takes their place
+        private readonly Dictionary<string, Solid> solidsToReplace = new Dictionary<string, Solid>();
 
         // Live preview: every parameter change asks the worker for a new shape, the worker answers on the UI
         // thread, and what it answers goes into the feedback display. See TemplatePreview for the threading.
@@ -113,6 +115,59 @@ namespace ShapeIt
                                 }
                             }
                             break;
+                        case "solid":
+                            {   // the user picks a solid of the model, the template works on a copy of it
+                                string name = parameterNames[i]; // capture
+                                bool replace = parameterInfo.replace;
+                                GeoObjectInput solidInput = new GeoObjectInput("@" + parameterInfo.label + "@" + parameterInfo.description);
+                                solidInput.MultipleInput = false;
+                                solidInput.FacesOnly = false;
+                                solidInput.Optional = parameterInfo.optional; // starts empty, so a required one must be picked
+                                solidInput.MouseOverGeoObjectsEvent += (sender, geoObjects, up) =>
+                                {
+                                    Solid? found = null;
+                                    for (int j = 0; j < geoObjects.Length; j++)
+                                    {
+                                        if (geoObjects[j] is Solid sld) { found = sld; break; }
+                                    }
+                                    if (up && found != null)
+                                    {
+                                        sender.SetGeoObject(new IGeoObject[] { found }, found);
+                                        parameterValues[name] = found.Clone();
+                                        if (replace) solidsToReplace[name] = found;
+                                        RequestPreview();
+                                    }
+                                    return found != null;
+                                };
+                                inputs.Add(solidInput);
+                            }
+                            break;
+                        case "profile":
+                            {   // the user picks a closed planar curve (a path is taken as a whole), which becomes a sketch
+                                string name = parameterNames[i]; // capture
+                                CurveInput profileInput = new CurveInput("@" + parameterInfo.label + "@" + parameterInfo.description);
+                                profileInput.PreferPath = true;
+                                profileInput.Optional = parameterInfo.optional; // starts empty, so a required one must be picked
+                                profileInput.MouseOverCurvesEvent += (sender, curves, up) =>
+                                {
+                                    ICurve? usable = null;
+                                    for (int j = 0; j < curves.Length; j++)
+                                    {
+                                        if (curves[j].IsClosed && curves[j].GetPlanarState() == PlanarState.Planar) { usable = curves[j]; break; }
+                                    }
+                                    if (up && usable != null)
+                                    {
+                                        MCPServer.Sketch? sketch = MCPServer.SketchFromCurves(new List<ICurve> { usable.Clone() });
+                                        if (sketch == null) return false;
+                                        sender.SetCurves(new ICurve[] { usable }, usable);
+                                        parameterValues[name] = sketch;
+                                        RequestPreview();
+                                    }
+                                    return usable != null;
+                                };
+                                inputs.Add(profileInput);
+                            }
+                            break;
                             // others to be implemented!
                     }
                 }
@@ -181,17 +236,36 @@ namespace ShapeIt
             {
                 style = project.StyleList.GetDefault(Style.EDefaultFor.Solids);
             }
-            if (o is Solid sld)
+            List<Solid> results = new List<Solid>();
+            if (o is Solid sld) results.Add(sld);
+            else if (o is List<Solid> solids) results.AddRange(solids);
+            if (results.Count > 0 && project != null)
             {
-                if (style != null) { sld.Style = style; }
-                project?.GetActiveModel()?.Add(sld);
-            }
-            else if (o is List<Solid> solids)
-            {
-                for (int i = 0; i < solids.Count; i++)
+                using (project.Undo.UndoFrame)
                 {
-                    if (style != null) { solids[i].Style = style; }
-                    project?.GetActiveModel()?.Add(solids[i]);
+                    // a picked solid marked 'replace' (e.g. the body to be perforated) is replaced by the result,
+                    // which takes over its owner, layer and style
+                    IGeoObjectOwner? owner = null;
+                    Solid? replaced = null;
+                    foreach (Solid toReplace in solidsToReplace.Values)
+                    {
+                        if (toReplace.Owner == null) continue; // removed meanwhile
+                        owner ??= toReplace.Owner;
+                        replaced ??= toReplace;
+                        toReplace.Owner.Remove(toReplace);
+                    }
+                    owner ??= project.GetActiveModel();
+                    foreach (Solid result in results)
+                    {
+                        if (replaced != null)
+                        {
+                            if (replaced.Layer != null) result.Layer = replaced.Layer;
+                            if (replaced.Style != null) result.Style = replaced.Style;
+                            else if (style != null) result.Style = style;
+                        }
+                        else if (style != null) { result.Style = style; }
+                        owner.Add(result);
+                    }
                 }
             }
             base.OnDone();

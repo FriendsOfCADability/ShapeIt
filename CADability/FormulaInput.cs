@@ -609,6 +609,7 @@ public static class Parser
                 case TokenType.And:
                 case TokenType.Or:
                 case TokenType.NotEqual:
+                case TokenType.Not: // only as unary operator, handled right below
                     {
                         if (expectUnary && t.Type == TokenType.Not)
                         {
@@ -1215,6 +1216,13 @@ public static class Evaluator
                                 case "len":
                                     CheckArgCount(call, args, 1);
                                     fres = GeometryOps.FuncLen(args[0]);
+                                    break;
+                                case "defined":
+                                    {   // defined("name"): whether a value with this name exists, e.g. an optional template parameter
+                                        CheckArgCount(call, args, 1);
+                                        if (args[0] is not string definedName) throw new Exception($"Function {call.Name} expects a name in quotes as argument.");
+                                        fres = namedValues.ContainsKey(definedName);
+                                    }
                                     break;
                                 case "ceil":
                                     CheckArgCount(call, args, 1);

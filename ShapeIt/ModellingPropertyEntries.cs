@@ -59,6 +59,34 @@ namespace ShapeIt
         /// Lets the browser touch head tell a successful modelling pick from a miss (the action's own
         /// SelectedObjects list is always empty in modelling mode).</summary>
         public bool HasModellingSelection => currentlySelected.Count > 0;
+
+        // Read access to the selection for the MCP server (document.get_selection, selector uiSelection).
+        private int selectionVersion; // incremented whenever the selection changes
+        private PickArea? lastClickPickArea; // pick area of the last single click (mouse or touch), null after a rectangle or programmatic selection
+        private List<IGeoObject> lastClickObjects = new List<IGeoObject>(); // the objects found under the cursor by that click
+        /// <summary>Monotonic counter, incremented whenever the selection is composed anew or cleared.</summary>
+        internal int SelectionVersion => selectionVersion;
+        /// <summary>The currently selected objects as picked: faces, curves of edges, curves, texts, solids.</summary>
+        internal IReadOnlyCollection<IGeoObject> CurrentSelection => currentlySelected;
+        /// <summary>Pick area of the click that made the current selection, or null when it was not made by a single click.</summary>
+        internal PickArea? LastClickPickArea => lastClickPickArea;
+        /// <summary>The objects found under the cursor by the last single click (see <see cref="LastClickPickArea"/>).</summary>
+        internal IReadOnlyList<IGeoObject> LastClickObjects => lastClickObjects;
+        /// <summary>ResourceId of the first level entry of this page that contains the current selection of the property page
+        /// (e.g. "MenuId.Face", "MultipleEdges.Properties"), i.e. the category the user is focused on. Null when nothing is focused.</summary>
+        internal string? FocusedCategoryResourceId
+        {
+            get
+            {
+                IPropertyEntry? pe = propertyPage?.GetCurrentSelection();
+                while (pe != null && FindParent(this, pe) != this)
+                {
+                    pe = FindParent(this, pe);
+                }
+                return pe?.ResourceId;
+            }
+        }
+
         private Dictionary<IGeoObject, IGeoObject> selectedSameSurfaceBudies = new Dictionary<IGeoObject, IGeoObject>();
 
         private GeoObjectList selectedChildObjects = new GeoObjectList(); // when a face or feature is selected, it is listed here to maybe move it later
@@ -102,7 +130,7 @@ namespace ShapeIt
             FeedbackArrow.SetNumberFormat(cadFrame);
             ViewsChanged(cadFrame); // first initialisation
 
-            mcpServer = new MCPServer(cadFrame, cadFrame.Project);
+            mcpServer = new MCPServer(cadFrame, cadFrame.Project, this);
             uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
             LayerProperties.EnsureExists(cadFrame.Project); // for the project that is already open at startup
@@ -283,7 +311,7 @@ namespace ShapeIt
         {
             LayerProperties.EnsureExists(theProject);
             theProject.GetModel(0).RemovingGeoObjectEvent += OnObjectRemoved;
-            mcpServer = new MCPServer(theFrame, theProject);
+            mcpServer = new MCPServer(theFrame, theProject, this);
             if (mcpHttpServer != null)
                 mcpHttpServer.Server = mcpServer;
         }
@@ -533,7 +561,7 @@ namespace ShapeIt
                     // when only a single click (not dragging a selections rectangle) then we also want to show the parent objects (i.e. the solid)
                     // when the control key is pressed, we want to add or remove from the current selection
                     bool addOrRemove = (cadFrame.UIService.ModifierKeys & Keys.Control) == Keys.Control;
-                    ComposeModellingEntries(objectsUnderCursor, vw, pickArea, !onlyInside, addOrRemove); // when should we use alsoParent==false?
+                    ComposeModellingEntries(objectsUnderCursor, vw, pickArea, !onlyInside, addOrRemove, singlePick: !multiple); // when should we use alsoParent==false?
                     IsOpen = true;
                     Refresh();
                 }
@@ -769,12 +797,25 @@ namespace ShapeIt
         }
 
         private string resourceIdOfLastSelectedCategory = String.Empty; // what was selected last time? edge, face, solid etc.
-        private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea? pickArea, bool alsoParent = true, bool addRemove = false, bool preferMostSpecific = false)
+        private void ComposeModellingEntries(GeoObjectList objectsUnderCursor, IView vw, PickArea? pickArea, bool alsoParent = true, bool addRemove = false, bool preferMostSpecific = false, bool singlePick = false)
         {   // a mouse left button up took place. Compose all the entries for objects, which can be handled by
             // the object(s) under the mouse cursor
             // preferMostSpecific (touch picking): pre-select strictly by the edge->curve->face->solid
             // priority instead of sticking to the last selected category — a finger that lands near an
             // edge means the edge, even if a face was selected before.
+            // singlePick: the objects were picked by a single click (not a rectangle, not programmatically),
+            // pickArea is then the click position, which the MCP server reports as the picked point.
+            ++selectionVersion;
+            if (singlePick && pickArea != null)
+            {
+                lastClickPickArea = pickArea;
+                lastClickObjects = new List<IGeoObject>(objectsUnderCursor);
+            }
+            else
+            {
+                lastClickPickArea = null;
+                lastClickObjects = new List<IGeoObject>();
+            }
             // what to focus after the selection changed?
             IPropertyEntry pe = propertyPage.GetCurrentSelection();
             while (pe != null && FindParent(this, pe) != this)
@@ -1843,6 +1884,13 @@ namespace ShapeIt
             }
             selectedObjects.Clear();
             selectedChildObjects.Clear();
+            // the selection is gone: without this, a later Ctrl+click would add to the stale objects, and the MCP server
+            // would still report them (they may have been removed from the model, see OnObjectRemoved)
+            currentlySelected.Clear();
+            selectedSameSurfaceBudies.Clear();
+            lastClickPickArea = null;
+            lastClickObjects = new List<IGeoObject>();
+            ++selectionVersion;
             activeHotspots.Clear();
             feedback.hotSpots.Clear();
             feedback.Clear();

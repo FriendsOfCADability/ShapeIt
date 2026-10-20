@@ -72,6 +72,7 @@ namespace ShapeIt
         {
             stateVersion++;
             emptyResultNames.Remove(name); // the name exists again, the earlier explanation is obsolete
+            RegisterDocumentOrigin(name, value);
             if (callChangesStack.Count == 0) return;
             CallChanges changes = callChangesStack.Peek();
             changes.Removed.Remove(name);
@@ -107,6 +108,7 @@ namespace ShapeIt
         private void OnNamedItemRemoved(string name)
         {
             stateVersion++;
+            documentOrigins.Remove(name);
             if (callChangesStack.Count == 0) return;
             CallChanges changes = callChangesStack.Peek();
             // an item that was created and removed within the same call (e.g. the temporary
