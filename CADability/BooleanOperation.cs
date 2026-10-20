@@ -446,6 +446,33 @@ namespace CADability
             }
         }
 
+        private void CalculateCoincidences()
+        {
+            // verticesOctTree has already merged the vertices of the two shells.
+            // find coinciding edges, overlapping edges, edges connected at their endpoints (tangential or not)
+            // Find edges, which coincide with other faces. Find edges intersecting each other.
+            // Find edges which are tangential to other faces. Find edges which are tangential to other edges.
+            // 1. Collect all face pairs which share a common leaf in the octtree
+            var allPairs = facesOctTree.Leaves
+                .SelectMany(leaf =>
+                {
+                    if (multipleFaces != null)
+                    {
+                        Face[] inLeaf = leaf.list.OrderBy(fc => fc.GetHashCode()).ToArray();
+                        return Enumerable.Range(0, inLeaf.Length)
+                            .SelectMany(i => Enumerable.Range(i + 1, inLeaf.Length - i - 1)
+                                .Select(j => (fc1: inLeaf[i], fc2: inLeaf[j])));
+                    }
+                    else
+                    {
+                        var inshell1 = leaf.list.Where(fc => fc.Owner == shell1);
+                        var inshell2 = leaf.list.Where(fc => fc.Owner == shell2);
+                        return inshell1.SelectMany(fc1 => inshell2.Select(fc2 => (fc1, fc2)));
+                    }
+                })
+                .Distinct()
+                .ToList();
+        }
         private void AddFaceFaceIntersection(Face fc1, Face fc2)
         {
             // Test for overlapping faces:
@@ -2426,6 +2453,7 @@ namespace CADability
             faceToOppositeFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
             FaceEdgeIntersections = new Dictionary<(Edge, Face), (List<Vertex>, bool)>();
 
+            CalculateCoincidences();
             CreateFaceIntersections();
             if (edgesToSplit.Any())
             {
@@ -2567,6 +2595,7 @@ namespace CADability
             faceToOppositeFaces = new Dictionary<Face, Dictionary<Face, ModOp2D>>();
             FaceEdgeIntersections = new Dictionary<(Edge, Face), (List<Vertex>, bool)>();
 
+            CalculateCoincidences();
             CreateFaceIntersections();
 
 #if DEBUG

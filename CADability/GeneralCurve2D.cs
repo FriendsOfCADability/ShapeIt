@@ -529,6 +529,13 @@ namespace CADability.Curve2D
                     pointsi[i] = PointAt(parametersi[i]);
                     directionsi[i] = DirectionAt(parametersi[i]);
                 }
+#if DEBUG
+                if (pointsi.Length > 1)
+                {
+                    double dst = Geometry.LineFit(pointsi, out GeoPoint2D _loc, out GeoVector2D _dir);
+                }
+                double dst1 = Geometry.LineFit(points, out GeoPoint2D __loc, out GeoVector2D __dir);
+#endif
                 MergeCurveData(points, directions, parameters, pointsi, directionsi, parametersi,
                     out List<GeoPoint2D> mergedPoints, out List<GeoVector2D> mergedDirections, out List<double> mergedParameters);
                 points = mergedPoints.ToArray();

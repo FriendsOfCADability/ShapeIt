@@ -2,6 +2,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using System.Threading;
 
 namespace CADability.Curve2D
@@ -663,6 +664,17 @@ namespace CADability.Curve2D
             return SimpleMinimumDistance(first, second, out p1, out p2);
         }
 
+        public static bool IsLinear(ICurve2D curve)
+        {
+            if (Geometry.DistPL(curve.PointAt(0.5), curve.StartPoint, curve.EndPoint) > Precision.eps) return false;
+            if (curve is GeneralCurve2D gc)
+            {
+                gc.GetTriangulationPoints(out GeoPoint2D[] points, out double[] pars);
+                double err = Geometry.LineFit(points, out GeoPoint2D loc, out GeoVector2D dir);
+                return err < Precision.eps;
+            }
+            return false;
+        }
         public static bool NearestPoint(GeoPoint2DWithParameter[] points, GeoPoint2D selectionPoint, out GeoPoint2DWithParameter nearestPoint)
         {
             double dist = double.MaxValue; // Entfernung vom selectionPoint für Schnittpunkte

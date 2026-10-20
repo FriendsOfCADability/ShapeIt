@@ -3668,6 +3668,13 @@ namespace CADability.Curve2D
                 return res;
             }
         }
+        public double DistFromLine
+        {
+            get
+            {
+                return Geometry.LineFit(poles, out GeoPoint2D _loc, out GeoVector2D _dir);
+            }
+        }
 #endif
         #endregion
         internal void reparametrize(double s, double e)
