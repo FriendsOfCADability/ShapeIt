@@ -833,7 +833,9 @@ namespace CADability.GeoObject
             //paintFacesCache = new Dictionary<IPaintTo3D, IPaintTo3DList>();
             //paintCurvesCache = new Dictionary<IPaintTo3D, IPaintTo3DList>();
             isModifyingWithMouse = false;
-            uniqueId = ++UniqueIdCounter; // kann der Counter überlaufen? Wie geht das Increment mit Überlauf?
+            // Interlocked: geometry objects are also created on other threads (BooleanOperation.PrecalculateEdgeIntersections),
+            // a lost increment would change the ids of everything created afterwards
+            uniqueId = System.Threading.Interlocked.Increment(ref UniqueIdCounter); // kann der Counter überlaufen? Wie geht das Increment mit Überlauf?
             visible = true;
 #if DEBUG
             if (5845 == uniqueId)

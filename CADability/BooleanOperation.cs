@@ -390,6 +390,8 @@ namespace CADability
         Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOverlappingFaces; // all faces which overlap with this face
         Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOppositeFaces; // all faces which are opposite oriented to this face and the ModOp2D to transform 2d curves from one face to the other
         Dictionary<(Edge edge, Face face), (List<Vertex> vertices, bool curveIsInSurface)> FaceEdgeIntersections; // to avoid duplicate calls to GetFaceEdgeIntersection
+        // the raw intersections of edges with faces, calculated in advance while CreateFaceIntersections runs, see PrecalculateEdgeIntersections
+        Dictionary<(Edge edge, Face face), (bool curveIsOnSurface, GeoPoint[] ips, GeoPoint2D[] uvOnFaces, double[] uOnCurve3Ds)> precalculatedEdgeIntersections;
 
         HashSet<Face> commonOverlappingFaces; // Faces, which have been newly created as common parts of overlapping faces
         HashSet<Face> cancelledfaces; // Faces, which cancel each other, they have the same area but are opposite oriented 
@@ -430,20 +432,142 @@ namespace CADability
                 })
                 .Distinct()
                 .ToList();
-#if DEBUG
-            bool useParallel = false; // switch off for debugging
-#else
-            bool useParallel = false; // doesn't work, use Lazy<>
-#endif
-            // 2. Iterate over all pairs and calculate the intersection edges
-            if (useParallel)
-            {
-                allPairs.AsParallel().ForAll(pair => AddFaceFaceIntersection(pair.fc1, pair.fc2));
-            }
-            else
+            // 2. The intersections of the edges with the faces are the most expensive part of AddFaceFaceIntersection and do not
+            // depend on each other: calculate them in advance, in parallel in the release version
+            precalculatedEdgeIntersections = PrecalculateEdgeIntersections(allPairs);
+            // 3. Iterate over all pairs and calculate the intersection edges. This creates vertices and combines those which are close
+            // to each other, so the result depends on the order: it must stay serial
+            try
             {
                 foreach (var (f1, f2) in allPairs) AddFaceFaceIntersection(f1, f2);
             }
+            finally
+            {
+                precalculatedEdgeIntersections = null;
+            }
+        }
+
+        /// <summary>
+        /// Whether <see cref="PrecalculateEdgeIntersections"/> uses more than one thread. Off in the debug version, so that a debug
+        /// session is reproducible. The result must not depend on it: a test switches it off in the release version and compares.
+        /// </summary>
+#if DEBUG
+        internal static bool PrecalculateInParallel = false;
+#else
+        internal static bool PrecalculateInParallel = true;
+#endif
+        /// <summary>
+        /// Calculates the intersections of edges with faces which <see cref="AddFaceFaceIntersection"/> is going to need, in advance:
+        /// in parallel in the release version, one after the other in the debug version, so that a debug session stays reproducible.
+        /// <see cref="GetFaceEdgeIntersection"/> takes the results from here and calculates what is not found here itself.
+        /// <para>
+        /// AddFaceFaceIntersection itself cannot run in parallel. It creates vertices and edges, whose hash codes come from counters,
+        /// and it combines vertices which are close to each other, so its result depends on the order of the pairs. And the geometry
+        /// is not thread safe: the hulls of surfaces and curves refine themselves while they are used (ParallelepipedHull.SplitCube),
+        /// and many caches are filled on demand without a lock. What can run in parallel is the raw intersection of a curve with a
+        /// surface (<see cref="Face.RawEdgeIntersection"/>), which depends on nothing but the two. So each pair of a face and an edge
+        /// is a task of its own, with a private copy of the surface and a private copy of the curve. The copies are made here,
+        /// serially, because cloning takes ids from counters and reads the caches of the originals.
+        /// </para>
+        /// <para>
+        /// The copies of a task are used and refined by this task only, so its result does not depend on the other tasks or on
+        /// their order: the release version computes exactly what the debug version computes. It is also the reason, why
+        /// <see cref="GetFaceEdgeIntersection"/> takes <see cref="ISurface.IsCurveOnSurface"/> from here instead of asking the
+        /// original surface: the answer of the copy is the one the precalculated intersection is based on.
+        /// </para>
+        /// </summary>
+        private Dictionary<(Edge edge, Face face), (bool curveIsOnSurface, GeoPoint[] ips, GeoPoint2D[] uvOnFaces, double[] uOnCurve3Ds)> PrecalculateEdgeIntersections(List<(Face fc1, Face fc2)> pairs)
+        {
+            // the pairs of a face and an edge AddFaceFaceIntersection is going to need, in a fixed order (the tasks are made in this order)
+            List<Face> faces = new List<Face>();
+            Dictionary<Face, List<Edge>> edgesOfFace = new Dictionary<Face, List<Edge>>();
+            HashSet<(Edge, Face)> collected = new HashSet<(Edge, Face)>();
+            foreach (var (fc1, fc2) in pairs)
+            {
+                foreach (var (fca, fcb) in new[] { (fc1, fc2), (fc2, fc1) })
+                {
+                    if (!CanBeCopiedForAnotherThread(fca.Surface)) continue;
+                    foreach (Edge edge in fcb.Edges)
+                    {
+                        if (edge.Curve3D == null || edge.PrimaryFace == fca || edge.SecondaryFace == fca) continue;
+                        // these are handled differently by AddFaceFaceIntersection
+                        if (edgeLiesInFace != null && edgeLiesInFace.TryGetValue(edge, out var liesIn) && liesIn.face == fca) continue;
+                        if (edgeEndsInFace != null && edgeEndsInFace.TryGetValue(edge, out var endsIn) && endsIn.Contains(fca)) continue;
+                        if (!collected.Add((edge, fca))) continue;
+                        if (!edgesOfFace.TryGetValue(fca, out List<Edge> edges))
+                        {
+                            edgesOfFace[fca] = edges = new List<Edge>();
+                            faces.Add(fca);
+                        }
+                        edges.Add(edge);
+                    }
+                }
+            }
+            // the private copies, one task for each pair of a face and an edge
+            double prec = precision == 0.0 ? Precision.eps : precision; // as in Face.IntersectAndPosition
+            var tasks = new List<(Face face, Edge edge, ISurface surface, BoundingRect uvBounds, BoundingRect domain, ICurve curve)>();
+            foreach (Face face in faces)
+            {
+                // a copy of a NurbsSurface takes over the hull of the original (see NurbsSurface.Clone), build it once here
+                // instead of once in every task
+                if (face.Surface is NurbsSurface nurbs) _ = nurbs.ParallelepipedHull;
+                BoundingRect uvBounds = face.GetUVBounds();
+                BoundingRect domain = face.Domain;
+                foreach (Edge edge in edgesOfFace[face])
+                {
+                    ICurve curve = CopyForAnotherThread(edge.Curve3D);
+                    if (curve != null) tasks.Add((face, edge, face.Surface.Clone(), uvBounds, domain, curve));
+                }
+            }
+            var results = new (bool curveIsOnSurface, GeoPoint[] ips, GeoPoint2D[] uvOnFaces, double[] uOnCurve3Ds)?[tasks.Count];
+            void calculate(int i)
+            {
+                var task = tasks[i];
+                try
+                {
+                    // GetFaceEdgeIntersection treats a curve in the surface differently
+                    if (task.surface.IsCurveOnSurface(task.curve)) results[i] = (true, null, null, null);
+                    else
+                    {
+                        Face.RawEdgeIntersection(task.surface, task.uvBounds, task.domain, task.curve, prec,
+                            out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds);
+                        results[i] = (false, ips, uvOnFaces, uOnCurve3Ds);
+                    }
+                }
+                catch (Exception)
+                {   // left to GetFaceEdgeIntersection, which calculates it again and throws, if it must, at the right moment
+                }
+            }
+            if (PrecalculateInParallel) System.Threading.Tasks.Parallel.For(0, tasks.Count, calculate);
+            else for (int i = 0; i < tasks.Count; i++) calculate(i);
+            var res = new Dictionary<(Edge edge, Face face), (bool curveIsOnSurface, GeoPoint[] ips, GeoPoint2D[] uvOnFaces, double[] uOnCurve3Ds)>();
+            for (int i = 0; i < tasks.Count; i++)
+            {
+                if (results[i].HasValue) res[(tasks[i].edge, tasks[i].face)] = results[i].Value;
+            }
+            return res;
+        }
+        /// <summary>
+        /// True for surfaces whose <see cref="ISurface.Clone"/> shares nothing with the original that changes while it is used.
+        /// Exact types: a derived class may keep more.
+        /// </summary>
+        private static bool CanBeCopiedForAnotherThread(ISurface surface)
+        {
+            Type type = surface.GetType();
+            return type == typeof(PlaneSurface) || type == typeof(CylindricalSurface) || type == typeof(ConicalSurface)
+                || type == typeof(SphericalSurface) || type == typeof(ToroidalSurface) || type == typeof(NurbsSurface);
+        }
+        /// <summary>
+        /// A copy of <paramref name="curve"/> which shares nothing with the original that changes while it is used, or null for
+        /// the kinds of curves where this is not known to be true (e.g. curves which keep a reference to a surface).
+        /// </summary>
+        private static ICurve CopyForAnotherThread(ICurve curve)
+        {
+            Type type = curve.GetType();
+            if (type == typeof(Line) || type == typeof(Ellipse) || type == typeof(BSpline)) return curve.Clone();
+            if (curve is InterpolatedDualSurfaceCurve idsc && type == typeof(InterpolatedDualSurfaceCurve)
+                && CanBeCopiedForAnotherThread(idsc.Surface1) && CanBeCopiedForAnotherThread(idsc.Surface2)) return idsc.CloneUnshared();
+            return null;
         }
 
         private void AddFaceFaceIntersection(Face fc1, Face fc2)
@@ -1616,7 +1740,9 @@ namespace CADability
             if (edge.PrimaryFace == face || edge.SecondaryFace == face) return res; // necessary for multipleFaces
             if (edge.PrimaryFace.Surface.SameGeometry(edge.PrimaryFace.Domain, face.Surface, face.Domain, precision, out ModOp2D _)) { curveIsInSurface = true; return res; }
             if (edge.SecondaryFace != null && edge.SecondaryFace.Surface.SameGeometry(edge.SecondaryFace.Domain, face.Surface, face.Domain, precision, out ModOp2D _)) { curveIsInSurface = true; return res; }
-            if (face.Surface.IsCurveOnSurface(edge.Curve3D))
+            var precalculated = default((bool curveIsOnSurface, GeoPoint[] ips, GeoPoint2D[] uvOnFaces, double[] uOnCurve3Ds));
+            bool isPrecalculated = precalculatedEdgeIntersections != null && precalculatedEdgeIntersections.TryGetValue((edge, face), out precalculated);
+            if (isPrecalculated ? precalculated.curveIsOnSurface : face.Surface.IsCurveOnSurface(edge.Curve3D))
             {
                 if (face.Surface.IsUPeriodic || face.Surface.IsVPeriodic)
                 {   // there are cases where the edge.Curve3D spirals around the face. Working with the projected curve would yield the wrong result
@@ -1669,7 +1795,16 @@ namespace CADability
                 FaceEdgeIntersections[(edge, face)] = (res.ToList(), curveIsInSurface);
                 return res;
             }
-            face.IntersectAndPosition(edge, out ip, out uvOnFace, out uOnCurve3D, out position, precision);
+            if (isPrecalculated)
+            {
+#if DEBUG
+                face.DebugShowEdgeIntersection(edge); // as Face.IntersectAndPosition does
+#endif
+                // the uv values may be moved by a period while they are classified, keep the precalculated ones as they are
+                face.ClassifyEdgeIntersections(precalculated.ips, (GeoPoint2D[])precalculated.uvOnFaces.Clone(), precalculated.uOnCurve3Ds,
+                    precision == 0.0 ? Precision.eps : precision, out ip, out uvOnFace, out uOnCurve3D, out position);
+            }
+            else face.IntersectAndPosition(edge, out ip, out uvOnFace, out uOnCurve3D, out position, precision);
             for (int i = 0; i < ip.Length; ++i)
             {
                 if (uOnCurve3D[i] < -prec || uOnCurve3D[i] > 1.0 + prec || position[i] == Border.Position.Outside)

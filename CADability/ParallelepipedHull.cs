@@ -662,29 +662,31 @@ namespace CADability.GeoObject
         internal ParallelepipedHull(ParallelepipedHull toCopy, ISurface surface)
         {
             this.surface = surface;
+            ParEpi[] cubes;
             lock (toCopy)
-            {   // SplitCube refines the hull under this lock
+            {   // SplitCube refines the hull under this lock. Only the patches are read under it, many copies of the same hull may
+                // be made at the same time (BooleanOperation.PrecalculateEdgeIntersections)
                 uSingularities = toCopy.uSingularities;
                 vSingularities = toCopy.vSingularities;
                 extrema = toCopy.extrema;
                 uvbounds = toCopy.uvbounds;
                 quadtreeExtent = toCopy.quadtreeExtent;
                 octtreeExtent = toCopy.octtreeExtent;
-                octtree = new OctTree<ParEpi>(octtreeExtent, 0.0);
-                quadtree = new QuadTree<ParEpi>(quadtreeExtent);
-                quadtree.MaxDeepth = -1; // dynamic
-                // GetAllObjects comes from a HashSet: sort the patches, so the trees of the copy do not depend on its order
-                ParEpi[] cubes = toCopy.octtree.GetAllObjects();
-                Array.Sort(cubes, (a, b) =>
-                {
-                    int res = a.uvPatch.Left.CompareTo(b.uvPatch.Left);
-                    return res != 0 ? res : a.uvPatch.Bottom.CompareTo(b.uvPatch.Bottom);
-                });
-                for (int i = 0; i < cubes.Length; i++)
-                {
-                    octtree.AddObject(cubes[i]);
-                    quadtree.AddObject(cubes[i]);
-                }
+                cubes = toCopy.octtree.GetAllObjects();
+            }
+            octtree = new OctTree<ParEpi>(octtreeExtent, 0.0);
+            quadtree = new QuadTree<ParEpi>(quadtreeExtent);
+            quadtree.MaxDeepth = -1; // dynamic
+            // GetAllObjects comes from a HashSet: sort the patches, so the trees of the copy do not depend on its order
+            Array.Sort(cubes, (a, b) =>
+            {
+                int res = a.uvPatch.Left.CompareTo(b.uvPatch.Left);
+                return res != 0 ? res : a.uvPatch.Bottom.CompareTo(b.uvPatch.Bottom);
+            });
+            for (int i = 0; i < cubes.Length; i++)
+            {
+                octtree.AddObject(cubes[i]);
+                quadtree.AddObject(cubes[i]);
             }
         }
 #if DEBUG
@@ -3862,11 +3864,16 @@ namespace CADability.GeoObject
             while (mindist > Math.Min(Precision.eps, found.Size * 1e-4)) // was *100 (18.7.14)
             {
                 if (dirx.IsNullVector() || diry.IsNullVector() || dirz.IsNullVector()) return false;
-                Matrix m = DenseMatrix.OfRowArrays(dirx, diry, dirz);
-                Vector mres = (Vector)m.Transpose().Solve(new DenseVector(p3d - loc));
-                if (!mres.IsValid()) return false;
-                res.x += mres[0];
-                res.y += mres[1];
+                // solve du*dirx + dv*diry + dn*dirz = p3d - loc with Cramer's rule: this runs very often, and a matrix of a
+                // linear algebra library costs a handful of allocations each time
+                GeoVector rhs = p3d - loc;
+                GeoVector yz = diry ^ dirz;
+                double det = dirx * yz;
+                double du = (rhs * yz) / det;
+                double dv = (dirx * (rhs ^ dirz)) / det;
+                if (double.IsNaN(du) || double.IsInfinity(du) || double.IsNaN(dv) || double.IsInfinity(dv)) return false;
+                res.x += du;
+                res.y += dv;
                 if (!found.uvPatch.ContainsEps(res, -0.05))
                 {
                     ++missed;

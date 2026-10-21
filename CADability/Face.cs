@@ -9139,6 +9139,19 @@ namespace CADability.GeoObject
         internal void IntersectAndPosition(Edge edg, out GeoPoint[] ip, out GeoPoint2D[] uvOnFace, out double[] uOnCurve3D, out Border.Position[] position, double prec = 0.0)
         {
 #if DEBUG
+            DebugShowEdgeIntersection(edg);
+#endif
+            if (prec == 0.0) prec = Precision.eps;
+            RawEdgeIntersection(surface, GetUVBounds(), Domain, edg.Curve3D, prec, out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds);
+            ClassifyEdgeIntersections(ips, uvOnFaces, uOnCurve3Ds, prec, out ip, out uvOnFace, out uOnCurve3D, out position);
+        }
+#if DEBUG
+        /// <summary>
+        /// Shows the triangles of this face which are hit by the curve of <paramref name="edg"/>: a place for a breakpoint
+        /// when debugging <see cref="IntersectAndPosition"/>.
+        /// </summary>
+        internal void DebugShowEdgeIntersection(Edge edg)
+        {
             if (edg.Curve3D != null)
             {
                 TetraederHull th = new TetraederHull(edg.Curve3D);
@@ -9152,34 +9165,44 @@ namespace CADability.GeoObject
                     dc.Add(fc);
                 }
             }
+        }
 #endif
-            if (prec == 0.0) prec = Precision.eps;
-            GeoPoint[] ips;
-            GeoPoint2D[] uvOnFaces;
-            double[] uOnCurve3Ds;
-            surface.Intersect(edg.Curve3D, this.GetUVBounds(), out ips, out uvOnFaces, out uOnCurve3Ds);
+        /// <summary>
+        /// The first part of <see cref="IntersectAndPosition"/>: the intersection points of <paramref name="curve"/> with
+        /// <paramref name="surface"/> within <paramref name="uvBounds"/>, which still have to be classified against the area of the
+        /// face (<see cref="ClassifyEdgeIntersections"/>). <paramref name="domain"/> is the domain of the face.
+        /// <para>
+        /// This part does most of the work and depends on nothing but its parameters, so it can run on private copies of the
+        /// surface and the curve on another thread, see BooleanOperation.PrecalculateEdgeIntersections. It must stay that way:
+        /// no access to a face, an edge or a vertex here.
+        /// </para>
+        /// </summary>
+        internal static void RawEdgeIntersection(ISurface surface, BoundingRect uvBounds, BoundingRect domain, ICurve curve, double prec,
+            out GeoPoint[] ips, out GeoPoint2D[] uvOnFaces, out double[] uOnCurve3Ds)
+        {
+            surface.Intersect(curve, uvBounds, out ips, out uvOnFaces, out uOnCurve3Ds);
 #if DEBUG
             for (int i = 0; i < ips.Length; i++)
             {
                 GeoPoint tst = ips[i];
-                Surfaces.NewtonIntersect(surface, this.GetUVBounds(), edg.Curve3D, ref tst);
+                Surfaces.NewtonIntersect(surface, uvBounds, curve, ref tst);
                 double d = tst | ips[i];
                 d = surface.PointAt(uvOnFaces[i]) | tst;
-                d = edg.Curve3D.PointAt(uOnCurve3Ds[i]) | tst;
+                d = curve.PointAt(uOnCurve3Ds[i]) | tst;
             }
 #endif
-            if (ips.Length == 0 && surface.GetDistance(edg.Curve3D.StartPoint) < prec && surface.GetDistance(edg.Curve3D.EndPoint) < prec && surface.GetDistance(edg.Curve3D.PointAt(0.5)) < prec)
+            if (ips.Length == 0 && surface.GetDistance(curve.StartPoint) < prec && surface.GetDistance(curve.EndPoint) < prec && surface.GetDistance(curve.PointAt(0.5)) < prec)
             {
                 // the curve resides in the surface
-                ips = new GeoPoint[] { edg.Curve3D.StartPoint, edg.Curve3D.EndPoint };
-                uvOnFaces = new GeoPoint2D[] { surface.PositionOf(edg.Curve3D.StartPoint), surface.PositionOf(edg.Curve3D.EndPoint) };
+                ips = new GeoPoint[] { curve.StartPoint, curve.EndPoint };
+                uvOnFaces = new GeoPoint2D[] { surface.PositionOf(curve.StartPoint), surface.PositionOf(curve.EndPoint) };
                 uOnCurve3Ds = new double[] { 0.0, 1.0 };
             }
-            if (ips.Length > 0 && edg.Curve3D is InterpolatedDualSurfaceCurve dsc && !dsc.Surface1.SameGeometry(dsc.GetBoundingRect(true), surface, Domain, prec, out _) && !dsc.Surface2.SameGeometry(dsc.GetBoundingRect(false), surface, Domain, prec, out _))
+            if (ips.Length > 0 && curve is InterpolatedDualSurfaceCurve dsc && !dsc.Surface1.SameGeometry(dsc.GetBoundingRect(true), surface, domain, prec, out _) && !dsc.Surface2.SameGeometry(dsc.GetBoundingRect(false), surface, domain, prec, out _))
             {   // this point is the intersection point of three surfaces, Surfaces.IntersectThreeSurfaces makes a better newton approximation of the point
                 for (int i = 0; i < ips.Length; i++)
                 {
-                    if ((ips[i] == edg.Curve3D.StartPoint || ips[i] == edg.Curve3D.EndPoint) && surface.GetDistance(ips[i]) < prec)
+                    if ((ips[i] == curve.StartPoint || ips[i] == curve.EndPoint) && surface.GetDistance(ips[i]) < prec)
                     {   // an end point of the curve on this surface (see ISurfaceImpl.Intersect): exact already. Near a tangential
                         // contact the intersection of three surfaces is ill-conditioned and would only move it away
                         continue;
@@ -9187,15 +9210,15 @@ namespace CADability.GeoObject
                     GeoPoint tmp = ips[i];
                     GeoPoint2D uv1 = dsc.Surface1.PositionOf(tmp);
                     GeoPoint2D uv2 = dsc.Surface2.PositionOf(tmp);
-                    GeoPoint2D uv3 = Surface.PositionOf(tmp);
-                    bool ok = BoxedSurfaceExtension.SurfacesIntersectionLM(dsc.Surface1, dsc.Surface2, Surface, ref uv1, ref uv2, ref uv3, ref ips[i]);
+                    GeoPoint2D uv3 = surface.PositionOf(tmp);
+                    bool ok = BoxedSurfaceExtension.SurfacesIntersectionLM(dsc.Surface1, dsc.Surface2, surface, ref uv1, ref uv2, ref uv3, ref ips[i]);
                     // SurfacesIntersectionLM is better than the old IntersectThreeSurfaces at lest with DifferenceBug13 where the old method fails
                     //bool ok = Surfaces.IntersectThreeSurfaces(dsc.Surface1, dsc.GetBoundingRect(true), dsc.Surface2, dsc.GetBoundingRect(false),
                     //        Surface, Domain, ref ips[i], out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3);
                     if (ok)
                     {
-                        uOnCurve3Ds[i] = edg.Curve3D.PositionOf(ips[i]);
-                        uvOnFaces[i] = Surface.PositionOf(ips[i]);
+                        uOnCurve3Ds[i] = curve.PositionOf(ips[i]);
+                        uvOnFaces[i] = surface.PositionOf(ips[i]);
                     }
                     else
                     {
@@ -9206,9 +9229,17 @@ namespace CADability.GeoObject
             // An edge which ends on this surface within the precision is not always found by the intersection
             // above: when the edge meets the surface tangentially there, the curve may stay a hair outside the
             // surface, so there is no intersection at all within Precision.eps.
-            AddCurveEndsOnSurface(edg.Curve3D, prec, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
+            AddCurveEndsOnSurface(surface, curve, prec, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
             // a tangential intersection may be found more than once, at slightly different positions
-            MergeTangentialDuplicates(edg.Curve3D, prec, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
+            MergeTangentialDuplicates(surface, curve, prec, ref ips, ref uvOnFaces, ref uOnCurve3Ds);
+        }
+        /// <summary>
+        /// The second part of <see cref="IntersectAndPosition"/>: keeps the intersection points found by
+        /// <see cref="RawEdgeIntersection"/> which are inside this face or on its border, and says where they are.
+        /// </summary>
+        internal void ClassifyEdgeIntersections(GeoPoint[] ips, GeoPoint2D[] uvOnFaces, double[] uOnCurve3Ds, double prec,
+            out GeoPoint[] ip, out GeoPoint2D[] uvOnFace, out double[] uOnCurve3D, out Border.Position[] position)
+        {
             List<GeoPoint> lip = new List<GeoPoint>();
             List<GeoPoint2D> luvOnFace = new List<GeoPoint2D>();
             List<double> luOnCurve3D = new List<double>();
@@ -9270,7 +9301,7 @@ namespace CADability.GeoObject
         /// Appends the start and end point of <paramref name="curve"/> to the intersection points, when they are
         /// closer to the surface than <paramref name="prec"/> and not yet contained in the result.
         /// </summary>
-        private void AddCurveEndsOnSurface(ICurve curve, double prec, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
+        private static void AddCurveEndsOnSurface(ISurface surface, ICurve curve, double prec, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
         {
             List<GeoPoint> lips = null;
             List<GeoPoint2D> luvs = null;
@@ -9319,7 +9350,7 @@ namespace CADability.GeoObject
         /// is an end point of the curve (it is exact), otherwise the one where the point on the surface and the
         /// point on the curve are closest to each other.
         /// </summary>
-        private void MergeTangentialDuplicates(ICurve curve, double prec, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
+        private static void MergeTangentialDuplicates(ISurface surface, ICurve curve, double prec, ref GeoPoint[] ips, ref GeoPoint2D[] uvOnFaces, ref double[] uOnCurve3Ds)
         {
             if (ips.Length < 2) return;
             bool[] tangential = new bool[ips.Length];
@@ -9339,7 +9370,7 @@ namespace CADability.GeoObject
                     if (remove[j] || !tangential[j]) continue;
                     if ((ips[i] | ips[j]) >= 10 * prec) continue;
                     // i and j are the same tangential intersection: keep the better one at position i
-                    if (IntersectionQuality(curve, uvOnFaces[j], uOnCurve3Ds[j]) < IntersectionQuality(curve, uvOnFaces[i], uOnCurve3Ds[i]))
+                    if (IntersectionQuality(surface, curve, uvOnFaces[j], uOnCurve3Ds[j]) < IntersectionQuality(surface, curve, uvOnFaces[i], uOnCurve3Ds[i]))
                     {
                         ips[i] = ips[j];
                         uvOnFaces[i] = uvOnFaces[j];
@@ -9368,7 +9399,7 @@ namespace CADability.GeoObject
         /// The quality of an intersection point for <see cref="MergeTangentialDuplicates"/>, smaller is better: an end
         /// point of the curve is exact (-1), otherwise the distance between the point on the surface and the point on the curve.
         /// </summary>
-        private double IntersectionQuality(ICurve curve, GeoPoint2D uvOnFace, double uOnCurve)
+        private static double IntersectionQuality(ISurface surface, ICurve curve, GeoPoint2D uvOnFace, double uOnCurve)
         {
             if (uOnCurve == 0.0 || uOnCurve == 1.0) return -1.0;
             return surface.PointAt(uvOnFace) | curve.PointAt(uOnCurve);

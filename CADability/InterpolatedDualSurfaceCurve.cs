@@ -1541,6 +1541,17 @@ namespace CADability
             return new InterpolatedDualSurfaceCurve(this);
         }
         /// <summary>
+        /// A clone which shares nothing with this curve that changes while it is used, so that it can be used on another
+        /// thread. <see cref="Clone"/> keeps the approximating spline of the original, whose caches (e.g. its TetraederHull)
+        /// are filled on demand; here it is cloned as well. The surfaces are cloned in both cases.
+        /// </summary>
+        internal InterpolatedDualSurfaceCurve CloneUnshared()
+        {
+            InterpolatedDualSurfaceCurve res = new InterpolatedDualSurfaceCurve(this);
+            if (approxBSpline != null) res.approxBSpline = approxBSpline.Clone() as BSpline;
+            return res;
+        }
+        /// <summary>
         /// The copy <see cref="Clone"/> makes: the same base points and flag, and the same approximating
         /// spline, which is never modified in place, only replaced. The surfaces are cloned, because BRep operations
         /// need independent surfaces.
