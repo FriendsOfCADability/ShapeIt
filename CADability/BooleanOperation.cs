@@ -2309,12 +2309,12 @@ namespace CADability
             shell1 = s1.Clone(originalToClonedEdges, originalToClonedVertices, originalToClonedFaces); // we clone the shells to not destroy the originals. We could keep references to the original by UserData
             shell2 = s2.Clone(originalToClonedEdges, originalToClonedVertices, originalToClonedFaces);
             this.operation = operation;
-            // calculate the triangulation according to the size of the bounding box. We need this for Volume calculation
+            // the precision of the triangulation for the volume calculations in Result, according to the size of the bounding box.
+            // The faces are not triangulated here: Shell.MakeShell discards the triangulation of every face it collects into a
+            // result (Face.InvalidateSecondaryData), so a triangulation made here was never used, only computed twice.
             BoundingBox ext = shell1.GetExtent(0.0);
             ext.MinMax(shell2.GetExtent(0.0));
             triangulationPrecision = ext.Size * 1e-4;
-            shell1.PreCalcTriangulation(triangulationPrecision);
-            shell2.PreCalcTriangulation(triangulationPrecision);
 #if DEBUG
             // when no color is set, make shell1 red, shell2 green for better visual debugging
             ColorDef red = new ColorDef("red", Color.Red);

@@ -1005,11 +1005,12 @@ namespace CADability
         /// The denominators cannot vanish as long as span is a non-empty knot span
         /// (uknots[span] &lt; uknots[span+1]), which <see cref="FindSpan"/> guarantees.
         /// </summary>
-        void BasisFunsU(int span, double u, int deg, out double[] N)
+        unsafe void BasisFunsU(int span, double u, int deg, out double[] N)
         {
             N = new double[deg + 1];
-            double[] left = new double[deg + 1];
-            double[] right = new double[deg + 1];
+            // left and right are only scratch space: on the stack, because this is called for every point of the surface
+            double* left = stackalloc double[deg + 1];
+            double* right = stackalloc double[deg + 1];
             N[0] = 1.0;
             for (int j = 1; j <= deg; ++j)
             {
@@ -1080,11 +1081,12 @@ namespace CADability
         /// Computes the deg+1 non-vanishing basis functions at v (NURBS book p. 70, A2.2).
         /// See <see cref="BasisFunsU(int, double, int, out double[])"/>.
         /// </summary>
-        void BasisFunsV(int span, double v, int deg, out double[] N)
+        unsafe void BasisFunsV(int span, double v, int deg, out double[] N)
         {
             N = new double[deg + 1];
-            double[] left = new double[deg + 1];
-            double[] right = new double[deg + 1];
+            // left and right are only scratch space: on the stack, because this is called for every point of the surface
+            double* left = stackalloc double[deg + 1];
+            double* right = stackalloc double[deg + 1];
             N[0] = 1.0;
             for (int j = 1; j <= deg; ++j)
             {

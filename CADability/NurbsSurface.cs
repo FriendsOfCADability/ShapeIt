@@ -43,8 +43,11 @@ namespace CADability.GeoObject
         // cached bounding boxes of the knot span patches, see GetPatchExtent(int, int, bool).
         // BoundingBox.EmptyBoundingBox marks a not yet computed entry
         private BoundingBox[,] knotSpanExtent;
+        // the hull of the surface this one was cloned from: copied when the hull of this surface is needed, see Clone
+        private ParallelepipedHull hullOfOriginal;
         private new void InvalidateSecondaryData()
         {
+            hullOfOriginal = null;
             fixedUCurves = null;
             fixedVCurves = null;
             nubs = null;
@@ -55,6 +58,15 @@ namespace CADability.GeoObject
             uSingularities = null;
             vSingularities = null;
             knotSpanExtent = null;
+        }
+        internal override ParallelepipedHull ParallelepipedHull
+        {
+            get
+            {
+                if (parallelepipedHull == null && hullOfOriginal != null) parallelepipedHull = new ParallelepipedHull(hullOfOriginal, this);
+                hullOfOriginal = null;
+                return base.ParallelepipedHull;
+            }
         }
 
         private bool hasSimpleSurface
@@ -3768,6 +3780,9 @@ namespace CADability.GeoObject
                 res.uMinRestrict = uMinRestrict;
                 res.uMaxRestrict = uMaxRestrict;
             }
+            // the clone is the same surface, so it can take over the hull instead of building it again. Only when it is asked
+            // for, because most clones never need one
+            res.hullOfOriginal = parallelepipedHull ?? hullOfOriginal;
             return res;
         }
         /// <summary>

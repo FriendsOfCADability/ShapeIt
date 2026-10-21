@@ -480,6 +480,9 @@ namespace CADability.GeoObject
         double[] uSingularities;
         double[] vSingularities;
         GeoPoint2D[] extrema;
+        // the extents the two trees were created with, kept for the copy, see ParallelepipedHull(ParallelepipedHull, ISurface)
+        BoundingRect quadtreeExtent;
+        BoundingBox octtreeExtent;
         public ParallelepipedHull(ISurface surface, BoundingRect extent)
         {
             if (extent.IsEmpty() || extent.IsInfinite) throw new ApplicationException("ParallelepipedHull with undefined extent");
@@ -578,7 +581,9 @@ namespace CADability.GeoObject
             //    vsteps = new double[] { extent.Bottom, extent.Bottom + extent.Height * 0.333, extent.Bottom + extent.Height * 0.666, extent.Top };
             //}
             uvbounds = new BoundingRect(usteps[0], vsteps[0], usteps[usteps.Length - 1], vsteps[vsteps.Length - 1]);
-            octtree = new OctTree<ParEpi>(surface.GetPatchExtent(new BoundingRect(usteps[0], vsteps[0], usteps[usteps.Length - 1], vsteps[vsteps.Length - 1]), true), 0.0); // better true
+            octtreeExtent = surface.GetPatchExtent(new BoundingRect(usteps[0], vsteps[0], usteps[usteps.Length - 1], vsteps[vsteps.Length - 1]), true); // better true
+            quadtreeExtent = extent;
+            octtree = new OctTree<ParEpi>(octtreeExtent, 0.0);
             quadtree = new QuadTree<ParEpi>(extent);
             quadtree.MaxDeepth = -1; // dynamic
             for (int i = 0; i < usteps.Length - 1; ++i)
@@ -642,6 +647,45 @@ namespace CADability.GeoObject
 
             //}
 #endif
+        }
+        /// <summary>
+        /// A copy of <paramref name="toCopy"/> for <paramref name="surface"/>, which must be geometrically identical to the surface
+        /// of <paramref name="toCopy"/>, i.e. a clone of it. Building a hull means evaluating the surface at many points, and the
+        /// BRep operations clone their surfaces a lot (every <see cref="InterpolatedDualSurfaceCurve"/> clones both of its surfaces),
+        /// so this saves building the same hull over and over again.
+        /// <para>
+        /// The patches (<see cref="ParEpi"/>) are shared: they are only written while they are created. The trees are not shared,
+        /// because a hull refines itself while it is used (<see cref="SplitCube"/>), and the hull is not shared either, because it
+        /// evaluates its own surface, which may be modified independently of the clone later.
+        /// </para>
+        /// </summary>
+        internal ParallelepipedHull(ParallelepipedHull toCopy, ISurface surface)
+        {
+            this.surface = surface;
+            lock (toCopy)
+            {   // SplitCube refines the hull under this lock
+                uSingularities = toCopy.uSingularities;
+                vSingularities = toCopy.vSingularities;
+                extrema = toCopy.extrema;
+                uvbounds = toCopy.uvbounds;
+                quadtreeExtent = toCopy.quadtreeExtent;
+                octtreeExtent = toCopy.octtreeExtent;
+                octtree = new OctTree<ParEpi>(octtreeExtent, 0.0);
+                quadtree = new QuadTree<ParEpi>(quadtreeExtent);
+                quadtree.MaxDeepth = -1; // dynamic
+                // GetAllObjects comes from a HashSet: sort the patches, so the trees of the copy do not depend on its order
+                ParEpi[] cubes = toCopy.octtree.GetAllObjects();
+                Array.Sort(cubes, (a, b) =>
+                {
+                    int res = a.uvPatch.Left.CompareTo(b.uvPatch.Left);
+                    return res != 0 ? res : a.uvPatch.Bottom.CompareTo(b.uvPatch.Bottom);
+                });
+                for (int i = 0; i < cubes.Length; i++)
+                {
+                    octtree.AddObject(cubes[i]);
+                    quadtree.AddObject(cubes[i]);
+                }
+            }
         }
 #if DEBUG
         static int maxCnt = 0;
