@@ -1008,7 +1008,17 @@ namespace CADability
         unsafe void BasisFunsU(int span, double u, int deg, out double[] N)
         {
             N = new double[deg + 1];
-            // left and right are only scratch space: on the stack, because this is called for every point of the surface
+            fixed (double* n = N) BasisFunsU(span, u, deg, n);
+        }
+        /// <summary>
+        /// <see cref="BasisFunsU(int, double, int, out double[])"/> into <paramref name="N"/>, which must have room for deg+1
+        /// values: the evaluation of points and derivatives, which runs very often, passes a buffer on the stack instead of
+        /// allocating an array each time.
+        /// </summary>
+        unsafe void BasisFunsU(int span, double u, int deg, double* N)
+        {
+            if (deg < 0) throw new IndexOutOfRangeException(); // as the array version, which would write N[0] of an empty array
+            // left and right are only scratch space
             double* left = stackalloc double[deg + 1];
             double* right = stackalloc double[deg + 1];
             N[0] = 1.0;
@@ -1084,7 +1094,17 @@ namespace CADability
         unsafe void BasisFunsV(int span, double v, int deg, out double[] N)
         {
             N = new double[deg + 1];
-            // left and right are only scratch space: on the stack, because this is called for every point of the surface
+            fixed (double* n = N) BasisFunsV(span, v, deg, n);
+        }
+        /// <summary>
+        /// <see cref="BasisFunsV(int, double, int, out double[])"/> into <paramref name="N"/>, which must have room for deg+1
+        /// values: the evaluation of points and derivatives, which runs very often, passes a buffer on the stack instead of
+        /// allocating an array each time.
+        /// </summary>
+        unsafe void BasisFunsV(int span, double v, int deg, double* N)
+        {
+            if (deg < 0) throw new IndexOutOfRangeException(); // as the array version, which would write N[0] of an empty array
+            // left and right are only scratch space
             double* left = stackalloc double[deg + 1];
             double* right = stackalloc double[deg + 1];
             N[0] = 1.0;
@@ -1425,13 +1445,13 @@ namespace CADability
             deriv2 = null;
         }
 
-        public T CurvePoint(double u)
+        public unsafe T CurvePoint(double u)
         {
             int span;
             int n = uknots.Length - udegree - 1;
             span = FindSpanU(n, u);
-            double[] N;
-            BasisFunsU(span, u, udegree, out N);
+            double* N = stackalloc double[udegree + 1];
+            BasisFunsU(span, u, udegree, N);
             T res = new T();
             for (int j = 0; j <= udegree; ++j)
             {
@@ -1460,16 +1480,16 @@ namespace CADability
             }
             return res;
         }
-        public T SurfacePoint(double u, double v)
+        public unsafe T SurfacePoint(double u, double v)
         {
             int n = uknots.Length - udegree - 1;
             int uspan = FindSpanU(n, u);
             int m = vknots.Length - vdegree - 1;
             int vspan = FindSpanV(m, v);
-            double[] Nu;
-            BasisFunsU(uspan, u, udegree, out Nu);
-            double[] Nv;
-            BasisFunsV(vspan, v, vdegree, out Nv);
+            double* Nu = stackalloc double[udegree + 1];
+            BasisFunsU(uspan, u, udegree, Nu);
+            double* Nv = stackalloc double[vdegree + 1];
+            BasisFunsV(vspan, v, vdegree, Nv);
             int uind = uspan - udegree;
             T res = new T();
             for (int l = 0; l <= vdegree; ++l)
@@ -1673,20 +1693,20 @@ namespace CADability
             return res;
         }
 
-        public void SurfaceDeriv1(double u, double v, out T pointAtUV, out T derivU, out T derivV)
+        public unsafe void SurfaceDeriv1(double u, double v, out T pointAtUV, out T derivU, out T derivV)
         {   // Seite 137 bin sind alle 1
             int n = uknots.Length - udegree - 1;
             int uspan = FindSpanU(n, u);
             int m = vknots.Length - vdegree - 1;
             int vspan = FindSpanV(m, v);
-            double[] Nu;
-            BasisFunsU(uspan, u, udegree, out Nu);
-            double[] Nv;
-            BasisFunsV(vspan, v, vdegree, out Nv);
-            double[] Nuu;
-            BasisFunsU(uspan, u, udegree - 1, out Nuu);
-            double[] Nvv;
-            BasisFunsV(vspan, v, vdegree - 1, out Nvv);
+            double* Nu = stackalloc double[udegree + 1];
+            BasisFunsU(uspan, u, udegree, Nu);
+            double* Nv = stackalloc double[vdegree + 1];
+            BasisFunsV(vspan, v, vdegree, Nv);
+            double* Nuu = stackalloc double[udegree];
+            BasisFunsU(uspan, u, udegree - 1, Nuu);
+            double* Nvv = stackalloc double[vdegree];
+            BasisFunsV(vspan, v, vdegree - 1, Nvv);
             derivU = new T();
             derivV = new T();
             pointAtUV = new T();
@@ -1729,7 +1749,7 @@ namespace CADability
                 derivV = RatCurveDerivs1(derivV, pointAtUV);
             }
         }
-        public void CurveDeriv1(double u, out T pointAtU, out T derivAtU)
+        public unsafe void CurveDeriv1(double u, out T pointAtU, out T derivAtU)
         {
             // implementiert im Buch S. 99 für d==1, also nur 1. Ableitung
             // die unveränderlichen PK1 müssen natürlich zum BSpline objekt, damit sie nicht immer neu berechnet werden müssen
@@ -1737,15 +1757,15 @@ namespace CADability
             if (deriv1 == null) InitDeriv1();
             int n = uknots.Length - udegree - 1;
             int span = FindSpanU(n, u);
-            double[] N;
-            BasisFunsU(span, u, udegree, out N);
+            double* N = stackalloc double[udegree + 1];
+            BasisFunsU(span, u, udegree, N);
             pointAtU = new T();
             for (int j = 0; j <= udegree; ++j)
             {
                 pointAtU = calc.Add(pointAtU, calc.Mul(N[j], poles[span - udegree + j]));
             }
 
-            BasisFunsU(span, u, udegree - 1, out N);
+            BasisFunsU(span, u, udegree - 1, N); // fewer values, the buffer is large enough
             derivAtU = new T();
             for (int j = 0; j <= udegree - 1; ++j)
             {
