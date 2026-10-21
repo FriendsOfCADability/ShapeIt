@@ -2402,19 +2402,26 @@ namespace CADability.GeoObject
                 {
                     BoundingRect ext = new BoundingRect();
                     GetNaturalBounds(out ext.Left, out ext.Right, out ext.Bottom, out ext.Top);
-                    if (this is NurbsSurface)
+                    if (this is NurbsSurface ns)
                     {   // make sure not to exceed bound of a NURBS surface
-                        NurbsSurface ns = (this as NurbsSurface);
-                        if (!ns.IsUPeriodic)
+                        if (domain != BoundingRect.EmptyBoundingRect)
                         {
-                            ext.Left = Math.Max(ns.UKnots[0], ext.Left);
-                            ext.Right = Math.Min(ns.UKnots[ns.UKnots.Length - 1], ext.Right);
+                            ext = domain;
                         }
-                        if (!ns.IsVPeriodic)
+                        else
                         {
-                            ext.Bottom = Math.Max(ns.VKnots[0], ext.Bottom);
-                            ext.Top = Math.Min(ns.VKnots[ns.VKnots.Length - 1], ext.Top);
+                            if (!ns.IsUPeriodic)
+                            {
+                                ext.Left = Math.Max(ns.UKnots[0], ext.Left);
+                                ext.Right = Math.Min(ns.UKnots[ns.UKnots.Length - 1], ext.Right);
+                            }
+                            if (!ns.IsVPeriodic)
+                            {
+                                ext.Bottom = Math.Max(ns.VKnots[0], ext.Bottom);
+                                ext.Top = Math.Min(ns.VKnots[ns.VKnots.Length - 1], ext.Top);
+                            }
                         }
+                        // is there a case, where with a periodic NURBS surface the domain crosses the period?
                     }
                     else if (this is NonPeriodicSurface)
                     {
