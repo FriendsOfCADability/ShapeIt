@@ -2292,7 +2292,7 @@ namespace CADability.GeoObject
 
             // 2. the point of the box closest to the axis: on the axis, when the axis passes through the box, otherwise on an edge
             double ax, ay, az; // this point in the unit system
-            if (AxisPassesThrough(bc, Precision.eps, out double s))
+            if (UnitBox.LinePassesThrough(Location, Axis, bc, Precision.eps, out double s))
             {
                 ax = 0.0; ay = 0.0; az = s; // s is the z coordinate in the unit system
             }
@@ -2339,32 +2339,6 @@ namespace CADability.GeoObject
             else if (tHit > 1.0) tHit = 1.0;
             uv = PositionOf(toCylinder * new GeoPoint(ax + tHit * fx, ay + tHit * fy, az + tHit * fz));
             return true;
-        }
-        /// <summary>
-        /// Whether the axis of this cylinder passes through <paramref name="bc"/>, enlarged by <paramref name="eps"/>.
-        /// <paramref name="zUnit"/> is then the z coordinate in the system of the unit cylinder of a point of the axis inside the box.
-        /// The box is axis parallel, so this is the slab method: the parameter interval of the axis inside each slab.
-        /// </summary>
-        private bool AxisPassesThrough(BoundingBox bc, double eps, out double zUnit)
-        {
-            GeoPoint loc = Location;
-            GeoVector dir = Axis; // the axis is loc + s*dir, s is the z coordinate in the unit system
-            double sMin = double.NegativeInfinity, sMax = double.PositiveInfinity;
-            zUnit = 0.0;
-            if (!Slab(loc.x, dir.x, bc.Xmin - eps, bc.Xmax + eps, ref sMin, ref sMax)) return false;
-            if (!Slab(loc.y, dir.y, bc.Ymin - eps, bc.Ymax + eps, ref sMin, ref sMax)) return false;
-            if (!Slab(loc.z, dir.z, bc.Zmin - eps, bc.Zmax + eps, ref sMin, ref sMax)) return false;
-            zUnit = (sMin + sMax) / 2.0;
-            return true;
-        }
-        private static bool Slab(double origin, double direction, double min, double max, ref double sMin, ref double sMax)
-        {
-            if (direction == 0.0) return origin >= min && origin <= max;
-            double s1 = (min - origin) / direction, s2 = (max - origin) / direction;
-            if (s1 > s2) { double tmp = s1; s1 = s2; s2 = tmp; }
-            if (s1 > sMin) sMin = s1;
-            if (s2 < sMax) sMax = s2;
-            return sMin <= sMax;
         }
         public override bool Oriented
         {
