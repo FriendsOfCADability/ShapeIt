@@ -47,7 +47,7 @@
       "surfaces": "HelicalSweepSurface:2 PlaneSurface:2"
     },
     "coilIntersectBall": {
-      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238. Re-recorded 2026-10-07: only edgeLength moved (356.752458208 -> 356.794547801), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "3",
@@ -59,12 +59,12 @@
       "openEdges": "0",
       "volume": "735.743407163",
       "area": "1134.92085029",
-      "edgeLength": "356.752458208",
+      "edgeLength": "356.794547801",
       "extent": "-11, -10.9967852089, 4.45016556473, 10.7863335911, 10.9967933923, 19.5498344353",
       "surfaces": "HelicalSweepSurface:2 SphericalSurface:1"
     },
     "coilMinusBall": {
-      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238. Re-recorded 2026-10-07: only edgeLength moved (569.90771876 -> 569.949805811), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "5",
       "edges": "9",
@@ -76,12 +76,12 @@
       "openEdges": "0",
       "volume": "1632.96164898",
       "area": "2195.09917666",
-      "edgeLength": "569.90771876",
+      "edgeLength": "569.949805811",
       "extent": "-12, -12, -2, 12, 12, 26",
       "surfaces": "HelicalSweepSurface:2 PlaneSurface:2 SphericalSurface:1"
     },
     "coilUnionBall": {
-      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238.",
+      "verified": "2026-08-14: confirmed by Gerhard as producing the expected result; recorded as the baseline from that run. Checked by the identity in the file: V(union)+V(intersect) = V(coil)+V(ball), 7208.1880 + 735.7382 against 2368.6613 + 5575.2798, and V(coil minus ball) = 1632.9238. Re-recorded 2026-10-07: only edgeLength moved (569.90771963 -> 569.949805811), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "5",
       "edges": "9",
@@ -93,7 +93,7 @@
       "openEdges": "0",
       "volume": "7208.24246815",
       "area": "2789.11575336",
-      "edgeLength": "569.90771963",
+      "edgeLength": "569.949805811",
       "extent": "-12, -12, -2, 12, 12, 26",
       "surfaces": "HelicalSweepSurface:2 PlaneSurface:2 SphericalSurface:1"
     }

@@ -48,7 +48,7 @@
       "surfaces": "ToroidalSurface:1"
     },
     "sphereMinusTorus": {
-      "verified": "2026-08-28 GH: CALCULATED. 7503.95867387 against 11494.0403227324 - 3990.1046 = 7503.9357, 3.1e-6.",
+      "verified": "2026-08-28 GH: CALCULATED. 7503.95867387 against 11494.0403227324 - 3990.1046 = 7503.9357, 3.1e-6. Re-recorded 2026-10-07: only edgeLength moved (107.103139277 -> 107.181115102), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "2",
       "edges": "2",
@@ -60,12 +60,12 @@
       "openEdges": "0",
       "volume": "7503.93678572",
       "area": "2801.08168275",
-      "edgeLength": "107.103139277",
+      "edgeLength": "107.181115102",
       "extent": "12, -14, -14, 40, 14, 14",
       "surfaces": "SphericalSurface:1 ToroidalSurface:1"
     },
     "torusMinusSphere": {
-      "verified": "2026-08-28 GH: CALCULATED. 21275.9797563 against 25266.1872672626 - 3990.1046 = 21276.0827, 4.8e-6. euler 1: the sphere swallows the whole tube cross section at azimuth 0 and touches it at the single point (12,0,0), so the ring is cut open there and genus 1 becomes genus 0. This is the object whose partition wandered before the fix of 2026-08-28 (9 faces or 8) and kept the case unpinned.",
+      "verified": "2026-08-28 GH: CALCULATED. 21275.9797563 against 25266.1872672626 - 3990.1046 = 21276.0827, 4.8e-6. euler 1: the sphere swallows the whole tube cross section at azimuth 0 and touches it at the single point (12,0,0), so the ring is cut open there and genus 1 becomes genus 0. This is the object whose partition wandered before the fix of 2026-08-28 (9 faces or 8) and kept the case unpinned. Re-recorded 2026-10-07: only edgeLength moved (107.103139277 -> 107.181115102), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -77,12 +77,12 @@
       "openEdges": "0",
       "volume": "21276.082235",
       "area": "5978.47390895",
-      "edgeLength": "107.103139277",
+      "edgeLength": "107.181115102",
       "extent": "-28, -28, -8, 24.3076923077, 28, 8",
       "surfaces": "SphericalSurface:2 ToroidalSurface:1"
     },
     "torusSphereInter": {
-      "verified": "2026-08-28 GH: CALCULATED, not captured. 3990.05585337 against 3990.1046, integrated in cylindrical coordinates by Simpson and confirmed by Monte Carlo 3988.0 +- 3.7. A single manifold solid, euler 2.",
+      "verified": "2026-08-28 GH: CALCULATED, not captured. 3990.05585337 against 3990.1046, integrated in cylindrical coordinates by Simpson and confirmed by Monte Carlo 3988.0 +- 3.7. A single manifold solid, euler 2. Re-recorded 2026-10-07: only edgeLength moved (107.103139277 -> 107.181115102), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -94,12 +94,12 @@
       "openEdges": "0",
       "volume": "3990.10463703",
       "area": "1322.65524873",
-      "edgeLength": "107.103139277",
+      "edgeLength": "107.181115102",
       "extent": "12, -13.8973412808, -7.98660078143, 28, 13.8973412808, 7.97197862429",
       "surfaces": "SphericalSurface:2 ToroidalSurface:1"
     },
     "torusSphereUnion": {
-      "verified": "2026-08-28 GH: CALCULATED. 32770.0093493 against 25266.1873 + 11494.0403 - 3990.1046 = 32770.1230, and union + intersect = 36760.07 against the exact sum of the operands 36760.2276.",
+      "verified": "2026-08-28 GH: CALCULATED. 32770.0093493 against 25266.1873 + 11494.0403 - 3990.1046 = 32770.1230, and union + intersect = 36760.07 against the exact sum of the operands 36760.2276. Re-recorded 2026-10-07: only edgeLength moved (107.103139274 -> 107.181115102), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "2",
       "edges": "2",
@@ -111,7 +111,7 @@
       "openEdges": "0",
       "volume": "32770.1211031",
       "area": "7456.9003313",
-      "edgeLength": "107.103139274",
+      "edgeLength": "107.181115102",
       "extent": "-28, -28, -14, 40, 28, 14",
       "surfaces": "SphericalSurface:1 ToroidalSurface:1"
     }

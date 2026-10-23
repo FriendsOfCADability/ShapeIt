@@ -70,7 +70,7 @@
       "surfaces": "HelicalSweepSurface:2 PlaneSurface:2"
     },
     "coilOnThickCore": {
-      "verified": "2026-08-26 GH: ONE solid, and the number that makes the pair worth having: 7302.92972299 against the 7302.9921219 derived in Expected, 8.5e-6. A tenth of a millimetre more radius, and the same union that leaves both bodies alone at radius 8 merges them into one. Note that it meets its closed form far better than the operand coil meets its own - the mesh of the result is not the mesh of the operand.",
+      "verified": "2026-08-26 GH: ONE solid, and the number that makes the pair worth having: 7302.92972299 against the 7302.9921219 derived in Expected, 8.5e-6. A tenth of a millimetre more radius, and the same union that leaves both bodies alone at radius 8 merges them into one. Note that it meets its closed form far better than the operand coil meets its own - the mesh of the result is not the mesh of the operand. Re-recorded 2026-10-07: only edgeLength moved (655.452852514 -> 655.570111922), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "7",
       "edges": "15",
@@ -82,7 +82,7 @@
       "openEdges": "0",
       "volume": "7302.99217225",
       "area": "3658.4676678",
-      "edgeLength": "655.452852514",
+      "edgeLength": "655.570111922",
       "extent": "-12, -12, -2, 12, 12, 26",
       "surfaces": "CylindricalSurface:1 HelicalSweepSurface:2 PlaneSurface:4"
     },

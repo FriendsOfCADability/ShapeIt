@@ -53,7 +53,7 @@
       "surfaces": "PlaneSurface:6"
     },
     "notchGrown": {
-      "verified": "2026-09-09: topology exact and the point of this case - 18 fillets, and a sphere at the 10 vertices with three convex edges, while (40,20,20), (20,40,20), (20,20,40), where a concave edge ends between two convex ones, correctly get none. No closed form pinned: the naive dilation estimate 75424+1306*pi/3 = 76791.64 sits 1.3e-3 above the recorded value because it treats the strip just outside the cube next to the notch as flat, where the true dilation curves around the notch edge; integrating that strip properly removes about 95, which lands on the recorded value. Mesh independent (same deviation from size/1000 down to size/100000), so it is a modelling error of the estimate, not a mesh artefact.",
+      "verified": "2026-09-09: topology exact and the point of this case - 18 fillets, and a sphere at the 10 vertices with three convex edges, while (40,20,20), (20,40,20), (20,20,40), where a concave edge ends between two convex ones, correctly get none. No closed form pinned: the naive dilation estimate 75424+1306*pi/3 = 76791.64 sits 1.3e-3 above the recorded value because it treats the strip just outside the cube next to the notch as flat, where the true dilation curves around the notch edge; integrating that strip properly removes about 95, which lands on the recorded value. Mesh independent (same deviation from size/1000 down to size/100000), so it is a modelling error of the estimate, not a mesh artefact. Re-recorded 2026-10-07: only edgeLength moved (1227.70781978 -> 1227.70837297), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "37",
       "edges": "72",
@@ -65,7 +65,7 @@
       "openEdges": "0",
       "volume": "76690.3478678",
       "area": "11107.29188",
-      "edgeLength": "1227.70781978",
+      "edgeLength": "1227.70837297",
       "extent": "-2, -2, -2, 42, 42, 42",
       "surfaces": "CylindricalSurface:18 PlaneSurface:9 SphericalSurface:10"
     },
@@ -104,7 +104,7 @@
       "surfaces": "PlaneSurface:9"
     },
     "pierced": {
-      "verified": "2026-09-09: the input body. Two perpendicular cylinders of different radii, so its volume is not elementary; recorded as a guard that the setup of the split case does not drift.",
+      "verified": "2026-09-09: the input body. Two perpendicular cylinders of different radii, so its volume is not elementary; recorded as a guard that the setup of the split case does not drift. Re-recorded 2026-10-07: only edgeLength moved (448.703522078 -> 449.086887506), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "4",
@@ -116,7 +116,7 @@
       "openEdges": "0",
       "volume": "49285.0562996",
       "area": "11673.7041942",
-      "edgeLength": "448.703522078",
+      "edgeLength": "449.086887506",
       "extent": "-20, -20, 0, 20, 20, 60",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
     },
@@ -125,7 +125,7 @@
       "solids": "2"
     },
     "piercedShrunk#0": {
-      "verified": "2026-09-09: one of the two mirror-image parts, see the note on piercedShrunk. The lower part runs from z=4 to 30-sqrt(19^2-16^2)=19.75, the upper one mirrored; the recorded z of 19.63 resp. 40.37 is the bounding box of the mesh, which does not hit the extreme point of the intersection curve exactly.",
+      "verified": "2026-09-09: one of the two mirror-image parts, see the note on piercedShrunk. The lower part runs from z=4 to 30-sqrt(19^2-16^2)=19.75, the upper one mirrored; the recorded z of 19.63 resp. 40.37 is the bounding box of the mesh, which does not hit the extreme point of the intersection curve exactly. Re-recorded 2026-10-07: only edgeLength moved (207.986906373 -> 208.206960517), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -137,12 +137,12 @@
       "openEdges": "0",
       "volume": "7144.70933526",
       "area": "2822.50051787",
-      "edgeLength": "207.986906373",
+      "edgeLength": "208.206960517",
       "extent": "-16, -16, 4, 16, 16, 19.6325999013",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "piercedShrunk#1": {
-      "verified": "2026-09-09: one of the two mirror-image parts, see the note on piercedShrunk. The lower part runs from z=4 to 30-sqrt(19^2-16^2)=19.75, the upper one mirrored; the recorded z of 19.63 resp. 40.37 is the bounding box of the mesh, which does not hit the extreme point of the intersection curve exactly.",
+      "verified": "2026-09-09: one of the two mirror-image parts, see the note on piercedShrunk. The lower part runs from z=4 to 30-sqrt(19^2-16^2)=19.75, the upper one mirrored; the recorded z of 19.63 resp. 40.37 is the bounding box of the mesh, which does not hit the extreme point of the intersection curve exactly. Re-recorded 2026-10-07: only edgeLength moved (207.986906373 -> 208.206960517), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -154,7 +154,7 @@
       "openEdges": "0",
       "volume": "7144.70933526",
       "area": "2822.50051787",
-      "edgeLength": "207.986906373",
+      "edgeLength": "208.206960517",
       "extent": "-16, -16, 40.3674000987, 16, 16, 56",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
@@ -176,7 +176,7 @@
       "surfaces": "PlaneSurface:10"
     },
     "stairsGrown": {
-      "verified": "2026-09-09: dilation of the prism, V = 20*A(2) + 2*int_0^2 A(sqrt(4-t^2))dt with A(r) = 600+120r+(1.5*pi-2)r^2 (the two reflex corners contribute -r^2 each, not -(pi/4)r^2) = 20199.91, A = 4614.39. Recorded 1.0e-4 resp. 2.1e-5 above, converging onto it as the mesh is refined (5.9e-6 at size/100000). Topology exact: a fillet on each of the 22 convex edges, a sphere only at the 12 vertices with three convex edges.",
+      "verified": "2026-09-09: dilation of the prism, V = 20*A(2) + 2*int_0^2 A(sqrt(4-t^2))dt with A(r) = 600+120r+(1.5*pi-2)r^2 (the two reflex corners contribute -r^2 each, not -(pi/4)r^2) = 20199.91, A = 4614.39. Recorded 1.0e-4 resp. 2.1e-5 above, converging onto it as the mesh is refined (5.9e-6 at size/100000). Topology exact: a fillet on each of the 22 convex edges, a sphere only at the 12 vertices with three convex edges. Re-recorded 2026-10-07: only edgeLength moved (872.377389095 -> 872.378126685), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "44",
       "edges": "86",
@@ -188,7 +188,7 @@
       "openEdges": "0",
       "volume": "20199.9054579",
       "area": "4614.37157187",
-      "edgeLength": "872.377389095",
+      "edgeLength": "872.378126685",
       "extent": "-2, -2, -2, 32, 22, 32",
       "surfaces": "CylindricalSurface:22 PlaneSurface:10 SphericalSurface:12"
     },

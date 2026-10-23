@@ -14,7 +14,7 @@
   ],
   "Baseline": {
     "coneCylInter": {
-      "verified": "2026-09-17 GH: volume 12859.5861243 against 12859.5859287, 1.5e-08. One solid of Euler 2, bounded by both mantles and both lids: the cylinder below the crossing circle z = 20 and the cone above it.",
+      "verified": "2026-09-17 GH: volume 12859.5861243 against 12859.5859287, 1.5e-08. One solid of Euler 2, bounded by both mantles and both lids: the cylinder below the crossing circle z = 20 and the cone above it. Re-recorded 2026-10-07: only edgeLength moved (273.900198583 -> 274.024378466), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "6",
       "edges": "10",
@@ -26,12 +26,12 @@
       "openEdges": "0",
       "volume": "12859.5858376",
       "area": "2979.35091841",
-      "edgeLength": "273.900198583",
+      "edgeLength": "274.024378466",
       "extent": "-12.0000000008, -12, 0, 12.0000000008, 12, 30",
       "surfaces": "PlaneSurface:2 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },
     "coneCylUnion": {
-      "verified": "2026-09-17 GH: volume 21446.6058397 against 21446.6058485, 4.1e-10. One solid.",
+      "verified": "2026-09-17 GH: volume 21446.6058397 against 21446.6058485, 4.1e-10. One solid. Re-recorded 2026-10-07: only edgeLength moved (482.791835852 -> 482.916015736), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "9",
       "edges": "16",
@@ -43,12 +43,12 @@
       "openEdges": "0",
       "volume": "21446.6059018",
       "area": "4558.73427874",
-      "edgeLength": "482.791835852",
+      "edgeLength": "482.916015736",
       "extent": "-16, -16, -5, 16, 16, 35",
       "surfaces": "PlaneSurface:3 RuledSurface:2 SurfaceOfLinearExtrusion:4"
     },
     "coneMinusCyl": {
-      "verified": "2026-09-17 GH: volume 3351.03218086 against 3351.03216383, 5.1e-09. Euler 0 with one hole loop - the ring the Expected section predicts, with the cylinder drilled right through it.",
+      "verified": "2026-09-17 GH: volume 3351.03218086 against 3351.03216383, 5.1e-09. Euler 0 with one hole loop - the ring the Expected section predicts, with the cylinder drilled right through it. Re-recorded 2026-10-07: only edgeLength moved (331.99538848 -> 332.119568364), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "5",
       "edges": "10",
@@ -60,7 +60,7 @@
       "openEdges": "0",
       "volume": "3351.03225365",
       "area": "3653.95559841",
-      "edgeLength": "331.99538848",
+      "edgeLength": "332.119568364",
       "extent": "-16, -16, 0, 16, 16, 20.0000000519",
       "surfaces": "PlaneSurface:1 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },
@@ -68,7 +68,7 @@
       "solids": "2"
     },
     "cylMinusCone#0": {
-      "verified": "2026-09-17 GH: volume 2974.04082951 against 2974.0410454, 7.3e-08. the part above the crossing circle.",
+      "verified": "2026-09-17 GH: volume 2974.04082951 against 2974.0410454, 7.3e-08. the part above the crossing circle. Re-recorded 2026-10-07: only edgeLength moved (263.900198583 -> 264.024378466), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "6",
       "edges": "10",
@@ -80,7 +80,7 @@
       "openEdges": "0",
       "volume": "2974.0410936",
       "area": "2602.35979702",
-      "edgeLength": "263.900198583",
+      "edgeLength": "264.024378466",
       "extent": "-12.0000000008, -12, 19.9999999936, 12.0000000008, 12, 35",
       "surfaces": "PlaneSurface:2 RuledSurface:2 SurfaceOfLinearExtrusion:2"
     },
