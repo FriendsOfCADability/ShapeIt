@@ -59,6 +59,9 @@ namespace ShapeIt
             List<string> parameterNames = mcpServer.GetTemplateParameters(templateName);
             parameterValues = new Dictionary<string, object>();
             List<object> inputs = []; // IInputObject is not accessible
+            // A value parameter has a default, so it never blocks the commit. It is optional only when the template
+            // says so: the focus starts at the first input that is not optional and moves on to the next one when
+            // a value is fixed (a point clicked, Enter in a field), the way it does in the other construct actions.
             for (int i = 0; i < parameterNames.Count; i++)
             {
                 MCPServer.ParameterInfo parameterInfo = mcpServer.GetTemplateParameterInfo(templateName, parameterNames[i]);
@@ -82,7 +85,7 @@ namespace ShapeIt
                                     DoubleInput di = new DoubleInput("@" + parameterInfo.label + "@" + parameterInfo.description, d);
                                     di.SetDoubleEvent += v => { parameterValues[name] = v; ParameterChanged(); return true; };
                                     di.GetDoubleEvent += () => Convert.ToDouble(parameterValues[name]);
-                                    di.Optional = true;
+                                    di.Optional = parameterInfo.optional;
                                     inputs.Add(di);
                                     errorTargets.Add(di);
                                 }
@@ -97,7 +100,7 @@ namespace ShapeIt
                                     LengthInput li = new LengthInput("@" + parameterInfo.label + "@" + parameterInfo.description, d);
                                     li.SetLengthEvent += l => { parameterValues[name] = l; ParameterChanged(); return true; };
                                     li.GetLengthEvent += () => Convert.ToDouble(parameterValues[name]);
-                                    li.Optional = true;
+                                    li.Optional = parameterInfo.optional;
                                     inputs.Add(li);
                                     errorTargets.Add(li);
                                 }
@@ -115,7 +118,7 @@ namespace ShapeIt
                                     IntInput IntInput = new IntInput("@" + parameterInfo.label + "@" + parameterInfo.description, intVal);
                                     IntInput.SetIntEvent += l => { parameterValues[name] = l; ParameterChanged(); };
                                     IntInput.GetIntEvent += () => Convert.ToInt32(parameterValues[name]);
-                                    IntInput.Optional = true;
+                                    IntInput.Optional = parameterInfo.optional;
                                     inputs.Add(IntInput);
                                     errorTargets.Add(IntInput);
                                 }
@@ -136,9 +139,24 @@ namespace ShapeIt
                                     // template gets the signed value in (-180°, 180°]
                                     AngleInput.SetAngleEvent += l => { double v = l.Degree; parameterValues[name] = v > 180.0 ? v - 360.0 : v; ParameterChanged(); return true; };
                                     AngleInput.GetAngleEvent += () => Angle.Deg(Convert.ToDouble(parameterValues[name]));
-                                    AngleInput.Optional = true;
+                                    AngleInput.Optional = parameterInfo.optional;
                                     inputs.Add(AngleInput);
                                     errorTargets.Add(AngleInput);
+                                }
+                            }
+                            break;
+                        case "point3":
+                            {   // the user clicks a point in the model (with snapping) or types its coordinates
+                                if (parameterInfo.defaultValue is GeoPoint gp)
+                                {
+                                    string name = parameterNames[i]; // capture
+                                    parameterValues[name] = gp;
+                                    GeoPointInput pointInput = new GeoPointInput("@" + parameterInfo.label + "@" + parameterInfo.description, gp);
+                                    pointInput.SetGeoPointEvent += p => { parameterValues[name] = p; ParameterChanged(); };
+                                    pointInput.GetGeoPointEvent += () => (GeoPoint)parameterValues[name];
+                                    pointInput.Optional = parameterInfo.optional;
+                                    inputs.Add(pointInput);
+                                    errorTargets.Add(pointInput);
                                 }
                             }
                             break;

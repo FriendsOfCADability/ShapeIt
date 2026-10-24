@@ -18,123 +18,47 @@
             ],
             "parameters": [
               {
-                "name": "Ax",
-                "value": 0,
-                "label": "A x",
+                "name": "A",
+                "value": "p(0,0,0)",
+                "label": "Ecke A",
                 "input": {
-                  "kind": "length",
-                  "group": "Ecke A",
-                  "order": 1
+                  "kind": "point3",
+                  "group": "Tetraeder",
+                  "order": 1,
+                  "description": "Corner of the tetrahedron; click a point in the model or enter its coordinates."
                 }
               },
               {
-                "name": "Ay",
-                "value": 0,
-                "label": "A y",
+                "name": "B",
+                "value": "p(100,0,0)",
+                "label": "Ecke B",
                 "input": {
-                  "kind": "length",
-                  "group": "Ecke A",
-                  "order": 2
+                  "kind": "point3",
+                  "group": "Tetraeder",
+                  "order": 2,
+                  "description": "Corner of the tetrahedron; click a point in the model or enter its coordinates."
                 }
               },
               {
-                "name": "Az",
-                "value": 0,
-                "label": "A z",
+                "name": "C",
+                "value": "p(20,70,0)",
+                "label": "Ecke C",
                 "input": {
-                  "kind": "length",
-                  "group": "Ecke A",
-                  "order": 3
+                  "kind": "point3",
+                  "group": "Tetraeder",
+                  "order": 3,
+                  "description": "Corner of the tetrahedron; click a point in the model or enter its coordinates."
                 }
               },
               {
-                "name": "Bx",
-                "value": 100,
-                "label": "B x",
+                "name": "D",
+                "value": "p(30,20,90)",
+                "label": "Ecke D",
                 "input": {
-                  "kind": "length",
-                  "group": "Ecke B",
-                  "order": 4
-                }
-              },
-              {
-                "name": "By",
-                "value": 0,
-                "label": "B y",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke B",
-                  "order": 5
-                }
-              },
-              {
-                "name": "Bz",
-                "value": 0,
-                "label": "B z",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke B",
-                  "order": 6
-                }
-              },
-              {
-                "name": "Cx",
-                "value": 20,
-                "label": "C x",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke C",
-                  "order": 7
-                }
-              },
-              {
-                "name": "Cy",
-                "value": 70,
-                "label": "C y",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke C",
-                  "order": 8
-                }
-              },
-              {
-                "name": "Cz",
-                "value": 0,
-                "label": "C z",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke C",
-                  "order": 9
-                }
-              },
-              {
-                "name": "Dx",
-                "value": 30,
-                "label": "D x",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke D",
-                  "order": 10
-                }
-              },
-              {
-                "name": "Dy",
-                "value": 20,
-                "label": "D y",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke D",
-                  "order": 11
-                }
-              },
-              {
-                "name": "Dz",
-                "value": 90,
-                "label": "D z",
-                "input": {
-                  "kind": "length",
-                  "group": "Ecke D",
-                  "order": 12
+                  "kind": "point3",
+                  "group": "Tetraeder",
+                  "order": 4,
+                  "description": "Corner of the tetrahedron; click a point in the model or enter its coordinates."
                 }
               },
               {
@@ -144,7 +68,7 @@
                 "input": {
                   "kind": "integer",
                   "group": "Allgemein",
-                  "order": 13,
+                  "order": 5,
                   "min": 0,
                   "description": "How often the vertex farthest from the insphere center is cut off by the tangent plane of the insphere."
                 }
@@ -162,49 +86,13 @@
                 "id": 1,
                 "method": "workspace.set",
                 "params": {
-                  "name": "A",
-                  "value": "p(Ax,Ay,Az)"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 2,
-                "method": "workspace.set",
-                "params": {
-                  "name": "B",
-                  "value": "p(Bx,By,Bz)"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 3,
-                "method": "workspace.set",
-                "params": {
-                  "name": "C",
-                  "value": "p(Cx,Cy,Cz)"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 4,
-                "method": "workspace.set",
-                "params": {
-                  "name": "D",
-                  "value": "p(Dx,Dy,Dz)"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 5,
-                "method": "workspace.set",
-                "params": {
                   "name": "det",
                   "value": "((B-A)^(C-A))*(D-A)"
                 }
               },
               {
                 "jsonrpc": "2.0",
-                "id": 6,
+                "id": 2,
                 "method": "assert.check",
                 "params": {
                   "condition": "abs(det) > 0.000001*pow(len(B-A)+len(C-A)+len(D-A),3)",
@@ -213,7 +101,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 7,
+                "id": 3,
                 "method": "workspace.set",
                 "params": {
                   "name": "sA",
@@ -222,7 +110,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 8,
+                "id": 4,
                 "method": "workspace.set",
                 "params": {
                   "name": "sB",
@@ -231,7 +119,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 9,
+                "id": 5,
                 "method": "workspace.set",
                 "params": {
                   "name": "sC",
@@ -240,7 +128,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 10,
+                "id": 6,
                 "method": "workspace.set",
                 "params": {
                   "name": "sD",
@@ -249,7 +137,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 11,
+                "id": 7,
                 "method": "workspace.set",
                 "params": {
                   "name": "center",
@@ -258,7 +146,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 12,
+                "id": 8,
                 "method": "workspace.set",
                 "params": {
                   "name": "radius",
@@ -267,7 +155,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 13,
+                "id": 9,
                 "method": "solid.box",
                 "params": {
                   "name": "block",
@@ -283,7 +171,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 14,
+                "id": 10,
                 "method": "feature.split",
                 "params": {
                   "solid": "block",
@@ -296,7 +184,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 15,
+                "id": 11,
                 "method": "feature.split",
                 "params": {
                   "solid": "cut1",
@@ -309,7 +197,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 16,
+                "id": 12,
                 "method": "feature.split",
                 "params": {
                   "solid": "cut2",
@@ -322,7 +210,7 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 17,
+                "id": 13,
                 "method": "feature.split",
                 "params": {
                   "solid": "cut3",

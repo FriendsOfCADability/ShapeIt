@@ -73,6 +73,18 @@ namespace CADability.Tests
         }
 
         [TestMethod]
+        public void CornersArePointParameters()
+        {
+            MCPServer server = ServerWithTemplates();
+            string response = Call(server, "template.instantiate",
+                "{\"template\":\"polyeder\",\"arguments\":{\"A\":\"p(0,0,0)\",\"B\":\"p(50,0,0)\",\"C\":\"p(0,50,0)\",\"D\":\"p(0,0,50)\",\"n\":0},\"name\":\"corner\"}");
+            Assert.IsNull(Error(response), response);
+            object item = server.namedItems["corner"];
+            Solid tetrahedron = item as Solid ?? ((List<Solid>)item)[0];
+            Assert.AreEqual(50.0 * 50 * 50 / 6, tetrahedron.Volume(1e-6), 1e-3);
+        }
+
+        [TestMethod]
         public void EveryCutAddsAFaceTangentToTheInsphere()
         {
             MCPServer server = ServerWithTemplates();

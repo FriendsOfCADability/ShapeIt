@@ -55,7 +55,7 @@
 				"optional": {
 					"type": "boolean",
 					"default": false,
-					"description": "Object parameters ('solid', 'profile') only: the parameter may be left empty. The template body tests it with defined(\"name\") in the 'when' condition of rpc.batch calls."
+					"description": "Object parameters ('solid', 'profile'): the parameter may be left empty; the template body tests it with defined(\"name\") in the 'when' condition of rpc.batch calls. Value parameters always keep their default, here 'optional' only affects the input order in the application: the focus starts at the first parameter that is not optional and moves to the next one when a value is entered (a point clicked, Enter in a field), optional ones are skipped and must be selected explicitly. Mark secondary settings optional, leave the parameters the user should always set (e.g. the defining points) required."
 				},
 				"replace": {
 					"type": "boolean",
