@@ -6654,7 +6654,7 @@ namespace ShapeIt
 
         #region rpc.batch
 
-        private JsonNode RpcBatchImpl(JsonElement calls, bool atomic)
+        private JsonNode RpcBatchImpl(JsonElement calls, bool atomic, JsonElement repeat)
         {
             if (calls.ValueKind != JsonValueKind.Array || calls.GetArrayLength() == 0)
                 throw new JsonRpcException(-32602, "Missing or empty 'calls' array");
@@ -6662,6 +6662,10 @@ namespace ShapeIt
             JsonElement[] callsArr = calls.EnumerateArray().ToArray();
             int total = callsArr.Length;
             JsonArray results = new JsonArray();
+            // evaluated before the undo frame is opened: an invalid specification changes nothing
+            RepeatSpec? repeatSpec = repeat.ValueKind == JsonValueKind.Undefined || repeat.ValueKind == JsonValueKind.Null
+                ? null : ParseRepeatSpec(repeat);
+            int iterations = 0;
 
             // An atomic batch runs in its own undo frame: on failure everything it did is rolled
             // back, on success it becomes a single undo step. Undo frames cannot be nested, so when
@@ -6679,13 +6683,27 @@ namespace ShapeIt
 
             try
             {
-                bool hasError = RunBatchCalls(callsArr, results);
+                bool hasError = repeatSpec == null
+                    ? RunBatchCalls(callsArr, results)
+                    : RunRepeatedBatchCalls(callsArr, repeatSpec, ref results, out iterations);
                 int executed = results.Count;
-                string summary = hasError
-                    ? $"Stopped at call {executed - 1} of {total} " +
-                      $"({results[executed - 1]!["method"]?.GetValue<string>()}): " +
-                      $"{results[executed - 1]!["error"]?.GetValue<string>()}"
-                    : $"Completed all {executed} of {total} calls successfully.";
+                string summary;
+                if (repeatSpec == null)
+                {
+                    summary = hasError
+                        ? $"Stopped at call {executed - 1} of {total} " +
+                          $"({results[executed - 1]!["method"]?.GetValue<string>()}): " +
+                          $"{results[executed - 1]!["error"]?.GetValue<string>()}"
+                        : $"Completed all {executed} of {total} calls successfully.";
+                }
+                else
+                {
+                    summary = hasError
+                        ? $"Stopped in iteration {iterations} at call {executed - 1} of {total} " +
+                          $"({results[executed - 1]!["method"]?.GetValue<string>()}): " +
+                          $"{results[executed - 1]!["error"]?.GetValue<string>()}"
+                        : $"Completed {iterations} iteration(s) of {total} calls successfully; the results are those of the last iteration.";
+                }
 
                 if (!hasError)
                 {
@@ -6695,11 +6713,13 @@ namespace ShapeIt
                         CloseUndoFrameState(transaction);
                         frameClosed = true;
                     }
-                    return new JsonObject
+                    JsonObject batchResult = new JsonObject
                     {
                         ["summary"] = summary,
                         ["results"] = results
                     };
+                    if (repeatSpec != null) batchResult["iterations"] = iterations;
+                    return batchResult;
                 }
 
                 string rollbackNote = "";
@@ -6724,6 +6744,73 @@ namespace ShapeIt
                     try { RollBackUndoFrameState(transaction); } catch (Exception) { }
                 }
             }
+        }
+
+        /// <summary>The 'repeat' specification of an rpc.batch: a loop variable, a fixed count and/or a 'while' condition.</summary>
+        private sealed record RepeatSpec(string? Variable, double Start, double Step, int? Count, string? While);
+
+        /// <summary>Upper bound of the iterations of a repeated batch, so that a 'while' that never fails cannot hang the application.</summary>
+        internal const int MaxBatchIterations = 10000;
+
+        private RepeatSpec ParseRepeatSpec(JsonElement repeat)
+        {
+            if (repeat.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'repeat' must be an object.");
+            string? variable = GetOptionalString(repeat, "variable");
+            double start = GetOptionalDouble(repeat, "start", 0.0);
+            double step = GetOptionalDouble(repeat, "step", 1.0);
+            int? count = repeat.TryGetProperty("count", out JsonElement countEl) && countEl.ValueKind != JsonValueKind.Null
+                ? RequireInteger(countEl) : null;
+            string? whileExpr = GetOptionalString(repeat, "while");
+            if (count == null && whileExpr == null)
+                throw new JsonRpcException(-32602, "Invalid params: 'repeat' needs 'count', 'while' or both.");
+            if (count < 0) throw new JsonRpcException(-32602, $"Invalid params: 'repeat.count' must not be negative, but is {count}.");
+            if (count > MaxBatchIterations) throw new JsonRpcException(-32602, $"Invalid params: 'repeat.count' {count} exceeds the limit of {MaxBatchIterations} iterations.");
+            return new RepeatSpec(variable, start, step, count, whileExpr);
+        }
+
+        /// <summary>
+        /// Runs the calls of a batch once per iteration of <paramref name="spec"/>. Before each iteration the loop
+        /// variable is set in the workspace and the 'while' condition is checked. <paramref name="results"/> receives
+        /// the result entries of the last iteration that ran; <paramref name="iterations"/> counts the iterations
+        /// started, including a failing one. Returns true when a call failed.
+        /// </summary>
+        private bool RunRepeatedBatchCalls(JsonElement[] callsArr, RepeatSpec spec, ref JsonArray results, out int iterations)
+        {
+            iterations = 0;
+            int limit = spec.Count ?? MaxBatchIterations;
+            // a pure 'while' loop has no known length, a level would show a meaningless total
+            using IDisposable? progressLevel = spec.Count != null ? Progress?.Level(limit) : null;
+            for (int i = 0; i < limit; i++)
+            {
+                if (spec.Variable != null) namedItems[spec.Variable] = spec.Start + i * spec.Step;
+                if (spec.While != null)
+                {
+                    object condition;
+                    try { condition = Evaluator.Evaluate(spec.While, namedItems.Dict); }
+                    catch (Exception ex)
+                    {
+                        results = new JsonArray { new JsonObject { ["index"] = 0, ["method"] = "repeat", ["error"] = $"'while' expression '{spec.While}' could not be evaluated: {ex.Message}" } };
+                        iterations = i + 1;
+                        return true;
+                    }
+                    if (condition is not bool run)
+                    {
+                        results = new JsonArray { new JsonObject { ["index"] = 0, ["method"] = "repeat", ["error"] = $"'while' must evaluate to true or false, but '{spec.While}' gave {condition}." } };
+                        iterations = i + 1;
+                        return true;
+                    }
+                    if (!run) return false;
+                    if (spec.Count == null && i == MaxBatchIterations - 1)
+                        AddCallWarning($"The 'while' condition was still true after {MaxBatchIterations} iterations; the loop was stopped there.");
+                }
+                if (spec.Count != null) Progress?.Step();
+                iterations = i + 1;
+                JsonArray iterationResults = new JsonArray();
+                bool hasError = RunBatchCalls(callsArr, iterationResults);
+                results = iterationResults;
+                if (hasError) return true;
+            }
+            return false;
         }
 
         /// <summary>

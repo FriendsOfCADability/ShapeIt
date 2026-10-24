@@ -94,6 +94,9 @@ public static class GeometryOps
         if (b is Angle angb) b = angb.Radian;
         if (a is IConvertible && b is IConvertible)
             return Convert.ToDouble(a) * Convert.ToDouble(b);
+        // an integer factor (e.g. the result of sign) scales a vector like a double
+        if (a is int ia) a = (double)ia;
+        if (b is int ib) b = (double)ib;
         if (a is double da2 && b is GeoVector vb)
             return new GeoVector(da2 * vb.x, da2 * vb.y, da2 * vb.z);
         if (a is double da22 && b is GeoVector2D vb2)
@@ -147,6 +150,52 @@ public static class GeometryOps
         if (v is GeoVector gv) return gv.Normalized;
         if (v is GeoVector2D gv2) return gv2.Normalized;
         throw new InvalidOperationException("Normalize is only defined for vectors.");
+    }
+    /// <summary>
+    /// The point of <paramref name="points"/> with the largest distance to <paramref name="from"/>. The points may be
+    /// given as GeoPoints, as vertices, or as solids or shells, which contribute their vertices.
+    /// </summary>
+    public static object Farthest(object points, object from) => Extreme(points, from, true, "farthest");
+    /// <summary>
+    /// The point of <paramref name="points"/> with the smallest distance to <paramref name="from"/>, see <see cref="Farthest"/>.
+    /// </summary>
+    public static object Closest(object points, object from) => Extreme(points, from, false, "closest");
+    private static GeoPoint Extreme(object points, object from, bool farthest, string functionName)
+    {
+        if (from is not GeoPoint p) throw new InvalidOperationException($"{functionName}(points, p): p must be a point.");
+        GeoPoint res = GeoPoint.Invalid;
+        double best = double.NaN;
+        foreach (GeoPoint candidate in PointsOf(points, functionName))
+        {
+            double d = candidate | p;
+            if (double.IsNaN(best) || (farthest ? d > best : d < best))
+            {
+                best = d;
+                res = candidate;
+            }
+        }
+        if (double.IsNaN(best)) throw new InvalidOperationException($"{functionName}(points, p): there are no points.");
+        return res;
+    }
+    private static IEnumerable<GeoPoint> PointsOf(object item, string functionName)
+    {
+        switch (item)
+        {
+            case GeoPoint gp: yield return gp; break;
+            case Vertex vtx: yield return vtx.Position; break;
+            case Solid sld:
+                foreach (Shell sh in sld.Shells)
+                    foreach (Vertex v in sh.Vertices) yield return v.Position;
+                break;
+            case Shell shell:
+                foreach (Vertex v in shell.Vertices) yield return v.Position;
+                break;
+            case System.Collections.IEnumerable seq:
+                foreach (object o in seq)
+                    foreach (GeoPoint gp in PointsOf(o, functionName)) yield return gp;
+                break;
+            default: throw new InvalidOperationException($"{functionName}(points, p): {item.GetType().Name} has no points.");
+        }
     }
 
     public static object FuncSin(object x)
@@ -1269,6 +1318,14 @@ public static class Evaluator
                                 case "normalize":
                                     CheckArgCount(call, args, 1);
                                     fres = GeometryOps.Normalize(args[0]);
+                                    break;
+                                case "farthest":
+                                    CheckArgCount(call, args, 2);
+                                    fres = GeometryOps.Farthest(args[0], args[1]);
+                                    break;
+                                case "closest":
+                                    CheckArgCount(call, args, 2);
+                                    fres = GeometryOps.Closest(args[0], args[1]);
                                     break;
                                 case "min":
                                     {

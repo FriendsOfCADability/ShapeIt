@@ -1,0 +1,391 @@
+{
+  "templates": [
+    {
+      "name": "polyeder",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "polyeder",
+            "label": "Polyeder um Inkugel",
+            "category": "Polyeder",
+            "description": "Convex polyhedron that approaches the insphere of a tetrahedron. Starting with the tetrahedron given by its four corners, the vertex farthest from the insphere center (at first the sharpest corner) is cut off n times by the plane tangent to the insphere at the foot point of that vertex.",
+            "tags": [
+              "polyhedron",
+              "tetrahedron",
+              "insphere"
+            ],
+            "parameters": [
+              {
+                "name": "Ax",
+                "value": 0,
+                "label": "A x",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke A",
+                  "order": 1
+                }
+              },
+              {
+                "name": "Ay",
+                "value": 0,
+                "label": "A y",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke A",
+                  "order": 2
+                }
+              },
+              {
+                "name": "Az",
+                "value": 0,
+                "label": "A z",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke A",
+                  "order": 3
+                }
+              },
+              {
+                "name": "Bx",
+                "value": 100,
+                "label": "B x",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke B",
+                  "order": 4
+                }
+              },
+              {
+                "name": "By",
+                "value": 0,
+                "label": "B y",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke B",
+                  "order": 5
+                }
+              },
+              {
+                "name": "Bz",
+                "value": 0,
+                "label": "B z",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke B",
+                  "order": 6
+                }
+              },
+              {
+                "name": "Cx",
+                "value": 20,
+                "label": "C x",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke C",
+                  "order": 7
+                }
+              },
+              {
+                "name": "Cy",
+                "value": 70,
+                "label": "C y",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke C",
+                  "order": 8
+                }
+              },
+              {
+                "name": "Cz",
+                "value": 0,
+                "label": "C z",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke C",
+                  "order": 9
+                }
+              },
+              {
+                "name": "Dx",
+                "value": 30,
+                "label": "D x",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke D",
+                  "order": 10
+                }
+              },
+              {
+                "name": "Dy",
+                "value": 20,
+                "label": "D y",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke D",
+                  "order": 11
+                }
+              },
+              {
+                "name": "Dz",
+                "value": 90,
+                "label": "D z",
+                "input": {
+                  "kind": "length",
+                  "group": "Ecke D",
+                  "order": 12
+                }
+              },
+              {
+                "name": "n",
+                "value": 20,
+                "label": "Anzahl Schnitte",
+                "input": {
+                  "kind": "integer",
+                  "group": "Allgemein",
+                  "order": 13,
+                  "min": 0,
+                  "description": "How often the vertex farthest from the insphere center is cut off by the tangent plane of the insphere."
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "A",
+                  "value": "p(Ax,Ay,Az)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "B",
+                  "value": "p(Bx,By,Bz)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "C",
+                  "value": "p(Cx,Cy,Cz)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "D",
+                  "value": "p(Dx,Dy,Dz)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "det",
+                  "value": "((B-A)^(C-A))*(D-A)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "assert.check",
+                "params": {
+                  "condition": "abs(det) > 0.000001*pow(len(B-A)+len(C-A)+len(D-A),3)",
+                  "message": "Die vier Ecken liegen (fast) in einer Ebene."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sA",
+                  "value": "len((C-B)^(D-B))/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sB",
+                  "value": "len((C-A)^(D-A))/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sC",
+                  "value": "len((B-A)^(D-A))/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sD",
+                  "value": "len((B-A)^(C-A))/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "workspace.set",
+                "params": {
+                  "name": "center",
+                  "value": "A + (sB*(B-A) + sC*(C-A) + sD*(D-A))/(sA+sB+sC+sD)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "workspace.set",
+                "params": {
+                  "name": "radius",
+                  "value": "abs(det)/(2*(sA+sB+sC+sD))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "solid.box",
+                "params": {
+                  "name": "block",
+                  "origin": [
+                    "min(A.x,B.x,C.x,D.x)-10",
+                    "min(A.y,B.y,C.y,D.y)-10",
+                    "min(A.z,B.z,C.z,D.z)-10"
+                  ],
+                  "sizeX": "max(A.x,B.x,C.x,D.x)-min(A.x,B.x,C.x,D.x)+20",
+                  "sizeY": "max(A.y,B.y,C.y,D.y)-min(A.y,B.y,C.y,D.y)+20",
+                  "sizeZ": "max(A.z,B.z,C.z,D.z)-min(A.z,B.z,C.z,D.z)+20"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "feature.split",
+                "params": {
+                  "solid": "block",
+                  "splitBy": {
+                    "origin": "A",
+                    "normal": "-sign((D-A)*(((B-A)^(C-A))))*(((B-A)^(C-A)))"
+                  },
+                  "nameInner": "cut1"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "feature.split",
+                "params": {
+                  "solid": "cut1",
+                  "splitBy": {
+                    "origin": "A",
+                    "normal": "-sign((C-A)*(((B-A)^(D-A))))*(((B-A)^(D-A)))"
+                  },
+                  "nameInner": "cut2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 16,
+                "method": "feature.split",
+                "params": {
+                  "solid": "cut2",
+                  "splitBy": {
+                    "origin": "A",
+                    "normal": "-sign((B-A)*(((C-A)^(D-A))))*(((C-A)^(D-A)))"
+                  },
+                  "nameInner": "cut3"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 17,
+                "method": "feature.split",
+                "params": {
+                  "solid": "cut3",
+                  "splitBy": {
+                    "origin": "B",
+                    "normal": "-sign((A-B)*(((C-B)^(D-B))))*(((C-B)^(D-B)))"
+                  },
+                  "nameInner": "body"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 3,
+          "params": {
+            "repeat": {
+              "count": "n"
+            },
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "far",
+                  "value": "farthest(body, center)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "dir",
+                  "value": "normalize(far - center)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "feature.split",
+                "params": {
+                  "solid": "body",
+                  "splitBy": {
+                    "origin": "center + radius*dir",
+                    "normal": "dir"
+                  },
+                  "nameInner": "body"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 4,
+          "params": {
+            "result": "body"
+          }
+        }
+      ]
+    }
+  ]
+}
