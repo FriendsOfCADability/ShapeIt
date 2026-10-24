@@ -282,6 +282,8 @@ namespace ShapeIt
             try
             {
                 System.Diagnostics.Trace.WriteLine($"RPC: {method}");
+                if ((replayingTemplate || recordingTemplate != null) && documentChangingMethods.Contains(method))
+                    throw new JsonRpcException("E_NOT_ALLOWED", $"'{method}' changes the document and is not allowed inside a template. Commit the result of template.instantiate to the document instead.");
                 callChangesStack.Push(changes);
                 JsonNode result;
                 try
@@ -308,6 +310,10 @@ namespace ShapeIt
                 {
                     response["result"] = result;
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                throw; // a cancelled template run is not a failing step: no error response, no dialog
             }
             catch (JsonRpcException jre)
             {
@@ -425,6 +431,20 @@ namespace ShapeIt
         // When true (set by MCPHttpServer during HTTP calls), errors are returned in the
         // JSON-RPC response instead of showing a modal dialog.
         public bool SuppressDialogs { get; set; } = false;
+
+        /// <summary>
+        /// Receives the steps of a running template for a progress display, null when nobody watches. Set by the
+        /// template preview under <see cref="GeometryLock"/>, for the time of one run.
+        /// </summary>
+        internal TemplateProgress? Progress { get; set; }
+
+        // A template must not write to the document or its undo history, neither while it is recorded nor while
+        // it is replayed: it is replayed in the background for previews and by the RpcTemplateAction, which puts
+        // the result into the model itself. The caller of template.instantiate commits the result.
+        private static readonly HashSet<string> documentChangingMethods = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "document.commit_objects", "document.update_objects", "undo.begin", "undo.end", "undo.cancel"
+        };
 
         public bool ReportError(string message)
         {
@@ -5083,8 +5103,12 @@ namespace ShapeIt
                 loopVariables.Add((varname, start, step, count));
             }
             List<Solid> result = [];
+            int iterations = 1;
+            foreach (var loopVariable in loopVariables) iterations *= loopVariable.count;
+            using IDisposable? progressLevel = Progress?.Level(iterations);
             IterateLoops(loopVariables, () =>
             {
+                Progress?.Step();
                 if (formulas.ValueKind == JsonValueKind.Object)
                 {
                     foreach (var item in formulas.EnumerateObject())
@@ -6142,11 +6166,13 @@ namespace ShapeIt
                 }
             }
             object? res = null; // the result
+            using (Progress?.Level(CountTemplateSteps(jsons)))
             {   // use a clone of the named items dictionary during evaluation of the template
                 foreach (var element in jsons)
                 {
                     // templates recorded via MCP store the underscore tool names ("template_commit")
                     string methodName = NormalizeMethodName(RequireString(element, "method"));
+                    if (methodName != "template.begin" && methodName != "template.commit") Progress?.Step();
                     if (methodName == "template.commit")
                     {
                         if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
@@ -6401,13 +6427,17 @@ namespace ShapeIt
             System.Threading.CancellationToken cancellationToken, bool stopOnError)
         {
             if (!templates.TryGetValue(template, out var jsons)) return null;
+            int clonesBefore = namedItemClones.Count;
             using (new NamedItemClone(this))
+            using (Progress?.Level(CountTemplateSteps(jsons)))
+            try
             {
                 foreach (var element in jsons)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     // templates recorded via MCP store the underscore tool names ("template_commit")
                     string methodName = NormalizeMethodName(RequireString(element, "method"));
+                    if (methodName != "template.begin" && methodName != "template.commit") Progress?.Step();
                     if (methodName == "template.commit")
                     {
                         if (!element.TryGetProperty("params", out var parameters)) throw new JsonRpcException("E_INTERNAL_ERROR", $"Template '{template}' has invalid commit method.");
@@ -6439,7 +6469,26 @@ namespace ShapeIt
                     }
                 }
             }
+            finally
+            {
+                // A run that ends early - cancelled, failed or stopped - leaves the workspace copies pushed by the
+                // template.begin of this template and of nested ones on the stack; template.commit would have
+                // popped them. Restore them innermost first, the using above then restores the caller's workspace.
+                while (namedItemClones.Count > clonesBefore) namedItemClones.Pop().Dispose();
+            }
             return null;
+        }
+
+        /// <summary>The steps of a template a progress display counts: all but template.begin and template.commit.</summary>
+        private static int CountTemplateSteps(List<JsonElement> jsons)
+        {
+            int n = 0;
+            foreach (JsonElement element in jsons)
+            {
+                string methodName = NormalizeMethodName(RequireString(element, "method"));
+                if (methodName != "template.begin" && methodName != "template.commit") n++;
+            }
+            return n;
         }
 
         /// <summary>The message of a JSON-RPC error response, null when the call succeeded.</summary>
@@ -6612,7 +6661,10 @@ namespace ShapeIt
             // back, on success it becomes a single undo step. Undo frames cannot be nested, so when
             // the caller opened one itself the batch runs inside that frame and shares its fate.
             UndoFrameState? transaction = null;
-            if (atomic)
+            // Not while a template is replayed: it cannot change the document, so there is nothing to roll back,
+            // a failing step fails the whole template anyway, and the replay may run on a background thread,
+            // where the undo system must not be touched.
+            if (atomic && !replayingTemplate)
             {
                 if (currentUndoFrame == null) transaction = OpenUndoFrameState("rpc.batch", isInternal: true);
                 else AddCallWarning($"The batch runs inside the undo frame '{currentUndoFrame.Id}' opened with undo.begin, so a failing call is not rolled back on its own. Close that frame with undo.end or undo.cancel for a self-contained transaction.");
@@ -6674,9 +6726,11 @@ namespace ShapeIt
         /// </summary>
         private bool RunBatchCalls(JsonElement[] callsArr, JsonArray results)
         {
+            using IDisposable? progressLevel = Progress?.Level(callsArr.Length);
             for (int i = 0; i < callsArr.Length; i++)
             {
                 JsonElement callEl = callsArr[i];
+                Progress?.Step();
 
                 if (!callEl.TryGetProperty("method", out var methodEl) || methodEl.ValueKind != JsonValueKind.String)
                 {

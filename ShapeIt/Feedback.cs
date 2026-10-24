@@ -73,11 +73,23 @@ namespace ShapeIt
         public void Detach()
         {
             view.RemovePaintHandler(PaintBuffer.DrawingAspect.Select, OnRepaint);
-            foreach (var lgo in originalLayers)
+            using (SuspendUndo())
             {
-                SetLayer(lgo.Key, lgo.Value);
-                if (lgo.Key.Owner is IGeoObject owner) SetLayer(owner, lgo.Value); // in case of a shell
+                foreach (var lgo in originalLayers)
+                {
+                    SetLayer(lgo.Key, lgo.Value);
+                    if (lgo.Key.Owner is IGeoObject owner) SetLayer(owner, lgo.Value); // in case of a shell
+                }
             }
+        }
+
+        /// <summary>
+        /// Hiding and showing only moves objects to a hidden layer and back for the time of the action. Undo steps
+        /// for that would come between the user's real steps, and undoing a "show" would hide the object again.
+        /// </summary>
+        private IDisposable? SuspendUndo()
+        {
+            return view?.Canvas?.Frame?.Project?.Undo.Suspend();
         }
 
         private void SetLayer(IGeoObject go, Layer l)
@@ -88,6 +100,7 @@ namespace ShapeIt
         }
         public void Show(params IGeoObject[] objects)
         {
+            using IDisposable? noUndo = SuspendUndo();
             foreach (IGeoObject go in objects)
             {
                 if (originalLayers.TryGetValue(go, out Layer? layer))
@@ -100,6 +113,7 @@ namespace ShapeIt
         }
         public void Hide(params IGeoObject[] objects)
         {
+            using IDisposable? noUndo = SuspendUndo();
             foreach (IGeoObject go in objects)
             {
                 if (!originalLayers.ContainsKey(go))

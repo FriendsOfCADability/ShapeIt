@@ -18,8 +18,8 @@ namespace ShapeIt
     }
 
     /// <summary>
-    /// Computes a template in the background while the user edits its parameters, so the action can show the
-    /// current shape instead of only building it on OK.
+    /// Computes a template in the background when the action asks for a preview, so the action can show the
+    /// shape before it is put into the model.
     /// <para>
     /// One worker thread, one computation at a time, latest wins: a change while a computation runs cancels
     /// it and starts over with the new values once it has stopped. Serializing matters beyond CPU cost - the
@@ -27,9 +27,10 @@ namespace ShapeIt
     /// <see cref="MCPServer.GeometryLock"/> is for.
     /// </para>
     /// <para>
-    /// Cancellation is checked between the recorded steps of the template. A single long step, typically a
-    /// boolean operation, still runs to its end; the BRep core cannot be interrupted. So the worst case
-    /// latency after a keystroke is one boolean operation, not the whole template.
+    /// Cancellation is checked between the steps of the template, also those of nested templates, batches and
+    /// pattern iterations (see <see cref="TemplateProgress.Step"/>). A single long step, typically a boolean
+    /// operation, still runs to its end; the BRep core cannot be interrupted. So the worst case latency of a
+    /// cancellation is one boolean operation, not the whole template.
     /// </para>
     /// <para>
     /// The worker never touches the display. It hands finished solids to the UI thread, which puts them into
@@ -43,6 +44,13 @@ namespace ShapeIt
         private readonly string templateName;
         private readonly SynchronizationContext uiContext;
         private readonly Action<TemplatePreviewResult> onResult;
+        private readonly Action<string>? onProgress;
+
+        // Progress is coalesced: the worker only stores the newest text, and at most one post is on its way to
+        // the UI thread, which reads whatever is newest when it gets there. A post per step would flood the UI
+        // thread with the fast steps of a pattern.
+        private string? progressText;
+        private int progressPosted; // 1 while a progress post is queued
 
         private readonly object sync = new object();
         private Dictionary<string, object>? pending;    // values waiting to be computed, null when idle
@@ -53,13 +61,44 @@ namespace ShapeIt
 
         /// <param name="uiContext">captured on the UI thread; results are posted back through it</param>
         /// <param name="onResult">called on the UI thread, only for the most recent request</param>
+        /// <param name="onProgress">called on the UI thread with the progress of the running computation, like
+        /// "17/25 (3/8)"; see <see cref="TemplateProgress.Text"/></param>
         public TemplatePreview(MCPServer mcpServer, string templateName, SynchronizationContext uiContext,
-            Action<TemplatePreviewResult> onResult)
+            Action<TemplatePreviewResult> onResult, Action<string>? onProgress = null)
         {
             this.mcpServer = mcpServer;
             this.templateName = templateName;
             this.uiContext = uiContext;
             this.onResult = onResult;
+            this.onProgress = onProgress;
+        }
+
+        /// <summary>
+        /// Drops the request in flight and the one waiting, if any: neither will be reported. A computation that
+        /// is inside a boolean operation runs to its end in the background, like on <see cref="Dispose"/>.
+        /// </summary>
+        public void Cancel()
+        {
+            lock (sync)
+            {
+                generation++;
+                pending = null;
+                running?.Cancel();
+            }
+        }
+
+        private void ReportProgress(int myGeneration, string text)
+        {
+            if (onProgress == null) return;
+            Volatile.Write(ref progressText, text);
+            if (Interlocked.Exchange(ref progressPosted, 1) != 0) return; // the queued post will show it
+            uiContext.Post(_ =>
+            {
+                Volatile.Write(ref progressPosted, 0);
+                if (disposed || myGeneration != Volatile.Read(ref generation)) return;
+                string? current = Volatile.Read(ref progressText);
+                if (current != null) onProgress(current);
+            }, null);
         }
 
         /// <summary>
@@ -107,7 +146,8 @@ namespace ShapeIt
                     running = cts;
                 }
 
-                TemplatePreviewResult result = Compute(values, cts.Token);
+                TemplateProgress progress = new TemplateProgress(cts.Token, text => ReportProgress(myGeneration, text));
+                TemplatePreviewResult result = Compute(mcpServer, templateName, values, cts.Token, progress);
 
                 lock (sync)
                 {
@@ -116,11 +156,23 @@ namespace ShapeIt
                     // Superseded while we were computing, or shut down: drop it and take the next round.
                     if (myGeneration != generation || disposed) continue;
                 }
-                uiContext.Post(_ => { if (!disposed) onResult(result); }, null);
+                // checked again on arrival: a Cancel may come in between
+                uiContext.Post(_ => { if (!disposed && myGeneration == Volatile.Read(ref generation)) onResult(result); }, null);
             }
         }
 
-        private TemplatePreviewResult Compute(Dictionary<string, object> values, CancellationToken token)
+        /// <summary>
+        /// Computes a preview on the calling thread and returns it, for callers without a synchronization
+        /// context to receive <see cref="Request"/>'s answer.
+        /// </summary>
+        public static TemplatePreviewResult ComputeNow(MCPServer mcpServer, string templateName,
+            Dictionary<string, object> parameterValues)
+        {
+            return Compute(mcpServer, templateName, new Dictionary<string, object>(parameterValues), CancellationToken.None, null);
+        }
+
+        private static TemplatePreviewResult Compute(MCPServer mcpServer, string templateName,
+            Dictionary<string, object> values, CancellationToken token, TemplateProgress? progress)
         {
             TemplatePreviewResult result = new TemplatePreviewResult { Parameters = values };
             try
@@ -131,11 +183,12 @@ namespace ShapeIt
                     token.ThrowIfCancellationRequested();
                     bool oldSuppress = mcpServer.SuppressDialogs;
                     bool oldStop = mcpServer.stopExecution;
-                    // No message boxes while the user is typing - a dialog per keystroke would be unusable,
-                    // and it would pop up on the UI thread while this one holds the lock. The message goes
-                    // to the input field instead; OnDone runs the template again with dialogs enabled.
+                    TemplateProgress? oldProgress = mcpServer.Progress;
+                    // No message boxes: a dialog would pop up on the UI thread while this one holds the lock.
+                    // The message goes to the input fields instead.
                     mcpServer.SuppressDialogs = true;
                     mcpServer.stopExecution = false;
+                    mcpServer.Progress = progress;
                     try
                     {
                         produced = mcpServer.ExecuteTemplate(templateName, values, token);
@@ -144,6 +197,7 @@ namespace ShapeIt
                     {
                         mcpServer.SuppressDialogs = oldSuppress;
                         mcpServer.stopExecution = oldStop;
+                        mcpServer.Progress = oldProgress;
                     }
                 }
 

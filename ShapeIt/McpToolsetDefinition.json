@@ -4437,7 +4437,7 @@
 		},
 		{
 			"name": "template.begin",
-			"description": "Begins recording a parametric template. Subsequent RPC calls are recorded as the template construction body until template.commit is called. Template parameters become available as local workspace values during recording.",
+			"description": "Begins recording a parametric template. Subsequent RPC calls are recorded as the template construction body until template.commit is called. Template parameters become available as local workspace values during recording. Calls that change the document or its undo history (document.commit_objects, document.update_objects, undo.begin, undo.end, undo.cancel) are refused inside a template, while recording and when replaying: a template only computes its result, the caller of template.instantiate commits it to the document.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {

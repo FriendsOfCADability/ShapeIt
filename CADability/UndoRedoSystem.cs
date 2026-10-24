@@ -348,6 +348,7 @@ namespace CADability
         {
             if (maxUndoSteps == 0) return;
             if (ignoreSameContext) return;
+            if (suspended > 0) return;
             if (undoFrameStack.Count > 0)
             {
                 if (!isRedoing) redoSteps.Clear(); // Aerotech 27.3.13: eine neue Undofähige Aktion soll den Redostack leer machen
@@ -373,6 +374,34 @@ namespace CADability
                     }
                 }
             }
+        }
+        private int suspended; // > 0: AddUndoStep records nothing
+        private class suspendFrame : IDisposable
+        {
+            private UndoRedoSystem undoRedoSystem;
+            public suspendFrame(UndoRedoSystem sys)
+            {
+                undoRedoSystem = sys;
+                ++sys.suspended;
+            }
+            public void Dispose()
+            {
+                if (undoRedoSystem != null)
+                {
+                    --undoRedoSystem.suspended;
+                    undoRedoSystem = null; // a second Dispose must not count down again
+                }
+            }
+        }
+        /// <summary>
+        /// Changes made until the returned object is disposed create no undo steps and leave the redo stack alone.
+        /// Only for temporary changes that are reverted by the caller itself, e.g. moving an object to a hidden
+        /// layer while an action shows its modified version: an undo step for that would later put the object
+        /// back onto the hidden layer. Use it with the C# "using" construct; it may be nested.
+        /// </summary>
+        public IDisposable Suspend()
+        {
+            return new suspendFrame(this);
         }
         /// <summary>
         /// Opens an undo frame, which means that all subsequent calls to AddUndoStep

@@ -945,6 +945,141 @@ namespace CADability.Actions
 
             #endregion
         }
+        /// <summary>
+        /// A line with a button in the input list of a ConstructAction. It takes no value: the input focus passes
+        /// over it and it never counts as a missing input, so it neither delays nor triggers the end of the action.
+        /// Clicking the button (or pressing Enter while the line is selected) fires <see cref="ClickedEvent"/>.
+        /// See <see cref="ConstructAction.SetInput"/>
+        /// </summary>
+        public class ButtonInput : InputObject, IInputObject
+        {
+            private ButtonProperty buttonProperty;
+            /// <summary>
+            /// Delegate for <see cref="ClickedEvent"/>
+            /// </summary>
+            /// <param name="sender">this input</param>
+            public delegate void ClickedDelegate(ButtonInput sender);
+            /// <summary>
+            /// Fired when the button is clicked
+            /// </summary>
+            public event ClickedDelegate ClickedEvent;
+            public ButtonInput(string resourceId)
+                : base(resourceId)
+            {
+            }
+            private string value;
+            /// <summary>
+            /// A text shown right of the label, e.g. the progress of what the button started. Null shows nothing.
+            /// Setting it repaints the line; call it on the UI thread.
+            /// </summary>
+            public string Value
+            {
+                get { return value; }
+                set
+                {
+                    if (this.value == value) return;
+                    this.value = value;
+                    buttonProperty?.Refresh();
+                }
+            }
+            private void OnClicked()
+            {
+                if (!ReadOnly) ClickedEvent?.Invoke(this);
+            }
+            /// <summary>
+            /// The line in the property page: the label and a button at its right end, like a direct menu entry
+            /// </summary>
+            private class ButtonProperty : PropertyEntryImpl
+            {
+                private readonly ButtonInput input;
+                public ButtonProperty(ButtonInput input) : base(input.ResourceId)
+                {
+                    this.input = input;
+                }
+                public override PropertyEntryType Flags => PropertyEntryType.Selectable | PropertyEntryType.DirectMenu;
+                public override string Value => input.Value;
+                public override void ButtonClicked(PropertyEntryButton button)
+                {
+                    if (button == PropertyEntryButton.directMenu || button == PropertyEntryButton.doubleclick) input.OnClicked();
+                }
+            }
+            #region IInputObject Members
+
+            void IInputObject.Init(ConstructAction a)
+            {
+                constructAction = a;
+            }
+
+            void IInputObject.Refresh()
+            {
+            }
+            IPropertyEntry IInputObject.BuildShowProperty()
+            {
+                // not connected to ShowPropertyStateChanged: selecting the line must not make it the current input
+                buttonProperty = new ButtonProperty(this);
+                return buttonProperty;
+            }
+
+            void IInputObject.OnMouse(MouseEventArgs e, MouseState mouseState, IView vw)
+            {
+            }
+
+            void IInputObject.Activate(ActivationMode activationMode)
+            {
+            }
+
+            bool IInputObject.AcceptInput(bool acceptOptional)
+            {
+                return false;
+            }
+
+            void IInputObject.MouseLeft()
+            {
+            }
+
+            void IInputObject.OnActionDone()
+            {
+            }
+            IPropertyEntry IInputObject.GetShowProperty()
+            {
+                return buttonProperty;
+            }
+            bool IInputObject.OnEnter(IPropertyEntry sender, KeyEventArgs args)
+            {
+                OnClicked();
+                return true;
+            }
+            bool IInputObject.HasHotspot
+            {
+                get { return false; }
+            }
+
+            GeoPoint IInputObject.HotspotPosition
+            {
+                get { return GeoPoint.Origin; }
+            }
+
+            object IInputObject.HotSpotIcon
+            {
+                get { return null; }
+            }
+
+            bool IInputObject.IsFixed()
+            {
+                return true;
+            }
+
+            void IInputObject.SetFixed(bool isFixed)
+            {
+            }
+
+            public override void SetError(string errorMessage)
+            {
+                // a button has no value that could be wrong
+            }
+
+            #endregion
+        }
         public class InputContainer : InputObject, IInputObject
         /// <summary>
         /// Input object for the ConstructAction that yields an <see cref="Angle"/>.
@@ -6562,7 +6697,7 @@ namespace CADability.Actions
         /// Call this method in an override to <see cref="OnSetAction"/> to specify the input
         /// parameters of this action. Objects given as parameters may be any of <see cref="AngleInput"/>,
         /// <see cref="LengthInput"/>, <see cref="DoubleInput"/>, <see cref="GeoPointInput"/>, <see cref="GeoVectorInput"/>, <see cref="BooleanInput"/>,
-        /// <see cref="MultiPointInput"/>, <see cref="GeoObjectInput"/>, <see cref="PlaneInput"/>.
+        /// <see cref="MultiPointInput"/>, <see cref="GeoObjectInput"/>, <see cref="PlaneInput"/>, <see cref="ButtonInput"/>.
         /// </summary>
         /// <param name="TheInput">Objects specifying the input parameters of this action</param>
         public void SetInput(params object[] TheInput)
@@ -6976,6 +7111,7 @@ namespace CADability.Actions
             }
             if ((Frame.UIService.ModifierKeys & Keys.Control) == 0)
             {
+                if (!FinishOnLastInput) return false; // only finished explicitly
                 OnDone();
                 return true;
             }
@@ -7103,7 +7239,25 @@ namespace CADability.Actions
                 }
             }
             SetCurrentInputIndex(-1, false);
+            if (!FinishOnLastInput) return; // the action waits for an explicit finish, see FinishExplicitly
             Frame.Project.Undo.ClearContext(); // the clear context call is necessary here to end a continuous change before updates to the model are made
+            OnDone();
+        }
+        /// <summary>
+        /// When true (the default), the action is done as soon as the last non-optional input has been fixed.
+        /// Set it to false for actions which are finished explicitly - by the OK button of the action's title line,
+        /// the "Finish" context menu or a call to <see cref="FinishExplicitly"/>: fixing the last input then only
+        /// leaves the action without an active input, and Enter no longer finishes it.
+        /// </summary>
+        public bool FinishOnLastInput { get; set; } = true;
+        /// <summary>
+        /// Finishes the action the way the OK button does when <see cref="FinishOnLastInput"/> is false:
+        /// ends a pending continuous change and calls <see cref="OnDone"/>.
+        /// </summary>
+        protected void FinishExplicitly()
+        {
+            SetCurrentInputIndex(-1, false);
+            Frame.Project.Undo.ClearContext();
             OnDone();
         }
         private void ShowPropertyStateChanged(IPropertyEntry sender, StateChangedArgs args)
@@ -7411,7 +7565,8 @@ namespace CADability.Actions
                     RefreshDependantProperties();
                     return true;
                 case "MenuId.Construct.Finish":
-                    OnEnter();
+                    if (FinishOnLastInput) OnEnter();
+                    else FinishExplicitly();
                     return true;
                 case "MenuId.Construct.Abort":
                     OnEscape();
@@ -7639,7 +7794,8 @@ namespace CADability.Actions
             {
                 case PropertyEntryButton.ok:
 
-                    OnEnter(); // checks whether the action can be finished and if so, calls OnOk()
+                    if (FinishOnLastInput) OnEnter(); // checks whether the action can be finished and if so, calls OnOk()
+                    else FinishExplicitly(); // the current input must not swallow the click
                     break;
                 case PropertyEntryButton.cancel:
                     OnEscape();

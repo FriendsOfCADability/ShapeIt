@@ -329,7 +329,8 @@ namespace CADability.Forms.NET8
             if (showValue)
             {
                 int right = area.Right;
-                if (entries[index].Flags.HasFlag(PropertyEntryType.ContextMenu) || entries[index].Flags.HasFlag(PropertyEntryType.DropDown)) right -= buttonWidth;
+                if (entries[index].Flags.HasFlag(PropertyEntryType.ContextMenu) || entries[index].Flags.HasFlag(PropertyEntryType.DropDown)
+                    || entries[index].Flags.HasFlag(PropertyEntryType.DirectMenu)) right -= buttonWidth;
                 Rectangle valueRect = new Rectangle(middle, area.Top, right - middle, area.Height);
                 DrawString(graphics, entries[index].Value, Font, SystemBrushes.ControlText, valueRect, false);
             }

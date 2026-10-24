@@ -510,4 +510,12 @@
 		<label>Openings</label>
 		<info>Faces which are removed and form the openings. Clicking a face adds or removes it</info>
 	</data>
+	<data name="RpcTemplate.Preview">
+		<label>Preview</label>
+		<info>Runs the template with the current values and shows the result without changing the model</info>
+	</data>
+	<data name="RpcTemplate.Commit">
+		<label>Commit</label>
+		<info>Runs the template and puts the result into the model</info>
+	</data>
 </root>

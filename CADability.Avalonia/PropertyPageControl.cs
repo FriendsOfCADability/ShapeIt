@@ -425,7 +425,7 @@ public class PropertyPageControl : Control
         if (showValue)
         {
             double vRight = w
-                - (hasCtx       ? _buttonWidth : 0)
+                - (hasCtx || hasDirectMenu ? _buttonWidth : 0)
                 - (hasLock      ? _buttonWidth : 0)
                 - (hasDD        ? _buttonWidth : 0)
                 - okCancelWidth;

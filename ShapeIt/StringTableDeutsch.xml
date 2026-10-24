@@ -610,4 +610,12 @@
 		<label>Öffnungen</label>
 		<info>Flächen, die entfernt werden und die Öffnungen bilden. Klicken fügt eine Fläche hinzu oder entfernt sie</info>
 	</data>
+	<data name="RpcTemplate.Preview">
+		<label>Vorschau</label>
+		<info>Führt das Template mit den aktuellen Werten aus und zeigt das Ergebnis, ohne das Modell zu ändern</info>
+	</data>
+	<data name="RpcTemplate.Commit">
+		<label>Ausführen</label>
+		<info>Führt das Template aus und fügt das Ergebnis in das Modell ein</info>
+	</data>
 </root>
