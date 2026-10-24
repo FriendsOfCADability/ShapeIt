@@ -2040,6 +2040,7 @@ namespace ShapeIt
             }
             public int EdgeCount => face.AllEdges.Length;
             public BoundingBox bounds => face.GetExtent(0.0);
+            public GeoPoint[] Vertices => [.. face.Vertices.Select(v => v.Position)];
         }
 
         private class EdgeWrapperForEvaluator
@@ -2091,6 +2092,8 @@ namespace ShapeIt
 
             public double Volume => solid.Shell.Volume(bounds.Size * inspectPrecision); // reduced from 1e-5 to 1e-4 for performance reasons
             public BoundingBox bounds => solid.GetExtent(0.0);
+            // positions of the topological vertices of all shells
+            public GeoPoint[] Vertices => [.. solid.Shells.SelectMany(sh => sh.Vertices).Select(v => v.Position)];
         }
 
         private static object? wrapForEvaluator(object item, double inspectPrecision)
@@ -5672,6 +5675,9 @@ namespace ShapeIt
             GeoVector2D v2 => new JsonObject { ["x"] = v2.x, ["y"] = v2.y },
             BoundingBox bb => BoundingBoxToJson(bb),
             BoundingRect br => BoundingRectToJson(br),
+            Vertex vtx => EvalResultToJson(vtx.Position),
+            // lists (e.g. Shell.Vertices) become arrays; string was handled above
+            System.Collections.IEnumerable seq => new JsonArray([.. seq.Cast<object?>().Select(EvalResultToJson)]),
             _ => JsonValue.Create(result.ToString())
         };
 

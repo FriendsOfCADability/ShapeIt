@@ -4575,7 +4575,7 @@
 		},
 		{
 			"name": "inspect.properties",
-			"description": "Returns selected properties of a workspace object. Property names follow the same naming conventions used in expressions (e.g. 'Volume', 'Length', 'SurfaceType'); each property is evaluated as 'this.<property>'. A property that cannot be evaluated yields an error entry for that property instead of failing the call.",
+			"description": "Returns selected properties of a workspace object. Property names follow the same naming conventions used in expressions (e.g. 'Volume', 'Length', 'SurfaceType'); each property is evaluated as 'this.<property>'. 'Vertices' of a solid or face returns the positions of its topological vertices as an array of points. A list-valued result is returned as an array. A property that cannot be evaluated yields an error entry for that property instead of failing the call.",
 			"inputSchema": {
 				"type": "object",
 				"properties": {
