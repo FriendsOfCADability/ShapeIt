@@ -9,7 +9,8 @@ namespace ShapeIt
     /// Counts the steps of a running template, for a progress display like "17/25 (3/8)".
     /// <para>
     /// Every place that works through a list of steps - the template itself, a nested template.instantiate,
-    /// an rpc.batch, the iterations of pattern.by_formula_solids - opens a level with <see cref="Level"/> and
+    /// an rpc.batch and its repeat loop, the iterations of pattern.by_formula_solids, the operands of a
+    /// solid.boolean with several solids - opens a level with <see cref="Level"/> and
     /// calls <see cref="Step"/> before each step. The levels nest the way the calls nest, the outermost one
     /// comes first in the text.
     /// </para>
@@ -57,7 +58,13 @@ namespace ShapeIt
         }
 
         /// <summary>
-        /// Opens a level of <paramref name="total"/> steps; disposing the result closes it.
+        /// The total of a level whose number of steps is not known in advance, like a 'while' loop: it shows
+        /// the running step alone, "17" instead of "17/25".
+        /// </summary>
+        public const int Unknown = -1;
+
+        /// <summary>
+        /// Opens a level of <paramref name="total"/> steps (or <see cref="Unknown"/>); disposing the result closes it.
         /// </summary>
         public IDisposable Level(int total)
         {
@@ -80,13 +87,14 @@ namespace ShapeIt
 
         /// <summary>
         /// "17/25" for one level, "17/25 (3/8)" for two, "17/25 (3/8 · 2/5)" for three. Deeper nestings show
-        /// the outermost and the two innermost levels. Levels of a single step carry no information and are left out.
+        /// the outermost and the two innermost levels. Levels of a single step carry no information and are left out,
+        /// so is a level of unknown length before its first step.
         /// </summary>
         public string Text
         {
             get
             {
-                List<Counter> shown = levels.FindAll(c => c.Total > 1);
+                List<Counter> shown = levels.FindAll(c => c.Total > 1 || (c.Total == Unknown && c.Index > 0));
                 if (shown.Count == 0) return "";
                 StringBuilder sb = new StringBuilder();
                 Append(sb, shown[0]);
@@ -112,7 +120,14 @@ namespace ShapeIt
 
         private static void Append(StringBuilder sb, Counter c)
         {
-            sb.Append(Math.Max(c.Index, 1)).Append('/').Append(c.Total);
+            if (c.Total == Unknown)
+            {
+                sb.Append(c.Index);
+                return;
+            }
+            // a loop that takes more rounds than planned (UniteWithMany retries what it could not unite yet)
+            // stays at its total instead of showing "12/10"
+            sb.Append(Math.Min(Math.Max(c.Index, 1), c.Total)).Append('/').Append(c.Total);
         }
     }
 }

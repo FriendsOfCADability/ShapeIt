@@ -4720,11 +4720,14 @@ namespace ShapeIt
         {
             Solid accumulate = a;
             HashSet<Solid> bb = [.. b];
+            // one step per attempt: a solid that touches nothing yet is tried again in the next round
+            using IDisposable? progressLevel = Progress?.Level(b.Count);
             while (bb.Count > 0)
             {
                 bool united = false;
                 foreach (Solid sld in bb.Clone())
                 {
+                    Progress?.Step();
                     Solid tmp = NewBooleanOperation.Unite(sld, accumulate);
                     if (tmp != null)
                     {
@@ -4743,8 +4746,10 @@ namespace ShapeIt
         {
             List<Solid> fragments = new List<Solid>();
             fragments.AddRange(toSubtractFrom);
+            using IDisposable? progressLevel = Progress?.Level(subtractItems.Count);
             foreach (Solid sld in subtractItems)
             {
+                Progress?.Step();
                 List<Solid> newfragments = new List<Solid>();
                 for (int i = 0; i < fragments.Count; i++)
                 {
@@ -4763,8 +4768,10 @@ namespace ShapeIt
         {
             List<Solid> fragments = new List<Solid>();
             fragments.Add(solid);
+            using IDisposable? progressLevel = Progress?.Level(other.Count);
             foreach (Solid sld in other)
             {
+                Progress?.Step();
                 List<Solid> newfragments = new List<Solid>();
                 for (int i = 0; i < fragments.Count; i++)
                 {
@@ -6778,8 +6785,8 @@ namespace ShapeIt
         {
             iterations = 0;
             int limit = spec.Count ?? MaxBatchIterations;
-            // a pure 'while' loop has no known length, a level would show a meaningless total
-            using IDisposable? progressLevel = spec.Count != null ? Progress?.Level(limit) : null;
+            // a pure 'while' loop has no known length: it shows the running iteration alone
+            using IDisposable? progressLevel = Progress?.Level(spec.Count ?? TemplateProgress.Unknown);
             for (int i = 0; i < limit; i++)
             {
                 if (spec.Variable != null) namedItems[spec.Variable] = spec.Start + i * spec.Step;
@@ -6803,7 +6810,7 @@ namespace ShapeIt
                     if (spec.Count == null && i == MaxBatchIterations - 1)
                         AddCallWarning($"The 'while' condition was still true after {MaxBatchIterations} iterations; the loop was stopped there.");
                 }
-                if (spec.Count != null) Progress?.Step();
+                Progress?.Step();
                 iterations = i + 1;
                 JsonArray iterationResults = new JsonArray();
                 bool hasError = RunBatchCalls(callsArr, iterationResults);
