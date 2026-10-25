@@ -14,7 +14,7 @@
   "Status": "OK since 2026-08-28. All four operations return and every value meets its calculated expectation to\nabout 1e-6. Stable over 4 runs.\n\nHISTORY, because the case earned it. As written, two of the four operations did not return at all: the\nunion (call id 4) and cylY minus cylZ (call id 6) both hit the assertion \"loops.Count should never be\n0\" in BooleanOperation.Result. The defect was not symmetric - cylZ minus cylY returned and was exactly\nright - so it depended on the order in which the faces of the two operands were visited, not on the\ngeometry. The intersection was right from the start as well, which means the two crossing ellipses and\ntheir two nodes were always computed properly; what failed was what got built from them.\nIn the running application the same two calls FROZE the process: there the assertion is a modal dialog\nraised on the UI thread inside BooleanOperation.Result, so the message loop stopped and the MCP server\nanswered nothing more - no CPU load, no error, no dialog window to be found. That is how the case was\nfound in the first place. The harness suppresses the dialog and turns the assertion into a failed call,\nwhich is why the case could live in the suite while the defect was open.\n\nFIXED by the additional plane test in CylindricalSurface (Precision.IsPointOnPlane next to the radius\ntest when a tangential touch point of a cylinder and an ellipse is accepted): a point at the right\ndistance from the ellipse centre is only a touch point if it also lies in the plane of the ellipse.\nWith that, the union comes out as one solid of 24511.7664512 against the exact 24511.7968757697 and\ncylY minus cylZ as the two expected parts. Nothing else in the case moved - crossInter, crossZminusY\nand both operands match their earlier records to the last recorded digit, so the fix added the missing\nresults without disturbing the ones that already worked.\n\nRE-RECORDED 2026-08-28 after the second fix of the same day. No value moved - volume, area and extent\nof every object are the same to the last recorded digit, and both differences and the union still meet\ntheir calculated expectations. What changed is the PARTITION of two objects: crossInter is now cut into\n5 faces instead of 4 (7 edges, 4 vertices, edgeLength 172.749 instead of 152.697) and crossZminusY#0\ninto 5 instead of 4. The added seam edge is 20.05 long, the length of a seam of the z cylinder over the\nheight of the Steinmetz body. That is a partition that is less tidy than the earlier one but not wrong:\neuler stays 2, the bodies stay closed and consistent, and the geometry is untouched.",
   "Baseline": {
     "crossInter": {
-      "verified": "2026-08-28 GH: CALCULATED, not captured. volume against the closed form of the Steinmetz solid 16*r^3/3 = 5333.3333333333 (2.0e-6 low, triangulation) and area against the exact 16*r^2 = 1600 (6e-11). The body is bounded by cylindrical faces only, with no planar face, as the geometry demands. Re-recorded after the second fix of 2026-08-28: 5 faces, 7 edges and 4 vertices instead of the earlier 4/4/2, an extra seam split of 20.05 length. Volume, area and extent are unchanged, so this is the partition and not the geometry - but note that the two tangential nodes are no longer the only two vertices of the body.",
+      "verified": "2026-08-28 GH: CALCULATED, not captured. volume against the closed form of the Steinmetz solid 16*r^3/3 = 5333.3333333333 (2.0e-6 low, triangulation) and area against the exact 16*r^2 = 1600 (6e-11). The body is bounded by cylindrical faces only, with no planar face, as the geometry demands. Re-recorded after the second fix of 2026-08-28: 5 faces, 7 edges and 4 vertices instead of the earlier 4/4/2, an extra seam split of 20.05 length. Volume, area and extent are unchanged, so this is the partition and not the geometry - but note that the two tangential nodes are no longer the only two vertices of the body. Re-recorded 2026-10-07: only edgeLength moved (152.748739416 -> 152.807911561), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "4",
@@ -26,12 +26,12 @@
       "openEdges": "0",
       "volume": "5333.33333291",
       "area": "1599.99999987",
-      "edgeLength": "152.748739416",
+      "edgeLength": "152.807911561",
       "extent": "-10, -10, -10, 10, 10, 10",
       "surfaces": "CylindricalSurface:4"
     },
     "crossUnion": {
-      "verified": "2026-08-28 GH: CALCULATED. 24511.7664512 against 15707.9632679490 + 14137.1669411541 - 5333.3333333333 = 24511.7968757697, 1.2e-6. One solid, euler 2, closed and consistent, extent -10,-20,-20 .. 10,25,30 = the union of the two operand extents. This is the result that used to be missing entirely: before the fix call id 4 raised \"loops.Count should never be 0\" and stored nothing.",
+      "verified": "2026-08-28 GH: CALCULATED. 24511.7664512 against 15707.9632679490 + 14137.1669411541 - 5333.3333333333 = 24511.7968757697, 1.2e-6. One solid, euler 2, closed and consistent, extent -10,-20,-20 .. 10,25,30 = the union of the two operand extents. This is the result that used to be missing entirely: before the fix call id 4 raised \"loops.Count should never be 0\" and stored nothing. Re-recorded 2026-10-07: only edgeLength moved (404.127947944 -> 404.135323848), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "8",
       "edges": "8",
@@ -43,7 +43,7 @@
       "openEdges": "0",
       "volume": "24511.7968759",
       "area": "5625.66310329",
-      "edgeLength": "404.127947944",
+      "edgeLength": "404.135323848",
       "extent": "-10, -20, -20, 10, 25, 30",
       "surfaces": "CylindricalSurface:4 PlaneSurface:4"
     },
@@ -52,7 +52,7 @@
       "solids": "2"
     },
     "crossYminusZ#0": {
-      "verified": "2026-08-28 GH: CALCULATED. pi*100*25 - 2666.6666666667 = 5187.3149673078, met to 9.2e-7. This result was missing before the fix, for the same assertion as crossUnion.",
+      "verified": "2026-08-28 GH: CALCULATED. pi*100*25 - 2666.6666666667 = 5187.3149673078, met to 9.2e-7. This result was missing before the fix, for the same assertion as crossUnion. Re-recorded 2026-10-07: only edgeLength moved (139.2321209 -> 139.235808852), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -64,12 +64,12 @@
       "openEdges": "0",
       "volume": "5187.31496724",
       "area": "1884.9555921",
-      "edgeLength": "139.2321209",
+      "edgeLength": "139.235808852",
       "extent": "-10, -1.83697019872E-15, -10, 10, 25, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "crossYminusZ#1": {
-      "verified": "2026-08-28 GH: CALCULATED. pi*100*20 - 2666.6666666667 = 3616.5186405129, met to 6.6e-7. Congruent to crossZminusY#1 under the exchange of y and z, and its area agrees with it to 1.7e-5. Note that this body is cut into more faces than its mirror image (8 edges against 6): the two cylinders carry their seams differently relative to the nodes, which is a partition difference and not a geometric one - volume, area, euler and consistency all agree.",
+      "verified": "2026-08-28 GH: CALCULATED. pi*100*20 - 2666.6666666667 = 3616.5186405129, met to 6.6e-7. Congruent to crossZminusY#1 under the exchange of y and z, and its area agrees with it to 1.7e-5. Note that this body is cut into more faces than its mirror image (8 edges against 6): the two cylinders carry their seams differently relative to the nodes, which is a partition difference and not a geometric one - volume, area, euler and consistency all agree. Re-recorded 2026-10-07: only edgeLength moved (139.2321209 -> 139.235808852), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -81,7 +81,7 @@
       "openEdges": "0",
       "volume": "3616.51864047",
       "area": "1570.79632674",
-      "edgeLength": "139.2321209",
+      "edgeLength": "139.235808852",
       "extent": "-10, -20, -10, 10, 5.3290705182E-14, 10",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
@@ -89,7 +89,7 @@
       "solids": "2"
     },
     "crossZminusY#0": {
-      "verified": "2026-08-28 GH: CALCULATED. The upper half, pi*100*30 - 5333.3333333333/2 = 6758.1112941027, met to 1.2e-6. Re-recorded after the second fix of 2026-08-28: 5 faces instead of 4, same volume to 9e-8.",
+      "verified": "2026-08-28 GH: CALCULATED. The upper half, pi*100*30 - 5333.3333333333/2 = 6758.1112941027, met to 1.2e-6. Re-recorded after the second fix of 2026-08-28: 5 faces instead of 4, same volume to 9e-8. Re-recorded 2026-10-07: only edgeLength moved (139.2321209 -> 139.235808852), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -101,12 +101,12 @@
       "openEdges": "0",
       "volume": "6758.11129421",
       "area": "2199.11485753",
-      "edgeLength": "139.2321209",
+      "edgeLength": "139.235808852",
       "extent": "-10, -10, -1.74082970261E-13, 10, 10, 30",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "crossZminusY#1": {
-      "verified": "2026-08-28 GH: CALCULATED. The lower half, pi*100*20 - 2666.6666666667 = 3616.5186405129, met to 9.2e-7. The two halves touch only at the two nodes, and their extents meet at z = 0 to 1e-13 - the cut through the full cross section is exactly where it belongs.",
+      "verified": "2026-08-28 GH: CALCULATED. The lower half, pi*100*20 - 2666.6666666667 = 3616.5186405129, met to 9.2e-7. The two halves touch only at the two nodes, and their extents meet at z = 0 to 1e-13 - the cut through the full cross section is exactly where it belongs. Re-recorded 2026-10-07: only edgeLength moved (139.18032466 -> 139.235808852), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "3",
       "edges": "2",
@@ -118,7 +118,7 @@
       "openEdges": "0",
       "volume": "3616.51864065",
       "area": "1570.79632679",
-      "edgeLength": "139.18032466",
+      "edgeLength": "139.235808852",
       "extent": "-10, -10, -20, 10, 10, 1.01064309961E-14",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },

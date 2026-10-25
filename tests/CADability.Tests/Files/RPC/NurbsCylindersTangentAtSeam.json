@@ -14,7 +14,7 @@
   ],
   "Baseline": {
     "crossInter": {
-      "verified": "2026-09-18: volume 5333.32016311 against the exact 16*r^3/3 = 5333.3333333333, 2.5e-06, and area 1600.01431688 against the exact 16*r^2 = 1600, 8.9e-06. Four faces meeting in two vertices - the two nodes at (+-10, 0, 0) - and no planar face, as in the quadric twin EqualCylindersCrossedAtSeam. The extent is the weak spot and the open defect of this case: y and z reach only +-9.94946412 instead of +-10, see Status.",
+      "verified": "2026-09-18: volume 5333.32016311 against the exact 16*r^3/3 = 5333.3333333333, 2.5e-06, and area 1600.01431688 against the exact 16*r^2 = 1600, 8.9e-06. Four faces meeting in two vertices - the two nodes at (+-10, 0, 0) - and no planar face, as in the quadric twin EqualCylindersCrossedAtSeam. The extent is the weak spot and the open defect of this case: y and z reach only +-9.94946412 instead of +-10, see Status. Re-recorded 2026-10-07: only edgeLength moved (152.608351386 -> 152.807911562), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "4",
@@ -26,12 +26,12 @@
       "openEdges": "0",
       "volume": "5333.3341597",
       "area": "1600.00032197",
-      "edgeLength": "152.608351386",
+      "edgeLength": "152.807911562",
       "extent": "-10, -9.94946412899, -9.9494641271, 10, 9.9494641281, 9.94946412879",
       "surfaces": "SurfaceOfLinearExtrusion:4"
     },
     "crossUnion": {
-      "verified": "2026-09-18: ONE solid of 24515.9686461 against the exact 24511.7968757698, 1.7e-04, 12 faces, closed and consistent. Until 2026-09-17 this call returned the two operands unchanged - the union did not happen at all. The 1.7e-04 is the error of the tangential construction; the operands are good to 2.5e-09.",
+      "verified": "2026-09-18: ONE solid of 24515.9686461 against the exact 24511.7968757698, 1.7e-04, 12 faces, closed and consistent. Until 2026-09-17 this call returned the two operands unchanged - the union did not happen at all. The 1.7e-04 is the error of the tangential construction; the operands are good to 2.5e-09. Re-recorded 2026-10-07: only edgeLength moved (593.935763657 -> 594.13532385), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "12",
       "edges": "20",
@@ -43,7 +43,7 @@
       "openEdges": "0",
       "volume": "24511.7961787",
       "area": "5625.66276246",
-      "edgeLength": "593.935763657",
+      "edgeLength": "594.13532385",
       "extent": "-10, -20, -20, 10, 25, 30",
       "surfaces": "PlaneSurface:4 SurfaceOfLinearExtrusion:8"
     },
@@ -52,7 +52,7 @@
       "solids": "2"
     },
     "crossYminusZ#0": {
-      "verified": "2026-09-18: volume 5187.94549362 against the exact pi*100*25 - 2666.6666666667 = 5187.3149673078, 1.2e-04.",
+      "verified": "2026-09-18: volume 5187.94549362 against the exact pi*100*25 - 2666.6666666667 = 5187.3149673078, 1.2e-04. Re-recorded 2026-10-07: only edgeLength moved (189.13602899 -> 189.235809079), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -64,12 +64,12 @@
       "openEdges": "0",
       "volume": "5187.31444442",
       "area": "1884.95558863",
-      "edgeLength": "189.13602899",
+      "edgeLength": "189.235809079",
       "extent": "-10, -4.68409879772E-08, -10, 10, 25, 10",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
     "crossYminusZ#1": {
-      "verified": "2026-09-18: volume 3617.12135006 against the exact pi*100*20 - 2666.6666666667 = 3616.5186405129, 1.7e-04.",
+      "verified": "2026-09-18: volume 3617.12135006 against the exact pi*100*20 - 2666.6666666667 = 3616.5186405129, 1.7e-04. Re-recorded 2026-10-07: only edgeLength moved (179.13602854 -> 179.235808627), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -81,7 +81,7 @@
       "openEdges": "0",
       "volume": "3616.51813932",
       "area": "1570.79632313",
-      "edgeLength": "179.13602854",
+      "edgeLength": "179.235808627",
       "extent": "-10, -20, -10, 10, -1.98780014671E-08, 10",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
@@ -90,7 +90,7 @@
       "solids": "2"
     },
     "crossZminusY#0": {
-      "verified": "2026-09-18: volume 6758.74444589 against the exact pi*100*30 - 2666.6666666667 = 6758.1112941027, 9.4e-05.",
+      "verified": "2026-09-18: volume 6758.74444589 against the exact pi*100*30 - 2666.6666666667 = 6758.1112941027, 9.4e-05. Re-recorded 2026-10-07: only edgeLength moved (199.136028957 -> 199.235809046), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -102,12 +102,12 @@
       "openEdges": "0",
       "volume": "6758.11070878",
       "area": "2199.11485313",
-      "edgeLength": "199.136028957",
+      "edgeLength": "199.235809046",
       "extent": "-10, -10, -3.99003496909E-08, 10, 10, 30",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
     "crossZminusY#1": {
-      "verified": "2026-09-18: volume 3617.09670395 against the exact pi*100*20 - 2666.6666666667 = 3616.5186405129, 1.6e-04.",
+      "verified": "2026-09-18: volume 3617.09670395 against the exact pi*100*20 - 2666.6666666667 = 3616.5186405129, 1.6e-04. Re-recorded 2026-10-07: only edgeLength moved (179.136028573 -> 179.23580866), because ICurve.Length is now the arc length of ellipses, intersection curves and general curves instead of a polygon or hull estimate; every edge checked against a polyline of 20000 points.",
       "consistent": "true",
       "faces": "4",
       "edges": "6",
@@ -119,7 +119,7 @@
       "openEdges": "0",
       "volume": "3616.51799249",
       "area": "1570.79632319",
-      "edgeLength": "179.136028573",
+      "edgeLength": "179.23580866",
       "extent": "-10, -10, -20, 10, 10, -1.58693680419E-08",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },

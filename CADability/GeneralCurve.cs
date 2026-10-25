@@ -285,6 +285,7 @@ namespace CADability.GeoObject
         protected virtual void InvalidateSecondaryData()
         {
             tetraederHull = null;
+            lengthValid = false;
             extent = BoundingBox.EmptyBoundingBox;
         }
         // public abstract void Modify(ModOp m); ist schon abstract
@@ -561,12 +562,40 @@ namespace CADability.GeoObject
         /// Implements <see cref="CADability.GeoObject.ICurve.Reverse ()"/>
         /// </summary>
         public abstract void Reverse();
+        private double length; // cached, because it takes many points of the curve
+        private bool lengthValid;
+        /// <summary>
+        /// The arc length of the curve, see <see cref="ComputeLength"/>, cached. The length used to be estimated from the
+        /// tetrahedron hull, which is up to several tenths of a percent too short.
+        /// </summary>
         public virtual double Length
         {
             get
             {
-                return TetraederHull.GetLength();
+                if (lengthValid) return length;
+                double res;
+                try
+                {
+                    res = ComputeLength();
+                }
+                catch (Exception)
+                {
+                    res = double.NaN;
+                }
+                if (double.IsNaN(res) || double.IsInfinity(res)) return TetraederHull.GetLength(); // a curve with undefined points
+                length = res;
+                lengthValid = true;
+                return res;
             }
+        }
+        /// <summary>
+        /// Measures the arc length for <see cref="Length"/>, which caches the result: from <see cref="PointAt"/>, between the
+        /// positions <see cref="GetBasePoints"/> returns. Derived classes, which know a closed form or the derivative, should
+        /// override Length instead; a derived class whose PointAt is only an approximation can measure with exact points here.
+        /// </summary>
+        protected virtual double ComputeLength()
+        {
+            return ArcLength.FromPoints(PointAt, 0.0, 1.0, GetBasePoints());
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ICurve.Split (double)"/>
