@@ -64,6 +64,14 @@
 		</Compile>
 	</ItemGroup>
 
+	<!-- Templates shipped with the program: loaded at startup from the folder "Templates" next to the
+	     executable, before the user's templates (see TemplateLibrary). -->
+	<ItemGroup>
+		<None Update="Templates\*.json">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+	</ItemGroup>
+
 	<ItemGroup>
 		<None Update="Properties\Settings.settings">
 			<Generator>SettingsSingleFileGenerator</Generator>

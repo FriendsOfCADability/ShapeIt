@@ -217,8 +217,10 @@ public class CadFrame : FrameImpl, IUIService
             SuggestedFileName = string.IsNullOrWhiteSpace(fileName) ? null : SysPath.GetFileName(fileName),
         };
 
-        if (!string.IsNullOrWhiteSpace(id) && _directories.TryGetValue(id, out var dir)
-            && Uri.TryCreate(dir, UriKind.Absolute, out var dirUri))
+        // nothing remembered yet: a proposed full path also proposes its folder
+        string? startDirectory = !string.IsNullOrWhiteSpace(id) && _directories.TryGetValue(id, out var dir) ? dir
+            : !string.IsNullOrWhiteSpace(fileName) && SysPath.IsPathRooted(fileName) ? SysPath.GetDirectoryName(fileName) : null;
+        if (startDirectory != null && Uri.TryCreate(startDirectory, UriKind.Absolute, out var dirUri))
         {
             options.SuggestedStartLocation =
                 RunDialogSync(() => topLevel.StorageProvider.TryGetFolderFromPathAsync(dirUri));

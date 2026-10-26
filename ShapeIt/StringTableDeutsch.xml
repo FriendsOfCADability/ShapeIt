@@ -387,6 +387,14 @@
     <label>Benutzeroberfläche</label>
     <info>EInstellungen für die Benutzeroberfläche (0 ist Standard)</info>
   </data>
+  <data name="Setting.Templates">
+    <label>Templates</label>
+    <info>Vorlagen (Templates), die ShapeIt beim Start lädt</info>
+  </data>
+  <data name="Setting.Templates.Directory">
+    <label>Verzeichnis</label>
+    <info>Ordner mit den eigenen Template-Dateien (*.json), die beim Start geladen werden. Leer: Dokumente\ShapeIt\Templates. Gleichnamige Templates ersetzen die mitgelieferten.</info>
+  </data>
   <data name="ToolbarButtonSize">
     <label>Schaltflächengröße</label>
     <info>Größe der Schaltflächen (Toolbars), 0 ist Standard</info>
@@ -632,5 +640,8 @@
 	<data name="RpcTemplate.TooLarge">
 		<label>{0} darf höchstens {1} sein.</label>
 		<info>Meldung, wenn ein Template-Parameter über seinem Maximum liegt</info>
+	</data>
+	<data name="RpcTemplate.LoadProblems">
+		<label>Templates konnten nicht geladen werden</label>
 	</data>
 </root>

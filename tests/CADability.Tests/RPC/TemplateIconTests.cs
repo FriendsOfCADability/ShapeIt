@@ -60,7 +60,7 @@ namespace CADability.Tests
 
         private static string GearIcon([System.Runtime.CompilerServices.CallerFilePath] string thisFile = "")
         {
-            string file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(thisFile)!, "..", "Files", "Templates", "StirnradTemplate.json");
+            string file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(thisFile)!, "..", "..", "..", "ShapeIt", "Templates", "StirnradTemplate.json");
             using JsonDocument document = JsonDocument.Parse(System.IO.File.ReadAllText(file));
             return document.RootElement.GetProperty("templates")[0].GetProperty("items")[0].GetProperty("params").GetProperty("icon").GetString()!;
         }

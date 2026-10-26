@@ -132,6 +132,7 @@ namespace ShapeIt
 
             mcpServer = new MCPServer(cadFrame, cadFrame.Project, this);
             mcpServer.TemplatesChanged += RefreshTemplateCommands;
+            TemplateLibrary.EnsureSetting();
             uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
             LayerProperties.EnsureExists(cadFrame.Project); // for the project that is already open at startup
@@ -139,7 +140,7 @@ namespace ShapeIt
 #if AVALONIA
             // In Avalonia, post at Background priority so the main window is fully shown first.
             Avalonia.Threading.Dispatcher.UIThread.Post(
-                StartMcpHttpServer,
+                () => { LoadTemplateLibrary(); StartMcpHttpServer(); },
                 Avalonia.Threading.DispatcherPriority.Background);
 #else
             // Defer startup until after the main window is visible.
@@ -152,9 +153,23 @@ namespace ShapeIt
         private void OnFirstIdle(object? sender, EventArgs e)
         {
             System.Windows.Forms.Application.Idle -= OnFirstIdle;
+            LoadTemplateLibrary();
             StartMcpHttpServer();
         }
 #endif
+
+        /// <summary>
+        /// Loads the shipped and the user's templates (see <see cref="TemplateLibrary"/>) once the main window is
+        /// shown: the front ends have subscribed to <see cref="TemplatesChanged"/> by then and build the toolbar, and
+        /// files that could not be read are reported in one message.
+        /// </summary>
+        private void LoadTemplateLibrary()
+        {
+            List<string> problems = TemplateLibrary.LoadAll(mcpServer.templates);
+            if (mcpServer.templates.Count > 0) mcpServer.OnTemplatesChanged();
+            if (problems.Count > 0)
+                cadFrame.UIService.ShowMessageBox(string.Join(Environment.NewLine, problems), StringTable.GetString("RpcTemplate.LoadProblems"), MessageBoxButtons.OK);
+        }
 
         private void StartMcpHttpServer()
         {
@@ -4159,31 +4174,17 @@ namespace ShapeIt
                 int filterIndex = 1;
                 if (frame.UIService.ShowOpenFileDlg("Templates", StringTable.GetString("MCPServer.OpenTemplateFile"), StringTable.GetString("MCPServer.Template.Filter"), ref filterIndex, out string fileName) == DialogResult.OK)
                 {
-                    using FileStream fs = File.OpenRead(fileName);
-                    JsonDocument doc = JsonDocument.Parse(fs);
-                    if (doc.RootElement.TryGetProperty("templates", out var templatesEl) && templatesEl.ValueKind == JsonValueKind.Array)
+                    try
                     {
-                        foreach (JsonElement template in doc.RootElement.GetProperty("templates").EnumerateArray())
-                        {
-                            if (template.TryGetProperty("name", out var nameEl) && nameEl.ValueKind == JsonValueKind.String)
-                            {
-                                string? name = nameEl.GetString();
-                                if (name != null)
-                                {
-                                    var list = new List<JsonElement>();
-
-                                    foreach (JsonElement item in template.GetProperty("items").EnumerateArray())
-                                    {
-                                        list.Add(item.Clone());
-                                    }
-
-                                    mcpServer.templates[name] = list;
-                                }
-                            }
-                        }
-                        mcpServer.OnTemplatesChanged(); // icons, toolbar
-                        SetRpcTemplateEntries(); // to refresh with new templates in the list
+                        TemplateLibrary.ReadFile(fileName, mcpServer.templates);
                     }
+                    catch (Exception ex)
+                    {
+                        frame.UIService.ShowMessageBox(fileName + ": " + ex.Message, StringTable.GetString("RpcTemplate.LoadProblems"), MessageBoxButtons.OK);
+                        return true;
+                    }
+                    mcpServer.OnTemplatesChanged(); // icons, toolbar
+                    SetRpcTemplateEntries(); // to refresh with new templates in the list
                 }
                 return true;
             };
@@ -4199,7 +4200,8 @@ namespace ShapeIt
                 SaveTemplatesToFile.ExecuteMenu = (frame) =>
                 {
                     int filterIndex = 1;
-                    string fileName = "";
+                    // proposed in the folder loaded at startup, so that what is saved there comes back next time
+                    string fileName = IOPath.Combine(TemplateLibrary.UserDirectory, "Templates.json");
                     if (frame.UIService.ShowSaveFileDlg("Templates", StringTable.GetString("MCPServer.SaveTemplateFile"), StringTable.GetString("MCPServer.Template.Filter"), ref filterIndex, ref fileName) == DialogResult.OK)
                     {
                         using var fileStream = File.Create(fileName);

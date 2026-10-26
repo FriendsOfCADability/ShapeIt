@@ -25,7 +25,7 @@ namespace CADability.Tests
         private static string? Error(string response) => JsonNode.Parse(response)?["error"]?["message"]?.GetValue<string>();
 
         private static string TemplateFile([System.Runtime.CompilerServices.CallerFilePath] string thisFile = "")
-            => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(thisFile)!, "..", "Files", "Templates", "StirnradTemplate.json");
+            => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(thisFile)!, "..", "..", "..", "ShapeIt", "Templates", "StirnradTemplate.json");
 
         /// <summary>Loads the templates of a template file the way the application does.</summary>
         private static MCPServer ServerWithTemplates()

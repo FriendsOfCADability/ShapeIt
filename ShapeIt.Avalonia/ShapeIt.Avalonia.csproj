@@ -81,6 +81,12 @@
     <None Include="Logo.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Templates shipped with the program: loaded at startup from the folder "Templates" next to the
+         executable, before the user's templates (see TemplateLibrary). -->
+    <None Include="..\ShapeIt\Templates\*.json">
+      <Link>Templates\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
   <ItemGroup>
