@@ -267,6 +267,35 @@ namespace CADability.UserInterface
         /// </summary>
         /// <param name="MenuName"></param>
         /// <returns></returns>
+        /// <summary>
+        /// Sets a popup menu whose items are only known at runtime (e.g. a group of templates in ShapeIt): a toolbar
+        /// button with this menu id becomes a drop-down button with these items. An existing popup of this id is
+        /// replaced; no items remove it. The labels come from the StringTable, the icons are looked up by menu id.
+        /// </summary>
+        /// <param name="menuId">id of the popup; must not contain an apostrophe (it is used in XPath queries)</param>
+        /// <param name="itemIds">menu ids of the items</param>
+        static public void SetDynamicPopup(string menuId, string[] itemIds)
+        {
+            XmlNode root = mMenuDocument.SelectSingleNode("Menus");
+            foreach (XmlNode existing in root.SelectNodes("Popup"))
+            {
+                if (existing.Attributes?["MenuId"]?.Value == menuId)
+                {
+                    root.RemoveChild(existing);
+                    break;
+                }
+            }
+            if (itemIds == null || itemIds.Length == 0) return;
+            XmlElement popup = mMenuDocument.CreateElement("Popup");
+            popup.SetAttribute("MenuId", menuId);
+            foreach (string itemId in itemIds)
+            {
+                XmlElement item = mMenuDocument.CreateElement("MenuItem");
+                item.SetAttribute("MenuId", itemId);
+                popup.AppendChild(item);
+            }
+            root.AppendChild(popup);
+        }
         static public bool IsPopup(string MenuName)
         {
             XmlNode MenuNode = mMenuDocument.SelectSingleNode("Menus//Popup[@MenuId='" + MenuName + "']");

@@ -110,7 +110,7 @@ public partial class MainWindow : Window, ICommandHandler
         modellingPage.Add(modellingPropertyEntries, false);
         // one button per template, with the template's icon
         modellingPropertyEntries.TemplatesChanged += () =>
-            toolBars?.SetDynamicToolBar("Templates", modellingPropertyEntries.TemplateMenuIds());
+            toolBars?.SetDynamicToolBar("Templates", modellingPropertyEntries.TemplateToolbarIds());
         cadFrame.ControlCenter.ShowPropertyPage("Modelling");
 
         // Route main-menu / toolbar commands to ModellingPropertyEntries first — this is what

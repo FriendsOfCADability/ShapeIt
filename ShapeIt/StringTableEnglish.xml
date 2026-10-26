@@ -544,4 +544,7 @@
 	<data name="RpcTemplate.LoadProblems">
 		<label>Templates could not be loaded</label>
 	</data>
+	<data name="RpcTemplate.NothingToSave">
+		<label>No new templates were recorded in this session. Loaded templates are in their files already and are not saved again.</label>
+	</data>
 </root>

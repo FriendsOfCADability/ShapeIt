@@ -165,7 +165,8 @@ namespace ShapeIt
         /// </summary>
         private void LoadTemplateLibrary()
         {
-            List<string> problems = TemplateLibrary.LoadAll(mcpServer.templates);
+            List<string> problems = TemplateLibrary.LoadAll(mcpServer.templates, templateFiles);
+            RememberLoaded(templateFiles.SelectMany(file => file.Names));
             if (mcpServer.templates.Count > 0) mcpServer.OnTemplatesChanged();
             if (problems.Count > 0)
                 cadFrame.UIService.ShowMessageBox(string.Join(Environment.NewLine, problems), StringTable.GetString("RpcTemplate.LoadProblems"), MessageBoxButtons.OK);
@@ -4135,18 +4136,41 @@ namespace ShapeIt
 
         /// <summary>
         /// Raised when templates were added or replaced: the front ends set the buttons of their "Templates" toolbar
-        /// to <see cref="TemplateMenuIds"/>.
+        /// to <see cref="TemplateToolbarIds"/>.
         /// </summary>
         public event System.Action? TemplatesChanged;
 
-        /// <summary>The menu ids of all templates, ordered by their labels.</summary>
-        public string[] TemplateMenuIds()
-            => mcpServer.templates.Keys.OrderBy(name => mcpServer.GetTemplateLabel(name) ?? name, StringComparer.CurrentCultureIgnoreCase)
-                .Select(TemplateMenuId).ToArray();
+        // the template files read so far, in this order (startup and "Load templates"): they group the templates
+        private readonly List<TemplateFile> templateFiles = new List<TemplateFile>();
+        // the drop-down menus of the groups currently in the menu resource
+        private readonly HashSet<string> templateGroupPopups = new HashSet<string>();
+        private string[] templateToolbarIds = Array.Empty<string>();
+        // the templates as they were read from a file: one that is not here, or was replaced by a recording of the
+        // same name, was recorded in this session and is what "Save templates" writes
+        private readonly Dictionary<string, List<JsonElement>> loadedTemplates = new Dictionary<string, List<JsonElement>>();
+
+        private void RememberLoaded(IEnumerable<string> names)
+        {
+            foreach (string name in names)
+            {
+                if (mcpServer.templates.TryGetValue(name, out List<JsonElement>? items)) loadedTemplates[name] = items;
+            }
+        }
+
+        /// <summary>The templates recorded in this session, i.e. not as they were read from a template file.</summary>
+        private List<KeyValuePair<string, List<JsonElement>>> SessionTemplates()
+            => mcpServer.templates.Where(t => !loadedTemplates.TryGetValue(t.Key, out List<JsonElement>? loaded) || !ReferenceEquals(loaded, t.Value)).ToList();
+
+        /// <summary>
+        /// The buttons of the "Templates" toolbar, ordered by label: the menu id of a template, or of the drop-down
+        /// button of a file with several templates (see <see cref="TemplateLibrary.ToolbarEntries"/>).
+        /// </summary>
+        public string[] TemplateToolbarIds() => templateToolbarIds;
 
         /// <summary>
         /// Makes the templates known as commands: their icon (the template's own or a generic one) for toolbar and
-        /// template list, their label and description for tooltips. Then the front ends rebuild the toolbar.
+        /// template list, their label and description for tooltips. Files with several templates become drop-down
+        /// menus. Then the front ends rebuild the toolbar.
         /// </summary>
         private void RefreshTemplateCommands()
         {
@@ -4158,6 +4182,22 @@ namespace ShapeIt
                 string? description = mcpServer.GetTemplateDescription(name);
                 if (description != null) StringTable.AddString(StringTable.ActiveLanguage, menuId, StringTable.Category.info, description);
             }
+            List<TemplateToolbarEntry> entries = TemplateLibrary.ToolbarEntries(mcpServer.templates.Keys, templateFiles,
+                name => mcpServer.GetTemplateLabel(name) ?? name);
+            HashSet<string> popups = new HashSet<string>();
+            foreach (TemplateToolbarEntry entry in entries)
+            {
+                if (entry.GroupId == null) continue;
+                popups.Add(entry.GroupId);
+                MenuResource.SetDynamicPopup(entry.GroupId, entry.Templates.Select(TemplateMenuId).ToArray());
+                // the drop-down button shows the file's icon until a template was chosen, then that template's
+                SvgIconRegistry.Set(entry.GroupId, entry.GroupIcon ?? mcpServer.GetTemplateIcon(entry.Templates[0]) ?? TemplateIcon.Generic);
+                StringTable.AddString(StringTable.ActiveLanguage, entry.GroupId, StringTable.Category.label, entry.Label);
+            }
+            foreach (string gone in templateGroupPopups.Where(id => !popups.Contains(id)).ToList()) MenuResource.SetDynamicPopup(gone, Array.Empty<string>());
+            templateGroupPopups.Clear();
+            templateGroupPopups.UnionWith(popups);
+            templateToolbarIds = entries.Select(e => e.GroupId ?? TemplateMenuId(e.Templates[0])).ToArray();
             TemplatesChanged?.Invoke();
         }
 
@@ -4176,7 +4216,9 @@ namespace ShapeIt
                 {
                     try
                     {
-                        TemplateLibrary.ReadFile(fileName, mcpServer.templates);
+                        TemplateFile read = TemplateLibrary.ReadFile(fileName, mcpServer.templates);
+                        templateFiles.Add(read);
+                        RememberLoaded(read.Names);
                     }
                     catch (Exception ex)
                     {
@@ -4199,9 +4241,19 @@ namespace ShapeIt
                 DirectMenuEntry SaveTemplatesToFile = new DirectMenuEntry("RpcTemplate.SaveToFile");
                 SaveTemplatesToFile.ExecuteMenu = (frame) =>
                 {
+                    // Only the templates recorded in this session: the loaded ones are in their files already, and
+                    // writing them again would make the new file take them over from their groups at the next start.
+                    List<KeyValuePair<string, List<JsonElement>>> toSave = SessionTemplates();
+                    if (toSave.Count == 0)
+                    {
+                        frame.UIService.ShowMessageBox(StringTable.GetString("RpcTemplate.NothingToSave"), StringTable.GetString("RpcTemplate.SaveToFile"), MessageBoxButtons.OK);
+                        return true;
+                    }
                     int filterIndex = 1;
-                    // proposed in the folder loaded at startup, so that what is saved there comes back next time
+                    // proposed in the folder loaded at startup, so that what is saved there comes back next time,
+                    // under a name not taken yet, so that an earlier file is not overwritten by accident
                     string fileName = IOPath.Combine(TemplateLibrary.UserDirectory, "Templates.json");
+                    for (int n = 2; File.Exists(fileName); n++) fileName = IOPath.Combine(TemplateLibrary.UserDirectory, $"Templates {n}.json");
                     if (frame.UIService.ShowSaveFileDlg("Templates", StringTable.GetString("MCPServer.SaveTemplateFile"), StringTable.GetString("MCPServer.Template.Filter"), ref filterIndex, ref fileName) == DialogResult.OK)
                     {
                         using var fileStream = File.Create(fileName);
@@ -4210,7 +4262,7 @@ namespace ShapeIt
                         writer.WriteStartObject();
                         writer.WritePropertyName("templates");
                         writer.WriteStartArray();
-                        foreach (var item in mcpServer.templates)
+                        foreach (var item in toSave)
                         {
                             writer.WriteStartObject();
 
@@ -4229,6 +4281,11 @@ namespace ShapeIt
                         }
                         writer.WriteEndArray();
                         writer.WriteEndObject();
+                        // from now on they come from this file, as they will after the next start
+                        List<string> names = toSave.Select(t => t.Key).ToList();
+                        templateFiles.Add(new TemplateFile(IOPath.GetFileNameWithoutExtension(fileName), IOPath.GetFileNameWithoutExtension(fileName), null, names));
+                        RememberLoaded(names);
+                        mcpServer.OnTemplatesChanged();
                     }
                     return true;
                 }
@@ -4286,6 +4343,11 @@ namespace ShapeIt
             if (MenuId.StartsWith(TemplateCommandPrefix))
             {
                 CommandState.Enabled = mcpServer.templates.ContainsKey(MenuId.Substring(TemplateCommandPrefix.Length));
+                return true;
+            }
+            if (templateGroupPopups.Contains(MenuId))
+            {   // the drop-down button of a template file
+                CommandState.Enabled = true;
                 return true;
             }
             switch (MenuId)

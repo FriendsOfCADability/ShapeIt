@@ -87,6 +87,53 @@ namespace CADability.Tests
             Assert.IsTrue(templates.ContainsKey("stirnrad"));
         }
 
+        [TestMethod]
+        public void FileLabelAndIconDescribeTheGroup()
+        {
+            string icon = TemplateIcon.Generic.Replace("\"", "\\\"");
+            File.WriteAllText(Path.Combine(root, "user", "gears.json"),
+                "{\"label\":\"Zahnräder\",\"icon\":\"" + icon + "\",\"templates\":[]}");
+            File.WriteAllText(Path.Combine(root, "user", "plain.json"),
+                "{\"icon\":\"<svg xmlns=\\\"http://www.w3.org/2000/svg\\\"><script/></svg>\",\"templates\":[]}");
+            Dictionary<string, List<JsonElement>> templates = new();
+            TemplateFile gears = TemplateLibrary.ReadFile(Path.Combine(root, "user", "gears.json"), templates);
+            Assert.AreEqual("gears", gears.Id);
+            Assert.AreEqual("Zahnräder", gears.Label);
+            Assert.AreEqual(TemplateIcon.Generic, gears.Icon);
+            TemplateFile plain = TemplateLibrary.ReadFile(Path.Combine(root, "user", "plain.json"), templates);
+            Assert.AreEqual("plain", plain.Label, "without a label the file name");
+            Assert.IsNull(plain.Icon, "an icon that is not accepted is ignored");
+        }
+
+        private static TemplateFile File_(string id, params string[] names) => new TemplateFile(id, "Group " + id, null, names);
+
+        [TestMethod]
+        public void FilesWithSeveralTemplatesBecomeDropDownButtons()
+        {
+            TemplateFile gears = File_("gears", "spur", "rack", "worm");
+            TemplateFile single = File_("single", "box");
+            // a user file takes "worm" over: the gear group keeps two templates
+            TemplateFile mine = File_("mine", "worm");
+            List<TemplateToolbarEntry> entries = TemplateLibrary.ToolbarEntries(
+                new[] { "spur", "rack", "worm", "box", "recorded" }, new[] { gears, single, mine }, name => name);
+            Assert.AreEqual(4, entries.Count, string.Join(", ", entries.ConvertAll(e => e.Label)));
+            // ordered by label: box, Group gears, recorded, worm
+            Assert.AreEqual("box", entries[0].Label);
+            Assert.IsNull(entries[0].GroupId);
+            Assert.AreEqual("Group gears", entries[1].Label);
+            Assert.AreEqual("RpcTemplate.Group.gears", entries[1].GroupId);
+            CollectionAssert.AreEqual(new[] { "rack", "spur" }, (System.Collections.ICollection)entries[1].Templates);
+            Assert.AreEqual("recorded", entries[2].Label, "a template from no file stands alone");
+            Assert.AreEqual("worm", entries[3].Label);
+            Assert.IsNull(entries[3].GroupId, "a file with a single template needs no drop-down");
+        }
+
+        [TestMethod]
+        public void GroupIdIsSafeForTheMenuResource()
+        {
+            Assert.AreEqual("RpcTemplate.Group.Zahnr_der_O_Brien", TemplateLibrary.GroupMenuId("Zahnräder O'Brien"));
+        }
+
         private static string ThisFile([System.Runtime.CompilerServices.CallerFilePath] string thisFile = "") => thisFile;
 
         [TestMethod]

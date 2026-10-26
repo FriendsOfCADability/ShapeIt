@@ -335,7 +335,7 @@ namespace ShapeIt
             modellingPropertyEntries = new ModellingPropertyEntries(CadFrame);
             modellingPropPage.Add(modellingPropertyEntries, false);
             // one button per template, with the template's icon
-            modellingPropertyEntries.TemplatesChanged += () => SetDynamicToolbar("Templates", modellingPropertyEntries.TemplateMenuIds());
+            modellingPropertyEntries.TemplatesChanged += () => SetDynamicToolbar("Templates", modellingPropertyEntries.TemplateToolbarIds());
             CadFrame.ControlCenter.ShowPropertyPage("Modelling");
         }
 
