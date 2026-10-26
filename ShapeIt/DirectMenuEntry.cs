@@ -165,8 +165,12 @@ namespace ShapeIt
     /// It has a "directMenu" button attached to the line, which when pressed calls <see cref="ExecuteMenu"/>, where you 
     /// add your code. It als calls ExecuteMenu when the line is selected and enter is beeing pressed.
     /// </summary>
-    internal class DirectMenuEntry : SelectEntry
+    internal class DirectMenuEntry : SelectEntry, IIconPropertyEntry
     {
+        /// <summary>
+        /// Menu id of an icon shown left of the label (looked up like a toolbar icon), null for none
+        /// </summary>
+        public string? IconId { get; set; }
         /// <summary>
         /// Marks this entry as selectable and having a directMenu button and behaviour
         /// </summary>

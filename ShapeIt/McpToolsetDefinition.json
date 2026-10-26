@@ -4550,6 +4550,11 @@
 							"$ref": "#/types/TemplateCheckSpec"
 						}
 					},
+					"icon": {
+						"type": "string",
+						"maxLength": 16384,
+						"description": "Optional icon as SVG text, shown in the application's template list and on its 'Templates' toolbar (16 to 22 pixels). Write a square viewBox (\"0 0 64 64\" like the built-in icons), a few bold shapes with stroke widths of about 4 units and no text, so that it reads at 16 pixels; use explicit colors (dark grey #494c4e for outlines, one accent color). Only plain graphics are accepted: no <script>, <style>, <image>, <foreignObject>, event handlers or references outside the icon (href and url() only to '#id'). Without an icon the template gets a generic one."
+					},
 					"allowDocumentCommit": {
 						"type": "boolean",
 						"default": false,

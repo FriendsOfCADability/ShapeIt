@@ -39,6 +39,9 @@
   <data name="Toolbar.Name.Construct">
     <label>Konstruieren</label>
   </data>
+  <data name="Toolbar.Name.Templates">
+    <label>Templates</label>
+  </data>
   <data name="Modelling.Properties">
     <label>Modellier Modus</label>
     <info>Modelliermodus: ändere geometrische EIgenschaften der Objekte </info>

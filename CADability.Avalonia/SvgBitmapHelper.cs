@@ -25,6 +25,14 @@ namespace CADability.Avalonia
         // Cache per (resourceBaseName, pixelSize) to avoid re-rendering the same SVG repeatedly
         private static readonly Dictionary<(string name, int size), Bitmap> cachedBitmaps = new();
 
+        static SvgBitmapHelper()
+        {   // a runtime icon was replaced: its bitmaps are stale (not disposed, controls may still show them)
+            SvgIconRegistry.IconChanged += menuId =>
+            {
+                foreach (var key in cachedBitmaps.Keys.Where(k => k.name == menuId).ToList()) cachedBitmaps.Remove(key);
+            };
+        }
+
         /// <summary>
         /// Renders an embedded SVG resource to an Avalonia Bitmap at the requested pixel size.
         /// Searches for "Icons/{resourceBaseName}.svg" in the given assembly.
@@ -47,6 +55,18 @@ namespace CADability.Avalonia
 
             if (cachedBitmaps.TryGetValue((resourceBaseName, pixelSize), out var cached))
                 return cached;
+
+            // An icon supplied at runtime (e.g. by a template) takes precedence over the embedded ones
+            if (SvgIconRegistry.TryGet(resourceBaseName, out string? svgText))
+            {
+                using var textStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(svgText));
+                var runtimeBmp = SkiaSvgRenderer.RenderToBitmap(textStream, pixelSize, pixelSize);
+                if (runtimeBmp != null)
+                {
+                    cachedBitmaps[(resourceBaseName, pixelSize)] = runtimeBmp;
+                    return runtimeBmp;
+                }
+            }
 
             // Try SVG resource: "Icons/{resourceBaseName}.svg"
             using var svgStream = TryOpenResourceStream(assembly, "Icons/" + resourceBaseName, ".svg");

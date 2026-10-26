@@ -401,6 +401,7 @@ namespace ShapeIt
                     templates[currentTemplatName] = recordingTemplate;
                     recordingTemplate = null;
                     currentTemplatName = null;
+                    TemplatesChanged?.Invoke();
                 }
                 else if (recordingTemplate != null && !executeTemplate)
                 {   // steps replayed by a nested template.instantiate belong to the inner template:
@@ -6026,11 +6027,15 @@ namespace ShapeIt
             return cachedToolsetInfo.DeepClone();
         }
 
-        private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, JsonElement presets, JsonElement checks, bool allowDocumentCommit)
+        private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, JsonElement presets, JsonElement checks, string? icon, bool allowDocumentCommit)
         {
             if (parameters.ValueKind != JsonValueKind.Array) { throw new JsonRpcException("E_INVALID_PARAMETER", $"'parameters must be an array'."); }
             // before the workspace copy is pushed: a template.begin that fails here starts no recording
-            if (!replayingTemplate) TemplateParameterRules.ValidateDefinition(parameters, presets, checks);
+            if (!replayingTemplate)
+            {
+                TemplateParameterRules.ValidateDefinition(parameters, presets, checks);
+                if (icon != null && TemplateIcon.Problem(icon) is string iconProblem) throw new JsonRpcException("E_INVALID_PARAMS", iconProblem);
+            }
             namedItemClones.Push(new NamedItemClone(this));
             try
             {
@@ -6314,6 +6319,27 @@ namespace ShapeIt
             }
             return null;
         }
+
+        /// <summary>
+        /// The icon of a template as SVG text, null when it has none or one that is not accepted (see
+        /// <see cref="TemplateIcon.Problem"/>): template.begin checks it when recording, but a template loaded from
+        /// a file was never recorded here.
+        /// </summary>
+        internal string? GetTemplateIcon(string key)
+        {
+            JsonElement prms = GetTemplateBeginParams(key);
+            if (prms.ValueKind != JsonValueKind.Object || !prms.TryGetProperty("icon", out JsonElement icon) || icon.ValueKind != JsonValueKind.String) return null;
+            string svg = icon.GetString()!;
+            return TemplateIcon.Problem(svg) == null ? svg : null;
+        }
+
+        /// <summary>
+        /// Raised when template.commit has stored a template. Whoever changes <see cref="templates"/> directly (e.g. by
+        /// loading a template file) raises it with <see cref="OnTemplatesChanged"/>. On the UI thread, like all calls.
+        /// </summary>
+        public event Action? TemplatesChanged;
+
+        internal void OnTemplatesChanged() => TemplatesChanged?.Invoke();
 
         internal string? GetTemplateDescription(string key)
         {

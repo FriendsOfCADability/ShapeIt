@@ -390,6 +390,15 @@ public class PropertyPageControl : Control
             }
         }
 
+        // ── Icon in the column of the +/- box, e.g. the icon of a template ──
+        if (!hasChild && !isCheckable && e is IIconPropertyEntry iconEntry && iconEntry.IconId != null)
+        {
+            int iconSize = (int)Math.Min(_buttonWidth, _lineHeight) - 2;
+            var icon = iconSize > 0 ? SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(iconEntry.IconId, iconSize) : null;
+            if (icon != null)
+                ctx.DrawImage(icon, new Rect(indentPx + (_buttonWidth - iconSize) / 2, y + (_lineHeight - iconSize) / 2, iconSize, iconSize));
+        }
+
         // Label text — strip and display shortcut badge when Shortcut flag is set
         string labelDisplayText = e.Label ?? "";
         char scMod1 = '\0', scMod2 = '\0';

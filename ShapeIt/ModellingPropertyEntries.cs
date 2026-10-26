@@ -131,6 +131,7 @@ namespace ShapeIt
             ViewsChanged(cadFrame); // first initialisation
 
             mcpServer = new MCPServer(cadFrame, cadFrame.Project, this);
+            mcpServer.TemplatesChanged += RefreshTemplateCommands;
             uiContext = SynchronizationContext.Current ?? new SynchronizationContext();
 
             LayerProperties.EnsureExists(cadFrame.Project); // for the project that is already open at startup
@@ -311,7 +312,12 @@ namespace ShapeIt
         {
             LayerProperties.EnsureExists(theProject);
             theProject.GetModel(0).RemovingGeoObjectEvent += OnObjectRemoved;
+            MCPServer previous = mcpServer;
             mcpServer = new MCPServer(theFrame, theProject, this);
+            // templates belong to the application (add-ons with their toolbar), not to the project: they stay
+            foreach (KeyValuePair<string, List<JsonElement>> template in previous.templates) mcpServer.templates[template.Key] = template.Value;
+            previous.TemplatesChanged -= RefreshTemplateCommands;
+            mcpServer.TemplatesChanged += RefreshTemplateCommands;
             if (mcpHttpServer != null)
                 mcpHttpServer.Server = mcpServer;
         }
@@ -3941,6 +3947,12 @@ namespace ShapeIt
                 Settings.GlobalSettings.SetValue("Action.RepeatConstruct", false);
             }
 
+            if (MenuId.StartsWith(TemplateCommandPrefix) && mcpServer.templates.ContainsKey(MenuId.Substring(TemplateCommandPrefix.Length)))
+            {   // a button of the "Templates" toolbar
+                cadFrame.ControlCenter.ShowPropertyPage("Action");
+                cadFrame.SetAction(new RpcTemplateAction(mcpServer, MenuId.Substring(TemplateCommandPrefix.Length)));
+                return true;
+            }
             switch (MenuId)
             {
                 case "MenuId.Edit.Copy":
@@ -4100,6 +4112,40 @@ namespace ShapeIt
             }
         }
 
+        /// <summary>Prefix of the menu ids of the templates: "RpcTemplate.Run.&lt;template name&gt;" starts the template.</summary>
+        internal const string TemplateCommandPrefix = "RpcTemplate.Run.";
+
+        /// <summary>The menu id that starts a template, e.g. from the "Templates" toolbar.</summary>
+        public static string TemplateMenuId(string templateName) => TemplateCommandPrefix + templateName;
+
+        /// <summary>
+        /// Raised when templates were added or replaced: the front ends set the buttons of their "Templates" toolbar
+        /// to <see cref="TemplateMenuIds"/>.
+        /// </summary>
+        public event System.Action? TemplatesChanged;
+
+        /// <summary>The menu ids of all templates, ordered by their labels.</summary>
+        public string[] TemplateMenuIds()
+            => mcpServer.templates.Keys.OrderBy(name => mcpServer.GetTemplateLabel(name) ?? name, StringComparer.CurrentCultureIgnoreCase)
+                .Select(TemplateMenuId).ToArray();
+
+        /// <summary>
+        /// Makes the templates known as commands: their icon (the template's own or a generic one) for toolbar and
+        /// template list, their label and description for tooltips. Then the front ends rebuild the toolbar.
+        /// </summary>
+        private void RefreshTemplateCommands()
+        {
+            foreach (string name in mcpServer.templates.Keys)
+            {
+                string menuId = TemplateMenuId(name);
+                SvgIconRegistry.Set(menuId, mcpServer.GetTemplateIcon(name) ?? TemplateIcon.Generic);
+                StringTable.AddString(StringTable.ActiveLanguage, menuId, StringTable.Category.label, mcpServer.GetTemplateLabel(name) ?? name);
+                string? description = mcpServer.GetTemplateDescription(name);
+                if (description != null) StringTable.AddString(StringTable.ActiveLanguage, menuId, StringTable.Category.info, description);
+            }
+            TemplatesChanged?.Invoke();
+        }
+
         private void SetRpcTemplateEntries()
         {
             subEntries.Clear(); // build a new list of modelling properties
@@ -4135,6 +4181,7 @@ namespace ShapeIt
                                 }
                             }
                         }
+                        mcpServer.OnTemplatesChanged(); // icons, toolbar
                         SetRpcTemplateEntries(); // to refresh with new templates in the list
                     }
                 }
@@ -4204,6 +4251,7 @@ namespace ShapeIt
                     {
                         DirectMenuEntry templateMenu = new DirectMenuEntry(resourceId);
                         templateMenu.LabelText = templateLabel;
+                        templateMenu.IconId = TemplateMenuId(item.Key);
                         templateMenu.ExecuteMenu = (frame) =>
                         {
                             cadFrame.ControlCenter.ShowPropertyPage("Action");
@@ -4233,6 +4281,11 @@ namespace ShapeIt
 
         public bool OnUpdateCommand(string MenuId, CommandState CommandState)
         {
+            if (MenuId.StartsWith(TemplateCommandPrefix))
+            {
+                CommandState.Enabled = mcpServer.templates.ContainsKey(MenuId.Substring(TemplateCommandPrefix.Length));
+                return true;
+            }
             switch (MenuId)
             {
                 case "MenuId.Edit.Paste":

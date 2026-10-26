@@ -5,6 +5,7 @@ using CADability.Avalonia;
 using CADability.UserInterface;
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Xml;
 
@@ -21,6 +22,7 @@ public partial class MainWindow : Window, ICommandHandler
     private readonly System.Collections.Generic.List<(string name, MenuItem item)> toolbarCheckItems = new();
     // Checkable "View → Toolbars → Large icons" entry.
     private MenuItem? largeIconsItem;
+    private Separator? largeIconsSeparator; // the check items of the toolbars stand above it
 
     public MainWindow()
     {
@@ -106,6 +108,9 @@ public partial class MainWindow : Window, ICommandHandler
         IPropertyPage modellingPage = cadFrame.ControlCenter.AddPropertyPage("Modelling", 6);
         modellingPropertyEntries = new ModellingPropertyEntries(cadFrame);
         modellingPage.Add(modellingPropertyEntries, false);
+        // one button per template, with the template's icon
+        modellingPropertyEntries.TemplatesChanged += () =>
+            toolBars?.SetDynamicToolBar("Templates", modellingPropertyEntries.TemplateMenuIds());
         cadFrame.ControlCenter.ShowPropertyPage("Modelling");
 
         // Route main-menu / toolbar commands to ModellingPropertyEntries first — this is what
@@ -218,21 +223,11 @@ public partial class MainWindow : Window, ICommandHandler
             toolbarsMenu.Items.Add(new Separator());
 
         foreach (var name in toolBars.ToolBarNames)
-        {
-            var local = name;
-            var item = new MenuItem
-            {
-                Header = ToolBars.DisplayName(local),
-                ToggleType = MenuItemToggleType.CheckBox,
-                IsChecked = toolBars.IsVisible(local)
-            };
-            item.Click += (_, _) => toolBars.SetVisible(local, !toolBars.IsVisible(local));
-            toolbarsMenu.Items.Add(item);
-            toolbarCheckItems.Add((local, item));
-        }
+            toolbarsMenu.Items.Add(MakeToolbarCheckItem(name));
 
         // Toggle between the compact and the larger (~1.4×) icon variant.
-        toolbarsMenu.Items.Add(new Separator());
+        largeIconsSeparator = new Separator();
+        toolbarsMenu.Items.Add(largeIconsSeparator);
         largeIconsItem = new MenuItem
         {
             Header = StringTable.GetString("Toolbar.LargeIcons"),
@@ -246,9 +241,34 @@ public partial class MainWindow : Window, ICommandHandler
         toolbarsMenu.SubmenuOpened += (_, _) => RefreshToolbarChecks();
     }
 
+    private MenuItem MakeToolbarCheckItem(string name)
+    {
+        var item = new MenuItem
+        {
+            Header = ToolBars.DisplayName(name),
+            ToggleType = MenuItemToggleType.CheckBox,
+            IsChecked = toolBars!.IsVisible(name)
+        };
+        item.Click += (_, _) => toolBars.SetVisible(name, !toolBars.IsVisible(name));
+        toolbarCheckItems.Add((name, item));
+        return item;
+    }
+
     private void RefreshToolbarChecks()
     {
         if (toolBars == null) return;
+        // toolbars come and go at runtime (the "Templates" toolbar): keep one entry per toolbar, above the separator
+        var toolbarsMenu = largeIconsSeparator?.Parent as MenuItem;
+        if (toolbarsMenu != null)
+        {
+            foreach (var gone in toolbarCheckItems.Where(c => !toolBars.ToolBarNames.Contains(c.name)).ToList())
+            {
+                toolbarsMenu.Items.Remove(gone.item);
+                toolbarCheckItems.Remove(gone);
+            }
+            foreach (var name in toolBars.ToolBarNames.Where(n => !toolbarCheckItems.Any(c => c.name == n)).ToList())
+                toolbarsMenu.Items.Insert(toolbarsMenu.Items.IndexOf(largeIconsSeparator), MakeToolbarCheckItem(name));
+        }
         foreach (var (name, item) in toolbarCheckItems)
             item.IsChecked = toolBars.IsVisible(name);
         if (largeIconsItem != null) largeIconsItem.IsChecked = toolBars.LargeIcons;

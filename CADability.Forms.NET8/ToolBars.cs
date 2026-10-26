@@ -192,7 +192,6 @@ namespace CADability.Forms.NET8
             res.Name = name;
             for (int i = 0; i < menuIds.Length; i++)
             {
-                int ImageIndex = MenuResource.FindImageIndex(menuIds[i]);
                 // Try SVG first (embedded), fallback to ImageList if null:
                 Bitmap? bmp = SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(menuIds[i], res, size, null);
                 if (MenuResource.IsPopup(menuIds[i])) // this is a popup menu id. On click, we show the popup menu (sub menu)
@@ -200,7 +199,7 @@ namespace CADability.Forms.NET8
                     ToolStripSplitButton btn = new ToolStripSplitButton();
                     TagInfo tagInfo = new TagInfo(menuIds[i], commandHandler, btn, true);
                     btn.Tag = tagInfo;
-                    if (ImageIndex >= 0)
+                    if (bmp != null) // an SVG icon (embedded or supplied at runtime) or one of the raster images
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
                         btn.ImageScaling = ToolStripItemImageScaling.SizeToFit;
@@ -221,7 +220,7 @@ namespace CADability.Forms.NET8
                     ToolStripButton btn = new ToolStripButton();
                     TagInfo tagInfo = new TagInfo(menuIds[i], commandHandler, btn);
                     btn.Tag = tagInfo;
-                    if (ImageIndex >= 0)
+                    if (bmp != null) // an SVG icon (embedded or supplied at runtime) or one of the raster images
                     {
                         btn.DisplayStyle = ToolStripItemDisplayStyle.Image;
                         btn.ImageScaling = ToolStripItemImageScaling.SizeToFit;
@@ -332,6 +331,26 @@ namespace CADability.Forms.NET8
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Snap", commandHandler), 1);
                 topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Construct", commandHandler), 1);
             }
+        }
+        /// <summary>
+        /// Sets the buttons of a toolbar whose commands are only known at runtime (e.g. the templates of ShapeIt):
+        /// a toolbar of that name is replaced in place, a new one is added in the last row, and no menu ids remove it.
+        /// </summary>
+        public static void SetDynamicToolBar(ToolStripContainer topToolStripContainer, ICommandHandler commandHandler, string name, string[] menuIds)
+        {
+            ToolStripPanel panel = topToolStripContainer.TopToolStripPanel;
+            ToolStrip existing = panel.Controls.OfType<ToolStrip>().FirstOrDefault(ts => ts.Name == name);
+            Point location = Point.Empty;
+            if (existing != null)
+            {
+                location = existing.Location;
+                panel.Controls.Remove(existing);
+                existing.Dispose();
+            }
+            if (menuIds.Length == 0) return;
+            ToolStrip toolStrip = MakeToolStrip(menuIds, name, commandHandler);
+            if (existing != null) panel.Join(toolStrip, location);
+            else panel.Join(toolStrip, Math.Max(0, panel.Rows.Length - 1));
         }
         public static void SetToolBar(ToolStripContainer topToolStripContainer, ICommandHandler commandHandler, XmlNode definition)
         {

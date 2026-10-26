@@ -273,6 +273,12 @@ namespace CADability.Forms.NET8
                 graphics.DrawLine(SystemPens.ControlText, xm - s3, ym, xm + s3, ym); // the horizontal "minus" line
                 if (!entries[index].IsOpen) graphics.DrawLine(SystemPens.ControlText, xm, ym - s3, xm, ym + s3); // the vertical "plus" line
             }
+            else if (entries[index] is IIconPropertyEntry iconEntry && iconEntry.IconId != null && !entries[index].Flags.HasFlag(PropertyEntryType.Checkable))
+            {   // an icon in the column of the +/- box, e.g. the icon of a template
+                int iconSize = Math.Min(buttonWidth, area.Height) - 2;
+                var icon = SvgBitmapHelper.CreateBitmapFromEmbeddedSvg(iconEntry.IconId, this, new Size(iconSize, iconSize));
+                if (icon != null) graphics.DrawImage(icon, entries[index].IndentLevel * buttonWidth + (buttonWidth - iconSize) / 2 + 1, area.Top + (area.Height - iconSize) / 2, iconSize, iconSize);
+            }
             bool showValue = (entries[index].Value != null) && !entries[index].Flags.HasFlag(PropertyEntryType.Checkable);
             if (showValue) graphics.DrawLine(SystemPens.ControlLight, middle, area.Top, middle, area.Bottom); // the vertical divider line
             Rectangle labelRect;

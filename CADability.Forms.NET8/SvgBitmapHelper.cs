@@ -23,6 +23,14 @@ namespace CADability.Forms.NET8
         // Cache generated bitmaps per (resourceName, targetSize)
         private static readonly Dictionary<(string, Size), Bitmap> cachedBitmaps = new();
 
+        static SvgBitmapHelper()
+        {   // a runtime icon was replaced: its bitmaps are stale (not disposed, controls may still show them)
+            SvgIconRegistry.IconChanged += menuId =>
+            {
+                foreach (var key in cachedBitmaps.Keys.Where(k => k.Item1 == menuId).ToList()) cachedBitmaps.Remove(key);
+            };
+        }
+
         /// <summary>
         /// Create a toolbar-sized bitmap from an embedded SVG resource using Svg.NET.
         /// Fallback to embedded raster ImageList and upscale if needed.
@@ -57,6 +65,22 @@ namespace CADability.Forms.NET8
 
             if (cachedBitmaps.TryGetValue((resourceBaseName, targetSize), out var cached) && cached != null)
                 return cached;
+
+            // 1a) An icon supplied at runtime (e.g. by a template) takes precedence over the embedded ones
+            if (SvgIconRegistry.TryGet(resourceBaseName, out string svgText))
+            {
+                try
+                {
+                    var doc = SvgDocument.FromSvg<SvgDocument>(svgText);
+                    var bmp = doc.Draw(targetSize.Width, targetSize.Height);
+                    cachedBitmaps[(resourceBaseName, targetSize)] = bmp;
+                    return bmp;
+                }
+                catch
+                {
+                    // an icon that cannot be rendered: fall through to the embedded ones
+                }
+            }
 
             // 2) Try SVG first: look up "Icons/{resourceBaseName}.svg" (exact or suffix match)
             using (var svgStream = TryOpenResourceStream(assembly, "Icons/" + resourceBaseName, ".svg"))

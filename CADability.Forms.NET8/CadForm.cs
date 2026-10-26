@@ -77,6 +77,14 @@ namespace CADability.Forms.NET8
         {
             ToolBars.SetToolBar(topToolStripContainer, cadFrame, definition);
         }
+        /// <summary>
+        /// Sets the buttons of a toolbar whose commands are only known at runtime; no menu ids remove it.
+        /// The commands go to the frame like those of the other toolbars.
+        /// </summary>
+        public void SetDynamicToolbar(string name, string[] menuIds)
+        {
+            ToolBars.SetDynamicToolBar(topToolStripContainer, cadFrame, name, menuIds);
+        }
         public ProgressForm ProgressForm
         {
             get

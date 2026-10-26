@@ -9,6 +9,7 @@ using CADability;
 using CADability.UserInterface;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace CADability.Avalonia
@@ -52,6 +53,8 @@ namespace CADability.Avalonia
         private readonly Dictionary<string, Control> bars = new();
         private List<string> order = new(StandardOrder);
         private readonly HashSet<string> hidden = new();
+        // toolbars whose commands are only known at runtime (e.g. the templates of ShapeIt), see SetDynamicToolBar
+        private readonly Dictionary<string, string[]> dynamicMenuIds = new();
 
         // Key under which order + visibility are persisted in Settings.GlobalSettings.
         private const string LayoutKey = "ToolbarLayout";
@@ -84,7 +87,27 @@ namespace CADability.Avalonia
             { "File", "Edit", "Zoom", "Object", "Snap", "Construct" };
 
         /// <summary>All known toolbar names, in their canonical (default) order.</summary>
-        public IReadOnlyList<string> ToolBarNames => StandardOrder;
+        public IReadOnlyList<string> ToolBarNames => StandardOrder.Concat(dynamicMenuIds.Keys).ToList();
+
+        /// <summary>
+        /// Sets the buttons of a toolbar whose commands are only known at runtime (e.g. the templates of ShapeIt).
+        /// A new one comes last unless the saved layout knows its place; no menu ids remove it. The commands go to
+        /// the command handler like those of the standard toolbars.
+        /// </summary>
+        public void SetDynamicToolBar(string name, string[] menuIds)
+        {
+            if (menuIds.Length == 0)
+            {
+                if (!dynamicMenuIds.Remove(name)) return;
+            }
+            else
+            {
+                dynamicMenuIds[name] = menuIds;
+                if (!order.Contains(name)) order.Add(name);
+            }
+            RebuildBars();
+            LayoutChanged?.Invoke();
+        }
 
         /// <summary>Whether the named toolbar is currently visible.</summary>
         public bool IsVisible(string name) => !hidden.Contains(name);
@@ -99,7 +122,7 @@ namespace CADability.Avalonia
             iconSize = Settings.GlobalSettings.GetIntValue(IconSizeKey, SmallIconSize);
             // Build each toolbar once; Rebuild() arranges them according to order/hidden.
             bars.Clear();
-            foreach (var name in StandardOrder)
+            foreach (var name in ToolBarNames)
                 bars[name] = BuildToolBar(name);
 
             LoadLayout();
@@ -111,7 +134,7 @@ namespace CADability.Avalonia
         {
             stateUpdaters.Clear();
             bars.Clear();
-            foreach (var name in StandardOrder)
+            foreach (var name in ToolBarNames)
                 bars[name] = BuildToolBar(name);
             Rebuild();
         }
@@ -181,7 +204,8 @@ namespace CADability.Avalonia
             {
                 var kv = part.Split('=');
                 var name = kv[0];
-                if (!bars.ContainsKey(name) || newOrder.Contains(name)) continue; // ignore unknown/duplicate
+                // a name not known yet may be a dynamic toolbar added later: it keeps its place and visibility
+                if (newOrder.Contains(name)) continue; // ignore duplicates
                 newOrder.Add(name);
                 if (kv.Length > 1 && kv[1] == "0") hidden.Add(name);
             }
@@ -209,7 +233,7 @@ namespace CADability.Avalonia
             // this toolbar (Ausblenden / Nach vorne / Nach hinten).
             strip.Children.Add(BuildGrip(name));
 
-            foreach (var menuId in StandardMenuIds(name))
+            foreach (var menuId in dynamicMenuIds.TryGetValue(name, out var dynamicIds) ? dynamicIds : StandardMenuIds(name))
                 strip.Children.Add(BuildButton(menuId));
 
             return new Border
