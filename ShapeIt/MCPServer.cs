@@ -389,7 +389,8 @@ namespace ShapeIt
                     replayingTemplate = wasReplaying;
                 }
                 if (method == "template.begin" && !executeTemplate)
-                {
+                {   // a failed template.begin starts no recording: it pushed no workspace copy for template.commit to pop
+                    if (JsonRpcErrorMessage(response) != null) return response;
                     currentTemplatName = RequireString(@params, "name");
                     recordingTemplate = [root.Clone()];
                 }
@@ -3794,7 +3795,10 @@ namespace ShapeIt
 
         private void SketchConnectImpl(Sketch sketch, JsonElement entities, double precision, bool closeGaps, string name)
         {
-            List<ICurve2D> toConnect = IterateSelector<ICurve2D>(entities).ToList();
+            // without 'sketchGeometry' the open curves of the sketch, as the schema says: closed ones need no connecting
+            List<ICurve2D> toConnect = entities.ValueKind == JsonValueKind.Undefined && sketch != null
+                ? sketch.Curves.Where(c => !c.IsClosed).ToList()
+                : IterateSelector<ICurve2D>(entities).ToList();
             if (toConnect.Count < 2) throw new JsonRpcException(-32602, "We need at least 2 curves to connect.");
             Reduce2D r2d = new Reduce2D();
             r2d.OutputMode = Reduce2D.Mode.Paths;
@@ -5524,43 +5528,7 @@ namespace ShapeIt
         /// </para>
         /// </summary>
         private string ExpandMessagePlaceholders(string message)
-        {
-            if (string.IsNullOrEmpty(message) || message.IndexOf('{') < 0) return message;
-            StringBuilder result = new StringBuilder(message.Length + 32);
-            for (int i = 0; i < message.Length; i++)
-            {
-                char c = message[i];
-                if (c == '{' && i + 1 < message.Length && message[i + 1] == '{') { result.Append('{'); i++; continue; }
-                if (c == '}' && i + 1 < message.Length && message[i + 1] == '}') { result.Append('}'); i++; continue; }
-                if (c != '{') { result.Append(c); continue; }
-                int end = message.IndexOf('}', i + 1);
-                if (end < 0) { result.Append(c); continue; } // unbalanced brace: keep the text as written
-                result.Append(EvaluateForMessage(message.Substring(i + 1, end - i - 1)));
-                i = end;
-            }
-            return result.ToString();
-        }
-
-        /// <summary>One placeholder. Numbers are trimmed to four decimals - a message is read by a human,
-        /// the full precision belongs in inspect.properties.</summary>
-        private string EvaluateForMessage(string expression)
-        {
-            try
-            {
-                object value = Evaluator.Evaluate(expression, namedItems.Dict);
-                switch (value)
-                {
-                    case null: return "{" + expression + "}";
-                    case double d: return d.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
-                    case float f: return f.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
-                    default: return Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "";
-                }
-            }
-            catch (Exception)
-            {
-                return "{" + expression + "}";
-            }
-        }
+            => TemplateParameterRules.ExpandPlaceholders(message, namedItems.Dict);
 
         private void AssertCheckImpl(JsonElement objects, string? condition, int minCount, int maxCount, string message, string name)
         {
@@ -6058,10 +6026,34 @@ namespace ShapeIt
             return cachedToolsetInfo.DeepClone();
         }
 
-        private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, bool allowDocumentCommit)
+        private void TemplateBeginImpl(string name, string label, string description, string category, JsonElement tags, JsonElement parameters, JsonElement presets, JsonElement checks, bool allowDocumentCommit)
         {
-            namedItemClones.Push(new NamedItemClone(this));
             if (parameters.ValueKind != JsonValueKind.Array) { throw new JsonRpcException("E_INVALID_PARAMETER", $"'parameters must be an array'."); }
+            // before the workspace copy is pushed: a template.begin that fails here starts no recording
+            if (!replayingTemplate) TemplateParameterRules.ValidateDefinition(parameters, presets, checks);
+            namedItemClones.Push(new NamedItemClone(this));
+            try
+            {
+                BindTemplateParameters(parameters);
+            }
+            catch (Exception) when (!replayingTemplate)
+            {   // no recording starts (see ProcessMethod), so nothing would pop the copy again. A replay leaves it
+                // to its caller, which restores the workspace after a failing step.
+                namedItemClones.Pop().Dispose();
+                throw;
+            }
+            if (!replayingTemplate)
+            {   // the construction is recorded with the defaults, so they have to be valid; a replay checks the
+                // values it is given after they replaced the defaults (CheckTemplateParameterValues)
+                List<ParameterProblem> problems = TemplateParameterRules.Check(parameters, checks, namedItems.Dict);
+                if (problems.Count > 0)
+                    AddCallWarning("The default values violate the template's own rules, the recording is built with invalid values: "
+                        + string.Join(" ", problems.Select(p => p.Message)));
+            }
+        }
+
+        private void BindTemplateParameters(JsonElement parameters)
+        {
             foreach (var item in parameters.EnumerateArray())
             {
                 string parName = RequireString(item, "name");
@@ -6143,6 +6135,30 @@ namespace ShapeIt
             }
         }
 
+        /// <summary>The 'params' of the template.begin of a template, undefined when there is no such template.</summary>
+        internal JsonElement GetTemplateBeginParams(string templateName)
+        {
+            if (templates.TryGetValue(templateName, out var jsons) && jsons.Count > 0 && jsons[0].ValueKind == JsonValueKind.Object
+                && jsons[0].TryGetProperty("params", out JsonElement prms) && prms.ValueKind == JsonValueKind.Object)
+                return prms;
+            return default;
+        }
+
+        /// <summary>
+        /// Checks the parameter values of an instantiation, after they have replaced the defaults: the 'min' and 'max'
+        /// of the inputs and the 'checks' of template.begin. All violations are reported in one message.
+        /// </summary>
+        private void CheckTemplateParameterValues(string templateName)
+        {
+            JsonElement prms = GetTemplateBeginParams(templateName);
+            if (prms.ValueKind != JsonValueKind.Object) return;
+            prms.TryGetProperty("parameters", out JsonElement parameters);
+            prms.TryGetProperty("checks", out JsonElement checks);
+            List<ParameterProblem> problems = TemplateParameterRules.Check(parameters, checks, namedItems.Dict);
+            if (problems.Count > 0)
+                throw new JsonRpcException("E_INVALID_PARAMS", $"Template '{templateName}': " + string.Join(" ", problems.Select(p => p.Message)));
+        }
+
         private static string GetObjectTypeName(object o)
         {
             try { return GetItemTypeName(o); } catch (Exception) { return o.GetType().Name; }
@@ -6217,6 +6233,7 @@ namespace ShapeIt
                             try
                             {
                                 CheckTemplateObjectArguments(template);
+                                CheckTemplateParameterValues(template);
                             }
                             catch (Exception)
                             {   // like a failing step: restore the outer workspace pushed by template.begin
@@ -6478,6 +6495,7 @@ namespace ShapeIt
                                 namedItems[item.Key] = item.Value;
                             }
                             CheckTemplateObjectArguments(template);
+                            CheckTemplateParameterValues(template);
                         }
                     }
                 }

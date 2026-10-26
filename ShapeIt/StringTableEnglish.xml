@@ -518,4 +518,16 @@
 		<label>Commit</label>
 		<info>Runs the template and puts the result into the model</info>
 	</data>
+	<data name="RpcTemplate.CustomValue">
+		<label>custom value</label>
+		<info>The current values match no entry of the list</info>
+	</data>
+	<data name="RpcTemplate.TooSmall">
+		<label>{0} must be at least {1}.</label>
+		<info>Message when a template parameter is below its minimum</info>
+	</data>
+	<data name="RpcTemplate.TooLarge">
+		<label>{0} must be at most {1}.</label>
+		<info>Message when a template parameter is above its maximum</info>
+	</data>
 </root>

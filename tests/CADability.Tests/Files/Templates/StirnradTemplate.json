@@ -1,0 +1,805 @@
+{
+  "templates": [
+    {
+      "name": "stirnrad",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "stirnrad",
+            "label": "Stirnrad",
+            "category": "Zahnräder",
+            "description": "Spur gear with involute teeth after DIN 3960 / ISO 21771, basic rack after DIN 867 / ISO 53, module series after DIN 780. The flanks are exact involutes from the base circle to the tip circle; below the base circle they continue radially to the root circle. The root has no fillet (no trochoid), and undercut is refused instead of being modelled.",
+            "tags": [
+              "gear",
+              "spur gear",
+              "involute",
+              "Zahnrad",
+              "Stirnrad",
+              "DIN 867",
+              "DIN 780"
+            ],
+            "parameters": [
+              {
+                "name": "center",
+                "value": "p(0,0,0)",
+                "label": "Mittelpunkt",
+                "input": {
+                  "kind": "point3",
+                  "group": "Lage",
+                  "order": 1,
+                  "description": "Center of the gear on its front face; the axis is the z-axis, the teeth extend in +z. Click a point in the model or enter its coordinates."
+                }
+              },
+              {
+                "name": "m",
+                "value": 2,
+                "label": "Modul m",
+                "input": {
+                  "kind": "length",
+                  "group": "Verzahnung",
+                  "order": 2,
+                  "min": 0.1,
+                  "description": "Module in mm (DIN 780 / ISO 54). Choose it from a module series above or enter any value."
+                }
+              },
+              {
+                "name": "z",
+                "value": 20,
+                "label": "Zähnezahl z",
+                "input": {
+                  "kind": "integer",
+                  "group": "Verzahnung",
+                  "order": 3,
+                  "min": 6,
+                  "max": 360,
+                  "description": "Number of teeth."
+                }
+              },
+              {
+                "name": "b",
+                "value": 20,
+                "label": "Zahnbreite b",
+                "input": {
+                  "kind": "length",
+                  "group": "Verzahnung",
+                  "order": 4,
+                  "min": 0.1,
+                  "description": "Face width: length of the teeth along the axis."
+                }
+              },
+              {
+                "name": "x",
+                "value": 0,
+                "label": "Profilverschiebung x",
+                "input": {
+                  "kind": "number",
+                  "group": "Verzahnung",
+                  "order": 5,
+                  "min": -1,
+                  "max": 1.5,
+                  "optional": true,
+                  "description": "Profile shift coefficient (DIN 3960): positive values move the tool outwards, give thicker teeth at the root and avoid undercut with few teeth."
+                }
+              },
+              {
+                "name": "alpha",
+                "value": 20,
+                "label": "Eingriffswinkel α",
+                "input": {
+                  "kind": "angle",
+                  "group": "Bezugsprofil",
+                  "order": 6,
+                  "min": 10,
+                  "max": 30,
+                  "optional": true,
+                  "description": "Pressure angle of the basic rack (DIN 867: 20°)."
+                }
+              },
+              {
+                "name": "haP",
+                "value": 1,
+                "label": "Kopfhöhenfaktor ha*",
+                "input": {
+                  "kind": "number",
+                  "group": "Bezugsprofil",
+                  "order": 7,
+                  "min": 0.5,
+                  "max": 1.5,
+                  "optional": true,
+                  "description": "Addendum of the basic rack in multiples of the module (DIN 867: 1)."
+                }
+              },
+              {
+                "name": "hfP",
+                "value": 1.25,
+                "label": "Fußhöhenfaktor hf*",
+                "input": {
+                  "kind": "number",
+                  "group": "Bezugsprofil",
+                  "order": 8,
+                  "min": "haP",
+                  "max": 2,
+                  "optional": true,
+                  "description": "Dedendum of the basic rack in multiples of the module (DIN 867: 1.25). At least the addendum, so that the tip of the mating gear finds room."
+                }
+              },
+              {
+                "name": "Asn",
+                "value": 0,
+                "label": "Zahndickenabmaß Asn",
+                "input": {
+                  "kind": "length",
+                  "group": "Spiel",
+                  "order": 9,
+                  "min": "-0.5*m",
+                  "max": 0,
+                  "optional": true,
+                  "description": "Tooth thickness deviation at the reference circle in mm (DIN 3967), zero or negative: makes the teeth thinner by this amount and gives backlash with the mating gear."
+                }
+              },
+              {
+                "name": "dBore",
+                "value": 0,
+                "label": "Bohrung",
+                "input": {
+                  "kind": "length",
+                  "group": "Radkörper",
+                  "order": 10,
+                  "min": 0,
+                  "optional": true,
+                  "description": "Diameter of the axial bore, 0 for none."
+                }
+              }
+            ],
+            "presets": [
+              {
+                "name": "moduleSeries1",
+                "label": "Modulreihe I (DIN 780)",
+                "description": "Preferred modules, series I of DIN 780 / ISO 54. Sets the module m.",
+                "options": [
+                  {
+                    "label": "0,5",
+                    "values": {
+                      "m": 0.5
+                    }
+                  },
+                  {
+                    "label": "0,6",
+                    "values": {
+                      "m": 0.6
+                    }
+                  },
+                  {
+                    "label": "0,7",
+                    "values": {
+                      "m": 0.7
+                    }
+                  },
+                  {
+                    "label": "0,8",
+                    "values": {
+                      "m": 0.8
+                    }
+                  },
+                  {
+                    "label": "0,9",
+                    "values": {
+                      "m": 0.9
+                    }
+                  },
+                  {
+                    "label": "1",
+                    "values": {
+                      "m": 1
+                    }
+                  },
+                  {
+                    "label": "1,25",
+                    "values": {
+                      "m": 1.25
+                    }
+                  },
+                  {
+                    "label": "1,5",
+                    "values": {
+                      "m": 1.5
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "values": {
+                      "m": 2
+                    }
+                  },
+                  {
+                    "label": "2,5",
+                    "values": {
+                      "m": 2.5
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "values": {
+                      "m": 3
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "values": {
+                      "m": 4
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "values": {
+                      "m": 5
+                    }
+                  },
+                  {
+                    "label": "6",
+                    "values": {
+                      "m": 6
+                    }
+                  },
+                  {
+                    "label": "8",
+                    "values": {
+                      "m": 8
+                    }
+                  },
+                  {
+                    "label": "10",
+                    "values": {
+                      "m": 10
+                    }
+                  },
+                  {
+                    "label": "12",
+                    "values": {
+                      "m": 12
+                    }
+                  },
+                  {
+                    "label": "16",
+                    "values": {
+                      "m": 16
+                    }
+                  },
+                  {
+                    "label": "20",
+                    "values": {
+                      "m": 20
+                    }
+                  },
+                  {
+                    "label": "25",
+                    "values": {
+                      "m": 25
+                    }
+                  },
+                  {
+                    "label": "32",
+                    "values": {
+                      "m": 32
+                    }
+                  },
+                  {
+                    "label": "40",
+                    "values": {
+                      "m": 40
+                    }
+                  },
+                  {
+                    "label": "50",
+                    "values": {
+                      "m": 50
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "moduleSeries2",
+                "label": "Modulreihe II (DIN 780)",
+                "description": "Modules of series II of DIN 780 / ISO 54, to be used only when series I does not fit. Sets the module m.",
+                "options": [
+                  {
+                    "label": "1,125",
+                    "values": {
+                      "m": 1.125
+                    }
+                  },
+                  {
+                    "label": "1,375",
+                    "values": {
+                      "m": 1.375
+                    }
+                  },
+                  {
+                    "label": "1,75",
+                    "values": {
+                      "m": 1.75
+                    }
+                  },
+                  {
+                    "label": "2,25",
+                    "values": {
+                      "m": 2.25
+                    }
+                  },
+                  {
+                    "label": "2,75",
+                    "values": {
+                      "m": 2.75
+                    }
+                  },
+                  {
+                    "label": "3,5",
+                    "values": {
+                      "m": 3.5
+                    }
+                  },
+                  {
+                    "label": "4,5",
+                    "values": {
+                      "m": 4.5
+                    }
+                  },
+                  {
+                    "label": "5,5",
+                    "values": {
+                      "m": 5.5
+                    }
+                  },
+                  {
+                    "label": "7",
+                    "values": {
+                      "m": 7
+                    }
+                  },
+                  {
+                    "label": "9",
+                    "values": {
+                      "m": 9
+                    }
+                  },
+                  {
+                    "label": "11",
+                    "values": {
+                      "m": 11
+                    }
+                  },
+                  {
+                    "label": "14",
+                    "values": {
+                      "m": 14
+                    }
+                  },
+                  {
+                    "label": "18",
+                    "values": {
+                      "m": 18
+                    }
+                  },
+                  {
+                    "label": "22",
+                    "values": {
+                      "m": 22
+                    }
+                  },
+                  {
+                    "label": "28",
+                    "values": {
+                      "m": 28
+                    }
+                  },
+                  {
+                    "label": "36",
+                    "values": {
+                      "m": 36
+                    }
+                  },
+                  {
+                    "label": "45",
+                    "values": {
+                      "m": 45
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "basicRack",
+                "label": "Bezugsprofil",
+                "description": "Basic rack profile: sets pressure angle, addendum and dedendum factor.",
+                "options": [
+                  {
+                    "label": "DIN 867 / ISO 53 A–C (20°, 1, 1,25)",
+                    "values": {
+                      "alpha": 20,
+                      "haP": 1,
+                      "hfP": 1.25
+                    }
+                  },
+                  {
+                    "label": "ISO 53 D (20°, 1, 1,4)",
+                    "values": {
+                      "alpha": 20,
+                      "haP": 1,
+                      "hfP": 1.4
+                    }
+                  },
+                  {
+                    "label": "Kurzverzahnung (20°, 0,8, 1)",
+                    "values": {
+                      "alpha": 20,
+                      "haP": 0.8,
+                      "hfP": 1
+                    }
+                  }
+                ]
+              }
+            ],
+            "checks": [
+              {
+                "condition": "x >= haP - z*pow(sin((alpha*pi/180)),2)/2",
+                "message": "Unterschnitt: Bei z = {z} und α = {alpha}° braucht das Rad eine Profilverschiebung x ≥ {haP - z*pow(sin((alpha*pi/180)),2)/2} oder mindestens {ceil(2*(haP - x)/pow(sin((alpha*pi/180)),2))} Zähne.",
+                "parameters": [
+                  "z",
+                  "x"
+                ]
+              },
+              {
+                "condition": "2*(m*z/2 + m*(haP + x))*(((pi/2 + 2*x*tan((alpha*pi/180)) + Asn/m)/z + tan((alpha*pi/180)) - (alpha*pi/180)) - (tan(acos((m*z/2*cos((alpha*pi/180)))/(m*z/2 + m*(haP + x)))) - acos((m*z/2*cos((alpha*pi/180)))/(m*z/2 + m*(haP + x))))) >= 0.2*m",
+                "message": "Die Zähne werden spitz: Die Zahndicke am Kopfkreis ist {2*(m*z/2 + m*(haP + x))*(((pi/2 + 2*x*tan((alpha*pi/180)) + Asn/m)/z + tan((alpha*pi/180)) - (alpha*pi/180)) - (tan(acos((m*z/2*cos((alpha*pi/180)))/(m*z/2 + m*(haP + x)))) - acos((m*z/2*cos((alpha*pi/180)))/(m*z/2 + m*(haP + x)))))} mm, nötig sind mindestens 0,2·m = {0.2*m} mm. Profilverschiebung x oder Kopfhöhenfaktor ha* verringern.",
+                "parameters": [
+                  "x",
+                  "z",
+                  "haP"
+                ]
+              },
+              {
+                "condition": "dBore == 0 || dBore <= (m*z - 2*m*(hfP - x)) - 2*m",
+                "message": "Die Bohrung ist zu groß: Bis zum Fußkreis (⌀ {(m*z - 2*m*(hfP - x))} mm) muss mindestens ein Modul Material bleiben, die Bohrung darf höchstens ⌀ {(m*z - 2*m*(hfP - x)) - 2*m} mm haben.",
+                "parameters": [
+                  "dBore"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "ar",
+                  "value": "alpha*pi/180"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "r",
+                  "value": "m*z/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rb",
+                  "value": "r*cos(ar)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "ra",
+                  "value": "r + m*(haP + x)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rf",
+                  "value": "r - m*(hfP - x)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "params": {
+                  "name": "psib",
+                  "value": "(pi/2 + 2*x*tan(ar) + Asn/m)/z + tan(ar) - ar"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "params": {
+                  "name": "aa",
+                  "value": "acos(rb/ra)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "workspace.set",
+                "params": {
+                  "name": "psia",
+                  "value": "psib - (tan(aa) - aa)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "workspace.set",
+                "params": {
+                  "name": "af",
+                  "value": "acos(min(rb/rf, 1))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "workspace.set",
+                "params": {
+                  "name": "psir",
+                  "value": "psib - (tan(af) - af)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "workspace.set",
+                "params": {
+                  "name": "t0",
+                  "value": "sqrt(pow(max(rf, rb)/rb, 2) - 1)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "workspace.set",
+                "params": {
+                  "name": "t1",
+                  "value": "sqrt(pow(ra/rb, 2) - 1)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "workspace.set",
+                "params": {
+                  "name": "deg",
+                  "value": "180/pi"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "center",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "gearSketch"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 3,
+          "params": {
+            "repeat": {
+              "variable": "phi",
+              "start": 0,
+              "step": "2*pi/z",
+              "count": "z"
+            },
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "sketch.add_nurbs",
+                "params": {
+                  "sketch": "gearSketch",
+                  "approximation": {
+                    "parameter": "t",
+                    "tMin": "t0",
+                    "tMax": "t1",
+                    "pointExpr": [
+                      "rb*(cos(t) + t*sin(t))*cos(phi + psib) + rb*(sin(t) - t*cos(t))*sin(phi + psib)",
+                      "rb*(cos(t) + t*sin(t))*sin(phi + psib) - rb*(sin(t) - t*cos(t))*cos(phi + psib)"
+                    ]
+                  }
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "sketch.add_nurbs",
+                "params": {
+                  "sketch": "gearSketch",
+                  "approximation": {
+                    "parameter": "t",
+                    "tMin": "t0",
+                    "tMax": "t1",
+                    "pointExpr": [
+                      "rb*(cos(t) + t*sin(t))*cos(phi - psib) - rb*(sin(t) - t*cos(t))*sin(phi - psib)",
+                      "rb*(cos(t) + t*sin(t))*sin(phi - psib) + rb*(sin(t) - t*cos(t))*cos(phi - psib)"
+                    ]
+                  }
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "sketch.add_arc",
+                "params": {
+                  "sketch": "gearSketch",
+                  "center": [
+                    0,
+                    0
+                  ],
+                  "radius": "ra",
+                  "startAngle": "(phi - psia)*deg",
+                  "sweepAngle": "2*psia*deg"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "sketch.add_arc",
+                "params": {
+                  "sketch": "gearSketch",
+                  "center": [
+                    0,
+                    0
+                  ],
+                  "radius": "rf",
+                  "startAngle": "(phi + psir)*deg",
+                  "sweepAngle": "360/z - 2*psir*deg"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "when": "rf < rb",
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "gearSketch",
+                  "start": [
+                    "rb*cos(phi + psib)",
+                    "rb*sin(phi + psib)"
+                  ],
+                  "end": [
+                    "rf*cos(phi + psib)",
+                    "rf*sin(phi + psib)"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "when": "rf < rb",
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "gearSketch",
+                  "start": [
+                    "rb*cos(phi - psib)",
+                    "rb*sin(phi - psib)"
+                  ],
+                  "end": [
+                    "rf*cos(phi - psib)",
+                    "rf*sin(phi - psib)"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 4,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "sketch.connect",
+                "params": {
+                  "sketch": "gearSketch",
+                  "precision": "m/100000"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "solid.extrude",
+                "params": {
+                  "profile": "gearSketch",
+                  "length": "b",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "name": "gear"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "when": "dBore > 0",
+                "method": "solid.cylinder",
+                "params": {
+                  "start": "center - v(0,0,1)",
+                  "end": "center + v(0,0,b+1)",
+                  "radius": "dBore/2",
+                  "name": "boreTool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "when": "dBore > 0",
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "gear",
+                  "b": "boreTool",
+                  "name": "result"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "when": "dBore <= 0",
+                "method": "workspace.select",
+                "params": {
+                  "selector": "gear",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 5,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -618,4 +618,16 @@
 		<label>Ausführen</label>
 		<info>Führt das Template aus und fügt das Ergebnis in das Modell ein</info>
 	</data>
+	<data name="RpcTemplate.CustomValue">
+		<label>eigener Wert</label>
+		<info>Die aktuellen Werte entsprechen keinem Eintrag der Liste</info>
+	</data>
+	<data name="RpcTemplate.TooSmall">
+		<label>{0} muss mindestens {1} sein.</label>
+		<info>Meldung, wenn ein Template-Parameter unter seinem Minimum liegt</info>
+	</data>
+	<data name="RpcTemplate.TooLarge">
+		<label>{0} darf höchstens {1} sein.</label>
+		<info>Meldung, wenn ein Template-Parameter über seinem Maximum liegt</info>
+	</data>
 </root>

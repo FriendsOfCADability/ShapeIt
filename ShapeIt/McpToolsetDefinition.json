@@ -11,7 +11,7 @@
 		"selection": "Tools reference workspace items by name (NameRef: a single name or an array of names). To select objects by query (e.g. faces/edges with filters) or by set operations, first call workspace.select, which stores the selection result under a name; then pass that name to the next tool. Selections are snapshots: modifying a solid does not update a previously selected set of its faces or edges - and a feature that consumes edges or faces usually invalidates them, so re-select after every modelling step rather than reusing the name. Do not send the select and the call that consumes it as two separate requests; bundle them (see batching).",
 		"batching": "rpc.batch executes several calls in one request, in order, and later calls see the names created by earlier ones. The select-then-operate pattern belongs in a single batch: workspace.select together with the feature/transform call that consumes the selection is one round trip instead of two. With the default 'atomic': true the batch is also a single undo step that rolls back completely if any call fails, so a failed feature cannot leave half-built helper objects behind. The same holds for a chain of construction steps, e.g. creating the tool bodies and the solid.boolean that consumes them.",
 		"periodicFaces": "Faces on periodic surfaces (cylindrical, conical, spherical, toroidal) are split into two faces when the periodic parameter range exceeds half the period; closed circular edges are split the same way. One bore can therefore be two cylindrical faces: a bore reduced to 324 degrees by a slot reports two faces, one reduced to exactly 180 degrees reports a single face. Two consequences: face and edge counts are topological, not a stable fingerprint of a shape, so do not use them to judge whether a result is geometrically correct - use Volume, the bounding box, or a rendered section (inspect.scene with includeImage) instead. And a face or edge query never guarantees one hit per geometric surface, so an operation built on such a selection may silently affect only half of a bore.",
-		"templates": "'Create a template' means: build the object once with concrete values and check the result, then repeat the same construction between template.begin and template.commit, this time driving every varying dimension from the declared parameters. Testing first is not optional - a template records a construction, not a result, so recording an untested one produces a template of something that does not build. Inside the recording, reference parameters by name in expression strings ('dPipe/2', 'rA*sqrt(2)'); a literal where a parameter belongs silently freezes the template. Derive intermediate values with workspace.set: they are recorded, re-evaluated on every instantiation, and keep the geometry calls readable. An rpc.batch inside the recording is stored as one step and replayed as a batch, so the batching advice above still applies. template.commit names the resulting solid. Nothing is written to a file: the template lives in the session, appears in the application's template list where the user can edit its parameters interactively, and the user can save it to a template file and load it again in a later session. document.commit_objects is rejected while recording unless allowDocumentCommit is set - commit the instances afterwards, never the template body. document.get_state lists the templates defined so far. Object parameters: a parameter with input kind 'solid' or 'profile' takes an object instead of a value - in the application the user picks it (a solid, or a closed planar curve that becomes a sketch), with template.instantiate it is passed as the workspace name of a solid or sketch. Record the template with real objects (their names as 'value'); they are no defaults. Mark an object parameter 'optional' to let the template work without it, and make the steps that need it conditional with the 'when' property of rpc.batch calls: e.g. one call with \"when\": \"defined(\\\"hull\\\")\" subtracts the tools from the hull, another with \"when\": \"!defined(\\\"hull\\\")\" just names the tools as result. Such a batch is recorded and replayed with its conditions. 'replace' on a solid parameter lets the application put the result in place of the picked solid."
+		"templates": "'Create a template' means: build the object once with concrete values and check the result, then repeat the same construction between template.begin and template.commit, this time driving every varying dimension from the declared parameters. Testing first is not optional - a template records a construction, not a result, so recording an untested one produces a template of something that does not build. Inside the recording, reference parameters by name in expression strings ('dPipe/2', 'rA*sqrt(2)'); a literal where a parameter belongs silently freezes the template. Derive intermediate values with workspace.set: they are recorded, re-evaluated on every instantiation, and keep the geometry calls readable. An rpc.batch inside the recording is stored as one step and replayed as a batch, so the batching advice above still applies. template.commit names the resulting solid. Nothing is written to a file: the template lives in the session, appears in the application's template list where the user can edit its parameters interactively, and the user can save it to a template file and load it again in a later session. document.commit_objects is rejected while recording unless allowDocumentCommit is set - commit the instances afterwards, never the template body. document.get_state lists the templates defined so far. Object parameters: a parameter with input kind 'solid' or 'profile' takes an object instead of a value - in the application the user picks it (a solid, or a closed planar curve that becomes a sketch), with template.instantiate it is passed as the workspace name of a solid or sketch. Record the template with real objects (their names as 'value'); they are no defaults. Mark an object parameter 'optional' to let the template work without it, and make the steps that need it conditional with the 'when' property of rpc.batch calls: e.g. one call with \"when\": \"defined(\\\"hull\\\")\" subtracts the tools from the hull, another with \"when\": \"!defined(\\\"hull\\\")\" just names the tools as result. Such a batch is recorded and replayed with its conditions. 'replace' on a solid parameter lets the application put the result in place of the picked solid. Invalid values: state what the construction cannot handle as 'min'/'max' of the inputs and as 'checks' of template.begin, with messages that tell the user what to change - they are checked on every change in the application and on template.instantiate, before any geometry is built; assert.check inside the body remains for conditions on intermediate results. Standard values (e.g. a module series) go into 'presets' of template.begin: drop-down lists whose options set one or more parameters."
 	},
 	"types": {
 		"ParameterInputSpec": {
@@ -64,11 +64,11 @@
 				},
 				"min": {
 					"$ref": "#/types/ExpressionNumber",
-					"description": "Optional minimum allowed value for numeric inputs."
+					"description": "Optional minimum allowed value for numeric inputs (length, number, integer, angle in degrees). In a template it may be an expression over the other parameters; a smaller value is refused like a failed entry of 'checks' of template.begin."
 				},
 				"max": {
 					"$ref": "#/types/ExpressionNumber",
-					"description": "Optional maximum allowed value for numeric inputs."
+					"description": "Optional maximum allowed value for numeric inputs (length, number, integer, angle in degrees). In a template it may be an expression over the other parameters; a greater value is refused like a failed entry of 'checks' of template.begin."
 				},
 				"step": {
 					"$ref": "#/types/ExpressionNumber",
@@ -1104,6 +1104,71 @@
 				}
 			},
 			"required": [ "name", "value" ],
+			"additionalProperties": false
+		},
+		"TemplatePresetSpec": {
+			"type": "object",
+			"description": "A choice list of a template: each option sets one or more parameters.",
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Internal name of the preset."
+				},
+				"label": {
+					"type": "string",
+					"description": "User-facing name of the list, e.g. 'Modulreihe'."
+				},
+				"description": {
+					"type": "string",
+					"description": "Optional help text shown with the list."
+				},
+				"options": {
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "object",
+						"properties": {
+							"label": {
+								"type": "string",
+								"description": "Text of the option in the list, e.g. '1,25'."
+							},
+							"values": {
+								"type": "object",
+								"description": "The values the option sets, by parameter name: a number, true/false, or an expression string evaluated with the current parameter values (e.g. 'p(0,0,0)' or '10*m').",
+								"additionalProperties": {
+									"$ref": "#/types/ExpressionAny"
+								}
+							}
+						},
+						"required": [ "label", "values" ],
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": [ "name", "label", "options" ],
+			"additionalProperties": false
+		},
+		"TemplateCheckSpec": {
+			"type": "object",
+			"description": "A rule the parameter values of a template must satisfy.",
+			"properties": {
+				"condition": {
+					"type": "string",
+					"description": "Expression over the parameters that must be true, e.g. 'z >= 2/pow(sin(alpha),2) - 2*x/pow(sin(alpha),2)'. Only the parameters are known here, not the workspace values the construction derives later: write intermediate values out in the condition."
+				},
+				"message": {
+					"type": "string",
+					"description": "Message for the user when the condition is false. Say what is wrong and what to change; {expression} placeholders are replaced by their values, e.g. 'Mit Profilverschiebung {x} sind mindestens {ceil(...)} Zähne nötig.'"
+				},
+				"parameters": {
+					"type": "array",
+					"description": "The parameters the message is shown at in the application. If omitted, it is shown at all of them.",
+					"items": {
+						"type": "string"
+					}
+				}
+			},
+			"required": [ "condition", "message" ],
 			"additionalProperties": false
 		},
 		"TemplateArgumentSpec": {
@@ -4469,6 +4534,20 @@
 						"description": "Editable template parameters with default values and optional UI metadata.",
 						"items": {
 							"$ref": "#/types/TemplateParameterSpec"
+						}
+					},
+					"presets": {
+						"type": "array",
+						"description": "Optional choice lists that fill in one or more parameters at once, e.g. the module series of a standard. In the application each preset is a drop-down list shown above the first parameter it sets; choosing an option sets the values, which stay editable, so a value outside the list can still be entered (the list then shows no selection). template.instantiate ignores presets: pass the values as arguments.",
+						"items": {
+							"$ref": "#/types/TemplatePresetSpec"
+						}
+					},
+					"checks": {
+						"type": "array",
+						"description": "Optional rules for combinations of parameter values, checked before the construction runs: in the application on every change of a value (the message is shown at the parameters the check names, preview and commit are refused while a check fails), with template.instantiate after the arguments are applied (the call fails with E_INVALID_PARAMS and the messages of all failed checks). Use them for every value the construction cannot handle, with a message that says what to change; 'min' and 'max' of the parameter inputs are checked the same way.",
+						"items": {
+							"$ref": "#/types/TemplateCheckSpec"
 						}
 					},
 					"allowDocumentCommit": {

@@ -4063,12 +4063,22 @@ namespace CADability.Actions
                 }
                 if (GetChoiceEvent != null) Choice = GetChoiceEvent();
             }
+            /// <summary>
+            /// Resource id (or "@text") of the text shown when no choice is selected, i.e. when <see cref="GetChoiceEvent"/>
+            /// answers -1 because the values it stands for were entered otherwise. Empty when null.
+            /// </summary>
+            public string UnselectedText;
             void IInputObject.Refresh()
             {
                 if (GetChoiceEvent != null)
                 {
                     Choice = GetChoiceEvent();
-                    if (multipleChoiceProperty != null) multipleChoiceProperty.SetSelection(Choice);
+                    if (multipleChoiceProperty != null)
+                    {
+                        int before = multipleChoiceProperty.CurrentIndex;
+                        multipleChoiceProperty.SetSelection(Choice);
+                        if (before != multipleChoiceProperty.CurrentIndex) multipleChoiceProperty.Refresh();
+                    }
                 }
             }
             IPropertyEntry IInputObject.BuildShowProperty()
@@ -4076,7 +4086,8 @@ namespace CADability.Actions
                 string[] values;
                 if (directValues != null) values = directValues;
                 else values = StringTable.GetSplittedStrings(resourceIdValues);
-                multipleChoiceProperty = new MultipleChoiceProperty(ResourceId, values, values[Choice]);
+                multipleChoiceProperty = new MultipleChoiceProperty(ResourceId, values, Choice >= 0 && Choice < values.Length ? values[Choice] : null);
+                if (UnselectedText != null) multipleChoiceProperty.SetUnselectedText(UnselectedText);
                 // multipleChoiceProperty.BooleanChanged += new BooleanChangedDelegate(BooleanChanged);
                 // multipleChoiceProperty.SetSelection(Choice);
                 multipleChoiceProperty.ValueChangedEvent += new ValueChangedDelegate(PropertyOnValueChanged);

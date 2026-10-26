@@ -6,6 +6,9 @@ using CADability.GeoObject;
 using CADability.UserInterface;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using static CADability.Actions.ConstructAction;
 
@@ -26,7 +29,15 @@ namespace ShapeIt
         private Feedback feedback;
         private TemplatePreview? preview;
         private TemplatePreviewResult? lastResult;
-        private readonly List<InputObject> errorTargets = new List<InputObject>();
+        // the inputs of the value parameters by name: they show the problems of the values, and a preset sets
+        // them through the setter, which updates the field as if the user had typed the value
+        private readonly Dictionary<string, InputObject> valueInputs = new Dictionary<string, InputObject>();
+        private readonly Dictionary<string, Action<object>> valueSetters = new Dictionary<string, Action<object>>();
+        // the rules of the template ('min'/'max' of the inputs, 'checks' of template.begin) and what they say
+        // about the current values; errors of the last run of the template come on top
+        private JsonElement parameterSpecs, checkSpecs;
+        private List<ParameterProblem> problems = new List<ParameterProblem>();
+        private string? runError;
         // the inputs of required object parameters (solid, profile): without them neither preview nor commit
         private readonly List<(string name, InputObject input)> requiredInputs = new List<(string name, InputObject input)>();
 
@@ -59,11 +70,36 @@ namespace ShapeIt
             List<string> parameterNames = mcpServer.GetTemplateParameters(templateName);
             parameterValues = new Dictionary<string, object>();
             List<object> inputs = []; // IInputObject is not accessible
+            JsonElement beginParams = mcpServer.GetTemplateBeginParams(templateName);
+            List<TemplatePreset> presets = [];
+            if (beginParams.ValueKind == JsonValueKind.Object)
+            {
+                beginParams.TryGetProperty("parameters", out parameterSpecs);
+                beginParams.TryGetProperty("checks", out checkSpecs);
+                if (beginParams.TryGetProperty("presets", out JsonElement presetSpecs)) presets = TemplateParameterRules.ReadPresets(presetSpecs);
+            }
+            // a preset list stands right above the first parameter it sets, e.g. the module series above the module
+            Dictionary<string, List<TemplatePreset>> presetsAbove = new Dictionary<string, List<TemplatePreset>>();
+            List<TemplatePreset> presetsLeft = new List<TemplatePreset>();
+            foreach (TemplatePreset preset in presets)
+            {
+                string? first = parameterNames.Find(n => preset.Options.Any(o => o.Values.Any(v => v.Key == n)));
+                if (first == null) presetsLeft.Add(preset);
+                else
+                {
+                    if (!presetsAbove.TryGetValue(first, out List<TemplatePreset>? list)) presetsAbove[first] = list = new List<TemplatePreset>();
+                    list.Add(preset);
+                }
+            }
             // A value parameter has a default, so it never blocks the commit. It is optional only when the template
             // says so: the focus starts at the first input that is not optional and moves on to the next one when
             // a value is fixed (a point clicked, Enter in a field), the way it does in the other construct actions.
             for (int i = 0; i < parameterNames.Count; i++)
             {
+                if (presetsAbove.TryGetValue(parameterNames[i], out List<TemplatePreset>? presetsHere))
+                {
+                    foreach (TemplatePreset preset in presetsHere) inputs.Add(PresetInput(preset));
+                }
                 MCPServer.ParameterInfo parameterInfo = mcpServer.GetTemplateParameterInfo(templateName, parameterNames[i]);
                 if (parameterInfo.kind == null)
                 {
@@ -87,7 +123,8 @@ namespace ShapeIt
                                     di.GetDoubleEvent += () => Convert.ToDouble(parameterValues[name]);
                                     di.Optional = parameterInfo.optional;
                                     inputs.Add(di);
-                                    errorTargets.Add(di);
+                                    valueInputs[name] = di;
+                                    valueSetters[name] = v => di.ForceValue(Convert.ToDouble(v, CultureInfo.InvariantCulture));
                                 }
                             }
                             break;
@@ -102,7 +139,8 @@ namespace ShapeIt
                                     li.GetLengthEvent += () => Convert.ToDouble(parameterValues[name]);
                                     li.Optional = parameterInfo.optional;
                                     inputs.Add(li);
-                                    errorTargets.Add(li);
+                                    valueInputs[name] = li;
+                                    valueSetters[name] = v => li.ForceValue(Convert.ToDouble(v, CultureInfo.InvariantCulture));
                                 }
                             }
                             break;
@@ -120,7 +158,8 @@ namespace ShapeIt
                                     IntInput.GetIntEvent += () => Convert.ToInt32(parameterValues[name]);
                                     IntInput.Optional = parameterInfo.optional;
                                     inputs.Add(IntInput);
-                                    errorTargets.Add(IntInput);
+                                    valueInputs[name] = IntInput;
+                                    valueSetters[name] = v => IntInput.ForceValue((int)Math.Round(Convert.ToDouble(v, CultureInfo.InvariantCulture)));
                                 }
                             }
                             break;
@@ -141,7 +180,8 @@ namespace ShapeIt
                                     AngleInput.GetAngleEvent += () => Angle.Deg(Convert.ToDouble(parameterValues[name]));
                                     AngleInput.Optional = parameterInfo.optional;
                                     inputs.Add(AngleInput);
-                                    errorTargets.Add(AngleInput);
+                                    valueInputs[name] = AngleInput;
+                                    valueSetters[name] = v => AngleInput.ForceValue(Angle.Deg(Convert.ToDouble(v, CultureInfo.InvariantCulture)));
                                 }
                             }
                             break;
@@ -156,7 +196,8 @@ namespace ShapeIt
                                     pointInput.GetGeoPointEvent += () => (GeoPoint)parameterValues[name];
                                     pointInput.Optional = parameterInfo.optional;
                                     inputs.Add(pointInput);
-                                    errorTargets.Add(pointInput);
+                                    valueInputs[name] = pointInput;
+                                    valueSetters[name] = v => pointInput.ForceValue((GeoPoint)v);
                                 }
                             }
                             break;
@@ -224,6 +265,8 @@ namespace ShapeIt
                 }
 
             }
+            // presets of templates loaded from a file that set no declared parameter (template.begin refuses them)
+            foreach (TemplatePreset preset in presetsLeft) inputs.Add(PresetInput(preset));
             // The template runs only when asked to: "Preview" shows the result, "Commit" (or the OK button of
             // the title line) puts it into the model. Fixing the last input no longer ends the action.
             previewButton = new ButtonInput("RpcTemplate.Preview");
@@ -238,6 +281,7 @@ namespace ShapeIt
             base.ShowAttributes = true;
             //base.ShowActiveObject = false;
             base.OnSetAction();
+            UpdateProblems(); // the defaults could already violate a rule
 
             feedback.Attach(CurrentMouseView);
             // Captured here because OnSetAction runs on the UI thread; the worker posts its results back
@@ -252,12 +296,126 @@ namespace ShapeIt
 
         /// <summary>
         /// A parameter value has changed. The preview on screen, if any, stays until the next one is asked for:
-        /// clearing it would take away the shape the user is comparing with. Only the error message goes, it
-        /// was about the old values.
+        /// clearing it would take away the shape the user is comparing with. The error of the last run goes, it
+        /// was about the old values, and the rules of the template are checked against the new ones right away.
         /// </summary>
         private void ParameterChanged()
         {
-            SetInputError(null);
+            runError = null;
+            UpdateProblems();
+        }
+
+        /// <summary>
+        /// Checks the current values against 'min'/'max' of the inputs and the 'checks' of the template and shows
+        /// what fails at the parameters concerned. Cheap - only expressions over the values, no geometry - and
+        /// done on a copy of the values, so it does not touch the workspace a running preview works in.
+        /// </summary>
+        private void UpdateProblems()
+        {
+            // while a required object is not picked, a rule using it cannot be evaluated: that is no problem yet
+            problems = TemplateParameterRules.Check(parameterSpecs, checkSpecs, new Dictionary<string, object>(parameterValues),
+                (label, isMinimum, limit) => StringTable.GetFormattedString(isMinimum ? "RpcTemplate.TooSmall" : "RpcTemplate.TooLarge", label, limit),
+                ignoreEvaluationErrors: MissingRequiredInput() != null);
+            ShowErrors();
+        }
+
+        /// <summary>
+        /// Each value input shows the problems that name its parameter and those that name none, the error of the
+        /// last run of the template on top: an assert.check of the body is about the combination of values, and
+        /// there is no way to tell which of them the template author meant.
+        /// </summary>
+        private void ShowErrors()
+        {
+            foreach (KeyValuePair<string, InputObject> entry in valueInputs)
+            {
+                List<string> messages = problems.Where(p => p.Parameters.Count == 0 || p.Parameters.Contains(entry.Key)).Select(p => p.Message).ToList();
+                if (runError != null) messages.Add(runError);
+                entry.Value.SetError(messages.Count > 0 ? string.Join(" ", messages) : null!); // null clears the error
+            }
+        }
+
+        /// <summary>
+        /// The input of the first parameter a failing rule is about, null when all rules hold. Preview and commit
+        /// are refused while a rule fails: the construction would fail too, only later and less clearly.
+        /// </summary>
+        private InputObject? FirstProblemInput()
+        {
+            if (problems.Count == 0) return null;
+            foreach (ParameterProblem problem in problems)
+            {
+                foreach (string name in problem.Parameters)
+                {
+                    if (valueInputs.TryGetValue(name, out InputObject? input)) return input;
+                }
+            }
+            return valueInputs.Values.FirstOrDefault();
+        }
+
+        /// <summary>
+        /// The drop-down list of a preset. Choosing an option sets its values through the inputs, as if the user had
+        /// typed them, so they stay editable; the list shows the option that matches the current values, or none.
+        /// </summary>
+        private MultipleChoiceInput PresetInput(TemplatePreset preset)
+        {
+            string[] labels = preset.Options.Select(o => o.Label).ToArray();
+            MultipleChoiceInput input = new MultipleChoiceInput("@" + preset.Label + "@" + (preset.Description ?? ""), labels, -1);
+            input.UnselectedText = "RpcTemplate.CustomValue";
+            input.Optional = true;
+            input.GetChoiceEvent += () => MatchingOption(preset);
+            input.SetChoiceEvent += index => ApplyPreset(preset, index);
+            return input;
+        }
+
+        private void ApplyPreset(TemplatePreset preset, int index)
+        {
+            if (index < 0 || index >= preset.Options.Count) return;
+            // an option may compute a value from one it sets before, e.g. "b": "10*m"
+            Dictionary<string, object> values = new Dictionary<string, object>(parameterValues);
+            foreach (KeyValuePair<string, JsonElement> entry in preset.Options[index].Values)
+            {
+                try
+                {
+                    object value = TemplateParameterRules.EvaluateValue(entry.Value, values);
+                    values[entry.Key] = value;
+                    if (valueSetters.TryGetValue(entry.Key, out Action<object>? set)) set(value);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {   // a value that does not fit its input (a point for a length) is left as it is
+                }
+            }
+        }
+
+        /// <summary>The index of the first option whose values are the current ones, -1 for none.</summary>
+        private int MatchingOption(TemplatePreset preset)
+        {
+            Dictionary<string, object> values = new Dictionary<string, object>(parameterValues);
+            for (int i = 0; i < preset.Options.Count; i++)
+            {
+                bool matches = true;
+                foreach (KeyValuePair<string, JsonElement> entry in preset.Options[i].Values)
+                {
+                    try
+                    {
+                        object wanted = TemplateParameterRules.EvaluateValue(entry.Value, values);
+                        if (!values.TryGetValue(entry.Key, out object? current) || !SameValue(current, wanted)) { matches = false; break; }
+                    }
+                    catch (Exception ex) when (ex is not OutOfMemoryException)
+                    {
+                        matches = false;
+                        break;
+                    }
+                }
+                if (matches) return i;
+            }
+            return -1;
+        }
+
+        private static bool SameValue(object current, object wanted)
+        {
+            if (TemplateParameterRules.TryToDouble(current, out double a) && TemplateParameterRules.TryToDouble(wanted, out double b))
+                return Math.Abs(a - b) <= 1e-9 * Math.Max(1.0, Math.Abs(b)); // the input may have rounded the typed value
+            if (current is GeoPoint p && wanted is GeoPoint q) return (p | q) <= 1e-9 * Math.Max(1.0, q.ToVector().Length);
+            return Equals(current, wanted);
         }
 
         /// <summary>
@@ -282,7 +440,7 @@ namespace ShapeIt
                 CancelRunning();
                 return;
             }
-            InputObject? missing = MissingRequiredInput();
+            InputObject? missing = MissingRequiredInput() ?? FirstProblemInput();
             if (missing != null)
             {
                 SetFocus(missing, true);
@@ -372,7 +530,8 @@ namespace ShapeIt
             bool commit = running == Running.Commit;
             EndRunning();
             lastResult = result;
-            SetInputError(result.Error);
+            runError = result.Error;
+            ShowErrors();
             if (result.Error != null) return;
 
             feedback.Clear();
@@ -395,13 +554,6 @@ namespace ShapeIt
                 && SameValues(lastResult.Parameters, parameterValues);
         }
 
-        private void SetInputError(string? message)
-        {
-            // The same message on every field: the assertion is about the combination of values, and there is
-            // no way to tell which of them the template author meant.
-            foreach (InputObject input in errorTargets) input.SetError(message);
-        }
-
         public override void OnViewsChanged()
         {
             feedback.Detach();
@@ -411,9 +563,10 @@ namespace ShapeIt
 
         public override void OnDone()
         {
-            InputObject? missing = MissingRequiredInput();
+            InputObject? missing = MissingRequiredInput() ?? FirstProblemInput();
             if (missing != null)
-            {   // committed too early: stay in the action and ask for the missing object
+            {   // committed too early or with values the template refuses: stay in the action, the messages
+                // are at the inputs
                 SetFocus(missing, true);
                 return;
             }
