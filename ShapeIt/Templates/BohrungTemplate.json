@@ -1,0 +1,514 @@
+{
+  "label": "Bohrungen",
+  "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 22H24V48L32 56L40 48V22H58V58H6Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M24 22V48L32 56L40 48V22\" fill=\"#ffffff\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M32 6V60\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/></svg>",
+  "templates": [
+    {
+      "name": "sacklochbohrung",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "sacklochbohrung",
+            "label": "Sacklochbohrung",
+            "category": "Bohrungen",
+            "description": "Blind hole perpendicular to a face of a solid: the user picks the face and the position on it. The entry edge can be sharp, chamfered at 45° or rounded; the bottom flat, conical (pointed like a drill point or truncated) or a half sphere. The depth is the depth of the cylindrical part. The hole is cut with a revolved tool that reaches one diameter above the face, so material above the face within that height is cut as well.",
+            "tags": [
+              "hole",
+              "blind hole",
+              "drill",
+              "Bohrung",
+              "Sackloch",
+              "Senkung"
+            ],
+            "parameters": [
+              {
+                "name": "body",
+                "value": "block",
+                "label": "Körper",
+                "input": {
+                  "kind": "solid",
+                  "replace": true,
+                  "description": "The solid that gets the hole; it is taken from the picked face."
+                }
+              },
+              {
+                "name": "face",
+                "value": "top",
+                "label": "Fläche",
+                "input": {
+                  "kind": "face",
+                  "solid": "body",
+                  "group": "Lage",
+                  "order": 1,
+                  "description": "The face the hole is drilled into, perpendicular to the face at the position."
+                }
+              },
+              {
+                "name": "pos",
+                "value": "p(10,10,20)",
+                "label": "Position",
+                "input": {
+                  "kind": "point3",
+                  "onFace": "face",
+                  "group": "Lage",
+                  "order": 2,
+                  "description": "Center of the hole on the face. Click on the face, snap to a point (e.g. the center of a circular edge) or enter coordinates; the point is put onto the face."
+                }
+              },
+              {
+                "name": "d",
+                "value": 8,
+                "label": "Durchmesser",
+                "input": {
+                  "kind": "length",
+                  "group": "Bohrung",
+                  "order": 3,
+                  "min": 0.01,
+                  "description": "Diameter of the hole."
+                }
+              },
+              {
+                "name": "depth",
+                "value": 15,
+                "label": "Tiefe",
+                "input": {
+                  "kind": "length",
+                  "group": "Bohrung",
+                  "order": 4,
+                  "min": 0.01,
+                  "description": "Depth of the cylindrical part, measured from the position on the face; a conical or spherical bottom comes on top of it."
+                }
+              },
+              {
+                "name": "entry",
+                "value": "sharp",
+                "label": "Bohrungseintritt",
+                "input": {
+                  "kind": "enum",
+                  "group": "Eintritt",
+                  "order": 5,
+                  "optional": true,
+                  "options": [
+                    {
+                      "value": "sharp",
+                      "label": "scharfkantig"
+                    },
+                    {
+                      "value": "chamfer",
+                      "label": "angefast (45°)"
+                    },
+                    {
+                      "value": "round",
+                      "label": "gerundet"
+                    }
+                  ],
+                  "description": "The edge where the hole enters the face: sharp, a 45° chamfer (countersink) or a fillet."
+                }
+              },
+              {
+                "name": "entrySize",
+                "value": 1,
+                "label": "Fase / Radius",
+                "input": {
+                  "kind": "length",
+                  "group": "Eintritt",
+                  "order": 6,
+                  "optional": true,
+                  "min": 0.01,
+                  "description": "Width of the chamfer or radius of the fillet at the entry; not used for a sharp entry."
+                }
+              },
+              {
+                "name": "bottom",
+                "value": "flat",
+                "label": "Bohrungsgrund",
+                "input": {
+                  "kind": "enum",
+                  "group": "Grund",
+                  "order": 7,
+                  "optional": true,
+                  "options": [
+                    {
+                      "value": "flat",
+                      "label": "flach"
+                    },
+                    {
+                      "value": "cone",
+                      "label": "Kegel / Kegelstumpf"
+                    },
+                    {
+                      "value": "sphere",
+                      "label": "sphärisch"
+                    }
+                  ],
+                  "description": "The bottom of the hole: flat, conical like a drill point (a truncated cone with a bottom diameter above 0), or a half sphere."
+                }
+              },
+              {
+                "name": "tipAngle",
+                "value": 118,
+                "label": "Spitzenwinkel",
+                "input": {
+                  "kind": "angle",
+                  "group": "Grund",
+                  "order": 8,
+                  "optional": true,
+                  "min": 1,
+                  "max": 179,
+                  "description": "Included angle of the conical bottom, 118° for a twist drill; only for a conical bottom."
+                }
+              },
+              {
+                "name": "bottomDiameter",
+                "value": 0,
+                "label": "Grunddurchmesser",
+                "input": {
+                  "kind": "length",
+                  "group": "Grund",
+                  "order": 9,
+                  "optional": true,
+                  "min": 0,
+                  "description": "Diameter of the flat end of a truncated cone, 0 for a pointed cone; only for a conical bottom."
+                }
+              }
+            ],
+            "checks": [
+              {
+                "condition": "bottomDiameter < d",
+                "parameters": [
+                  "bottomDiameter",
+                  "d"
+                ],
+                "message": "The bottom diameter ({bottomDiameter}) must be smaller than the diameter of the hole ({d})."
+              },
+              {
+                "condition": "entry == \"sharp\" || entrySize < depth",
+                "parameters": [
+                  "entrySize",
+                  "depth"
+                ],
+                "message": "The chamfer or radius at the entry ({entrySize}) must be smaller than the depth ({depth})."
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 22H24V48L32 56L40 48V22H58V58H6Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M24 22V48L32 56L40 48V22\" fill=\"#ffffff\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M32 6V60\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "n",
+                  "value": "normal(face, pos)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "r",
+                  "value": "d/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "over",
+                  "value": "d"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "when": "abs(n*v(1,0,0)) < 0.9",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(1,0,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "when": "abs(n*v(1,0,0)) >= 0.9",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(0,1,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "workspace.set",
+                "params": {
+                  "name": "edgeTolerance",
+                  "value": "0.000001*(1 + d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "params": {
+                  "name": "coneHeight",
+                  "value": "(r - bottomDiameter/2)/tan(tipAngle*pi/360)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "pos",
+                    "xAxis": "u",
+                    "yAxis": "n"
+                  },
+                  "name": "holeProfile"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "sketch.add_polycurve",
+                "when": "bottom == \"flat\"",
+                "params": {
+                  "sketch": "holeProfile",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": 0,
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "-depth",
+                      "b": 0
+                    },
+                    {
+                      "x": 0,
+                      "y": "-depth",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "sketch.add_polycurve",
+                "when": "bottom == \"cone\" && bottomDiameter <= 0",
+                "params": {
+                  "sketch": "holeProfile",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": 0,
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "-depth",
+                      "b": 0
+                    },
+                    {
+                      "x": 0,
+                      "y": "-depth - coneHeight",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "sketch.add_polycurve",
+                "when": "bottom == \"cone\" && bottomDiameter > 0",
+                "params": {
+                  "sketch": "holeProfile",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": 0,
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "-depth",
+                      "b": 0
+                    },
+                    {
+                      "x": "bottomDiameter/2",
+                      "y": "-depth - coneHeight",
+                      "b": 0
+                    },
+                    {
+                      "x": 0,
+                      "y": "-depth - coneHeight",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "sketch.add_polycurve",
+                "when": "bottom == \"sphere\"",
+                "params": {
+                  "sketch": "holeProfile",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": 0,
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "r",
+                      "y": "-depth",
+                      "b": "-tan(pi/8)"
+                    },
+                    {
+                      "x": 0,
+                      "y": "-depth - r",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "solid.rotate",
+                "params": {
+                  "profile": "holeProfile",
+                  "axis": {
+                    "origin": "pos",
+                    "direction": "n"
+                  },
+                  "angle": {
+                    "full": true
+                  },
+                  "name": "tool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "body",
+                  "b": "tool",
+                  "name": "drilled"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 3,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.select",
+                "when": "entry != \"sharp\"",
+                "params": {
+                  "selector": {
+                    "query": {
+                      "target": "edges",
+                      "from": "drilled",
+                      "filter": {
+                        "condition": "abs(len((this.pointAt(0.5) - pos) ^ n) - r) < edgeTolerance && (this.pointAt(0.5) - pos)*n + depth/2 > 0"
+                      }
+                    }
+                  },
+                  "type": "edges",
+                  "name": "entryEdges"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "feature.chamfer",
+                "when": "entry == \"chamfer\"",
+                "params": {
+                  "solid": "drilled",
+                  "edges": "entryEdges",
+                  "distance": "entrySize",
+                  "name": "result"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "feature.fillet",
+                "when": "entry == \"round\"",
+                "params": {
+                  "solid": "drilled",
+                  "edges": "entryEdges",
+                  "radius": "entrySize",
+                  "name": "result"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.select",
+                "when": "entry == \"sharp\"",
+                "params": {
+                  "selector": "drilled",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 4,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -152,6 +152,19 @@ public static class GeometryOps
         throw new InvalidOperationException("Normalize is only defined for vectors.");
     }
     /// <summary>
+    /// The unit normal of a face at the point of its surface closest to <paramref name="point"/>. For a face of a
+    /// solid it points out of the solid, e.g. the drilling direction of a hole is -normal(face, p).
+    /// </summary>
+    public static object Normal(object face, object point)
+    {
+        if (face is IList<Face> faces && faces.Count == 1) face = faces[0]; // a selection of one face
+        if (face is not Face f) throw new InvalidOperationException("normal(face, p): the first argument must be a face.");
+        if (point is not GeoPoint p) throw new InvalidOperationException("normal(face, p): p must be a point.");
+        GeoVector n = f.Surface.GetNormal(f.Surface.PositionOf(p));
+        if (n.IsNullVector()) throw new InvalidOperationException("normal(face, p): the surface has no normal at that point.");
+        return n.Normalized;
+    }
+    /// <summary>
     /// The point of <paramref name="points"/> with the largest distance to <paramref name="from"/>. The points may be
     /// given as GeoPoints, as vertices, or as solids or shells, which contribute their vertices.
     /// </summary>
@@ -1318,6 +1331,10 @@ public static class Evaluator
                                 case "normalize":
                                     CheckArgCount(call, args, 1);
                                     fres = GeometryOps.Normalize(args[0]);
+                                    break;
+                                case "normal":
+                                    CheckArgCount(call, args, 2);
+                                    fres = GeometryOps.Normal(args[0], args[1]);
                                     break;
                                 case "farthest":
                                     CheckArgCount(call, args, 2);

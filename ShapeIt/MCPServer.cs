@@ -2073,9 +2073,10 @@ namespace ShapeIt
                     return "other";
                 }
             }
-            public GeoPoint startPoint => edge.Curve3D.StartPoint;
-            public GeoPoint endPoint => edge.Curve3D.EndPoint;
-            public GeoPoint pointAt(double u) => edge.Curve3D.PointAt(u);
+            // an edge without a 3d curve is a pole (e.g. the apex of a cone): all its points are its vertex
+            public GeoPoint startPoint => edge.Curve3D?.StartPoint ?? edge.Vertex1.Position;
+            public GeoPoint endPoint => edge.Curve3D?.EndPoint ?? edge.Vertex2.Position;
+            public GeoPoint pointAt(double u) => edge.Curve3D?.PointAt(u) ?? edge.Vertex1.Position;
             public GeoVector directionAt(double u) => edge.Curve3D.DirectionAt(u);
             public GeoVector startDirection => edge.Curve3D.StartDirection;
             public GeoVector endDirection => edge.Curve3D.EndDirection;

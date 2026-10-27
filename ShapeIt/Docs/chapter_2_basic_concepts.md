@@ -353,6 +353,7 @@ Additional functions:
 
 -   `distance(p1, p2)`
 -   `normalize(v)`
+-   `normal(face, p)`: unit normal of the face at the point of its surface closest to `p`, out of the solid
 
 ---
 
