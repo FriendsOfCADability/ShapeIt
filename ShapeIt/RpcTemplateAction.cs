@@ -38,8 +38,10 @@ namespace ShapeIt
         private JsonElement parameterSpecs, checkSpecs;
         private List<ParameterProblem> problems = new List<ParameterProblem>();
         private string? runError;
-        // the inputs of required object parameters (solid, profile): without them neither preview nor commit
+        // the inputs of required object parameters (solid, profile, face): without them neither preview nor commit
         private readonly List<(string name, InputObject input)> requiredInputs = new List<(string name, InputObject input)>();
+        // point parameters with 'onFace' and the face parameter they lie on
+        private readonly List<(string point, string face)> pointsOnFaces = new List<(string point, string face)>();
 
         // What the worker computes right now: its progress is shown right of the button that started it, and the
         // answer to a commit goes into the model when it arrives.
@@ -91,6 +93,19 @@ namespace ShapeIt
                     list.Add(preset);
                 }
             }
+            List<MCPServer.ParameterInfo> parameterInfos = parameterNames.ConvertAll(n => mcpServer.GetTemplateParameterInfo(templateName, n));
+            // A solid parameter named by a face parameter gets its solid from the face the user picks: it has no
+            // input of its own. Its 'replace' moves to the face.
+            Dictionary<string, MCPServer.ParameterInfo> solidsOfFaces = new Dictionary<string, MCPServer.ParameterInfo>();
+            for (int i = 0; i < parameterNames.Count; i++)
+            {
+                if (parameterInfos[i].kind == "face" && parameterInfos[i].solid is string solidName)
+                {
+                    int solidIndex = parameterNames.IndexOf(solidName);
+                    if (solidIndex >= 0) solidsOfFaces[solidName] = parameterInfos[solidIndex];
+                }
+                if (parameterInfos[i].kind == "point3" && parameterInfos[i].onFace is string faceName) pointsOnFaces.Add((parameterNames[i], faceName));
+            }
             // A value parameter has a default, so it never blocks the commit. It is optional only when the template
             // says so: the focus starts at the first input that is not optional and moves on to the next one when
             // a value is fixed (a point clicked, Enter in a field), the way it does in the other construct actions.
@@ -100,7 +115,8 @@ namespace ShapeIt
                 {
                     foreach (TemplatePreset preset in presetsHere) inputs.Add(PresetInput(preset));
                 }
-                MCPServer.ParameterInfo parameterInfo = mcpServer.GetTemplateParameterInfo(templateName, parameterNames[i]);
+                MCPServer.ParameterInfo parameterInfo = parameterInfos[i];
+                if (solidsOfFaces.ContainsKey(parameterNames[i])) continue;
                 if (parameterInfo.kind == null)
                 {
                     if (parameterInfo.defaultValue is double) parameterInfo.kind = "length";
@@ -192,7 +208,11 @@ namespace ShapeIt
                                     string name = parameterNames[i]; // capture
                                     parameterValues[name] = gp;
                                     GeoPointInput pointInput = new GeoPointInput("@" + parameterInfo.label + "@" + parameterInfo.description, gp);
-                                    pointInput.SetGeoPointEvent += p => { parameterValues[name] = p; ParameterChanged(); };
+                                    if (parameterInfo.onFace is string onFace)
+                                    {   // the point lies on the picked face (see PointOnPickedFace)
+                                        pointInput.SetGeoPointExEvent += (p, didSnap) => { parameterValues[name] = PointOnPickedFace(onFace, p, didSnap); ParameterChanged(); return true; };
+                                    }
+                                    else pointInput.SetGeoPointEvent += p => { parameterValues[name] = p; ParameterChanged(); };
                                     pointInput.GetGeoPointEvent += () => (GeoPoint)parameterValues[name];
                                     pointInput.Optional = parameterInfo.optional;
                                     inputs.Add(pointInput);
@@ -260,6 +280,79 @@ namespace ShapeIt
                                 if (!profileInput.Optional) requiredInputs.Add((name, profileInput));
                             }
                             break;
+                        case "face":
+                            {   // the user picks a face of a solid; the template gets that face of a copy of the solid,
+                                // and the solid parameter named by 'solid' gets the copy
+                                string name = parameterNames[i]; // capture
+                                string? solidName = parameterInfo.solid != null && solidsOfFaces.ContainsKey(parameterInfo.solid) ? parameterInfo.solid : null;
+                                bool replace = solidName != null && solidsOfFaces[solidName].replace;
+                                GeoObjectInput faceInput = new GeoObjectInput("@" + parameterInfo.label + "@" + parameterInfo.description);
+                                faceInput.MultipleInput = false;
+                                faceInput.FacesOnly = true;
+                                faceInput.Optional = parameterInfo.optional; // starts empty, so a required one must be picked
+                                faceInput.MouseOverGeoObjectsEvent += (sender, geoObjects, up) =>
+                                {
+                                    Face? found = null;
+                                    for (int j = 0; j < geoObjects.Length; j++)
+                                    {
+                                        if (geoObjects[j] is Face fc && MCPServer.OwningSolid(fc) != null) { found = fc; break; }
+                                    }
+                                    if (up && found != null)
+                                    {
+                                        Solid owner = MCPServer.OwningSolid(found)!;
+                                        (Face copiedFace, Solid? copiedSolid) = MCPServer.CopyWithSolid(found);
+                                        sender.SetGeoObject(new IGeoObject[] { found }, found);
+                                        parameterValues[name] = copiedFace;
+                                        if (solidName != null && copiedSolid != null)
+                                        {
+                                            parameterValues[solidName] = copiedSolid;
+                                            if (replace)
+                                            {   // a solid picked before is no longer replaced: show it again
+                                                if (solidsToReplace.TryGetValue(solidName, out Solid? previous) && previous != owner) feedback.Show(previous);
+                                                solidsToReplace[solidName] = owner;
+                                            }
+                                        }
+                                        // a point on this face moves onto the new one
+                                        foreach ((string pointName, string faceName) in pointsOnFaces)
+                                        {
+                                            if (faceName == name && parameterValues.TryGetValue(pointName, out object? point) && point is GeoPoint gp
+                                                && valueSetters.TryGetValue(pointName, out Action<object>? set)) set(gp);
+                                        }
+                                        ParameterChanged();
+                                    }
+                                    return found != null;
+                                };
+                                inputs.Add(faceInput);
+                                if (!faceInput.Optional) requiredInputs.Add((name, faceInput));
+                            }
+                            break;
+                        case "enum":
+                            {   // a drop-down list of the options, the template gets the value of the chosen one
+                                List<TemplateEnumOption> options = parameterInfo.options ?? new List<TemplateEnumOption>();
+                                if (options.Count > 0)
+                                {
+                                    string name = parameterNames[i]; // capture
+                                    int start = Math.Max(0, options.FindIndex(o => TemplateParameterRules.SameEnumValue(o.Value, parameterInfo.defaultValue)));
+                                    parameterValues[name] = options[start].Value;
+                                    MultipleChoiceInput choiceInput = new MultipleChoiceInput("@" + parameterInfo.label + "@" + parameterInfo.description, options.Select(o => o.Label).ToArray(), start);
+                                    choiceInput.GetChoiceEvent += () => options.FindIndex(o => TemplateParameterRules.SameEnumValue(o.Value, parameterValues[name]));
+                                    choiceInput.SetChoiceEvent += index =>
+                                    {
+                                        if (index < 0 || index >= options.Count) return;
+                                        parameterValues[name] = options[index].Value;
+                                        ParameterChanged();
+                                    };
+                                    choiceInput.Optional = parameterInfo.optional;
+                                    inputs.Add(choiceInput);
+                                    valueInputs[name] = choiceInput;
+                                    valueSetters[name] = v =>
+                                    {
+                                        int index = options.FindIndex(o => TemplateParameterRules.SameEnumValue(o.Value, v));
+                                        if (index >= 0) choiceInput.ForceValue(index);
+                                    };
+                                }
+                            }
+                            break;
                             // others to be implemented!
                     }
                 }
@@ -292,6 +385,24 @@ namespace ShapeIt
             {
                 preview = new TemplatePreview(mcpServer, templateName, uiContext, OnPreviewResult, OnProgress);
             }
+        }
+
+        /// <summary>
+        /// Where a point parameter with 'onFace' lies on its face: under the mouse, where the mouse beam hits the face
+        /// (also through a face in front of it); a typed point or one snapped to an object point (e.g. the center of
+        /// an edge) perpendicularly projected onto the surface of the face. As long as no face is picked, the point
+        /// stays as given.
+        /// </summary>
+        private GeoPoint PointOnPickedFace(string faceName, GeoPoint p, SnapPointFinder.DidSnapModes didSnap)
+        {
+            if (!parameterValues.TryGetValue(faceName, out object? value) || value is not Face face) return p;
+            if ((didSnap == SnapPointFinder.DidSnapModes.DidNotSnap || didSnap == SnapPointFinder.DidSnapModes.DidSnapToFaceSurface) && CurrentMouseView != null)
+            {
+                Axis beam = CurrentMouseView.Projection.PointBeam(CurrentMousePoint);
+                GeoPoint[] hits = face.GetLineIntersection(beam.Location, beam.Direction);
+                if (hits.Length > 0) return hits.OrderBy(h => (h - beam.Location) * beam.Direction).First(); // the one nearest to the viewer
+            }
+            return MCPServer.PointOnFace(face, p);
         }
 
         /// <summary>

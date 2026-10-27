@@ -11,7 +11,7 @@
 		"selection": "Tools reference workspace items by name (NameRef: a single name or an array of names). To select objects by query (e.g. faces/edges with filters) or by set operations, first call workspace.select, which stores the selection result under a name; then pass that name to the next tool. Selections are snapshots: modifying a solid does not update a previously selected set of its faces or edges - and a feature that consumes edges or faces usually invalidates them, so re-select after every modelling step rather than reusing the name. Do not send the select and the call that consumes it as two separate requests; bundle them (see batching).",
 		"batching": "rpc.batch executes several calls in one request, in order, and later calls see the names created by earlier ones. The select-then-operate pattern belongs in a single batch: workspace.select together with the feature/transform call that consumes the selection is one round trip instead of two. With the default 'atomic': true the batch is also a single undo step that rolls back completely if any call fails, so a failed feature cannot leave half-built helper objects behind. The same holds for a chain of construction steps, e.g. creating the tool bodies and the solid.boolean that consumes them.",
 		"periodicFaces": "Faces on periodic surfaces (cylindrical, conical, spherical, toroidal) are split into two faces when the periodic parameter range exceeds half the period; closed circular edges are split the same way. One bore can therefore be two cylindrical faces: a bore reduced to 324 degrees by a slot reports two faces, one reduced to exactly 180 degrees reports a single face. Two consequences: face and edge counts are topological, not a stable fingerprint of a shape, so do not use them to judge whether a result is geometrically correct - use Volume, the bounding box, or a rendered section (inspect.scene with includeImage) instead. And a face or edge query never guarantees one hit per geometric surface, so an operation built on such a selection may silently affect only half of a bore.",
-		"templates": "'Create a template' means: build the object once with concrete values and check the result, then repeat the same construction between template.begin and template.commit, this time driving every varying dimension from the declared parameters. Testing first is not optional - a template records a construction, not a result, so recording an untested one produces a template of something that does not build. Inside the recording, reference parameters by name in expression strings ('dPipe/2', 'rA*sqrt(2)'); a literal where a parameter belongs silently freezes the template. Derive intermediate values with workspace.set: they are recorded, re-evaluated on every instantiation, and keep the geometry calls readable. An rpc.batch inside the recording is stored as one step and replayed as a batch, so the batching advice above still applies. template.commit names the resulting solid. Nothing is written to a file: the template lives in the session, appears in the application's template list where the user can edit its parameters interactively, and the user can save it to a template file and load it again in a later session. document.commit_objects is rejected while recording unless allowDocumentCommit is set - commit the instances afterwards, never the template body. document.get_state lists the templates defined so far. Object parameters: a parameter with input kind 'solid' or 'profile' takes an object instead of a value - in the application the user picks it (a solid, or a closed planar curve that becomes a sketch), with template.instantiate it is passed as the workspace name of a solid or sketch. Record the template with real objects (their names as 'value'); they are no defaults. Mark an object parameter 'optional' to let the template work without it, and make the steps that need it conditional with the 'when' property of rpc.batch calls: e.g. one call with \"when\": \"defined(\\\"hull\\\")\" subtracts the tools from the hull, another with \"when\": \"!defined(\\\"hull\\\")\" just names the tools as result. Such a batch is recorded and replayed with its conditions. 'replace' on a solid parameter lets the application put the result in place of the picked solid. Invalid values: state what the construction cannot handle as 'min'/'max' of the inputs and as 'checks' of template.begin, with messages that tell the user what to change - they are checked on every change in the application and on template.instantiate, before any geometry is built; assert.check inside the body remains for conditions on intermediate results. Standard values (e.g. a module series) go into 'presets' of template.begin: drop-down lists whose options set one or more parameters."
+		"templates": "'Create a template' means: build the object once with concrete values and check the result, then repeat the same construction between template.begin and template.commit, this time driving every varying dimension from the declared parameters. Testing first is not optional - a template records a construction, not a result, so recording an untested one produces a template of something that does not build. Inside the recording, reference parameters by name in expression strings ('dPipe/2', 'rA*sqrt(2)'); a literal where a parameter belongs silently freezes the template. Derive intermediate values with workspace.set: they are recorded, re-evaluated on every instantiation, and keep the geometry calls readable. An rpc.batch inside the recording is stored as one step and replayed as a batch, so the batching advice above still applies. template.commit names the resulting solid. Nothing is written to a file: the template lives in the session, appears in the application's template list where the user can edit its parameters interactively, and the user can save it to a template file and load it again in a later session. document.commit_objects is rejected while recording unless allowDocumentCommit is set - commit the instances afterwards, never the template body. document.get_state lists the templates defined so far. Object parameters: a parameter with input kind 'solid', 'profile' or 'face' takes an object instead of a value - in the application the user picks it (a solid, a closed planar curve that becomes a sketch, or a face of a solid), with template.instantiate it is passed as the workspace name of a solid, sketch or face. A face parameter names the solid parameter it belongs to with 'solid', and a point3 parameter is put onto a face with 'onFace' - e.g. the position of a hole on the picked face. Choices (e.g. a sharp, chamfered or rounded edge) are 'enum' parameters with 'options'; the steps that differ get a 'when' condition testing the value. Record the template with real objects (their names as 'value'); they are no defaults. Mark an object parameter 'optional' to let the template work without it, and make the steps that need it conditional with the 'when' property of rpc.batch calls: e.g. one call with \"when\": \"defined(\\\"hull\\\")\" subtracts the tools from the hull, another with \"when\": \"!defined(\\\"hull\\\")\" just names the tools as result. Such a batch is recorded and replayed with its conditions. 'replace' on a solid parameter lets the application put the result in place of the picked solid. Invalid values: state what the construction cannot handle as 'min'/'max' of the inputs and as 'checks' of template.begin, with messages that tell the user what to change - they are checked on every change in the application and on template.instantiate, before any geometry is built; assert.check inside the body remains for conditions on intermediate results. Standard values (e.g. a module series) go into 'presets' of template.begin: drop-down lists whose options set one or more parameters."
 	},
 	"types": {
 		"ParameterInputSpec": {
@@ -31,9 +31,10 @@
 						"enum",
 						"bool",
 						"solid",
-						"profile"
+						"profile",
+						"face"
 					],
-					"description": "The logical input type shown to the user. 'solid' and 'profile' are object parameters of a template (see conventions.templates): the user picks a solid, or a closed planar curve that becomes a sketch, instead of entering a value."
+					"description": "The logical input type shown to the user. 'solid', 'profile' and 'face' are object parameters of a template (see conventions.templates): the user picks a solid, a closed planar curve that becomes a sketch, or a face of a solid, instead of entering a value. 'enum' is a drop-down list of 'options'; the parameter holds the value of the chosen option, which the steps test in 'when' conditions, e.g. \"when\": \"entry == \\\"chamfer\\\"\"."
 				},
 				"description": {
 					"type": "string",
@@ -55,12 +56,20 @@
 				"optional": {
 					"type": "boolean",
 					"default": false,
-					"description": "Object parameters ('solid', 'profile'): the parameter may be left empty; the template body tests it with defined(\"name\") in the 'when' condition of rpc.batch calls. Value parameters always keep their default, here 'optional' only affects the input order in the application: the focus starts at the first parameter that is not optional and moves to the next one when a value is entered (a point clicked, Enter in a field), optional ones are skipped and must be selected explicitly. Mark secondary settings optional, leave the parameters the user should always set (e.g. the defining points) required."
+					"description": "Object parameters ('solid', 'profile', 'face'): the parameter may be left empty; the template body tests it with defined(\"name\") in the 'when' condition of rpc.batch calls. Value parameters always keep their default, here 'optional' only affects the input order in the application: the focus starts at the first parameter that is not optional and moves to the next one when a value is entered (a point clicked, Enter in a field), optional ones are skipped and must be selected explicitly. Mark secondary settings optional, leave the parameters the user should always set (e.g. the defining points) required."
 				},
 				"replace": {
 					"type": "boolean",
 					"default": false,
 					"description": "'solid' parameters only: when the template is run in the application, the result takes the place of the picked solid in the document (e.g. the body that gets holes). Has no effect on template.instantiate, which never changes the document."
+				},
+				"solid": {
+					"type": "string",
+					"description": "'face' parameters only: the name of a 'solid' parameter the face belongs to. In the application the user picks only the face, the solid parameter gets its solid (and its 'replace' applies to it); with template.instantiate the solid may be left out and is then the solid of the face, a face of another solid is refused. Without 'solid' the template still gets the face of a copy of its solid, so that steps can reach the solid through the face."
+				},
+				"onFace": {
+					"type": "string",
+					"description": "'point3' parameters only: the name of a 'face' parameter the point lies on. In the application the point is put where the mouse points onto the face; a typed point or one snapped to an object point (e.g. the center of a circular edge) is projected perpendicularly onto the surface of the face. template.instantiate projects the given point the same way."
 				},
 				"min": {
 					"$ref": "#/types/ExpressionNumber",
@@ -86,9 +95,9 @@
 				},
 				"options": {
 					"type": "array",
-					"description": "Allowed options for enum inputs.",
+					"description": "Allowed options for enum inputs, in the order shown. An option is an object with 'value' and 'label', or the value itself (string, number or true/false), which then is its label too. The 'value' of the parameter is the value of the default option: a string that is one of the options is taken as that option, not as an expression; the same holds for an argument of template.instantiate.",
 					"items": {
-						"type": "object",
+						"type": [ "object", "string", "number", "boolean" ],
 						"properties": {
 							"value": {
 								"oneOf": [
@@ -1092,7 +1101,7 @@
 				},
 				"value": {
 					"$ref": "#/types/ExpressionAny",
-					"description": "Default value used when no explicit value is supplied during instantiation. For an object parameter (input kind 'solid' or 'profile') it is the workspace name of the object the template is recorded with; it is not a default - the object has to be supplied on every instantiation."
+					"description": "Default value used when no explicit value is supplied during instantiation. For an object parameter (input kind 'solid', 'profile' or 'face') it is the workspace name of the object the template is recorded with; it is not a default - the object has to be supplied on every instantiation."
 				},
 				"label": {
 					"type": "string",

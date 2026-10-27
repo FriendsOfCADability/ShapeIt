@@ -5850,6 +5850,8 @@ namespace ShapeIt
         {
             double => "number",
             int => "integer",
+            string => "string",
+            bool => "bool",
             GeoPoint => "point3",
             GeoVector => "vector3",
             GeoPoint2D => "point2",
@@ -5880,6 +5882,12 @@ namespace ShapeIt
                     break;
                 case int i:
                     s["value"] = i;
+                    break;
+                case string text:
+                    s["value"] = text;
+                    break;
+                case bool b:
+                    s["value"] = b;
                     break;
                 case GeoPoint p:
                     s["x"] = p.x; s["y"] = p.y; s["z"] = p.z;
@@ -6051,6 +6059,8 @@ namespace ShapeIt
             try
             {
                 BindTemplateParameters(parameters);
+                // a replay links after the arguments have replaced the defaults
+                if (!replayingTemplate) LinkTemplateObjectArguments(name, parameters);
             }
             catch (Exception) when (!replayingTemplate)
             {   // no recording starts (see ProcessMethod), so nothing would pop the copy again. A replay leaves it
@@ -6092,14 +6102,23 @@ namespace ShapeIt
                     }
                     continue;
                 }
+                if (parValue.ValueKind == JsonValueKind.String && TemplateParameterRules.InputString(item, "kind") == "enum"
+                    && TemplateParameterRules.TryEnumLiteral(parInput, parValue.GetString()!, out object option))
+                {   // "value": "sharp" is the option, not an expression naming a workspace item
+                    namedItems[parName] = option;
+                    continue;
+                }
                 WorkspaceSetImpl(parName, parValue, parLabel, parInput);
             }
         }
 
-        /// <summary>A template parameter that takes an object instead of a value (input kind "solid" or "profile").</summary>
-        internal sealed record ObjectParameter(string Name, string Kind, bool Optional, bool Replace);
+        /// <summary>
+        /// A template parameter that takes an object instead of a value (input kind "solid", "profile" or "face").
+        /// <paramref name="Solid"/>: a face parameter only, the solid parameter the face belongs to.
+        /// </summary>
+        internal sealed record ObjectParameter(string Name, string Kind, bool Optional, bool Replace, string? Solid = null);
 
-        internal static bool IsObjectParameterKind(string? kind) => kind == "solid" || kind == "profile";
+        internal static bool IsObjectParameterKind(string? kind) => kind == "solid" || kind == "profile" || kind == "face";
 
         /// <summary>The object parameter described by one entry of template.begin's 'parameters', null for a value parameter.</summary>
         private static ObjectParameter? ObjectParameterSpec(JsonElement parameterSpec)
@@ -6112,7 +6131,101 @@ namespace ShapeIt
             if (!IsObjectParameterKind(kind)) return null;
             bool optional = input.TryGetProperty("optional", out JsonElement o) && o.ValueKind == JsonValueKind.True;
             bool replace = input.TryGetProperty("replace", out JsonElement r) && r.ValueKind == JsonValueKind.True;
-            return new ObjectParameter(nameEl.GetString()!, kind!, optional, replace);
+            string? solid = kind == "face" ? TemplateParameterRules.InputString(parameterSpec, "solid") : null;
+            return new ObjectParameter(nameEl.GetString()!, kind!, optional, replace, solid);
+        }
+
+        /// <summary>The 'parameters' of the template.begin of a template, undefined when there are none.</summary>
+        private JsonElement GetTemplateParameterSpecs(string templateName)
+        {
+            JsonElement prms = GetTemplateBeginParams(templateName);
+            if (prms.ValueKind == JsonValueKind.Object && prms.TryGetProperty("parameters", out JsonElement parameters) && parameters.ValueKind == JsonValueKind.Array)
+                return parameters;
+            return default;
+        }
+
+        /// <summary>The entry of template.begin's 'parameters' with the given name, undefined when there is none.</summary>
+        private JsonElement GetTemplateParameterSpec(string templateName, string parameterName)
+        {
+            JsonElement parameters = GetTemplateParameterSpecs(templateName);
+            if (parameters.ValueKind != JsonValueKind.Array) return default;
+            foreach (JsonElement item in parameters.EnumerateArray())
+            {
+                if (item.ValueKind == JsonValueKind.Object && item.TryGetProperty("name", out JsonElement n) && n.ValueKind == JsonValueKind.String && n.GetString() == parameterName)
+                    return item;
+            }
+            return default;
+        }
+
+        /// <summary>The solid a face belongs to, null for a face of a lone shell or of no shell at all.</summary>
+        public static Solid? OwningSolid(Face face) => (face.Owner as Shell)?.Owner as Solid;
+
+        /// <summary>
+        /// The face of <paramref name="copy"/> that corresponds to <paramref name="face"/> of <paramref name="original"/>,
+        /// null when the face is not one of the original. Cloning a solid keeps the order of its shells and faces.
+        /// </summary>
+        public static Face? CorrespondingFace(Solid original, Solid copy, Face face)
+        {
+            for (int i = 0; i < original.Shells.Length && i < copy.Shells.Length; i++)
+            {
+                int index = Array.IndexOf(original.Shells[i].Faces, face);
+                if (index >= 0 && index < copy.Shells[i].Faces.Length) return copy.Shells[i].Faces[index];
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// A copy of the solid of a face and the face of that copy, so that a template working on a face parameter
+        /// can reach the solid (and modify it) without touching the original. A face of no solid is copied alone.
+        /// </summary>
+        public static (Face face, Solid? solid) CopyWithSolid(Face face)
+        {
+            Solid? owner = OwningSolid(face);
+            if (owner != null)
+            {
+                Solid copy = (Solid)owner.Clone();
+                if (CorrespondingFace(owner, copy, face) is Face copied) return (copied, copy);
+            }
+            return ((Face)face.Clone(), null);
+        }
+
+        /// <summary>The point of the surface of the face closest to p: where a point parameter with 'onFace' is put.</summary>
+        public static GeoPoint PointOnFace(Face face, GeoPoint p)
+        {
+            return face.Surface.PointAt(face.Surface.PositionOf(p));
+        }
+
+        /// <summary>
+        /// Makes the object parameters of an instantiation fit together, after the arguments have replaced the
+        /// defaults: a face parameter with 'solid' fills that solid parameter with the solid the face belongs to, when
+        /// it was not given, and refuses a face of another solid; a point parameter with 'onFace' is moved onto the
+        /// surface of its face.
+        /// </summary>
+        private void LinkTemplateObjectArguments(string templateName, JsonElement parameters)
+        {
+            if (parameters.ValueKind != JsonValueKind.Array) return;
+            foreach (JsonElement spec in parameters.EnumerateArray())
+            {
+                if (ObjectParameterSpec(spec) is not ObjectParameter op) continue;
+                if (op.Kind != "face" || op.Solid == null) continue;
+                if (!namedItems.TryGetValue(op.Name, out object? value) || UnwrapSingletonList(value) is not Face face) continue;
+                Solid? owner = OwningSolid(face);
+                if (!namedItems.TryGetValue(op.Solid, out object? solidValue) || solidValue == null)
+                {
+                    if (owner == null) throw new JsonRpcException("E_INVALID_PARAMS", $"The face parameter '{op.Name}' of template '{templateName}' got a face of no solid, so '{op.Solid}' has to be given.");
+                    namedItems[op.Solid] = owner;
+                }
+                else if (owner == null || owner != UnwrapSingletonList(solidValue))
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"The face parameter '{op.Name}' of template '{templateName}' got a face that is not a face of the solid '{op.Solid}'.");
+            }
+            foreach (JsonElement item in parameters.EnumerateArray())
+            {
+                if (TemplateParameterRules.InputString(item, "onFace") is not string faceName) continue;
+                string name = RequireString(item, "name");
+                if (namedItems.TryGetValue(name, out object? point) && point is GeoPoint p
+                    && namedItems.TryGetValue(faceName, out object? faceValue) && faceValue != null && UnwrapSingletonList(faceValue) is Face face)
+                    namedItems[name] = PointOnFace(face, p);
+            }
         }
 
         /// <summary>The object parameters of a template, in the order of their declaration.</summary>
@@ -6133,20 +6246,30 @@ namespace ShapeIt
 
         /// <summary>
         /// Checks the object parameters after the arguments of an instantiation have been applied: a required one must
-        /// be given and of the right kind - a solid for "solid", a sketch or sketch geometry for "profile".
+        /// be given and of the right kind - a solid for "solid", a face for "face", a sketch or sketch geometry for "profile".
         /// </summary>
         private void CheckTemplateObjectArguments(string templateName)
         {
-            foreach (ObjectParameter op in GetTemplateObjectParameters(templateName))
+            List<ObjectParameter> objectParameters = GetTemplateObjectParameters(templateName);
+            foreach (ObjectParameter op in objectParameters)
             {
                 if (!namedItems.TryGetValue(op.Name, out object? value) || value == null)
                 {
                     if (op.Optional) continue;
-                    throw new JsonRpcException("E_INVALID_PARAMS", $"Template '{templateName}' needs the {op.Kind} parameter '{op.Name}': pass the workspace name of a {(op.Kind == "solid" ? "solid" : "sketch")} as argument.");
+                    // a solid that comes with a face is missing because the face is: report the face
+                    ObjectParameter? face = objectParameters.Find(f => f.Kind == "face" && f.Solid == op.Name);
+                    if (face != null && (!namedItems.TryGetValue(face.Name, out object? faceValue) || faceValue == null))
+                        throw new JsonRpcException("E_INVALID_PARAMS", $"Template '{templateName}' needs the face parameter '{face.Name}': pass the workspace name of a face as argument, its solid becomes '{op.Name}'.");
+                    string expected = op.Kind switch { "solid" => "solid", "face" => "face", _ => "sketch" };
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"Template '{templateName}' needs the {op.Kind} parameter '{op.Name}': pass the workspace name of a {expected} as argument.");
                 }
                 object unwrapped = UnwrapSingletonList(value);
-                bool ok = op.Kind == "solid" ? unwrapped is Solid
-                    : unwrapped is Sketch || unwrapped is CompoundShape || unwrapped is ICurve2D || unwrapped is IEnumerable<ICurve2D> || unwrapped is IEnumerable<CompoundShape>;
+                bool ok = op.Kind switch
+                {
+                    "solid" => unwrapped is Solid,
+                    "face" => unwrapped is Face,
+                    _ => unwrapped is Sketch || unwrapped is CompoundShape || unwrapped is ICurve2D || unwrapped is IEnumerable<ICurve2D> || unwrapped is IEnumerable<CompoundShape>
+                };
                 if (!ok) throw new JsonRpcException("E_INVALID_PARAMS", $"The {op.Kind} parameter '{op.Name}' of template '{templateName}' got a {GetObjectTypeName(unwrapped)}.");
             }
         }
@@ -6187,6 +6310,42 @@ namespace ShapeIt
             return MakeTypedList(resultingObjects);
         }
 
+        /// <summary>
+        /// An object argument is the caller's workspace item: the template works on a copy, so that a step modifying
+        /// it in place cannot reach outside the template. A face is copied together with its solid - the template may
+        /// need the solid, and its face parameter may name a solid parameter - and a face of a solid that is an
+        /// argument too becomes the face of that solid's copy.
+        /// </summary>
+        private static void CopyObjectArguments(List<(string name, object value)> argumentValues)
+        {
+            Dictionary<Solid, Solid> copies = new Dictionary<Solid, Solid>();
+            for (int i = 0; i < argumentValues.Count; i++)
+            {
+                if (UnwrapSingletonList(argumentValues[i].value) is Solid solid)
+                {
+                    if (!copies.TryGetValue(solid, out Solid? copy)) copies[solid] = copy = (Solid)solid.Clone();
+                    argumentValues[i] = (argumentValues[i].name, copy);
+                }
+            }
+            for (int i = 0; i < argumentValues.Count; i++)
+            {
+                object value = UnwrapSingletonList(argumentValues[i].value);
+                if (value is Face face)
+                {
+                    Solid? owner = OwningSolid(face);
+                    Face? copied = null;
+                    if (owner != null && copies.TryGetValue(owner, out Solid? copy)) copied = CorrespondingFace(owner, copy, face);
+                    if (copied == null)
+                    {
+                        (copied, Solid? solidCopy) = CopyWithSolid(face);
+                        if (owner != null && solidCopy != null) copies[owner] = solidCopy; // a second face of the same solid
+                    }
+                    argumentValues[i] = (argumentValues[i].name, copied);
+                }
+                else if (value is IGeoObject go && value is not Solid) argumentValues[i] = (argumentValues[i].name, go.Clone());
+            }
+        }
+
         private object? TemplateInstantiateImpl(string template, JsonElement arguments, string transform, string? name, bool explodeResult)
         {
 
@@ -6202,14 +6361,17 @@ namespace ShapeIt
                     if (item.Value.ValueKind == JsonValueKind.Number) argumentValues.Add((item.Name, item.Value.GetDouble()));
                     else if (item.Value.ValueKind == JsonValueKind.String)
                     {
-                        object value = Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict);
-                        // an object argument is the caller's workspace item: the template works on a copy,
-                        // so that a step modifying it in place cannot reach outside the template
-                        if (value is IGeoObject go) value = go.Clone();
-                        argumentValues.Add((item.Name, value));
+                        JsonElement spec = GetTemplateParameterSpec(template, item.Name);
+                        if (TemplateParameterRules.InputString(spec, "kind") == "enum" && spec.TryGetProperty("input", out JsonElement input)
+                            && TemplateParameterRules.TryEnumLiteral(input, item.Value.GetString()!, out object option))
+                            argumentValues.Add((item.Name, option)); // "entry": "chamfer" is the option
+                        else argumentValues.Add((item.Name, Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict)));
                     }
+                    else if (item.Value.ValueKind == JsonValueKind.True || item.Value.ValueKind == JsonValueKind.False)
+                        argumentValues.Add((item.Name, item.Value.GetBoolean())); // e.g. an enum with the options true and false
                 }
             }
+            CopyObjectArguments(argumentValues);
             object? res = null; // the result
             using (Progress?.Level(CountTemplateSteps(jsons)))
             {   // use a clone of the named items dictionary during evaluation of the template
@@ -6248,6 +6410,7 @@ namespace ShapeIt
                             foreach ((string parName, object value) in argumentValues) namedItems[parName] = value;
                             try
                             {
+                                LinkTemplateObjectArguments(template, GetTemplateParameterSpecs(template));
                                 CheckTemplateObjectArguments(template);
                                 CheckTemplateParameterValues(template);
                             }
@@ -6309,10 +6472,16 @@ namespace ShapeIt
             public string? description;
             public string? group;
             public int order;
-            /// <summary>Object parameters (kind "solid", "profile") only: may be left empty.</summary>
+            /// <summary>Object parameters (kind "solid", "profile", "face") only: may be left empty.</summary>
             public bool optional;
             /// <summary>Solid parameters only: the template result takes the place of the picked document solid.</summary>
             public bool replace;
+            /// <summary>Face parameters only: the solid parameter that gets the solid of the picked face.</summary>
+            public string? solid;
+            /// <summary>Point parameters only: the face parameter whose surface the point is put on.</summary>
+            public string? onFace;
+            /// <summary>Enum parameters only: the options in their order.</summary>
+            public List<TemplateEnumOption>? options;
         }
 
         internal string? GetTemplateLabel(string key)
@@ -6411,6 +6580,9 @@ namespace ShapeIt
                                                         res.order = order.GetInt32();
                                                     res.optional = input.TryGetProperty("optional", out var optional) && optional.ValueKind == JsonValueKind.True;
                                                     res.replace = input.TryGetProperty("replace", out var replace) && replace.ValueKind == JsonValueKind.True;
+                                                    res.solid = TemplateParameterRules.InputString(item, "solid");
+                                                    res.onFace = TemplateParameterRules.InputString(item, "onFace");
+                                                    if (res.kind == "enum") res.options = TemplateParameterRules.ReadEnumOptions(input);
                                                 }
                                             }
 
@@ -6531,6 +6703,7 @@ namespace ShapeIt
                             {
                                 namedItems[item.Key] = item.Value;
                             }
+                            LinkTemplateObjectArguments(template, GetTemplateParameterSpecs(template));
                             CheckTemplateObjectArguments(template);
                             CheckTemplateParameterValues(template);
                         }

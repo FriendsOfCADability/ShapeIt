@@ -22,6 +22,9 @@ namespace ShapeIt
     /// </summary>
     public sealed record TemplatePreset(string Name, string Label, string? Description, IReadOnlyList<TemplatePresetOption> Options);
 
+    /// <summary>One option of an 'enum' input: the value the template gets (a string, number or bool) and its label.</summary>
+    public sealed record TemplateEnumOption(object Value, string Label);
+
     /// <summary>
     /// The rules a template states about its parameter values - 'min' and 'max' of the value inputs and the
     /// 'checks' of template.begin - and its 'presets'. Static and working on a plain dictionary of values, so that
@@ -63,9 +66,17 @@ namespace ShapeIt
                     if (!spec.TryGetProperty("input", out JsonElement input) || input.ValueKind != JsonValueKind.Object) continue;
                     string name = nameEl.GetString()!;
                     string? kind = input.TryGetProperty("kind", out JsonElement kindEl) && kindEl.ValueKind == JsonValueKind.String ? kindEl.GetString() : null;
+                    string label = spec.TryGetProperty("label", out JsonElement labelEl) && labelEl.ValueKind == JsonValueKind.String ? labelEl.GetString()! : name;
+                    if (kind == "enum")
+                    {   // the steps test the value with 'when' conditions: one that is no option would match none of them
+                        if (!values.TryGetValue(name, out object? choice)) continue;
+                        List<TemplateEnumOption> options = ReadEnumOptions(input);
+                        if (!options.Exists(o => SameEnumValue(o.Value, choice)))
+                            problems.Add(new ParameterProblem($"{label} must be one of {string.Join(", ", options.ConvertAll(o => FormatForMessage(o.Value)))}, not {FormatForMessage(choice)}.", new[] { name }));
+                        continue;
+                    }
                     if (kind != null && !numericKinds.Contains(kind)) continue;
                     if (!values.TryGetValue(name, out object? value) || !TryToDouble(value, out double number)) continue;
-                    string label = spec.TryGetProperty("label", out JsonElement labelEl) && labelEl.ValueKind == JsonValueKind.String ? labelEl.GetString()! : name;
                     foreach (bool isMinimum in new[] { true, false })
                     {
                         if (!input.TryGetProperty(isMinimum ? "min" : "max", out JsonElement limitEl)) continue;
@@ -131,12 +142,44 @@ namespace ShapeIt
         public static void ValidateDefinition(JsonElement parameters, JsonElement presets, JsonElement checks)
         {
             HashSet<string> names = new HashSet<string>(StringComparer.Ordinal);
+            Dictionary<string, string?> kinds = new Dictionary<string, string?>(StringComparer.Ordinal);
             if (parameters.ValueKind == JsonValueKind.Array)
             {
                 foreach (JsonElement spec in parameters.EnumerateArray())
                 {
                     if (spec.ValueKind == JsonValueKind.Object && spec.TryGetProperty("name", out JsonElement n) && n.ValueKind == JsonValueKind.String)
+                    {
                         names.Add(n.GetString()!);
+                        kinds[n.GetString()!] = InputString(spec, "kind");
+                    }
+                }
+                foreach (JsonElement spec in parameters.EnumerateArray())
+                {
+                    if (spec.ValueKind != JsonValueKind.Object || !spec.TryGetProperty("name", out JsonElement n) || n.ValueKind != JsonValueKind.String) continue;
+                    string name = n.GetString()!;
+                    string? kind = kinds[name];
+                    if (kind == "enum")
+                    {
+                        spec.TryGetProperty("input", out JsonElement input);
+                        List<TemplateEnumOption> options = ReadEnumOptions(input);
+                        if (options.Count == 0) throw new JsonRpcException("E_INVALID_PARAMS", $"The enum parameter '{name}' needs 'options': values (strings, numbers or true/false), or objects with 'value' and 'label'.");
+                        for (int i = 0; i < options.Count; i++)
+                        {
+                            for (int j = 0; j < i; j++)
+                            {
+                                if (SameEnumValue(options[i].Value, options[j].Value)) throw new JsonRpcException("E_INVALID_PARAMS", $"The enum parameter '{name}' has the option {FormatForMessage(options[i].Value)} twice.");
+                            }
+                        }
+                    }
+                    // the solid a face is picked on, and the face a point is put on, must be parameters of that kind
+                    if (kind == "face" && InputString(spec, "solid") is string solid && (!kinds.TryGetValue(solid, out string? solidKind) || solidKind != "solid"))
+                        throw new JsonRpcException("E_INVALID_PARAMS", $"The face parameter '{name}' names '{solid}' as its solid, which is no 'solid' parameter of the template.");
+                    if (InputString(spec, "onFace") is string face)
+                    {
+                        if (kind != "point3") throw new JsonRpcException("E_INVALID_PARAMS", $"'onFace' is for 'point3' parameters, '{name}' is no such parameter.");
+                        if (!kinds.TryGetValue(face, out string? faceKind) || faceKind != "face")
+                            throw new JsonRpcException("E_INVALID_PARAMS", $"The point parameter '{name}' names '{face}' as its face, which is no 'face' parameter of the template.");
+                    }
                 }
             }
             if (presets.ValueKind != JsonValueKind.Undefined && presets.ValueKind != JsonValueKind.Null)
@@ -207,6 +250,74 @@ namespace ShapeIt
                 res.Add(new TemplatePreset(name, label, description, options));
             }
             return res;
+        }
+
+        /// <summary>A string property of the 'input' of a parameter, null when there is none.</summary>
+        public static string? InputString(JsonElement parameterSpec, string property)
+        {
+            if (parameterSpec.ValueKind != JsonValueKind.Object || !parameterSpec.TryGetProperty("input", out JsonElement input) || input.ValueKind != JsonValueKind.Object) return null;
+            return input.TryGetProperty(property, out JsonElement el) && el.ValueKind == JsonValueKind.String ? el.GetString() : null;
+        }
+
+        /// <summary>
+        /// The 'options' of an 'enum' input in their order. An option is either the value itself or an object with
+        /// 'value' and 'label'; without a label the value is shown. Entries of another form are skipped.
+        /// </summary>
+        public static List<TemplateEnumOption> ReadEnumOptions(JsonElement input)
+        {
+            List<TemplateEnumOption> res = new List<TemplateEnumOption>();
+            if (input.ValueKind != JsonValueKind.Object || !input.TryGetProperty("options", out JsonElement options) || options.ValueKind != JsonValueKind.Array) return res;
+            foreach (JsonElement option in options.EnumerateArray())
+            {
+                JsonElement valueEl = option;
+                string? label = null;
+                if (option.ValueKind == JsonValueKind.Object)
+                {
+                    if (!option.TryGetProperty("value", out valueEl)) continue;
+                    if (option.TryGetProperty("label", out JsonElement l) && l.ValueKind == JsonValueKind.String) label = l.GetString();
+                }
+                if (EnumValue(valueEl) is object value) res.Add(new TemplateEnumOption(value, label ?? FormatForMessage(value)));
+            }
+            return res;
+        }
+
+        /// <summary>The value of an enum option as written: a string, number or bool, null for anything else.</summary>
+        private static object? EnumValue(JsonElement value)
+        {
+            switch (value.ValueKind)
+            {
+                case JsonValueKind.String: return value.GetString();
+                case JsonValueKind.Number: return value.GetDouble();
+                case JsonValueKind.True: return true;
+                case JsonValueKind.False: return false;
+                default: return null;
+            }
+        }
+
+        /// <summary>
+        /// The value of an enum parameter given as text, e.g. the 'value' of template.begin or an argument of
+        /// template.instantiate: a text that is one of the string options is that option. Anything else is an
+        /// expression, so that "\"chamfer\"" or the name of a value of the caller still work.
+        /// </summary>
+        public static bool TryEnumLiteral(JsonElement input, string text, out object value)
+        {
+            foreach (TemplateEnumOption option in ReadEnumOptions(input))
+            {
+                if (option.Value is string s && s == text)
+                {
+                    value = s;
+                    return true;
+                }
+            }
+            value = null!;
+            return false;
+        }
+
+        /// <summary>Whether two enum values are the same option: numbers by value, everything else by equality.</summary>
+        public static bool SameEnumValue(object? a, object? b)
+        {
+            if (TryToDouble(a, out double x) && TryToDouble(b, out double y)) return x == y;
+            return Equals(a, b);
         }
 
         /// <summary>A value as written in a template: a number, true/false, or an expression over the given values.</summary>
