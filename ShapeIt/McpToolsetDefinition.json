@@ -3824,7 +3824,7 @@
 				"properties": {
 					"profile": {
 						"$ref": "#/types/NameRef",
-						"description": "A profile or closed curve to be swept around the axis."
+						"description": "A profile, a closed curve or the name of a sketch (its closed profiles) to be swept around the axis."
 					},
 					"axis": {
 						"$ref": "#/types/Axis3"
@@ -3876,11 +3876,11 @@
 				"properties": {
 					"profile1": {
 						"$ref": "#/types/SketchGeometryRef",
-						"description": "First closed sketch profile."
+						"description": "First closed sketch profile: a closed sketch curve, or the name of a sketch that contains exactly one closed profile (e.g. after sketch.connect)."
 					},
 					"profile2": {
 						"$ref": "#/types/SketchGeometryRef",
-						"description": "Second closed sketch profile."
+						"description": "Second closed sketch profile: a closed sketch curve, or the name of a sketch that contains exactly one closed profile. Its segments are connected with those of profile1 by index, so both should be built the same way."
 					},
 					"synchronization": {
 						"type": "string",

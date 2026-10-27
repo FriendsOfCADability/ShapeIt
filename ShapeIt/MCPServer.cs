@@ -4555,45 +4555,56 @@ namespace ShapeIt
 
         private void SolidRuledImpl(JsonElement profile1, JsonElement profile2, string synchronization, string alignment, JsonElement matchPoints1, JsonElement matchPoints2, string name)
         {
-            Path? path1 = null, path2 = null;
-            List<ICurve2D> curves1 = IterateSelector<ICurve2D>(profile1).ToList();
-            if (curves1.Count > 0)
+            Path path1 = RuledProfile(profile1, "profile1");
+            Path path2 = RuledProfile(profile2, "profile2");
+            Solid sld = Make3D.MakeRuledSolid(path1, path2, null);
+            if (sld == null) throw new JsonRpcException("E_OPERATION_FAILED", "Could not create ruled solid.");
+            if (name != null) namedItems[name] = sld;
+        }
+
+        /// <summary>
+        /// One profile of solid.ruled as a closed 3d path: a closed sketch curve, or a sketch, which must then contain
+        /// exactly one closed curve (e.g. the result of sketch.connect) or one closed shape without holes. The
+        /// segments of the curve keep their order, solid.ruled connects them by index.
+        /// </summary>
+        private Path RuledProfile(JsonElement profile, string parameter)
+        {
+            ICurve2D? curve;
+            Sketch? sketch;
+            List<Sketch> sketches = IterateSelector<Sketch>(profile).ToList();
+            if (sketches.Count > 0)
             {
-                if (curves1.Count > 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"we need exactely one closed profile in profile1.");
-                Sketch? sketch = curves1[0].UserData.GetData("MCPServer.Sketch") as Sketch;
-                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Sketch not found for profile1.");
-                IGeoObject go = curves1[0].MakeGeoObject(sketch.Plane);
-                if (go is Path p) path1 = p;
-                else if (go is ICurve crv)
-                {
-                    path1 = Path.FromSegments(new ICurve[] { crv }, true);
-                    path1.Flatten();
+                if (sketches.Count > 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"'{parameter}' must be a single sketch or closed curve.");
+                sketch = sketches[0];
+                List<ICurve2D> closed = sketch.Curves.Where(c => c.IsClosed).ToList();
+                if (closed.Count == 1 && sketch.Shapes.Count == 0) curve = closed[0];
+                else
+                {   // several closed curves or shapes: they must form a single outline
+                    CompoundShape? cs = sketch.GetCompoundShape();
+                    if (cs == null || cs.SimpleShapes.Length != 1 || cs.SimpleShapes[0].NumHoles > 0)
+                        throw new JsonRpcException("E_INVALID_PARAMETER", $"The sketch of '{parameter}' must contain exactly one closed profile without holes, "
+                            + $"it has {closed.Count} closed curves and {sketch.Shapes.Count} shapes. Open curves are ignored, connect them with sketch.connect.");
+                    curve = cs.SimpleShapes[0].Outline.AsPath();
                 }
-                else throw new JsonRpcException("E_INVALID_PARAMETER", $"profile1 must be closed.");
             }
-            List<ICurve2D> curves2 = IterateSelector<ICurve2D>(profile2).ToList();
-            if (curves2.Count > 0)
+            else
             {
-                if (curves2.Count > 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"we need exactely one closed profile in profile2.");
-                Sketch? sketch = curves2[0].UserData.GetData("MCPServer.Sketch") as Sketch;
-                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", "Sketch not found for profile2.");
-                IGeoObject go = curves2[0].MakeGeoObject(sketch.Plane);
-                if (go is Path p) path2 = p;
-                else if (go is ICurve crv)
-                {
-                    path2 = Path.FromSegments(new ICurve[] { crv }, true);
-                }
-                else throw new JsonRpcException("E_INVALID_PARAMETER", $"profile2 must be closed.");
+                List<ICurve2D> curves = IterateSelector<ICurve2D>(profile).ToList();
+                if (curves.Count != 1) throw new JsonRpcException("E_INVALID_PARAMETER", $"'{parameter}' must be a single sketch or closed curve, it names {curves.Count} curves.");
+                curve = curves[0];
+                sketch = curve.UserData.GetData("MCPServer.Sketch") as Sketch;
+                if (sketch == null) throw new JsonRpcException("E_INTERNAL_ERROR", $"Sketch not found for {parameter}.");
+                if (!curve.IsClosed) throw new JsonRpcException("E_INVALID_PARAMETER", $"'{parameter}' must be closed.");
             }
-            if (path1 != null && path2 != null)
+            IGeoObject go = curve.MakeGeoObject(sketch.Plane);
+            if (go is Path p) return p;
+            if (go is ICurve crv)
             {
-                Solid sld = Make3D.MakeRuledSolid(path1, path2, null);
-                if (sld != null)
-                {
-                    if (name != null) namedItems[name] = sld;
-                }
-                else throw new JsonRpcException("E_OPERATION_FAILED", "Could not create ruled solid.");
+                Path path = Path.FromSegments(new ICurve[] { crv }, true);
+                path.Flatten();
+                return path;
             }
+            throw new JsonRpcException("E_INVALID_PARAMETER", $"'{parameter}' must be closed.");
         }
 
         /// <summary>
@@ -6604,6 +6615,13 @@ namespace ShapeIt
         List<CompoundShape> GetProfiles(JsonElement selector)
         {
             List<CompoundShape> lcs = IterateSelector<CompoundShape>(selector).ToList();
+            foreach (Sketch sketch in IterateSelector<Sketch>(selector))
+            {   // a sketch name stands for the closed shapes of the sketch, as with solid.extrude
+                CompoundShape? cs = sketch.GetCompoundShape();
+                if (cs == null) continue;
+                cs.UserData["MCPServer.Sketch"] = sketch; // not every shape GetCompoundShape returns carries it
+                lcs.Add(cs);
+            }
             List<ICurve2D> lc2 = IterateSelector<ICurve2D>(selector).ToList();
             List<ICurve2D> remainingCurves = [];
             for (int i = 0; i < lc2.Count; i++)
