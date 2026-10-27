@@ -260,81 +260,103 @@ namespace CADability.Forms.NET8
             }
         }
         /// <summary>
-        /// Save the positions of the toolbars in the application settings.
+        /// The global setting with the positions of the toolbars: "Name:row,x;..." where row is the index of the
+        /// toolbar row and x the offset of the toolbar in that row.
+        /// </summary>
+        private const string PositionsSetting = "ToolbarPositions";
+        /// <summary>
+        /// The saved toolbar positions by toolbar name, see <see cref="PositionsSetting"/>. Entries that cannot be read are skipped.
+        /// </summary>
+        private static Dictionary<string, (int row, int x)> SavedPositions()
+        {
+            Dictionary<string, (int row, int x)> res = new Dictionary<string, (int row, int x)>();
+            string saved = Settings.GlobalSettings.GetStringValue(PositionsSetting, "");
+            foreach (string position in saved.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                int colon = position.LastIndexOf(':');
+                if (colon <= 0) continue;
+                string[] rowAndX = position.Substring(colon + 1).Split(',');
+                if (rowAndX.Length == 2 && int.TryParse(rowAndX[0], out int row) && int.TryParse(rowAndX[1], out int x) && row >= 0)
+                    res[position.Substring(0, colon)] = (row, Math.Max(x, 0));
+            }
+            return res;
+        }
+        /// <summary>
+        /// Saves the positions of the toolbars in the global settings (<see cref="Settings.GlobalSettings"/>, which are
+        /// written when the application closes). A toolbar that is not shown now (e.g. a dynamic one without buttons)
+        /// keeps its saved position.
         /// </summary>
         /// <param name="topToolStripContainer"></param>
         public static void SaveToolbarPositions(ToolStripContainer topToolStripContainer)
-        {   // very simple serialisation of the position of the controls
-            StringBuilder saveToolbarPosition = new StringBuilder();
-            foreach (Control control in topToolStripContainer.TopToolStripPanel.Controls)
+        {
+            Dictionary<string, (int row, int x)> positions = SavedPositions();
+            ToolStripPanelRow[] rows = topToolStripContainer.TopToolStripPanel.Rows;
+            for (int row = 0; row < rows.Length; row++)
             {
-                if (control is ToolStrip toolStrip)
+                foreach (Control control in rows[row].Controls)
                 {
-                    saveToolbarPosition.Append(toolStrip.Name);
-                    saveToolbarPosition.Append(":");
-                    saveToolbarPosition.Append(toolStrip.Location.X.ToString());
-                    saveToolbarPosition.Append(",");
-                    saveToolbarPosition.Append(toolStrip.Location.Y.ToString());
-                    saveToolbarPosition.Append(";");
+                    if (control is ToolStrip toolStrip && !string.IsNullOrEmpty(toolStrip.Name)) positions[toolStrip.Name] = (row, toolStrip.Location.X);
                 }
             }
-            Properties.Settings.Default["ToolbarPositions"] = saveToolbarPosition.ToString();
-            Properties.Settings.Default.Save(); // Saves settings in application configuration file
+            Settings.GlobalSettings.SetValue(PositionsSetting, string.Join(";", positions.Select(p => p.Key + ":" + p.Value.row + "," + p.Value.x)));
         }
         /// <summary>
-        /// Create some standard toolbars and restore the positions from the application settings
+        /// The top of the given toolbar row; a row that does not exist yet starts below the last one.
+        /// </summary>
+        private static int RowTop(ToolStripPanel panel, int row)
+        {
+            ToolStripPanelRow[] rows = panel.Rows;
+            if (row < rows.Length) return rows[row].Bounds.Top;
+            return rows.Length == 0 ? 0 : rows[rows.Length - 1].Bounds.Bottom + 1;
+        }
+        /// <summary>
+        /// Arranges the toolbars of the panel at their saved positions. Must be called when the panel has its final width
+        /// (e.g. when the form is shown): a toolbar joined beyond the width of the panel is moved into another row.
+        /// The toolbars are joined row by row from left to right, so that none pushes an already placed one aside;
+        /// empty saved rows are skipped. Toolbars without a saved position follow in a row of their own.
+        /// </summary>
+        public static void RestoreToolbarPositions(ToolStripContainer topToolStripContainer)
+        {
+            Dictionary<string, (int row, int x)> saved = SavedPositions();
+            ToolStripPanel panel = topToolStripContainer.TopToolStripPanel;
+            List<ToolStrip> strips = panel.Rows.SelectMany(r => r.Controls).OfType<ToolStrip>().ToList(); // row by row, left to right
+            if (!strips.Any(ts => saved.ContainsKey(ts.Name))) return; // nothing saved yet: keep the default layout
+            List<ToolStrip> placed = strips.Where(ts => saved.ContainsKey(ts.Name)).OrderBy(ts => saved[ts.Name].row).ThenBy(ts => saved[ts.Name].x).ToList();
+            List<ToolStrip> unplaced = strips.Where(ts => !saved.ContainsKey(ts.Name)).ToList();
+            panel.Controls.Clear(); // removes, but does not dispose the toolbars
+            List<int> savedRows = placed.Select(ts => saved[ts.Name].row).Distinct().ToList(); // ascending, as placed is sorted
+            foreach (ToolStrip toolStrip in placed)
+            {
+                (int row, int x) = saved[toolStrip.Name];
+                panel.Join(toolStrip, new Point(x, RowTop(panel, savedRows.IndexOf(row))));
+            }
+            int unplacedRow = panel.Rows.Length;
+            int left = 0;
+            foreach (ToolStrip toolStrip in unplaced)
+            {
+                panel.Join(toolStrip, new Point(left, RowTop(panel, unplacedRow)));
+                left = toolStrip.Bounds.Right;
+            }
+        }
+        /// <summary>
+        /// Create some standard toolbars. Their saved positions are restored by <see cref="RestoreToolbarPositions"/>
+        /// when the form is shown.
         /// </summary>
         /// <param name="topToolStripContainer"></param>
         /// <param name="commandHandler"></param>
         public static void CreateOrRestoreToolbars(ToolStripContainer topToolStripContainer, ICommandHandler commandHandler)
         {
-            string savedToolbarPosition = Properties.Settings.Default["ToolbarPositions"] as string;
-            SortedDictionary<string, Point> toolBarPosition = new SortedDictionary<string, Point>();
-            foreach (string position in savedToolbarPosition.Split(';'))
-            {
-                string[] parts = position.Split(':');
-                if (parts.Length == 2)
-                {
-                    string[] xy = parts[1].Split(',');
-                    if (xy.Length == 2)
-                    {
-                        try
-                        {
-                            toolBarPosition[parts[0]] = new Point(int.Parse(xy[0]), int.Parse(xy[1]));
-                        }
-                        catch { }
-                    }
-                }
-            }
-            if (false) //(toolBarPosition.Count >= 5)
-            {   // it is a valid dictionary
-                // we have to sort the entries by location from top left to bottom right
-                string[] keys = new string[toolBarPosition.Count];
-                toolBarPosition.Keys.CopyTo(keys, 0);
-                Array.Sort(keys, delegate (string s1, string s2)
-                {
-                    int c = toolBarPosition[s1].Y.CompareTo(toolBarPosition[s2].Y);
-                    if (c == 0) c = toolBarPosition[s1].X.CompareTo(toolBarPosition[s2].X);
-                    return c;
-                });
-                for (int i = 0; i < keys.Length; i++)
-                {
-                    if (toolBarPosition.TryGetValue(keys[i], out Point point)) topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip(keys[i], commandHandler), point);
-                }
-            }
-            else
-            {
-                topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Object", commandHandler), 0);
-                topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Zoom", commandHandler), 0);
-                topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("File", commandHandler), 0);
-                topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Edit", commandHandler), 0);
-                topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Snap", commandHandler), 1);
-                topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Construct", commandHandler), 1);
-            }
+            topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Object", commandHandler), 0);
+            topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Zoom", commandHandler), 0);
+            topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("File", commandHandler), 0);
+            topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Edit", commandHandler), 0);
+            topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Snap", commandHandler), 1);
+            topToolStripContainer.TopToolStripPanel.Join(ToolBars.MakeStandardToolStrip("Construct", commandHandler), 1);
         }
         /// <summary>
         /// Sets the buttons of a toolbar whose commands are only known at runtime (e.g. the templates of ShapeIt):
-        /// a toolbar of that name is replaced in place, a new one is added in the last row, and no menu ids remove it.
+        /// a toolbar of that name is replaced in place, a new one goes to its saved position or else into the last row,
+        /// and no menu ids remove it.
         /// </summary>
         public static void SetDynamicToolBar(ToolStripContainer topToolStripContainer, ICommandHandler commandHandler, string name, string[] menuIds)
         {
@@ -350,6 +372,7 @@ namespace CADability.Forms.NET8
             if (menuIds.Length == 0) return;
             ToolStrip toolStrip = MakeToolStrip(menuIds, name, commandHandler);
             if (existing != null) panel.Join(toolStrip, location);
+            else if (SavedPositions().TryGetValue(name, out (int row, int x) saved)) panel.Join(toolStrip, new Point(saved.x, RowTop(panel, saved.row)));
             else panel.Join(toolStrip, Math.Max(0, panel.Rows.Length - 1));
         }
         public static void SetToolBar(ToolStripContainer topToolStripContainer, ICommandHandler commandHandler, XmlNode definition)

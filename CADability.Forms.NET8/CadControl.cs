@@ -189,6 +189,8 @@ namespace CADability.Forms.NET8
                 }
                 parentForm.KeyPreview = true; // used to filter the escape key (and maybe some more?)                
                 parentForm.FormClosed += ParentForm_FormClosed;
+                // only when the form is shown, the toolbar panel has its final width, which the saved positions need
+                parentForm.Shown += (sender, e) => ToolBars.RestoreToolbarPositions(toolStripContainer);
             }
         }
 

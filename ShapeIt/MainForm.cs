@@ -377,7 +377,7 @@ namespace ShapeIt
                 // AutoDebug();
 #endif
             }
-            base.OnActivated(e);
+            base.OnShown(e); // restores the toolbar positions
         }
 
         /// <summary>

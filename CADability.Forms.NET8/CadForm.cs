@@ -119,12 +119,18 @@ namespace CADability.Forms.NET8
             try { ToolBars.UpdateCommandState(topToolStripContainer.TopToolStripPanel); }
             finally { _idleBusy = false; }
         }
-        protected override void OnClosing(CancelEventArgs e)
-        {   // maybe we need to save the project
+        protected override void OnShown(EventArgs e)
+        {   // only now the toolbar panel has its final width, which the saved positions need
+            ToolBars.RestoreToolbarPositions(topToolStripContainer);
+            base.OnShown(e);
+        }
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {   // a derived form may cancel closing (e.g. to save the project) before calling this.
+            // OnFormClosing, unlike the obsolete OnClosing, is also called when the application exits by Application.Exit
+            base.OnFormClosing(e);
+            if (e.Cancel) return;
             ToolBars.SaveToolbarPositions(topToolStripContainer);
             Settings.SaveGlobalSettings();
-            ToolStripManager.SaveSettings(this); // save the positions of the toolbars (doesn't work correctly)
-            base.OnClosing(e);
         }
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
