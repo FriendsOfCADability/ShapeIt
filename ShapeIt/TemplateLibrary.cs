@@ -65,14 +65,24 @@ namespace ShapeIt
         /// is {"label": ..., "icon": ..., "templates": [{"name": ..., "items": [...]}, ...]}; "label" and "icon"
         /// (SVG text, see <see cref="TemplateIcon"/>) are optional and describe the drop-down button of the file's
         /// templates on the toolbar. Without a label the file name is used; an icon that is not accepted is ignored.
+        /// Its optional "translations" go to <paramref name="translations"/>. A file with "translations" and no
+        /// "templates" only translates (see <see cref="TemplateTranslations"/>); it brings no templates.
         /// </summary>
         /// <exception cref="Exception">the file cannot be read or is no template file</exception>
-        public static TemplateFile ReadFile(string fileName, Dictionary<string, List<JsonElement>> templates)
+        public static TemplateFile ReadFile(string fileName, Dictionary<string, List<JsonElement>> templates, TemplateTranslations? translations = null)
         {
             using FileStream stream = File.OpenRead(fileName);
             using JsonDocument document = JsonDocument.Parse(stream);
+            string id = Path.GetFileNameWithoutExtension(fileName);
+            bool hasTranslations = document.RootElement.TryGetProperty("translations", out JsonElement translated) && translated.ValueKind == JsonValueKind.Object;
             if (!document.RootElement.TryGetProperty("templates", out JsonElement list) || list.ValueKind != JsonValueKind.Array)
-                throw new InvalidDataException("No \"templates\" array.");
+            {
+                if (!hasTranslations) throw new InvalidDataException("No \"templates\" array.");
+                // BohrungTemplate.fr.json translates the file label of BohrungTemplate.json
+                string translatedId = id.Contains('.') ? id.Substring(0, id.IndexOf('.')) : id;
+                translations?.Add(translated, translatedId);
+                return new TemplateFile(id, id, null, Array.Empty<string>());
+            }
             List<string> names = new List<string>();
             foreach (JsonElement template in list.EnumerateArray())
             {
@@ -83,7 +93,7 @@ namespace ShapeIt
                 templates[name] = items.EnumerateArray().Select(item => item.Clone()).ToList();
                 names.Add(name);
             }
-            string id = Path.GetFileNameWithoutExtension(fileName);
+            if (hasTranslations) translations?.Add(translated, id);
             string label = document.RootElement.TryGetProperty("label", out JsonElement l) && l.ValueKind == JsonValueKind.String ? l.GetString()! : id;
             string? icon = document.RootElement.TryGetProperty("icon", out JsonElement i) && i.ValueKind == JsonValueKind.String
                 && TemplateIcon.Problem(i.GetString()!) == null ? i.GetString() : null;
@@ -97,7 +107,8 @@ namespace ShapeIt
         /// </summary>
         /// <param name="read">receives the files read, in this order (they group the templates on the toolbar)</param>
         /// <returns>one message per file that could not be read</returns>
-        public static List<string> LoadDirectories(IEnumerable<string> directories, Dictionary<string, List<JsonElement>> templates, List<TemplateFile>? read = null)
+        public static List<string> LoadDirectories(IEnumerable<string> directories, Dictionary<string, List<JsonElement>> templates, List<TemplateFile>? read = null,
+            TemplateTranslations? translations = null)
         {
             List<string> problems = new List<string>();
             foreach (string directory in directories)
@@ -111,8 +122,8 @@ namespace ShapeIt
                 {
                     try
                     {
-                        TemplateFile templateFile = ReadFile(file, templates);
-                        read?.Add(templateFile);
+                        TemplateFile templateFile = ReadFile(file, templates, translations);
+                        if (templateFile.Names.Count > 0) read?.Add(templateFile); // a translation file groups nothing
                     }
                     catch (Exception ex) { problems.Add($"{file}: {ex.Message}"); }
                 }
@@ -125,7 +136,7 @@ namespace ShapeIt
         /// where templates go; a configured folder that does not exist is reported instead.
         /// </summary>
         /// <returns>one message per file or folder that could not be read</returns>
-        public static List<string> LoadAll(Dictionary<string, List<JsonElement>> templates, List<TemplateFile>? read = null)
+        public static List<string> LoadAll(Dictionary<string, List<JsonElement>> templates, List<TemplateFile>? read = null, TemplateTranslations? translations = null)
         {
             List<string> problems = new List<string>();
             string userDirectory = UserDirectory;
@@ -138,7 +149,7 @@ namespace ShapeIt
                 }
                 else problems.Add($"{userDirectory}: the folder of the setting {DirectorySetting} does not exist.");
             }
-            problems.AddRange(LoadDirectories(new[] { ShippedDirectory, userDirectory }, templates, read));
+            problems.AddRange(LoadDirectories(new[] { ShippedDirectory, userDirectory }, templates, read, translations));
             return problems;
         }
 
@@ -152,8 +163,11 @@ namespace ShapeIt
         /// <param name="templateNames">the current templates</param>
         /// <param name="files">the template files in the order they were read</param>
         /// <param name="label">the label of a template</param>
-        public static List<TemplateToolbarEntry> ToolbarEntries(IEnumerable<string> templateNames, IEnumerable<TemplateFile> files, Func<string, string> label)
+        /// <param name="fileLabel">the label of a file group, its <see cref="TemplateFile.Label"/> when null</param>
+        public static List<TemplateToolbarEntry> ToolbarEntries(IEnumerable<string> templateNames, IEnumerable<TemplateFile> files, Func<string, string> label,
+            Func<TemplateFile, string>? fileLabel = null)
         {
+            fileLabel ??= file => file.Label;
             Dictionary<string, TemplateFile> owner = new Dictionary<string, TemplateFile>();
             Dictionary<string, TemplateFile> lastOfId = new Dictionary<string, TemplateFile>();
             foreach (TemplateFile file in files)
@@ -169,7 +183,7 @@ namespace ShapeIt
                 if (group.Key != null && members.Count > 1)
                 {
                     TemplateFile file = lastOfId[group.Key];
-                    entries.Add(new TemplateToolbarEntry(file.Label, GroupMenuId(group.Key), file.Icon, members));
+                    entries.Add(new TemplateToolbarEntry(fileLabel(file), GroupMenuId(group.Key), file.Icon, members));
                 }
                 else
                 {

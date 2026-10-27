@@ -1,5 +1,5 @@
 {
-  "label": "Bohrungen",
+  "label": "Holes",
   "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 22H24V48L32 56L40 48V22H58V58H6Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M24 22V48L32 56L40 48V22\" fill=\"#ffffff\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M32 6V60\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/></svg>",
   "templates": [
     {
@@ -10,8 +10,8 @@
           "id": 1,
           "params": {
             "name": "sacklochbohrung",
-            "label": "Sacklochbohrung",
-            "category": "Bohrungen",
+            "label": "Blind hole",
+            "category": "Holes",
             "description": "Blind hole perpendicular to a face of a solid: the user picks the face and the position on it. The entry edge can be sharp, chamfered at 45° or rounded; the bottom flat, conical (pointed like a drill point or truncated) or a half sphere. The depth is the depth of the cylindrical part. The hole is cut with a revolved tool that reaches one diameter above the face, so material above the face within that height is cut as well.",
             "tags": [
               "hole",
@@ -25,7 +25,7 @@
               {
                 "name": "body",
                 "value": "block",
-                "label": "Körper",
+                "label": "Body",
                 "input": {
                   "kind": "solid",
                   "replace": true,
@@ -35,11 +35,11 @@
               {
                 "name": "face",
                 "value": "top",
-                "label": "Fläche",
+                "label": "Face",
                 "input": {
                   "kind": "face",
                   "solid": "body",
-                  "group": "Lage",
+                  "group": "Position",
                   "order": 1,
                   "description": "The face the hole is drilled into, perpendicular to the face at the position."
                 }
@@ -51,7 +51,7 @@
                 "input": {
                   "kind": "point3",
                   "onFace": "face",
-                  "group": "Lage",
+                  "group": "Position",
                   "order": 2,
                   "description": "Center of the hole on the face. Click on the face, snap to a point (e.g. the center of a circular edge) or enter coordinates; the point is put onto the face."
                 }
@@ -59,10 +59,10 @@
               {
                 "name": "d",
                 "value": 8,
-                "label": "Durchmesser",
+                "label": "Diameter",
                 "input": {
                   "kind": "length",
-                  "group": "Bohrung",
+                  "group": "Hole",
                   "order": 3,
                   "min": 0.01,
                   "description": "Diameter of the hole."
@@ -71,10 +71,10 @@
               {
                 "name": "depth",
                 "value": 15,
-                "label": "Tiefe",
+                "label": "Depth",
                 "input": {
                   "kind": "length",
-                  "group": "Bohrung",
+                  "group": "Hole",
                   "order": 4,
                   "min": 0.01,
                   "description": "Depth of the cylindrical part, measured from the position on the face; a conical or spherical bottom comes on top of it."
@@ -83,24 +83,24 @@
               {
                 "name": "entry",
                 "value": "sharp",
-                "label": "Bohrungseintritt",
+                "label": "Entry",
                 "input": {
                   "kind": "enum",
-                  "group": "Eintritt",
+                  "group": "Entry",
                   "order": 5,
                   "optional": true,
                   "options": [
                     {
                       "value": "sharp",
-                      "label": "scharfkantig"
+                      "label": "sharp"
                     },
                     {
                       "value": "chamfer",
-                      "label": "angefast (45°)"
+                      "label": "chamfered (45°)"
                     },
                     {
                       "value": "round",
-                      "label": "gerundet"
+                      "label": "rounded"
                     }
                   ],
                   "description": "The edge where the hole enters the face: sharp, a 45° chamfer (countersink) or a fillet."
@@ -109,10 +109,10 @@
               {
                 "name": "entrySize",
                 "value": 1,
-                "label": "Fase / Radius",
+                "label": "Chamfer / radius",
                 "input": {
                   "kind": "length",
-                  "group": "Eintritt",
+                  "group": "Entry",
                   "order": 6,
                   "optional": true,
                   "min": 0.01,
@@ -122,24 +122,24 @@
               {
                 "name": "bottom",
                 "value": "flat",
-                "label": "Bohrungsgrund",
+                "label": "Bottom",
                 "input": {
                   "kind": "enum",
-                  "group": "Grund",
+                  "group": "Bottom",
                   "order": 7,
                   "optional": true,
                   "options": [
                     {
                       "value": "flat",
-                      "label": "flach"
+                      "label": "flat"
                     },
                     {
                       "value": "cone",
-                      "label": "Kegel / Kegelstumpf"
+                      "label": "cone / truncated cone"
                     },
                     {
                       "value": "sphere",
-                      "label": "sphärisch"
+                      "label": "spherical"
                     }
                   ],
                   "description": "The bottom of the hole: flat, conical like a drill point (a truncated cone with a bottom diameter above 0), or a half sphere."
@@ -148,10 +148,10 @@
               {
                 "name": "tipAngle",
                 "value": 118,
-                "label": "Spitzenwinkel",
+                "label": "Tip angle",
                 "input": {
                   "kind": "angle",
-                  "group": "Grund",
+                  "group": "Bottom",
                   "order": 8,
                   "optional": true,
                   "min": 1,
@@ -162,10 +162,10 @@
               {
                 "name": "bottomDiameter",
                 "value": 0,
-                "label": "Grunddurchmesser",
+                "label": "Bottom diameter",
                 "input": {
                   "kind": "length",
-                  "group": "Grund",
+                  "group": "Bottom",
                   "order": 9,
                   "optional": true,
                   "min": 0,
@@ -510,5 +510,82 @@
         }
       ]
     }
-  ]
+  ],
+  "translations": {
+    "de": {
+      "label": "Bohrungen",
+      "templates": {
+        "sacklochbohrung": {
+          "label": "Sacklochbohrung",
+          "category": "Bohrungen",
+          "description": "Sacklochbohrung senkrecht zu einer Fläche eines Körpers: Der Anwender wählt die Fläche und die Position darauf. Der Bohrungseintritt kann scharfkantig, unter 45° angefast oder gerundet sein, der Bohrungsgrund flach, kegelig (spitz wie ein Spiralbohrer oder als Kegelstumpf) oder eine Halbkugel. Die Tiefe ist die Tiefe des zylindrischen Teils. Die Bohrung wird mit einem Drehkörper geschnitten, der einen Durchmesser über die Fläche hinausragt; Material über der Fläche innerhalb dieser Höhe wird mit weggeschnitten.",
+          "parameters": {
+            "body": {
+              "label": "Körper",
+              "description": "Der Körper, der die Bohrung bekommt; er ergibt sich aus der gewählten Fläche."
+            },
+            "face": {
+              "label": "Fläche",
+              "group": "Lage",
+              "description": "Die Fläche, in die gebohrt wird, senkrecht zur Fläche an der Position."
+            },
+            "pos": {
+              "label": "Position",
+              "group": "Lage",
+              "description": "Mittelpunkt der Bohrung auf der Fläche. Auf die Fläche klicken, auf einen Punkt fangen (z. B. den Mittelpunkt einer Kreiskante) oder Koordinaten eingeben; der Punkt wird auf die Fläche gelegt."
+            },
+            "d": {
+              "label": "Durchmesser",
+              "group": "Bohrung",
+              "description": "Durchmesser der Bohrung."
+            },
+            "depth": {
+              "label": "Tiefe",
+              "group": "Bohrung",
+              "description": "Tiefe des zylindrischen Teils, gemessen von der Position auf der Fläche; ein kegeliger oder sphärischer Grund kommt hinzu."
+            },
+            "entry": {
+              "label": "Bohrungseintritt",
+              "group": "Eintritt",
+              "description": "Die Kante, an der die Bohrung in die Fläche eintritt: scharfkantig, eine 45°-Fase (Senkung) oder eine Rundung.",
+              "options": {
+                "sharp": "scharfkantig",
+                "chamfer": "angefast (45°)",
+                "round": "gerundet"
+              }
+            },
+            "entrySize": {
+              "label": "Fase / Radius",
+              "group": "Eintritt",
+              "description": "Breite der Fase oder Radius der Rundung am Eintritt; bei scharfkantigem Eintritt ohne Bedeutung."
+            },
+            "bottom": {
+              "label": "Bohrungsgrund",
+              "group": "Grund",
+              "description": "Der Grund der Bohrung: flach, kegelig wie eine Bohrerspitze (ein Kegelstumpf bei einem Grunddurchmesser über 0) oder eine Halbkugel.",
+              "options": {
+                "flat": "flach",
+                "cone": "Kegel / Kegelstumpf",
+                "sphere": "sphärisch"
+              }
+            },
+            "tipAngle": {
+              "label": "Spitzenwinkel",
+              "group": "Grund",
+              "description": "Spitzenwinkel des kegeligen Grunds, 118° für einen Spiralbohrer; nur bei kegeligem Grund."
+            },
+            "bottomDiameter": {
+              "label": "Grunddurchmesser",
+              "group": "Grund",
+              "description": "Durchmesser des flachen Endes eines Kegelstumpfs, 0 für eine Kegelspitze; nur bei kegeligem Grund."
+            }
+          },
+          "checks": [
+            "Der Grunddurchmesser ({bottomDiameter}) muss kleiner sein als der Durchmesser der Bohrung ({d}).",
+            "Die Fase bzw. der Radius am Eintritt ({entrySize}) muss kleiner sein als die Tiefe ({depth})."
+          ]
+        }
+      }
+    }
+  }
 }

@@ -125,6 +125,8 @@ namespace ShapeIt
         public NamedItemsDictionary namedItems = new();
 
         public Dictionary<string, List<JsonElement>> templates = [];
+        /// <summary>The texts of the templates in other languages, read with the template files (see <see cref="TemplateTranslations"/>).</summary>
+        public readonly TemplateTranslations templateTranslations = new TemplateTranslations();
 
         private class NamedItemOverride : IDisposable
         {
@@ -6485,19 +6487,27 @@ namespace ShapeIt
             public List<TemplateEnumOption>? options;
         }
 
+        /// <summary>
+        /// The 'params' of the template.begin of a template with the texts in the language of the application, for
+        /// what the user sees: labels, descriptions, groups, option and preset labels, check messages. The server
+        /// itself (and so every MCP client) works with the base texts of <see cref="GetTemplateBeginParams"/>.
+        /// </summary>
+        internal JsonElement GetLocalizedTemplateBeginParams(string templateName) => GetLocalizedTemplateBeginParams(templateName, TemplateTranslations.CurrentLanguage);
+
+        /// <summary>Same as <see cref="GetLocalizedTemplateBeginParams(string)"/> for the given language code.</summary>
+        internal JsonElement GetLocalizedTemplateBeginParams(string templateName, string language)
+        {
+            JsonElement prms = GetTemplateBeginParams(templateName);
+            JsonElement translation = templateTranslations.ForTemplate(templateName, language);
+            return translation.ValueKind == JsonValueKind.Object ? TemplateTranslations.Localize(prms, translation) : prms;
+        }
+
+        /// <summary>The label of a template in the language of the application, null when it has none.</summary>
         internal string? GetTemplateLabel(string key)
         {
-            if (templates.TryGetValue(key, out var jsons))
-            {
-                if (jsons.Count > 0 && jsons[0].ValueKind == JsonValueKind.Object)
-                {
-                    if (jsons[0].TryGetProperty("params", out var parameters) && parameters.ValueKind == JsonValueKind.Object)
-                    {
-                        if (parameters.TryGetProperty("label", out var label) && label.ValueKind == JsonValueKind.String)
-                            return label.GetString();
-                    }
-                }
-            }
+            JsonElement prms = GetLocalizedTemplateBeginParams(key);
+            if (prms.ValueKind == JsonValueKind.Object && prms.TryGetProperty("label", out var label) && label.ValueKind == JsonValueKind.String)
+                return label.GetString();
             return null;
         }
 
@@ -6522,19 +6532,12 @@ namespace ShapeIt
 
         internal void OnTemplatesChanged() => TemplatesChanged?.Invoke();
 
+        /// <summary>The description of a template in the language of the application, null when it has none.</summary>
         internal string? GetTemplateDescription(string key)
         {
-            if (templates.TryGetValue(key, out var jsons))
-            {
-                if (jsons.Count > 0 && jsons[0].ValueKind == JsonValueKind.Object)
-                {
-                    if (jsons[0].TryGetProperty("params", out var parameters) && parameters.ValueKind == JsonValueKind.Object)
-                    {
-                        if (parameters.TryGetProperty("description", out var description) && description.ValueKind == JsonValueKind.String)
-                            return description.GetString();
-                    }
-                }
-            }
+            JsonElement prms = GetLocalizedTemplateBeginParams(key);
+            if (prms.ValueKind == JsonValueKind.Object && prms.TryGetProperty("description", out var description) && description.ValueKind == JsonValueKind.String)
+                return description.GetString();
             return null;
         }
 
@@ -6554,7 +6557,9 @@ namespace ShapeIt
                         try
                         {
                         if (stopExecution) return res;
-                        if (jsons[0].TryGetProperty("params", out var prms) && prms.ValueKind == JsonValueKind.Object)
+                        // the default comes from the replay, the texts in the language of the application
+                        JsonElement prms = GetLocalizedTemplateBeginParams(templateName);
+                        if (prms.ValueKind == JsonValueKind.Object)
                         {
                             if (prms.TryGetProperty("parameters", out var parameters) && parameters.ValueKind == JsonValueKind.Array)
                             {

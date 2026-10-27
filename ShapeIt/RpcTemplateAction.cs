@@ -72,7 +72,8 @@ namespace ShapeIt
             List<string> parameterNames = mcpServer.GetTemplateParameters(templateName);
             parameterValues = new Dictionary<string, object>();
             List<object> inputs = []; // IInputObject is not accessible
-            JsonElement beginParams = mcpServer.GetTemplateBeginParams(templateName);
+            // in the language of the application: the rules give the messages, the presets their labels
+            JsonElement beginParams = mcpServer.GetLocalizedTemplateBeginParams(templateName);
             List<TemplatePreset> presets = [];
             if (beginParams.ValueKind == JsonValueKind.Object)
             {

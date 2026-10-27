@@ -157,7 +157,7 @@ namespace CADability.Tests
             string? error = Error(Call(server, "template.instantiate", $"{{\"template\":\"stirnrad\",\"arguments\":{new Gear(2, 10).Arguments},\"name\":\"g\"}}"));
             Assert.IsNotNull(error);
             // x >= 1 - 10*sin²(20°)/2 = 0.4151, or z >= 2/sin²(20°) = 17.1
-            StringAssert.Contains(error, "Unterschnitt: Bei z = 10 und α = 20° braucht das Rad eine Profilverschiebung x ≥ 0.4151 oder mindestens 18 Zähne.");
+            StringAssert.Contains(error, "Undercut: with z = 10 and α = 20° the gear needs a profile shift x ≥ 0.4151 or at least 18 teeth.");
         }
 
         [TestMethod]
@@ -166,8 +166,8 @@ namespace CADability.Tests
             MCPServer server = ServerWithTemplates();
             string? error = Error(Call(server, "template.instantiate", $"{{\"template\":\"stirnrad\",\"arguments\":{new Gear(2, 10, x: 1.2).Arguments},\"name\":\"g\"}}"));
             Assert.IsNotNull(error);
-            StringAssert.Contains(error, "Die Zähne werden spitz");
-            Assert.IsFalse(error!.Contains("Unterschnitt"), "the shift avoids undercut: " + error);
+            StringAssert.Contains(error, "The teeth become pointed");
+            Assert.IsFalse(error!.Contains("Undercut"), "the shift avoids undercut: " + error);
         }
 
         [TestMethod]
@@ -177,7 +177,7 @@ namespace CADability.Tests
             // root circle 35, at least one module of material: at most 31
             string? error = Error(Call(server, "template.instantiate", $"{{\"template\":\"stirnrad\",\"arguments\":{new Gear(2, 20, dBore: 32).Arguments},\"name\":\"g\"}}"));
             Assert.IsNotNull(error);
-            StringAssert.Contains(error, "die Bohrung darf höchstens ⌀ 31 mm haben");
+            StringAssert.Contains(error, "the bore may be at most ⌀ 31 mm");
         }
 
         [TestMethod]
@@ -193,7 +193,7 @@ namespace CADability.Tests
             };
             List<ParameterProblem> problems = TemplateParameterRules.Check(begin.GetProperty("parameters"), begin.GetProperty("checks"), values);
             Assert.AreEqual(1, problems.Count, string.Join(" | ", problems.ConvertAll(p => p.Message)));
-            StringAssert.Contains(problems[0].Message, "Unterschnitt");
+            StringAssert.Contains(problems[0].Message, "Undercut");
             values["z"] = 20;
             problems = TemplateParameterRules.Check(begin.GetProperty("parameters"), begin.GetProperty("checks"), values);
             Assert.AreEqual(0, problems.Count, string.Join(" | ", problems.ConvertAll(p => p.Message)));
@@ -255,7 +255,7 @@ namespace CADability.Tests
             // 2.25 modules of teeth and one module of body: at least 6.5
             string? error = Error(Call(ServerWithTemplates(), "template.instantiate", $"{{\"template\":\"zahnstange\",\"arguments\":{new Rack(2, 10, H: 6).Arguments},\"name\":\"r\"}}"));
             Assert.IsNotNull(error);
-            StringAssert.Contains(error, "die Höhe muss mindestens 6.5 mm sein");
+            StringAssert.Contains(error, "the height must be at least 6.5 mm");
         }
 
         private sealed record Ring(double m, int z, double dOut, double b = 20, double alpha = 20, double haP = 1, double hfP = 1.25, double Asn = 0)
@@ -342,7 +342,7 @@ namespace CADability.Tests
             // root circle 85, at least one module of material: at least 89
             string? error = Error(Call(ServerWithTemplates(), "template.instantiate", $"{{\"template\":\"hohlrad\",\"arguments\":{new Ring(2, 40, 88).Arguments},\"name\":\"r\"}}"));
             Assert.IsNotNull(error);
-            StringAssert.Contains(error, "der Außendurchmesser muss mindestens ⌀ 89 mm sein");
+            StringAssert.Contains(error, "the outer diameter must be at least ⌀ 89 mm");
         }
 
         private sealed record Bevel(double m, int z, int z2, double b, double alpha = 20, double haP = 1, double hfP = 1.25, double Asn = 0, double dBore = 0)
@@ -489,8 +489,8 @@ namespace CADability.Tests
             // z/cos(atan(10/12)) = 13.0 virtual teeth, 18 are needed at 20°
             string? error = Error(Call(ServerWithTemplates(), "template.instantiate", $"{{\"template\":\"kegelrad\",\"arguments\":{new Bevel(2, 10, 12, 5).Arguments},\"name\":\"r\"}}"));
             Assert.IsNotNull(error);
-            StringAssert.Contains(error, "Unterschnitt");
-            StringAssert.Contains(error, "mindestens 18 nötig");
+            StringAssert.Contains(error, "Undercut");
+            StringAssert.Contains(error, "at least 18 are needed");
         }
 
         [TestMethod]
@@ -499,7 +499,7 @@ namespace CADability.Tests
             // outer cone distance 44.72: at most 14.91
             string? error = Error(Call(ServerWithTemplates(), "template.instantiate", $"{{\"template\":\"kegelrad\",\"arguments\":{new Bevel(2, 20, 40, 16).Arguments},\"name\":\"r\"}}"));
             Assert.IsNotNull(error);
-            StringAssert.Contains(error, "Die Zahnbreite ist zu groß");
+            StringAssert.Contains(error, "The face width is too large");
         }
 
         [TestMethod]
@@ -507,7 +507,7 @@ namespace CADability.Tests
         {
             Dictionary<string, List<JsonElement>> templates = new();
             TemplateFile file = TemplateLibrary.ReadFile(TemplateFile(), templates);
-            Assert.AreEqual("Zahnräder", file.Label);
+            Assert.AreEqual("Gears", file.Label, "the base language is English, see TemplateTranslationsTests");
             Assert.IsNotNull(file.Icon, "the icon of the drop-down button is accepted");
             CollectionAssert.AreEqual(new[] { "stirnrad", "zahnstange", "hohlrad", "kegelrad" }, (System.Collections.ICollection)file.Names);
             List<TemplateToolbarEntry> entries = TemplateLibrary.ToolbarEntries(templates.Keys, new[] { file }, name => name);
@@ -529,8 +529,8 @@ namespace CADability.Tests
             // the definition passes the checks template.begin applies when it is recorded
             TemplateParameterRules.ValidateDefinition(begin.GetProperty("parameters"), begin.GetProperty("presets"), begin.GetProperty("checks"));
             List<TemplatePreset> presets = TemplateParameterRules.ReadPresets(begin.GetProperty("presets"));
-            Assert.AreEqual("Modulreihe I (DIN 780)", presets[0].Label);
-            Assert.IsTrue(System.Linq.Enumerable.Any(presets[0].Options, o => o.Label == "1,25"));
+            Assert.AreEqual("Module series I (DIN 780)", presets[0].Label);
+            Assert.IsTrue(System.Linq.Enumerable.Any(presets[0].Options, o => o.Label == "1.25"));
         }
     }
 }

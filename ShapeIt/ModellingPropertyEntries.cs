@@ -165,7 +165,7 @@ namespace ShapeIt
         /// </summary>
         private void LoadTemplateLibrary()
         {
-            List<string> problems = TemplateLibrary.LoadAll(mcpServer.templates, templateFiles);
+            List<string> problems = TemplateLibrary.LoadAll(mcpServer.templates, templateFiles, mcpServer.templateTranslations);
             RememberLoaded(templateFiles.SelectMany(file => file.Names));
             if (mcpServer.templates.Count > 0) mcpServer.OnTemplatesChanged();
             if (problems.Count > 0)
@@ -4182,8 +4182,9 @@ namespace ShapeIt
                 string? description = mcpServer.GetTemplateDescription(name);
                 if (description != null) StringTable.AddString(StringTable.ActiveLanguage, menuId, StringTable.Category.info, description);
             }
+            string language = TemplateTranslations.CurrentLanguage;
             List<TemplateToolbarEntry> entries = TemplateLibrary.ToolbarEntries(mcpServer.templates.Keys, templateFiles,
-                name => mcpServer.GetTemplateLabel(name) ?? name);
+                name => mcpServer.GetTemplateLabel(name) ?? name, file => mcpServer.templateTranslations.FileLabel(file.Id, language) ?? file.Label);
             HashSet<string> popups = new HashSet<string>();
             foreach (TemplateToolbarEntry entry in entries)
             {
@@ -4216,7 +4217,7 @@ namespace ShapeIt
                 {
                     try
                     {
-                        TemplateFile read = TemplateLibrary.ReadFile(fileName, mcpServer.templates);
+                        TemplateFile read = TemplateLibrary.ReadFile(fileName, mcpServer.templates, mcpServer.templateTranslations);
                         templateFiles.Add(read);
                         RememberLoaded(read.Names);
                     }
