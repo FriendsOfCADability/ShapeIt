@@ -509,6 +509,381 @@
           }
         }
       ]
+    },
+    {
+      "name": "durchgangsbohrung",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "durchgangsbohrung",
+            "label": "Through hole",
+            "category": "Holes",
+            "description": "Through hole perpendicular to a face of a solid: the user picks the face and the position on it. The hole goes through the material up to where it first leaves the solid; where the axis enters the solid again behind a gap, nothing is cut. The entry and the exit edge can each be sharp, chamfered at 45° or rounded.",
+            "tags": [
+              "hole",
+              "through hole",
+              "drill",
+              "Bohrung",
+              "Durchgangsbohrung",
+              "Senkung"
+            ],
+            "parameters": [
+              {
+                "name": "body",
+                "value": "block",
+                "label": "Body",
+                "input": {
+                  "kind": "solid",
+                  "replace": true,
+                  "description": "The solid that gets the hole; it is taken from the picked face.",
+                  "order": 0
+                }
+              },
+              {
+                "name": "face",
+                "value": "top",
+                "label": "Face",
+                "input": {
+                  "kind": "face",
+                  "solid": "body",
+                  "group": "Position",
+                  "order": 1,
+                  "description": "The face the hole is drilled into, perpendicular to the face at the position."
+                }
+              },
+              {
+                "name": "pos",
+                "value": "p(10,10,20)",
+                "label": "Position",
+                "input": {
+                  "kind": "point3",
+                  "onFace": "face",
+                  "group": "Position",
+                  "order": 2,
+                  "description": "Center of the hole on the face. Click on the face, snap to a point (e.g. the center of a circular edge) or enter coordinates; the point is put onto the face."
+                }
+              },
+              {
+                "name": "d",
+                "value": 8,
+                "label": "Diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Hole",
+                  "order": 3,
+                  "min": 0.01,
+                  "description": "Diameter of the hole."
+                }
+              },
+              {
+                "name": "entry",
+                "value": "sharp",
+                "label": "Entry",
+                "input": {
+                  "kind": "enum",
+                  "group": "Entry",
+                  "optional": true,
+                  "options": [
+                    {
+                      "value": "sharp",
+                      "label": "sharp"
+                    },
+                    {
+                      "value": "chamfer",
+                      "label": "chamfered (45°)"
+                    },
+                    {
+                      "value": "round",
+                      "label": "rounded"
+                    }
+                  ],
+                  "description": "The edge where the hole enters the face: sharp, a 45° chamfer or a fillet.",
+                  "order": 4
+                }
+              },
+              {
+                "name": "entrySize",
+                "value": 1,
+                "label": "Chamfer / radius",
+                "input": {
+                  "kind": "length",
+                  "group": "Entry",
+                  "optional": true,
+                  "min": 0.01,
+                  "description": "Width of the chamfer or radius of the fillet at the entry; not used for a sharp entry.",
+                  "order": 5
+                }
+              },
+              {
+                "name": "exit",
+                "value": "sharp",
+                "label": "Exit",
+                "input": {
+                  "kind": "enum",
+                  "group": "Exit",
+                  "optional": true,
+                  "options": [
+                    {
+                      "value": "sharp",
+                      "label": "sharp"
+                    },
+                    {
+                      "value": "chamfer",
+                      "label": "chamfered (45°)"
+                    },
+                    {
+                      "value": "round",
+                      "label": "rounded"
+                    }
+                  ],
+                  "description": "The edge where the hole leaves the solid: sharp, a 45° chamfer or a fillet.",
+                  "order": 6
+                }
+              },
+              {
+                "name": "exitSize",
+                "value": 1,
+                "label": "Chamfer / radius",
+                "input": {
+                  "kind": "length",
+                  "group": "Exit",
+                  "optional": true,
+                  "min": 0.01,
+                  "description": "Width of the chamfer or radius of the fillet at the exit; not used for a sharp exit.",
+                  "order": 7
+                }
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 10H24V54H6Z M40 10H58V54H40Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M32 4V60\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "n",
+                  "value": "normal(face, pos)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "r",
+                  "value": "d/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "reach",
+                  "value": "body.GetBoundingCube().DiagonalLength + d"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "edgeTolerance",
+                  "value": "0.000001*(1 + d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "solid.cylinder",
+                "params": {
+                  "start": "pos + n*d",
+                  "end": "pos - n*reach",
+                  "radius": "r",
+                  "name": "tool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "intersect",
+                  "a": "body",
+                  "b": "tool",
+                  "name": "cuts"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.select",
+                "params": {
+                  "selector": {
+                    "query": {
+                      "target": "solids",
+                      "from": "cuts",
+                      "filter": {
+                        "closeTo": "pos"
+                      }
+                    }
+                  },
+                  "name": "plug"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "body",
+                  "b": "plug",
+                  "name": "drilled"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "workspace.set",
+                "params": {
+                  "name": "middle",
+                  "value": "((farthest(plug, pos) - pos)*n)/2"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 3,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.select",
+                "when": "entry != \"sharp\"",
+                "params": {
+                  "selector": {
+                    "query": {
+                      "target": "edges",
+                      "from": "drilled",
+                      "filter": {
+                        "condition": "this.CurveType != \"line\" && abs(len((this.pointAt(0.5) - pos) ^ n) - r) < edgeTolerance && (this.pointAt(0.5) - pos)*n - middle > 0"
+                      }
+                    }
+                  },
+                  "type": "edges",
+                  "name": "entryEdges"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "feature.chamfer",
+                "when": "entry == \"chamfer\"",
+                "params": {
+                  "solid": "drilled",
+                  "edges": "entryEdges",
+                  "distance": "entrySize",
+                  "name": "entered"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "feature.fillet",
+                "when": "entry == \"round\"",
+                "params": {
+                  "solid": "drilled",
+                  "edges": "entryEdges",
+                  "radius": "entrySize",
+                  "name": "entered"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.select",
+                "when": "entry == \"sharp\"",
+                "params": {
+                  "selector": "drilled",
+                  "name": "entered"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.select",
+                "when": "exit != \"sharp\"",
+                "params": {
+                  "selector": {
+                    "query": {
+                      "target": "edges",
+                      "from": "entered",
+                      "filter": {
+                        "condition": "this.CurveType != \"line\" && abs(len((this.pointAt(0.5) - pos) ^ n) - r) < edgeTolerance && (this.pointAt(0.5) - pos)*n - middle < 0"
+                      }
+                    }
+                  },
+                  "type": "edges",
+                  "name": "exitEdges"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "feature.chamfer",
+                "when": "exit == \"chamfer\"",
+                "params": {
+                  "solid": "entered",
+                  "edges": "exitEdges",
+                  "distance": "exitSize",
+                  "name": "result"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "feature.fillet",
+                "when": "exit == \"round\"",
+                "params": {
+                  "solid": "entered",
+                  "edges": "exitEdges",
+                  "radius": "exitSize",
+                  "name": "result"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "workspace.select",
+                "when": "exit == \"sharp\"",
+                "params": {
+                  "selector": "entered",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 4,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
     }
   ],
   "translations": {
@@ -584,6 +959,62 @@
             "Der Grunddurchmesser ({bottomDiameter}) muss kleiner sein als der Durchmesser der Bohrung ({d}).",
             "Die Fase bzw. der Radius am Eintritt ({entrySize}) muss kleiner sein als die Tiefe ({depth})."
           ]
+        },
+        "durchgangsbohrung": {
+          "label": "Durchgangsbohrung",
+          "category": "Bohrungen",
+          "description": "Durchgangsbohrung senkrecht zu einer Fläche eines Körpers: Der Anwender wählt die Fläche und die Position darauf. Die Bohrung geht durch das Material bis dahin, wo sie den Körper zum ersten Mal verlässt; wo die Achse hinter einem Zwischenraum wieder in den Körper eintritt, wird nichts geschnitten. Bohrungseintritt und -austritt können jeweils scharfkantig, unter 45° angefast oder gerundet sein.",
+          "parameters": {
+            "body": {
+              "label": "Körper",
+              "description": "Der Körper, der die Bohrung bekommt; er ergibt sich aus der gewählten Fläche."
+            },
+            "face": {
+              "label": "Fläche",
+              "group": "Lage",
+              "description": "Die Fläche, in die gebohrt wird, senkrecht zur Fläche an der Position."
+            },
+            "pos": {
+              "label": "Position",
+              "group": "Lage",
+              "description": "Mittelpunkt der Bohrung auf der Fläche. Auf die Fläche klicken, auf einen Punkt fangen (z. B. den Mittelpunkt einer Kreiskante) oder Koordinaten eingeben; der Punkt wird auf die Fläche gelegt."
+            },
+            "d": {
+              "label": "Durchmesser",
+              "group": "Bohrung",
+              "description": "Durchmesser der Bohrung."
+            },
+            "entry": {
+              "label": "Bohrungseintritt",
+              "group": "Eintritt",
+              "description": "Die Kante, an der die Bohrung in die Fläche eintritt: scharfkantig, eine 45°-Fase (Senkung) oder eine Rundung.",
+              "options": {
+                "sharp": "scharfkantig",
+                "chamfer": "angefast (45°)",
+                "round": "gerundet"
+              }
+            },
+            "entrySize": {
+              "label": "Fase / Radius",
+              "group": "Eintritt",
+              "description": "Breite der Fase oder Radius der Rundung am Eintritt; bei scharfkantigem Eintritt ohne Bedeutung."
+            },
+            "exit": {
+              "label": "Bohrungsaustritt",
+              "group": "Austritt",
+              "description": "Die Kante, an der die Bohrung den Körper verlässt: scharfkantig, eine 45°-Fase oder eine Rundung.",
+              "options": {
+                "sharp": "scharfkantig",
+                "chamfer": "angefast (45°)",
+                "round": "gerundet"
+              }
+            },
+            "exitSize": {
+              "label": "Fase / Radius",
+              "group": "Austritt",
+              "description": "Breite der Fase oder Radius der Rundung am Austritt; bei scharfkantigem Austritt ohne Bedeutung."
+            }
+          }
         }
       }
     }

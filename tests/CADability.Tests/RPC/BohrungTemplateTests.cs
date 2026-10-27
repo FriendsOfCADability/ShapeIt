@@ -63,14 +63,23 @@ namespace CADability.Tests
         private const double R = 4, Depth = 15; // d = 8 as in the template
         private static readonly double tipHalf = 59 * Math.PI / 180;
 
-        /// <summary>Instantiates the template on the given face and returns the volume taken out of the block.</summary>
-        private static double RemovedVolume(MCPServer server, string arguments)
+        /// <summary>Instantiates the template on the given face and returns the volume taken out of the solid.</summary>
+        private static double RemovedVolume(MCPServer server, string arguments, string template = "sacklochbohrung", string solid = "block")
         {
-            string response = Call(server, "template.instantiate", $"{{\"template\":\"sacklochbohrung\",\"arguments\":{arguments},\"name\":\"drilled\"}}");
+            double before = FirstSolid(server.namedItems[solid]).Volume(0.0001);
+            string response = Call(server, "template.instantiate", $"{{\"template\":\"{template}\",\"arguments\":{arguments},\"name\":\"drilled\"}}");
             Assert.IsNull(Error(response), response);
             Solid drilled = FirstSolid(server.namedItems["drilled"]);
-            Assert.AreEqual(8000, FirstSolid(server.namedItems["block"]).Volume(0.001), 1e-6, "the block itself must stay untouched");
-            return 8000 - drilled.Volume(0.0001);
+            Assert.AreEqual(before, FirstSolid(server.namedItems[solid]).Volume(0.0001), 1e-6, "the solid itself must stay untouched");
+            return before - drilled.Volume(0.0001);
+        }
+
+        private static double ChamferRing(double c) => 2 * Math.PI * (R + c / 3) * c * c / 2;
+
+        private static double FilletRing(double rho)
+        {
+            double centroid = rho * (10 - 3 * Math.PI) / (12 - 3 * Math.PI); // distance of the centroid from the edge
+            return 2 * Math.PI * (R + centroid) * rho * rho * (1 - Math.PI / 4);
         }
 
         private static double Cylinder => Math.PI * R * R * Depth;
@@ -164,6 +173,46 @@ namespace CADability.Tests
             string? error = Error(Call(server, "template.instantiate", "{\"template\":\"sacklochbohrung\",\"arguments\":{\"face\":\"top\",\"bottom\":\"cone\",\"bottomDiameter\":8},\"name\":\"x\"}"));
             Assert.IsNotNull(error);
             StringAssert.Contains(error, "bottom diameter");
+        }
+
+        [TestMethod]
+        public void ThroughHoleSharp()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.AreEqual(Math.PI * R * R * 20, RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\"}", "durchgangsbohrung"), 1e-3);
+        }
+
+        [TestMethod]
+        public void ThroughHoleChamferedOnBothEnds()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.AreEqual(Math.PI * R * R * 20 + 2 * ChamferRing(1),
+                RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\",\"entry\":\"chamfer\",\"exit\":\"chamfer\"}", "durchgangsbohrung"), 1e-3);
+        }
+
+        [TestMethod]
+        public void ThroughHoleRoundedEntryChamferedExitOnTheSide()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.AreEqual(Math.PI * R * R * 20 + FilletRing(1.5) + ChamferRing(0.5),
+                RemovedVolume(server, "{\"face\":\"side\",\"pos\":\"p(35,10,8)\",\"entry\":\"round\",\"entrySize\":1.5,\"exit\":\"chamfer\",\"exitSize\":0.5}", "durchgangsbohrung"), 1e-2);
+        }
+
+        /// <summary>
+        /// A block with a slot across it: the axis leaves the solid at the slot and enters it again below. Only the
+        /// part above the slot is drilled, the material below stays.
+        /// </summary>
+        [TestMethod]
+        public void ThroughHoleStopsAtAGap()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.IsNull(Error(Call(server, "solid.box", "{\"name\":\"outer\",\"origin\":[0,0,0],\"sizeX\":40,\"sizeY\":20,\"sizeZ\":30}")));
+            Assert.IsNull(Error(Call(server, "solid.box", "{\"name\":\"slot\",\"origin\":[10,-1,10],\"sizeX\":20,\"sizeY\":22,\"sizeZ\":10}")));
+            Assert.IsNull(Error(Call(server, "solid.boolean", "{\"op\":\"difference\",\"a\":\"outer\",\"b\":\"slot\",\"name\":\"slotted\"}")));
+            Solid slotted = FirstSolid(server.namedItems["slotted"]);
+            server.namedItems["slottedTop"] = slotted.Shells[0].Faces.Single(f => Math.Abs(f.GetBoundingCube().Zmin - 30) < 1e-9 && Math.Abs(f.GetBoundingCube().Zmax - 30) < 1e-9);
+            double removed = RemovedVolume(server, "{\"face\":\"slottedTop\",\"pos\":\"p(20,10,30)\",\"exit\":\"round\",\"exitSize\":1}", "durchgangsbohrung", "slotted");
+            Assert.AreEqual(Math.PI * R * R * 10 + FilletRing(1), removed, 1e-2, "only down to the slot, with the rounded exit at its ceiling");
         }
     }
 }
