@@ -2256,6 +2256,1228 @@
           }
         }
       ]
+    },
+    {
+      "name": "kegelrad",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "kegelrad",
+            "label": "Kegelrad",
+            "category": "Zahnräder",
+            "description": "Straight bevel gear for a shaft angle of 90° after DIN 3971, basic rack after DIN 867 / ISO 53, module series after DIN 780, without profile shift. The flanks are exact spherical involutes, all faces of the teeth are cones through the apex, so the tooth depth tapers towards the apex. The gear stands on its back face; the mating gear is made with the numbers of teeth swapped. The root has no fillet.",
+            "tags": [
+              "gear",
+              "bevel gear",
+              "spherical involute",
+              "Zahnrad",
+              "Kegelrad",
+              "DIN 3971",
+              "DIN 867",
+              "DIN 780"
+            ],
+            "parameters": [
+              {
+                "name": "center",
+                "value": "p(0,0,0)",
+                "label": "Mittelpunkt",
+                "input": {
+                  "kind": "point3",
+                  "group": "Lage",
+                  "order": 1,
+                  "description": "Center of the back face; the axis is the z-axis, the teeth point to the apex in +z. Click a point in the model or enter its coordinates."
+                }
+              },
+              {
+                "name": "m",
+                "value": 2,
+                "label": "Modul m",
+                "input": {
+                  "kind": "length",
+                  "group": "Verzahnung",
+                  "order": 2,
+                  "min": 0.1,
+                  "description": "Outer transverse module in mm (DIN 3971), at the back cone (DIN 780 / ISO 54). Choose it from a module series above or enter any value."
+                }
+              },
+              {
+                "name": "z",
+                "value": 20,
+                "label": "Zähnezahl z",
+                "input": {
+                  "kind": "integer",
+                  "group": "Verzahnung",
+                  "order": 3,
+                  "min": 6,
+                  "max": 200,
+                  "description": "Number of teeth of this gear."
+                }
+              },
+              {
+                "name": "z2",
+                "value": 40,
+                "label": "Zähnezahl Gegenrad",
+                "input": {
+                  "kind": "integer",
+                  "group": "Verzahnung",
+                  "order": 4,
+                  "min": 6,
+                  "max": 200,
+                  "description": "Number of teeth of the mating gear. With the shaft angle of 90° it determines the pitch angle δ = atan(z/z2); the mating gear is made with the numbers of teeth swapped."
+                }
+              },
+              {
+                "name": "b",
+                "value": 12,
+                "label": "Zahnbreite b",
+                "input": {
+                  "kind": "length",
+                  "group": "Verzahnung",
+                  "order": 5,
+                  "min": 0.1,
+                  "description": "Face width: length of the teeth along the pitch cone, at most a third of the outer cone distance."
+                }
+              },
+              {
+                "name": "alpha",
+                "value": 20,
+                "label": "Eingriffswinkel α",
+                "input": {
+                  "kind": "angle",
+                  "group": "Bezugsprofil",
+                  "order": 6,
+                  "min": 10,
+                  "max": 30,
+                  "optional": true,
+                  "description": "Pressure angle of the basic rack (DIN 867: 20°)."
+                }
+              },
+              {
+                "name": "haP",
+                "value": 1,
+                "label": "Kopfhöhenfaktor ha*",
+                "input": {
+                  "kind": "number",
+                  "group": "Bezugsprofil",
+                  "order": 7,
+                  "min": 0.5,
+                  "max": 1.5,
+                  "optional": true,
+                  "description": "Addendum of the basic rack in multiples of the module (DIN 867: 1)."
+                }
+              },
+              {
+                "name": "hfP",
+                "value": 1.25,
+                "label": "Fußhöhenfaktor hf*",
+                "input": {
+                  "kind": "number",
+                  "group": "Bezugsprofil",
+                  "order": 8,
+                  "min": "haP",
+                  "max": 2,
+                  "optional": true,
+                  "description": "Dedendum of the basic rack in multiples of the module (DIN 867: 1.25). At least the addendum, so that the tip of the mating gear finds room."
+                }
+              },
+              {
+                "name": "Asn",
+                "value": 0,
+                "label": "Zahndickenabmaß Asn",
+                "input": {
+                  "kind": "length",
+                  "group": "Spiel",
+                  "order": 9,
+                  "min": "-0.5*m",
+                  "max": 0,
+                  "optional": true,
+                  "description": "Tooth thickness deviation at the reference circle in mm (DIN 3967), zero or negative: makes the teeth thinner by this amount and gives backlash with the mating gear."
+                }
+              },
+              {
+                "name": "dBore",
+                "value": 0,
+                "label": "Bohrung",
+                "input": {
+                  "kind": "length",
+                  "group": "Radkörper",
+                  "order": 10,
+                  "min": 0,
+                  "optional": true,
+                  "description": "Diameter of the axial bore, 0 for none."
+                }
+              }
+            ],
+            "presets": [
+              {
+                "name": "moduleSeries1",
+                "label": "Modulreihe I (DIN 780)",
+                "description": "Preferred modules, series I of DIN 780 / ISO 54. Sets the module m.",
+                "options": [
+                  {
+                    "label": "0,5",
+                    "values": {
+                      "m": 0.5
+                    }
+                  },
+                  {
+                    "label": "0,6",
+                    "values": {
+                      "m": 0.6
+                    }
+                  },
+                  {
+                    "label": "0,7",
+                    "values": {
+                      "m": 0.7
+                    }
+                  },
+                  {
+                    "label": "0,8",
+                    "values": {
+                      "m": 0.8
+                    }
+                  },
+                  {
+                    "label": "0,9",
+                    "values": {
+                      "m": 0.9
+                    }
+                  },
+                  {
+                    "label": "1",
+                    "values": {
+                      "m": 1
+                    }
+                  },
+                  {
+                    "label": "1,25",
+                    "values": {
+                      "m": 1.25
+                    }
+                  },
+                  {
+                    "label": "1,5",
+                    "values": {
+                      "m": 1.5
+                    }
+                  },
+                  {
+                    "label": "2",
+                    "values": {
+                      "m": 2
+                    }
+                  },
+                  {
+                    "label": "2,5",
+                    "values": {
+                      "m": 2.5
+                    }
+                  },
+                  {
+                    "label": "3",
+                    "values": {
+                      "m": 3
+                    }
+                  },
+                  {
+                    "label": "4",
+                    "values": {
+                      "m": 4
+                    }
+                  },
+                  {
+                    "label": "5",
+                    "values": {
+                      "m": 5
+                    }
+                  },
+                  {
+                    "label": "6",
+                    "values": {
+                      "m": 6
+                    }
+                  },
+                  {
+                    "label": "8",
+                    "values": {
+                      "m": 8
+                    }
+                  },
+                  {
+                    "label": "10",
+                    "values": {
+                      "m": 10
+                    }
+                  },
+                  {
+                    "label": "12",
+                    "values": {
+                      "m": 12
+                    }
+                  },
+                  {
+                    "label": "16",
+                    "values": {
+                      "m": 16
+                    }
+                  },
+                  {
+                    "label": "20",
+                    "values": {
+                      "m": 20
+                    }
+                  },
+                  {
+                    "label": "25",
+                    "values": {
+                      "m": 25
+                    }
+                  },
+                  {
+                    "label": "32",
+                    "values": {
+                      "m": 32
+                    }
+                  },
+                  {
+                    "label": "40",
+                    "values": {
+                      "m": 40
+                    }
+                  },
+                  {
+                    "label": "50",
+                    "values": {
+                      "m": 50
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "moduleSeries2",
+                "label": "Modulreihe II (DIN 780)",
+                "description": "Modules of series II of DIN 780 / ISO 54, to be used only when series I does not fit. Sets the module m.",
+                "options": [
+                  {
+                    "label": "1,125",
+                    "values": {
+                      "m": 1.125
+                    }
+                  },
+                  {
+                    "label": "1,375",
+                    "values": {
+                      "m": 1.375
+                    }
+                  },
+                  {
+                    "label": "1,75",
+                    "values": {
+                      "m": 1.75
+                    }
+                  },
+                  {
+                    "label": "2,25",
+                    "values": {
+                      "m": 2.25
+                    }
+                  },
+                  {
+                    "label": "2,75",
+                    "values": {
+                      "m": 2.75
+                    }
+                  },
+                  {
+                    "label": "3,5",
+                    "values": {
+                      "m": 3.5
+                    }
+                  },
+                  {
+                    "label": "4,5",
+                    "values": {
+                      "m": 4.5
+                    }
+                  },
+                  {
+                    "label": "5,5",
+                    "values": {
+                      "m": 5.5
+                    }
+                  },
+                  {
+                    "label": "7",
+                    "values": {
+                      "m": 7
+                    }
+                  },
+                  {
+                    "label": "9",
+                    "values": {
+                      "m": 9
+                    }
+                  },
+                  {
+                    "label": "11",
+                    "values": {
+                      "m": 11
+                    }
+                  },
+                  {
+                    "label": "14",
+                    "values": {
+                      "m": 14
+                    }
+                  },
+                  {
+                    "label": "18",
+                    "values": {
+                      "m": 18
+                    }
+                  },
+                  {
+                    "label": "22",
+                    "values": {
+                      "m": 22
+                    }
+                  },
+                  {
+                    "label": "28",
+                    "values": {
+                      "m": 28
+                    }
+                  },
+                  {
+                    "label": "36",
+                    "values": {
+                      "m": 36
+                    }
+                  },
+                  {
+                    "label": "45",
+                    "values": {
+                      "m": 45
+                    }
+                  }
+                ]
+              },
+              {
+                "name": "basicRack",
+                "label": "Bezugsprofil",
+                "description": "Basic rack profile: sets pressure angle, addendum and dedendum factor.",
+                "options": [
+                  {
+                    "label": "DIN 867 / ISO 53 A–C (20°, 1, 1,25)",
+                    "values": {
+                      "alpha": 20,
+                      "haP": 1,
+                      "hfP": 1.25
+                    }
+                  },
+                  {
+                    "label": "ISO 53 D (20°, 1, 1,4)",
+                    "values": {
+                      "alpha": 20,
+                      "haP": 1,
+                      "hfP": 1.4
+                    }
+                  },
+                  {
+                    "label": "Kurzverzahnung (20°, 0,8, 1)",
+                    "values": {
+                      "alpha": 20,
+                      "haP": 0.8,
+                      "hfP": 1
+                    }
+                  }
+                ]
+              }
+            ],
+            "checks": [
+              {
+                "condition": "z/cos(atan(z/z2)) >= ceil(2*haP/pow(sin((alpha*pi/180)), 2))",
+                "message": "Unterschnitt: Die virtuelle Zähnezahl z/cos δ ist {z/cos(atan(z/z2))}, bei α = {alpha}° sind mindestens {ceil(2*haP/pow(sin((alpha*pi/180)), 2))} nötig. Mehr Zähne oder ein größeres Übersetzungsverhältnis wählen.",
+                "parameters": [
+                  "z",
+                  "z2"
+                ]
+              },
+              {
+                "condition": "b <= (m*z/2/sin(atan(z/z2)))/3",
+                "message": "Die Zahnbreite ist zu groß: Sie darf höchstens ein Drittel der äußeren Teilkegellänge ({(m*z/2/sin(atan(z/z2)))} mm) sein, also höchstens {(m*z/2/sin(atan(z/z2)))/3} mm.",
+                "parameters": [
+                  "b"
+                ]
+              },
+              {
+                "condition": "2*(m*z/2/sin(atan(z/z2)))*sin((atan(z/z2) + atan(haP*m/(m*z/2/sin(atan(z/z2))))))*(((pi/2 + Asn/m)/z + (acos(cos(atan(z/z2))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180)))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180)))) - atan(tan(acos(cos(atan(z/z2))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180))))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180))))))) - (acos(cos((atan(z/z2) + atan(haP*m/(m*z/2/sin(atan(z/z2))))))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180)))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180)))) - atan(tan(acos(cos((atan(z/z2) + atan(haP*m/(m*z/2/sin(atan(z/z2))))))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180))))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180))))))) >= 0.2*m",
+                "message": "Die Zähne werden spitz: Die Zahndicke am Kopf ist außen {2*(m*z/2/sin(atan(z/z2)))*sin((atan(z/z2) + atan(haP*m/(m*z/2/sin(atan(z/z2))))))*(((pi/2 + Asn/m)/z + (acos(cos(atan(z/z2))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180)))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180)))) - atan(tan(acos(cos(atan(z/z2))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180))))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180))))))) - (acos(cos((atan(z/z2) + atan(haP*m/(m*z/2/sin(atan(z/z2))))))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180)))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180)))) - atan(tan(acos(cos((atan(z/z2) + atan(haP*m/(m*z/2/sin(atan(z/z2))))))/cos(asin(sin(atan(z/z2))*cos((alpha*pi/180))))))/sin(asin(sin(atan(z/z2))*cos((alpha*pi/180)))))))} mm, nötig sind mindestens 0,2·m = {0.2*m} mm. Kopfhöhenfaktor ha* verringern.",
+                "parameters": [
+                  "haP",
+                  "z"
+                ]
+              },
+              {
+                "condition": "((m*z/2/sin(atan(z/z2)))*cos(atan(z/z2)) - (haP*m + 0.1*m)*sin(atan(z/z2))) > 0",
+                "message": "Der Kopfkegel ist breiter als 90°: Die Zähnezahl des Gegenrads ist im Verhältnis zu klein.",
+                "parameters": [
+                  "z",
+                  "z2"
+                ]
+              },
+              {
+                "condition": "((1 - b/(m*z/2/sin(atan(z/z2))))*(m*z/2/sin(atan(z/z2)))*sin(atan(z/z2)) - ((1 - b/(m*z/2/sin(atan(z/z2))))*hfP*m + m)*cos(atan(z/z2))) >= m",
+                "message": "Das Rad ist an der Stirnseite zu klein für den Radkörper: Unter dem Zahnfuß muss innen mindestens ein Modul Material bleiben. Zahnbreite verringern oder mehr Zähne wählen.",
+                "parameters": [
+                  "b",
+                  "z"
+                ]
+              },
+              {
+                "condition": "dBore == 0 || dBore <= 2*((1 - b/(m*z/2/sin(atan(z/z2))))*(m*z/2/sin(atan(z/z2)))*sin(atan(z/z2)) - ((1 - b/(m*z/2/sin(atan(z/z2))))*hfP*m + m)*cos(atan(z/z2))) - 2*m",
+                "message": "Die Bohrung ist zu groß: Sie darf höchstens ⌀ {2*((1 - b/(m*z/2/sin(atan(z/z2))))*(m*z/2/sin(atan(z/z2)))*sin(atan(z/z2)) - ((1 - b/(m*z/2/sin(atan(z/z2))))*hfP*m + m)*cos(atan(z/z2))) - 2*m} mm haben.",
+                "parameters": [
+                  "dBore"
+                ]
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M4 54L60 54L60 46L58 46L45.0 16L45.3 16L42.8 21L40.3 16L41.0 16L38.5 21L36.0 16L36.7 16L34.2 21L31.7 16L32.3 16L29.8 21L27.3 16L28.0 16L25.5 21L23.0 16L23.7 16L21.2 21L18.7 16L19.0 16L6 46L4 46Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M4 46L60 46\" stroke=\"#494c4e\" stroke-width=\"2\"/><path d=\"M53.7 46L42.8 21\" stroke=\"#494c4e\" stroke-width=\"2\"/><path d=\"M45.0 46L38.5 21\" stroke=\"#494c4e\" stroke-width=\"2\"/><path d=\"M36.3 46L34.2 21\" stroke=\"#494c4e\" stroke-width=\"2\"/><path d=\"M27.7 46L29.8 21\" stroke=\"#494c4e\" stroke-width=\"2\"/><path d=\"M19.0 46L25.5 21\" stroke=\"#494c4e\" stroke-width=\"2\"/><path d=\"M10.3 46L21.2 21\" stroke=\"#494c4e\" stroke-width=\"2\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "ar",
+                  "value": "alpha*pi/180"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "deg",
+                  "value": "180/pi"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "d",
+                  "value": "atan(z/z2)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "Re",
+                  "value": "m*z/2/sin(d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "k",
+                  "value": "1 - b/Re"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "params": {
+                  "name": "ha",
+                  "value": "haP*m"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "params": {
+                  "name": "hf",
+                  "value": "hfP*m"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "workspace.set",
+                "params": {
+                  "name": "da",
+                  "value": "d + atan(ha/Re)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "workspace.set",
+                "params": {
+                  "name": "df",
+                  "value": "d - atan(hf/Re)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "workspace.set",
+                "params": {
+                  "name": "db",
+                  "value": "asin(sin(d)*cos(ar))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "workspace.set",
+                "params": {
+                  "name": "thp",
+                  "value": "acos(cos(d)/cos(db))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "workspace.set",
+                "params": {
+                  "name": "tha",
+                  "value": "acos(cos(da)/cos(db))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "workspace.set",
+                "params": {
+                  "name": "thf",
+                  "value": "acos(min(cos(df)/cos(db), 1))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "workspace.set",
+                "params": {
+                  "name": "psib",
+                  "value": "(pi/2 + Asn/m)/z + thp/sin(db) - atan(tan(thp)/sin(db))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "workspace.set",
+                "params": {
+                  "name": "psia",
+                  "value": "psib - (tha/sin(db) - atan(tan(tha)/sin(db)))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 16,
+                "method": "workspace.set",
+                "params": {
+                  "name": "psir",
+                  "value": "psib - (thf/sin(db) - atan(tan(thf)/sin(db)))"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 17,
+                "method": "workspace.set",
+                "params": {
+                  "name": "t0",
+                  "value": "thf/sin(db)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 18,
+                "method": "workspace.set",
+                "params": {
+                  "name": "t1",
+                  "value": "tha/sin(db)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 19,
+                "method": "workspace.set",
+                "params": {
+                  "name": "BoR",
+                  "value": "Re*sin(d) + (ha + 0.1*m)*cos(d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "workspace.set",
+                "params": {
+                  "name": "BoW",
+                  "value": "Re*cos(d) - (ha + 0.1*m)*sin(d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "workspace.set",
+                "params": {
+                  "name": "BiR",
+                  "value": "Re*sin(d) - (hf + m)*cos(d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "workspace.set",
+                "params": {
+                  "name": "BiW",
+                  "value": "Re*cos(d) + (hf + m)*sin(d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 23,
+                "method": "workspace.set",
+                "params": {
+                  "name": "FiR",
+                  "value": "k*Re*sin(d) - (k*hf + m)*cos(d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 24,
+                "method": "workspace.set",
+                "params": {
+                  "name": "FiW",
+                  "value": "k*Re*cos(d) + (k*hf + m)*sin(d)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 25,
+                "method": "workspace.set",
+                "params": {
+                  "name": "w1",
+                  "value": "BiW + m"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 26,
+                "method": "workspace.set",
+                "params": {
+                  "name": "w2",
+                  "value": "0.9*k*BoW"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 27,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "center + v(0,0,BiW - w1)",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "outerSection"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 28,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "center + v(0,0,BiW - w2)",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "innerSection"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 3,
+          "params": {
+            "repeat": {
+              "variable": "phi",
+              "start": 0,
+              "step": "2*pi/z",
+              "count": "z"
+            },
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "sketch.add_nurbs",
+                "params": {
+                  "sketch": "outerSection",
+                  "approximation": {
+                    "parameter": "t",
+                    "tMin": "t0",
+                    "tMax": "t1",
+                    "pointExpr": [
+                      "w1*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*cos(phi + psib) + w1*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*sin(phi + psib)",
+                      "w1*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*sin(phi + psib) - w1*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*cos(phi + psib)"
+                    ]
+                  }
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "sketch.add_nurbs",
+                "params": {
+                  "sketch": "outerSection",
+                  "approximation": {
+                    "parameter": "t",
+                    "tMin": "t0",
+                    "tMax": "t1",
+                    "pointExpr": [
+                      "w1*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*cos(phi - psib) - w1*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*sin(phi - psib)",
+                      "w1*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*sin(phi - psib) + w1*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*cos(phi - psib)"
+                    ]
+                  }
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "sketch.add_arc",
+                "params": {
+                  "sketch": "outerSection",
+                  "center": [
+                    0,
+                    0
+                  ],
+                  "radius": "w1*tan(da)",
+                  "startAngle": "(phi - psia)*deg",
+                  "sweepAngle": "2*psia*deg"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "sketch.add_arc",
+                "params": {
+                  "sketch": "outerSection",
+                  "center": [
+                    0,
+                    0
+                  ],
+                  "radius": "w1*tan(df)",
+                  "startAngle": "(phi + psir)*deg",
+                  "sweepAngle": "360/z - 2*psir*deg"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "when": "df < db",
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "outerSection",
+                  "start": [
+                    "w1*tan(db)*cos(phi + psib)",
+                    "w1*tan(db)*sin(phi + psib)"
+                  ],
+                  "end": [
+                    "w1*tan(df)*cos(phi + psib)",
+                    "w1*tan(df)*sin(phi + psib)"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "when": "df < db",
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "outerSection",
+                  "start": [
+                    "w1*tan(db)*cos(phi - psib)",
+                    "w1*tan(db)*sin(phi - psib)"
+                  ],
+                  "end": [
+                    "w1*tan(df)*cos(phi - psib)",
+                    "w1*tan(df)*sin(phi - psib)"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "sketch.add_nurbs",
+                "params": {
+                  "sketch": "innerSection",
+                  "approximation": {
+                    "parameter": "t",
+                    "tMin": "t0",
+                    "tMax": "t1",
+                    "pointExpr": [
+                      "w2*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*cos(phi + psib) + w2*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*sin(phi + psib)",
+                      "w2*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*sin(phi + psib) - w2*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*cos(phi + psib)"
+                    ]
+                  }
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "sketch.add_nurbs",
+                "params": {
+                  "sketch": "innerSection",
+                  "approximation": {
+                    "parameter": "t",
+                    "tMin": "t0",
+                    "tMax": "t1",
+                    "pointExpr": [
+                      "w2*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*cos(phi - psib) - w2*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*sin(phi - psib)",
+                      "w2*(tan(db)*cos(t) + tan(t*sin(db))*sin(t)/cos(db))*sin(phi - psib) + w2*(tan(db)*sin(t) - tan(t*sin(db))*cos(t)/cos(db))*cos(phi - psib)"
+                    ]
+                  }
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "sketch.add_arc",
+                "params": {
+                  "sketch": "innerSection",
+                  "center": [
+                    0,
+                    0
+                  ],
+                  "radius": "w2*tan(da)",
+                  "startAngle": "(phi - psia)*deg",
+                  "sweepAngle": "2*psia*deg"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "sketch.add_arc",
+                "params": {
+                  "sketch": "innerSection",
+                  "center": [
+                    0,
+                    0
+                  ],
+                  "radius": "w2*tan(df)",
+                  "startAngle": "(phi + psir)*deg",
+                  "sweepAngle": "360/z - 2*psir*deg"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "when": "df < db",
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "innerSection",
+                  "start": [
+                    "w2*tan(db)*cos(phi + psib)",
+                    "w2*tan(db)*sin(phi + psib)"
+                  ],
+                  "end": [
+                    "w2*tan(df)*cos(phi + psib)",
+                    "w2*tan(df)*sin(phi + psib)"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "when": "df < db",
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "innerSection",
+                  "start": [
+                    "w2*tan(db)*cos(phi - psib)",
+                    "w2*tan(db)*sin(phi - psib)"
+                  ],
+                  "end": [
+                    "w2*tan(df)*cos(phi - psib)",
+                    "w2*tan(df)*sin(phi - psib)"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 4,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "sketch.connect",
+                "params": {
+                  "sketch": "outerSection",
+                  "precision": "m/100000",
+                  "name": "outerProfile"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "sketch.connect",
+                "params": {
+                  "sketch": "innerSection",
+                  "precision": "m/100000",
+                  "name": "innerProfile"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "solid.ruled",
+                "params": {
+                  "profile1": "outerProfile",
+                  "profile2": "innerProfile",
+                  "name": "toothed"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "center",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      -1,
+                      0
+                    ]
+                  },
+                  "name": "blankSketch"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "blankSketch",
+                  "start": [
+                    "0",
+                    "0"
+                  ],
+                  "end": [
+                    "BiR",
+                    "0"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "blankSketch",
+                  "start": [
+                    "BiR",
+                    "0"
+                  ],
+                  "end": [
+                    "BoR",
+                    "BiW - BoW"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "blankSketch",
+                  "start": [
+                    "BoR",
+                    "BiW - BoW"
+                  ],
+                  "end": [
+                    "k*BoR",
+                    "BiW - k*BoW"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "blankSketch",
+                  "start": [
+                    "k*BoR",
+                    "BiW - k*BoW"
+                  ],
+                  "end": [
+                    "FiR",
+                    "BiW - FiW"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "blankSketch",
+                  "start": [
+                    "FiR",
+                    "BiW - FiW"
+                  ],
+                  "end": [
+                    "0",
+                    "BiW - FiW"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "sketch.add_line",
+                "params": {
+                  "sketch": "blankSketch",
+                  "start": [
+                    "0",
+                    "BiW - FiW"
+                  ],
+                  "end": [
+                    "0",
+                    "0"
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "sketch.connect",
+                "params": {
+                  "sketch": "blankSketch",
+                  "precision": "m/100000",
+                  "name": "blankProfile"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "solid.rotate",
+                "params": {
+                  "profile": "blankProfile",
+                  "axis": {
+                    "origin": "center",
+                    "direction": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "angle": 360,
+                  "name": "blank"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "intersect",
+                  "a": "blank",
+                  "b": "toothed",
+                  "name": "gear"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "when": "dBore > 0",
+                "method": "solid.cylinder",
+                "params": {
+                  "start": "center - v(0,0,1)",
+                  "end": "center + v(0,0,BiW - FiW + 1)",
+                  "radius": "dBore/2",
+                  "name": "boreTool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "when": "dBore > 0",
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "gear",
+                  "b": "boreTool",
+                  "name": "result"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 16,
+                "when": "dBore <= 0",
+                "method": "workspace.select",
+                "params": {
+                  "selector": "gear",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 5,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
     }
   ]
 }

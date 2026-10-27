@@ -58,7 +58,7 @@ namespace CADability.Tests
             StringAssert.Contains(error, "<script>");
         }
 
-        /// <summary>The icon of a template of StirnradTemplate.json: 0 spur gear, 1 rack, 2 internal gear.</summary>
+        /// <summary>The icon of a template of StirnradTemplate.json: 0 spur gear, 1 rack, 2 internal gear, 3 bevel gear.</summary>
         private static string GearIcon(int template, [System.Runtime.CompilerServices.CallerFilePath] string thisFile = "")
         {
             string file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(thisFile)!, "..", "..", "..", "ShapeIt", "Templates", "StirnradTemplate.json");
@@ -69,7 +69,7 @@ namespace CADability.Tests
         [TestMethod]
         public void ShippedIconsRender()
         {
-            foreach ((string name, string svg) in new[] { ("generic", TemplateIcon.Generic), ("gear", GearIcon(0)), ("rack", GearIcon(1)), ("internalGear", GearIcon(2)) })
+            foreach ((string name, string svg) in new[] { ("generic", TemplateIcon.Generic), ("gear", GearIcon(0)), ("rack", GearIcon(1)), ("internalGear", GearIcon(2)), ("bevelGear", GearIcon(3)) })
             {
                 Assert.IsNull(TemplateIcon.Problem(svg), name);
                 // the renderer of the WinForms front end, at the small toolbar size

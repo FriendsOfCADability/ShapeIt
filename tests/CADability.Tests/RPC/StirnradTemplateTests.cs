@@ -345,17 +345,174 @@ namespace CADability.Tests
             StringAssert.Contains(error, "der Außendurchmesser muss mindestens ⌀ 89 mm sein");
         }
 
+        private sealed record Bevel(double m, int z, int z2, double b, double alpha = 20, double haP = 1, double hfP = 1.25, double Asn = 0, double dBore = 0)
+        {
+            public string Arguments => FormattableString.Invariant(
+                $"{{\"m\":{m},\"z\":{z},\"z2\":{z2},\"b\":{b},\"alpha\":{alpha},\"haP\":{haP},\"hfP\":{hfP},\"Asn\":{Asn},\"dBore\":{dBore}}}");
+        }
+
+        /// <summary>
+        /// The geometry of a straight bevel gear, apex at the origin: pitch, tip, root and base cone angle, outer cone
+        /// distance, half the tooth angle at the base cone and the blank in the axial section (rho, w), w the
+        /// distance from the apex along the axis.
+        /// </summary>
+        private sealed class BevelGeometry
+        {
+            public double d, da, df, db, Re, k, psib;
+            public (double rho, double w)[] blank = null!;
+            public double BackW => blank[1].w;
+            public double InvS(double th) => th / Math.Sin(db) - Math.Atan(Math.Tan(th) / Math.Sin(db));
+
+            public BevelGeometry(Bevel g)
+            {
+                double a = g.alpha * Math.PI / 180, ha = g.haP * g.m, hf = g.hfP * g.m;
+                d = Math.Atan((double)g.z / g.z2);
+                Re = g.m * g.z / 2 / Math.Sin(d);
+                k = 1 - g.b / Re;
+                da = d + Math.Atan(ha / Re);
+                df = d - Math.Atan(hf / Re);
+                db = Math.Asin(Math.Sin(d) * Math.Cos(a));
+                // tooth thickness at the pitch cone: the arc pi*m/2 + Asn on the outer pitch circle
+                psib = (Math.PI / 2 + g.Asn / g.m) / g.z + InvS(Math.Acos(Math.Cos(d) / Math.Cos(db)));
+                double sd = Math.Sin(d), cd = Math.Cos(d), e = ha + 0.1 * g.m;
+                (double, double) bo = (Re * sd + e * cd, Re * cd - e * sd);
+                (double, double) bi = (Re * sd - (hf + g.m) * cd, Re * cd + (hf + g.m) * sd);
+                (double, double) fi = (k * Re * sd - (k * hf + g.m) * cd, k * Re * cd + (k * hf + g.m) * sd);
+                blank = new[] { (0, bi.Item2), bi, bo, (k * bo.Item1, k * bo.Item2), fi, (0, fi.Item2) };
+            }
+
+            /// <summary>The azimuth covered by material on the cone with the angle gamma around the axis.</summary>
+            public double Azimuth(double gamma, int z)
+            {
+                if (gamma <= df) return 2 * Math.PI;
+                if (gamma > da) return 0;
+                if (gamma <= db) return 2 * z * psib;
+                return 2 * z * (psib - InvS(Math.Acos(Math.Cos(gamma) / Math.Cos(db))));
+            }
+
+            /// <summary>Integral of R² dR along the ray from the apex with the angle gamma, inside the blank.</summary>
+            public double RayMoment(double gamma)
+            {
+                double sx = Math.Sin(gamma), sy = Math.Cos(gamma);
+                List<double> hits = new List<double>();
+                for (int i = 0; i < blank.Length; i++)
+                {
+                    (double x1, double y1) = blank[i];
+                    (double x2, double y2) = blank[(i + 1) % blank.Length];
+                    double ex = x2 - x1, ey = y2 - y1, det = sx * -ey - sy * -ex;
+                    if (Math.Abs(det) < 1e-15) continue;
+                    double R = (x1 * -ey - y1 * -ex) / det, s = (sx * y1 - sy * x1) / det;
+                    if (s >= 0 && s < 1 && R > 0) hits.Add(R);
+                }
+                hits.Sort();
+                double sum = 0;
+                for (int i = 0; i + 1 < hits.Count; i += 2) sum += (Math.Pow(hits[i + 1], 3) - Math.Pow(hits[i], 3)) / 3;
+                return sum;
+            }
+        }
+
+        /// <summary>
+        /// The volume in spherical coordinates around the apex: every face of the teeth is a cone through the apex, so
+        /// on each cone around the axis (angle gamma) the material covers a fixed azimuth, given by the spherical
+        /// involute function, and along each ray the blank gives the extent.
+        /// </summary>
+        private static double BevelVolume(Bevel g, BevelGeometry geo)
+        {
+            List<double> breaks = new List<double> { 0, geo.df, geo.db, geo.da };
+            breaks.Sort();
+            double volume = 0;
+            const int n = 20000;
+            for (int j = 0; j + 1 < breaks.Count; j++)
+            {
+                double g0 = Math.Max(breaks[j], 0), g1 = Math.Min(breaks[j + 1], geo.da), h = (g1 - g0) / n;
+                for (int i = 0; i < n && h > 0; i++)
+                {
+                    double gamma = g0 + (i + 0.5) * h;
+                    volume += geo.Azimuth(gamma, g.z) * Math.Sin(gamma) * geo.RayMoment(gamma) * h;
+                }
+            }
+            double height = geo.BackW - geo.blank[5].w;
+            return volume - Math.PI * g.dBore * g.dBore / 4 * height;
+        }
+
+        private static void AssertBevel(Bevel g)
+        {
+            Solid solid = InstantiateTemplate(ServerWithTemplates(), "kegelrad", g.Arguments);
+            BevelGeometry geo = new BevelGeometry(g);
+            double expected = BevelVolume(g, geo);
+            double volume = solid.Volume(1e-3 * g.m);
+            Assert.AreEqual(expected, volume, 1e-5 * expected, $"volume of {g}");
+            if (g.dBore == 0)
+            {   // per tooth two flanks, tip and root cone, below the base cone two radial faces; back and front cone
+                // (each split at its seam) and the two plane faces
+                Assert.AreEqual(g.z * (geo.df < geo.db ? 6 : 4) + 6, solid.Shells[0].Faces.Length, "faces");
+            }
+            double ha = g.haP * g.m, sd = Math.Sin(geo.d), cd = Math.Cos(geo.d);
+            BoundingBox ext = solid.GetExtent(0.0);
+            Assert.AreEqual(0, ext.Zmin, 1e-6, "back face");
+            Assert.AreEqual(geo.BackW - geo.k * (geo.Re * cd - ha * sd), ext.Zmax, 1e-6, "the inner end of the tip cone is nearest to the apex");
+            Assert.AreEqual(geo.Re * sd + ha * cd, ext.Xmax, 1e-6, "the tooth on the x-axis reaches the outer end of the tip cone");
+            // probes in the middle of the face width: a tooth is centered on the x-axis, a gap on the angle 180°/z
+            double R = geo.Re * (1 + geo.k) / 2, half = Math.PI / g.z;
+            GeoPoint At(double gamma, double phi) => new GeoPoint(R * Math.Sin(gamma) * Math.Cos(phi), R * Math.Sin(gamma) * Math.Sin(phi), geo.BackW - R * Math.Cos(gamma));
+            double eps = 0.01 * g.m / R;
+            Assert.IsTrue(solid.Shells[0].IsInside(At(geo.da - eps, 0)), "the tooth reaches the tip cone");
+            Assert.IsFalse(solid.Shells[0].IsInside(At(geo.da + eps, 0)), "outside the tip cone is none");
+            Assert.IsFalse(solid.Shells[0].IsInside(At(geo.d, half)), "the gap on the pitch cone");
+            Assert.IsFalse(solid.Shells[0].IsInside(At(geo.df + eps, half)), "above the root cone in the gap is none");
+            Assert.IsTrue(solid.Shells[0].IsInside(At(geo.df - eps, half)), "below the root cone is material");
+        }
+
         [TestMethod]
-        public void TheFileIsOneGroupOfThreeTemplates()
+        public void DefaultBevelGear()
+        {
+            // the pinion: the root cone (23.4°) lies inside the base cone (24.8°), radial flanks below it
+            AssertBevel(new Bevel(2, 20, 40, 12));
+        }
+
+        [TestMethod]
+        public void MatingBevelGearWithBoreAndBacklash()
+        {
+            // the wheel of the same pair: pitch angle 63.4°, the flanks begin at the root cone
+            AssertBevel(new Bevel(2, 40, 20, 12, Asn: -0.05, dBore: 20));
+        }
+
+        [TestMethod]
+        public void BevelGearWithOtherBasicRack()
+        {
+            AssertBevel(new Bevel(1.5, 18, 30, 8, alpha: 25, haP: 0.8, hfP: 1));
+        }
+
+        [TestMethod]
+        public void BevelGearWithUndercutIsRefused()
+        {
+            // z/cos(atan(10/12)) = 13.0 virtual teeth, 18 are needed at 20°
+            string? error = Error(Call(ServerWithTemplates(), "template.instantiate", $"{{\"template\":\"kegelrad\",\"arguments\":{new Bevel(2, 10, 12, 5).Arguments},\"name\":\"r\"}}"));
+            Assert.IsNotNull(error);
+            StringAssert.Contains(error, "Unterschnitt");
+            StringAssert.Contains(error, "mindestens 18 nötig");
+        }
+
+        [TestMethod]
+        public void BevelGearTooWideIsRefused()
+        {
+            // outer cone distance 44.72: at most 14.91
+            string? error = Error(Call(ServerWithTemplates(), "template.instantiate", $"{{\"template\":\"kegelrad\",\"arguments\":{new Bevel(2, 20, 40, 16).Arguments},\"name\":\"r\"}}"));
+            Assert.IsNotNull(error);
+            StringAssert.Contains(error, "Die Zahnbreite ist zu groß");
+        }
+
+        [TestMethod]
+        public void TheFileIsOneGroupOfFourTemplates()
         {
             Dictionary<string, List<JsonElement>> templates = new();
             TemplateFile file = TemplateLibrary.ReadFile(TemplateFile(), templates);
             Assert.AreEqual("Zahnräder", file.Label);
             Assert.IsNotNull(file.Icon, "the icon of the drop-down button is accepted");
-            CollectionAssert.AreEqual(new[] { "stirnrad", "zahnstange", "hohlrad" }, (System.Collections.ICollection)file.Names);
+            CollectionAssert.AreEqual(new[] { "stirnrad", "zahnstange", "hohlrad", "kegelrad" }, (System.Collections.ICollection)file.Names);
             List<TemplateToolbarEntry> entries = TemplateLibrary.ToolbarEntries(templates.Keys, new[] { file }, name => name);
             Assert.AreEqual(1, entries.Count, "one drop-down button");
-            Assert.AreEqual(3, entries[0].Templates.Count);
+            Assert.AreEqual(4, entries[0].Templates.Count);
             foreach (List<JsonElement> items in templates.Values)
             {
                 JsonElement begin = items[0].GetProperty("params");
