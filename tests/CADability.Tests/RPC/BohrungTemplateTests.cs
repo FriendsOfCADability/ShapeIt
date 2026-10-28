@@ -64,15 +64,23 @@ namespace CADability.Tests
         private static readonly double tipHalf = 59 * Math.PI / 180;
 
         /// <summary>Instantiates the template on the given face and returns the volume taken out of the solid.</summary>
-        private static double RemovedVolume(MCPServer server, string arguments, string template = "sacklochbohrung", string solid = "block")
+        private static double RemovedVolume(MCPServer server, string arguments, string template = "sacklochbohrung", string solid = "block", bool measureCutOut = false)
         {
             double before = FirstSolid(server.namedItems[solid]).Volume(0.0001);
             string response = Call(server, "template.instantiate", $"{{\"template\":\"{template}\",\"arguments\":{arguments},\"name\":\"drilled\"}}");
             Assert.IsNull(Error(response), response);
             Solid drilled = FirstSolid(server.namedItems["drilled"]);
             Assert.AreEqual(before, FirstSolid(server.namedItems[solid]).Volume(0.0001), 1e-6, "the solid itself must stay untouched");
-            return before - drilled.Volume(0.0001);
+            if (!measureCutOut) return before - drilled.Volume(0.0001);
+            // the difference of two large volumes integrated on curved faces is too coarse for an exact comparison:
+            // measure the cut out piece
+            string removedName = "removed" + (++removedCount); // a fresh name: a failed boolean must not find an older piece
+            Assert.IsNull(Error(Call(server, "solid.boolean", $"{{\"op\":\"difference\",\"a\":\"{solid}\",\"b\":\"drilled\",\"name\":\"{removedName}\"}}")));
+            Assert.IsTrue(server.namedItems.TryGetValue(removedName, out object? removed), "the cut out piece");
+            return removed is List<Solid> pieces ? pieces.Sum(p => p.Volume(0.0001)) : ((Solid)removed).Volume(0.0001);
         }
+
+        private static int removedCount;
 
         private static double ChamferRing(double c) => 2 * Math.PI * (R + c / 3) * c * c / 2;
 
@@ -299,6 +307,96 @@ namespace CADability.Tests
                 Assert.AreEqual(Frustum(r1, r2, TaperDepth) + fillet,
                     Taper(server, FormattableString.Invariant($"\"dEntry\":{d1},\"dEnd\":{d2},\"entry\":\"round\",\"entrySize\":1")), 1e-3, $"{d1} -> {d2}");
             }
+        }
+
+        private const double SlotR = 3, SlotDepth = 5, SlotLength = 10; // d = 6, centers 10 apart
+
+        private static double SlotArea => SlotLength * 2 * SlotR + Math.PI * SlotR * SlotR;
+
+        private static string Slot(string arguments) => "{\"face\":\"top\",\"p1\":\"p(5,10,20)\",\"p2\":\"p(15,10,20)\",\"d\":6,\"depth\":5" + arguments + "}";
+
+        [TestMethod]
+        public void SlotOnAPlane()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.AreEqual(SlotArea * SlotDepth, RemovedVolume(server, Slot(""), "langloch"), 1e-3);
+        }
+
+        /// <summary>The chamfer along the two straight edges and around the two half circles, which make one ring.</summary>
+        [TestMethod]
+        public void SlotOnAPlaneChamfered()
+        {
+            MCPServer server = ServerWithTemplates();
+            double c = 1;
+            double chamfer = 2 * SlotLength * c * c / 2 + 2 * Math.PI * (SlotR + c / 3) * c * c / 2;
+            Assert.AreEqual(SlotArea * SlotDepth + chamfer, RemovedVolume(server, Slot(",\"entry\":\"chamfer\""), "langloch"), 1e-3);
+        }
+
+        [TestMethod]
+        public void SlotOnAPlaneRounded()
+        {
+            MCPServer server = ServerWithTemplates();
+            double rho = 1, area = rho * rho * (1 - Math.PI / 4);
+            double centroid = rho * (10 - 3 * Math.PI) / (12 - 3 * Math.PI);
+            double fillet = 2 * SlotLength * area + 2 * Math.PI * (SlotR + centroid) * area;
+            Assert.AreEqual(SlotArea * SlotDepth + fillet, RemovedVolume(server, Slot(",\"entry\":\"round\""), "langloch"), 1e-3);
+        }
+
+        /// <summary>A cylinder of radius 20 along z with the half of its mantle around (0, 20, z), for slots along the axis.</summary>
+        private static MCPServer ServerWithShaft()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.IsNull(Error(Call(server, "solid.cylinder", "{\"name\":\"shaft\",\"start\":[0,0,0],\"end\":[0,0,60],\"radius\":20}")));
+            // the mantle consists of two halves: the one around (0, 20, z)
+            server.namedItems["mantle"] = FirstSolid(server.namedItems["shaft"]).Shells[0].Faces.Single(f => f.Surface is CylindricalSurface
+                && f.GetBoundingCube().Xmin < -1 && f.GetBoundingCube().Xmax > 1 && f.GetBoundingCube().Ymax > 19);
+            return server;
+        }
+
+        /// <summary>
+        /// The slot along the axis of a shaft: below every point of the outline in the tangent plane the material from
+        /// the bottom plane up to the mantle is removed, integrated numerically across the slot.
+        /// </summary>
+        [TestMethod]
+        public void SlotAlongAShaft()
+        {
+            MCPServer server = ServerWithShaft();
+            double R = 20, bottom = R - SlotDepth;
+            Func<double, double> height = y => Math.Sqrt(R * R - y * y) - bottom;
+            double straight = 0, ends = 0;
+            const int n = 20000;
+            for (int i = 0; i < n; i++)
+            {
+                double y = -SlotR + (i + 0.5) * 2 * SlotR / n, dy = 2 * SlotR / n;
+                straight += 30 * height(y) * dy; // the centers lie 30 apart along the axis
+                ends += 2 * Math.Sqrt(SlotR * SlotR - y * y) * height(y) * dy; // the two half circles make one disk
+            }
+            Assert.AreEqual(straight + ends,
+                RemovedVolume(server, "{\"face\":\"mantle\",\"p1\":\"p(0,20,10)\",\"p2\":\"p(0,25,40)\",\"d\":6,\"depth\":5}", "langloch", "shaft", measureCutOut: true), 1e-2,
+                "the second center lies off the face and is put onto it");
+        }
+
+        [TestMethod]
+        public void SlotAlongAShaftChamferedAndRounded()
+        {
+            MCPServer server = ServerWithShaft();
+            double sharp = RemovedVolume(server, "{\"face\":\"mantle\",\"p1\":\"p(0,20,10)\",\"p2\":\"p(0,20,40)\",\"d\":6,\"depth\":5}", "langloch", "shaft");
+            foreach (string entry in new[] { "chamfer", "round" })
+            {
+                double blended = RemovedVolume(server, "{\"face\":\"mantle\",\"p1\":\"p(0,20,10)\",\"p2\":\"p(0,20,40)\",\"d\":6,\"depth\":5,\"entry\":\"" + entry + "\"}", "langloch", "shaft");
+                // about the blend of a straight slot of the same length, a bit more since the mantle falls away
+                double perLength = entry == "chamfer" ? 1.0 / 2 : 1 - Math.PI / 4;
+                Assert.IsTrue(blended - sharp > 0.8 * 2 * 30 * perLength && blended - sharp < 2 * 2 * 30 * perLength, $"{entry}: {blended - sharp}");
+            }
+        }
+
+        [TestMethod]
+        public void SlotAcrossAShaftIsRefused()
+        {
+            MCPServer server = ServerWithShaft();
+            string? error = Error(Call(server, "template.instantiate", "{\"template\":\"langloch\",\"arguments\":{\"face\":\"mantle\",\"p1\":\"p(0,20,10)\",\"p2\":\"p(14,14,40)\"},\"name\":\"x\"}"));
+            Assert.IsNotNull(error);
+            StringAssert.Contains(error, "same line along its axis");
         }
 
         /// <summary>
