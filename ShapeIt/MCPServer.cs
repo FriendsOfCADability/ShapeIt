@@ -6306,6 +6306,49 @@ namespace ShapeIt
             try { return GetItemTypeName(o); } catch (Exception) { return o.GetType().Name; }
         }
 
+        /// <summary>What a template run got: copies of its input solids and the values of its value parameters.</summary>
+        private sealed record TemplateRunInput(List<Solid> Solids, string Parameters);
+
+        /// <summary>
+        /// The input of a template run, right after its arguments replaced the defaults: copies of the solids of its
+        /// solid and face parameters (copies, because a step might change a solid in place) and its value parameters.
+        /// </summary>
+        private TemplateRunInput CaptureTemplateInput(string templateName)
+        {
+            List<Solid> solids = new List<Solid>();
+            HashSet<Solid> originals = new HashSet<Solid>(ReferenceEqualityComparer.Instance); // a solid named by a solid and a face parameter
+            HashSet<string> objectNames = new HashSet<string>();
+            foreach (ObjectParameter op in GetTemplateObjectParameters(templateName))
+            {
+                objectNames.Add(op.Name);
+                if (!namedItems.TryGetValue(op.Name, out object? value) || value == null) continue;
+                Solid? solid = UnwrapSingletonList(value) switch
+                {
+                    Solid s => s,
+                    Face f => OwningSolid(f),
+                    _ => null
+                };
+                if (solid != null && originals.Add(solid)) solids.Add((Solid)solid.Clone());
+            }
+            List<string> valueNames = GetTemplateParameters(templateName).Where(n => !objectNames.Contains(n)).ToList();
+            string parameters = TemplateFeatures.ParameterValues(valueNames, n => namedItems.TryGetValue(n, out object? v) ? v : null);
+            return new TemplateRunInput(solids, parameters);
+        }
+
+        /// <summary>Marks the new faces of the result of a template run as a feature, see <see cref="TemplateFeatures"/>.</summary>
+        private void MarkTemplateFeature(string templateName, TemplateRunInput input, object? result)
+        {
+            List<Solid> results = result switch
+            {
+                Solid s => new List<Solid> { s },
+                List<Solid> l => l,
+                List<object> o => o.OfType<Solid>().ToList(),
+                _ => new List<Solid>()
+            };
+            if (results.Count == 0) return;
+            TemplateFeatures.Mark(results, input.Solids, templateName, GetTemplateLabel(templateName) ?? templateName, input.Parameters);
+        }
+
         private object? TemplateCommitImpl(JsonElement result, string? resultKind, bool suffixInternalNames)
         {
             List<object> resultingObjects = IterateSelector<object>(result).ToList();
@@ -6376,6 +6419,7 @@ namespace ShapeIt
             }
             CopyObjectArguments(argumentValues);
             object? res = null; // the result
+            TemplateRunInput? runInput = null; // what the template got, to tell its new faces from the input's
             using (Progress?.Level(CountTemplateSteps(jsons)))
             {   // use a clone of the named items dictionary during evaluation of the template
                 foreach (var element in jsons)
@@ -6392,6 +6436,7 @@ namespace ShapeIt
 
                         res = TemplateCommitImpl(result, resultKind, suffixInternalNames);
                         // template.commit restored the old named items
+                        if (runInput != null) MarkTemplateFeature(template, runInput, res);
                     }
                     else
                     {
@@ -6416,6 +6461,7 @@ namespace ShapeIt
                                 LinkTemplateObjectArguments(template, GetTemplateParameterSpecs(template));
                                 CheckTemplateObjectArguments(template);
                                 CheckTemplateParameterValues(template);
+                                runInput = CaptureTemplateInput(template);
                             }
                             catch (Exception)
                             {   // like a failing step: restore the outer workspace pushed by template.begin
@@ -6673,6 +6719,7 @@ namespace ShapeIt
         {
             if (!templates.TryGetValue(template, out var jsons)) return null;
             int clonesBefore = namedItemClones.Count;
+            TemplateRunInput? input = null;
             using (new NamedItemClone(this))
             using (Progress?.Level(CountTemplateSteps(jsons)))
             try
@@ -6690,7 +6737,9 @@ namespace ShapeIt
                         var resultKind = GetOptionalString(parameters, "resultKind");
                         var suffixInternalNames = GetOptionalBool(parameters, "suffixInternalNames", true);
 
-                        return TemplateCommitImpl(result, resultKind, suffixInternalNames);
+                        object? committed = TemplateCommitImpl(result, resultKind, suffixInternalNames);
+                        if (input != null) MarkTemplateFeature(template, input, committed);
+                        return committed;
                     }
                     else
                     {
@@ -6712,6 +6761,7 @@ namespace ShapeIt
                             LinkTemplateObjectArguments(template, GetTemplateParameterSpecs(template));
                             CheckTemplateObjectArguments(template);
                             CheckTemplateParameterValues(template);
+                            input = CaptureTemplateInput(template);
                         }
                     }
                 }

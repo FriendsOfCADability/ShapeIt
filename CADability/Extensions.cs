@@ -192,10 +192,16 @@ namespace CADability
         }
     }
 
-    internal class SerializableHashSetString : HashSet<string>, IJsonSerialize
+    /// <summary>
+    /// A set of strings in the UserData of an object, e.g. the feature names of a face (see Shell.AddFeature). A copy of
+    /// the object gets a copy of the set (<see cref="UserData"/> clones ICloneable values): otherwise a face split by a
+    /// boolean operation and the original would share one set, and naming a feature of one would rename the other.
+    /// </summary>
+    internal class SerializableHashSetString : HashSet<string>, IJsonSerialize, ICloneable
     {
         public SerializableHashSetString() : base() { }
         public SerializableHashSetString(IEnumerable<string> strings) : base(strings) { }
+        public object Clone() => new SerializableHashSetString(this);
         public void GetObjectData(IJsonWriteData data)
         {
             data.AddProperty("Strings", this.ToArray());

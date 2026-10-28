@@ -479,6 +479,12 @@ namespace CADability
             ((IDictionary)data).CopyTo(array, index);
         }
 
+        /// <summary>
+        /// Entries starting with "CADability." are temporary and not saved, except these: the feature names of faces
+        /// (Shell.AddFeature) are part of the model.
+        /// </summary>
+        private static readonly HashSet<string> persistentKeys = new HashSet<string> { "CADability.Feature" };
+
         public void GetObjectData(IJsonWriteData data)
         {
             foreach (KeyValuePair<string, object> de in this.data)
@@ -486,7 +492,7 @@ namespace CADability
                 // since the keys must be unique, we use the keys as property names
                 // UserDate starting with CADability are temporary data used by CADability and are not saved
                 // they sometimes contain types which are not serializable
-                if (de.Value != null && !de.Key.StartsWith("$") && !de.Key.StartsWith("CADability.")) // $xxx is reserved for Json additional entries
+                if (de.Value != null && !de.Key.StartsWith("$") && (!de.Key.StartsWith("CADability.") || persistentKeys.Contains(de.Key))) // $xxx is reserved for Json additional entries
                 {
                     // so kann man feststellen, ob de.Value serialisierbar ist
                     SerializableAttribute sa = (SerializableAttribute)System.Attribute.GetCustomAttribute(de.Value.GetType(), typeof(SerializableAttribute));
