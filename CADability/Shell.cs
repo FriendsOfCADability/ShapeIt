@@ -6181,6 +6181,138 @@ namespace CADability.GeoObject
             return featureFaces.Any() && connection.Any();
         }
 
+        /// <summary>
+        /// The named feature <paramref name="face"/> belongs to (see <see cref="AddFeature"/>), with the caps that close
+        /// it. When the face belongs to several features (a feature made inside another one), the one with the fewest faces
+        /// is taken, the most specific.
+        /// </summary>
+        /// <param name="face">a face of this shell</param>
+        /// <param name="featureName">the name of the feature</param>
+        /// <param name="featureFaces">all faces of this shell with this feature name</param>
+        /// <param name="caps">see <see cref="NamedFeature"/></param>
+        /// <param name="isGap">see <see cref="NamedFeature"/></param>
+        /// <returns>false when the face belongs to no feature, or when its feature cannot be closed</returns>
+        public bool FeatureOfFace(Face face, out string featureName, out List<Face> featureFaces, out List<Face> caps, out bool isGap)
+        {
+            featureName = null;
+            featureFaces = null;
+            caps = null;
+            isGap = false;
+            if (!(face.UserData.GetData("CADability.Feature") is HashSet<string> names) || names.Count == 0) return false;
+            Dictionary<string, HashSet<Face>> features = GetFeatures();
+            featureName = names.Where(n => features.ContainsKey(n)).OrderBy(n => features[n].Count).FirstOrDefault();
+            if (featureName == null) return false;
+            return NamedFeature(featureName, out featureFaces, out caps, out isGap);
+        }
+
+        /// <summary>
+        /// The faces of the named feature <paramref name="featureName"/> and the caps that close it: the feature faces are
+        /// an open part of this shell, bounded by loops of edges to the other faces. A loop is closed by a cap when all
+        /// faces of the shell around it have the same surface (e.g. a hole in a plane, a slot in a cylinder): the cap is
+        /// the part of that surface inside the loop. Where the loop winds around that surface, e.g. around the wall of
+        /// another hole that ends in this one, it encloses no part of it; then the surface of the feature faces along the
+        /// loop is continued across it (the window in the wall of this hole). Together with the feature faces the caps
+        /// make a closed shell, and together with the rest of this shell they close the gap the feature leaves when it
+        /// is removed.
+        /// <para>
+        /// The caps are oriented as <see cref="FeatureFromLoops"/> returns its connection: reversed they close the rest of
+        /// this shell. So a cap on the surface around the loop points against it, a cap on the surface of the feature
+        /// points like the feature faces.
+        /// </para>
+        /// </summary>
+        /// <param name="featureName">a name given with <see cref="AddFeature"/></param>
+        /// <param name="featureFaces">the faces of this shell with this feature name</param>
+        /// <param name="caps">one new face for each loop</param>
+        /// <param name="isGap">the feature lies inside the surface around it (a hole), not outside of it (a boss)</param>
+        /// <returns>false when there is no such feature, or when a loop is surrounded by different surfaces</returns>
+        public bool NamedFeature(string featureName, out List<Face> featureFaces, out List<Face> caps, out bool isGap)
+        {
+            featureFaces = Faces.Where(f => f.UserData.GetData("CADability.Feature") is HashSet<string> names && names.Contains(featureName)).ToList();
+            caps = new List<Face>();
+            isGap = false;
+            if (featureFaces.Count == 0) return false;
+            HashSet<Face> inFeature = new HashSet<Face>(featureFaces);
+            List<Edge> border = Edges.Where(e => e.SecondaryFace != null && inFeature.Contains(e.PrimaryFace) != inFeature.Contains(e.SecondaryFace)).ToList();
+            if (border.Count == 0) return false; // the whole shell, or not connected to the rest
+            List<Edge[]> loops = sortLoops(border, false);
+            if (loops == null || loops.Sum(l => l.Length) != border.Count) return false; // a border that does not make closed loops
+            double deepest = 0.0; // the feature point farthest from the surface around it decides whether it is a gap
+            foreach (Edge[] loop in loops)
+            {
+                Face surrounding = CommonSurfaceFace(loop.Select(e => inFeature.Contains(e.PrimaryFace) ? e.SecondaryFace : e.PrimaryFace));
+                Face inside = CommonSurfaceFace(loop.Select(e => inFeature.Contains(e.PrimaryFace) ? e.PrimaryFace : e.SecondaryFace));
+                Face cap = null;
+                bool onSurrounding = surrounding != null && !WindsAround(surrounding.Surface, loop);
+                if (onSurrounding) cap = Face.MakeFace(surrounding.Surface.Clone(), loop.Where(e => e.Curve3D != null).Select(e => e.Curve3D));
+                else if (inside != null && !WindsAround(inside.Surface, loop)) cap = Face.MakeFace(inside.Surface.Clone(), loop.Where(e => e.Curve3D != null).Select(e => e.Curve3D));
+                if (cap == null) return false; // closing a loop with different surfaces is not supported yet
+                // orient it: compare the normals at an inner point of the cap
+                Face orientation = onSurrounding ? surrounding : inside;
+                GeoPoint2D uv = cap.Area.GetSomeInnerPoint();
+                GeoPoint p = cap.Surface.PointAt(uv);
+                bool same = cap.Surface.GetNormal(uv) * orientation.Surface.GetNormal(orientation.Surface.PositionOf(p)) > 0;
+                if (same == onSurrounding) cap.ReverseOrientation();
+                caps.Add(cap);
+                if (!onSurrounding) continue; // a window inside the feature tells nothing about where it lies
+                foreach (Face featureFace in featureFaces)
+                {
+                    GeoPoint q = featureFace.Surface.PointAt(featureFace.Area.GetSomeInnerPoint());
+                    GeoPoint2D quv = surrounding.Surface.PositionOf(q);
+                    double distance = (q - surrounding.Surface.PointAt(quv)) * surrounding.Surface.GetNormal(quv).Normalized;
+                    if (Math.Abs(distance) > Math.Abs(deepest)) deepest = distance;
+                }
+            }
+            isGap = deepest < 0; // below the outward oriented surface around it
+            return true;
+        }
+
+        /// <summary>One of the faces when all of them have the same surface, null otherwise.</summary>
+        private static Face CommonSurfaceFace(IEnumerable<Face> faces)
+        {
+            Face first = null;
+            foreach (Face face in faces)
+            {
+                if (face == null) return null;
+                if (first == null) first = face;
+                else if (face != first && !first.SameSurface(face)) return null;
+            }
+            return first;
+        }
+
+        /// <summary>
+        /// Whether a closed loop of edges winds around a periodic direction of the surface, like a circle around a
+        /// cylinder: then it encloses no part of the surface. The points along the loop are followed in the parameter
+        /// space of the surface, and the steps add up to a full period.
+        /// </summary>
+        private static bool WindsAround(ISurface surface, Edge[] loop)
+        {
+            if (!surface.IsUPeriodic && !surface.IsVPeriodic) return false;
+            // the vertex the loop starts with: the one of the first edge that the second does not touch
+            Vertex current = loop[0].Vertex1;
+            if (loop.Length > 1 && (loop[1].Vertex1 == current || loop[1].Vertex2 == current)) current = loop[0].Vertex2;
+            double du = 0.0, dv = 0.0;
+            GeoPoint2D last = surface.PositionOf(current.Position);
+            foreach (Edge edge in loop)
+            {
+                bool forward = edge.Vertex1 == current;
+                current = forward ? edge.Vertex2 : edge.Vertex1;
+                if (edge.Curve3D == null) continue; // a pole
+                const int n = 16;
+                for (int i = 1; i <= n; i++)
+                {
+                    double t = forward ? (double)i / n : 1.0 - (double)i / n;
+                    GeoPoint2D uv = surface.PositionOf(edge.Curve3D.PointAt(t));
+                    double stepU = uv.x - last.x, stepV = uv.y - last.y;
+                    if (surface.IsUPeriodic) stepU -= surface.UPeriod * Math.Round(stepU / surface.UPeriod);
+                    if (surface.IsVPeriodic) stepV -= surface.VPeriod * Math.Round(stepV / surface.VPeriod);
+                    du += stepU;
+                    dv += stepV;
+                    last = uv;
+                }
+            }
+            return (surface.IsUPeriodic && Math.Abs(du) > surface.UPeriod / 2) || (surface.IsVPeriodic && Math.Abs(dv) > surface.VPeriod / 2);
+        }
+
         private IEnumerable<Face> CloseEdgeLoop(Edge[] loop, HashSet<Face> forbiddenFaces)
         {
             HashSet<Face> boundingFaces = new HashSet<Face>();

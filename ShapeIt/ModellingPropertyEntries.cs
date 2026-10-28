@@ -1052,6 +1052,22 @@ namespace ShapeIt
             }
             if (faces.Count > 0) // are there features defined by the selected faces?
             {
+                // a selected face that belongs to a named feature (e.g. one made by a template) shows that feature
+                HashSet<string> shownFeatures = new HashSet<string>();
+                foreach (Face face in faces)
+                {
+                    if (!(face.Owner is Shell featureShell)) continue;
+                    try
+                    {
+                        if (featureShell.FeatureOfFace(face, out string featureName, out List<Face> featureFaces, out List<Face> caps, out bool isGap)
+                            && shownFeatures.Add(featureName))
+                        {
+                            IPropertyEntry fp = GetFeatureProperties(vw, featureFaces, caps, isGap);
+                            if (fp != null && fp.SubItems.Length > 0) subEntries.Add(fp);
+                        }
+                    }
+                    catch (Exception) { } // like the features found from edges: a feature that cannot be made is not offered
+                }
                 Shell facesShell = faces.First().Owner as Shell;
                 //if (facesShell != null)
                 //{
