@@ -399,6 +399,69 @@ namespace CADability.Tests
             StringAssert.Contains(error, "same line along its axis");
         }
 
+        private static double SphericalCap(double a, double h)
+        {
+            double rho = (a * a + h * h) / (2 * h);
+            return Math.PI * h * h * (3 * rho - h) / 3;
+        }
+
+        [TestMethod]
+        public void DimpleSharpAndHalfSphere()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.AreEqual(SphericalCap(3, 1.5), RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\"}", "kugelmulde"), 1e-3);
+            server = ServerWithTemplates();
+            Assert.AreEqual(2.0 / 3.0 * Math.PI * 27, RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\",\"depth\":3}", "kugelmulde"), 1e-3);
+        }
+
+        /// <summary>
+        /// The rounded edge: the cross section between the face, the fillet arc and the sphere, densely sampled and
+        /// revolved (Pappus).
+        /// </summary>
+        [TestMethod]
+        public void DimpleRounded()
+        {
+            foreach (double h in new[] { 1.5, 3.0 })
+            {
+                MCPServer server = ServerWithTemplates();
+                double a = 3, f = 0.5, rho = (a * a + h * h) / (2 * h), c = rho - h;
+                double xf = Math.Sqrt((rho + f) * (rho + f) - (c + f) * (c + f));
+                double beta = Math.Atan2(c + f, xf);
+                List<(double x, double y)> polygon = new List<(double x, double y)> { (a, 0) };
+                const int n = 2000;
+                for (int i = 0; i <= n; i++)
+                {   // the fillet from the face (straight above its center) counterclockwise to the sphere
+                    double t = Math.PI / 2 + (Math.PI / 2 - beta) * i / n;
+                    polygon.Add((xf + f * Math.Cos(t), -f + f * Math.Sin(t)));
+                }
+                double touch = -beta, edge = Math.Atan2(-c, a); // the tangent point lies on the line from the sphere center to the fillet center
+                for (int i = 1; i < n; i++)
+                {   // the sphere from the tangent point back up to the edge circle
+                    double t = touch + (edge - touch) * i / n;
+                    polygon.Add((rho * Math.Cos(t), c + rho * Math.Sin(t)));
+                }
+                double moment = 0;
+                for (int i = 0; i < polygon.Count; i++)
+                {
+                    (double x0, double y0) = polygon[i];
+                    (double x1, double y1) = polygon[(i + 1) % polygon.Count];
+                    moment += (x0 + x1) * (x0 * y1 - x1 * y0) / 6;
+                }
+                double fillet = 2 * Math.PI * Math.Abs(moment);
+                Assert.AreEqual(SphericalCap(a, h) + fillet,
+                    RemovedVolume(server, FormattableString.Invariant($"{{\"face\":\"top\",\"pos\":\"p(10,10,20)\",\"depth\":{h},\"entry\":\"round\"}}"), "kugelmulde"), 1e-3, $"depth {h}");
+            }
+        }
+
+        [TestMethod]
+        public void DimpleDeeperThanAHalfSphereIsRefused()
+        {
+            MCPServer server = ServerWithTemplates();
+            string? error = Error(Call(server, "template.instantiate", "{\"template\":\"kugelmulde\",\"arguments\":{\"face\":\"top\",\"depth\":3.5},\"name\":\"x\"}"));
+            Assert.IsNotNull(error);
+            StringAssert.Contains(error, "at most half the diameter");
+        }
+
         /// <summary>
         /// A block with a slot across it: the axis leaves the solid at the slot and enters it again below. Only the
         /// part above the slot is drilled, the material below stays.

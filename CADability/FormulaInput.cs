@@ -231,9 +231,9 @@ public static class GeometryOps
         if (x is double d) return Math.Atan(d);
         throw new InvalidOperationException("atan(x): x must be a scalar.");
     }
-    public static object FuncAtan2(object x, object y)
-    {
-        if (x is double d && y is double f) return Math.Atan2(f, d);
+    public static object FuncAtan2(object y, object x)
+    {   // atan2(y, x) like Math.Atan2: the angle of the point (x, y)
+        if (y is double dy && x is double dx) return Math.Atan2(dy, dx);
         throw new InvalidOperationException("atan2(y, x): x and y must be scalar.");
     }
     public static object FuncSqrt(object x)

@@ -19,6 +19,14 @@ namespace CADability.Tests
             Assert.AreEqual(30.0, Convert.ToDouble(Eval("asin(0.5)*180/pi")), 1e-9);
         }
 
+        /// <summary>atan2(y, x) is the angle of the point (x, y), as in Math.Atan2 and as its message says.</summary>
+        [TestMethod]
+        public void Atan2TakesYFirst()
+        {
+            Assert.AreEqual(Math.Atan2(1, 2), Convert.ToDouble(Eval("atan2(1, 2)")), 1e-12);
+            Assert.AreEqual(Math.PI / 2, Convert.ToDouble(Eval("atan2(1, 0)")), 1e-12);
+        }
+
         [TestMethod]
         public void PropertyOfAVariable()
         {

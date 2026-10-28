@@ -2157,6 +2157,378 @@
           }
         }
       ]
+    },
+    {
+      "name": "kugelmulde",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "kugelmulde",
+            "label": "Spherical dimple",
+            "category": "Holes",
+            "description": "Spherical dimple in a face of a solid, like the pips of a die: a spherical cap with the given diameter on the face and the given depth, at most a half sphere, its axis perpendicular to the face at the position. The edge can be sharp or rounded. The sphere (or the rounded tool) also cuts material above the face within its reach.",
+            "tags": [
+              "dimple",
+              "pip",
+              "spherical recess",
+              "Kugelmulde",
+              "Würfelauge",
+              "Kalotte"
+            ],
+            "parameters": [
+              {
+                "name": "body",
+                "value": "block",
+                "label": "Body",
+                "input": {
+                  "kind": "solid",
+                  "replace": true,
+                  "description": "The solid that gets the dimple; it is taken from the picked face.",
+                  "order": 0
+                }
+              },
+              {
+                "name": "face",
+                "value": "top",
+                "label": "Face",
+                "input": {
+                  "kind": "face",
+                  "solid": "body",
+                  "group": "Position",
+                  "description": "The face the dimple is made in, its axis perpendicular to the face at the position.",
+                  "order": 1
+                }
+              },
+              {
+                "name": "pos",
+                "value": "p(10,10,20)",
+                "label": "Position",
+                "input": {
+                  "kind": "point3",
+                  "onFace": "face",
+                  "group": "Position",
+                  "description": "Center of the dimple on the face. Click on the face, snap to a point or enter coordinates; the point is put onto the face.",
+                  "order": 2
+                }
+              },
+              {
+                "name": "d",
+                "value": 6,
+                "label": "Diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Dimple",
+                  "min": 0.01,
+                  "description": "Diameter of the dimple on the face.",
+                  "order": 3
+                }
+              },
+              {
+                "name": "depth",
+                "value": 1.5,
+                "label": "Depth",
+                "input": {
+                  "kind": "length",
+                  "group": "Dimple",
+                  "min": 0.01,
+                  "description": "Depth of the dimple below the position, at most half the diameter (a half sphere).",
+                  "order": 4
+                }
+              },
+              {
+                "name": "entry",
+                "value": "sharp",
+                "label": "Edge",
+                "input": {
+                  "kind": "enum",
+                  "group": "Edge",
+                  "optional": true,
+                  "options": [
+                    {
+                      "value": "sharp",
+                      "label": "sharp"
+                    },
+                    {
+                      "value": "round",
+                      "label": "rounded"
+                    }
+                  ],
+                  "description": "The edge of the dimple on the face: sharp or rounded.",
+                  "order": 5
+                }
+              },
+              {
+                "name": "entrySize",
+                "value": 0.5,
+                "label": "Radius",
+                "input": {
+                  "kind": "length",
+                  "group": "Edge",
+                  "optional": true,
+                  "min": 0.01,
+                  "description": "Radius of the fillet at the edge; not used for a sharp edge.",
+                  "order": 6
+                }
+              }
+            ],
+            "checks": [
+              {
+                "condition": "depth <= d/2",
+                "parameters": [
+                  "depth",
+                  "d"
+                ],
+                "message": "The depth ({depth}) may be at most half the diameter ({d/2}): a deeper dimple would be undercut."
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 24H18A14 14 0 0 0 46 24H58V56H6Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M32 6V60\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "n",
+                  "value": "normal(face, pos)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "a",
+                  "value": "d/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sphereRadius",
+                  "value": "(a*a + depth*depth)/(2*depth)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "centerHeight",
+                  "value": "sphereRadius - depth"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "solid.sphere",
+                "when": "entry == \"sharp\"",
+                "params": {
+                  "center": "pos + n*centerHeight",
+                  "radius": "sphereRadius",
+                  "name": "sphereTool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "solid.boolean",
+                "when": "entry == \"sharp\"",
+                "params": {
+                  "op": "difference",
+                  "a": "body",
+                  "b": "sphereTool",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 3,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "when": "entry == \"round\"",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(1,0,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "when": "entry == \"round\"",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(0,1,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "filletX",
+                  "value": "sqrt(pow(sphereRadius + entrySize, 2) - pow(centerHeight + entrySize, 2))"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "toSphereLength",
+                  "value": "sphereRadius + entrySize"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "touchX",
+                  "value": "filletX - entrySize*filletX/toSphereLength"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "params": {
+                  "name": "touchY",
+                  "value": "-entrySize + entrySize*(centerHeight + entrySize)/toSphereLength"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "params": {
+                  "name": "filletBulge",
+                  "value": "tan((pi/2 - atan2(centerHeight + entrySize, filletX))/4)"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sphereBulge",
+                  "value": "-tan((pi/2 - atan2(centerHeight + entrySize, filletX))/4)"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "pos",
+                    "xAxis": "u",
+                    "yAxis": "n"
+                  },
+                  "name": "dimpleProfile"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "sketch.add_polycurve",
+                "params": {
+                  "sketch": "dimpleProfile",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": 0,
+                      "y": "entrySize",
+                      "b": 0
+                    },
+                    {
+                      "x": "filletX",
+                      "y": "entrySize",
+                      "b": 0
+                    },
+                    {
+                      "x": "filletX",
+                      "y": 0,
+                      "b": "filletBulge"
+                    },
+                    {
+                      "x": "touchX",
+                      "y": "touchY",
+                      "b": "sphereBulge"
+                    },
+                    {
+                      "x": 0,
+                      "y": "-depth",
+                      "b": 0
+                    }
+                  ]
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "solid.rotate",
+                "params": {
+                  "profile": "dimpleProfile",
+                  "axis": {
+                    "origin": "pos",
+                    "direction": "n"
+                  },
+                  "angle": {
+                    "full": true
+                  },
+                  "name": "tool"
+                },
+                "when": "entry == \"round\""
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "body",
+                  "b": "tool",
+                  "name": "result"
+                },
+                "when": "entry == \"round\""
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 4,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
     }
   ],
   "translations": {
@@ -2418,6 +2790,54 @@
             "Die beiden Mittelpunkte müssen verschieden sein.",
             "Die Fläche muss an beiden Mittelpunkten dieselbe Richtung haben: Auf einem Zylinder müssen beide auf derselben Mantellinie liegen. Langlöcher quer zur Achse oder um den Zylinder herum werden nicht unterstützt.",
             "Die Fase bzw. der Radius am Eintritt ({entrySize}) muss kleiner sein als die Tiefe ({depth})."
+          ]
+        },
+        "kugelmulde": {
+          "label": "Kugelmulde",
+          "category": "Bohrungen",
+          "description": "Kugelförmige Vertiefung in einer Fläche eines Körpers, wie die Augen eines Spielwürfels: eine Kugelkappe mit dem angegebenen Durchmesser auf der Fläche und der angegebenen Tiefe, höchstens eine Halbkugel, ihre Achse senkrecht zur Fläche an der Position. Der Rand kann scharfkantig oder gerundet sein. Die Kugel (bzw. das gerundete Werkzeug) schneidet auch Material über der Fläche in ihrer Reichweite.",
+          "parameters": {
+            "body": {
+              "label": "Körper",
+              "description": "Der Körper, der die Vertiefung bekommt; er ergibt sich aus der gewählten Fläche."
+            },
+            "face": {
+              "label": "Fläche",
+              "group": "Lage",
+              "description": "Die Fläche, in der die Vertiefung entsteht, ihre Achse senkrecht zur Fläche an der Position."
+            },
+            "pos": {
+              "label": "Position",
+              "group": "Lage",
+              "description": "Mittelpunkt der Vertiefung auf der Fläche. Auf die Fläche klicken, auf einen Punkt fangen oder Koordinaten eingeben; der Punkt wird auf die Fläche gelegt."
+            },
+            "d": {
+              "label": "Durchmesser",
+              "group": "Mulde",
+              "description": "Durchmesser der Vertiefung auf der Fläche."
+            },
+            "depth": {
+              "label": "Tiefe",
+              "group": "Mulde",
+              "description": "Tiefe der Vertiefung unter der Position, höchstens der halbe Durchmesser (eine Halbkugel)."
+            },
+            "entry": {
+              "label": "Rand",
+              "group": "Rand",
+              "description": "Der Rand der Vertiefung auf der Fläche: scharfkantig oder gerundet.",
+              "options": {
+                "sharp": "scharfkantig",
+                "round": "gerundet"
+              }
+            },
+            "entrySize": {
+              "label": "Radius",
+              "group": "Rand",
+              "description": "Radius der Rundung am Rand; bei scharfkantigem Rand ohne Bedeutung."
+            }
+          },
+          "checks": [
+            "Die Tiefe ({depth}) darf höchstens der halbe Durchmesser ({d/2}) sein: Eine tiefere Mulde wäre hinterschnitten."
           ]
         }
       }
