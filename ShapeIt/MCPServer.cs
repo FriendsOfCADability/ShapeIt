@@ -6994,8 +6994,16 @@ namespace ShapeIt
             }
         }
 
-        /// <summary>The 'repeat' specification of an rpc.batch: a loop variable, a fixed count and/or a 'while' condition.</summary>
-        private sealed record RepeatSpec(string? Variable, double Start, double Step, int? Count, string? While);
+        /// <summary>
+        /// The 'repeat' specification of an rpc.batch: a loop variable, a fixed count and/or a 'while' condition.
+        /// A loop over a list ('over') sets the variable to the elements instead: <see cref="OverName"/> is the
+        /// workspace name of the list, <see cref="OverItems"/> the elements of any other selector, collected once.
+        /// </summary>
+        private sealed record RepeatSpec(string? Variable, double Start, double Step, int? Count, string? While,
+            string? OverName = null, List<object>? OverItems = null, string? Index = null)
+        {
+            public bool IsOver => OverName != null || OverItems != null;
+        }
 
         /// <summary>Upper bound of the iterations of a repeated batch, so that a 'while' that never fails cannot hang the application.</summary>
         internal const int MaxBatchIterations = 10000;
@@ -7004,21 +7012,84 @@ namespace ShapeIt
         {
             if (repeat.ValueKind != JsonValueKind.Object) throw new JsonRpcException(-32602, "Invalid params: 'repeat' must be an object.");
             string? variable = GetOptionalString(repeat, "variable");
+            string? whileExpr = GetOptionalString(repeat, "while");
+            string? index = GetOptionalString(repeat, "index");
+            if (repeat.TryGetProperty("over", out JsonElement overEl) && overEl.ValueKind != JsonValueKind.Null)
+                return ParseRepeatOver(repeat, overEl, variable, whileExpr, index);
+            if (index != null) throw new JsonRpcException(-32602, "Invalid params: 'repeat.index' is only valid with 'over'; a counting loop uses 'variable' as its index.");
             double start = GetOptionalDouble(repeat, "start", 0.0);
             double step = GetOptionalDouble(repeat, "step", 1.0);
             int? count = repeat.TryGetProperty("count", out JsonElement countEl) && countEl.ValueKind != JsonValueKind.Null
                 ? RequireInteger(countEl) : null;
-            string? whileExpr = GetOptionalString(repeat, "while");
             if (count == null && whileExpr == null)
-                throw new JsonRpcException(-32602, "Invalid params: 'repeat' needs 'count', 'while' or both.");
+                throw new JsonRpcException(-32602, "Invalid params: 'repeat' needs 'count', 'while', 'over' or a combination.");
             if (count < 0) throw new JsonRpcException(-32602, $"Invalid params: 'repeat.count' must not be negative, but is {count}.");
             if (count > MaxBatchIterations) throw new JsonRpcException(-32602, $"Invalid params: 'repeat.count' {count} exceeds the limit of {MaxBatchIterations} iterations.");
             return new RepeatSpec(variable, start, step, count, whileExpr);
         }
 
         /// <summary>
+        /// Parses a loop over the elements of a list ('repeat.over'). A workspace name is read again in every
+        /// iteration, so the loop sees the elements rebound after a call changed their topology; the elements of
+        /// any other selector (query, names, uiSelection) are collected once before the loop.
+        /// </summary>
+        private RepeatSpec ParseRepeatOver(JsonElement repeat, JsonElement overEl, string? variable, string? whileExpr, string? index)
+        {
+            if (variable == null) throw new JsonRpcException(-32602, "Invalid params: 'repeat.over' needs 'variable', the name the current element is stored under.");
+            foreach (string counting in new[] { "count", "start", "step" })
+                if (repeat.TryGetProperty(counting, out JsonElement el) && el.ValueKind != JsonValueKind.Null)
+                    throw new JsonRpcException(-32602, $"Invalid params: 'repeat.{counting}' cannot be combined with 'over': the loop runs once per element. Use 'index' for the position and 'while' to stop early.");
+            if (variable == index) throw new JsonRpcException(-32602, $"Invalid params: 'repeat.variable' and 'repeat.index' must be different names, but both are '{variable}'.");
+            string? overName = null;
+            List<object>? overItems = null;
+            int count;
+            if (overEl.ValueKind == JsonValueKind.String)
+            {
+                overName = overEl.GetString()!;
+                count = RepeatOverElements(overName).Count;
+            }
+            else
+            {
+                overItems = IterateSelector<object>(overEl).ToList();
+                count = overItems.Count;
+            }
+            if (count > MaxBatchIterations) throw new JsonRpcException(-32602, $"Invalid params: 'repeat.over' has {count} elements, which exceeds the limit of {MaxBatchIterations} iterations.");
+            return new RepeatSpec(variable, 0.0, 1.0, count, whileExpr, overName, overItems, index);
+        }
+
+        /// <summary>The elements of the workspace entry a 'repeat.over' loop runs over; a single object is a list of one.</summary>
+        private System.Collections.IList RepeatOverElements(string name)
+        {
+            if (!namedItems.TryGetValue(name, out object? value)) throw NamedItemNotFound(name);
+            if (value is System.Collections.IList list && value is not string) return list;
+            return new object[] { value! };
+        }
+
+        /// <summary>
+        /// Sets the loop variable (and the index) of iteration <paramref name="i"/>. Returns an error text when the
+        /// list a 'repeat.over' loop runs over no longer has the length it had when the loop started.
+        /// </summary>
+        private string? SetLoopVariable(RepeatSpec spec, int i)
+        {
+            if (spec.IsOver)
+            {
+                System.Collections.IList elements = spec.OverName != null ? RepeatOverElements(spec.OverName) : spec.OverItems!;
+                if (elements.Count != spec.Count)
+                    return $"'repeat.over' runs over '{spec.OverName}', which had {spec.Count} element(s) when the loop started but has {elements.Count} in iteration {i + 1}. Do not change the length of the list inside the loop; collect the results under another name.";
+                object element = elements[i]!;
+                // the workspace names a solid after its key; the loop variable is only an alias and must not rename it
+                string? solidName = (element as Solid)?.Name;
+                namedItems[spec.Variable!] = element;
+                if (element is Solid solid) solid.Name = solidName;
+                if (spec.Index != null) namedItems[spec.Index] = (double)i;
+            }
+            else if (spec.Variable != null) namedItems[spec.Variable] = spec.Start + i * spec.Step;
+            return null;
+        }
+
+        /// <summary>
         /// Runs the calls of a batch once per iteration of <paramref name="spec"/>. Before each iteration the loop
-        /// variable is set in the workspace and the 'while' condition is checked. <paramref name="results"/> receives
+        /// variable (the counter or the current element of 'over') is set in the workspace and the 'while' condition is checked. <paramref name="results"/> receives
         /// the result entries of the last iteration that ran; <paramref name="iterations"/> counts the iterations
         /// started, including a failing one. Returns true when a call failed.
         /// </summary>
@@ -7030,7 +7101,13 @@ namespace ShapeIt
             using IDisposable? progressLevel = Progress?.Level(spec.Count ?? TemplateProgress.Unknown);
             for (int i = 0; i < limit; i++)
             {
-                if (spec.Variable != null) namedItems[spec.Variable] = spec.Start + i * spec.Step;
+                string? loopError = SetLoopVariable(spec, i);
+                if (loopError != null)
+                {
+                    results = new JsonArray { new JsonObject { ["index"] = 0, ["method"] = "repeat", ["error"] = loopError } };
+                    iterations = i + 1;
+                    return true;
+                }
                 if (spec.While != null)
                 {
                     object condition;

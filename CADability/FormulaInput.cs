@@ -266,6 +266,7 @@ public enum TokenType
     Identifier,
     Plus, Minus, Star, Slash, Caret, Pipe,
     LParen, RParen,
+    LBracket, RBracket,
     Comma,
     Dot,
     Equal, GreaterThan, GreaterThanOrEqual, LessThan, LessThanOrEqual,
@@ -358,6 +359,8 @@ public static class Lexer
                     else tokens.Add(new Token(TokenType.Pipe, "|")); i++; continue;
                 case '(': tokens.Add(new Token(TokenType.LParen, "(")); i++; continue;
                 case ')': tokens.Add(new Token(TokenType.RParen, ")")); i++; continue;
+                case '[': tokens.Add(new Token(TokenType.LBracket, "[")); i++; continue;
+                case ']': tokens.Add(new Token(TokenType.RBracket, "]")); i++; continue;
                 case ',': tokens.Add(new Token(TokenType.Comma, ",")); i++; continue;
                 case '.': tokens.Add(new Token(TokenType.Dot, ",")); i++; continue;
                 case '<':
@@ -553,6 +556,7 @@ public static class Parser
                                 foundLParen = true;
                                 break;
                             }
+                            if (obj is Token tokb && tokb.Type == TokenType.LBracket) throw new Exception("Missing ']'.");
                             output.Add(obj);
                         }
                         if (!foundLParen)
@@ -638,6 +642,7 @@ public static class Parser
                                 hitParen = true;
                                 break;
                             }
+                            if (opStack.Peek() is Token tokb && tokb.Type == TokenType.LBracket) throw new Exception("Unexpected ',' inside '[...]': an index takes a single value.");
                             output.Add(opStack.Pop());
                         }
                         if (!hitParen)
@@ -656,6 +661,35 @@ public static class Parser
                 case TokenType.Dot:
                     {
                         opStack.Push(t);
+                    }
+                    break;
+
+                case TokenType.LBracket:
+                    {   // an index "list[i]": a postfix operator on the operand just read, the index is a sub-expression
+                        if (expectUnary) throw new Exception("'[' must follow a list, e.g. faces[0].");
+                        opStack.Push(t);
+                        expectUnary = true;
+                    }
+                    break;
+
+                case TokenType.RBracket:
+                    {
+                        if (i > 0 && tokens[i - 1].Type == TokenType.LBracket) throw new Exception("Missing index inside '[]'.");
+                        bool foundLBracket = false;
+                        while (opStack.Count > 0)
+                        {
+                            var obj = opStack.Pop();
+                            if (obj is Token tok && tok.Type == TokenType.LBracket)
+                            {
+                                foundLBracket = true;
+                                break;
+                            }
+                            if (obj is Token tokp && tokp.Type == TokenType.LParen) throw new Exception("Missing ')'.");
+                            output.Add(obj);
+                        }
+                        if (!foundLBracket) throw new Exception("Missing '['.");
+                        output.Add(new IndexMarker());
+                        expectUnary = false;
                     }
                     break;
 
@@ -747,6 +781,7 @@ public static class Parser
             {
                 throw new Exception("Mismatched parentheses.");
             }
+            if (obj is Token tok3 && tok3.Type == TokenType.LBracket) throw new Exception("Missing ']'.");
             output.Add(obj);
         }
 
@@ -796,6 +831,8 @@ internal struct FunctionCallMarker
 internal struct UnaryMinusMarker { }
 internal struct UnaryNotMarker { }
 internal struct UnaryPlusMarker { }
+/// <summary>The postfix index operator "list[i]"; the list and the index are on the stack.</summary>
+internal struct IndexMarker { }
 
 #endregion
 
@@ -1073,6 +1110,16 @@ public static class Evaluator
                         }
 
                         stack.Push(res);
+                        break;
+                    }
+
+                case IndexMarker _:
+                    {
+                        if (stack.Count < 2)
+                            throw new Exception("Too few operands for '[...]'.");
+                        object index = stack.Pop();
+                        object list = stack.Pop();
+                        stack.Push(ElementAt(list, index));
                         break;
                     }
 
@@ -1397,6 +1444,28 @@ public static class Evaluator
             throw new Exception("Expression incomplete or overdetermined.");
 
         return stack.Pop();
+    }
+
+    /// <summary>
+    /// The element <paramref name="index"/> of <paramref name="list"/>, zero-based; a negative index counts from the
+    /// end, -1 is the last element. A single object counts as a list with one element, like everywhere in the
+    /// MCP server, where a list of one object and the object itself are the same.
+    /// </summary>
+    private static object ElementAt(object list, object index)
+    {
+        if (!IsNumeric(index)) throw new Exception($"The index in '[...]' must be a number, but is {index ?? "null"}.");
+        double d = Convert.ToDouble(index, CultureInfo.InvariantCulture);
+        if (d != Math.Floor(d)) throw new Exception($"The index in '[...]' must be a whole number, but is {d.ToString(CultureInfo.InvariantCulture)}.");
+        if (list is string || list is not System.Collections.IList items)
+        {
+            if (list == null) throw new Exception("'[...]' cannot index null.");
+            items = new object[] { list };
+        }
+        int i = (int)d;
+        if (i < 0) i += items.Count;
+        if (i < 0 || i >= items.Count)
+            throw new Exception($"Index {d.ToString(CultureInfo.InvariantCulture)} is out of range: the list has {items.Count} element(s).");
+        return items[i];
     }
 
     private static bool IsNumeric(object b)

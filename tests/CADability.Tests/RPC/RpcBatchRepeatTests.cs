@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CADability.GeoObject;
 using ShapeIt;
 
 namespace CADability.Tests
@@ -82,6 +83,86 @@ namespace CADability.Tests
             string? error = Error(Call(server, "rpc.batch", $"{{\"repeat\":{{\"variable\":\"i\"}},\"calls\":{AddToSum}}}"));
             Assert.IsNotNull(error);
             StringAssert.Contains(error, "count");
+        }
+
+        private static void Boxes(MCPServer server)
+        {
+            for (int k = 0; k < 3; k++)
+                Assert.IsNull(Error(Call(server, "solid.box", $"{{\"name\":\"b{k}\",\"origin\":[{30 * k},0,0],\"sizeX\":10,\"sizeY\":10,\"sizeZ\":10}}")));
+        }
+
+        [TestMethod]
+        public void OverFacesOfANamedList()
+        {
+            MCPServer server = NewServer();
+            Boxes(server);
+            Assert.IsNull(Error(Call(server, "workspace.select", "{\"selector\":\"b0\",\"type\":\"faces\",\"name\":\"faces\"}")));
+            Assert.IsNull(Error(Call(server, "workspace.set", "{\"name\":\"n\",\"value\":0}")));
+            Assert.IsNull(Error(Call(server, "workspace.set", "{\"name\":\"sumIndex\",\"value\":0}")));
+            string calls = @"[{""method"":""workspace.set"",""params"":{""name"":""n"",""value"":""n + 1""}},
+                              {""method"":""workspace.set"",""params"":{""name"":""sumIndex"",""value"":""sumIndex + i""}},
+                              {""method"":""assert.check"",""params"":{""condition"":""f == faces[i]"",""message"":""element and index disagree""}}]";
+            string response = Call(server, "rpc.batch", $"{{\"repeat\":{{\"over\":\"faces\",\"variable\":\"f\",\"index\":\"i\"}},\"calls\":{calls}}}");
+            Assert.IsNull(Error(response), response);
+            Assert.AreEqual(6, Result(response)!["iterations"]!.GetValue<int>());
+            Assert.AreEqual(6.0, (double)server.namedItems["n"]);
+            Assert.AreEqual(0.0 + 1 + 2 + 3 + 4 + 5, (double)server.namedItems["sumIndex"]);
+            Assert.IsInstanceOfType(server.namedItems["f"], typeof(Face), "the variable keeps the last element");
+        }
+
+        [TestMethod]
+        public void OverSolidsUsesTheElementAsObjectReference()
+        {
+            MCPServer server = NewServer();
+            Boxes(server);
+            // an array of names is a selector: its elements are collected before the loop
+            string calls = @"[{""method"":""transform.move"",""params"":{""objects"":""s"",""delta"":[0,0,5]}}]";
+            string response = Call(server, "rpc.batch", $"{{\"repeat\":{{\"over\":[\"b0\",\"b1\",\"b2\"],\"variable\":\"s\"}},\"calls\":{calls}}}");
+            Assert.IsNull(Error(response), response);
+            for (int k = 0; k < 3; k++)
+            {
+                Solid box = (Solid)server.namedItems[$"b{k}"];
+                Assert.AreEqual(5.0, box.GetExtent(0.0).Zmin, 1e-9, $"b{k} was moved");
+                Assert.AreEqual($"b{k}", box.Name, "the loop variable must not rename the solid");
+            }
+        }
+
+        [TestMethod]
+        public void OverAnEmptySelectionRunsNothing()
+        {
+            MCPServer server = NewServer();
+            Assert.IsNull(Error(Call(server, "workspace.set", "{\"name\":\"n\",\"value\":0}")));
+            string calls = @"[{""method"":""workspace.set"",""params"":{""name"":""n"",""value"":""n + 1""}}]";
+            string response = Call(server, "rpc.batch", $"{{\"repeat\":{{\"over\":{{\"query\":{{\"target\":\"solids\",\"from\":[]}}}},\"variable\":\"s\"}},\"calls\":{calls}}}");
+            Assert.IsNull(Error(response), response);
+            Assert.AreEqual(0, Result(response)!["iterations"]!.GetValue<int>());
+            Assert.AreEqual(0.0, (double)server.namedItems["n"]);
+        }
+
+        [TestMethod]
+        public void OverAListWhoseLengthChangesFails()
+        {
+            MCPServer server = NewServer();
+            Boxes(server);
+            Assert.IsNull(Error(Call(server, "workspace.select", "{\"selector\":[\"b0\",\"b1\"],\"name\":\"list\"}")));
+            string calls = @"[{""method"":""workspace.select"",""params"":{""selector"":""b2"",""name"":""list""}}]";
+            string? error = Error(Call(server, "rpc.batch", $"{{\"repeat\":{{\"over\":\"list\",\"variable\":\"s\"}},\"calls\":{calls}}}"));
+            Assert.IsNotNull(error);
+            StringAssert.Contains(error, "iteration 2");
+            StringAssert.Contains(error, "length");
+        }
+
+        [TestMethod]
+        public void OverRejectsCountingParameters()
+        {
+            MCPServer server = NewServer();
+            Boxes(server);
+            string? error = Error(Call(server, "rpc.batch", $"{{\"repeat\":{{\"over\":\"b0\",\"variable\":\"s\",\"count\":3}},\"calls\":{AddToSum}}}"));
+            StringAssert.Contains(error, "'repeat.count' cannot be combined with 'over'");
+            error = Error(Call(server, "rpc.batch", $"{{\"repeat\":{{\"over\":\"b0\"}},\"calls\":{AddToSum}}}"));
+            StringAssert.Contains(error, "needs 'variable'");
+            error = Error(Call(server, "rpc.batch", $"{{\"repeat\":{{\"variable\":\"i\",\"index\":\"k\",\"count\":2}},\"calls\":{AddToSum}}}"));
+            StringAssert.Contains(error, "only valid with 'over'");
         }
     }
 }

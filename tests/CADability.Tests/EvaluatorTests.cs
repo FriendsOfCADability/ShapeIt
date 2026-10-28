@@ -80,5 +80,38 @@ namespace CADability.Tests
             Assert.AreEqual(new GeoVector(-1, -2, -3), (GeoVector)Eval("sign(0-4)*v(1,2,3)"));
             Assert.AreEqual(new GeoVector(2, 4, 6), (GeoVector)Eval("v(1,2,3)*2"));
         }
+
+        [TestMethod]
+        public void IndexIntoList()
+        {
+            var values = new Dictionary<string, object>
+            {
+                ["pts"] = new List<GeoPoint> { new GeoPoint(1, 0, 0), new GeoPoint(5, 0, 0), new GeoPoint(0, -3, 0) },
+                ["i"] = 1.0,
+                ["single"] = new GeoPoint(7, 8, 9)
+            };
+            Assert.AreEqual(new GeoPoint(1, 0, 0), (GeoPoint)Eval("pts[0]", values));
+            Assert.AreEqual(new GeoPoint(0, -3, 0), (GeoPoint)Eval("pts[i+1]", values));
+            Assert.AreEqual(new GeoPoint(0, -3, 0), (GeoPoint)Eval("pts[-1]", values));
+            Assert.AreEqual(new GeoPoint(0, -3, 0), (GeoPoint)Eval("pts[pts.count-1]", values));
+            Assert.AreEqual(5.0, Convert.ToDouble(Eval("pts[1].x", values)), 1e-12);
+            Assert.AreEqual(-5.0, Convert.ToDouble(Eval("-pts[i].x", values)), 1e-12);
+            Assert.AreEqual(4.0, Convert.ToDouble(Eval("pts[1] | pts[0]", values)), 1e-12);
+            Assert.AreEqual(5.0, Convert.ToDouble(Eval("max(pts[0].x, pts[1].x)", values)), 1e-12);
+            // a single object is a list of one
+            Assert.AreEqual(new GeoPoint(7, 8, 9), (GeoPoint)Eval("single[0]", values));
+        }
+
+        [TestMethod]
+        public void InvalidIndex()
+        {
+            var values = new Dictionary<string, object> { ["pts"] = new List<GeoPoint> { new GeoPoint(1, 0, 0) } };
+            StringAssert.Contains(Assert.ThrowsException<Exception>(() => Eval("pts[1]", values)).Message, "out of range");
+            StringAssert.Contains(Assert.ThrowsException<Exception>(() => Eval("pts[0.5]", values)).Message, "whole number");
+            StringAssert.Contains(Assert.ThrowsException<Exception>(() => Eval("pts[0", values)).Message, "]");
+            Assert.ThrowsException<Exception>(() => Eval("pts]0[", values));
+            Assert.ThrowsException<Exception>(() => Eval("pts[0,1]", values));
+            Assert.ThrowsException<Exception>(() => Eval("pts[]", values));
+        }
     }
 }
