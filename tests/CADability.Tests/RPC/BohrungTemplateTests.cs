@@ -198,6 +198,109 @@ namespace CADability.Tests
                 RemovedVolume(server, "{\"face\":\"side\",\"pos\":\"p(35,10,8)\",\"entry\":\"round\",\"entrySize\":1.5,\"exit\":\"chamfer\",\"exitSize\":0.5}", "durchgangsbohrung"), 1e-2);
         }
 
+        private const double TaperDepth = 12;
+
+        /// <summary>The conical part of a tapered hole from radius r1 at the face to r2 at the depth.</summary>
+        private static double Frustum(double r1, double r2, double h) => Math.PI * h * (r1 * r1 + r1 * r2 + r2 * r2) / 3;
+
+        /// <summary>The spherical bottom tangent to the wall: the part of the sphere below the end of the wall.</summary>
+        private static double TangentSphereBottom(double r1, double r2, double h)
+        {
+            double slope = (r2 - r1) / h, rho = r2 * Math.Sqrt(1 + slope * slope);
+            double cap = rho + r2 * slope; // height of the part below the plane of the end of the wall
+            return Math.PI * cap * cap * (3 * rho - cap) / 3;
+        }
+
+        private static double Taper(MCPServer server, string arguments)
+            => RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\",\"depth\":12," + arguments + "}", "kegelbohrung");
+
+        [TestMethod]
+        public void TaperNarrowingFlat()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.AreEqual(Frustum(4, 2.5, TaperDepth), Taper(server, "\"dEntry\":8,\"dEnd\":5"), 1e-3);
+        }
+
+        [TestMethod]
+        public void TaperWideningWithPointedCone()
+        {
+            MCPServer server = ServerWithTemplates();
+            double h = 5 / Math.Tan(tipHalf);
+            // 1e-2: the volume is integrated with a relative precision of about 1e-6
+            Assert.AreEqual(Frustum(3, 5, TaperDepth) + Math.PI * 25 * h / 3, Taper(server, "\"dEntry\":6,\"dEnd\":10,\"bottom\":\"cone\""), 1e-2);
+        }
+
+        [TestMethod]
+        public void TaperNarrowingWithTruncatedCone()
+        {
+            MCPServer server = ServerWithTemplates();
+            double rb = 1, h = (3 - rb) / Math.Tan(tipHalf);
+            Assert.AreEqual(Frustum(4, 3, TaperDepth) + Frustum(3, rb, h),
+                Taper(server, "\"dEntry\":8,\"dEnd\":6,\"bottom\":\"cone\",\"flatDiameter\":2"), 1e-3);
+        }
+
+        [TestMethod]
+        public void TaperSphericalBottomNarrowingAndWidening()
+        {
+            MCPServer server = ServerWithTemplates();
+            Assert.AreEqual(Frustum(4, 2.5, TaperDepth) + TangentSphereBottom(4, 2.5, TaperDepth),
+                Taper(server, "\"dEntry\":8,\"dEnd\":5,\"bottom\":\"sphere\""), 1e-3);
+            server = ServerWithTemplates();
+            Assert.AreEqual(Frustum(2.5, 4, TaperDepth) + TangentSphereBottom(2.5, 4, TaperDepth),
+                Taper(server, "\"dEntry\":5,\"dEnd\":8,\"bottom\":\"sphere\""), 1e-3);
+        }
+
+        /// <summary>
+        /// A chamfer of width c on both faces of the entry edge: the triangle between the edge, the point c out on the
+        /// face and the point c down the inclined wall, revolved (Pappus).
+        /// </summary>
+        [TestMethod]
+        public void TaperChamferedEntry()
+        {
+            MCPServer server = ServerWithTemplates();
+            double r1 = 4, r2 = 2.5, c = 1, slope = (r2 - r1) / TaperDepth, w = Math.Sqrt(1 + slope * slope);
+            (double x, double y) e = (r1, 0), f = (r1 + c, 0), g = (r1 + c * slope / w, -c / w);
+            double area = Math.Abs((f.x - e.x) * (g.y - e.y) - (g.x - e.x) * (f.y - e.y)) / 2;
+            double chamfer = 2 * Math.PI * (e.x + f.x + g.x) / 3 * area;
+            Assert.AreEqual(Frustum(r1, r2, TaperDepth) + chamfer, Taper(server, "\"dEntry\":8,\"dEnd\":5,\"entry\":\"chamfer\""), 1e-3);
+        }
+
+        /// <summary>
+        /// A fillet of radius rho at the entry: the cross section between the edge, the two tangent points and the
+        /// arc, densely sampled and revolved (Pappus). The material at the edge of a narrowing hole has an angle above 90°.
+        /// </summary>
+        [TestMethod]
+        public void TaperRoundedEntry()
+        {
+            foreach ((double d1, double d2) in new[] { (8.0, 5.0), (5.0, 8.0) })
+            {
+                MCPServer server = ServerWithTemplates();
+                double r1 = d1 / 2, r2 = d2 / 2, rho = 1, slope = (r2 - r1) / TaperDepth, w = Math.Sqrt(1 + slope * slope);
+                double phi = Math.Acos(slope / w), reach = rho / Math.Tan(phi / 2);
+                (double x, double y) center = (r1 + reach, -rho);
+                double startAngle = Math.PI / 2, sweep = Math.PI - phi; // from the tangent point on the face, counterclockwise
+                List<(double x, double y)> polygon = new List<(double x, double y)> { (r1, 0) };
+                const int n = 2000;
+                for (int i = n; i >= 0; i--) // from the wall back to the face, so that the polygon runs clockwise like E, T, arc, S
+                {
+                    double a = startAngle + sweep * i / n;
+                    polygon.Add((center.x + rho * Math.Cos(a), center.y + rho * Math.Sin(a)));
+                }
+                double area = 0, moment = 0; // moment: integral of x dA
+                for (int i = 0; i < polygon.Count; i++)
+                {
+                    (double x0, double y0) = polygon[i];
+                    (double x1, double y1) = polygon[(i + 1) % polygon.Count];
+                    double cross = x0 * y1 - x1 * y0;
+                    area += cross / 2;
+                    moment += (x0 + x1) * cross / 6;
+                }
+                double fillet = 2 * Math.PI * Math.Abs(moment);
+                Assert.AreEqual(Frustum(r1, r2, TaperDepth) + fillet,
+                    Taper(server, FormattableString.Invariant($"\"dEntry\":{d1},\"dEnd\":{d2},\"entry\":\"round\",\"entrySize\":1")), 1e-3, $"{d1} -> {d2}");
+            }
+        }
+
         /// <summary>
         /// A block with a slot across it: the axis leaves the solid at the slot and enters it again below. Only the
         /// part above the slot is drilled, the material below stays.
