@@ -462,6 +462,66 @@ namespace CADability.Tests
             StringAssert.Contains(error, "at most half the diameter");
         }
 
+        /// <summary>The hole through the block of height 20 with a 90° cone from the countersink diameter down to the hole.</summary>
+        [TestMethod]
+        public void CountersunkHole()
+        {
+            MCPServer server = ServerWithTemplates();
+            double rHole = 3.3, rSink = 6.72, sinkDepth = rSink - rHole; // 90°: the depth equals the difference of the radii
+            double expected = Math.PI * rHole * rHole * (20 - sinkDepth) + Frustum(rSink, rHole, sinkDepth);
+            Assert.AreEqual(expected, RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\"}", "kegelsenkung"), 1e-3);
+        }
+
+        [TestMethod]
+        public void CountersunkHoleWithOtherAngle()
+        {
+            MCPServer server = ServerWithTemplates();
+            double rHole = 2.25, rSink = 4.48, sinkDepth = (rSink - rHole) / Math.Tan(Math.PI / 3); // 120°
+            double expected = Math.PI * rHole * rHole * (20 - sinkDepth) + Frustum(rSink, rHole, sinkDepth);
+            Assert.AreEqual(expected, RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\",\"dHole\":4.5,\"dSink\":8.96,\"sinkAngle\":120}", "kegelsenkung"), 1e-3);
+        }
+
+        [TestMethod]
+        public void CounterboredHole()
+        {
+            MCPServer server = ServerWithTemplates();
+            double rHole = 3.3, rSink = 5.5, sinkDepth = 6.4;
+            double expected = Math.PI * rSink * rSink * sinkDepth + Math.PI * rHole * rHole * (20 - sinkDepth);
+            Assert.AreEqual(expected, RemovedVolume(server, "{\"face\":\"top\",\"pos\":\"p(10,10,20)\"}", "zylindersenkung"), 1e-3);
+        }
+
+        /// <summary>On the side face, with the point off the face: the other branch for the profile's radial direction.</summary>
+        [TestMethod]
+        public void CounterboredHoleOnTheSide()
+        {
+            MCPServer server = ServerWithTemplates();
+            double rHole = 4.5, rSink = 7.5, sinkDepth = 8.6;
+            double expected = Math.PI * rSink * rSink * sinkDepth + Math.PI * rHole * rHole * (20 - sinkDepth);
+            Assert.AreEqual(expected, RemovedVolume(server, "{\"face\":\"side\",\"pos\":\"p(30,10,10)\",\"dHole\":9,\"dSink\":15,\"sinkDepth\":8.6}", "zylindersenkung"), 1e-3);
+        }
+
+        /// <summary>The presets set sizes the templates accept, for every screw size.</summary>
+        [TestMethod]
+        public void SinkPresetsAreValid()
+        {
+            using JsonDocument document = JsonDocument.Parse(System.IO.File.ReadAllText(TemplateFile()));
+            foreach (JsonElement template in document.RootElement.GetProperty("templates").EnumerateArray())
+            {
+                JsonElement begin = template.GetProperty("items")[0].GetProperty("params");
+                if (!begin.TryGetProperty("presets", out JsonElement presets)) continue;
+                foreach (TemplatePreset preset in TemplateParameterRules.ReadPresets(presets))
+                {
+                    foreach (TemplatePresetOption option in preset.Options)
+                    {
+                        Dictionary<string, object> values = new Dictionary<string, object> { ["sinkAngle"] = 90.0, ["sinkDepth"] = 1.0 };
+                        foreach (KeyValuePair<string, JsonElement> value in option.Values) values[value.Key] = value.Value.GetDouble();
+                        List<ParameterProblem> problems = TemplateParameterRules.Check(begin.GetProperty("parameters"), begin.GetProperty("checks"), values, ignoreEvaluationErrors: true);
+                        Assert.AreEqual(0, problems.Count, $"{template.GetProperty("name").GetString()} {option.Label}: " + string.Join(" ", problems.Select(p => p.Message)));
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// A block with a slot across it: the axis leaves the solid at the slot and enters it again below. Only the
         /// part above the slot is drilled, the material below stays.

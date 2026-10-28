@@ -2529,6 +2529,749 @@
           }
         }
       ]
+    },
+    {
+      "name": "kegelsenkung",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "kegelsenkung",
+            "label": "Countersunk hole",
+            "category": "Holes",
+            "description": "Through hole with a conical countersink at the entry, for countersunk screws, perpendicular to a face of a solid: the user picks the face and the position on it. The hole goes through the material up to where it first leaves the solid; where the axis enters the solid again behind a gap, nothing is cut. A preset sets the sizes for the countersunk screws of ISO 10642.",
+            "tags": [
+              "hole",
+              "countersink",
+              "countersunk hole",
+              "Senkung",
+              "Kegelsenkung",
+              "ISO 10642"
+            ],
+            "parameters": [
+              {
+                "name": "body",
+                "value": "block",
+                "label": "Body",
+                "input": {
+                  "kind": "solid",
+                  "replace": true,
+                  "description": "The solid that gets the countersunk hole; it is taken from the picked face.",
+                  "order": 0
+                }
+              },
+              {
+                "name": "face",
+                "value": "top",
+                "label": "Face",
+                "input": {
+                  "kind": "face",
+                  "solid": "body",
+                  "group": "Position",
+                  "description": "The face the hole is drilled into, perpendicular to the face at the position.",
+                  "order": 1
+                }
+              },
+              {
+                "name": "pos",
+                "value": "p(10,10,20)",
+                "label": "Position",
+                "input": {
+                  "kind": "point3",
+                  "onFace": "face",
+                  "group": "Position",
+                  "description": "Center of the hole on the face. Click on the face, snap to a point (e.g. the center of a circular edge) or enter coordinates; the point is put onto the face.",
+                  "order": 2
+                }
+              },
+              {
+                "name": "dHole",
+                "value": 6.6,
+                "label": "Hole diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Hole",
+                  "min": 0.01,
+                  "description": "Diameter of the through hole below the countersink.",
+                  "order": 3
+                }
+              },
+              {
+                "name": "dSink",
+                "value": 13.44,
+                "label": "Countersink diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Countersink",
+                  "min": 0.01,
+                  "description": "Diameter of the countersink on the face.",
+                  "order": 4
+                }
+              },
+              {
+                "name": "sinkAngle",
+                "value": 90,
+                "label": "Countersink angle",
+                "input": {
+                  "kind": "angle",
+                  "group": "Countersink",
+                  "optional": true,
+                  "min": 30,
+                  "max": 150,
+                  "description": "Included angle of the countersink, 90° for metric countersunk screws.",
+                  "order": 5
+                }
+              }
+            ],
+            "presets": [
+              {
+                "name": "screwSize",
+                "label": "Countersunk screw ISO 10642",
+                "description": "Sets the hole diameter after ISO 273 (medium) and the countersink diameter to the maximum head diameter of ISO 10642.",
+                "options": [
+                  {
+                    "label": "M3",
+                    "values": {
+                      "dHole": 3.4,
+                      "dSink": 6.72,
+                      "sinkAngle": 90
+                    }
+                  },
+                  {
+                    "label": "M4",
+                    "values": {
+                      "dHole": 4.5,
+                      "dSink": 8.96,
+                      "sinkAngle": 90
+                    }
+                  },
+                  {
+                    "label": "M5",
+                    "values": {
+                      "dHole": 5.5,
+                      "dSink": 11.2,
+                      "sinkAngle": 90
+                    }
+                  },
+                  {
+                    "label": "M6",
+                    "values": {
+                      "dHole": 6.6,
+                      "dSink": 13.44,
+                      "sinkAngle": 90
+                    }
+                  },
+                  {
+                    "label": "M8",
+                    "values": {
+                      "dHole": 9,
+                      "dSink": 17.92,
+                      "sinkAngle": 90
+                    }
+                  },
+                  {
+                    "label": "M10",
+                    "values": {
+                      "dHole": 11,
+                      "dSink": 22.4,
+                      "sinkAngle": 90
+                    }
+                  }
+                ]
+              }
+            ],
+            "checks": [
+              {
+                "condition": "dSink > dHole",
+                "parameters": [
+                  "dSink",
+                  "dHole"
+                ],
+                "message": "The countersink diameter ({dSink}) must be larger than the hole diameter ({dHole})."
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 10H16L26 22V54H6Z M58 10H48L38 22V54H58Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M32 4V60\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "n",
+                  "value": "normal(face, pos)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rHole",
+                  "value": "dHole/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rSink",
+                  "value": "dSink/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "over",
+                  "value": "dSink"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "reach",
+                  "value": "body.GetBoundingCube().DiagonalLength + dSink"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "when": "abs(n*v(1,0,0)) < 0.9",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(1,0,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "when": "abs(n*v(1,0,0)) >= 0.9",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(0,1,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "workspace.set",
+                "params": {
+                  "name": "sinkDepth",
+                  "value": "(rSink - rHole)/tan(sinkAngle*pi/360)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "pos",
+                    "xAxis": "u",
+                    "yAxis": "n"
+                  },
+                  "name": "sinkProfile"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "sketch.add_polycurve",
+                "params": {
+                  "sketch": "sinkProfile",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": 0,
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "rSink + over*tan(sinkAngle*pi/360)",
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "rSink",
+                      "y": 0,
+                      "b": 0
+                    },
+                    {
+                      "x": "rHole",
+                      "y": "-sinkDepth",
+                      "b": 0
+                    },
+                    {
+                      "x": "rHole",
+                      "y": "-reach",
+                      "b": 0
+                    },
+                    {
+                      "x": 0,
+                      "y": "-reach",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "solid.rotate",
+                "params": {
+                  "profile": "sinkProfile",
+                  "axis": {
+                    "origin": "pos",
+                    "direction": "n"
+                  },
+                  "angle": {
+                    "full": true
+                  },
+                  "name": "tool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 23,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "intersect",
+                  "a": "body",
+                  "b": "tool",
+                  "name": "cuts"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 24,
+                "method": "workspace.select",
+                "params": {
+                  "selector": {
+                    "query": {
+                      "target": "solids",
+                      "from": "cuts",
+                      "filter": {
+                        "closeTo": "pos"
+                      }
+                    }
+                  },
+                  "name": "plug"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 25,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "body",
+                  "b": "plug",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 3,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
+    },
+    {
+      "name": "zylindersenkung",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "zylindersenkung",
+            "label": "Counterbored hole",
+            "category": "Holes",
+            "description": "Through hole with a cylindrical counterbore at the entry, for screws with a cylindrical head, perpendicular to a face of a solid: the user picks the face and the position on it. The hole goes through the material up to where it first leaves the solid; where the axis enters the solid again behind a gap, nothing is cut. A preset sets the sizes for the socket head cap screws of ISO 4762.",
+            "tags": [
+              "hole",
+              "counterbore",
+              "counterbored hole",
+              "Senkung",
+              "Zylindersenkung",
+              "Senkbohrung",
+              "ISO 4762",
+              "DIN 974"
+            ],
+            "parameters": [
+              {
+                "name": "body",
+                "value": "block",
+                "label": "Body",
+                "input": {
+                  "kind": "solid",
+                  "replace": true,
+                  "description": "The solid that gets the counterbored hole; it is taken from the picked face.",
+                  "order": 0
+                }
+              },
+              {
+                "name": "face",
+                "value": "top",
+                "label": "Face",
+                "input": {
+                  "kind": "face",
+                  "solid": "body",
+                  "group": "Position",
+                  "description": "The face the hole is drilled into, perpendicular to the face at the position.",
+                  "order": 1
+                }
+              },
+              {
+                "name": "pos",
+                "value": "p(10,10,20)",
+                "label": "Position",
+                "input": {
+                  "kind": "point3",
+                  "onFace": "face",
+                  "group": "Position",
+                  "description": "Center of the hole on the face. Click on the face, snap to a point (e.g. the center of a circular edge) or enter coordinates; the point is put onto the face.",
+                  "order": 2
+                }
+              },
+              {
+                "name": "dHole",
+                "value": 6.6,
+                "label": "Hole diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Hole",
+                  "min": 0.01,
+                  "description": "Diameter of the through hole below the counterbore.",
+                  "order": 3
+                }
+              },
+              {
+                "name": "dSink",
+                "value": 11,
+                "label": "Counterbore diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Counterbore",
+                  "min": 0.01,
+                  "description": "Diameter of the counterbore.",
+                  "order": 4
+                }
+              },
+              {
+                "name": "sinkDepth",
+                "value": 6.4,
+                "label": "Counterbore depth",
+                "input": {
+                  "kind": "length",
+                  "group": "Counterbore",
+                  "min": 0.01,
+                  "description": "Depth of the counterbore below the position.",
+                  "order": 5
+                }
+              }
+            ],
+            "presets": [
+              {
+                "name": "screwSize",
+                "label": "Socket head cap screw ISO 4762",
+                "description": "Sets the hole diameter after ISO 273 (medium), the counterbore diameter after DIN 974-1 (row 1) and the depth for the head without washer.",
+                "options": [
+                  {
+                    "label": "M3",
+                    "values": {
+                      "dHole": 3.4,
+                      "dSink": 6.5,
+                      "sinkDepth": 3.4
+                    }
+                  },
+                  {
+                    "label": "M4",
+                    "values": {
+                      "dHole": 4.5,
+                      "dSink": 8,
+                      "sinkDepth": 4.4
+                    }
+                  },
+                  {
+                    "label": "M5",
+                    "values": {
+                      "dHole": 5.5,
+                      "dSink": 10,
+                      "sinkDepth": 5.4
+                    }
+                  },
+                  {
+                    "label": "M6",
+                    "values": {
+                      "dHole": 6.6,
+                      "dSink": 11,
+                      "sinkDepth": 6.4
+                    }
+                  },
+                  {
+                    "label": "M8",
+                    "values": {
+                      "dHole": 9,
+                      "dSink": 15,
+                      "sinkDepth": 8.6
+                    }
+                  },
+                  {
+                    "label": "M10",
+                    "values": {
+                      "dHole": 11,
+                      "dSink": 18,
+                      "sinkDepth": 10.6
+                    }
+                  },
+                  {
+                    "label": "M12",
+                    "values": {
+                      "dHole": 13.5,
+                      "dSink": 20,
+                      "sinkDepth": 12.6
+                    }
+                  },
+                  {
+                    "label": "M16",
+                    "values": {
+                      "dHole": 17.5,
+                      "dSink": 26,
+                      "sinkDepth": 16.6
+                    }
+                  },
+                  {
+                    "label": "M20",
+                    "values": {
+                      "dHole": 22,
+                      "dSink": 33,
+                      "sinkDepth": 20.6
+                    }
+                  }
+                ]
+              }
+            ],
+            "checks": [
+              {
+                "condition": "dSink > dHole",
+                "parameters": [
+                  "dSink",
+                  "dHole"
+                ],
+                "message": "The counterbore diameter ({dSink}) must be larger than the hole diameter ({dHole})."
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 10H16V24H26V54H6Z M58 10H48V24H38V54H58Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M32 4V60\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-dasharray=\"4 3\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "n",
+                  "value": "normal(face, pos)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rHole",
+                  "value": "dHole/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rSink",
+                  "value": "dSink/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "over",
+                  "value": "dSink"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "reach",
+                  "value": "body.GetBoundingCube().DiagonalLength + dSink"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "when": "abs(n*v(1,0,0)) < 0.9",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(1,0,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "when": "abs(n*v(1,0,0)) >= 0.9",
+                "params": {
+                  "name": "u",
+                  "value": "normalize(v(0,1,0) ^ n)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "pos",
+                    "xAxis": "u",
+                    "yAxis": "n"
+                  },
+                  "name": "sinkProfile"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "sketch.add_polycurve",
+                "params": {
+                  "sketch": "sinkProfile",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": 0,
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "rSink",
+                      "y": "over",
+                      "b": 0
+                    },
+                    {
+                      "x": "rSink",
+                      "y": "-sinkDepth",
+                      "b": 0
+                    },
+                    {
+                      "x": "rHole",
+                      "y": "-sinkDepth",
+                      "b": 0
+                    },
+                    {
+                      "x": "rHole",
+                      "y": "-reach",
+                      "b": 0
+                    },
+                    {
+                      "x": 0,
+                      "y": "-reach",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "solid.rotate",
+                "params": {
+                  "profile": "sinkProfile",
+                  "axis": {
+                    "origin": "pos",
+                    "direction": "n"
+                  },
+                  "angle": {
+                    "full": true
+                  },
+                  "name": "tool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 23,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "intersect",
+                  "a": "body",
+                  "b": "tool",
+                  "name": "cuts"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 24,
+                "method": "workspace.select",
+                "params": {
+                  "selector": {
+                    "query": {
+                      "target": "solids",
+                      "from": "cuts",
+                      "filter": {
+                        "closeTo": "pos"
+                      }
+                    }
+                  },
+                  "name": "plug"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 25,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "body",
+                  "b": "plug",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 3,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
     }
   ],
   "translations": {
@@ -2838,6 +3581,96 @@
           },
           "checks": [
             "Die Tiefe ({depth}) darf höchstens der halbe Durchmesser ({d/2}) sein: Eine tiefere Mulde wäre hinterschnitten."
+          ]
+        },
+        "kegelsenkung": {
+          "label": "Kegelsenkung",
+          "category": "Bohrungen",
+          "description": "Durchgangsbohrung mit kegeliger Senkung am Eintritt, für Senkschrauben, senkrecht zu einer Fläche eines Körpers: Der Anwender wählt die Fläche und die Position darauf. Die Bohrung geht durch das Material bis dahin, wo sie den Körper zum ersten Mal verlässt; wo die Achse hinter einem Zwischenraum wieder in den Körper eintritt, wird nichts geschnitten. Eine Vorgabe setzt die Maße für Senkschrauben nach ISO 10642.",
+          "parameters": {
+            "face": {
+              "label": "Fläche",
+              "group": "Lage",
+              "description": "Die Fläche, in die gebohrt wird, senkrecht zur Fläche an der Position."
+            },
+            "pos": {
+              "label": "Position",
+              "group": "Lage",
+              "description": "Mittelpunkt der Bohrung auf der Fläche. Auf die Fläche klicken, auf einen Punkt fangen (z. B. den Mittelpunkt einer Kreiskante) oder Koordinaten eingeben; der Punkt wird auf die Fläche gelegt."
+            },
+            "body": {
+              "label": "Körper",
+              "description": "Der Körper, der die Senkbohrung bekommt; er ergibt sich aus der gewählten Fläche."
+            },
+            "dHole": {
+              "label": "Bohrungsdurchmesser",
+              "group": "Bohrung",
+              "description": "Durchmesser der Durchgangsbohrung unter der Senkung."
+            },
+            "dSink": {
+              "label": "Senkdurchmesser",
+              "group": "Senkung",
+              "description": "Durchmesser der Senkung auf der Fläche."
+            },
+            "sinkAngle": {
+              "label": "Senkwinkel",
+              "group": "Senkung",
+              "description": "Spitzenwinkel der Senkung, 90° für metrische Senkschrauben."
+            }
+          },
+          "presets": {
+            "screwSize": {
+              "label": "Senkschraube ISO 10642",
+              "description": "Setzt den Bohrungsdurchmesser nach ISO 273 (mittel) und den Senkdurchmesser auf den größten Kopfdurchmesser nach ISO 10642."
+            }
+          },
+          "checks": [
+            "Der Senkdurchmesser ({dSink}) muss größer sein als der Bohrungsdurchmesser ({dHole})."
+          ]
+        },
+        "zylindersenkung": {
+          "label": "Zylindersenkung",
+          "category": "Bohrungen",
+          "description": "Durchgangsbohrung mit zylindrischer Senkung am Eintritt, für Schrauben mit Zylinderkopf, senkrecht zu einer Fläche eines Körpers: Der Anwender wählt die Fläche und die Position darauf. Die Bohrung geht durch das Material bis dahin, wo sie den Körper zum ersten Mal verlässt; wo die Achse hinter einem Zwischenraum wieder in den Körper eintritt, wird nichts geschnitten. Eine Vorgabe setzt die Maße für Zylinderschrauben nach ISO 4762.",
+          "parameters": {
+            "face": {
+              "label": "Fläche",
+              "group": "Lage",
+              "description": "Die Fläche, in die gebohrt wird, senkrecht zur Fläche an der Position."
+            },
+            "pos": {
+              "label": "Position",
+              "group": "Lage",
+              "description": "Mittelpunkt der Bohrung auf der Fläche. Auf die Fläche klicken, auf einen Punkt fangen (z. B. den Mittelpunkt einer Kreiskante) oder Koordinaten eingeben; der Punkt wird auf die Fläche gelegt."
+            },
+            "body": {
+              "label": "Körper",
+              "description": "Der Körper, der die Senkbohrung bekommt; er ergibt sich aus der gewählten Fläche."
+            },
+            "dHole": {
+              "label": "Bohrungsdurchmesser",
+              "group": "Bohrung",
+              "description": "Durchmesser der Durchgangsbohrung unter der Senkung."
+            },
+            "dSink": {
+              "label": "Senkdurchmesser",
+              "group": "Senkung",
+              "description": "Durchmesser der zylindrischen Senkung."
+            },
+            "sinkDepth": {
+              "label": "Senktiefe",
+              "group": "Senkung",
+              "description": "Tiefe der Senkung unter der Position."
+            }
+          },
+          "presets": {
+            "screwSize": {
+              "label": "Zylinderschraube ISO 4762",
+              "description": "Setzt den Bohrungsdurchmesser nach ISO 273 (mittel), den Senkdurchmesser nach DIN 974-1 (Reihe 1) und die Senktiefe für den Kopf ohne Unterlegteil."
+            }
+          },
+          "checks": [
+            "Der Senkdurchmesser ({dSink}) muss größer sein als der Bohrungsdurchmesser ({dHole})."
           ]
         }
       }
