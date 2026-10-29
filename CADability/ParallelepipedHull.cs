@@ -3916,6 +3916,28 @@ namespace CADability.GeoObject
                 mindist = d;
             }
             if (double.IsNaN(mindist)) return false;
+            // The loop stops as soon as the tangential distance is below Precision.eps, which in uv may still be more than
+            // a curve approximated through these values allows (ProjectedCurve demands a fraction of the curve length).
+            // Near the solution Newton converges quadratically, so one more step makes the foot point exact almost for free.
+            // It is only kept if it really improves the result.
+            if (mindist > 0.0 && !dirx.IsNullVector() && !diry.IsNullVector() && !dirz.IsNullVector())
+            {
+                GeoVector rhs = p3d - loc;
+                GeoVector yz = diry ^ dirz;
+                double det = dirx * yz;
+                GeoPoint2D polished = new GeoPoint2D(res.x + (rhs * yz) / det, res.y + (dirx * (rhs ^ dirz)) / det);
+                if (polished.IsValid)
+                {
+                    GeoVector px = surface.UDirection(polished);
+                    GeoVector py = surface.VDirection(polished);
+                    double d = Geometry.DistPL(p3d, surface.PointAt(polished), px ^ py);
+                    if (d < mindist)
+                    {
+                        res = polished;
+                        mindist = d;
+                    }
+                }
+            }
 
             if (missed > 2)
             {   // need this case when an almost closed nurbs surface finds a wrong point on the other side of the domain (like in MO21775-001-00.stp)

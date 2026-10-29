@@ -138,6 +138,20 @@ namespace CADability.GeoObject
                 return true;
             }
         }
+        /// <summary>
+        /// True, when all poles lie in <paramref name="pln"/> up to rounding errors, relative to the extent of the poles.
+        /// </summary>
+        private bool PolesLieIn(Plane pln)
+        {
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
+            for (int i = 0; i < poles.Length; ++i) ext.MinMax(poles[i]);
+            double tolerance = ext.Size * 1e-10;
+            for (int i = 0; i < poles.Length; ++i)
+            {
+                if (Math.Abs(pln.Distance(poles[i])) > tolerance) return false;
+            }
+            return true;
+        }
         private void MakeNurbsHelper()
         {
             lock (bSplineLock)
@@ -219,9 +233,11 @@ namespace CADability.GeoObject
                     }
                 }
                 // PlanarState.UnderDetermined makes sometimes problems
-                if ((this as ICurve).GetPlanarState() == PlanarState.Planar || (this as ICurve).GetPlanarState() == PlanarState.UnderDetermined)
-                {   // in Wirklichkeit ein 2d spline, nur im Raum gelegen
-                    if ((this as ICurve).GetPlanarState() == PlanarState.UnderDetermined)
+                PlanarState planarState = (this as ICurve).GetPlanarState();
+                bool evaluateIn2d = planarState == PlanarState.Planar || planarState == PlanarState.UnderDetermined;
+                if (evaluateIn2d)
+                {
+                    if (planarState == PlanarState.UnderDetermined)
                     {
                         if (plane == null) plane = getPlane();
                         //GeoVector nrm = poles[poles.Length - 1] - poles[0];
@@ -229,6 +245,14 @@ namespace CADability.GeoObject
                         //Plane tmp = new Plane(poles[0], nrm);
                         //this.plane = new Plane(tmp.Location, tmp.DirectionX, tmp.Normal);
                     }
+                    // A curve counts as planar when its poles are within Precision.eps of a plane, but evaluating it in
+                    // that plane moves every point by up to that distance, while PointAtParam returns the unprojected
+                    // poles at the ends: the curve would jump there. So only a curve which really lies in the plane is
+                    // evaluated in 2d. Periodic splines are padded differently in 3d and keep the 2d evaluation.
+                    if (!periodic && plane.HasValue && !PolesLieIn(plane.Value)) evaluateIn2d = false;
+                }
+                if (evaluateIn2d)
+                {   // in Wirklichkeit ein 2d spline, nur im Raum gelegen
                     if (weights == null)
                     {
                         GeoPoint2D[] npoles;
