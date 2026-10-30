@@ -5523,6 +5523,27 @@ namespace CADability.GeoObject
         {
             return new ShowPropertyFace(this, Frame);
         }
+        /// <summary>
+        /// The copy of <paramref name="curve2d"/>, the curve of <paramref name="edge"/> on the face being cloned, for the clone
+        /// with the surface <paramref name="onSurface"/>. A curve of an intersection takes its surface from its
+        /// <see cref="InterpolatedDualSurfaceCurve"/>. On an edge whose 3d curve is that intersection curve, the clone
+        /// rebinds it to the cloned surfaces. But an edge may also carry the curve of another intersection curve, which
+        /// it lies on, e.g. an <see cref="RuledSurface"/> boundary found as the intersection with a face of the cutter.
+        /// A copy of such a curve would still lie on the surface of the original face: reparametrizing the clone, as
+        /// <see cref="ReverseOrientation"/> does, would then only move its ends and modify the original. So it is
+        /// projected anew onto the cloned surface.
+        /// </summary>
+        private static ICurve2D CloneCurve2D(Edge edge, ICurve2D curve2d, bool forward, ISurface onSurface)
+        {
+            if (curve2d is ProjectedCurve pc && pc.IsCurveOfIntersection && edge.Curve3D != null && !(edge.Curve3D is InterpolatedDualSurfaceCurve))
+            {
+                ICurve2D res = onSurface.GetProjectedCurve(edge.Curve3D, 0.0);
+                if (!forward) res.Reverse();
+                SurfaceHelper.AdjustPeriodic(onSurface, curve2d.GetExtent(), res);
+                return res;
+            }
+            return curve2d.Clone();
+        }
         public Face Clone(Dictionary<Edge, Edge> clonedEdges, Dictionary<Vertex, Vertex> clonedVertices)
         {   // das kann von einer Shell aufgerufen werden, so dass die Kanten ggf nur einmal gekloned werden
             Face res = Face.Construct();
@@ -5537,7 +5558,7 @@ namespace CADability.GeoObject
                     // die beiden Curve2d können von der selben kante kommen, aber da sie zweimal gekloned
                     // werden, sind sie ja unabhängig
                     ICurve2D toClone = outline[i].Curve2D(this, alreadyUsed);
-                    clonedEdges[outline[i]].SetSecondary(res, toClone.Clone(), outline[i].Forward(this));
+                    clonedEdges[outline[i]].SetSecondary(res, CloneCurve2D(clonedEdges[outline[i]], toClone, outline[i].Forward(this), res.surface), outline[i].Forward(this));
                     res.outline[i] = clonedEdges[outline[i]];
                     alreadyUsed[i] = toClone;
                     // hier InterpolatedDualSurfaceCurve updaten!!!
@@ -5594,7 +5615,7 @@ namespace CADability.GeoObject
                         }
 #endif
                     }
-                    e.SetPrimary(res, outline[i].Curve2D(this).Clone(), outline[i].Forward(this));
+                    e.SetPrimary(res, CloneCurve2D(e, outline[i].Curve2D(this), outline[i].Forward(this), res.surface), outline[i].Forward(this));
                     // wenn e.curve3d InterpolatedDualSurfaceCurve ist, dann wird diese mit surface1==res.surface überschrieben
                     // damit wären u.U. beide surfaces gleich, das darf nicht sein.
                     res.outline[i] = e;
@@ -5610,7 +5631,7 @@ namespace CADability.GeoObject
                 {
                     if (clonedEdges.ContainsKey(holes[j][i]))
                     {   // die Kante gibts schon
-                        clonedEdges[holes[j][i]].SetSecondary(res, holes[j][i].Curve2D(this).Clone(), holes[j][i].Forward(this));
+                        clonedEdges[holes[j][i]].SetSecondary(res, CloneCurve2D(clonedEdges[holes[j][i]], holes[j][i].Curve2D(this), holes[j][i].Forward(this), res.surface), holes[j][i].Forward(this));
                         res.holes[j][i] = clonedEdges[holes[j][i]];
                         if (res.holes[j][i].Curve3D is InterpolatedDualSurfaceCurve)
                         {
@@ -5660,7 +5681,7 @@ namespace CADability.GeoObject
                         {
                             (e.Curve3D as InterpolatedDualSurfaceCurve).UserData.Add("Edge.Clone.ReversePrimarySecondary", holes[j][i].SecondaryFace == this);
                         }
-                        e.SetPrimary(res, holes[j][i].Curve2D(this).Clone(), holes[j][i].Forward(this));
+                        e.SetPrimary(res, CloneCurve2D(e, holes[j][i].Curve2D(this), holes[j][i].Forward(this), res.surface), holes[j][i].Forward(this));
                         res.holes[j][i] = e;
                         e.Owner = res; // welches face ist i.A. der Owner einer Kante? Das ist nicht eindeutig
                     }
@@ -9641,7 +9662,20 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// Reverses the orientation of this Face. the normal vector on any point of the surface will point to 
+        /// Whether <see cref="ReverseOrientation"/> makes the curve of <paramref name="edge"/> on this face anew from its 3d
+        /// curve instead of reparametrizing it: a plain projected curve, and the curve of an intersection which does not
+        /// lie on the surface of this face. The latter takes its points from the surface of its intersection curve, which
+        /// is not reversed, so a reparametrized copy would only move its ends, and it would modify the intersection curve
+        /// of another face.
+        /// </summary>
+        private bool IsProjectedAnew(Edge edge)
+        {
+            ICurve2D c2d = edge.Curve2D(this);
+            if (ProjectedCurve.IsPlain(c2d)) return true;
+            return c2d is ProjectedCurve pc && pc.IsCurveOfIntersection && edge.Curve3D != null && !ReferenceEquals(pc.Surface, surface);
+        }
+        /// <summary>
+        /// Reverses the orientation of this Face. the normal vector on any point of the surface will point to
         /// the opposite direction
         /// </summary>
         public void ReverseOrientation()
@@ -9682,7 +9716,7 @@ namespace CADability.GeoObject
             ICurve2D[] segments = new ICurve2D[outline.Length];
             for (int i = 0; i < outline.Length; ++i)
             {
-                if (ProjectedCurve.IsPlain(outline[i].Curve2D(this)))
+                if (IsProjectedAnew(outline[i]))
                 {
                     ICurve2D c2d = surface.GetProjectedCurve(outline[i].Curve3D, 0.0).CloneReverse(true);
                     SurfaceHelper.AdjustPeriodic(surface, modifiedBounds, c2d);
@@ -9711,7 +9745,7 @@ namespace CADability.GeoObject
             {
                 for (int i = 0; i < holes[j].Length; ++i)
                 {
-                    if (ProjectedCurve.IsPlain(holes[j][i].Curve2D(this)))
+                    if (IsProjectedAnew(holes[j][i]))
                     {
                         ICurve2D c2d = surface.GetProjectedCurve(holes[j][i].Curve3D, 0.0).CloneReverse(true);
                         SurfaceHelper.AdjustPeriodic(surface, modifiedBounds, c2d);
