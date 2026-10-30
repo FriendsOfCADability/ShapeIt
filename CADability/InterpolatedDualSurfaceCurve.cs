@@ -1491,6 +1491,9 @@ namespace CADability
         {
             if (StartPos <= Precision.eps && EndPos >= 1 - Precision.eps) return; // trim from start to end, nothing to do
             DualSurfaceCurveDiagnostics.Count("IDSC.Trim");
+            // the positions are positions on the approximating spline. Without it (e.g. right after Reverse, which discards
+            // it) ApproximatePosition would interpret them as indices of the base points and find other points
+            _ = ApproxBSpline;
             List<SurfacePoint> spl = new List<SurfacePoint>();
             GeoPoint2D uv1, uv2;
             GeoPoint p;
