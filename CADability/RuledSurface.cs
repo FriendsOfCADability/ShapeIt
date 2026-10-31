@@ -57,6 +57,19 @@ namespace CADability
                 GeoVector d2 = secondCurve.DirectionAt(p);
                 return (endParam - startParam) * ((1.0 - v) * d1 + v * d2);
             }
+            public override double Length
+            {
+                get
+                {   // the TetraederHull estimate of GeneralCurve is too short by up to 0.04% (chamfer contact curves),
+                    // integrate the speed instead. The save positions of both curves are where the speed may not be smooth
+                    double span = endParam - startParam;
+                    if (span == 0.0) return 0.0;
+                    List<double> breakPoints = new List<double>();
+                    foreach (double s in firstCurve.GetSavePositions()) breakPoints.Add((s - startParam) / span);
+                    foreach (double s in secondCurve.GetSavePositions()) breakPoints.Add((s - startParam) / span);
+                    return ArcLength.FromSpeed(t => DirectionAt(t).Length, 0.0, 1.0, breakPoints);
+                }
+            }
             protected override double[] GetBasePoints()
             {
                 List<double> res = new List<double>();
