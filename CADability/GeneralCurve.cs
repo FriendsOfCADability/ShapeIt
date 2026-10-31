@@ -92,7 +92,7 @@ namespace CADability.GeoObject
             private Plane plane;
             public ProjectedCurve(ICurve curve, Plane plane)
             {
-                this.curve = curve;
+                this.curve = curve.Clone();
                 this.plane = plane;
             }
             protected override void GetTriangulationBasis(out GeoPoint2D[] points, out GeoVector2D[] directions, out double[] parameters)
