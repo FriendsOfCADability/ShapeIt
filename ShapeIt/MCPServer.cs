@@ -283,7 +283,7 @@ namespace ShapeIt
             CallChanges changes = new CallChanges();
             try
             {
-                System.Diagnostics.Trace.WriteLine($"RPC: {method}");
+                System.Diagnostics.Trace.WriteLine($"RPC: id: {id}, method: {method}");
                 if ((replayingTemplate || recordingTemplate != null) && documentChangingMethods.Contains(method))
                     throw new JsonRpcException("E_NOT_ALLOWED", $"'{method}' changes the document and is not allowed inside a template. Commit the result of template.instantiate to the document instead.");
                 callChangesStack.Push(changes);
