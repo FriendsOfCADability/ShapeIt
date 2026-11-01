@@ -568,14 +568,14 @@ namespace CADability.GeoObject
             // on the fillet axis
             GeoPoint2D uv11 = topOffset.PositionOf(leadingEdge.StartPoint); // start values for TryFootPointOnIntersectionCurveLM
             GeoPoint2D uv12 = bottomOffset.PositionOf(leadingEdge.StartPoint);
-            if (SurfaceIntersectionFootPoint.TryFootPointOnIntersectionCurveLM(topOffset, bottomOffset, leadingEdge.StartPoint, ref uv11, ref uv12, out GeoPoint fp))
+            if (SurfaceIntersectionFootPoint.TryFootPointOnIntersectionCurveLM(topOffset, bottomOffset, leadingEdge.StartPoint, ref uv11, ref uv12, out GeoPoint fp, polish: true))
             {
                 filletAxisLeft = fp;
             }
             else return null; // maybe we should try with a better start point
             GeoPoint2D uv21 = topOffset.PositionOf(leadingEdge.EndPoint); // start values for TryFootPointOnIntersectionCurveLM
             GeoPoint2D uv22 = bottomOffset.PositionOf(leadingEdge.EndPoint);
-            if (SurfaceIntersectionFootPoint.TryFootPointOnIntersectionCurveLM(topOffset, bottomOffset, leadingEdge.EndPoint, ref uv21, ref uv22, out fp))
+            if (SurfaceIntersectionFootPoint.TryFootPointOnIntersectionCurveLM(topOffset, bottomOffset, leadingEdge.EndPoint, ref uv21, ref uv22, out fp, polish: true))
             {
                 filletAxisRight = fp;
             }

@@ -11,7 +11,8 @@ public static class SurfaceIntersectionFootPoint
     /// Finds the point f on the intersection curve of s1 and s2 such that
     /// the vector (f - p) is orthogonal to the intersection curve tangent.
     /// The initial uv1/uv2 parameters must already be close to the intersection.
-    /// Returns true iff LM converged.
+    /// Returns true iff LM converged. With <paramref name="polish"/> the LM result is refined by Newton steps,
+    /// so that f lies on both surfaces up to rounding errors.
     /// </summary>
     public static bool TryFootPointOnIntersectionCurveLM(
         ISurface s1,
@@ -26,7 +27,8 @@ public static class SurfaceIntersectionFootPoint
         double stepTolerance = 1e-16,
         double functionTolerance = 1e-14,
         double orthWeight = 1.0,
-        double fdStep = 1e-6)
+        double fdStep = 1e-6,
+        bool polish = false)
     {
         // Parameter vector: [u, v, a, b]
         var V = Vector<double>.Build;
@@ -167,6 +169,20 @@ public static class SurfaceIntersectionFootPoint
         bool converged = result.ReasonForExit == ExitCondition.Converged;
 
         var sol = result.MinimizingPoint;
+        // LM reports convergence as soon as the squared residual is below functionTolerance, i.e. with residuals of
+        // about 1e-7. f is taken from s1, so it may be that far off s2 (a fillet cutter, whose end arcs are built
+        // around f, then sticks out of a face it should touch tangentially). A few full Newton steps on the same
+        // square system bring the residual down to rounding errors
+        double norm = polish ? Residual(sol).L2Norm() : 0.0;
+        for (int i = 0; i < 3 && norm > 0.0; i++)
+        {
+            Vector<double> step = Jacobian(sol, observedX).Solve(Residual(sol));
+            Vector<double> polished = sol - step;
+            double polishedNorm = Residual(polished).L2Norm();
+            if (!(polishedNorm < norm)) break; // also for a singular Jacobian, which yields NaN
+            sol = polished;
+            norm = polishedNorm;
+        }
         uv1 = new GeoPoint2D(sol[0], sol[1]);
         uv2 = new GeoPoint2D(sol[2], sol[3]);
 

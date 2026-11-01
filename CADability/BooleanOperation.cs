@@ -798,13 +798,22 @@ namespace CADability
                                             if (fca.DistanceToEdges(p) >= fca.DistanceToEdges(edge.Curve3D.EndPoint)) p = edge.Curve3D.EndPoint;
                                         }
                                         if (edge.Curve3D.DistanceTo(p) > 10 * precision) continue;
+                                        // an existing vertex close to p is the better point: where the curve touches the outline of the face
+                                        // tangentially, the clip position is ill-conditioned and p may be far off the true vertex (e.g. 5e-4
+                                        // for an offset of 5e-8). Comparing the distances of both points to the curve doesn't help, they are
+                                        // both on the curve up to rounding errors
+                                        Vertex? closestVertex = null;
+                                        double closestDistance = 10 * precision;
                                         foreach (Vertex va in fca.Vertices)
-                                        {   // we need a different mechanism to exclude such cases before intersecting
-                                            if ((va.Position|p)<10*precision)
+                                        {
+                                            double d = va.Position | p;
+                                            if (d < closestDistance && edge.Curve3D.DistanceTo(va.Position) < 10 * precision)
                                             {
-                                                if (edge.Curve3D.DistanceTo(va.Position) <= edge.Curve3D.DistanceTo(p)) p = va.Position;
+                                                closestVertex = va;
+                                                closestDistance = d;
                                             }
                                         }
+                                        if (closestVertex != null) p = closestVertex.Position;
                                         Vertex vv = CreateOrFindVertex(p);
                                         bool found = false;
                                         foreach (Edge edga in fca.Edges)
