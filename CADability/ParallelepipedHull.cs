@@ -3854,6 +3854,7 @@ namespace CADability.GeoObject
             GeoVector diry = surface.VDirection(res);
             GeoVector dirz = dirx ^ diry; // the normal
             GeoPoint loc = surface.PointAt(res);
+            double startDistance = loc | p3d;
             BoundingRect natbound = new BoundingRect();
             surface.GetNaturalBounds(out natbound.Left, out natbound.Right, out natbound.Bottom, out natbound.Top);
             BoundingRect natbound2 = natbound;
@@ -3943,8 +3944,15 @@ namespace CADability.GeoObject
             {   // need this case when an almost closed nurbs surface finds a wrong point on the other side of the domain (like in MO21775-001-00.stp)
                 BoundingRect brcopy = found.uvPatch;
                 brcopy.Inflate(brcopy.Width / 100, brcopy.Height / 100);
-                bool ok = brcopy.Contains(res);
-                return ok;
+                if (brcopy.Contains(res)) return true;
+                // When p3d is close to the border of the patch, the foot point may as well lie in the neighbouring patch,
+                // which the octtree did not return. That is no point on the other side of the domain: accept it, if it stays
+                // next to the patch and in the bounds of this hull and is closer to p3d than the start.
+                BoundingRect neighbourhood = found.uvPatch;
+                neighbourhood.Inflate(found.uvPatch.Width, found.uvPatch.Height);
+                BoundingRect bounds = uvbounds;
+                bounds.Inflate(uvbounds.Width / 100, uvbounds.Height / 100);
+                return neighbourhood.Contains(res) && bounds.Contains(res) && (surface.PointAt(res) | p3d) < startDistance;
             }
             return true;
         }
