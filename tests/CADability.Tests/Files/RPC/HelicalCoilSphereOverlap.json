@@ -59,8 +59,8 @@
       "openEdges": "0",
       "volume": "735.743407163",
       "area": "1134.92085029",
-      "edgeLength": "356.752458208",
-      "extent": "-11, -10.9967852089, 4.45016556473, 10.7863335911, 10.9967933923, 19.5498344353",
+      "edgeLength": "356.794540712",
+      "extent": "-11, -10.9967852089, 4.45016556473, 10.7863361413, 10.996793698, 19.5498344353",
       "surfaces": "HelicalSweepSurface:2 SphericalSurface:1"
     },
     "coilMinusBall": {
@@ -76,7 +76,7 @@
       "openEdges": "0",
       "volume": "1632.96164898",
       "area": "2195.09917666",
-      "edgeLength": "569.90771876",
+      "edgeLength": "569.949798722",
       "extent": "-12, -12, -2, 12, 12, 26",
       "surfaces": "HelicalSweepSurface:2 PlaneSurface:2 SphericalSurface:1"
     },
@@ -93,7 +93,7 @@
       "openEdges": "0",
       "volume": "7208.24246815",
       "area": "2789.11575336",
-      "edgeLength": "569.90771963",
+      "edgeLength": "569.949798718",
       "extent": "-12, -12, -2, 12, 12, 26",
       "surfaces": "HelicalSweepSurface:2 PlaneSurface:2 SphericalSurface:1"
     }

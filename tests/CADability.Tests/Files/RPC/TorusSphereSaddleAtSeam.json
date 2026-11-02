@@ -60,7 +60,7 @@
       "openEdges": "0",
       "volume": "7503.93678572",
       "area": "2801.08168275",
-      "edgeLength": "107.103139277",
+      "edgeLength": "107.181114617",
       "extent": "12, -14, -14, 40, 14, 14",
       "surfaces": "SphericalSurface:1 ToroidalSurface:1"
     },
@@ -77,7 +77,7 @@
       "openEdges": "0",
       "volume": "21276.082235",
       "area": "5978.47390895",
-      "edgeLength": "107.103139277",
+      "edgeLength": "107.181114617",
       "extent": "-28, -28, -8, 24.3076923077, 28, 8",
       "surfaces": "SphericalSurface:2 ToroidalSurface:1"
     },
@@ -94,8 +94,8 @@
       "openEdges": "0",
       "volume": "3990.10463703",
       "area": "1322.65524873",
-      "edgeLength": "107.103139277",
-      "extent": "12, -13.8973412808, -7.98660078143, 28, 13.8973412808, 7.97197862429",
+      "edgeLength": "107.181114617",
+      "extent": "12, -13.8973412808, -7.98659987246, 28, 13.8973412808, 7.97198300338",
       "surfaces": "SphericalSurface:2 ToroidalSurface:1"
     },
     "torusSphereUnion": {
@@ -111,7 +111,7 @@
       "openEdges": "0",
       "volume": "32770.1211031",
       "area": "7456.9003313",
-      "edgeLength": "107.103139274",
+      "edgeLength": "107.181114617",
       "extent": "-28, -28, -14, 40, 28, 14",
       "surfaces": "SphericalSurface:1 ToroidalSurface:1"
     }

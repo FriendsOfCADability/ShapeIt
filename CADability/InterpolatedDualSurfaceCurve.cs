@@ -1349,8 +1349,18 @@ namespace CADability
         public override double Length
         {
             get
-            {   // nur eine grobe Annäherung hier, die nie 0 sein sollte.
-                // man müsste irgendwie extrapolieren
+            {   // The approximating spline is what PointAt and DirectionAt return, and its length is the integrated
+                // arc length. The chord sum of the base points is up to a few 1e-3 too short.
+                try
+                {
+                    double l = (ApproxBSpline as ICurve).Length;
+                    if (l > 0.0 && !double.IsNaN(l) && !double.IsInfinity(l)) return l;
+                }
+                catch (Exception e)
+                {
+                    if (e is System.Threading.ThreadAbortException) throw;
+                }
+                // fallback: the chord sum, a rough estimate which should never be 0
                 double d = 0.0;
                 for (int i = 0; i < basePoints.Length - 1; ++i)
                 {

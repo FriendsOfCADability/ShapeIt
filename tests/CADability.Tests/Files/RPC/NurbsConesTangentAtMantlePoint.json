@@ -47,7 +47,7 @@
       "openEdges": "0",
       "volume": "6754.2537887",
       "area": "2311.08880288",
-      "edgeLength": "223.287380523",
+      "edgeLength": "223.306941093",
       "extent": "-19, -18.3966708945, 1.42108547152E-14, 8.75, 18.3966708945, 18",
       "surfaces": "PlaneSurface:3 RuledSurface:2"
     },
@@ -64,7 +64,7 @@
       "openEdges": "0",
       "volume": "333.264942259",
       "area": "970.662043069",
-      "edgeLength": "225.419820173",
+      "edgeLength": "225.445431509",
       "extent": "-4.75, -19, -3.84193628022E-07, 19, 19, 9.50000055116",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
     },
@@ -101,7 +101,7 @@
       "openEdges": "0",
       "volume": "6754.25380478",
       "area": "2311.08882367",
-      "edgeLength": "223.287380523",
+      "edgeLength": "223.306944228",
       "extent": "-13.3, -18.3966708945, -15, 17.75, 18.3966708945, 2.55303160056E-09",
       "surfaces": "PlaneSurface:3 RuledSurface:2"
     },
@@ -118,7 +118,7 @@
       "openEdges": "0",
       "volume": "333.265041926",
       "area": "970.662064379",
-      "edgeLength": "225.419820198",
+      "edgeLength": "225.445428399",
       "extent": "-4.75, -19, -6.20392626161E-13, 14.2500002812, 19, 19",
       "surfaces": "PlaneSurface:2 RuledSurface:4"
     },
@@ -135,7 +135,7 @@
       "openEdges": "0",
       "volume": "5183.54227439",
       "area": "2017.29944635",
-      "edgeLength": "265.466604149",
+      "edgeLength": "265.511776054",
       "extent": "-4.75, -18.3966708945, -3.84193628022E-07, 18.5, 18.3966708945, 18",
       "surfaces": "PlaneSurface:4 RuledSurface:4"
     },
@@ -152,7 +152,7 @@
       "openEdges": "0",
       "volume": "19358.5803182",
       "area": "4546.20226306",
-      "edgeLength": "631.947794773",
+      "edgeLength": "631.992966685",
       "extent": "-19, -19, -15, 19, 19, 19",
       "surfaces": "PlaneSurface:6 RuledSurface:8"
     }

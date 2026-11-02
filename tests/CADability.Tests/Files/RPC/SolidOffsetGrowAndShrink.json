@@ -116,7 +116,7 @@
       "openEdges": "0",
       "volume": "49285.0562996",
       "area": "11673.7041942",
-      "edgeLength": "448.703522078",
+      "edgeLength": "449.086882033",
       "extent": "-20, -20, 0, 20, 20, 60",
       "surfaces": "CylindricalSurface:2 PlaneSurface:2"
     },
@@ -137,8 +137,8 @@
       "openEdges": "0",
       "volume": "7144.70933526",
       "area": "2822.50051787",
-      "edgeLength": "207.986906373",
-      "extent": "-16, -16, 4, 16, 16, 19.6325999013",
+      "edgeLength": "208.206945496",
+      "extent": "-16, -16, 4, 16, 16, 19.6325909775",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "piercedShrunk#1": {
@@ -154,8 +154,8 @@
       "openEdges": "0",
       "volume": "7144.70933526",
       "area": "2822.50051787",
-      "edgeLength": "207.986906373",
-      "extent": "-16, -16, 40.3674000987, 16, 16, 56",
+      "edgeLength": "208.206945496",
+      "extent": "-16, -16, 40.3674090225, 16, 16, 56",
       "surfaces": "CylindricalSurface:2 PlaneSurface:1"
     },
     "stairs": {

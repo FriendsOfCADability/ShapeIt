@@ -26,8 +26,8 @@
       "openEdges": "0",
       "volume": "6810.02422253",
       "area": "1901.70103104",
-      "edgeLength": "160.526090453",
-      "extent": "-10, -9.95147864784, -11.9595952639, 10, 9.95147864784, 11.9595952639",
+      "edgeLength": "160.807259658",
+      "extent": "-10, -9.95148186964, -11.9595981558, 10, 9.95148186964, 11.9595981558",
       "surfaces": "SurfaceOfLinearExtrusion:4"
     },
     "crossUnion": {
@@ -42,7 +42,7 @@
       "openEdges": "0",
       "volume": "29255.4594116",
       "area": "6165.90889955",
-      "edgeLength": "573.920247304",
+      "edgeLength": "574.201416528",
       "extent": "-12, -20, -20, 12, 25, 30",
       "surfaces": "PlaneSurface:4 SurfaceOfLinearExtrusion:6"
     },
@@ -58,7 +58,7 @@
       "openEdges": "0",
       "volume": "13547.4961456",
       "area": "4786.33795536",
-      "edgeLength": "401.322537825",
+      "edgeLength": "401.60370703",
       "extent": "-12, -20, -12, 12, 25, 12",
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:4"
     },
@@ -78,7 +78,7 @@
       "openEdges": "0",
       "volume": "6019.76587256",
       "area": "1954.79523394",
-      "edgeLength": "176.561899976",
+      "edgeLength": "176.702484578",
       "extent": "-10, -10, 6.63324958071, 10, 10, 30",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },
@@ -95,7 +95,7 @@
       "openEdges": "0",
       "volume": "2878.17320032",
       "area": "1326.47670305",
-      "edgeLength": "156.561899976",
+      "edgeLength": "156.702484578",
       "extent": "-10, -10, -20, 10, 10, -6.63324958071",
       "surfaces": "PlaneSurface:1 SurfaceOfLinearExtrusion:3"
     },

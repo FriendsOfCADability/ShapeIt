@@ -686,6 +686,7 @@ namespace CADability
             List<ICurve> knownIntersectionCurves = null;
             List<bool?> knownIntersectionCurveDirections = null;
             List<Vertex> usedVerticedByKnownIntersections = [];
+            HashSet<(Vertex, Vertex)> knownCreatedPairs = null;
             List<Vertex> surfaceContactVertices = [];
             if (!sameEdges.Any())
             {   // faces with common edges should not have contacts. Surfaces.TangentialContacts doesn't work with such faces
@@ -889,7 +890,18 @@ namespace CADability
                                     var b = list[i + 1];
                                     ICurve part = edge.Curve3D.Clone();
                                     part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(b.Position));
-                                    if (fca.Contains(part.PointAt(0.5), true)) curveParts.Add(part);
+                                    GeoPoint pm = part.PointAt(0.5);
+                                    if (fca.Contains(pm, true))
+                                    {
+                                        // the part lies on the outline of fca: the faces touch along an edge. Common edges are
+                                        // handled separately, the generic intersection excludes them too
+                                        if (fca.DistanceToEdges(pm) < 10 * precision) continue;
+                                        // the surfaces touch tangentially along this curve, it is no intersection
+                                        GeoVector na = fca.Surface.GetNormal(fca.Surface.PositionOf(pm)).Normalized;
+                                        GeoVector nb = fcb.Surface.GetNormal(fcb.Surface.PositionOf(pm)).Normalized;
+                                        if ((na ^ nb).Length < 1e-6) continue;
+                                        curveParts.Add(part);
+                                    }
                                 }
                                 if (curveParts.Count > 0 && vtxs.Count() > 1)
                                 {
@@ -958,27 +970,42 @@ namespace CADability
             }
             if (intersectionVertices.Count > 1)
             {
-                //if (knownIntersectionCurves != null)
-                //{
-                //    foreach (Vertex v in intersectionVertices.Except(usedVerticedByKnownIntersections))
-                //    {   // additional intersections may lie on the known intersection curves. E.g.when the curve extends beyond the boundary of the face.
-                //        for (int i = 0; i < knownIntersectionCurves.Count; i++)
-                //        {
-                //            double pos = knownIntersectionCurves[i].PositionOf(v.Position);
-                //            if (pos > Precision.eps && pos < 1 - Precision.eps)
-                //            {
-                //                if (knownIntersectionCurves[i].DistanceTo(v.Position) < Precision.eps)
-                //                {
-                //                    usedVerticedByKnownIntersections.Add(v);
-                //                    break;
-                //                }
-                //            }
-                //        }
-                //    }
-                //    CreateIntersectionEdges(fc1, fc2, usedVerticedByKnownIntersections.ToHashSet(), knownIntersectionCurves, knownIntersectionCurveDirections);
-                //    intersectionVertices.ExceptWith(usedVerticedByKnownIntersections);
-                //    intersectionVertices.UnionWith(surfaceContactVertices);
-                //}
+                if (knownIntersectionCurves != null)
+                {   // exact intersection curves, which are (parts of) edges of one face lying in the surface of the other face
+                    foreach (Vertex v in intersectionVertices.Except(usedVerticedByKnownIntersections))
+                    {   // additional intersections may lie on the known intersection curves. E.g.when the curve extends beyond the boundary of the face.
+                        for (int i = 0; i < knownIntersectionCurves.Count; i++)
+                        {
+                            double pos = knownIntersectionCurves[i].PositionOf(v.Position);
+                            if (pos > Precision.eps && pos < 1 - Precision.eps)
+                            {
+                                if (knownIntersectionCurves[i].DistanceTo(v.Position) < Precision.eps)
+                                {
+                                    usedVerticedByKnownIntersections.Add(v);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    // the same curve is found from both sides, when an edge of fc1 and an edge of fc2 coincide
+                    List<ICurve> distinctCurves = [];
+                    List<bool?> distinctDirections = [];
+                    for (int i = 0; i < knownIntersectionCurves.Count; i++)
+                    {
+                        int found = distinctCurves.FindIndex(c => c.SameGeometry(knownIntersectionCurves[i], precision));
+                        if (found < 0)
+                        {
+                            distinctCurves.Add(knownIntersectionCurves[i]);
+                            distinctDirections.Add(knownIntersectionCurveDirections[i]);
+                        }
+                        else if (!distinctDirections[found].HasValue) distinctDirections[found] = knownIntersectionCurveDirections[i];
+                    }
+                    knownCreatedPairs = [];
+                    CreateIntersectionEdges(fc1, fc2, usedVerticedByKnownIntersections.ToHashSet(), distinctCurves, distinctDirections, null, knownCreatedPairs);
+                    // The vertices of the known curves are kept: a vertex may also be the end of a further intersection
+                    // curve, which is not known. Removing it would lose that curve. The generic calculation below skips
+                    // the segments which have already been created from the known curves.
+                }
                 if (intersectionVertices.Count > 1)
                 {
                     if (multipleFaces != null)
@@ -1007,7 +1034,7 @@ namespace CADability
                         }
                     }
                     if (usedByCommonEdges.Count < intersectionVertices.Count)
-                        CreateIntersectionEdges(fc1, fc2, intersectionVertices, null, null);
+                        CreateIntersectionEdges(fc1, fc2, intersectionVertices, null, null, knownCreatedPairs);
                 }
             }
         }
@@ -1040,7 +1067,10 @@ namespace CADability
             return sameEdges;
         }
 
-        private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices, IList<ICurve> alreadyCalculated = null, IList<bool?> orientation = null)
+        /// <param name="skipPairs">segments between these vertices have already been created and are skipped</param>
+        /// <param name="createdPairs">if not null, receives the vertex pairs of the created edges</param>
+        private void CreateIntersectionEdges(Face fc1, Face fc2, HashSet<Vertex> intersectionVertices, IList<ICurve> alreadyCalculated = null, IList<bool?> orientation = null,
+            HashSet<(Vertex, Vertex)> skipPairs = null, HashSet<(Vertex, Vertex)> createdPairs = null)
         {
 #if DEBUG
             // here you can see the two faces and the intersection vertices for this calculation
@@ -1251,6 +1281,8 @@ namespace CADability
                         double u1 = params3d[i, j1];
                         int j2 = ivIndices[j + 1];
                         double u2 = params3d[i, j2];
+                        if (skipPairs != null && (skipPairs.Contains((usedVertices[j1], usedVertices[j2])) || skipPairs.Contains((usedVertices[j2], usedVertices[j1]))))
+                            continue; // this segment has already been created from a known intersection curve
                         // before trimming we test whether we need this curve at all
                         // if both endpoints of the curve are on the border of the face, the curve may be totally outside
                         bool isOnFace1Border = false, isOnFace2Border = false; // one of the vertices is on the border of this face
@@ -1399,6 +1431,7 @@ namespace CADability
                         }
                         edge.Vertex1 = usedVertices[j1];    // damit wird diese Kante mit den beiden Schnittvertices verbunden
                         edge.Vertex2 = usedVertices[j2];
+                        createdPairs?.Add((edge.Vertex1, edge.Vertex2));
                         {
                             bool addToFace1 = true, addToFace2 = true;
                             Edge[] splitted = null;

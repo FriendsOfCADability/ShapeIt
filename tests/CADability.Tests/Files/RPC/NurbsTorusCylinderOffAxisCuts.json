@@ -58,9 +58,9 @@
       "euler": "0",
       "closed": "true",
       "openEdges": "0",
-      "volume": "8892.57770171",
-      "area": "3507.45964059",
-      "edgeLength": "386.672624568",
+      "volume": "8892.5777117",
+      "area": "3507.45963638",
+      "edgeLength": "386.892820846",
       "extent": "20, -10, -20, 40, 10, 20",
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2 SweptCurveSurface:4"
     },
@@ -75,9 +75,9 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "34225.4906863",
-      "area": "9108.95324112",
-      "edgeLength": "510.69563204",
+      "volume": "34225.4906862",
+      "area": "9108.9532411",
+      "edgeLength": "510.915828318",
       "extent": "-38, -37.8545208875, -8, 37.4, 37.8545208875, 8",
       "surfaces": "SurfaceOfLinearExtrusion:2 SweptCurveSurface:4"
     },
@@ -92,10 +92,10 @@
       "euler": "2",
       "closed": "true",
       "openEdges": "0",
-      "volume": "3673.79294357",
-      "area": "1266.92662467",
-      "edgeLength": "181.008918424",
-      "extent": "21.4, -9.99097655481, -8, 38, 9.99097655481, 8",
+      "volume": "3673.79293402",
+      "area": "1266.92662048",
+      "edgeLength": "181.229114702",
+      "extent": "21.4, -9.99097803634, -8, 38, 9.99097803634, 8",
       "surfaces": "SurfaceOfLinearExtrusion:2 SweptCurveSurface:4"
     },
     "torusRodUnion": {
@@ -109,9 +109,9 @@
       "euler": "0",
       "closed": "true",
       "openEdges": "0",
-      "volume": "46791.8620492",
+      "volume": "46791.862049",
       "area": "11349.4867441",
-      "edgeLength": "716.359338135",
+      "edgeLength": "716.579534462",
       "extent": "-38, -37.8545208875, -20, 40, 37.8545208875, 20",
       "surfaces": "PlaneSurface:2 SurfaceOfLinearExtrusion:2 SweptCurveSurface:4"
     }
