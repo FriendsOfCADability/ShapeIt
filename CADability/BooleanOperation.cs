@@ -4920,7 +4920,7 @@ namespace CADability
             if (res.Count == 0 && discardedFaces.Count > 0)
             {   // there were no intersections, only identical opposite faces, like when glueing two parts together
                 // this remains empty in case of intersection and returns the full body in case of union
-                if (this.operation == Operation.union || this.operation == Operation.difference)
+                if (this.operation == Operation.union)
                 {
                     HashSet<Face> remainingFaces = new HashSet<Face>();
                     remainingFaces.UnionWith(shell1.Faces);
@@ -4934,6 +4934,10 @@ namespace CADability
                         // volume at all and must not become part of the result
                         if (Math.Abs(connectedShell.Volume(triangulationPrecision)) > triangulationPrecision) res.Add(connectedShell);
                     }
+                }
+                else if (this.operation == Operation.difference)
+                {   // this is the case, when shell1 and shell2 are touching with two identical faces
+                    res.Add(shell1Cloned); // shell1 has been destroyed
                 }
             }
 
