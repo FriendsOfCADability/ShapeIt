@@ -780,9 +780,12 @@ namespace CADability
                                 {
                                     if (!vtxs.Contains(vtx) && edge.Curve3D.DistanceTo(vtx.Position) < 10 * Precision.eps) vtxs.Add(vtx);
                                 }
-                                // when a curve is in the surface of a face, it might also be clipped by this face. We need those intersections as well
-                                ICurve2D edgeProjected = fca.GetProjectedCurve(edge.Curve3D, true);
-                                double[] clipped = fca.Area.Clip(edgeProjected, true);
+                                // when a curve is in the surface of a face, it might also be clipped by this face. We need those intersections as well.
+                                // But when the curve overlaps an edge of the face, clipping in 2d yields arbitrary points along the overlapping part:
+                                // then only the vertices of the face on the curve are needed, which are added below
+                                bool overlapsOutline = OverlapsOutline(fca, edge);
+                                ICurve2D edgeProjected = overlapsOutline ? null : fca.GetProjectedCurve(edge.Curve3D, true);
+                                double[] clipped = overlapsOutline ? [] : fca.Area.Clip(edgeProjected, true);
                                 for (int i = 0; i < clipped.Length; i++)
                                 {
                                     if (clipped[i] > -Precision.eps && clipped[i] < 1 + Precision.eps)
@@ -1760,6 +1763,35 @@ namespace CADability
             return false;
         }
 
+        /// <summary>
+        /// Whether the curve of <paramref name="edge"/> has a common piece with the curve of an edge of <paramref name="face"/>.
+        /// ICurve.SameGeometry only finds identical curves, not overlapping ones. The ends of a common piece are ends of one of
+        /// the two curves, so two of the four ends lie on both curves, and so does the point between them.
+        /// </summary>
+        private bool OverlapsOutline(Face face, Edge edge)
+        {
+            ICurve curve = edge.Curve3D;
+            if (curve == null) return false;
+            double tolerance = 10 * precision;
+            foreach (Edge faceEdge in face.Edges)
+            {
+                ICurve other = faceEdge.Curve3D;
+                if (other == null) continue;
+                List<GeoPoint> common = [];
+                foreach (GeoPoint p in new[] { other.StartPoint, other.EndPoint }) if (curve.DistanceTo(p) < tolerance) common.Add(p);
+                foreach (GeoPoint p in new[] { curve.StartPoint, curve.EndPoint }) if (other.DistanceTo(p) < tolerance) common.Add(p);
+                for (int i = 0; i < common.Count; i++)
+                {
+                    for (int j = i + 1; j < common.Count; j++)
+                    {
+                        if ((common[i] | common[j]) < tolerance) continue;
+                        GeoPoint between = curve.PointAt((curve.PositionOf(common[i]) + curve.PositionOf(common[j])) / 2.0);
+                        if (other.DistanceTo(between) < tolerance) return true;
+                    }
+                }
+            }
+            return false;
+        }
         private IEnumerable<Vertex> GetFaceEdgeIntersection(Face face, Edge edge, out bool curveIsInSurface)
         {
             if (FaceEdgeIntersections.TryGetValue((edge, face), out var found))
@@ -1804,6 +1836,18 @@ namespace CADability
                                     res.Add(v);
                                 }
                             }
+                        }
+                    }
+                }
+                else if (OverlapsOutline(face, edge))
+                {   // the curve overlaps an edge of the face: clipping in 2d yields arbitrary points along the overlapping part.
+                    // The curve is clipped by the vertices of the face on it
+                    foreach (Vertex v in face.Vertices)
+                    {
+                        if (edge.Curve3D.DistanceTo(v.Position) < 10 * precision)
+                        {
+                            AddEdgeSplitVertex(edge, v);
+                            res.Add(v);
                         }
                     }
                 }
