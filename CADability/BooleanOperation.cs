@@ -4920,8 +4920,8 @@ namespace CADability
             if (res.Count == 0 && discardedFaces.Count > 0)
             {   // there were no intersections, only identical opposite faces, like when glueing two parts together
                 // this remains empty in case of intersection and returns the full body in case of union
-                if (this.operation == Operation.union)
-                {
+                if (this.operation == Operation.union || this.operation == Operation.difference)
+                {   // for a difference this is the case, when shell2 lies inside shell1 and shares a face with it, like a pocket
                     HashSet<Face> remainingFaces = new HashSet<Face>();
                     remainingFaces.UnionWith(shell1.Faces);
                     remainingFaces.UnionWith(shell2.Faces);
@@ -4935,9 +4935,13 @@ namespace CADability
                         if (Math.Abs(connectedShell.Volume(triangulationPrecision)) > triangulationPrecision) res.Add(connectedShell);
                     }
                 }
-                else if (this.operation == Operation.difference)
-                {   // this is the case, when shell1 and shell2 are touching with two identical faces
-                    res.Add(shell1Cloned); // shell1 has been destroyed
+                if (res.Count == 0 && this.operation == Operation.difference)
+                {   // this is the case, when shell1 and shell2 are touching with two identical faces. But it is also the case, when shell1
+                    // is identical to shell2 (all faces of shell1 are discarded) or lies inside shell2 touching it, then the result is empty.
+                    // shell1 remains unchanged only, if its other faces are outside of shell2: shell2 has been reversed, so the material
+                    // behind them is inside the reversed shell2. shell2 itself has been destroyed by the intersection, test against its clone.
+                    List<Face> remaining = shell1.Faces.Where(fc => !discardedFaces.Contains(fc)).ToList();
+                    if (remaining.Count > 0 && shell2Cloned != null && IsInsideShell(remaining, shell2Cloned)) res.Add(shell1Cloned); // shell1 has been destroyed
                 }
             }
 
