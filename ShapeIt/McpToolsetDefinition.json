@@ -2924,6 +2924,16 @@
 						"default": true,
 						"description": "If true, connected section edges are combined into closed sketch profiles where possible."
 					},
+					"contours": {
+						"type": "string",
+						"enum": [
+							"all",
+							"outer",
+							"holes"
+						],
+						"default": "all",
+						"description": "Which part of the section to add: 'all' the section regions with their holes, 'outer' the regions bounded by the outer contours only (holes filled), 'holes' the holes of the section as filled regions (e.g. the inside of an open box cut below its rim)."
+					},
 					"name": {
 						"type": "string",
 						"description": "Optional name for the resulting profile set."

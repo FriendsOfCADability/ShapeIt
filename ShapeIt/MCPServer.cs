@@ -3587,7 +3587,7 @@ namespace ShapeIt
             if (name != null) namedItems[name] = curve;
         }
 
-        private void SketchAddSolidSectionImpl(Sketch sketch, JsonElement solid, bool merge, string name)
+        private void SketchAddSolidSectionImpl(Sketch sketch, JsonElement solid, bool merge, string? contours, string name)
         {
             List<Solid> solids = IterateSelector<Solid>(solid).ToList(); // should only be one
             List<ICurve> curves = [];
@@ -3597,6 +3597,32 @@ namespace ShapeIt
             }
             List<ICurve2D> curves2d = curves.Select(c => c.GetProjectedCurve(sketch.Plane)).ToList();
             CompoundShape cs = CompoundShape.CreateFromList(curves2d.ToArray(), Precision.eps, true, out _);
+            if (cs == null) throw new JsonRpcException("E_OPERATION_FAILED", "The plane of the sketch does not cut the solid in closed contours.");
+            switch (contours ?? "all")
+            {
+                case "all":
+                    break;
+                case "outer":
+                    {   // the outer contours only: every region with its holes filled
+                        CompoundShape outer = new CompoundShape();
+                        foreach (SimpleShape ss in cs.SimpleShapes) outer = outer + new CompoundShape(new SimpleShape(ss.Outline));
+                        cs = outer;
+                    }
+                    break;
+                case "holes":
+                    {   // the holes of the regions as filled regions of their own
+                        CompoundShape holes = new CompoundShape();
+                        foreach (SimpleShape ss in cs.SimpleShapes)
+                        {
+                            foreach (Border hole in ss.Holes) holes = holes + new CompoundShape(new SimpleShape(hole));
+                        }
+                        if (holes.Empty) throw new JsonRpcException("E_OPERATION_FAILED", "The section has no holes.");
+                        cs = holes;
+                    }
+                    break;
+                default:
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"Unknown value '{contours}' for contours. Valid values are: all, outer, holes.");
+            }
             sketch.Add(cs);
             if (name != null) namedItems[name] = cs;
         }
@@ -4070,7 +4096,8 @@ namespace ShapeIt
         private void SketchOffsetImpl(Sketch sketch, JsonElement sketchGeometry, double distance, string joinType, double miterLimit, bool makeRegion, string capType, string name)
         {
             object? pathOrShape = null;
-            if (sketchGeometry.ValueKind == JsonValueKind.Object)
+            // a name (NameRef in the schema), a list of names or a {"name": ...} object
+            if (sketchGeometry.ValueKind == JsonValueKind.Object || sketchGeometry.ValueKind == JsonValueKind.String || sketchGeometry.ValueKind == JsonValueKind.Array)
             {
                 List<CompoundShape> inputshapes = IterateSelector<CompoundShape>(sketchGeometry).ToList();
                 List<ICurve2D> inputcurves = IterateSelector<ICurve2D>(sketchGeometry).ToList();
@@ -4107,8 +4134,9 @@ namespace ShapeIt
             }
             else if (pathOrShape is CompoundShape cs)
             {
+                // Shrink takes a positive distance (a negative one expands), so negate it for inward offsets
                 if (distance > 0) result = cs.Expand(distance);
-                else result = cs.Shrink(distance);
+                else result = cs.Shrink(-distance);
             }
             if (result == null) throw new JsonRpcException("E_OPERATION_FAILED", "Failed to calculate offset.");
             if (name != null) namedItems[name] = result;

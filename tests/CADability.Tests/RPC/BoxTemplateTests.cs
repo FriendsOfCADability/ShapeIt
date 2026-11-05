@@ -183,6 +183,120 @@ namespace CADability.Tests
             StringAssert.Contains(error, "The hole depth (38) must be smaller than the height of the bosses (38)");
         }
 
+        private sealed record Lid(Box Box, string lidType, double d = 2, double gap = 0.2, double overhang = 2, double skirtDepth = 5, double rimHeight = 3, double rimWidth = 1.5)
+        {
+            public string Arguments => FormattableString.Invariant(
+                $"{{\"body\":\"box\",\"lidType\":\"{lidType}\",\"d\":{d},\"gap\":{gap},\"overhang\":{overhang},\"skirtDepth\":{skirtDepth},\"rimHeight\":{rimHeight},\"rimWidth\":{rimWidth}}}");
+        }
+
+        /// <summary>Area of a rectangle with rounded corners.</summary>
+        private static double RoundedRect(double l, double b, double r) => l * b - (4 - Math.PI) * r * r;
+
+        /// <summary>
+        /// A lid on a box made with the "rechteckbox" template. Every region of the lid is a rounded rectangle: the
+        /// outline or the opening of the box offset by the overhang, the gap or the rim thickness, the corner radius
+        /// growing or shrinking with the offset (at least 0).
+        /// </summary>
+        private static void AssertLid(Lid lid)
+        {
+            Box box = lid.Box;
+            MCPServer server = ServerWithTemplates();
+            string response = Call(server, "template.instantiate", $"{{\"template\":\"rechteckbox\",\"arguments\":{box.Arguments},\"name\":\"box\"}}");
+            Assert.IsNull(Error(response), response);
+            response = Call(server, "template.instantiate", $"{{\"template\":\"deckel\",\"arguments\":{lid.Arguments},\"name\":\"lid\"}}");
+            Assert.IsNull(Error(response), response);
+            object result = server.namedItems["lid"];
+            Solid solid = result as Solid ?? ((List<Solid>)result)[0];
+
+            bool skirt = lid.lidType == "skirt" || lid.lidType == "both", rim = lid.lidType == "inner" || lid.lidType == "both";
+            double o = lid.overhang, g = lid.gap, w = lid.rimWidth;
+            double li = box.L - 2 * box.t, bi = box.B - 2 * box.t, ri = Math.Max(box.R - box.t, 0);
+            // an outward offset keeps sharp corners sharp (mitered), a rounded corner grows with the offset
+            double Grown(double e) => box.R > 0 ? box.R + e : 0;
+            double expected = lid.d * (skirt ? RoundedRect(box.L + 2 * o, box.B + 2 * o, Grown(o)) : RoundedRect(box.L, box.B, box.R));
+            if (skirt) expected += lid.skirtDepth * (RoundedRect(box.L + 2 * o, box.B + 2 * o, Grown(o)) - RoundedRect(box.L + 2 * g, box.B + 2 * g, Grown(g)));
+            if (rim)
+            {
+                double outside = RoundedRect(li - 2 * g, bi - 2 * g, Math.Max(ri - g, 0));
+                double inside = w > 0 ? RoundedRect(li - 2 * g - 2 * w, bi - 2 * g - 2 * w, Math.Max(ri - g - w, 0)) : 0;
+                expected += lid.rimHeight * (outside - inside);
+            }
+            Assert.AreEqual(expected, solid.Volume(1e-4), 1e-6 * expected, $"volume of {lid}");
+
+            BoundingBox ext = solid.GetExtent(0.0);
+            double reach = Math.Max(skirt ? lid.skirtDepth : 0, rim ? lid.rimHeight : 0);
+            Assert.AreEqual(box.H + lid.d, ext.Zmax, 1e-6, "the plate lies on the rim");
+            Assert.AreEqual(box.H - reach, ext.Zmin, 1e-6, "skirt or inner rim reach down");
+            Assert.AreEqual(box.L / 2 + (skirt ? o : 0), ext.Xmax, 1e-6, "overhang");
+            Assert.AreEqual(box.B / 2 + (skirt ? o : 0), ext.Ymax, 1e-6, "overhang");
+
+            Shell shell = solid.Shells[0];
+            Assert.IsTrue(shell.IsInside(new GeoPoint(0, 0, box.H + lid.d / 2)), "plate");
+            if (skirt)
+            {
+                double z = box.H - lid.skirtDepth / 2;
+                Assert.IsTrue(shell.IsInside(new GeoPoint(box.L / 2 + (g + o) / 2, 0, z)), "skirt");
+                if (g > 0) Assert.IsFalse(shell.IsInside(new GeoPoint(box.L / 2 + g / 2, 0, z)), "gap between skirt and wall");
+            }
+            if (rim)
+            {
+                double z = box.H - lid.rimHeight / 2;
+                if (w > 0)
+                {
+                    Assert.IsTrue(shell.IsInside(new GeoPoint(li / 2 - g - w / 2, 0, z)), "inner rim");
+                    Assert.IsFalse(shell.IsInside(new GeoPoint(0, 0, z)), "inside the inner rim");
+                }
+                else Assert.IsTrue(shell.IsInside(new GeoPoint(0, 0, z)), "thickened inside");
+                if (g > 0) Assert.IsFalse(shell.IsInside(new GeoPoint(li / 2 - g / 2, 0, z)), "gap between inner rim and wall");
+            }
+        }
+
+        [TestMethod]
+        public void PlainLid()
+        {
+            AssertLid(new Lid(new Box(100, 60, 40, 2, 5), "plain"));
+        }
+
+        [TestMethod]
+        public void LidWithSkirt()
+        {
+            AssertLid(new Lid(new Box(100, 60, 40, 2, 5), "skirt"));
+        }
+
+        [TestMethod]
+        public void LidWithInnerRim()
+        {
+            AssertLid(new Lid(new Box(100, 60, 40, 2, 5), "inner"));
+        }
+
+        [TestMethod]
+        public void LidWithSkirtAndFilledInnerRimOnSharpBox()
+        {
+            AssertLid(new Lid(new Box(80, 50, 30, 3, 0), "both", d: 3, gap: 0.3, overhang: 2.5, skirtDepth: 4, rimHeight: 2, rimWidth: 0));
+        }
+
+        [TestMethod]
+        public void LidWithInnerRimWithoutGap()
+        {
+            AssertLid(new Lid(new Box(70, 40, 25, 2, 0), "inner", gap: 0, rimWidth: 1));
+        }
+
+        [TestMethod]
+        public void LidWithSkirtWithoutGap()
+        {
+            AssertLid(new Lid(new Box(70, 40, 25, 2, 6), "skirt", gap: 0, overhang: 1.5, skirtDepth: 3));
+        }
+
+        [TestMethod]
+        public void SkirtThinnerThanTheGapIsRefused()
+        {
+            MCPServer server = ServerWithTemplates();
+            Call(server, "template.instantiate", $"{{\"template\":\"rechteckbox\",\"arguments\":{new Box(100, 60, 40, 2, 5).Arguments},\"name\":\"box\"}}");
+            string? error = Error(Call(server, "template.instantiate", $"{{\"template\":\"deckel\",\"arguments\":{new Lid(new Box(100, 60, 40, 2, 5), "skirt", gap: 1, overhang: 1).Arguments},\"name\":\"l\"}}"));
+            Assert.IsNotNull(error);
+            StringAssert.Contains(error, "The overhang (1) must be larger than the gap (1)");
+        }
+
         [TestMethod]
         public void WallTooThickIsRefused()
         {
@@ -206,7 +320,7 @@ namespace CADability.Tests
             TemplateFile file = TemplateLibrary.ReadFile(TemplateFile(), templates);
             Assert.AreEqual("Boxes", file.Label);
             Assert.IsNotNull(file.Icon, "the icon of the drop-down button is accepted");
-            CollectionAssert.AreEqual(new[] { "rechteckbox" }, (System.Collections.ICollection)file.Names);
+            CollectionAssert.AreEqual(new[] { "rechteckbox", "deckel" }, (System.Collections.ICollection)file.Names);
             foreach (List<JsonElement> items in templates.Values)
             {
                 JsonElement begin = items[0].GetProperty("params");

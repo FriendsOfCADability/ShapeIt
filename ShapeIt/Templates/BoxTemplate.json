@@ -776,6 +776,444 @@
           }
         }
       ]
+    },
+    {
+      "name": "deckel",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "deckel",
+            "label": "Lid",
+            "category": "Boxes",
+            "description": "Lid for a box that is open at the top, e.g. one made with the rectangular box template. The outline is taken from the upper rim of the box: the box is cut just below its highest point and the outer contour of that section is the outline of the lid, the holes of the section are the opening. The lid is a plate of the given thickness lying on the rim. It can have a skirt that overhangs the box and reaches down around the side walls, an inner rim that reaches down into the opening, or both; the gap is the clearance between skirt or inner rim and the walls. The lid is created in its closed position on the box. Screw bosses that end flush with the rim are not taken into account.",
+            "tags": [
+              "lid",
+              "cover",
+              "box",
+              "housing",
+              "Deckel",
+              "Gehäuse",
+              "Stülpdeckel"
+            ],
+            "parameters": [
+              {
+                "name": "body",
+                "value": "box",
+                "label": "Box",
+                "input": {
+                  "kind": "solid",
+                  "order": 1,
+                  "description": "The box that gets the lid, open at the top; its upper rim gives the outline. The box itself is not changed."
+                }
+              },
+              {
+                "name": "d",
+                "value": 2,
+                "label": "Thickness",
+                "input": {
+                  "kind": "length",
+                  "group": "Lid",
+                  "order": 2,
+                  "min": 0.01,
+                  "description": "Thickness of the lid plate."
+                }
+              },
+              {
+                "name": "lidType",
+                "value": "skirt",
+                "label": "Lid type",
+                "input": {
+                  "kind": "enum",
+                  "group": "Lid",
+                  "order": 3,
+                  "options": [
+                    {
+                      "value": "plain",
+                      "label": "plain plate"
+                    },
+                    {
+                      "value": "skirt",
+                      "label": "with skirt around the walls"
+                    },
+                    {
+                      "value": "inner",
+                      "label": "with inner rim"
+                    },
+                    {
+                      "value": "both",
+                      "label": "with skirt and inner rim"
+                    }
+                  ],
+                  "description": "A plain plate flush with the outer walls; a plate that overhangs the box with a skirt reaching down around the side walls; a plate flush with the outer walls with a rim reaching down into the opening; or both."
+                }
+              },
+              {
+                "name": "gap",
+                "value": 0.2,
+                "label": "Gap",
+                "input": {
+                  "kind": "length",
+                  "group": "Lid",
+                  "order": 4,
+                  "min": 0,
+                  "optional": true,
+                  "description": "Clearance between the skirt and the outer walls and between the inner rim and the inner walls."
+                }
+              },
+              {
+                "name": "overhang",
+                "value": 2,
+                "label": "Overhang",
+                "input": {
+                  "kind": "length",
+                  "group": "Skirt",
+                  "order": 5,
+                  "min": 0.01,
+                  "optional": true,
+                  "description": "How far the lid protrudes beyond the outer walls of the box. The skirt is as thick as the overhang minus the gap."
+                }
+              },
+              {
+                "name": "skirtDepth",
+                "value": 5,
+                "label": "Skirt height",
+                "input": {
+                  "kind": "length",
+                  "group": "Skirt",
+                  "order": 6,
+                  "min": 0.01,
+                  "optional": true,
+                  "description": "How far the skirt reaches down from the rim of the box."
+                }
+              },
+              {
+                "name": "rimHeight",
+                "value": 3,
+                "label": "Inner rim height",
+                "input": {
+                  "kind": "length",
+                  "group": "Inner rim",
+                  "order": 7,
+                  "min": 0.01,
+                  "optional": true,
+                  "description": "How far the inner rim reaches down into the opening of the box."
+                }
+              },
+              {
+                "name": "rimWidth",
+                "value": 1.5,
+                "label": "Inner rim thickness",
+                "input": {
+                  "kind": "length",
+                  "group": "Inner rim",
+                  "order": 8,
+                  "min": 0,
+                  "optional": true,
+                  "description": "Wall thickness of the inner rim. 0 fills the whole opening: the lid is thickened inside by the inner rim height."
+                }
+              }
+            ],
+            "checks": [
+              {
+                "condition": "(lidType == \"plain\" || lidType == \"inner\") || overhang > gap",
+                "parameters": [
+                  "overhang",
+                  "gap"
+                ],
+                "message": "The overhang ({overhang}) must be larger than the gap ({gap}): the difference is the thickness of the skirt."
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M10 34H54V58H10Z\" fill=\"#ffffff\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M4 14H60V30H56V20H8V30H4Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M14 20V28H18V20\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"M50 20V28H46V20\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"2\" stroke-linejoin=\"round\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "bb",
+                  "value": "body.GetBoundingCube()"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "top",
+                  "value": "bb.Zmax"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "eps",
+                  "value": "0.0001*bb.DiagonalLength"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "p((bb.Xmin + bb.Xmax)/2, (bb.Ymin + bb.Ymax)/2, top - eps)",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "rim"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "sketch.add_solid_section",
+                "params": {
+                  "sketch": "rim",
+                  "solid": "body",
+                  "contours": "outer",
+                  "name": "outline"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "sketch.add_solid_section",
+                "when": "(lidType == \"inner\" || lidType == \"both\")",
+                "params": {
+                  "sketch": "rim",
+                  "solid": "body",
+                  "contours": "holes",
+                  "name": "opening"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "sketch.offset",
+                "when": "(lidType == \"skirt\" || lidType == \"both\")",
+                "params": {
+                  "sketch": "rim",
+                  "sketchGeometry": "outline",
+                  "distance": "overhang",
+                  "name": "plate"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "workspace.select",
+                "when": "(lidType == \"plain\" || lidType == \"inner\")",
+                "params": {
+                  "selector": "outline",
+                  "name": "plate"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "solid.extrude",
+                "when": "(lidType == \"skirt\" || lidType == \"both\")",
+                "params": {
+                  "profile": "plate",
+                  "length": "skirtDepth + d",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "offset": "eps - skirtDepth",
+                  "name": "lid"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "solid.extrude",
+                "when": "(lidType == \"plain\" || lidType == \"inner\")",
+                "params": {
+                  "profile": "plate",
+                  "length": "d",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "offset": "eps",
+                  "name": "lid"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "sketch.offset",
+                "when": "(lidType == \"skirt\" || lidType == \"both\") && gap > 0",
+                "params": {
+                  "sketch": "rim",
+                  "sketchGeometry": "outline",
+                  "distance": "gap",
+                  "name": "skirtInside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "workspace.select",
+                "when": "(lidType == \"skirt\" || lidType == \"both\") && gap <= 0",
+                "params": {
+                  "selector": "outline",
+                  "name": "skirtInside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "solid.extrude",
+                "when": "(lidType == \"skirt\" || lidType == \"both\")",
+                "params": {
+                  "profile": "skirtInside",
+                  "length": "skirtDepth + d",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "offset": "eps - skirtDepth - d",
+                  "name": "skirtCut"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 16,
+                "method": "solid.boolean",
+                "when": "(lidType == \"skirt\" || lidType == \"both\")",
+                "params": {
+                  "op": "difference",
+                  "a": "lid",
+                  "b": "skirtCut",
+                  "name": "lid"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 17,
+                "method": "sketch.offset",
+                "when": "(lidType == \"inner\" || lidType == \"both\") && gap > 0",
+                "params": {
+                  "sketch": "rim",
+                  "sketchGeometry": "opening",
+                  "distance": "-gap",
+                  "name": "rimOutside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 18,
+                "method": "workspace.select",
+                "when": "(lidType == \"inner\" || lidType == \"both\") && gap <= 0",
+                "params": {
+                  "selector": "opening",
+                  "name": "rimOutside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 19,
+                "method": "solid.extrude",
+                "when": "(lidType == \"inner\" || lidType == \"both\")",
+                "params": {
+                  "profile": "rimOutside",
+                  "length": "rimHeight + d/2",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "offset": "eps - rimHeight",
+                  "name": "rimBlock"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "solid.boolean",
+                "when": "(lidType == \"inner\" || lidType == \"both\")",
+                "params": {
+                  "op": "union",
+                  "a": "lid",
+                  "b": "rimBlock",
+                  "name": "lid"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "sketch.offset",
+                "when": "(lidType == \"inner\" || lidType == \"both\") && rimWidth > 0",
+                "params": {
+                  "sketch": "rim",
+                  "sketchGeometry": "opening",
+                  "distance": "-gap - rimWidth",
+                  "name": "rimInside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "solid.extrude",
+                "when": "(lidType == \"inner\" || lidType == \"both\") && rimWidth > 0",
+                "params": {
+                  "profile": "rimInside",
+                  "length": "rimHeight + d",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "offset": "eps - rimHeight - d",
+                  "name": "rimCut"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 23,
+                "method": "solid.boolean",
+                "when": "(lidType == \"inner\" || lidType == \"both\") && rimWidth > 0",
+                "params": {
+                  "op": "difference",
+                  "a": "lid",
+                  "b": "rimCut",
+                  "name": "lid"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 3,
+          "params": {
+            "result": "lid"
+          }
+        }
+      ]
     }
   ],
   "translations": {
@@ -855,6 +1293,61 @@
             "Der Bohrungsdurchmesser ({dHole}) muss kleiner sein als {dBoss - t/2} (Domdurchmesser minus halbe Wandstärke), damit die Bohrung nicht in die Wände schneidet.",
             "Die Dome müssen auf dem Boden stehen: Der Abstand unter dem Rand ({bossInset}) muss kleiner sein als die Innenhöhe ({H - t}).",
             "Die Bohrungstiefe ({holeDepth}) muss kleiner sein als die Höhe der Dome ({H - bossInset}), sonst geht die Bohrung durch den Boden."
+          ]
+        },
+        "deckel": {
+          "label": "Deckel",
+          "category": "Gehäuse",
+          "description": "Deckel für eine oben offene Box, z. B. eine mit dem Template Rechteckbox erzeugte. Der Umriss wird vom oberen Rand der Box genommen: Die Box wird knapp unter ihrem höchsten Punkt geschnitten, die Außenkontur dieses Schnitts ist der Umriss des Deckels, die Löcher des Schnitts sind die Öffnung. Der Deckel ist eine Platte der angegebenen Dicke, die auf dem Rand liegt. Er kann eine Schürze haben, die über die Box übersteht und außen um die Seitenwände nach unten greift, einen Innenrand, der in die Öffnung hineinreicht, oder beides; das Spiel ist der Abstand zwischen Schürze bzw. Innenrand und den Wänden. Der Deckel wird geschlossen auf der Box erzeugt. Schraubdome, die bündig mit dem Rand enden, werden nicht berücksichtigt.",
+          "parameters": {
+            "body": {
+              "label": "Box",
+              "description": "Die Box, die den Deckel bekommt, oben offen; ihr oberer Rand gibt den Umriss. Die Box selbst wird nicht verändert."
+            },
+            "d": {
+              "label": "Dicke",
+              "group": "Deckel",
+              "description": "Dicke der Deckelplatte."
+            },
+            "lidType": {
+              "label": "Deckelart",
+              "group": "Deckel",
+              "description": "Eine einfache Platte bündig mit den Außenwänden; eine Platte, die über die Box übersteht, mit einer Schürze außen um die Seitenwände; eine Platte bündig mit den Außenwänden mit einem Innenrand, der in die Öffnung hineinreicht; oder beides.",
+              "options": {
+                "plain": "einfache Platte",
+                "skirt": "mit Schürze um die Wände",
+                "inner": "mit Innenrand",
+                "both": "mit Schürze und Innenrand"
+              }
+            },
+            "gap": {
+              "label": "Spiel",
+              "group": "Deckel",
+              "description": "Abstand zwischen Schürze und Außenwänden sowie zwischen Innenrand und Innenwänden."
+            },
+            "overhang": {
+              "label": "Überstand",
+              "group": "Schürze",
+              "description": "Wie weit der Deckel über die Außenwände der Box übersteht. Die Schürze ist so dick wie der Überstand minus das Spiel."
+            },
+            "skirtDepth": {
+              "label": "Schürzenhöhe",
+              "group": "Schürze",
+              "description": "Wie weit die Schürze vom Rand der Box nach unten reicht."
+            },
+            "rimHeight": {
+              "label": "Höhe des Innenrands",
+              "group": "Innenrand",
+              "description": "Wie weit der Innenrand in die Öffnung der Box hineinreicht."
+            },
+            "rimWidth": {
+              "label": "Dicke des Innenrands",
+              "group": "Innenrand",
+              "description": "Wandstärke des Innenrands. 0 füllt die ganze Öffnung: Der Deckel wird innen um die Höhe des Innenrands verdickt."
+            }
+          },
+          "checks": [
+            "Der Überstand ({overhang}) muss größer sein als das Spiel ({gap}): Die Differenz ist die Dicke der Schürze."
           ]
         }
       }
