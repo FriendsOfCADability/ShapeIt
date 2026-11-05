@@ -2929,10 +2929,11 @@
 						"enum": [
 							"all",
 							"outer",
-							"holes"
+							"holes",
+							"largestHole"
 						],
 						"default": "all",
-						"description": "Which part of the section to add: 'all' the section regions with their holes, 'outer' the regions bounded by the outer contours only (holes filled), 'holes' the holes of the section as filled regions (e.g. the inside of an open box cut below its rim)."
+						"description": "Which part of the section to add: 'all' the section regions with their holes, 'outer' the regions bounded by the outer contours only (holes filled), 'holes' the holes of the section as filled regions (e.g. the inside of an open box cut below its rim), 'largestHole' only the hole with the largest area as a filled region (e.g. the opening of a box whose rim also has screw holes)."
 					},
 					"name": {
 						"type": "string",
@@ -2942,6 +2943,37 @@
 				"required": [
 					"sketch",
 					"solid"
+				],
+				"additionalProperties": false
+			}
+		},
+		{
+			"name": "sketch.add_edges",
+			"description": "Projects edges of solids perpendicularly onto the plane of the sketch and adds them as sketch geometry. With 'connect' (the default) the projected curves are joined into closed profiles that can be extruded, e.g. the edges of a hole of a face (in expressions: f.HoleEdges(i), its outline: f.OutlineEdges, the number of holes: f.HoleCount); curves that do not close a contour are dropped then. Without 'connect' every curve is added as it is. Faces or solids in the selection stand for all their edges. If 'name' is provided, it refers to the resulting profile (connect) or the list of curves.",
+			"inputSchema": {
+				"type": "object",
+				"properties": {
+					"sketch": {
+						"$ref": "#/types/SketchRef",
+						"description": "Target sketch; the edges are projected onto its plane."
+					},
+					"edges": {
+						"$ref": "#/types/Selector",
+						"description": "The edges to add: a workspace name of an edge or a list of edges (e.g. stored with workspace.set from 'f.HoleEdges(h)'), a query on edges, or faces or solids whose edges are used."
+					},
+					"connect": {
+						"type": "boolean",
+						"default": true,
+						"description": "If true, the projected curves are joined into closed profiles (regions, with holes where a contour lies inside another one). Fails when no closed contour results."
+					},
+					"name": {
+						"type": "string",
+						"description": "Optional name for the resulting profile or curves."
+					}
+				},
+				"required": [
+					"sketch",
+					"edges"
 				],
 				"additionalProperties": false
 			}

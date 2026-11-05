@@ -3620,11 +3620,49 @@ namespace ShapeIt
                         cs = holes;
                     }
                     break;
+                case "largestHole":
+                    {   // only the hole with the largest area, e.g. the opening of a box whose rim also has screw holes
+                        Border? largest = null;
+                        foreach (SimpleShape ss in cs.SimpleShapes)
+                        {
+                            foreach (Border hole in ss.Holes) if (largest == null || hole.Area > largest.Area) largest = hole;
+                        }
+                        if (largest == null) throw new JsonRpcException("E_OPERATION_FAILED", "The section has no holes.");
+                        cs = new CompoundShape(new SimpleShape(largest));
+                    }
+                    break;
                 default:
-                    throw new JsonRpcException("E_INVALID_PARAMS", $"Unknown value '{contours}' for contours. Valid values are: all, outer, holes.");
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"Unknown value '{contours}' for contours. Valid values are: all, outer, holes, largestHole.");
             }
             sketch.Add(cs);
             if (name != null) namedItems[name] = cs;
+        }
+
+        private void SketchAddEdgesImpl(Sketch sketch, JsonElement edges, bool connect, string? name)
+        {
+            // faces and solids stand for all their edges
+            List<Edge> selected = ExpandToType<Edge>(IterateSelector<object>(edges).ToList());
+            List<ICurve2D> curves2d = [];
+            HashSet<Edge> seen = new(ReferenceEqualityComparer.Instance);
+            foreach (Edge edge in selected)
+            {
+                if (!seen.Add(edge) || edge.Curve3D == null) continue; // a pole has no curve
+                ICurve2D? c2d = edge.Curve3D.GetProjectedCurve(sketch.Plane);
+                if (c2d != null && c2d.Length > Precision.eps) curves2d.Add(c2d);
+            }
+            if (curves2d.Count == 0) throw new JsonRpcException("E_NOT_FOUND", "No edges to add to the sketch.");
+            if (connect)
+            {
+                CompoundShape? cs = CompoundShape.CreateFromList(curves2d.ToArray(), Precision.eps, true, out _);
+                if (cs == null || cs.Empty) throw new JsonRpcException("E_OPERATION_FAILED", "The projected edges do not form a closed contour.");
+                sketch.Add(cs);
+                if (name != null) namedItems[name] = cs;
+            }
+            else
+            {
+                foreach (ICurve2D c2d in curves2d) sketch.Add(c2d);
+                if (name != null) namedItems[name] = curves2d;
+            }
         }
 
         private void SketchAddTextImpl(Sketch sketch, string text, GeoPoint2D location, double height, JsonElement font, JsonElement horizontalAlign, JsonElement verticalAlign, double characterSpacing, double wordSpacing, string name)
