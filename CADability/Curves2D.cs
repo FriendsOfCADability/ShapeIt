@@ -664,17 +664,37 @@ namespace CADability.Curve2D
             return SimpleMinimumDistance(first, second, out p1, out p2);
         }
 
+        /// <summary>
+        /// Checks whether a <see cref="GeneralCurve2D"/> is in fact a straight line from its start point to its end point.
+        /// Most curves are rejected by the cheap tests at a few points; only a curve which passes them is sampled densely.
+        /// The test points must not be simple fractions like 0.25 or 0.5 only: a sine-like curve (e.g. the intersection of
+        /// two cylinders in the uv system of one of them) crosses its chord exactly at such parameters.
+        /// </summary>
         public static bool IsLinear(ICurve2D curve)
         {
-            if (Geometry.DistPL(curve.PointAt(0.5), curve.StartPoint, curve.EndPoint) > Precision.eps) return false;
-            if (curve is GeneralCurve2D gc)
+            if (!(curve is GeneralCurve2D)) return false;
+            GeoPoint2D sp = curve.StartPoint, ep = curve.EndPoint;
+            double length = sp | ep;
+            if (length < Precision.eps) return false; // closed or degenerate, not a line
+            GeoVector2D dir = (1.0 / length) * (ep - sp);
+            bool onChord(double t)
             {
-                gc.GetTriangulationPoints(out GeoPoint2D[] points, out double[] pars);
-                double err = Geometry.LineFit(points, out GeoPoint2D loc, out GeoVector2D dir);
-                return err < Precision.eps;
+                GeoVector2D v = curve.PointAt(t) - sp;
+                double along = v * dir;
+                if (along < -Precision.eps || along > length + Precision.eps) return false; // goes beyond the chord
+                return Math.Abs(v.x * dir.y - v.y * dir.x) <= Precision.eps;
             }
-            return false;
+            // cheap pre-tests: the middle point and a few points with parameters, which are not simple fractions
+            foreach (double t in preTestParameters)
+                if (!onChord(t)) return false;
+            // the curve passed the pre-tests, it is very probably linear: confirm it with a denser sampling
+            const int n = 16;
+            for (int i = 0; i < n; i++)
+                if (!onChord((i + 0.2763932) / n)) return false;
+            return true;
         }
+        // 0.5 and the golden section points of [0,1] and of its halves: no simple fractions, where a periodic curve would cross its chord
+        private static readonly double[] preTestParameters = { 0.5, 0.381966011, 0.854101966, 0.145898034, 0.618033989 };
         public static bool NearestPoint(GeoPoint2DWithParameter[] points, GeoPoint2D selectionPoint, out GeoPoint2DWithParameter nearestPoint)
         {
             double dist = double.MaxValue; // Entfernung vom selectionPoint für Schnittpunkte
