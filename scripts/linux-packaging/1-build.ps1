@@ -72,7 +72,25 @@ $ZipName = "shapeit-linux-x64-$Version.zip"
 $ZipPath = Join-Path $OutDir $ZipName
 
 Remove-Item $ZipPath -ErrorAction SilentlyContinue
-Compress-Archive -Path "$PublishDir\*" -DestinationPath $ZipPath
+
+# Build the ZIP manually instead of using Compress-Archive: Windows PowerShell 5.1
+# writes entry names with backslashes, which unzip on Linux rejects
+# ("appears to use backslashes as path separators"). Entries need forward slashes.
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+$PublishRoot = (Resolve-Path $PublishDir).Path.TrimEnd('\') + '\'
+$Zip = [System.IO.Compression.ZipFile]::Open($ZipPath, [System.IO.Compression.ZipArchiveMode]::Create)
+try {
+    Get-ChildItem -Path $PublishDir -Recurse -File | ForEach-Object {
+        $EntryName = $_.FullName.Substring($PublishRoot.Length).Replace('\', '/')
+        [void][System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $Zip, $_.FullName, $EntryName, [System.IO.Compression.CompressionLevel]::Optimal)
+    }
+}
+finally {
+    $Zip.Dispose()
+}
 
 $SizeMB = [math]::Round((Get-Item $ZipPath).Length / 1MB, 1)
 
