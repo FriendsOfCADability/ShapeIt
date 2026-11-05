@@ -787,7 +787,7 @@
             "name": "deckel",
             "label": "Lid",
             "category": "Boxes",
-            "description": "Lid for a box that is open at the top, e.g. one made with the rectangular box template. The outline is taken from the upper rim of the box: the box is cut just below its highest point and the outer contour of that section is the outline of the lid, the holes of the section are the opening. The lid is a plate of the given thickness lying on the rim. It can have a skirt that overhangs the box and reaches down around the side walls, an inner rim that reaches down into the opening, or both; the gap is the clearance between skirt or inner rim and the walls. The lid is created in its closed position on the box. Screw bosses that end flush with the rim are not taken into account.",
+            "description": "Lid for a box that is open at the top, e.g. one made with the rectangular box template. The outline is taken from the upper rim of the box: the box is cut just below its highest point and the outer contour of that section is the outline of the lid, the holes of the section are the opening. The lid is a plate of the given thickness lying on the rim. It can have a skirt that overhangs the box and reaches down around the side walls, an inner rim that reaches down into the opening, or both; the gap is the clearance between skirt or inner rim and the walls. An inset plate lies inside the opening, flush with the rim, and rests on screw bosses that end the plate thickness below the rim. Holes in upward facing planar faces of the box (e.g. the holes of screw bosses, below the rim or flush with it), except the opening, go through the lid, widened by the hole allowance; they may have any shape. The lid is created in its closed position on the box.",
             "tags": [
               "lid",
               "cover",
@@ -834,6 +834,10 @@
                       "label": "plain plate"
                     },
                     {
+                      "value": "inset",
+                      "label": "inset plate"
+                    },
+                    {
                       "value": "skirt",
                       "label": "with skirt around the walls"
                     },
@@ -846,7 +850,7 @@
                       "label": "with skirt and inner rim"
                     }
                   ],
-                  "description": "A plain plate flush with the outer walls; a plate that overhangs the box with a skirt reaching down around the side walls; a plate flush with the outer walls with a rim reaching down into the opening; or both."
+                  "description": "A plain plate flush with the outer walls; a plate inside the opening, flush with the rim, resting on screw bosses below the rim; a plate that overhangs the box with a skirt reaching down around the side walls; a plate flush with the outer walls with a rim reaching down into the opening; or both."
                 }
               },
               {
@@ -913,11 +917,46 @@
                   "optional": true,
                   "description": "Wall thickness of the inner rim. 0 fills the whole opening: the lid is thickened inside by the inner rim height."
                 }
+              },
+              {
+                "name": "holes",
+                "value": "through",
+                "label": "Holes",
+                "input": {
+                  "kind": "enum",
+                  "group": "Holes",
+                  "order": 9,
+                  "optional": true,
+                  "options": [
+                    {
+                      "value": "through",
+                      "label": "through the lid"
+                    },
+                    {
+                      "value": "none",
+                      "label": "none"
+                    }
+                  ],
+                  "description": "Holes in upward facing planar faces of the box, except the opening (e.g. the holes of screw bosses), are cut through the lid at the same place, so that the lid can be screwed on."
+                }
+              },
+              {
+                "name": "holeAllowance",
+                "value": 0.9,
+                "label": "Hole allowance",
+                "input": {
+                  "kind": "length",
+                  "group": "Holes",
+                  "order": 10,
+                  "min": 0,
+                  "optional": true,
+                  "description": "How much wider the holes in the lid are than the holes in the box, measured across the hole (twice the offset of the contour): the core hole of 2.5 mm for a 3 mm thread-forming screw plus 0.9 gives a clearance hole of 3.4 mm."
+                }
               }
             ],
             "checks": [
               {
-                "condition": "(lidType == \"plain\" || lidType == \"inner\") || overhang > gap",
+                "condition": "(lidType == \"plain\" || lidType == \"inset\" || lidType == \"inner\") || overhang > gap",
                 "parameters": [
                   "overhang",
                   "gap"
@@ -996,11 +1035,10 @@
                 "jsonrpc": "2.0",
                 "id": 8,
                 "method": "sketch.add_solid_section",
-                "when": "(lidType == \"inner\" || lidType == \"both\")",
                 "params": {
                   "sketch": "rim",
                   "solid": "body",
-                  "contours": "holes",
+                  "contours": "largestHole",
                   "name": "opening"
                 }
               },
@@ -1115,7 +1153,7 @@
                 "jsonrpc": "2.0",
                 "id": 17,
                 "method": "sketch.offset",
-                "when": "(lidType == \"inner\" || lidType == \"both\") && gap > 0",
+                "when": "(lidType == \"inner\" || lidType == \"both\" || lidType == \"inset\") && gap > 0",
                 "params": {
                   "sketch": "rim",
                   "sketchGeometry": "opening",
@@ -1127,10 +1165,27 @@
                 "jsonrpc": "2.0",
                 "id": 18,
                 "method": "workspace.select",
-                "when": "(lidType == \"inner\" || lidType == \"both\") && gap <= 0",
+                "when": "(lidType == \"inner\" || lidType == \"both\" || lidType == \"inset\") && gap <= 0",
                 "params": {
                   "selector": "opening",
                   "name": "rimOutside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 24,
+                "method": "solid.extrude",
+                "when": "lidType == \"inset\"",
+                "params": {
+                  "profile": "rimOutside",
+                  "length": "d",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "offset": "eps - d",
+                  "name": "lid"
                 }
               },
               {
@@ -1207,8 +1262,190 @@
           }
         },
         {
-          "method": "template.commit",
+          "method": "rpc.batch",
           "id": 3,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "openingArea",
+                  "value": "opening.Area"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "reach",
+                  "value": "bb.DiagonalLength"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.select",
+                "when": "holes == \"through\"",
+                "params": {
+                  "selector": {
+                    "query": {
+                      "target": "faces",
+                      "from": "body",
+                      "filter": {
+                        "condition": "this.SurfaceType == \"planar\""
+                      }
+                    }
+                  },
+                  "name": "planes"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "sketch.create",
+                "when": "holes == \"through\"",
+                "params": {
+                  "plane": {
+                    "origin": "p((bb.Xmin + bb.Xmax)/2, (bb.Ymin + bb.Ymax)/2, top - eps)",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "holeSketch"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "rpc.batch",
+                "when": "holes == \"through\"",
+                "params": {
+                  "repeat": {
+                    "over": "planes",
+                    "variable": "f"
+                  },
+                  "calls": [
+                    {
+                      "jsonrpc": "2.0",
+                      "id": 1,
+                      "method": "workspace.set",
+                      "params": {
+                        "name": "faceUp",
+                        "value": "f.Surface.Normal.z > 0.5"
+                      }
+                    },
+                    {
+                      "jsonrpc": "2.0",
+                      "id": 2,
+                      "method": "rpc.batch",
+                      "when": "faceUp",
+                      "params": {
+                        "repeat": {
+                          "count": "f.HoleCount",
+                          "variable": "h"
+                        },
+                        "calls": [
+                          {
+                            "jsonrpc": "2.0",
+                            "id": 1,
+                            "method": "workspace.set",
+                            "params": {
+                              "name": "holeEdges",
+                              "value": "f.HoleEdges(h)"
+                            }
+                          },
+                          {
+                            "jsonrpc": "2.0",
+                            "id": 2,
+                            "method": "sketch.add_edges",
+                            "params": {
+                              "sketch": "holeSketch",
+                              "edges": "holeEdges",
+                              "name": "holeShape"
+                            }
+                          },
+                          {
+                            "jsonrpc": "2.0",
+                            "id": 3,
+                            "method": "workspace.set",
+                            "params": {
+                              "name": "screwHole",
+                              "value": "holeShape.Area < 0.5*openingArea"
+                            }
+                          },
+                          {
+                            "jsonrpc": "2.0",
+                            "id": 4,
+                            "method": "sketch.offset",
+                            "when": "screwHole && holeAllowance > 0",
+                            "params": {
+                              "sketch": "holeSketch",
+                              "sketchGeometry": "holeShape",
+                              "distance": "holeAllowance/2",
+                              "name": "holeCut"
+                            }
+                          },
+                          {
+                            "jsonrpc": "2.0",
+                            "id": 5,
+                            "method": "workspace.select",
+                            "when": "screwHole && holeAllowance <= 0",
+                            "params": {
+                              "selector": "holeShape",
+                              "name": "holeCut"
+                            }
+                          },
+                          {
+                            "jsonrpc": "2.0",
+                            "id": 6,
+                            "method": "solid.extrude",
+                            "when": "screwHole",
+                            "params": {
+                              "profile": "holeCut",
+                              "length": "2*reach",
+                              "direction": [
+                                0,
+                                0,
+                                1
+                              ],
+                              "offset": "-reach",
+                              "name": "holeTool"
+                            }
+                          },
+                          {
+                            "jsonrpc": "2.0",
+                            "id": 7,
+                            "method": "solid.boolean",
+                            "when": "screwHole",
+                            "params": {
+                              "op": "difference",
+                              "a": "lid",
+                              "b": "holeTool",
+                              "name": "lid"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 4,
           "params": {
             "result": "lid"
           }
@@ -1298,7 +1535,7 @@
         "deckel": {
           "label": "Deckel",
           "category": "Gehäuse",
-          "description": "Deckel für eine oben offene Box, z. B. eine mit dem Template Rechteckbox erzeugte. Der Umriss wird vom oberen Rand der Box genommen: Die Box wird knapp unter ihrem höchsten Punkt geschnitten, die Außenkontur dieses Schnitts ist der Umriss des Deckels, die Löcher des Schnitts sind die Öffnung. Der Deckel ist eine Platte der angegebenen Dicke, die auf dem Rand liegt. Er kann eine Schürze haben, die über die Box übersteht und außen um die Seitenwände nach unten greift, einen Innenrand, der in die Öffnung hineinreicht, oder beides; das Spiel ist der Abstand zwischen Schürze bzw. Innenrand und den Wänden. Der Deckel wird geschlossen auf der Box erzeugt. Schraubdome, die bündig mit dem Rand enden, werden nicht berücksichtigt.",
+          "description": "Deckel für eine oben offene Box, z. B. eine mit dem Template Rechteckbox erzeugte. Der Umriss wird vom oberen Rand der Box genommen: Die Box wird knapp unter ihrem höchsten Punkt geschnitten, die Außenkontur dieses Schnitts ist der Umriss des Deckels, die Löcher des Schnitts sind die Öffnung. Der Deckel ist eine Platte der angegebenen Dicke, die auf dem Rand liegt. Er kann eine Schürze haben, die über die Box übersteht und außen um die Seitenwände nach unten greift, einen Innenrand, der in die Öffnung hineinreicht, oder beides; das Spiel ist der Abstand zwischen Schürze bzw. Innenrand und den Wänden. Eine innenliegende Platte liegt in der Öffnung, bündig mit dem Rand, und ruht auf Schraubdomen, die um die Plattendicke unter dem Rand enden. Löcher in nach oben zeigenden ebenen Flächen der Box (z. B. die Bohrungen von Schraubdomen, unter dem Rand oder bündig damit), außer der Öffnung, gehen durch den Deckel, erweitert um die Lochzugabe; sie dürfen beliebig geformt sein. Der Deckel wird geschlossen auf der Box erzeugt.",
           "parameters": {
             "body": {
               "label": "Box",
@@ -1312,9 +1549,10 @@
             "lidType": {
               "label": "Deckelart",
               "group": "Deckel",
-              "description": "Eine einfache Platte bündig mit den Außenwänden; eine Platte, die über die Box übersteht, mit einer Schürze außen um die Seitenwände; eine Platte bündig mit den Außenwänden mit einem Innenrand, der in die Öffnung hineinreicht; oder beides.",
+              "description": "Eine einfache Platte bündig mit den Außenwänden; eine Platte in der Öffnung, bündig mit dem Rand, die auf Schraubdomen unter dem Rand aufliegt; eine Platte, die über die Box übersteht, mit einer Schürze außen um die Seitenwände; eine Platte bündig mit den Außenwänden mit einem Innenrand, der in die Öffnung hineinreicht; oder beides.",
               "options": {
                 "plain": "einfache Platte",
+                "inset": "innenliegende Platte",
                 "skirt": "mit Schürze um die Wände",
                 "inner": "mit Innenrand",
                 "both": "mit Schürze und Innenrand"
@@ -1344,6 +1582,20 @@
               "label": "Dicke des Innenrands",
               "group": "Innenrand",
               "description": "Wandstärke des Innenrands. 0 füllt die ganze Öffnung: Der Deckel wird innen um die Höhe des Innenrands verdickt."
+            },
+            "holes": {
+              "label": "Bohrungen",
+              "group": "Bohrungen",
+              "description": "Löcher in nach oben zeigenden ebenen Flächen der Box, außer der Öffnung (z. B. die Bohrungen der Schraubdome), werden an derselben Stelle durch den Deckel geschnitten, damit er sich anschrauben lässt.",
+              "options": {
+                "through": "durch den Deckel",
+                "none": "keine"
+              }
+            },
+            "holeAllowance": {
+              "label": "Lochzugabe",
+              "group": "Bohrungen",
+              "description": "Um wie viel die Löcher im Deckel breiter sind als die Löcher in der Box, quer über das Loch gemessen (doppelter Versatz der Kontur): Das Kernloch von 2,5 mm für eine gewindeformende 3-mm-Schraube plus 0,9 ergibt ein Durchgangsloch von 3,4 mm."
             }
           },
           "checks": [

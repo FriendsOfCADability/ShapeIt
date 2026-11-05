@@ -210,17 +210,8 @@ namespace CADability.Tests
 
             bool skirt = lid.lidType == "skirt" || lid.lidType == "both", rim = lid.lidType == "inner" || lid.lidType == "both";
             double o = lid.overhang, g = lid.gap, w = lid.rimWidth;
-            double li = box.L - 2 * box.t, bi = box.B - 2 * box.t, ri = Math.Max(box.R - box.t, 0);
-            // an outward offset keeps sharp corners sharp (mitered), a rounded corner grows with the offset
-            double Grown(double e) => box.R > 0 ? box.R + e : 0;
-            double expected = lid.d * (skirt ? RoundedRect(box.L + 2 * o, box.B + 2 * o, Grown(o)) : RoundedRect(box.L, box.B, box.R));
-            if (skirt) expected += lid.skirtDepth * (RoundedRect(box.L + 2 * o, box.B + 2 * o, Grown(o)) - RoundedRect(box.L + 2 * g, box.B + 2 * g, Grown(g)));
-            if (rim)
-            {
-                double outside = RoundedRect(li - 2 * g, bi - 2 * g, Math.Max(ri - g, 0));
-                double inside = w > 0 ? RoundedRect(li - 2 * g - 2 * w, bi - 2 * g - 2 * w, Math.Max(ri - g - w, 0)) : 0;
-                expected += lid.rimHeight * (outside - inside);
-            }
+            double li = box.L - 2 * box.t, bi = box.B - 2 * box.t;
+            double expected = ExpectedLidVolume(lid);
             Assert.AreEqual(expected, solid.Volume(1e-4), 1e-6 * expected, $"volume of {lid}");
 
             BoundingBox ext = solid.GetExtent(0.0);
@@ -249,6 +240,90 @@ namespace CADability.Tests
                 else Assert.IsTrue(shell.IsInside(new GeoPoint(0, 0, z)), "thickened inside");
                 if (g > 0) Assert.IsFalse(shell.IsInside(new GeoPoint(li / 2 - g / 2, 0, z)), "gap between inner rim and wall");
             }
+        }
+
+        /// <summary>The volume of a lid without holes on a box without screw bosses.</summary>
+        private static double ExpectedLidVolume(Lid lid)
+        {
+            Box box = lid.Box;
+            bool skirt = lid.lidType == "skirt" || lid.lidType == "both", rim = lid.lidType == "inner" || lid.lidType == "both";
+            double o = lid.overhang, g = lid.gap, w = lid.rimWidth;
+            double li = box.L - 2 * box.t, bi = box.B - 2 * box.t, ri = Math.Max(box.R - box.t, 0);
+            // the opening less the gap: the inset plate and the outside of the inner rim
+            double inner = RoundedRect(li - 2 * g, bi - 2 * g, Math.Max(ri - g, 0));
+            if (lid.lidType == "inset") return lid.d * inner;
+            // an outward offset keeps sharp corners sharp (mitered), a rounded corner grows with the offset
+            double Grown(double e) => box.R > 0 ? box.R + e : 0;
+            double expected = lid.d * (skirt ? RoundedRect(box.L + 2 * o, box.B + 2 * o, Grown(o)) : RoundedRect(box.L, box.B, box.R));
+            if (skirt) expected += lid.skirtDepth * (RoundedRect(box.L + 2 * o, box.B + 2 * o, Grown(o)) - RoundedRect(box.L + 2 * g, box.B + 2 * g, Grown(g)));
+            if (rim)
+            {
+                double inside = w > 0 ? RoundedRect(li - 2 * g - 2 * w, bi - 2 * g - 2 * w, Math.Max(ri - g - w, 0)) : 0;
+                expected += lid.rimHeight * (inner - inside);
+            }
+            return expected;
+        }
+
+        /// <summary>
+        /// A lid on a box with screw bosses: the holes of the bosses (below the rim or flush with it) go through the
+        /// plate of the lid, widened by the hole allowance; the opening is not cut. Skirt and inner rim are not used
+        /// here, an inner rim would run into the bosses.
+        /// </summary>
+        private static void AssertLidOnBosses(Bosses bosses, Lid lid, string holes = "through", double holeAllowance = 0.9)
+        {
+            MCPServer server = ServerWithTemplates();
+            string response = Call(server, "template.instantiate", $"{{\"template\":\"rechteckbox\",\"arguments\":{bosses.Arguments},\"name\":\"box\"}}");
+            Assert.IsNull(Error(response), response);
+            string arguments = lid.Arguments.TrimEnd('}') + FormattableString.Invariant($",\"holes\":\"{holes}\",\"holeAllowance\":{holeAllowance}}}");
+            response = Call(server, "template.instantiate", $"{{\"template\":\"deckel\",\"arguments\":{arguments},\"name\":\"lid\"}}");
+            Assert.IsNull(Error(response), response);
+            object result = server.namedItems["lid"];
+            Solid solid = result as Solid ?? ((List<Solid>)result)[0];
+
+            Box box = lid.Box;
+            double rb = bosses.dBoss / 2, o = box.t / 4, rHole = (bosses.dHole + holeAllowance) / 2;
+            double ux = box.L / 2 - box.t - rb + o, uy = box.B / 2 - box.t - rb + o; // centers of the bosses
+            bool cut = holes == "through";
+            double expected = ExpectedLidVolume(lid) - (cut ? 4 * Math.PI * rHole * rHole * lid.d : 0);
+            Assert.AreEqual(expected, solid.Volume(1e-4), 1e-6 * expected, $"volume of {lid} on {bosses}");
+
+            double zPlate = lid.lidType == "inset" ? box.H - lid.d / 2 : box.H + lid.d / 2;
+            Shell shell = solid.Shells[0];
+            for (int k = 0; k < 4; k++)
+            {
+                double sx = k == 0 || k == 3 ? 1 : -1, sy = k < 2 ? 1 : -1;
+                Assert.AreEqual(!cut, shell.IsInside(new GeoPoint(sx * ux, sy * uy, zPlate)), $"hole {k}");
+                Assert.IsTrue(shell.IsInside(new GeoPoint(sx * (ux - rHole - 0.1), sy * uy, zPlate)), $"beside hole {k}");
+            }
+            Assert.IsTrue(shell.IsInside(new GeoPoint(0, 0, zPlate)), "the opening is not cut");
+        }
+
+        [TestMethod]
+        public void InsetPlateOnBossesBelowTheRim()
+        {
+            Box box = new Box(100, 60, 40, 2, 5);
+            AssertLidOnBosses(new Bosses(box, 8, 2.5, 10, 2), new Lid(box, "inset"));
+        }
+
+        [TestMethod]
+        public void SkirtLidWithHolesOfBossesBelowTheRim()
+        {
+            Box box = new Box(100, 60, 40, 2, 5);
+            AssertLidOnBosses(new Bosses(box, 8, 2.5, 10, 3), new Lid(box, "skirt"));
+        }
+
+        [TestMethod]
+        public void PlainLidWithHolesOfFlushBosses()
+        {
+            Box box = new Box(80, 50, 30, 3, 0);
+            AssertLidOnBosses(new Bosses(box, 10, 4, 8, 0), new Lid(box, "plain", d: 3), holeAllowance: 0);
+        }
+
+        [TestMethod]
+        public void LidWithoutHoles()
+        {
+            Box box = new Box(100, 60, 40, 2, 5);
+            AssertLidOnBosses(new Bosses(box, 8, 2.5, 10, 0), new Lid(box, "skirt"), holes: "none");
         }
 
         [TestMethod]
