@@ -1,0 +1,863 @@
+{
+  "label": "Boxes",
+  "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 20L26 10L58 20L38 32Z\" fill=\"#ffffff\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M6 20L38 32V56L6 44Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M38 32L58 20V44L38 56Z\" fill=\"#a9bcd3\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M13 21L26 15L50 21L38 27Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/></svg>",
+  "templates": [
+    {
+      "name": "rechteckbox",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "rechteckbox",
+            "label": "Rectangular box",
+            "category": "Boxes",
+            "description": "Rectangular box open at the top, e.g. the lower part of a housing. Length, width and height are outer dimensions; the side walls and the bottom have the same wall thickness. The vertical edges can be rounded: the outer radius is given, the inner radius is smaller by the wall thickness, or sharp when the outer radius is not larger than the wall thickness. The bottom edges stay sharp. Optionally the four inner corners get cylindrical screw bosses with a blind hole to screw on a lid; they stand on the bottom and end flush with the rim or a given distance below it.",
+            "tags": [
+              "box",
+              "housing",
+              "enclosure",
+              "case",
+              "Box",
+              "GehÃ¤use",
+              "Kasten",
+              "Schachtel"
+            ],
+            "parameters": [
+              {
+                "name": "center",
+                "value": "p(0,0,0)",
+                "label": "Center",
+                "input": {
+                  "kind": "point3",
+                  "group": "Position",
+                  "order": 1,
+                  "description": "Center of the bottom face (outside). The length runs along x, the width along y, the box opens in +z. Click a point in the model or enter its coordinates."
+                }
+              },
+              {
+                "name": "L",
+                "value": 100,
+                "label": "Length",
+                "input": {
+                  "kind": "length",
+                  "group": "Size",
+                  "order": 2,
+                  "min": 0.01,
+                  "description": "Outer length of the box along x."
+                }
+              },
+              {
+                "name": "B",
+                "value": 60,
+                "label": "Width",
+                "input": {
+                  "kind": "length",
+                  "group": "Size",
+                  "order": 3,
+                  "min": 0.01,
+                  "description": "Outer width of the box along y."
+                }
+              },
+              {
+                "name": "H",
+                "value": 40,
+                "label": "Height",
+                "input": {
+                  "kind": "length",
+                  "group": "Size",
+                  "order": 4,
+                  "min": 0.01,
+                  "description": "Outer height of the box from the underside of the bottom to the upper edge of the walls."
+                }
+              },
+              {
+                "name": "t",
+                "value": 2,
+                "label": "Wall thickness",
+                "input": {
+                  "kind": "length",
+                  "group": "Walls",
+                  "order": 5,
+                  "min": 0.01,
+                  "description": "Thickness of the side walls and of the bottom."
+                }
+              },
+              {
+                "name": "R",
+                "value": 5,
+                "label": "Corner radius",
+                "input": {
+                  "kind": "length",
+                  "group": "Walls",
+                  "order": 6,
+                  "min": 0,
+                  "optional": true,
+                  "description": "Outer radius of the vertical edges, 0 for sharp corners. The inner radius is smaller by the wall thickness; when the outer radius is not larger than the wall thickness, the inner corners are sharp."
+                }
+              },
+              {
+                "name": "bosses",
+                "value": "none",
+                "label": "Screw bosses",
+                "input": {
+                  "kind": "enum",
+                  "group": "Screw bosses",
+                  "order": 7,
+                  "optional": true,
+                  "options": [
+                    {
+                      "value": "none",
+                      "label": "none"
+                    },
+                    {
+                      "value": "corners",
+                      "label": "in the four corners"
+                    }
+                  ],
+                  "description": "Cylindrical screw bosses with a blind hole in the four inner corners, to screw on a lid. Each boss touches both walls of its corner (it sinks a quarter of the wall thickness into them) and the space between the boss and the corner is filled."
+                }
+              },
+              {
+                "name": "dBoss",
+                "value": 8,
+                "label": "Boss diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Screw bosses",
+                  "order": 8,
+                  "optional": true,
+                  "min": 0.01,
+                  "description": "Outer diameter of the screw bosses, typically 2 to 2.5 times the nominal screw diameter."
+                }
+              },
+              {
+                "name": "dHole",
+                "value": 2.5,
+                "label": "Hole diameter",
+                "input": {
+                  "kind": "length",
+                  "group": "Screw bosses",
+                  "order": 9,
+                  "optional": true,
+                  "min": 0.01,
+                  "description": "Diameter of the hole in the bosses: the core hole for a thread-forming screw or the hole for a threaded insert."
+                }
+              },
+              {
+                "name": "holeDepth",
+                "value": 10,
+                "label": "Hole depth",
+                "input": {
+                  "kind": "length",
+                  "group": "Screw bosses",
+                  "order": 10,
+                  "optional": true,
+                  "min": 0.01,
+                  "description": "Depth of the hole, measured from the top of the boss."
+                }
+              },
+              {
+                "name": "bossInset",
+                "value": 0,
+                "label": "Boss below rim",
+                "input": {
+                  "kind": "length",
+                  "group": "Screw bosses",
+                  "order": 11,
+                  "optional": true,
+                  "min": 0,
+                  "description": "How far the top of the bosses lies below the upper edge of the walls, e.g. the thickness of a lid that sits inside the box. 0 for bosses flush with the rim."
+                }
+              }
+            ],
+            "checks": [
+              {
+                "condition": "2*t < L && 2*t < B",
+                "parameters": [
+                  "t",
+                  "L",
+                  "B"
+                ],
+                "message": "The wall thickness ({t}) must be smaller than half the length ({L/2}) and half the width ({B/2})."
+              },
+              {
+                "condition": "t < H",
+                "parameters": [
+                  "t",
+                  "H"
+                ],
+                "message": "The wall thickness ({t}) must be smaller than the height ({H}), otherwise there is no room inside."
+              },
+              {
+                "condition": "2*R < L && 2*R < B",
+                "parameters": [
+                  "R",
+                  "L",
+                  "B"
+                ],
+                "message": "The corner radius ({R}) must be smaller than half the length ({L/2}) and half the width ({B/2})."
+              },
+              {
+                "condition": "bosses == \"none\" || (dBoss < L/2 - t && dBoss < B/2 - t)",
+                "parameters": [
+                  "dBoss",
+                  "L",
+                  "B"
+                ],
+                "message": "The boss diameter ({dBoss}) must be smaller than half the inner length ({L/2 - t}) and half the inner width ({B/2 - t}), so that the bosses do not run into each other."
+              },
+              {
+                "condition": "bosses == \"none\" || dHole < dBoss - t/2",
+                "parameters": [
+                  "dHole",
+                  "dBoss"
+                ],
+                "message": "The hole diameter ({dHole}) must be smaller than {dBoss - t/2} (boss diameter minus half the wall thickness), so that the hole does not cut into the walls."
+              },
+              {
+                "condition": "bosses == \"none\" || bossInset < H - t",
+                "parameters": [
+                  "bossInset",
+                  "H"
+                ],
+                "message": "The bosses must stand on the bottom: the distance below the rim ({bossInset}) must be smaller than the inner height ({H - t})."
+              },
+              {
+                "condition": "bosses == \"none\" || holeDepth < H - bossInset",
+                "parameters": [
+                  "holeDepth",
+                  "bossInset",
+                  "H"
+                ],
+                "message": "The hole depth ({holeDepth}) must be smaller than the height of the bosses ({H - bossInset}), otherwise the hole goes through the bottom."
+              }
+            ],
+            "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M6 20L26 10L58 20L38 32Z\" fill=\"#ffffff\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M6 20L38 32V56L6 44Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M38 32L58 20V44L38 56Z\" fill=\"#a9bcd3\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><path d=\"M13 21L26 15L50 21L38 27Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"1.5\" stroke-linejoin=\"round\"/></svg>"
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "params": {
+                  "name": "a",
+                  "value": "L/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "params": {
+                  "name": "c",
+                  "value": "B/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "workspace.set",
+                "params": {
+                  "name": "ai",
+                  "value": "L/2 - t"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "ci",
+                  "value": "B/2 - t"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "Ri",
+                  "value": "max(R - t, 0)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "params": {
+                  "name": "k",
+                  "value": "tan(pi/8)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "center",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "outerSketch"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "sketch.add_polycurve",
+                "when": "R <= 0",
+                "params": {
+                  "sketch": "outerSketch",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": "-a",
+                      "y": "-c",
+                      "b": 0
+                    },
+                    {
+                      "x": "a",
+                      "y": "-c",
+                      "b": 0
+                    },
+                    {
+                      "x": "a",
+                      "y": "c",
+                      "b": 0
+                    },
+                    {
+                      "x": "-a",
+                      "y": "c",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "sketch.add_polycurve",
+                "when": "R > 0",
+                "params": {
+                  "sketch": "outerSketch",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": "a - R",
+                      "y": "-c",
+                      "b": "k"
+                    },
+                    {
+                      "x": "a",
+                      "y": "-c + R",
+                      "b": 0
+                    },
+                    {
+                      "x": "a",
+                      "y": "c - R",
+                      "b": "k"
+                    },
+                    {
+                      "x": "a - R",
+                      "y": "c",
+                      "b": 0
+                    },
+                    {
+                      "x": "-a + R",
+                      "y": "c",
+                      "b": "k"
+                    },
+                    {
+                      "x": "-a",
+                      "y": "c - R",
+                      "b": 0
+                    },
+                    {
+                      "x": "-a",
+                      "y": "-c + R",
+                      "b": "k"
+                    },
+                    {
+                      "x": "-a + R",
+                      "y": "-c",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "solid.extrude",
+                "params": {
+                  "profile": "outerSketch",
+                  "length": "H",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "name": "outer"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "sketch.create",
+                "params": {
+                  "plane": {
+                    "origin": "center + v(0,0,t)",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "innerSketch"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "sketch.add_polycurve",
+                "when": "Ri <= 0",
+                "params": {
+                  "sketch": "innerSketch",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": "-ai",
+                      "y": "-ci",
+                      "b": 0
+                    },
+                    {
+                      "x": "ai",
+                      "y": "-ci",
+                      "b": 0
+                    },
+                    {
+                      "x": "ai",
+                      "y": "ci",
+                      "b": 0
+                    },
+                    {
+                      "x": "-ai",
+                      "y": "ci",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "sketch.add_polycurve",
+                "when": "Ri > 0",
+                "params": {
+                  "sketch": "innerSketch",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": "ai - Ri",
+                      "y": "-ci",
+                      "b": "k"
+                    },
+                    {
+                      "x": "ai",
+                      "y": "-ci + Ri",
+                      "b": 0
+                    },
+                    {
+                      "x": "ai",
+                      "y": "ci - Ri",
+                      "b": "k"
+                    },
+                    {
+                      "x": "ai - Ri",
+                      "y": "ci",
+                      "b": 0
+                    },
+                    {
+                      "x": "-ai + Ri",
+                      "y": "ci",
+                      "b": "k"
+                    },
+                    {
+                      "x": "-ai",
+                      "y": "ci - Ri",
+                      "b": 0
+                    },
+                    {
+                      "x": "-ai",
+                      "y": "-ci + Ri",
+                      "b": "k"
+                    },
+                    {
+                      "x": "-ai + Ri",
+                      "y": "-ci",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "solid.extrude",
+                "params": {
+                  "profile": "innerSketch",
+                  "length": "H",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "name": "cavity"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rb",
+                  "value": "dBoss/2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 16,
+                "method": "workspace.set",
+                "params": {
+                  "name": "o",
+                  "value": "t/4"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 17,
+                "method": "workspace.set",
+                "params": {
+                  "name": "ux",
+                  "value": "ai - rb + o"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 18,
+                "method": "workspace.set",
+                "params": {
+                  "name": "uy",
+                  "value": "ci - rb + o"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 19,
+                "method": "workspace.set",
+                "when": "bossInset > 0",
+                "params": {
+                  "name": "bossTop",
+                  "value": "H - bossInset"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "workspace.set",
+                "when": "bossInset <= 0",
+                "params": {
+                  "name": "bossTop",
+                  "value": "H + 2*t"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 3,
+          "params": {
+            "repeat": {
+              "variable": "corner",
+              "start": 0,
+              "step": 1,
+              "count": 4
+            },
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "workspace.set",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "name": "sx",
+                  "value": "sqrt(2)*cos(pi/4 + corner*pi/2)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "workspace.set",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "name": "sy",
+                  "value": "sqrt(2)*sin(pi/4 + corner*pi/2)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "sketch.create",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "plane": {
+                    "origin": "center",
+                    "xAxis": [
+                      1,
+                      0,
+                      0
+                    ],
+                    "normal": [
+                      0,
+                      0,
+                      1
+                    ]
+                  },
+                  "name": "bossSketch"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "sketch.add_polycurve",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "sketch": "bossSketch",
+                  "isClosed": true,
+                  "vertices": [
+                    {
+                      "x": "sx*(a + t)",
+                      "y": "sy*(c + t)",
+                      "b": 0
+                    },
+                    {
+                      "x": "sx*ux",
+                      "y": "sy*(c + t)",
+                      "b": 0
+                    },
+                    {
+                      "x": "sx*ux",
+                      "y": "sy*(uy + rb)",
+                      "b": "k*sx*sy"
+                    },
+                    {
+                      "x": "sx*(ux - rb)",
+                      "y": "sy*uy",
+                      "b": "k*sx*sy"
+                    },
+                    {
+                      "x": "sx*ux",
+                      "y": "sy*(uy - rb)",
+                      "b": "k*sx*sy"
+                    },
+                    {
+                      "x": "sx*(ux + rb)",
+                      "y": "sy*uy",
+                      "b": 0
+                    },
+                    {
+                      "x": "sx*(a + t)",
+                      "y": "sy*uy",
+                      "b": 0
+                    }
+                  ]
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "solid.extrude",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "profile": "bossSketch",
+                  "length": "bossTop",
+                  "direction": [
+                    0,
+                    0,
+                    1
+                  ],
+                  "name": "bossTool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "solid.boolean",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "op": "difference",
+                  "a": "cavity",
+                  "b": "bossTool",
+                  "name": "cavity"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "solid.cylinder",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "start": "center + v(sx*ux, sy*uy, H - bossInset - holeDepth)",
+                  "end": "center + v(sx*ux, sy*uy, H + 2*t)",
+                  "radius": "dHole/2",
+                  "name": "holeTool"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "solid.boolean",
+                "when": "bosses == \"corners\"",
+                "params": {
+                  "op": "union",
+                  "a": "cavity",
+                  "b": "holeTool",
+                  "name": "cavity"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 4,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "solid.boolean",
+                "params": {
+                  "op": "difference",
+                  "a": "outer",
+                  "b": "cavity",
+                  "name": "result"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 5,
+          "params": {
+            "result": "result"
+          }
+        }
+      ]
+    }
+  ],
+  "translations": {
+    "de": {
+      "label": "Gehäuse",
+      "templates": {
+        "rechteckbox": {
+          "label": "Rechteckbox",
+          "category": "Gehäuse",
+          "description": "Rechteckige, oben offene Box, z. B. das Unterteil eines Gehäuses. Länge, Breite und Höhe sind Außenmaße; Seitenwände und Boden haben dieselbe Wandstärke. Die senkrechten Kanten können gerundet sein: Angegeben wird der Außenradius, der Innenradius ist um die Wandstärke kleiner, bzw. scharfkantig, wenn der Außenradius nicht größer als die Wandstärke ist. Die Bodenkanten bleiben scharfkantig. Optional bekommen die vier Innenecken zylindrische Schraubdome mit Sacklochbohrung, um einen Deckel anzuschrauben; sie stehen auf dem Boden und enden bündig mit dem Rand oder um ein angegebenes Maß darunter.",
+          "parameters": {
+            "center": {
+              "label": "Mittelpunkt",
+              "group": "Lage",
+              "description": "Mittelpunkt der Bodenfläche (außen). Die Länge verläuft in x, die Breite in y, die Box öffnet sich nach +z. Einen Punkt im Modell anklicken oder Koordinaten eingeben."
+            },
+            "L": {
+              "label": "Länge",
+              "group": "Größe",
+              "description": "Außenlänge der Box in x-Richtung."
+            },
+            "B": {
+              "label": "Breite",
+              "group": "Größe",
+              "description": "Außenbreite der Box in y-Richtung."
+            },
+            "H": {
+              "label": "Höhe",
+              "group": "Größe",
+              "description": "Außenhöhe der Box von der Unterseite des Bodens bis zur Oberkante der Wände."
+            },
+            "t": {
+              "label": "Wandstärke",
+              "group": "Wände",
+              "description": "Dicke der Seitenwände und des Bodens."
+            },
+            "R": {
+              "label": "Eckenradius",
+              "group": "Wände",
+              "description": "Außenradius der senkrechten Kanten, 0 für scharfe Ecken. Der Innenradius ist um die Wandstärke kleiner; ist der Außenradius nicht größer als die Wandstärke, sind die Innenecken scharfkantig."
+            },
+            "bosses": {
+              "label": "Schraubdome",
+              "group": "Schraubdome",
+              "description": "Zylindrische Schraubdome mit Sacklochbohrung in den vier Innenecken, um einen Deckel anzuschrauben. Jeder Dom berührt beide Wände seiner Ecke (er taucht um ein Viertel der Wandstärke in sie ein), der Raum zwischen Dom und Ecke wird ausgefüllt.",
+              "options": {
+                "none": "keine",
+                "corners": "in den vier Ecken"
+              }
+            },
+            "dBoss": {
+              "label": "Domdurchmesser",
+              "group": "Schraubdome",
+              "description": "Außendurchmesser der Schraubdome, typisch das 2- bis 2,5-fache des Schraubennenndurchmessers."
+            },
+            "dHole": {
+              "label": "Bohrungsdurchmesser",
+              "group": "Schraubdome",
+              "description": "Durchmesser der Bohrung in den Domen: das Kernloch für eine gewindeformende Schraube oder die Bohrung für einen Gewindeeinsatz."
+            },
+            "holeDepth": {
+              "label": "Bohrungstiefe",
+              "group": "Schraubdome",
+              "description": "Tiefe der Bohrung, gemessen von der Oberkante des Doms."
+            },
+            "bossInset": {
+              "label": "Dom unter dem Rand",
+              "group": "Schraubdome",
+              "description": "Wie weit die Oberkante der Dome unter der Oberkante der Wände liegt, z. B. die Dicke eines in die Box eingelegten Deckels. 0 für Dome bündig mit dem Rand."
+            }
+          },
+          "checks": [
+            "Die Wandstärke ({t}) muss kleiner sein als die halbe Länge ({L/2}) und die halbe Breite ({B/2}).",
+            "Die Wandstärke ({t}) muss kleiner sein als die Höhe ({H}), sonst bleibt innen kein Platz.",
+            "Der Eckenradius ({R}) muss kleiner sein als die halbe Länge ({L/2}) und die halbe Breite ({B/2}).",
+            "Der Domdurchmesser ({dBoss}) muss kleiner sein als die halbe Innenlänge ({L/2 - t}) und die halbe Innenbreite ({B/2 - t}), damit die Dome nicht ineinanderlaufen.",
+            "Der Bohrungsdurchmesser ({dHole}) muss kleiner sein als {dBoss - t/2} (Domdurchmesser minus halbe Wandstärke), damit die Bohrung nicht in die Wände schneidet.",
+            "Die Dome müssen auf dem Boden stehen: Der Abstand unter dem Rand ({bossInset}) muss kleiner sein als die Innenhöhe ({H - t}).",
+            "Die Bohrungstiefe ({holeDepth}) muss kleiner sein als die Höhe der Dome ({H - bossInset}), sonst geht die Bohrung durch den Boden."
+          ]
+        }
+      }
+    }
+  }
+}
