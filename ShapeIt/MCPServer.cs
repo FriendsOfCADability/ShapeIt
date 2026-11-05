@@ -3544,7 +3544,10 @@ namespace ShapeIt
                     double h = c * (1 - b * b) / (4 * b);
                     GeoVector2D n = d.ToLeft();
                     GeoPoint2D center = new GeoPoint2D(pi, pn) + h / c * n;
-                    curves.Add(new Arc2D(center, r, pi, pn, h >= 0));
+                    // DXF semantics: bulge = tan(sweep/4), positive means counterclockwise.
+                    // The sweep is taken from the bulge directly, so |b| > 1 yields a major arc
+                    // (the sign of h only tells on which side of the chord the center lies).
+                    curves.Add(new Arc2D(center, r, new Angle(pi, center), new SweepAngle(4.0 * Math.Atan(b))));
                 }
             }
             ICurve2D curve = new Path2D(curves.ToArray());
