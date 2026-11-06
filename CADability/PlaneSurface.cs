@@ -698,8 +698,8 @@ namespace CADability.GeoObject
                         {
                             if (otherBounds.Contains(normals[i])) extremePositions.Add(new Tuple<double, double, double, double>(double.NaN, double.NaN, normals[i].x, normals[i].y));
                         }
+                        return extremePositions.Count;
                     }
-                    break;
             }
             extremePositions = null;
             return -1; // means: no implementation for this combination

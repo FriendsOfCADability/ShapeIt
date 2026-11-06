@@ -6265,9 +6265,18 @@ namespace CADability.GeoObject
             }
             return res;
         }
+        /// <summary>
+        /// Finds all uv positions of the surface where the surface normal is parallel (or antiparallel) to <paramref name="normal"/>.
+        /// Candidate patches are those whose corner normals span a cone containing <paramref name="normal"/>; in each candidate
+        /// patch the exact position is found by a Newton iteration (see <see cref="NewtonPositionOfNormal"/>).
+        /// </summary>
         internal GeoPoint2D[] PositionOfNormal(GeoVector normal)
         {
             List<GeoPoint2D> res = new List<GeoPoint2D>();
+            if (normal.IsNullVector()) return res.ToArray();
+            GeoVector n = normal.Normalized;
+            BoundingRect domain = uvbounds;
+            domain.Inflate(uvbounds.Width * 1e-8, uvbounds.Height * 1e-8);
             foreach (ParEpi pe in octtree.GetAllObjects())
             {
                 bool check = false; // check, whether normal is in the span of normals of this patch
@@ -6278,12 +6287,115 @@ namespace CADability.GeoObject
                     span = Geometry.ReBase(normal, pe.nll, pe.nur, pe.nul);
                     if ((span.x >= 0 && span.y >= 0 && span.z >= 0) || (span.x <= 0 && span.y <= 0 && span.z <= 0)) check = true;
                 }
-                if (check)
+                if (check && NewtonPositionOfNormal(n, pe.uvPatch, out GeoPoint2D uv) && domain.Contains(uv))
                 {
-                    // to implement: use GaussNewtonMinimizer to calculate a uv value, where normal is normal to the surface
+                    // neighbouring patches share their borders, a solution on a border is found more than once
+                    double du = uvbounds.Width * 1e-7, dv = uvbounds.Height * 1e-7;
+                    bool duplicate = false;
+                    for (int i = 0; i < res.Count; i++)
+                    {
+                        if (Math.Abs(res[i].x - uv.x) <= du && Math.Abs(res[i].y - uv.y) <= dv)
+                        {
+                            duplicate = true;
+                            break;
+                        }
+                    }
+                    if (!duplicate) res.Add(uv);
                 }
             }
             return res.ToArray();
+        }
+
+        /// <summary>
+        /// Newton iteration for a uv position in (or near) <paramref name="patch"/>, where the surface normal is parallel to
+        /// <paramref name="n"/> (normalized). The normal is parallel to n exactly when both tangent vectors are perpendicular to n,
+        /// so we solve F(u,v) = (Su·n, Sv·n) = 0. The Jacobian is the symmetric matrix [[Suu·n, Suv·n], [Suv·n, Svv·n]]
+        /// (the second fundamental form scaled by the normal component). Near singular Jacobians (e.g. cylindrical parts, where
+        /// a whole line of solutions exists) are handled by a pseudo inverse via the eigen decomposition, which yields the
+        /// minimum norm step and converges to some point of the solution set.
+        /// </summary>
+        /// <returns>true, if a position with a parallel normal was found</returns>
+        private bool NewtonPositionOfNormal(GeoVector n, BoundingRect patch, out GeoPoint2D uv)
+        {
+            uv = patch.GetCenter();
+            double w = patch.Width, h = patch.Height;
+            if (w <= 0.0 || h <= 0.0) return false;
+            // the iteration may leave the patch a little, the solution might be close to (or on) the border
+            BoundingRect allowed = patch;
+            allowed.Inflate(w, h);
+            const int maxIterations = 30;
+            bool converged = false;
+            for (int iteration = 0; iteration < maxIterations; iteration++)
+            {
+                surface.Derivative2At(uv, out GeoPoint loc, out GeoVector su, out GeoVector sv, out GeoVector suu, out GeoVector svv, out GeoVector suv);
+                double f1 = su * n;
+                double f2 = sv * n;
+                double a = suu * n, b = suv * n, c = svv * n;
+                // eigen decomposition of the symmetric Jacobian [[a, b], [b, c]]
+                double mean = (a + c) / 2.0;
+                double rad = Math.Sqrt((a - c) * (a - c) / 4.0 + b * b);
+                double l1 = mean + rad, l2 = mean - rad; // |l1| or |l2| may be the larger one
+                double e1x, e1y;
+                if (Math.Abs(b) > 1e-300)
+                {
+                    // both (l1 - c, b) and (b, l1 - a) are eigenvectors of l1, take the numerically better (longer) one
+                    if (Math.Abs(l1 - c) >= Math.Abs(l1 - a))
+                    {
+                        e1x = l1 - c;
+                        e1y = b;
+                    }
+                    else
+                    {
+                        e1x = b;
+                        e1y = l1 - a;
+                    }
+                    double len = Math.Sqrt(e1x * e1x + e1y * e1y);
+                    e1x /= len;
+                    e1y /= len;
+                }
+                else if (a >= c) { e1x = 1.0; e1y = 0.0; }
+                else { e1x = 0.0; e1y = 1.0; }
+                double e2x = -e1y, e2y = e1x;
+                double maxl = Math.Max(Math.Abs(l1), Math.Abs(l2));
+                if (maxl == 0.0) return false; // flat part (plane): no isolated solution
+                double tiny = maxl * 1e-10;
+                // pseudo inverse: step = -sum (ei·F)/li * ei for all eigenvalues which are not (nearly) zero
+                double stepu = 0.0, stepv = 0.0;
+                if (Math.Abs(l1) > tiny)
+                {
+                    double s = -(e1x * f1 + e1y * f2) / l1;
+                    stepu += s * e1x;
+                    stepv += s * e1y;
+                }
+                if (Math.Abs(l2) > tiny)
+                {
+                    double s = -(e2x * f1 + e2y * f2) / l2;
+                    stepu += s * e2x;
+                    stepv += s * e2y;
+                }
+                // limit the step to the size of the patch, Newton may overshoot when started far from the solution
+                double scale = Math.Max(Math.Abs(stepu) / w, Math.Abs(stepv) / h);
+                if (scale > 1.0)
+                {
+                    stepu /= scale;
+                    stepv /= scale;
+                }
+                GeoPoint2D next = new GeoPoint2D(uv.x + stepu, uv.y + stepv);
+                if (!allowed.Contains(next)) return false; // runs away: the solution (if any) belongs to another patch
+                uv = next;
+                if (Math.Abs(stepu) < w * 1e-12 && Math.Abs(stepv) < h * 1e-12)
+                {
+                    converged = true;
+                    break;
+                }
+            }
+            // Newton may stall (e.g. at singular points) or converge to a point that is no solution: check the result
+            GeoVector nrm = surface.GetNormal(uv);
+            if (nrm.IsNullVector()) return false;
+            nrm.Norm();
+            double sin = (nrm ^ n).Length;
+            if (converged) return sin < 1e-6;
+            return sin < 1e-8; // not converged in the step size, but precise enough
         }
 
         internal ParEpi[] FindParEpis(IOctTreeInsertable t)
