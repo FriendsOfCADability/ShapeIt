@@ -1981,7 +1981,6 @@ namespace CADability.GeoObject
             }
 
             List<Shell> shellsForRounding = new List<Shell>();
-            HashSet<(Face, Edge)> tangentialEdges = new HashSet<(Face, Edge)>();
             foreach (List<Edge> edgeCluster in clusteredEdges)
             {
                 // we must differentiate between vertices at the open end of the cluster and vertices inside the cluster
@@ -2427,7 +2426,6 @@ namespace CADability.GeoObject
                 BooleanOperation bo = new BooleanOperation();
                 bo.SetShells(toOperateOn, shellsForRounding[i], BooleanOperation.Operation.intersection);
                 bo.SetClosedShells(true, false);
-                bo.SetTangentialEdges(tangentialEdges);
                 Shell[] roundedShells = bo.Execute();
                 if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
             }

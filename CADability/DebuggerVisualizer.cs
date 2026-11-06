@@ -77,9 +77,6 @@ Target = typeof(CADability.GeoObject.Polyline), Description = "CADability ICurve
 
 //IDebuggerVisualizer Implementations
 [assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
-Target = typeof(CADability.BRepItem), Description = "CADability IDebuggerVisualizer Visualizer")]
-
-[assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
 Target = typeof(CADability.Curve2D.BSpline2D), Description = "CADability IDebuggerVisualizer Visualizer")]
 
 [assembly: System.Diagnostics.DebuggerVisualizer(typeof(GeneralDebuggerVisualizer), typeof(SerializeToJsonOjectSource),
