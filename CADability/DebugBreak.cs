@@ -116,7 +116,7 @@ namespace CADability
         public static int HashCodeOffset { get; private set; }
 
         /// <summary>
-        /// Advances the hashCode counters of Face, Edge, Vertex and BRepItem by <paramref name="offset"/>, so
+        /// Advances the hashCode counters of Face, Edge and Vertex by <paramref name="offset"/>, so
         /// that all geometry created from now on gets numbers that are that much higher.
         /// <para>
         /// This exists to make an invisible defect visible. Those counters are process wide, and
@@ -144,7 +144,6 @@ namespace CADability
             GeoObject.Face.hashCodeCounter += offset;
             Edge.hashCodeCounter += offset;
             Vertex.hashCodeCounter += offset;
-            BRepItem.hashCodeCounter += offset;
             HashCodeOffset += offset;
             Trace.WriteLine("hashCode counters advanced by " + offset.ToString(CultureInfo.InvariantCulture));
         }
