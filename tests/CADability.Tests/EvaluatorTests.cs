@@ -27,6 +27,33 @@ namespace CADability.Tests
             Assert.AreEqual(Math.PI / 2, Convert.ToDouble(Eval("atan2(1, 0)")), 1e-12);
         }
 
+        /// <summary>random with a seed is a pure function of the seed; without a seed it only has to stay in range.</summary>
+        [TestMethod]
+        public void RandomWithAndWithoutSeed()
+        {
+            double a = Convert.ToDouble(Eval("random(2, 5, 7)"));
+            Assert.AreEqual(a, Convert.ToDouble(Eval("random(2, 5, 7)")), 0.0);
+            Assert.IsTrue(a >= 2 && a < 5);
+            Assert.AreNotEqual(a, Convert.ToDouble(Eval("random(2, 5, 8)")));
+            Assert.AreEqual(Convert.ToDouble(Eval("random(7)")), (a - 2) / 3, 1e-12); // same seed, only scaled
+
+            var values = new Dictionary<string, object> { ["i"] = 3.0 };
+            Assert.AreEqual(Convert.ToDouble(Eval("random(10 + i)", values)), Convert.ToDouble(Eval("random(13)")), 0.0);
+
+            var seen = new HashSet<double>();
+            for (int i = 0; i < 100; i++)
+            {
+                double u = Convert.ToDouble(Eval("random()"));
+                Assert.IsTrue(u >= 0 && u < 1);
+                double r = Convert.ToDouble(Eval("random(-1, 1)"));
+                Assert.IsTrue(r >= -1 && r < 1);
+                double s = Convert.ToDouble(Eval($"random({i})"));
+                Assert.IsTrue(s >= 0 && s < 1);
+                seen.Add(s);
+            }
+            Assert.IsTrue(seen.Count > 95, "different seeds should give different values");
+        }
+
         [TestMethod]
         public void PropertyOfAVariable()
         {

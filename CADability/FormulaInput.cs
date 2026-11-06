@@ -1419,6 +1419,9 @@ public static class Evaluator
                                         else fres = max;
                                     }
                                     break;
+                                case "random":
+                                    fres = FuncRandom(call, args);
+                                    break;
                                 case "near":
                                     {
                                         if (args.Length < 2 || args.Length > 3) throw new Exception($"Function {call.Name} expects at least 2 argument(s), got: {args.Length}.");
@@ -1466,6 +1469,52 @@ public static class Evaluator
         if (i < 0 || i >= items.Count)
             throw new Exception($"Index {d.ToString(CultureInfo.InvariantCulture)} is out of range: the list has {items.Count} element(s).");
         return items[i];
+    }
+
+    private static readonly Random sharedRandom = new Random();
+
+    /// <summary>
+    /// random() and random(min, max) return a different value on every evaluation; random(seed) and
+    /// random(min, max, seed) are pure functions of the seed: the same seed always yields the same value, on every
+    /// machine and in every run, so templates stay reproducible. Use different seeds (e.g. seed + i) for independent
+    /// values. The result lies in [0, 1) or [min, max).
+    /// </summary>
+    private static object FuncRandom(FunctionCallMarker call, object[] args)
+    {
+        if (args.Length > 3) throw new Exception($"Function {call.Name} expects 0 to 3 argument(s), got: {args.Length}.");
+        for (int i = 0; i < args.Length; i++)
+        {
+            if (!IsNumeric(args[i])) throw new Exception($"Function {call.Name}: all arguments must be numbers, argument {i + 1} is {args[i] ?? "null"}.");
+        }
+        double unit;
+        if (args.Length == 1 || args.Length == 3)
+        {
+            double seed = Convert.ToDouble(args[args.Length - 1], CultureInfo.InvariantCulture);
+            unit = SeededUnitRandom(seed);
+        }
+        else
+        {
+            lock (sharedRandom) unit = sharedRandom.NextDouble();
+        }
+        if (args.Length < 2) return unit;
+        double min = Convert.ToDouble(args[0], CultureInfo.InvariantCulture);
+        double max = Convert.ToDouble(args[1], CultureInfo.InvariantCulture);
+        return min + unit * (max - min);
+    }
+
+    /// <summary>
+    /// A value in [0, 1) that depends only on <paramref name="seed"/>. Uses the SplitMix64 finalizer on the bits of the
+    /// seed instead of System.Random, whose sequence is not guaranteed to stay the same across .NET versions and which
+    /// only takes integer seeds.
+    /// </summary>
+    private static double SeededUnitRandom(double seed)
+    {
+        if (seed == 0.0) seed = 0.0; // -0.0 and 0.0 are the same seed
+        ulong z = unchecked((ulong)BitConverter.DoubleToInt64Bits(seed) + 0x9E3779B97F4A7C15UL);
+        z = unchecked((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL);
+        z = unchecked((z ^ (z >> 27)) * 0x94D049BB133111EBUL);
+        z ^= z >> 31;
+        return (z >> 11) * (1.0 / (1UL << 53)); // the upper 53 bits give an evenly spaced double in [0, 1)
     }
 
     private static bool IsNumeric(object b)

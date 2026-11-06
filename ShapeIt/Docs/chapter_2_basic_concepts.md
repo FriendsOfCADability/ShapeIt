@@ -53,6 +53,7 @@ Typical examples:
 -   `sqrt`, `pow`
 -   `min`, `max`
 -   `ceil`, `floor`, `abs`
+-   `random(min, max, seed)` (see 2.9)
 
 Example:
 
@@ -354,6 +355,10 @@ Additional functions:
 -   `distance(p1, p2)`
 -   `normalize(v)`
 -   `normal(face, p)`: unit normal of the face at the point of its surface closest to `p`, out of the solid
+-   `random()`, `random(min, max)`: a new random number in `[0, 1)` or `[min, max)` on every evaluation
+-   `random(seed)`, `random(min, max, seed)`: the same, but a fixed value per seed - the same seed always gives the
+    same number, so templates rebuild identically. Use different seeds (e.g. `random(0, 5, i)` in a loop) for
+    independent values
 
 ---
 
