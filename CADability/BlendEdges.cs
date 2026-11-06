@@ -19,9 +19,26 @@ namespace CADability.GeoObject
         public BlendEdges(Shell shell, IEnumerable<Edge> edges)
         {
             this.shell = shell;
-            // convex and concave: an edge is convex when the angle between the two faces is less than 108°, concave when greater than 180°
-            convexEdges = edges.Where(e => e.Adjacency() == ShellExtensions.AdjacencyType.Convex);
-            concaveEdges = edges.Where(e => e.Adjacency() == ShellExtensions.AdjacencyType.Concave);
+            // convex and concave: an edge is convex when the angle between the two faces is less than 180°, concave when greater than 180°
+            List<Edge> edgeList = edges.ToList();
+            Dictionary<Edge, ShellExtensions.AdjacencyType> kind = edgeList.Distinct().ToDictionary(e => e, e => Classify(e));
+            convexEdges = edgeList.Where(e => kind[e] == ShellExtensions.AdjacencyType.Convex).ToList();
+            concaveEdges = edgeList.Where(e => kind[e] == ShellExtensions.AdjacencyType.Concave).ToList();
+        }
+
+        /// <summary>
+        /// Like <see cref="ShellExtensions.Adjacency"/>, but convex and concave are decided along the whole edge and not
+        /// only at its start vertex. Where the two faces are tangential at the start vertex (e.g. the miter edge between
+        /// two fillets, which runs out tangentially on the face below), the sign at the start is only noise.
+        /// </summary>
+        protected static ShellExtensions.AdjacencyType Classify(Edge edge)
+        {
+            ShellExtensions.AdjacencyType adjacency = edge.Adjacency();
+            if (adjacency != ShellExtensions.AdjacencyType.Convex && adjacency != ShellExtensions.AdjacencyType.Concave) return adjacency;
+            (bool convex, bool concave) = SampleConvexity(edge);
+            if (convex && !concave) return ShellExtensions.AdjacencyType.Convex;
+            if (concave && !convex) return ShellExtensions.AdjacencyType.Concave;
+            return adjacency; // changing or undecided: see HasChangingConvexity
         }
 
         /// <summary>
@@ -61,10 +78,104 @@ namespace CADability.GeoObject
             if (mixedEdges > 0)
                 return $"Convex and concave edges cannot be blended together: {mixedEdges} edge(s) change from convex to concave along their way. "
                     + "Blend the convex parts first and then the concave parts of the result, or the other way round.";
+            string? sizeProblem = CheckSize();
+            if (sizeProblem != null) return sizeProblem;
             string? problem = PlanStages();
             if (problem == null) return null;
             return "Convex and concave edges cannot be blended together where they meet: " + problem
                 + ". Blend them in separate steps: at a vertex where one convex and two concave edges meet (or vice versa), the single edge first.";
+        }
+
+        /// <summary>
+        /// Checks whether the size of the blend fits the faces of the selected edges, see <see cref="RoundEdges"/>.
+        /// </summary>
+        /// <returns>null, if the size is valid, otherwise a description of the problem</returns>
+        protected virtual string? CheckSize()
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// The largest curvature of the faces of <paramref name="edge"/>, sampled along the edge, which bends the faces
+        /// towards the side of the blend: towards the inside of the shell for a convex edge, towards the outside for a
+        /// concave edge. A rolling ball blend of radius r only touches a face tangentially, when r is smaller than 1/curvature:
+        /// otherwise the offset surface of the face folds over (e.g. a cylinder of radius 5 offset by -8 flips through
+        /// its axis). The curvature is measured on the surface (<see cref="NormalCurvature"/>), not read off the derivatives,
+        /// so it does not depend on the parametrization.
+        /// </summary>
+        /// <param name="edge">the edge to blend</param>
+        /// <param name="convex">true for a convex, false for a concave edge</param>
+        /// <param name="scale">a typical length of the blend, used for the step of the measurement</param>
+        /// <param name="where">the point on the edge where the largest curvature was found</param>
+        /// <returns>the largest curvature (1/radius), 0.0 if the faces do not bend towards the blend</returns>
+        protected static double MaxCurvatureTowardsBlend(Edge edge, bool convex, double scale, out GeoPoint where)
+        {
+            where = GeoPoint.Invalid;
+            double maxCurvature = 0.0;
+            if (edge.SecondaryFace == null || edge.Curve3D == null || scale <= 0.0) return maxCurvature;
+            double step = 1e-2 * scale;
+            const int samples = 8;
+            foreach (Face face in new[] { edge.PrimaryFace, edge.SecondaryFace })
+            {
+                ISurface surface = face.Surface;
+                for (int i = 0; i <= samples; i++)
+                {
+                    double t = (double)i / samples;
+                    GeoPoint p = edge.Curve3D.PointAt(t);
+                    GeoPoint2D uv = surface.PositionOf(p);
+                    if (IsSingularPoint(surface, uv)) continue;
+                    GeoVector normal = surface.GetNormal(uv);
+                    GeoVector tangent = edge.Curve3D.DirectionAt(t);
+                    if (normal.IsNullVector() || tangent.IsNullVector()) continue;
+                    normal.Norm();
+                    // an orthonormal basis of the tangent plane, e1 along the edge
+                    GeoVector e1 = tangent - (tangent * normal) * normal;
+                    if (e1.Length < Precision.eps) continue;
+                    e1.Norm();
+                    GeoVector e2 = (normal ^ e1).Normalized;
+                    // the second fundamental form in this basis, from three normal curvatures
+                    if (!NormalCurvature(surface, p, normal, e1, step, out double l)) continue;
+                    if (!NormalCurvature(surface, p, normal, e2, step, out double n)) continue;
+                    if (!NormalCurvature(surface, p, normal, (e1 + e2).Normalized, step, out double diagonal)) continue;
+                    double m = diagonal - (l + n) / 2.0;
+                    // the principal curvatures are the eigenvalues of [[l, m], [m, n]]
+                    double mean = (l + n) / 2.0;
+                    double root = Math.Sqrt(Math.Max(0.0, (l - n) * (l - n) / 4.0 + m * m));
+                    // the normal points to the outside of the shell. Negative curvature: the surface bends towards the inside
+                    double curvature = convex ? -(mean - root) : mean + root;
+                    if (curvature > maxCurvature)
+                    {
+                        maxCurvature = curvature;
+                        where = p;
+                    }
+                }
+            }
+            return maxCurvature;
+        }
+
+        /// <summary>
+        /// The normal curvature of <paramref name="surface"/> at <paramref name="p"/> in <paramref name="direction"/>, with
+        /// respect to <paramref name="normal"/>: 2*d/h^2, where d is the distance of the surface from the tangent plane at a
+        /// step h along the direction.
+        /// </summary>
+        private static bool NormalCurvature(ISurface surface, GeoPoint p, GeoVector normal, GeoVector direction, double step, out double curvature)
+        {
+            curvature = 0.0;
+            GeoPoint2D uv = surface.PositionOf(p + step * direction);
+            GeoPoint q = surface.PointAt(uv);
+            if ((q | p) > 10.0 * step) return false; // the step did not stay in the neighbourhood
+            curvature = 2.0 * ((q - p) * normal) / (step * step);
+            return true;
+        }
+
+        /// <summary>
+        /// True, if <paramref name="uv"/> is a singular point of <paramref name="surface"/> (e.g. the apex of a cone).
+        /// </summary>
+        private static bool IsSingularPoint(ISurface surface, GeoPoint2D uv)
+        {
+            if (surface.GetUSingularities().Any(u => Math.Abs(u - uv.x) < 1e-6)) return true;
+            if (surface.GetVSingularities().Any(v => Math.Abs(v - uv.y) < 1e-6)) return true;
+            return false;
         }
 
         /// <summary>
@@ -116,7 +227,7 @@ namespace CADability.GeoObject
                 GeoPoint p = vtx.Position;
                 string where = $"({p.x:G6}, {p.y:G6}, {p.z:G6})";
                 if (vedges.Length != 3) return $"{vedges.Length} edges meet at {where}, only vertices with three edges are supported";
-                ShellExtensions.AdjacencyType[] kinds = vedges.Select(e => e.Adjacency()).ToArray();
+                ShellExtensions.AdjacencyType[] kinds = vedges.Select(e => Classify(e)).ToArray();
                 if (kinds.Any(k => k != ShellExtensions.AdjacencyType.Convex && k != ShellExtensions.AdjacencyType.Concave))
                     return $"a tangential edge meets the selected edges at {where}";
                 int oddIndex = Enumerable.Range(0, 3).Single(i => kinds.Count(k => k == kinds[i]) == 1);
@@ -287,8 +398,18 @@ namespace CADability.GeoObject
         /// </summary>
         private static bool HasChangingConvexity(Edge edge)
         {
-            if (edge.SecondaryFace == null || edge.Curve3D == null) return false;
+            (bool convex, bool concave) = SampleConvexity(edge);
+            return convex && concave;
+        }
+
+        /// <summary>
+        /// Samples the edge: whether it is convex at some sample points and whether it is concave at some. Tangential
+        /// sample points (no clear sign) count for neither.
+        /// </summary>
+        private static (bool convex, bool concave) SampleConvexity(Edge edge)
+        {
             bool convex = false, concave = false;
+            if (edge.SecondaryFace == null || edge.Curve3D == null) return (convex, concave);
             const int samples = 8;
             for (int i = 0; i <= samples; i++)
             {
@@ -303,7 +424,26 @@ namespace CADability.GeoObject
                 if (orientation > 1e-3) convex = true;
                 else if (orientation < -1e-3) concave = true;
             }
-            return convex && concave;
+            return (convex, concave);
+        }
+
+        /// <summary>
+        /// True, if the two faces of <paramref name="edge"/> are tangential at <paramref name="p"/> (a point of the edge,
+        /// usually a vertex): the edge runs out there, and so does its blend, which ends in a point instead of an end face.
+        /// </summary>
+        /// <param name="normal">the common (outward) normal of the faces at p</param>
+        protected static bool RunsOutAt(Edge edge, GeoPoint p, out GeoVector normal)
+        {
+            normal = GeoVector.NullVector;
+            if (edge.SecondaryFace == null) return false;
+            GeoVector n1 = edge.PrimaryFace.Surface.GetNormal(edge.PrimaryFace.Surface.PositionOf(p));
+            GeoVector n2 = edge.SecondaryFace.Surface.GetNormal(edge.SecondaryFace.Surface.PositionOf(p));
+            if (n1.IsNullVector() || n2.IsNullVector()) return false;
+            n1.Norm();
+            n2.Norm();
+            if (n1 * n2 < 1 - 1e-6) return false; // an angle of more than about 0.08°
+            normal = (n1 + n2).Normalized;
+            return true;
         }
 
         public Dictionary<Vertex, List<Edge>> createVertexToEdges(IEnumerable<Edge> edges)
@@ -383,6 +523,7 @@ namespace CADability.GeoObject
         protected HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge, double length)
         {   // rounding ends here at vertex vtx. vtx and edge is on the shell to be rounded
             if (edgeToCutter == null || !edgeToCutter.TryGetValue(edge, out Shell? cutter)) return null; // no cutter for this edge
+            if (RunsOutAt(edge, vtx.Position, out _)) return [cutter]; // the blend ends in a point here, there is no end face to trim
             Face? endFace = EndFaceAt(cutter, vtx);
             if (endFace == null) return [cutter]; // should not happen
             Edge freeEdge = endFace.AllEdges
@@ -589,6 +730,7 @@ namespace CADability.GeoObject
             {
                 if (ve.Value.Count != 1) continue;
                 Edge edge = ve.Value[0];
+                if (RunsOutAt(edge, ve.Key.Position, out _)) continue; // the blend ends in a point here
                 Shell? cutter = CutterOf(edge);
                 if (cutter == null) continue;
                 Face? endFace = EndFaceAt(cutter, ve.Key);
