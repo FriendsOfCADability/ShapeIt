@@ -270,6 +270,276 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
+        /// The maximum angle by which the tangent may turn in a single step when tracing whole loops, see
+        /// <see cref="GetIntersectionLoops"/>. The marched points become the base points of the curve, so this angle
+        /// also sets their density.
+        /// </summary>
+        private const double loopMaxTurn = Math.PI / 18.0; // 10 degrees
+        /// <summary>The longest step when tracing loops, as a fraction of the size of the two patches.</summary>
+        private const double loopMaxStepFraction = 0.02;
+
+        /// <summary>
+        /// Finds the closed intersection curves (loops) of two surfaces, which run through the given points
+        /// (<paramref name="seeds"/>). Unlike <see cref="GetIntersectionCurves"/> the seeds are not the end points of the
+        /// curves, they are only points somewhere on the loops: one seed per loop is enough, more seeds on the same loop
+        /// do no harm. This is meant for intersections inside of two faces, where no edge penetrates the other face and
+        /// the seeds come from positions where the normals of the two surfaces are parallel.
+        /// <para>
+        /// From the first seed a single branch follows the intersection curve until it returns to its start: the result
+        /// is a closed curve. All seeds the branch passes on its way are consumed, the next loop starts at the next seed
+        /// which has not been consumed. The step length adapts to the curvature (the tangent turns at most
+        /// <see cref="loopMaxTurn"/> per step), it does not depend on the distance of the seeds, so the curves get only as
+        /// many base points as their course needs.
+        /// </para>
+        /// <para>
+        /// When a branch leaves the domain or cannot be continued (e.g. where the surfaces touch), the curve is traced from
+        /// its seed in the opposite direction as well, and the result is an open curve.
+        /// </para>
+        /// </summary>
+        /// <param name="surface1">the first surface</param>
+        /// <param name="bounds1">the domain of interest on the first surface</param>
+        /// <param name="surface2">the second surface</param>
+        /// <param name="bounds2">the domain of interest on the second surface</param>
+        /// <param name="seeds">points on (or very close to) the intersection curves, at least one per loop</param>
+        /// <returns>the curves found, an empty array when there are none</returns>
+        public static IDualSurfaceCurve[] GetIntersectionLoops(ISurface surface1, BoundingRect bounds1,
+            ISurface surface2, BoundingRect bounds2, List<GeoPoint> seeds)
+        {
+            List<IDualSurfaceCurve> res = new List<IDualSurfaceCurve>();
+            if (seeds == null || seeds.Count == 0) return res.ToArray();
+            List<GeoPoint> points = new List<GeoPoint>();
+            for (int i = 0; i < seeds.Count; i++)
+            {
+                bool duplicate = false;
+                for (int j = 0; j < points.Count; j++) if (Precision.IsEqual(points[j], seeds[i])) { duplicate = true; break; }
+                if (!duplicate) points.Add(seeds[i]);
+            }
+            // seeds a rounding error outside would end the branches with their first step, see GetIntersectionCurves
+            for (int i = 0; i < points.Count; i++)
+            {
+                GeoPoint2D uv = surface1.PositionOf(points[i]);
+                SurfaceHelper.AdjustPeriodic(surface1, bounds1, ref uv);
+                bounds1.MinMax(uv);
+                uv = surface2.PositionOf(points[i]);
+                SurfaceHelper.AdjustPeriodic(surface2, bounds2, ref uv);
+                bounds2.MinMax(uv);
+            }
+            bounds1.Inflate(bounds1.Size * 1e-6);
+            bounds2.Inflate(bounds2.Size * 1e-6);
+            BoundingBox extent = surface1.GetPatchExtent(bounds1, true);
+            extent.MinMax(surface2.GetPatchExtent(bounds2, true));
+            double size = extent.Size;
+            if (!(size > 0.0)) return res.ToArray();
+            double maxStep = size * loopMaxStepFraction;
+            MarchingContext ctx = new MarchingContext
+            {
+                surface1 = surface1,
+                bounds1 = bounds1,
+                surface2 = surface2,
+                bounds2 = bounds2,
+                seeds = points,
+                nominalStep = maxStep,
+                tolerance = Math.Max(Precision.eps, maxStep * 1e-6)
+            };
+            // the seeds are not always exact (e.g. intersections of an approximated fixed u curve with the other surface):
+            // a seed this close to the traced curve counts as consumed
+            double seedTolerance = Math.Max(Precision.eps, size * 1e-4);
+            bool[] consumed = new bool[points.Count];
+            List<List<InterpolatedDualSurfaceCurve.SurfacePoint>> traced = new List<List<InterpolatedDualSurfaceCurve.SurfacePoint>>();
+            for (int i = 0; i < points.Count; i++)
+            {
+                if (consumed[i]) continue;
+                consumed[i] = true;
+                if (!StartOfLoop(ctx, points[i], out InterpolatedDualSurfaceCurve.SurfacePoint start, out GeoVector direction)) continue;
+                // the seed may lie on a curve already traced without having been consumed (it was not exact enough): the
+                // start is exactly on the curve now, so this test is reliable
+                bool known = false;
+                for (int j = 0; j < traced.Count && !known; j++) known = NearPolyline(traced[j], 0, traced[j].Count - 1, start.p3d);
+                if (known) continue;
+                List<InterpolatedDualSurfaceCurve.SurfacePoint> curve = TraceLoop(ctx, start, direction, consumed, seedTolerance, out bool closed);
+                if (!closed)
+                {   // an open curve: the part on the other side of the seed is missing
+                    List<InterpolatedDualSurfaceCurve.SurfacePoint> backward = TraceLoop(ctx, start, -direction, consumed, seedTolerance, out _);
+                    backward.Reverse(); // now it ends with start
+                    for (int j = 1; j < curve.Count; j++) backward.Add(curve[j]);
+                    curve = backward;
+                }
+                if (curve.Count < 3) continue; // nothing but a point (e.g. an isolated contact)
+                traced.Add(curve);
+                try
+                {
+                    res.Add(new InterpolatedDualSurfaceCurve(surface1, surface2, curve.ToArray()));
+                }
+                catch (Exception ex)
+                {   // better to lose this one curve than all the others
+                    DualSurfaceCurveDiagnostics.RecordConstructionFailure("SurfaceIntersectionMarching.GetIntersectionLoops", ex);
+                }
+            }
+            return res.ToArray();
+        }
+
+        /// <summary>
+        /// Moves a seed exactly onto the intersection curve (in the plane through the seed perpendicular to the curve) and
+        /// returns the direction of the curve there. False, when there is no such point or no direction (the surfaces touch).
+        /// </summary>
+        private static bool StartOfLoop(MarchingContext ctx, GeoPoint seed, out InterpolatedDualSurfaceCurve.SurfacePoint start, out GeoVector direction)
+        {
+            start = new InterpolatedDualSurfaceCurve.SurfacePoint();
+            direction = GeoVector.NullVector;
+            GeoPoint2D uv1 = ctx.surface1.PositionOf(seed), uv2 = ctx.surface2.PositionOf(seed);
+            SurfaceHelper.AdjustPeriodic(ctx.surface1, ctx.bounds1, ref uv1);
+            SurfaceHelper.AdjustPeriodic(ctx.surface2, ctx.bounds2, ref uv2);
+            List<GeoVector> directions = StartDirections(ctx, uv1, uv2);
+            if (directions.Count == 0) return false;
+            GeoVector dir = directions[0];
+            PlaneSurface ps = new PlaneSurface(new Plane(seed, dir));
+            GeoPoint2D uvPlane = GeoPoint2D.Origin;
+            GeoPoint ip = seed;
+            if (!SurfaceIntersectionSolvers.SurfacesIntersectionLM_Analytic9(ps, ctx.surface1, ctx.surface2, ref uvPlane, ref uv1, ref uv2, ref ip)) return false;
+            GeoPoint p1 = ctx.surface1.PointAt(uv1), p2 = ctx.surface2.PointAt(uv2);
+            if ((p1 | p2) > ctx.tolerance) return false;
+            if ((ip | seed) > ctx.nominalStep) return false; // found some other part of the intersection
+            GeoVector n1 = ctx.surface1.GetNormal(uv1), n2 = ctx.surface2.GetNormal(uv2);
+            if (n1.IsNullVector() || n2.IsNullVector()) return false;
+            GeoVector tangent = n1.Normalized ^ n2.Normalized;
+            if (tangent.Length < marchingTangentialSine) return false;
+            direction = tangent.Normalized;
+            start = new InterpolatedDualSurfaceCurve.SurfacePoint(ip, uv1, uv2);
+            return true;
+        }
+
+        /// <summary>
+        /// Follows the intersection curve from <paramref name="start"/> in <paramref name="direction"/> with an adaptive
+        /// step length until it returns to <paramref name="start"/> (<paramref name="closed"/> is true then and the last
+        /// point is the start point), leaves the domain or cannot be continued. Seeds passed on the way are marked in
+        /// <paramref name="consumed"/>.
+        /// </summary>
+        private static List<InterpolatedDualSurfaceCurve.SurfacePoint> TraceLoop(MarchingContext ctx, InterpolatedDualSurfaceCurve.SurfacePoint start,
+            GeoVector direction, bool[] consumed, double seedTolerance, out bool closed)
+        {
+            closed = false;
+            List<InterpolatedDualSurfaceCurve.SurfacePoint> points = new List<InterpolatedDualSurfaceCurve.SurfacePoint> { start };
+            GeoVector startDirection = direction;
+            double step = ctx.nominalStep / 4.0;
+            double minStep = ctx.nominalStep * 1e-6;
+            double length = 0.0;
+            const int maxSteps = 20000; // only a safety net, a loop needs far fewer steps
+            for (int n = 0; n < maxSteps; n++)
+            {
+                InterpolatedDualSurfaceCurve.SurfacePoint head = points[points.Count - 1];
+                bool accepted = false, firstTry = true;
+                GeoPoint ip = GeoPoint.Origin;
+                GeoPoint2D uv1 = head.psurface1, uv2 = head.psurface2;
+                GeoVector tangent = GeoVector.NullVector;
+                double turn = 0.0;
+                for (; step >= minStep; step /= 2.0, firstTry = false)
+                {
+                    uv1 = head.psurface1;
+                    uv2 = head.psurface2;
+                    if (!MarchingStep(ctx, head.p3d, head.psurface1, head.psurface2, direction, step, ref ip, ref uv1, ref uv2)) continue;
+                    tangent = ctx.surface1.GetNormal(uv1).Normalized ^ ctx.surface2.GetNormal(uv2).Normalized;
+                    if (tangent.Length < marchingTangentialSine) continue; // running into a touching point
+                    tangent.Norm();
+                    if (tangent * direction < 0.0) tangent = -tangent; // n1 x n2 flips its sign at a touching point
+                    turn = Math.Max(new Angle(tangent, direction).Radian, new Angle(ip - head.p3d, direction).Radian);
+                    if (turn > loopMaxTurn) continue; // too much bending for this step length
+                    if (!SameBranch(ctx, head, direction, step, ip)) continue; // jumped to a neighbouring curve
+                    accepted = true;
+                    break;
+                }
+                if (!accepted) return points; // no step possible: the curve ends here
+                // Back at the start? The start lies on the curve, so it is close to the chord of this step. A step which
+                // just misses the start comes back onto the first part of the curve: that also closes the loop.
+                bool backAtStart = length > 2.0 * step && direction * startDirection > 0.0 &&
+                    (OnStep(head.p3d, ip, start.p3d, 0.05 * step + ctx.tolerance) || ReturnsToBeginning(points, ip, length, step));
+                if (backAtStart)
+                {
+                    InterpolatedDualSurfaceCurve.SurfacePoint last = start;
+                    last.FixAgainstNeighbour(head, ctx.surface1, ctx.surface2); // continuous uv values on periodic surfaces
+                    points.Add(last);
+                    closed = true;
+                    return points;
+                }
+                for (int i = 0; i < consumed.Length; i++)
+                {
+                    if (!consumed[i] && OnStep(head.p3d, ip, ctx.seeds[i], Math.Max(0.05 * step, seedTolerance))) consumed[i] = true;
+                }
+                GeoPoint2D uv1InDomain = uv1, uv2InDomain = uv2; // the stored values stay continuous, only the test is periodic
+                SurfaceHelper.AdjustPeriodic(ctx.surface1, ctx.bounds1, ref uv1InDomain);
+                SurfaceHelper.AdjustPeriodic(ctx.surface2, ctx.bounds2, ref uv2InDomain);
+                if (!ctx.bounds1.Contains(uv1InDomain) || !ctx.bounds2.Contains(uv2InDomain)) return points; // left the domain
+                points.Add(new InterpolatedDualSurfaceCurve.SurfacePoint(ip, uv1, uv2));
+                length += ip | head.p3d;
+                direction = tangent;
+                // a straight part allows longer steps, a bend has already shortened the step
+                if (firstTry && turn < loopMaxTurn / 2.0) step = Math.Min(step * 1.5, ctx.nominalStep);
+            }
+            return points;
+        }
+
+        /// <summary>
+        /// Where two intersection curves run close to each other and almost parallel, a step may land on the other curve:
+        /// its direction and the chord still look fine. The point half a step ahead lies on our own curve, so it must be
+        /// close to the middle of the chord from <paramref name="head"/> to <paramref name="ip"/> (the tangent turns little
+        /// within a step, so the curve deviates from the chord by a few percent of the step). After a jump it is about
+        /// half the distance of the two curves away from it.
+        /// </summary>
+        private static bool SameBranch(MarchingContext ctx, InterpolatedDualSurfaceCurve.SurfacePoint head, GeoVector direction, double step, GeoPoint ip)
+        {
+            GeoPoint mid = GeoPoint.Origin;
+            GeoPoint2D uv1 = head.psurface1, uv2 = head.psurface2;
+            if (!MarchingStep(ctx, head.p3d, head.psurface1, head.psurface2, direction, step / 2.0, ref mid, ref uv1, ref uv2)) return false;
+            double chord = ip | head.p3d;
+            return DistanceToSegment(mid, head.p3d, ip) < 0.05 * chord + ctx.tolerance;
+        }
+
+        /// <summary>
+        /// Whether the point <paramref name="p"/>, a new point of the curve, lies on the first part of the curve
+        /// (<paramref name="points"/>, which has the length <paramref name="length"/>), i.e. the curve has come round and
+        /// missed its start point by a little.
+        /// </summary>
+        private static bool ReturnsToBeginning(List<InterpolatedDualSurfaceCurve.SurfacePoint> points, GeoPoint p, double length, double step)
+        {
+            double covered = 0.0;
+            int last = 0;
+            // the first part: a few steps, but clearly less than the whole curve, so that a tight curve does not "close" at once
+            while (last < points.Count - 1 && covered < Math.Min(4.0 * step, length / 4.0))
+            {
+                covered += points[last + 1].p3d | points[last].p3d;
+                ++last;
+            }
+            if (last == 0) return false;
+            return NearPolyline(points, 0, last, p);
+        }
+
+        /// <summary>
+        /// Whether <paramref name="p"/> lies on the curve described by the points from index <paramref name="first"/> to
+        /// <paramref name="last"/>: close to one of the chords, relative to the length of that chord. The chords of a traced
+        /// curve deviate from the curve by a few percent of their length at most (the tangent turns little per step).
+        /// </summary>
+        private static bool NearPolyline(List<InterpolatedDualSurfaceCurve.SurfacePoint> points, int first, int last, GeoPoint p)
+        {
+            for (int i = first; i < last; i++)
+            {
+                double chord = points[i + 1].p3d | points[i].p3d;
+                if (OnStep(points[i].p3d, points[i + 1].p3d, p, 0.05 * chord + Precision.eps)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Whether <paramref name="p"/> is closer than <paramref name="maxDistance"/> to the segment from
+        /// <paramref name="from"/> to <paramref name="to"/>, and not beyond its ends.</summary>
+        private static bool OnStep(GeoPoint from, GeoPoint to, GeoPoint p, double maxDistance)
+        {
+            GeoVector dir = to - from;
+            double length2 = dir * dir;
+            if (length2 < 1e-30) return (p | from) < maxDistance;
+            double par = ((p - from) * dir) / length2;
+            if (par < 0.0 || par > 1.0) return (p | from) < maxDistance || (p | to) < maxDistance;
+            return DistanceToSegment(p, from, to) < maxDistance;
+        }
+
+        /// <summary>
         /// The directions in which the intersection curve leaves the seed, one for each branch of the curve:
         /// normally the single direction n1 x n2, and where the two surfaces touch the two directions of the
         /// crossing branches. Each of them is used forwards and backwards by the caller.

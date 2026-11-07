@@ -1185,9 +1185,40 @@ namespace CADability.GeoObject
             // return false;
         }
 
+        /// <summary>
+        /// Whether the inner intersection of the two surfaces is traced as loops (see <see cref="GetIntersectionLoops"/>)
+        /// instead of <see cref="ISurface.GetDualSurfaceCurves"/>: when a NURBS surface is involved there is no analytic
+        /// solution and GetDualSurfaceCurves would march from seed to seed anyway. A pipe touching the other surface has
+        /// its own (tangential) solution.
+        /// </summary>
+        private static bool UseLoopTracing(ISurface surface1, ISurface surface2)
+        {
+            if (surface1 is SweptCircleSurface || surface2 is SweptCircleSurface) return false;
+            return surface1 is NurbsSurface || surface2 is NurbsSurface;
+        }
         internal static IDualSurfaceCurve[] IntersectInner(ISurface surface1, BoundingRect ext1, ISurface surface2, BoundingRect ext2)
         {
+            // Without an analytic solution (a NURBS surface is involved) the seeds come from subdividing the two surfaces: this
+            // finds a point on every intersection curve and needs no extreme positions, which are hard to find for two NURBS
+            // surfaces. When every pair of patches could be decided, the result is final: the loops or no intersection at all.
+            // Otherwise (e.g. where the surfaces touch) the seeds from the extreme positions below are added.
+            List<GeoPoint> subdivisionSeeds = null;
+            if (UseLoopTracing(surface1, surface2))
+            {
+                subdivisionSeeds = IntersectionSeedsBySubdivision(surface1, ext1, surface2, ext2, out bool complete);
+                if (complete)
+                {
+                    if (subdivisionSeeds.Count == 0) return new IDualSurfaceCurve[0];
+                    IDualSurfaceCurve[] loops = GetIntersectionLoops(surface1, ext1, surface2, ext2, subdivisionSeeds);
+                    if (loops.Length > 0) return loops;
+                }
+            }
             int ep = surface1.GetExtremePositions(ext1, surface2, ext2, out List<Tuple<double, double, double, double>> extremePositions);
+            if ((extremePositions == null || extremePositions.Count == 0) && subdivisionSeeds != null && subdivisionSeeds.Count > 0)
+            {   // the subdivision was not complete, but there are no other seeds
+                IDualSurfaceCurve[] loops = GetIntersectionLoops(surface1, ext1, surface2, ext2, subdivisionSeeds);
+                if (loops.Length > 0) return loops;
+            }
             List<IDualSurfaceCurve> res = new List<IDualSurfaceCurve>();
             if (extremePositions != null && extremePositions.Count > 0)
             {   // lets calculate some seeds from the fixed curves on one of the surfaces
@@ -1220,6 +1251,19 @@ namespace CADability.GeoObject
                                 if (ext1.Contains(uvOnFaces[j]) && uOnCurve3Ds[j] >= 0.0 && uOnCurve3Ds[j] <= 1.0) seeds.Add(ips[j]);
                             }
                         }
+                    }
+                }
+                // Without an analytic solution (a NURBS surface is involved) the loops are traced directly: one seed per loop
+                // is enough, the seeds need not be the end points of the curves, and the result are closed curves with only
+                // as many base points as their course needs. When this finds nothing, the general way below is tried.
+                if (UseLoopTracing(surface1, surface2))
+                {
+                    List<GeoPoint> allSeeds = new List<GeoPoint>(seeds);
+                    if (subdivisionSeeds != null) allSeeds.AddRange(subdivisionSeeds);
+                    if (allSeeds.Count > 0)
+                    {
+                        IDualSurfaceCurve[] loops = GetIntersectionLoops(surface1, ext1, surface2, ext2, allSeeds);
+                        if (loops.Length > 0) return loops;
                     }
                 }
                 // seeds are not sorted. The curve must be closed. We simply repeat the first seed as the last seed
@@ -1255,6 +1299,13 @@ namespace CADability.GeoObject
                             }
                         }
                         candidates = tmp.ToArray();
+                    }
+                    // GetDualSurfaceCurves may return the curves split into many pieces with arbitrary orientation (one between
+                    // each pair of neighbouring seeds): join them to as few (closed) curves as possible
+                    if (candidates.Length > 1 && candidates.All(c => c is InterpolatedDualSurfaceCurve))
+                    {
+                        InterpolatedDualSurfaceCurve[] pieces = candidates.Cast<InterpolatedDualSurfaceCurve>().ToArray();
+                        candidates = InterpolatedDualSurfaceCurve.Join(pieces, Precision.eps);
                     }
                     for (int i = 0; i < candidates.Length; i++)
                     {

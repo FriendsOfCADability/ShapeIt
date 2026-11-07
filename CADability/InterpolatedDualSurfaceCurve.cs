@@ -1497,6 +1497,131 @@ namespace CADability
             Array.Reverse(basePoints);
             InvalidateSecondaryData();
         }
+        /// <summary>
+        /// Joins pieces of intersection curves of the same two surfaces, which meet at their end points, to as few curves
+        /// as possible. The orientation of the pieces is arbitrary, a piece is reversed when necessary. A chain, which
+        /// returns to its start point, gives a closed curve, otherwise an open curve results. The base points of the
+        /// pieces are concatenated, the joining point is used only once, and then thinned out (see <see cref="ThinOut"/>).
+        /// <para>
+        /// The pieces are only joined, when all of them lie on the same two surfaces (the same objects in the same order)
+        /// and have the same tangential state. Otherwise or when nothing can be joined, <paramref name="pieces"/> is
+        /// returned unchanged.
+        /// </para>
+        /// </summary>
+        /// <param name="pieces">the curve pieces, they are not modified</param>
+        /// <param name="tolerance">maximum distance of two end points that are considered to be the same point</param>
+        /// <returns>the joined curves</returns>
+        internal static InterpolatedDualSurfaceCurve[] Join(InterpolatedDualSurfaceCurve[] pieces, double tolerance)
+        {
+            if (pieces.Length < 2) return pieces;
+            ISurface s1 = pieces[0].surface1, s2 = pieces[0].surface2;
+            bool tangential = pieces[0].isTangential;
+            for (int i = 1; i < pieces.Length; i++)
+            {
+                if (pieces[i].surface1 != s1 || pieces[i].surface2 != s2 || pieces[i].isTangential != tangential) return pieces;
+            }
+            // the base points of the pieces, which have not been used yet, with the index of their piece
+            List<(SurfacePoint[] points, int index)> open = new List<(SurfacePoint[], int)>(pieces.Length);
+            for (int i = 0; i < pieces.Length; i++) open.Add(((SurfacePoint[])pieces[i].basePoints.Clone(), i));
+            List<InterpolatedDualSurfaceCurve> res = new List<InterpolatedDualSurfaceCurve>();
+            bool joinedAny = false;
+            while (open.Count > 0)
+            {
+                int startIndex = open[open.Count - 1].index;
+                List<SurfacePoint> chain = new List<SurfacePoint>(open[open.Count - 1].points);
+                open.RemoveAt(open.Count - 1);
+                int numPieces = 1;
+                // extend the chain at its end, then reverse it and extend at the other end
+                for (int side = 0; side < 2; side++)
+                {
+                    while (open.Count > 0 && (chain[0].p3d | chain[chain.Count - 1].p3d) > tolerance)
+                    {
+                        GeoPoint end = chain[chain.Count - 1].p3d;
+                        int best = -1;
+                        bool reverse = false;
+                        double minDist = tolerance;
+                        for (int i = 0; i < open.Count; i++)
+                        {
+                            SurfacePoint[] candidate = open[i].points;
+                            double ds = end | candidate[0].p3d;
+                            double de = end | candidate[candidate.Length - 1].p3d;
+                            if (ds <= minDist) { minDist = ds; best = i; reverse = false; }
+                            if (de < minDist) { minDist = de; best = i; reverse = true; }
+                        }
+                        if (best < 0) break; // the chain ends here
+                        SurfacePoint[] toAppend = open[best].points;
+                        open.RemoveAt(best);
+                        if (reverse) Array.Reverse(toAppend);
+                        // the first point of toAppend is the last point of the chain
+                        for (int i = 1; i < toAppend.Length; i++)
+                        {
+                            SurfacePoint sp = toAppend[i];
+                            sp.FixAgainstNeighbour(chain[chain.Count - 1], s1, s2); // continuous uv values on periodic surfaces
+                            chain.Add(sp);
+                        }
+                        ++numPieces;
+                    }
+                    if ((chain[0].p3d | chain[chain.Count - 1].p3d) <= tolerance) break; // closed, no need to look at the other end
+                    if (side == 0) chain.Reverse();
+                }
+                if (numPieces == 1)
+                {   // nothing to join with: keep the original piece
+                    res.Add(pieces[startIndex]);
+                    continue;
+                }
+                joinedAny = true;
+                if ((chain[0].p3d | chain[chain.Count - 1].p3d) <= tolerance)
+                {   // closed: the last point is exactly the first point (in the period next to its predecessor)
+                    SurfacePoint last = chain[0];
+                    last.FixAgainstNeighbour(chain[chain.Count - 2], s1, s2);
+                    chain[chain.Count - 1] = last;
+                }
+                res.Add(new InterpolatedDualSurfaceCurve(s1, s2, ThinOut(chain, thinOutMaxTurn).ToArray(), tangential));
+            }
+            return joinedAny ? res.ToArray() : pieces;
+        }
+        /// <summary>
+        /// The maximum angle by which the tangent of the curve may turn between two neighbouring base points, which
+        /// remain after <see cref="ThinOut"/>.
+        /// </summary>
+        internal const double thinOutMaxTurn = Math.PI / 18.0; // 10 degrees
+        /// <summary>
+        /// Reduces a dense sequence of points of an intersection curve (e.g. from marching) to the base points needed for
+        /// an <see cref="InterpolatedDualSurfaceCurve"/>: the base points only guide the calculation of the curve points,
+        /// which are always computed exactly on both surfaces, so they need not be dense. A point is kept, when the
+        /// tangent of the curve turns by more than <paramref name="maxTurn"/> between the last kept point and the next one.
+        /// The tangents are estimated from the neighbouring points, so the input must be dense. The first and the last
+        /// point are always kept, and at least one inner point remains.
+        /// </summary>
+        internal static List<SurfacePoint> ThinOut(IList<SurfacePoint> points, double maxTurn)
+        {
+            int n = points.Count;
+            if (n <= 3) return new List<SurfacePoint>(points);
+            GeoVector[] tangent = new GeoVector[n];
+            for (int i = 0; i < n; i++)
+            {
+                GeoVector t = points[Math.Min(i + 1, n - 1)].p3d - points[Math.Max(i - 1, 0)].p3d;
+                tangent[i] = t.Length > 0.0 ? t.Normalized : GeoVector.NullVector;
+            }
+            double cosMax = Math.Cos(maxTurn);
+            List<SurfacePoint> res = new List<SurfacePoint> { points[0] };
+            int kept = 0;
+            for (int j = 1; j < n - 1; j++)
+            {
+                GeoVector chord = points[j + 1].p3d - points[kept].p3d;
+                bool turnsTooMuch = !tangent[kept].IsNullVector() && !tangent[j + 1].IsNullVector() && tangent[kept] * tangent[j + 1] < cosMax;
+                // the chord to the next point must still follow the tangent at the last kept point
+                if (!turnsTooMuch && !tangent[kept].IsNullVector() && chord.Length > 0.0) turnsTooMuch = chord.Normalized * tangent[kept] < cosMax;
+                if (turnsTooMuch)
+                {   // the next point is too far around the bend: j is the last point we can go to
+                    res.Add(points[j]);
+                    kept = j;
+                }
+            }
+            if (res.Count == 1) res.Add(points[n / 2]); // keep at least one inner point
+            res.Add(points[n - 1]);
+            return res;
+        }
         public override void Trim(double StartPos, double EndPos)
         {
             if (StartPos <= Precision.eps && EndPos >= 1 - Precision.eps) return; // trim from start to end, nothing to do

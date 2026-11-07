@@ -678,28 +678,23 @@ namespace CADability
                 IDualSurfaceCurve[] innerCurves = Surfaces.IntersectInner(fc1.Surface, fc1.Domain, fc2.Surface, fc2.Domain);
                 if (innerCurves?.Length > 0)
                 {
-                    if (innerCurves.Length == 1)
-                    {   // a single closed curve: we split it, because we don't like closed curves
-                        ICurve[] parts = innerCurves[0].Curve3D.Split(0.5);
-                        List<Vertex> vertices = new List<Vertex>();
-                        for (int i = 0; i < parts.Length; i++)
+                    // one or more closed loops, each either a single closed curve or several open curves.
+                    // Closed curves are split, because we don't like closed curves.
+                    // The direction of the curves is arbitrary, so both endpoints have to go into the vertex list
+                    HashSet<Vertex> vertices = [];
+                    List<ICurve> curves = new List<ICurve>();
+                    for (int i = 0; i < innerCurves.Length; i++)
+                    {
+                        ICurve crv = innerCurves[i].Curve3D;
+                        ICurve[] parts = crv.IsClosed ? crv.Split(0.5) : new ICurve[] { crv };
+                        for (int j = 0; j < parts.Length; j++)
                         {
-                            vertices.Add(new Vertex(parts[i].StartPoint));
+                            vertices.Add(CreateOrFindVertex(parts[j].StartPoint));
+                            vertices.Add(CreateOrFindVertex(parts[j].EndPoint));
+                            curves.Add(parts[j]);
                         }
-                        CreateIntersectionEdges(fc1, fc2, vertices.ToHashSet(), parts);
                     }
-                    else
-                    {   // it must be a closed loop, in most cases consisting of two curves
-                        // multiple closed loops are not implemented yet
-                        // the direction of these curves is arbitrary, so both endpoints have to go into the vertex list
-                        HashSet<Vertex> vertices = [];
-                        for (int i = 0; i < innerCurves.Length; i++)
-                        {
-                            vertices.Add(CreateOrFindVertex(innerCurves[i].Curve3D.StartPoint));
-                            vertices.Add(CreateOrFindVertex(innerCurves[i].Curve3D.EndPoint));
-                        }
-                        CreateIntersectionEdges(fc1, fc2, vertices, innerCurves.Select(c => c.Curve3D).ToList());
-                    }
+                    CreateIntersectionEdges(fc1, fc2, vertices, curves);
                 }
             }
             if (intersectionVertices.Count > 1)
