@@ -1,0 +1,207 @@
+{
+  "templates": [
+    {
+      "name": "cloudRelief",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "cloudRelief",
+            "label": "Wolkenrelief",
+            "category": "Freiform",
+            "description": "Flat random relief standing on the x/y plane, e.g. one part of a tree crown or a cloud. A NURBS surface interpolates a grid of points over a rectangle centered at the origin; the outer ring of the grid lies at the lowest value, the inner points get random heights between the lowest and the highest value. A box on the x/y plane is split by this surface, and only the 'landscape' above z=0 remains. The same seed always gives the same relief; several reliefs with different seeds can be moved against each other and united.",
+            "tags": [
+              "relief",
+              "cloud",
+              "tree crown",
+              "random",
+              "nurbs"
+            ],
+            "parameters": [
+              {
+                "name": "sizeX",
+                "value": 120,
+                "label": "Breite X",
+                "input": {
+                  "kind": "length",
+                  "group": "Rechteck",
+                  "order": 1,
+                  "min": 1,
+                  "description": "Width of the rectangle that carries the point grid, centered at the origin. The relief itself stays inside this rectangle."
+                }
+              },
+              {
+                "name": "sizeY",
+                "value": 80,
+                "label": "Breite Y",
+                "input": {
+                  "kind": "length",
+                  "group": "Rechteck",
+                  "order": 2,
+                  "min": 1,
+                  "description": "Depth of the rectangle that carries the point grid, centered at the origin."
+                }
+              },
+              {
+                "name": "gridPoints",
+                "value": 8,
+                "label": "Rasterpunkte je Richtung",
+                "input": {
+                  "kind": "integer",
+                  "group": "Rechteck",
+                  "order": 3,
+                  "min": 4,
+                  "description": "Number of grid points in x and in y. The outer ring is fixed at the lowest value, so (n-2)*(n-2) points are random. More points give a more fissured relief."
+                }
+              },
+              {
+                "name": "zLow",
+                "value": -10,
+                "label": "Tiefster Wert",
+                "input": {
+                  "kind": "length",
+                  "group": "Höhe",
+                  "order": 4,
+                  "description": "Lowest height of the grid points, must be below 0. The outer ring of the grid lies here. The further below 0, the more of the relief is cut away and the more it breaks up into islands."
+                }
+              },
+              {
+                "name": "zHigh",
+                "value": 10,
+                "label": "Höchster Wert",
+                "input": {
+                  "kind": "length",
+                  "group": "Höhe",
+                  "order": 5,
+                  "description": "Highest height of the grid points, must be above 0. The surface between the points may overshoot it slightly."
+                }
+              },
+              {
+                "name": "seed",
+                "value": 1,
+                "label": "Zufallsstart",
+                "input": {
+                  "kind": "integer",
+                  "group": "Zufall",
+                  "order": 6,
+                  "description": "Start value of the random heights. The same value always gives the same relief; change it to get a different one."
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "assert.check",
+                "params": {
+                  "condition": "zLow < 0",
+                  "message": "Der tiefste Wert muss unter 0 liegen, sonst schneidet die x/y-Ebene nichts ab."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "assert.check",
+                "params": {
+                  "condition": "zHigh > 0",
+                  "message": "Der höchste Wert muss über 0 liegen, sonst bleibt nichts über der x/y-Ebene."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "assert.check",
+                "params": {
+                  "condition": "gridPoints >= 4",
+                  "message": "Es werden mindestens 4 Rasterpunkte je Richtung gebraucht."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "workspace.set",
+                "params": {
+                  "name": "lastIndex",
+                  "value": "gridPoints - 1"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "inset",
+                  "value": "0.02 * min(sizeX, sizeY) / lastIndex"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "surface.parametric",
+          "id": 3,
+          "params": {
+            "name": "cloudSurface",
+            "degreeU": 3,
+            "degreeV": 3,
+            "approximation": {
+              "uParameter": "u",
+              "vParameter": "v",
+              "uMin": 0,
+              "uMax": "lastIndex",
+              "vMin": 0,
+              "vMax": "lastIndex",
+              "minSamplesU": "gridPoints",
+              "minSamplesV": "gridPoints",
+              "sampling": "uniform",
+              "tolerance": 0.01,
+              "uPeriodic": false,
+              "vPeriodic": false,
+              "xExpr": "-sizeX/2 + u*sizeX/lastIndex",
+              "yExpr": "-sizeY/2 + v*sizeY/lastIndex",
+              "zExpr": "zLow + sign(min(min(u, lastIndex - u), min(v, lastIndex - v))) * (random(zLow, zHigh, seed*gridPoints*gridPoints + gridPoints*round(u) + round(v)) - zLow)"
+            }
+          }
+        },
+        {
+          "method": "solid.box",
+          "id": 4,
+          "params": {
+            "name": "cloudBlock",
+            "origin": [
+              "-sizeX/2 + inset",
+              "-sizeY/2 + inset",
+              0
+            ],
+            "sizeX": "sizeX - 2*inset",
+            "sizeY": "sizeY - 2*inset",
+            "sizeZ": "2*(zHigh - zLow)"
+          }
+        },
+        {
+          "method": "feature.split",
+          "id": 5,
+          "params": {
+            "solid": "cloudBlock",
+            "splitBy": "cloudSurface",
+            "nameInner": "cloud"
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 6,
+          "params": {
+            "result": "cloud"
+          }
+        }
+      ]
+    }
+  ]
+}
