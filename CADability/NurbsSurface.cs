@@ -3248,6 +3248,46 @@ namespace CADability.GeoObject
             return res;
         }
         /// <summary>
+        /// Adds the Bézier control points of the surface restricted to <paramref name="uvPatch"/> to <paramref name="points"/>:
+        /// the patch is split at the knots, each part has its own Bézier net. The surface patch lies in the convex hull of
+        /// these points, which makes them suitable for a guaranteed enclosing hull of any shape (e.g. a parallelepiped).
+        /// Periodic parameters may wrap around the seam, non periodic parameters are clamped to the domain.
+        /// </summary>
+        /// <returns>false, if a weight is not positive: then the convex hull property does not hold and <paramref name="points"/>
+        /// must not be used</returns>
+        internal bool GetPatchHullPoints(BoundingRect uvPatch, List<GeoPoint> points)
+        {
+            if (nubs == null && nurbs == null) Init();
+            List<double[]> uIntervals = new List<double[]>(2);
+            List<double[]> vIntervals = new List<double[]>(2);
+            AddIntervalsInDomain(uvPatch.Left, uvPatch.Right, uKnots[0], uKnots[uKnots.Length - 1], uPeriodic, uIntervals);
+            AddIntervalsInDomain(uvPatch.Bottom, uvPatch.Top, vKnots[0], vKnots[vKnots.Length - 1], vPeriodic, vIntervals);
+            for (int ui = 0; ui < uIntervals.Count; ++ui)
+            {
+                double ua = uIntervals[ui][0], ub = uIntervals[ui][1];
+                for (int vi = 0; vi < vIntervals.Count; ++vi)
+                {
+                    double va = vIntervals[vi][0], vb = vIntervals[vi][1];
+                    for (int iu = 0; iu < uKnots.Length - 1; ++iu)
+                    {
+                        double a0 = Math.Max(ua, uKnots[iu]), a1 = Math.Min(ub, uKnots[iu + 1]);
+                        if (a1 < a0) continue;
+                        if (a1 == a0 && ub > ua) continue; // zero width strip at a knot, covered by the neighbor span
+                        for (int iv = 0; iv < vKnots.Length - 1; ++iv)
+                        {
+                            double b0 = Math.Max(va, vKnots[iv]), b1 = Math.Min(vb, vKnots[iv + 1]);
+                            if (b1 < b0) continue;
+                            if (b1 == b0 && vb > va) continue;
+                            GeoPointH[] net = GetBezierNetH(a0, a1, b0, b1, out bool weightsOk);
+                            if (!weightsOk) return false;
+                            for (int i = 0; i < net.Length; ++i) points.Add((GeoPoint)net[i]);
+                        }
+                    }
+                }
+            }
+            return true;
+        }
+        /// <summary>
         /// Adds the extent of the Bézier patch given by net (nu*nv homogeneous poles) to res. If the hull of the
         /// net exceeds the (growing) reference box by more than tol, the patch is subdivided (de Casteljau) up to
         /// the provided depth. Every leaf contributes its full pole hull, so res always contains the patch.

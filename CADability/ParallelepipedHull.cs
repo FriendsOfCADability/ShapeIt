@@ -1020,8 +1020,24 @@ namespace CADability.GeoObject
                 cube.dirv = (cube.pul - cube.pll) + (cube.pur - cube.plr);
                 Matrix m = DenseMatrix.OfColumnArrays(cube.diru, cube.dirv, cube.normal);
 
+                List<GeoPoint> hullPoints = new List<GeoPoint>();
                 if (m.Rank() < 3)
                 {
+                }
+                else if (surface is NurbsSurface nurbsSurface && nurbsSurface.GetPatchHullPoints(cube.uvPatch, hullPoints))
+                {   // a NURBS patch lies in the convex hull of its Bézier control points: enclose them (and the corners)
+                    m = (Matrix)m.Inverse();
+                    BoundingBox bc = new BoundingBox(m * cube.pll, m * cube.plr, m * cube.pul, m * cube.pur);
+                    for (int i = 0; i < hullPoints.Count; i++) bc.MinMax(m * hullPoints[i]);
+                    if (bc.XDiff == 0.0) bc.Xmax = bc.Xmin + Precision.eps;
+                    if (bc.YDiff == 0.0) bc.Ymax = bc.Ymin + Precision.eps;
+                    if (bc.ZDiff == 0.0) bc.Zmax = bc.Zmin + Precision.eps;
+                    cube.loc = GeoPoint.Origin + bc.Xmin * cube.diru + bc.Ymin * cube.dirv + bc.Zmin * cube.normal;
+                    cube.diru = bc.XDiff * cube.diru;
+                    cube.dirv = bc.YDiff * cube.dirv;
+                    cube.normal = bc.ZDiff * cube.normal;
+                    m = (Matrix)DenseMatrix.OfColumnArrays(cube.diru, cube.dirv, cube.normal).Inverse();
+                    cube.toUnit.SetData(m, m * (-cube.loc));
                 }
                 else
                 {
@@ -1106,6 +1122,18 @@ namespace CADability.GeoObject
                         TetraederHull.GetTetraederPoints(cube.plr, cube.pur, surface.VDirection(cube.uvPatch.GetLowerRight()), surface.VDirection(cube.uvPatch.GetUpperRight()), out tv1, out tv2);
                         bc.MinMax(m * tv1);
                         bc.MinMax(m * tv2);
+                    }
+                    // The points above only estimate the extent from the border of the patch: a bump inside the patch (e.g. on
+                    // an interpolated relief, where corners and borders are low) would stick out of the parallelepiped, and
+                    // then the octtree does not find this patch for points on the bump (PositionOf fails). A NURBS patch
+                    // lies in the convex hull of its Bézier control points, which makes the parallelepiped enclose it.
+                    if (surface is NurbsSurface nurbsSurface)
+                    {
+                        List<GeoPoint> hullPoints = new List<GeoPoint>();
+                        if (nurbsSurface.GetPatchHullPoints(cube.uvPatch, hullPoints))
+                        {
+                            for (int i = 0; i < hullPoints.Count; i++) bc.MinMax(m * hullPoints[i]);
+                        }
                     }
                     // intersect the 4 tangent planes at the corner points and add these points
                     GeoPoint ip;
