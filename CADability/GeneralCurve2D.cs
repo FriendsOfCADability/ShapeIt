@@ -542,6 +542,8 @@ namespace CADability.Curve2D
                 directions = mergedDirections.ToArray();
                 parameters = mergedParameters.ToArray();
             }
+            const double minInterval = 1e-3; // smallest parameter interval which is still subdivided
+            const double maxMisalignment = 1e-3; // radian, below this an almost straight piece is not treated as having an inflection
             for (int i = 1; i < parameters.Length; i++)
             {
                 GeoVector2D sec = points[i] - points[i - 1];
@@ -551,7 +553,12 @@ namespace CADability.Curve2D
                 {   // wenn eine Richtung ein Nullvektor ist, wird nicht unterteilt
                     continue;
                 }
-                if (Math.Abs(sa0.Radian) > Math.PI / 3 || Math.Abs(sa1.Radian) > Math.PI / 3)
+                if (parameters[i] - parameters[i - 1] < minInterval) continue; // stops the subdivision at cusps and other singularities
+                // On a piece without inflection the two tangents lie on different sides of the chord. If they lie on the same side,
+                // the piece contains an inflection which has been missed (GetInflectionPoints only sees an odd number of them per
+                // interval), the tangents intersect outside of the band of the chord and the triangle does not enclose the curve.
+                bool invalidTriangle = sa0.Radian * sa1.Radian > 0 && Math.Max(Math.Abs(sa0.Radian), Math.Abs(sa1.Radian)) > maxMisalignment;
+                if (invalidTriangle || Math.Abs(sa0.Radian) > Math.PI / 3 || Math.Abs(sa1.Radian) > Math.PI / 3)
                 {
                     double midParam = 0.5 * (parameters[i] + parameters[i - 1]);
                     GeoPoint2D midPoint = PointAt(midParam);
@@ -565,7 +572,7 @@ namespace CADability.Curve2D
                     points = newPoints.ToArray();
                     directions = newDirs.ToArray();
                     parameters = newParams.ToArray();
-                    // i--; // nochtmals prüfen
+                    i--; // check the first half again
                 }
             }
 #if DEBUG
