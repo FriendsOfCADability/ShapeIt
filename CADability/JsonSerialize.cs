@@ -2142,7 +2142,14 @@ namespace CADability
                 dict.Add(item.Key, item.Value);
             }
         }
-        public string OriginalTypeName => dict["$Type"] as string;
+        public string OriginalTypeName
+        {
+            get
+            {
+                if (dict.TryGetValue("$Type", out object tname)) return tname as string;
+                return null;
+            }
+        }
         public string OriginalTypeAssembly
         {
             get
@@ -2151,7 +2158,14 @@ namespace CADability
                 return null;
             }
         }
-        public int OriginalTypeVersion => (int)dict["$TypeVersion"];
+        public int OriginalTypeVersion
+        {
+            get
+            {
+                if (dict.TryGetValue("$TypeVersion", out object ver) && ver is int) return (int)ver;
+                return 0;
+            }
+        }
         public override void GetObjectData(SerializationInfo info, StreamingContext context)
         {
             base.GetObjectData(info, context);
