@@ -559,6 +559,8 @@ namespace CADability
                                                 found = true;
                                             }
                                         }
+                                        // the following condition adds the start or endpoint to the list of intersection vertices in order to create intersection curves from or to this point
+                                        if (!found && (clipped[i] == 0 || clipped[i] == 1) && fca.Area.Contains(vv.GetPositionOnFace(fca), true)) found = true;
                                         if (found && !vtxs.Contains(vv)) vtxs.Add(vv);
                                     }
                                 }
@@ -2298,6 +2300,9 @@ namespace CADability
             for (int i = 0; i < close.Length; i++)
             {
                 if ((close[i].Position | p) < precision) return close[i];
+#if DEBUG
+                if ((close[i].Position | p) < 100 * precision) { }
+#endif
             }
             Vertex v = new Vertex(p);
             verticesOctTree.AddObject(v);
