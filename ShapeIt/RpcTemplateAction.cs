@@ -254,6 +254,33 @@ namespace ShapeIt
                                 if (!solidInput.Optional) requiredInputs.Add((name, solidInput));
                             }
                             break;
+                        case "curve":
+                            {   // the user picks a curve of the model (connected curves are offered as one path); the
+                                // template gets a copy. Until a curve is picked, the default of the template is used.
+                                string name = parameterNames[i]; // capture
+                                if (parameterInfo.defaultValue != null) parameterValues[name] = parameterInfo.defaultValue;
+                                CurveInput curveInput = new CurveInput("@" + parameterInfo.label + "@" + parameterInfo.description);
+                                curveInput.PreferPath = true;
+                                curveInput.Optional = parameterInfo.optional;
+                                curveInput.MouseOverCurvesEvent += (sender, curves, up) =>
+                                {
+                                    if (up && curves.Length > 0)
+                                    {   // the first candidate is selected, the user may switch to another one
+                                        sender.SetCurves(curves, curves[0]);
+                                        parameterValues[name] = curves[0].Clone();
+                                        ParameterChanged();
+                                    }
+                                    return curves.Length > 0;
+                                };
+                                curveInput.CurveSelectionChangedEvent += (sender, selected) =>
+                                {
+                                    if (selected == null) return;
+                                    parameterValues[name] = selected.Clone();
+                                    ParameterChanged();
+                                };
+                                inputs.Add(curveInput);
+                            }
+                            break;
                         case "profile":
                             {   // the user picks a closed planar curve (a path is taken as a whole), which becomes a sketch
                                 string name = parameterNames[i]; // capture

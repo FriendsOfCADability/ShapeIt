@@ -44,6 +44,174 @@ class MathStub
 
 
 }
+/// <summary>
+/// The curve functions of the expression evaluator: type(x), vertices(curve[, maxError]), makepath(curves),
+/// getcommonplane(curves), getextent(curves). "Curves" is a single curve or a list of curves, 3D (ICurve) or,
+/// where it makes sense, 2D (ICurve2D, e.g. the curves of a sketch).
+/// </summary>
+public static class CurveOps
+{
+    /// <summary>A single object or every element of a list.</summary>
+    private static IEnumerable<object> Items(object x)
+    {
+        if (x is string || x is not System.Collections.IEnumerable list)
+        {
+            if (x != null) yield return x;
+            yield break;
+        }
+        foreach (object o in list) yield return o;
+    }
+
+    private static List<ICurve> Curves3D(object x, string function)
+    {
+        List<ICurve> res = new List<ICurve>();
+        foreach (object o in Items(x))
+        {
+            if (o is ICurve c) res.Add(c);
+            else if (o is Edge e && e.Curve3D != null) res.Add(e.Curve3D);
+            else throw new Exception($"Function {function} expects curves, but got {o?.GetType().Name ?? "null"}.");
+        }
+        if (res.Count == 0) throw new Exception($"Function {function} got no curves.");
+        return res;
+    }
+
+    /// <summary>
+    /// The name of the type of x, for a list with a single element that of the element: "Line", "Ellipse" (also
+    /// circles and arcs, see IsCircle and IsArc), "Polyline", "BSpline", "Path", "Line2D", "Polyline2D", "Path2D",
+    /// "GeoPoint", "List" (several or no elements), "Number", "String" ...
+    /// </summary>
+    public static string TypeName(object x)
+    {
+        if (x is string) return "String";
+        if (x is System.Collections.ICollection col)
+        {
+            if (col.Count != 1) return "List";
+            foreach (object o in col) return TypeName(o);
+        }
+        if (x == null) return "Null";
+        if (x is double || x is int || x is float || x is long) return "Number";
+        return x.GetType().Name;
+    }
+
+    /// <summary>
+    /// The vertices of a curve or of connected curves: exact for lines, polylines and paths of them; with
+    /// maxError &gt; 0 other curves are approximated by lines first, otherwise they are refused. 3D curves give a
+    /// list of GeoPoint, 2D curves (e.g. the curves of a profile's sketch) a list of GeoPoint2D. A closed
+    /// polyline repeats its first point at the end.
+    /// </summary>
+    public static object Vertices(object x, double maxError)
+    {
+        List<object> items = Items(x).ToList();
+        if (items.Count > 0 && items.All(o => o is ICurve2D))
+        {
+            List<GeoPoint2D> res2d = new List<GeoPoint2D>();
+            foreach (ICurve2D c in items.Cast<ICurve2D>()) AddVertices2D(c, maxError, res2d);
+            return res2d;
+        }
+        List<GeoPoint> res = new List<GeoPoint>();
+        foreach (ICurve c in Curves3D(x, "vertices")) AddVertices(c, maxError, res);
+        return res;
+    }
+
+    private static void AddPoint(List<GeoPoint> list, GeoPoint p)
+    {   // connected segments share their end points
+        if (list.Count == 0 || (list[list.Count - 1] | p) > CADability.Precision.eps) list.Add(p);
+    }
+
+    private static void AddPoint2D(List<GeoPoint2D> list, GeoPoint2D p)
+    {
+        if (list.Count == 0 || (list[list.Count - 1] | p) > CADability.Precision.eps) list.Add(p);
+    }
+
+    private static void AddVertices(ICurve c, double maxError, List<GeoPoint> res)
+    {
+        switch (c)
+        {
+            case Line line:
+                AddPoint(res, line.StartPoint);
+                AddPoint(res, line.EndPoint);
+                break;
+            case Polyline pl:
+                foreach (GeoPoint p in pl.Vertices) AddPoint(res, p);
+                if (pl.IsClosed && pl.Vertices.Length > 0) res.Add(pl.Vertices[0]);
+                break;
+            case Path path:
+                foreach (ICurve sub in path.Curves) AddVertices(sub, maxError, res);
+                break;
+            default:
+                if (maxError <= 0) throw new Exception($"vertices: a {c.GetType().Name} has no vertices, give a maximal error to approximate it by lines, e.g. vertices(c, 0.1).");
+                ICurve approx = c.Approximate(true, maxError);
+                if (approx is not (Line or Polyline or Path)) throw new Exception($"vertices: the {c.GetType().Name} cannot be approximated by lines.");
+                AddVertices(approx, 0.0, res);
+                break;
+        }
+    }
+
+    private static void AddVertices2D(ICurve2D c, double maxError, List<GeoPoint2D> res)
+    {
+        switch (c)
+        {
+            case Line2D line:
+                AddPoint2D(res, line.StartPoint);
+                AddPoint2D(res, line.EndPoint);
+                break;
+            case Polyline2D pl:
+                foreach (GeoPoint2D p in pl.Vertex) AddPoint2D(res, p);
+                break;
+            case Path2D path:
+                foreach (ICurve2D sub in path.SubCurves) AddVertices2D(sub, maxError, res);
+                break;
+            default:
+                if (maxError <= 0) throw new Exception($"vertices: a {c.GetType().Name} has no vertices, give a maximal error to approximate it by lines, e.g. vertices(c, 0.1).");
+                ICurve2D approx = c.Approximate(true, maxError);
+                if (approx is not (Line2D or Polyline2D or Path2D)) throw new Exception($"vertices: the {c.GetType().Name} cannot be approximated by lines.");
+                AddVertices2D(approx, 0.0, res);
+                break;
+        }
+    }
+
+    /// <summary>The curves connected to one path, sorted and oriented as needed; a single curve stays what it is.</summary>
+    public static ICurve MakePath(object x)
+    {
+        List<ICurve> curves = Curves3D(x, "makepath");
+        if (curves.Count == 1) return curves[0];
+        // Path.Set takes the curves over: work on copies, the curves of the workspace stay untouched
+        Path path = Path.FromSegments(curves.Select(c => c.Clone()), false);
+        if (path == null) throw new Exception("makepath: the curves are not connected to a single path.");
+        return path;
+    }
+
+    /// <summary>The plane that contains all the curves; an error when there is none.</summary>
+    public static Plane CommonPlane(object x)
+    {
+        List<ICurve> curves = Curves3D(x, "getcommonplane");
+        // GetCommonPlane looks for the plane containing most of the curves, so all of them are checked
+        if (!Curves.GetCommonPlane(curves, out Plane plane) || !curves.All(c => c.IsInPlane(plane)))
+            throw new Exception("getcommonplane: the curves do not lie in a common plane.");
+        return plane;
+    }
+
+    /// <summary>The bounding box of 3D curves, edges or geometric objects like solids (Xmin, Xmax, ...), or the bounding rectangle of 2D curves (Left, Right, Bottom, Top).</summary>
+    public static object Extent(object x)
+    {
+        List<object> items = Items(x).ToList();
+        if (items.Count > 0 && items.All(o => o is ICurve2D))
+        {
+            BoundingRect br = BoundingRect.EmptyBoundingRect;
+            foreach (ICurve2D c in items.Cast<ICurve2D>()) br.MinMax(c.GetExtent());
+            return br;
+        }
+        BoundingBox ext = BoundingBox.EmptyBoundingBox;
+        foreach (object o in items)
+        {   // solids, faces and other geometric objects too, e.g. to tell the parts of a split apart
+            if (o is IGeoObject go) ext.MinMax(go.GetExtent(0.0));
+            else foreach (ICurve c in Curves3D(o, "getextent")) ext.MinMax(c.GetExtent());
+        }
+        if (ext.IsEmpty) throw new Exception("Function getextent got nothing to measure.");
+        return ext;
+    }
+}
+
 public static class GeometryOps
 {
     public static object UnaryMinus(object v)
@@ -963,7 +1131,7 @@ public static class Evaluator
                             aa = seq.First();
                         }
 
-                        PropertyInfo pi = aa.GetType().GetProperty(bs, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                        PropertyInfo pi = FindProperty(aa.GetType(), bs);
                         if (pi != null)
                         {
                             object propValue = pi.GetValue(aa);
@@ -978,7 +1146,7 @@ public static class Evaluator
                             break;
                         }
                         // GetMethod must also be implemented, what about number and type of parameters?
-                        MethodInfo[] methods = aa.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                        MethodInfo[] methods = CandidateMethods(aa.GetType());
                         bool found = false;
                         for (int i = 0; i < methods.Length; i++)
                         {
@@ -1214,7 +1382,7 @@ public static class Evaluator
                             object target = toCallWith is ObjectMethodPair om ? om.obj : toCallWith;
                             MethodInfo? toCall = null;
                             object?[]? coercedArgs = null;
-                            MethodInfo[] methods = target.GetType().GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                            MethodInfo[] methods = CandidateMethods(target.GetType());
                             for (int i = 0; i < methods.Length && toCall == null; i++)
                             {
                                 if (!string.Equals(methods[i].Name, call.Name, StringComparison.OrdinalIgnoreCase))
@@ -1244,7 +1412,7 @@ public static class Evaluator
                         else
                         {
 
-                            switch (call.Name)
+                            switch (call.Name.ToLowerInvariant()) // GetExtent and getextent are the same function
                             {
                                 // 1-Argument-Funktionen (wie vorher)
                                 case "sin":
@@ -1398,7 +1566,8 @@ public static class Evaluator
                                         bool intResult = true;
                                         for (int i = 0; i < args.Length; i++)
                                         {
-                                            if ((double)args[i] < min) min = (double)args[i];
+                                            double ai = Convert.ToDouble(args[i], CultureInfo.InvariantCulture); // int arguments too, e.g. round(x)
+                                            if (ai < min) min = ai;
                                             if (!(args[i] is int)) intResult = false;
                                         }
                                         if (intResult) fres = (int)min;
@@ -1412,7 +1581,8 @@ public static class Evaluator
                                         bool intResult = true;
                                         for (int i = 0; i < args.Length; i++)
                                         {
-                                            if ((double)args[i] > max) max = (double)args[i];
+                                            double ai = Convert.ToDouble(args[i], CultureInfo.InvariantCulture); // int arguments too, e.g. round(x)
+                                            if (ai > max) max = ai;
                                             if (!(args[i] is int)) intResult = false;
                                         }
                                         if (intResult) fres = (int)max;
@@ -1421,6 +1591,36 @@ public static class Evaluator
                                     break;
                                 case "random":
                                     fres = FuncRandom(call, args);
+                                    break;
+                                case "count":
+                                    // a single object counts as a list with one element, like in '[...]'
+                                    CheckArgCount(call, args, 1);
+                                    if (args[0] is System.Collections.ICollection collection && args[0] is not string) fres = collection.Count;
+                                    else if (args[0] != null && args[0] is not string && !IsNumeric(args[0])) fres = 1;
+                                    else throw new Exception($"Function {call.Name} expects a list or an object as argument.");
+                                    break;
+                                case "type":
+                                    CheckArgCount(call, args, 1);
+                                    fres = CurveOps.TypeName(args[0]);
+                                    break;
+                                case "vertices":
+                                    if (args.Length < 1 || args.Length > 2) throw new Exception($"Function {call.Name} expects 1 or 2 argument(s), got: {args.Length}.");
+                                    fres = CurveOps.Vertices(args[0], args.Length == 2 ? Convert.ToDouble(args[1], CultureInfo.InvariantCulture) : 0.0);
+                                    break;
+                                case "getcommonplane":
+                                    CheckArgCount(call, args, 1);
+                                    fres = CurveOps.CommonPlane(args[0]);
+                                    break;
+                                case "makepath":
+                                    CheckArgCount(call, args, 1);
+                                    fres = CurveOps.MakePath(args[0]);
+                                    break;
+                                case "getextent":
+                                    CheckArgCount(call, args, 1);
+                                    fres = CurveOps.Extent(args[0]);
+                                    break;
+                                case "arclength":
+                                    fres = FuncArcLength(call, args);
                                     break;
                                 case "near":
                                     {
@@ -1450,6 +1650,33 @@ public static class Evaluator
     }
 
     /// <summary>
+    /// The property <paramref name="name"/> (case insensitive) of <paramref name="type"/>, looked up in the interfaces
+    /// first: many curves implement ICurve explicitly (e.g. BSpline.StartPoint, Line.Length), and a public member of
+    /// the same name may mean something else (BSpline.PointAt takes a knot parameter, ICurve.PointAt a position in
+    /// [0, 1]). For implicitly implemented members both are the same.
+    /// </summary>
+    private static PropertyInfo? FindProperty(Type type, string name)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase;
+        foreach (Type itf in type.GetInterfaces())
+        {
+            PropertyInfo? pi = itf.GetProperty(name, flags);
+            if (pi != null && pi.GetIndexParameters().Length == 0) return pi;
+        }
+        return type.GetProperty(name, flags | BindingFlags.NonPublic);
+    }
+
+    /// <summary>The methods an expression may call on an object of <paramref name="type"/>: those of its interfaces
+    /// first (see <see cref="FindProperty"/>), then those of the type itself.</summary>
+    private static MethodInfo[] CandidateMethods(Type type)
+    {
+        List<MethodInfo> res = new List<MethodInfo>();
+        foreach (Type itf in type.GetInterfaces()) res.AddRange(itf.GetMethods(BindingFlags.Public | BindingFlags.Instance));
+        res.AddRange(type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
+        return res.ToArray();
+    }
+
+    /// <summary>
     /// The element <paramref name="index"/> of <paramref name="list"/>, zero-based; a negative index counts from the
     /// end, -1 is the last element. A single object counts as a list with one element, like everywhere in the
     /// MCP server, where a list of one object and the object itself are the same.
@@ -1469,6 +1696,36 @@ public static class Evaluator
         if (i < 0 || i >= items.Count)
             throw new Exception($"Index {d.ToString(CultureInfo.InvariantCulture)} is out of range: the list has {items.Count} element(s).");
         return items[i];
+    }
+
+    /// <summary>
+    /// arclength(points) is the length of the polyline through a list of points, arclength(points, i) the length
+    /// from the first point to point i (zero-based, a negative index counts from the end like in '[...]'). With
+    /// arclength(points, i) / arclength(points) a value can change linearly along a polyline, independent of the
+    /// lengths of its segments.
+    /// </summary>
+    private static object FuncArcLength(FunctionCallMarker call, object[] args)
+    {
+        if (args.Length < 1 || args.Length > 2) throw new Exception($"Function {call.Name} expects 1 or 2 argument(s), got: {args.Length}.");
+        if (args[0] is string || args[0] is not System.Collections.IList items) throw new Exception($"Function {call.Name}: the first argument must be a list of points.");
+        int end = items.Count - 1;
+        if (args.Length == 2)
+        {
+            if (!IsNumeric(args[1])) throw new Exception($"Function {call.Name}: the index must be a number, but is {args[1] ?? "null"}.");
+            double d = Convert.ToDouble(args[1], CultureInfo.InvariantCulture);
+            if (d != Math.Floor(d)) throw new Exception($"Function {call.Name}: the index must be a whole number, but is {d.ToString(CultureInfo.InvariantCulture)}.");
+            end = (int)d;
+            if (end < 0) end += items.Count;
+            if (end < 0 || end >= items.Count) throw new Exception($"Function {call.Name}: index {d.ToString(CultureInfo.InvariantCulture)} is out of range, the list has {items.Count} element(s).");
+        }
+        double length = 0.0;
+        for (int i = 1; i <= end; i++)
+        {
+            if (items[i - 1] is GeoPoint p1 && items[i] is GeoPoint p2) length += p1 | p2;
+            else if (items[i - 1] is GeoPoint2D q1 && items[i] is GeoPoint2D q2) length += q1 | q2;
+            else throw new Exception($"Function {call.Name}: the list must contain points only.");
+        }
+        return length;
     }
 
     private static readonly Random sharedRandom = new Random();

@@ -6180,6 +6180,11 @@ namespace ShapeIt
                     namedItems[parName] = option;
                     continue;
                 }
+                if (TemplateParameterRules.InputString(item, "kind") == "curve")
+                {   // the default may be a list of points, which WorkspaceSetImpl would take for a list of names
+                    namedItems[parName] = RequireCurves(parValue, parName);
+                    continue;
+                }
                 WorkspaceSetImpl(parName, parValue, parLabel, parInput);
             }
         }
@@ -6191,6 +6196,108 @@ namespace ShapeIt
         internal sealed record ObjectParameter(string Name, string Kind, bool Optional, bool Replace, string? Solid = null);
 
         internal static bool IsObjectParameterKind(string? kind) => kind == "solid" || kind == "profile" || kind == "face";
+
+        /// <summary>
+        /// The curves of a value given for a 'curve' parameter: a 3D curve, an edge (its curve), a sketch (its curves
+        /// and the outlines and holes of its shapes in 3D), a list of points (the polyline through them), or a list
+        /// of these. Null when something else is in it. The curves are copies, the template cannot change the curves
+        /// of the document or of the workspace.
+        /// </summary>
+        internal static List<ICurve>? CurvesOf(object? value)
+        {
+            List<ICurve> res = [];
+            switch (value)
+            {
+                case null:
+                    return null;
+                case ICurve curve:
+                    res.Add(curve.Clone());
+                    break;
+                case Edge edge when edge.Curve3D != null:
+                    res.Add(edge.Curve3D.Clone());
+                    break;
+                case Sketch sketch:
+                    foreach (ICurve2D c2d in sketch.Curves)
+                    {
+                        if (c2d.MakeGeoObject(sketch.Plane) is ICurve c) res.Add(c);
+                    }
+                    foreach (CompoundShape cs in sketch.Shapes)
+                    {
+                        foreach (SimpleShape ss in cs.SimpleShapes)
+                        {
+                            foreach (Border border in ss.Holes.Prepend(ss.Outline))
+                            {
+                                if (border.AsPath().MakeGeoObject(sketch.Plane) is ICurve c) res.Add(c);
+                            }
+                        }
+                    }
+                    break;
+                case string:
+                    return null;
+                case System.Collections.IEnumerable list:
+                    List<object> items = list.Cast<object>().ToList();
+                    if (items.Count > 0 && items.All(o => o is GeoPoint))
+                    {   // a list of points is the polyline through them
+                        if (items.Count < 2) return null;
+                        Polyline polyline = Polyline.Construct();
+                        polyline.SetPoints(items.Cast<GeoPoint>().ToArray(), false);
+                        res.Add(polyline);
+                    }
+                    else
+                    {
+                        foreach (object item in items)
+                        {
+                            List<ICurve>? curves = CurvesOf(item);
+                            if (curves == null) return null;
+                            res.AddRange(curves);
+                        }
+                    }
+                    break;
+                default:
+                    return null;
+            }
+            return res.Count > 0 ? res : null;
+        }
+
+        /// <summary>
+        /// The value of a 'curve' parameter: the curve itself when there is only one, otherwise the list of curves.
+        /// Expressions treat a single object and a list with one element alike (curve.Length, curve[0], count(curve)).
+        /// </summary>
+        internal static object CurveParameterValue(List<ICurve> curves) => curves.Count == 1 ? curves[0] : curves;
+
+        /// <summary>
+        /// The value of a 'curve' parameter given in JSON: an expression yielding curves (e.g. the name of a polyline
+        /// in the workspace), an array of points ([x,y,z], {x,y,z} or point expressions) for one polyline, or an array
+        /// of such arrays and curve expressions for several curves.
+        /// </summary>
+        private object RequireCurves(JsonElement value, string parameterName)
+        {
+            object? given = value.ValueKind switch
+            {
+                JsonValueKind.String => Evaluator.Evaluate(value.GetString(), namedItems.Dict),
+                JsonValueKind.Array => CurveItems(value, parameterName),
+                _ => null
+            };
+            List<ICurve>? curves = CurvesOf(given);
+            if (curves == null) throw new JsonRpcException("E_INVALID_PARAMS", $"'{parameterName}' must be a curve: a curve, an edge or a sketch, "
+                + "a list of points like [[0,0,0],[10,0,0]] for a polyline, or a list of these.");
+            return CurveParameterValue(curves);
+        }
+
+        private List<object> CurveItems(JsonElement array, string parameterName)
+        {
+            List<object> res = [];
+            foreach (JsonElement el in array.EnumerateArray())
+            {
+                if (el.ValueKind == JsonValueKind.Number)
+                    throw new JsonRpcException("E_INVALID_PARAMS", $"'{parameterName}' must be a list of points like [[0,0,0],[10,0,0]], not a single point.");
+                if (el.ValueKind == JsonValueKind.Array && el.GetArrayLength() > 0 && el[0].ValueKind == JsonValueKind.Array)
+                    res.Add(CurveItems(el, parameterName)); // a nested list of points: a polyline of its own
+                else if (el.ValueKind == JsonValueKind.Array || el.ValueKind == JsonValueKind.Object) res.Add(RequirePoint3D(el));
+                else if (el.ValueKind == JsonValueKind.String) res.Add(Evaluator.Evaluate(el.GetString(), namedItems.Dict));
+            }
+            return res;
+        }
 
         /// <summary>The object parameter described by one entry of template.begin's 'parameters', null for a value parameter.</summary>
         private static ObjectParameter? ObjectParameterSpec(JsonElement parameterSpec)
@@ -6480,8 +6587,13 @@ namespace ShapeIt
                         if (TemplateParameterRules.InputString(spec, "kind") == "enum" && spec.TryGetProperty("input", out JsonElement input)
                             && TemplateParameterRules.TryEnumLiteral(input, item.Value.GetString()!, out object option))
                             argumentValues.Add((item.Name, option)); // "entry": "chamfer" is the option
+                        else if (TemplateParameterRules.InputString(spec, "kind") == "curve")
+                            argumentValues.Add((item.Name, RequireCurves(item.Value, item.Name))); // e.g. the name of a polyline
                         else argumentValues.Add((item.Name, Evaluator.Evaluate(item.Value.GetString(), namedItems.Dict)));
                     }
+                    else if (item.Value.ValueKind == JsonValueKind.Array
+                        && TemplateParameterRules.InputString(GetTemplateParameterSpec(template, item.Name), "kind") == "curve")
+                        argumentValues.Add((item.Name, RequireCurves(item.Value, item.Name)));
                     else if (item.Value.ValueKind == JsonValueKind.True || item.Value.ValueKind == JsonValueKind.False)
                         argumentValues.Add((item.Name, item.Value.GetBoolean())); // e.g. an enum with the options true and false
                 }
