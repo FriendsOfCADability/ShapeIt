@@ -97,6 +97,14 @@ namespace ShapeIt
                         Shell[] result = ShellExtensions.GetOffset(testCase.Operands[0], testCase.Parameter);
                         return result;
                     }
+                case BRepOperationKind.SplitByShell:
+                    {
+                        // SplitSolidByShell takes a solid. Use the solid the shell belongs to in the model; only a
+                        // bare shell marked "Operand1" gets wrapped, as a clone, so the model stays untouched.
+                        Solid solid = testCase.Operands[0].Owner as Solid ?? Solid.MakeSolid((Shell)testCase.Operands[0].Clone());
+                        Solid[] parts = BooleanOperation.SplitSolidByShell(solid, testCase.Operands[1], true);
+                        return parts.Where(p => p.Shells.Length > 0).Select(p => p.Shells[0]).ToArray();
+                    }
                 default:
                     throw new InvalidOperationException($"cannot execute operation {testCase.Operation}");
             }

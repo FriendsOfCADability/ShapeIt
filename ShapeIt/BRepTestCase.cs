@@ -22,7 +22,10 @@ namespace ShapeIt
         UniteAll,
         RoundEdges,
         ChamferEdges,
-        OffsetShell
+        OffsetShell,
+        /// <summary>Split the solid "Operand1" by the (usually open) shell "Operand2",
+        /// see <see cref="BooleanOperation.SplitSolidByShell"/>.</summary>
+        SplitByShell
     }
 
     /// <summary>
@@ -32,6 +35,7 @@ namespace ShapeIt
     /// </para>
     /// <list type="bullet">
     /// <item>the two operands of a boolean operation carry the styles "Operand1" and "Operand2",</item>
+    /// <item>for "Split" the solid "Operand1" is split by the shell "Operand2" (typically an open shell),</item>
     /// <item>the edges to round/chamfer are marked by curves with the style "EdgeMarker",</item>
     /// <item>a single text object names the operation, optionally with a parameter, e.g. "Difference",
     /// "Unite", "RoundEdges: 2.5", "ChamferEdges: 1" (parameters are always parsed with the invariant culture),</item>
@@ -261,6 +265,22 @@ namespace ShapeIt
                         if (operand2.Count > 0) result.Warnings.Add($"{operand2.Count} \"Operand2\" object(s) are ignored for this operation");
                     }
                     break;
+                case OperandLayout.SolidAndShell:
+                    if (operand1.Count != 1 || operand2.Count != 1)
+                    {
+                        result.Problems.Add("expected one \"Operand1\" (the solid to split) and exactly one \"Operand2\" "
+                            + "(the shell to split by), found " + DescribeCandidates(candidates));
+                    }
+                    else
+                    {
+                        result.Operands.Add(operand1[0]);
+                        result.Operands.Add(operand2[0]);
+                        if (operand2[0].OpenEdgesExceptPoles.Length == 0)
+                            result.Warnings.Add("the \"Operand2\" shell to split by is closed");
+                        int unmarked = candidates.Count - 2;
+                        if (unmarked > 0) result.Warnings.Add($"{unmarked} solid(s)/shell(s) without a marker are ignored");
+                    }
+                    break;
                 case OperandLayout.All:
                     // UniteAll takes every solid of the model, markers or not. Here the order does not come from
                     // the file, so it is derived from the geometry to stay reproducible: by the center of the
@@ -314,6 +334,8 @@ namespace ShapeIt
             Single,
             /// <summary>One "Operand1" and one or more "Operand2", in the order they appear in the model.</summary>
             FirstAndOthers,
+            /// <summary>Exactly one solid "Operand1" and exactly one shell "Operand2".</summary>
+            SolidAndShell,
             /// <summary>Every solid of the model, markers or not.</summary>
             All
         }
@@ -329,6 +351,7 @@ namespace ShapeIt
                 case BRepOperationKind.ChamferEdges: return OperandLayout.Single;
                 case BRepOperationKind.UniteAll: return OperandLayout.All;
                 case BRepOperationKind.OffsetShell: return OperandLayout.Single;
+                case BRepOperationKind.SplitByShell: return OperandLayout.SolidAndShell;
                 default: return OperandLayout.None;
             }
         }
@@ -393,6 +416,8 @@ namespace ShapeIt
                 case "chamfer": parsed.Kind = BRepOperationKind.ChamferEdges; break;
                 case "offsetshell":
                 case "offset": parsed.Kind = BRepOperationKind.OffsetShell; break;
+                case "split":
+                case "splitbyshell": parsed.Kind = BRepOperationKind.SplitByShell; break;
                 default: return false;
             }
             if (parts.Length > 1)

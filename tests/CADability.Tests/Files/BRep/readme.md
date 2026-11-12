@@ -27,11 +27,17 @@ RoundEdges: 2.5   ChamferEdges: 1  ChamferEdges: 1, 2
 ```
 
 Accepted spellings: `Difference`/`Subtract`, `Unite`/`Union`, `Intersect`/`Intersection`,
-`UniteAll`/`UnionAll`, `RoundEdges`/`Fillet`, `ChamferEdges`/`Chamfer`. Numbers are always read with the
+`UniteAll`/`UnionAll`, `RoundEdges`/`Fillet`, `ChamferEdges`/`Chamfer`, `Split`/`SplitByShell`. Numbers are always read with the
 invariant culture, so `2.5` is two and a half on a German machine too.
 
 `UniteAll` is the exception to the operand marking: it unites *every* solid of the model, in the order of
 their extent centers, so `Operand1`/`Operand2` are not needed there.
+
+`Split` calls `BooleanOperation.SplitSolidByShell`: the solid `Operand1` is split by the shell `Operand2`,
+which is usually an open shell (a single face is enough) that cuts the solid completely. There must be exactly
+one of each. The shell is subtracted as it is oriented, like the outside of a tool solid, so
+only the parts on the side its normals point to are returned (`onlyInnerParts = true`); to get the parts on the other side, reverse the orientation of the shell.
+The input baseline (`in1.`) then describes an open shell, so `closed` is `false` there.
 
 A file the harness cannot understand is **reported as a failure**, never silently skipped — a case that
 quietly does nothing is worse than no case at all.
