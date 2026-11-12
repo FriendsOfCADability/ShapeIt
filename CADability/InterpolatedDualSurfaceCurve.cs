@@ -1208,11 +1208,29 @@ namespace CADability
                     PlaneSurface ps = new PlaneSurface(normalPlane);
                     p = normalPlane.Location;
                     GeoPoint2D uvplane = GeoPoint2D.Origin;
-                    uv1 = surface1.PositionOf(normalPlane.Location);
-                    uv2 = surface2.PositionOf(normalPlane.Location);
-                    AnchorToNearestBasePoint(position, ref uv1, ref uv2);
-                    if (BoxedSurfaceExtension.SurfacesIntersectionLM(ps, surface1, surface2, ref uvplane, ref uv1, ref uv2, ref p)
-                        && IsPlausibleIntersection(uv1, uv2, normalPlane, approxBSpline != null))
+                    bool solved = false;
+                    // The known points of the curve (the base points, e.g. the marched points, and the points already
+                    // calculated) are close by: their uv values give a much better start than the global PositionOf,
+                    // which is expensive and may jump to a different part of the surface.
+                    if (LocalStart(position, hasLower, lowerKey, lowerValue, hasUpper, upperKey, upperValue,
+                        out uv1, out uv2, out GeoPoint expected, out double reach))
+                    {
+                        solved = BoxedSurfaceExtension.SurfacesIntersectionLM(ps, surface1, surface2, ref uvplane, ref uv1, ref uv2, ref p)
+                            && (p | expected) <= reach
+                            && IsPlausibleIntersection(uv1, uv2, normalPlane, approxBSpline != null);
+                        DualSurfaceCurveDiagnostics.Count(solved ? "IDSC.ApproximatePosition local start" : "IDSC.ApproximatePosition local start failed");
+                    }
+                    if (!solved)
+                    {
+                        p = normalPlane.Location;
+                        uvplane = GeoPoint2D.Origin;
+                        uv1 = surface1.PositionOf(normalPlane.Location);
+                        uv2 = surface2.PositionOf(normalPlane.Location);
+                        AnchorToNearestBasePoint(position, ref uv1, ref uv2);
+                        solved = BoxedSurfaceExtension.SurfacesIntersectionLM(ps, surface1, surface2, ref uvplane, ref uv1, ref uv2, ref p)
+                            && IsPlausibleIntersection(uv1, uv2, normalPlane, approxBSpline != null);
+                    }
+                    if (solved)
                     {
                         SurfacePoint spt = new SurfacePoint(p, uv1, uv2);
                         if (hasLower && hasUpper)
@@ -1253,6 +1271,57 @@ namespace CADability
                         approxBSpline != null, isTangential, surface1, uv1, surface2, uv2, normalPlane, p);
                 }
             }
+        }
+        /// <summary>
+        /// Start values for the uv parameters of the curve point at <paramref name="position"/>, interpolated between the
+        /// nearest known points of the curve before and after that position: the base points and the points calculated so
+        /// far (<paramref name="lowerValue"/>, <paramref name="upperValue"/> from <see cref="hashedPositions"/>).
+        /// <paramref name="expected"/> is the point interpolated in the same way and <paramref name="reach"/> how far from it
+        /// a solution found from these values may plausibly be: the distance between the two known points. A solution
+        /// further away belongs to a different part of the intersection (e.g. a neighbouring curve, as in SplitBug3).
+        /// The start values are deliberately not moved towards the location of the normal plane: while the approximating
+        /// spline is not yet exact, that location may be closer to a neighbouring curve than to this one.
+        /// Returns false, when there are no such points.
+        /// </summary>
+        private bool LocalStart(double position, bool hasLower, double lowerKey, SurfacePoint lowerValue, bool hasUpper, double upperKey,
+            SurfacePoint upperValue, out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint expected, out double reach)
+        {
+            uv1 = uv2 = GeoPoint2D.Origin;
+            expected = GeoPoint.Origin;
+            reach = 0.0;
+            if (basePoints.Length < 2) return false;
+            // the positions of the base points: while there is no approximating spline yet, base point i is at i/(n-1),
+            // the spline is parametrized by the chord length of the base points
+            double[] fractions;
+            if (approxBSpline == null)
+            {
+                fractions = new double[basePoints.Length];
+                for (int i = 0; i < fractions.Length; i++) fractions[i] = (double)i / (fractions.Length - 1);
+            }
+            else fractions = ChordFractions();
+            int index = Array.BinarySearch(fractions, position);
+            if (index < 0) index = ~index - 1; // the last base point before position
+            index = Math.Max(0, Math.Min(fractions.Length - 2, index));
+            double lowPos = fractions[index], highPos = fractions[index + 1];
+            SurfacePoint low = basePoints[index], high = basePoints[index + 1];
+            // the points calculated so far are used, when they are closer to position than the base points
+            if (hasLower && lowerKey > lowPos && lowerKey <= position)
+            {
+                low = lowerValue;
+                lowPos = lowerKey;
+            }
+            if (hasUpper && upperKey < highPos && upperKey >= position)
+            {
+                high = upperValue;
+                highPos = upperKey;
+            }
+            high.FixAgainstNeighbour(low, surface1, surface2);
+            double d = highPos > lowPos ? Math.Max(0.0, Math.Min(1.0, (position - lowPos) / (highPos - lowPos))) : 0.0;
+            uv1 = new GeoPoint2D((1.0 - d) * low.psurface1.x + d * high.psurface1.x, (1.0 - d) * low.psurface1.y + d * high.psurface1.y);
+            uv2 = new GeoPoint2D((1.0 - d) * low.psurface2.x + d * high.psurface2.x, (1.0 - d) * low.psurface2.y + d * high.psurface2.y);
+            expected = low.p3d + d * (high.p3d - low.p3d);
+            reach = (low.p3d | high.p3d) + 100 * Precision.eps;
+            return true;
         }
         internal BoundingRect Domain1
         {
