@@ -205,6 +205,11 @@
       "Status": "Ok",
       "Repeat": 3,
       "Comment": "CorruptInput until 2026-09-12: Operand1 (the helical thread) failed Shell.CheckConsistency(), and the Debug.Assert the union hit was a consequence of that, not a BRep bug. GH repaired the file; the input is consistent and the result is correct now, see the verified note in its baseline. Repeat because of the helical faces: the RPC case HelicalThreadOnRod is KnownFail purely for being irreproducible - its area spreads by 28 percent over three runs of identical calls - so a helical case has to prove it reproduces before its baseline means anything. 4.5 s per run inside the suite"
+    },
+    {
+      "Name": "SplitBug3",
+      "Status": "Ok",
+      "Comment": "split of a solid with 7 planar faces by a single wavy NURBS face. Returned no part until 2026-11-12: the marching (Surfaces.GetIntersectionCurves) found only one of the two intersection curves of the NURBS face with the bottom plane, because PositionOf jumped to another part of the surface and both branches of the second curve died there (fixed in 02741595)"
     }
   ]
 }
