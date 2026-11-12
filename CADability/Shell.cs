@@ -2852,23 +2852,42 @@ namespace CADability.GeoObject
                 correctOriented = faces[0];
                 correctOriented.MakeInverseOrientation();
             }
-            if (correctOriented != null)
-            {
-                HashSet<Face> correctFaces = new HashSet<Face>();
-                correctFaces.Add(correctOriented);
-                SortedDictionary<Edge, Face> toOrient = new SortedDictionary<Edge, Face>(new EdgeLengthComparer());
-                foreach (Edge e in correctOriented.AllEdges)
-                {
-                    if (!e.IsPeriodicEdge && !e.IsSingular())
-                    {
-                        toOrient[e] = e.OtherFace(correctOriented);
-                        //OrientFace(correctFaces, e.OtherFace(correctOriented), e);
-                    }
-                }
-                while (toOrient.Count > 0) OrientFaces(correctFaces, toOrient);
-            }
+            if (correctOriented != null) OrientLike(correctOriented);
             foreach (Face fc in faces) fc.OrientedOutward = true; // die sind jetzt alle richtig, egal was vorher drinstand
 
+        }
+
+        /// <summary>
+        /// Orients all faces consistently with <paramref name="reference"/>, which keeps its orientation. For an open
+        /// shell (e.g. a surface to split a solid with), where "outward" has no meaning: the orientation the faces
+        /// were made with is kept instead of being guessed by <see cref="AssertOutwardOrientation"/>.
+        /// </summary>
+        /// <param name="reference">a face of this shell</param>
+        public void OrientConsistently(Face reference)
+        {
+            Vertex[] vertices = Vertices; // so that they are determined and the orientation is correct
+            foreach (Edge e in Edges)
+            {
+                e.Orient();
+            }
+            OrientLike(reference);
+        }
+
+        /// <summary>Orients the faces connected to <paramref name="correctOriented"/> like it, across their common edges.</summary>
+        private void OrientLike(Face correctOriented)
+        {
+            HashSet<Face> correctFaces = new HashSet<Face>();
+            correctFaces.Add(correctOriented);
+            SortedDictionary<Edge, Face> toOrient = new SortedDictionary<Edge, Face>(new EdgeLengthComparer());
+            foreach (Edge e in correctOriented.AllEdges)
+            {
+                if (!e.IsPeriodicEdge && !e.IsSingular())
+                {
+                    toOrient[e] = e.OtherFace(correctOriented);
+                    //OrientFace(correctFaces, e.OtherFace(correctOriented), e);
+                }
+            }
+            while (toOrient.Count > 0) OrientFaces(correctFaces, toOrient);
         }
 #if DEBUG
         private class TriangleVertex : IOctTreeInsertable
