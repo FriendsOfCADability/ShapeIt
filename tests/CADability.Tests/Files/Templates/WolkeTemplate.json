@@ -202,6 +202,367 @@
           }
         }
       ]
+    },
+    {
+      "name": "trunkRelief",
+      "items": [
+        {
+          "method": "template.begin",
+          "id": 1,
+          "params": {
+            "name": "trunkRelief",
+            "label": "Stammrelief",
+            "category": "Freiform",
+            "description": "Half-round relief of a tree trunk or branch lying on the x/y plane along a curve, usually a polyline. At every vertex of the polyline (other curves are approximated by one) a slightly dented half circle stands upright in the miter plane; its diameter changes linearly with the length along the axis from the start to the end diameter, and it may be sunk below the x/y plane. A NURBS surface interpolates the points of these half circles and ends open in the first and the last half circle. The box around it, cut off by the planes of these two half circles, is split by the surface: the part below the surface and above the x/y plane is the trunk. The same seed always gives the same dents; together with cloud reliefs it forms a tree.",
+            "tags": [
+              "relief",
+              "tree",
+              "trunk",
+              "branch",
+              "nurbs",
+              "curve"
+            ],
+            "parameters": [
+              {
+                "name": "path",
+                "value": [
+                  [
+                    0,
+                    110,
+                    0
+                  ],
+                  [
+                    -6,
+                    85,
+                    0
+                  ],
+                  [
+                    4,
+                    60,
+                    0
+                  ],
+                  [
+                    -3,
+                    30,
+                    0
+                  ],
+                  [
+                    0,
+                    0,
+                    0
+                  ]
+                ],
+                "label": "Achse",
+                "input": {
+                  "kind": "curve",
+                  "group": "Verlauf",
+                  "order": 1,
+                  "description": "Axis of the trunk in the x/y plane, from the start (start diameter) to the end (end diameter): a polyline, or any curve or connected curves, which are approximated by a polyline. A half circle stands at every vertex. The trunk ends flat in the first and the last half circle, perpendicular to the first and the last segment. Segments should be longer than the diameter and bends not too sharp, otherwise the half circles overlap."
+                }
+              },
+              {
+                "name": "startDiameter",
+                "value": 3,
+                "label": "Anfangsdurchmesser",
+                "input": {
+                  "kind": "length",
+                  "group": "Querschnitt",
+                  "order": 2,
+                  "min": 0.1,
+                  "description": "Diameter of the half circle at the start of the axis."
+                }
+              },
+              {
+                "name": "endDiameter",
+                "value": 15,
+                "label": "Enddurchmesser",
+                "input": {
+                  "kind": "length",
+                  "group": "Querschnitt",
+                  "order": 3,
+                  "min": 0.1,
+                  "description": "Diameter of the half circle at the end of the axis. In between the diameter changes linearly with the length along the axis."
+                }
+              },
+              {
+                "name": "deviation",
+                "value": 0.15,
+                "label": "Abweichung vom Halbkreis",
+                "input": {
+                  "kind": "number",
+                  "group": "Querschnitt",
+                  "order": 4,
+                  "min": 0,
+                  "max": 0.6,
+                  "description": "How much the half circles are dented: each point of a half circle lies up to this fraction of the radius inside or outside the exact circle. 0 gives an exact half circle. Most of the dent is the same along the whole trunk, a smaller part changes from point to point of the axis."
+                }
+              },
+              {
+                "name": "sink",
+                "value": 0.25,
+                "label": "Absenkung",
+                "input": {
+                  "kind": "number",
+                  "group": "Querschnitt",
+                  "order": 5,
+                  "min": 0.05,
+                  "max": 0.8,
+                  "description": "How far the half circles are sunk below the x/y plane, as a fraction of their radius. The relief then meets the x/y plane at a flatter angle and is a bit narrower and lower than the diameter. Must be above 0, otherwise the feet of the half circles would lie in the x/y plane, which the split cannot handle."
+                }
+              },
+              {
+                "name": "profilePoints",
+                "value": 5,
+                "label": "Punkte je Halbkreis",
+                "input": {
+                  "kind": "integer",
+                  "group": "Querschnitt",
+                  "order": 6,
+                  "min": 3,
+                  "optional": true,
+                  "description": "Number of points on each half circle, from one foot over the top to the other foot. More points allow a more irregular cross section."
+                }
+              },
+              {
+                "name": "seed",
+                "value": 1,
+                "label": "Zufallsstart",
+                "input": {
+                  "kind": "integer",
+                  "group": "Zufall",
+                  "order": 7,
+                  "optional": true,
+                  "description": "Start value of the random dents. The same value always gives the same trunk; change it to get a different one."
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "rpc.batch",
+          "id": 2,
+          "params": {
+            "calls": [
+              {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "assert.check",
+                "params": {
+                  "condition": "profilePoints >= 3",
+                  "message": "Ein Halbkreis braucht mindestens 3 Punkte."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "assert.check",
+                "params": {
+                  "condition": "sink > 0",
+                  "message": "Die Absenkung muss größer als 0 sein, sonst liegen die Fußpunkte der Halbkreise genau in der x/y-Ebene."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "assert.check",
+                "params": {
+                  "condition": "near(getextent(path).Zmin, 0, 0.001)",
+                  "message": "Die Achse muss in der x/y-Ebene liegen."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "assert.check",
+                "params": {
+                  "condition": "near(getextent(path).Zmax, 0, 0.001)",
+                  "message": "Die Achse muss in der x/y-Ebene liegen."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 5,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rStart",
+                  "value": "startDiameter / 2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rEnd",
+                  "value": "endDiameter / 2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "workspace.set",
+                "params": {
+                  "name": "rMax",
+                  "value": "max(rStart, rEnd)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "workspace.set",
+                "params": {
+                  "name": "pts",
+                  "value": "vertices(makepath(path), rMax / 10)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "assert.check",
+                "params": {
+                  "condition": "count(pts) >= 2",
+                  "message": "Die Achse braucht mindestens zwei Punkte."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "assert.check",
+                "params": {
+                  "condition": "arclength(pts) > 0",
+                  "message": "Die Achse hat keine Länge."
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 11,
+                "method": "workspace.set",
+                "params": {
+                  "name": "n",
+                  "value": "count(pts)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "workspace.set",
+                "params": {
+                  "name": "k",
+                  "value": "profilePoints"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 13,
+                "method": "workspace.set",
+                "params": {
+                  "name": "totalLength",
+                  "value": "arclength(pts)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 14,
+                "method": "workspace.set",
+                "params": {
+                  "name": "margin",
+                  "value": "3 * rMax * (1 + deviation)"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 15,
+                "method": "workspace.set",
+                "params": {
+                  "name": "axisExtent",
+                  "value": "getextent(path)"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "method": "surface.parametric",
+          "id": 3,
+          "params": {
+            "name": "trunkSurface",
+            "degreeU": "min(3, n - 1)",
+            "degreeV": "min(3, k - 1)",
+            "approximation": {
+              "uParameter": "iu",
+              "vParameter": "jv",
+              "uMin": 0,
+              "uMax": "n - 1",
+              "vMin": 0,
+              "vMax": "k - 1",
+              "minSamplesU": "n",
+              "minSamplesV": "k",
+              "sampling": "uniform",
+              "tolerance": 0.01,
+              "uPeriodic": false,
+              "vPeriodic": false,
+              "xExpr": "pts[iu].x - normalize(normalize(pts[max(iu, 1)] - pts[max(iu, 1) - 1]) + normalize(pts[min(iu, n - 2) + 1] - pts[min(iu, n - 2)])).y * ((rStart + (rEnd - rStart) * arclength(pts, iu) / totalLength) * (1 + deviation * (0.7 * random(-1, 1, seed * 7919 + jv) + 0.3 * random(-1, 1, seed * 7919 + 1000 + 37 * iu + jv))) * cos((pi * jv / (k - 1))) / (normalize(pts[max(iu, 1)] - pts[max(iu, 1) - 1]) * normalize(normalize(pts[max(iu, 1)] - pts[max(iu, 1) - 1]) + normalize(pts[min(iu, n - 2) + 1] - pts[min(iu, n - 2)]))))",
+              "yExpr": "pts[iu].y + normalize(normalize(pts[max(iu, 1)] - pts[max(iu, 1) - 1]) + normalize(pts[min(iu, n - 2) + 1] - pts[min(iu, n - 2)])).x * ((rStart + (rEnd - rStart) * arclength(pts, iu) / totalLength) * (1 + deviation * (0.7 * random(-1, 1, seed * 7919 + jv) + 0.3 * random(-1, 1, seed * 7919 + 1000 + 37 * iu + jv))) * cos((pi * jv / (k - 1))) / (normalize(pts[max(iu, 1)] - pts[max(iu, 1) - 1]) * normalize(normalize(pts[max(iu, 1)] - pts[max(iu, 1) - 1]) + normalize(pts[min(iu, n - 2) + 1] - pts[min(iu, n - 2)]))))",
+              "zExpr": "(rStart + (rEnd - rStart) * arclength(pts, iu) / totalLength) * ((1 + deviation * (0.7 * random(-1, 1, seed * 7919 + jv) + 0.3 * random(-1, 1, seed * 7919 + 1000 + 37 * iu + jv))) * sin((pi * jv / (k - 1))) - sink)"
+            }
+          }
+        },
+        {
+          "method": "solid.box",
+          "id": 4,
+          "params": {
+            "name": "trunkBlock",
+            "origin": [
+              "axisExtent.Xmin - margin",
+              "axisExtent.Ymin - margin",
+              0
+            ],
+            "sizeX": "axisExtent.Xmax - axisExtent.Xmin + 2 * margin",
+            "sizeY": "axisExtent.Ymax - axisExtent.Ymin + 2 * margin",
+            "sizeZ": "2 * rMax * (1 + deviation)"
+          }
+        },
+        {
+          "method": "feature.split",
+          "id": 5,
+          "params": {
+            "solid": "trunkBlock",
+            "splitBy": {
+              "origin": "pts[0]",
+              "normal": "normalize(pts[0] - pts[1])"
+            },
+            "nameInner": "trunkBlockStart"
+          }
+        },
+        {
+          "method": "feature.split",
+          "id": 6,
+          "params": {
+            "solid": "trunkBlockStart",
+            "splitBy": {
+              "origin": "pts[-1]",
+              "normal": "normalize(pts[-1] - pts[-2])"
+            },
+            "nameInner": "trunkBlockEnds"
+          }
+        },
+        {
+          "method": "feature.split",
+          "id": 7,
+          "params": {
+            "solid": "trunkBlockEnds",
+            "splitBy": "trunkSurface",
+            "nameOuter": "trunk"
+          }
+        },
+        {
+          "method": "template.commit",
+          "id": 8,
+          "params": {
+            "result": "trunk"
+          }
+        }
+      ]
     }
   ]
 }
