@@ -587,6 +587,11 @@ namespace CADability.GeoObject
                 ctx.surface1.IsUPeriodic, ctx.surface1.UPeriod, ctx.surface1.IsVPeriodic, ctx.surface1.VPeriod);
             InterpolatedDualSurfaceCurve.SurfacePoint.FixSurfacePoint2D(ref uv2, uvFrom2,
                 ctx.surface2.IsUPeriodic, ctx.surface2.UPeriod, ctx.surface2.IsVPeriodic, ctx.surface2.VPeriod);
+            // PositionOf is a global search and may jump to a different part of the surface, where the surface
+            // comes close to itself or is strongly curved (seen on a wavy NURBS band in SplitBug3). The parameter
+            // predicted from the last point of the branch is local and usually much better.
+            uv1 = BetterStartParameter(ctx.surface1, uvFrom1, uv1, target);
+            uv2 = BetterStartParameter(ctx.surface2, uvFrom2, uv2, target);
             ip = target;
             if (!SurfaceIntersectionSolvers.SurfacesIntersectionLM_Analytic9(ps, ctx.surface1, ctx.surface2,
                 ref uvPlane, ref uv1, ref uv2, ref ip)) return false;
@@ -597,6 +602,26 @@ namespace CADability.GeoObject
             // the solver has found some other part of the intersection, not the continuation of our curve
             if ((ip | from) > 2.0 * step) return false;
             return true;
+        }
+
+        /// <summary>
+        /// The start parameter for the solver of a marching step: either the parameter predicted from the last
+        /// point of the branch (<paramref name="uvFrom"/> moved along the tangent plane there, so that it lands
+        /// as close as possible to <paramref name="target"/>) or <paramref name="uvPositionOf"/>, whichever
+        /// surface point is closer to <paramref name="target"/>.
+        /// </summary>
+        private static GeoPoint2D BetterStartParameter(ISurface surface, GeoPoint2D uvFrom, GeoPoint2D uvPositionOf, GeoPoint target)
+        {
+            GeoPoint location = surface.PointAt(uvFrom);
+            GeoVector du = surface.UDirection(uvFrom), dv = surface.VDirection(uvFrom);
+            GeoVector delta = target - location;
+            // least squares: du*a + dv*b ~ delta
+            double a11 = du * du, a12 = du * dv, a22 = dv * dv, r1 = du * delta, r2 = dv * delta;
+            double det = a11 * a22 - a12 * a12;
+            if (!(Math.Abs(det) > 1e-12 * a11 * a22)) return uvPositionOf; // degenerate (e.g. at a pole)
+            GeoPoint2D predicted = new GeoPoint2D(uvFrom.x + (r1 * a22 - r2 * a12) / det, uvFrom.y + (a11 * r2 - a12 * r1) / det);
+            if ((surface.PointAt(predicted) | target) < (surface.PointAt(uvPositionOf) | target)) return predicted;
+            return uvPositionOf;
         }
 
         /// <summary>
