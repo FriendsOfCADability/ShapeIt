@@ -805,21 +805,21 @@ namespace CADability.GeoObject
                 // simply splitting into four here sometimes yields bad results
                 // therefore better check here and split only into two
 #if DEBUG
-                DebuggerContainer dc = new DebuggerContainer();
-                Face fc = Face.MakeFace(this.surface.Clone(), uvPatch); // added clone to not change the domain of the surface, no two faces with the same surface
-                dc.Add(fc, 0);
-                double len = ((cube.plr | cube.pul) + (cube.pll | cube.pur)) / 4.0;
-                dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * cube.nll));
-                dc.Add(Line.TwoPoints(cube.plr, cube.plr + len * cube.nlr));
-                dc.Add(Line.TwoPoints(cube.pul, cube.pul + len * cube.nul));
-                dc.Add(Line.TwoPoints(cube.pur, cube.pur + len * cube.nur));
-                dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetCenter()), surface.PointAt(uvPatch.GetCenter()) + len * ncnt));
-                dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * surface.UDirection(uvPatch.GetLowerLeft())), 0);
-                dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * surface.VDirection(uvPatch.GetLowerLeft())), 1);
-                dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetMiddleLeft()), surface.PointAt(uvPatch.GetMiddleLeft()) + len * udirl));
-                dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetMiddleRight()), surface.PointAt(uvPatch.GetMiddleRight()) + len * udirr));
-                dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetLowerMiddle()), surface.PointAt(uvPatch.GetLowerMiddle()) + len * vdirb));
-                dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetUpperMiddle()), surface.PointAt(uvPatch.GetUpperMiddle()) + len * vdirt));
+                //DebuggerContainer dc = new DebuggerContainer();
+                //Face fc = Face.MakeFace(this.surface.Clone(), uvPatch); // added clone to not change the domain of the surface, no two faces with the same surface
+                //dc.Add(fc, 0);
+                //double len = ((cube.plr | cube.pul) + (cube.pll | cube.pur)) / 4.0;
+                //dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * cube.nll));
+                //dc.Add(Line.TwoPoints(cube.plr, cube.plr + len * cube.nlr));
+                //dc.Add(Line.TwoPoints(cube.pul, cube.pul + len * cube.nul));
+                //dc.Add(Line.TwoPoints(cube.pur, cube.pur + len * cube.nur));
+                //dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetCenter()), surface.PointAt(uvPatch.GetCenter()) + len * ncnt));
+                //dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * surface.UDirection(uvPatch.GetLowerLeft())), 0);
+                //dc.Add(Line.TwoPoints(cube.pll, cube.pll + len * surface.VDirection(uvPatch.GetLowerLeft())), 1);
+                //dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetMiddleLeft()), surface.PointAt(uvPatch.GetMiddleLeft()) + len * udirl));
+                //dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetMiddleRight()), surface.PointAt(uvPatch.GetMiddleRight()) + len * udirr));
+                //dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetLowerMiddle()), surface.PointAt(uvPatch.GetLowerMiddle()) + len * vdirb));
+                //dc.Add(Line.TwoPoints(surface.PointAt(uvPatch.GetUpperMiddle()), surface.PointAt(uvPatch.GetUpperMiddle()) + len * vdirt));
 #endif
                 int split = 0; // 1: split in u, 2: split in v, 3: split both
                 if (((cube.nll * cube.nlr) < lim || (cube.nul * cube.nur) < lim) || (udirl * udirr) < lim) split = 1;
