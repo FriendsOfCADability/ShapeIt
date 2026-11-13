@@ -371,59 +371,16 @@ namespace CADability
                 return false;
             }
         }
+        /// <summary>
+        /// The intersection of <paramref name="curve"/> and <paramref name="surface"/> from a start value that may be far
+        /// away, see <see cref="SurfaceIntersectionNewton.CurveAndSurface"/>. That replaced the Newton minimizer of the
+        /// squared distance (with second derivatives) below, which threw a MaximumIterationsException wherever it did not
+        /// converge - the most frequent exception of the BRep operations.
+        /// </summary>
         public static bool CurveSurfaceIntersection(ISurface surface, ICurve curve, ref GeoPoint2D uvOnSurface, ref double uOnCurve, out GeoPoint ip)
         {
-            NewtonMinimizer nm = new NewtonMinimizer(1e-12, 30, true);
-            GeoPoint lastIp = GeoPoint.Origin;
-            IObjectiveFunction iof = ObjectiveFunction.GradientHessian(
-                new Func<Vector<double>, (double, Vector<double>, Matrix<double>)>(delegate (Vector<double> vd)
-                {
-                    GeoPoint2D uv = new GeoPoint2D(vd[0], vd[1]); // parameter on surface
-                    surface.Derivative2At(uv, out GeoPoint s, out GeoVector su, out GeoVector sv, out GeoVector suu, out GeoVector svv, out GeoVector suv);
-                    double t = vd[2]; // parameter on curve
-                    curve.TryPointDeriv2At(t, out GeoPoint c, out GeoVector ct, out GeoVector ctt);
-                    double val = c & s; // the squared distance between the two points, which newton has to minimize
-                    lastIp = new GeoPoint(c, s); // remember last intersection point
-                    Vector<double> gradient = new DenseVector(new double[] {
-                        2 * (s.x - c.x) * su.x + 2 * (s.y - c.y) * su.y + 2 * (s.z - c.z) * su.z,
-                        2 * (s.x - c.x) * sv.x + 2 * (s.y - c.y) * sv.y + 2 * (s.z - c.z) * sv.z,
-                        -2 * (s.x - c.x) * ct.x - 2 * (s.y - c.y) * ct.y - 2 * (s.z - c.z) * ct.z
-                    });
-                    Matrix<double> hessian = new DenseMatrix(3, 3);
-                    hessian[0, 0] = 2 * (s.x - c.x) * suu.x + 2 * su.x * su.x + 2 * (s.y - c.y) * suu.y + 2 * su.y * su.y + 2 * (s.z - c.z) * suu.z + 2 * su.z * su.z;
-                    hessian[1, 1] = 2 * (s.x - c.x) * svv.x + 2 * sv.x * sv.x + 2 * (s.y - c.y) * svv.y + 2 * sv.y * sv.y + 2 * (s.z - c.z) * svv.z + 2 * sv.z * sv.z;
-                    hessian[2, 2] = 2 * ct.x * ct.x - 2 * ctt.x * (s.x - c.x) + 2 * ct.y * ct.y - 2 * ctt.y * (s.y - c.y) + 2 * ct.z * ct.z - 2 * ctt.z * (s.z - c.z);
-                    hessian[0, 1] = hessian[1, 0] = 2 * su.x * sv.x + 2 * (s.x - c.x) * suv.x + 2 * su.y * sv.y + 2 * (s.y - c.y) * suv.y + 2 * su.z * sv.z + 2 * (s.z - c.z) * suv.z;
-                    hessian[0, 2] = hessian[2, 0] = -2 * ct.x * su.x - 2 * ct.y * su.y - 2 * ct.z * su.z;
-                    hessian[1, 2] = hessian[2, 1] = -2 * ct.x * sv.x - 2 * ct.y * sv.y - 2 * ct.z * sv.z;
-                    return (val, gradient, hessian);
-                }));
-            try
-            {
-                MinimizationResult mres = nm.FindMinimum(iof, new DenseVector(new double[] { uvOnSurface.x, uvOnSurface.y, uOnCurve }));
-                if (mres.ReasonForExit == ExitCondition.Converged ||
-                    mres.ReasonForExit == ExitCondition.RelativeGradient ||
-                    mres.ReasonForExit == ExitCondition.RelativePoints ||
-                    mres.ReasonForExit == ExitCondition.BoundTolerance)
-                {
-                    uvOnSurface = new GeoPoint2D(mres.MinimizingPoint[0], mres.MinimizingPoint[1]);
-                    uOnCurve = mres.MinimizingPoint[2];
-                    ip = lastIp;
-                    return true;
-                }
-                else
-                {
-                    ip = GeoPoint.Origin;
-                    return false;
-                }
-            }
-            catch (Exception)
-            {
-                ip = GeoPoint.Origin;
-                return false;
-            }
+            return SurfaceIntersectionNewton.CurveAndSurface(surface, curve, ref uvOnSurface, ref uOnCurve, out ip);
         }
-
         public static bool CurveSurfaceIntersection(ISurface surface, ICurve curve, BoundingRect surfaceBounds, double uOnCurveMin, double uOnCurveMax, ref GeoPoint2D uvOnSurface, ref double uOnCurve, out GeoPoint ip)
         {
             Vector<double> observedX = new DenseVector(3); // there is no need to set values, index 0 is for x, 1 for y and 2 for z

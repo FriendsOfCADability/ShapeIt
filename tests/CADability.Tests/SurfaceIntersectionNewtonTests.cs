@@ -151,6 +151,64 @@ namespace CADability.Tests
             Assert.AreEqual(b3, uv3, "the start values must be unchanged on failure");
         }
 
+        private static IEnumerable<(string what, ISurface surface, ICurve curve)> CurvesThroughSurfaces()
+        {
+            yield return ("oblique line through a cylinder",
+                new CylindricalSurface(GeoPoint.Origin, 5 * GeoVector.XAxis, 5 * GeoVector.YAxis, GeoVector.ZAxis),
+                Line.TwoPoints(new GeoPoint(1, 0.5, -2), new GeoPoint(9, 3, 4)));
+            GeoPoint far = new GeoPoint(1000, -2000, 500);
+            BSpline spline = BSpline.Construct();
+            spline.ThroughPoints(new GeoPoint[] { far + new GeoVector(-1, 0.5, 0.2), far + new GeoVector(1.5, 1, 1), far + new GeoVector(4, 2, 1.5), far + new GeoVector(7, 2.5, 0.5) }, 3, false);
+            yield return ("BSpline out of a sphere, far from the origin",
+                new SphericalSurface(far, 4 * GeoVector.XAxis, 4 * GeoVector.YAxis, 4 * GeoVector.ZAxis), spline);
+            Ellipse arc = Ellipse.Construct();
+            arc.SetArcPlaneCenterRadiusAngles(new Plane(new GeoPoint(0, 0, 0.5), GeoVector.XAxis, GeoVector.ZAxis), new GeoPoint(14, 0, 0.5), 5, 1.5, 2.0); // crosses the tube at about 2.6
+            yield return ("arc through a torus",
+                new ToroidalSurface(GeoPoint.Origin, GeoVector.XAxis, GeoVector.YAxis, GeoVector.ZAxis, 10, 3), arc);
+            Polyline polyline = Polyline.Construct();
+            polyline.SetPoints(new GeoPoint[] { new GeoPoint(0, 0, -3), new GeoPoint(1, 1, -1), new GeoPoint(2, 1, 2), new GeoPoint(4, 0, 3) }, false);
+            yield return ("Polyline through an inclined plane (no analytic derivative)",
+                new PlaneSurface(new Plane(new GeoPoint(0, 0, 0.5), new GeoVector(0.2, 0.1, 1).Normalized)), polyline);
+        }
+
+        [TestMethod]
+        public void finds_the_intersection_of_a_curve_and_a_surface_from_far_away()
+        {
+            foreach ((string what, ISurface surface, ICurve curve) in CurvesThroughSurfaces())
+            {
+                foreach (double startPosition in new double[] { 0.1, 0.5, 0.9 })
+                {
+                    // a finder starts in the middle of a uv patch and somewhere on the curve
+                    GeoPoint2D uv = surface.PositionOf(curve.PointAt(1.0 - startPosition));
+                    double t = startPosition;
+                    Assert.IsTrue(SurfaceIntersectionNewton.CurveAndSurface(surface, curve, ref uv, ref t, out GeoPoint ip),
+                        $"{what}, start {startPosition}: did not settle");
+                    GeoPoint s = surface.PointAt(uv), c = curve.PointAt(t);
+                    double scale = 1.0 + Math.Max(Math.Abs(s.x), Math.Max(Math.Abs(s.y), Math.Abs(s.z)));
+                    Assert.IsTrue((s | c) < 1e-9 * scale, $"{what}, start {startPosition}: no intersection, distance {s | c}");
+                    Assert.IsTrue((ip | s) < 1e-9 * scale, $"{what}, start {startPosition}: ip is not the intersection");
+                }
+            }
+        }
+
+        [TestMethod]
+        public void a_curve_beside_the_surface_ends_in_the_point_of_minimal_distance()
+        {
+            // a line passing a sphere of radius 4 at the distance 6 from its center: the gap is 2
+            SphericalSurface sphere = new SphericalSurface(GeoPoint.Origin, 4 * GeoVector.XAxis, 4 * GeoVector.YAxis, 4 * GeoVector.ZAxis);
+            Line line = Line.TwoPoints(new GeoPoint(-10, 6, 0), new GeoPoint(10, 6, 0));
+            GeoPoint2D uv = sphere.PositionOf(new GeoPoint(3, 2, 1));
+            double t = 0.2;
+            GeoPoint2D before = uv;
+            bool settled = SurfaceIntersectionNewton.CurveAndSurface(sphere, line, ref uv, ref t, out GeoPoint _);
+            if (settled)
+            {
+                Assert.AreEqual(2.0, sphere.PointAt(uv) | line.PointAt(t), 1e-6, "the point of minimal distance");
+                Assert.AreEqual(0.5, t, 1e-6, "the minimal distance is in the middle of the line");
+            }
+            else Assert.AreEqual(before, uv, "the start values must be unchanged on failure");
+        }
+
         [TestMethod]
         public void gives_up_where_the_surfaces_touch()
         {

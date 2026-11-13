@@ -5,8 +5,9 @@ namespace CADability
 {
     /// <summary>
     /// Newton's method for the common points of surfaces: of a plane and two surfaces, the basic step of tracing an
-    /// intersection curve (marching, <see cref="InterpolatedDualSurfaceCurve"/>), and of three surfaces, the vertex where
-    /// an intersection curve meets a third surface.
+    /// intersection curve (marching, <see cref="InterpolatedDualSurfaceCurve"/>), of three surfaces, the vertex where
+    /// an intersection curve meets a third surface, and of a curve and a surface (<see cref="CurveAndSurface"/>, a damped
+    /// Gauss-Newton method, because it starts far away).
     /// <para>
     /// The unknowns are the uv parameters on the surfaces, the equations say that the surface points coincide (and lie
     /// in the plane): square systems of 4 or 6 equations. The Levenberg-Marquardt solvers used so far treated a plane as
@@ -84,6 +85,136 @@ namespace CADability
                 return true;
             }
             return BoxedSurfaceExtension.SurfacesIntersectionLM(surface1, surface2, surface3, ref uv1, ref uv2, ref uv3, ref ip);
+        }
+
+        /// <summary>
+        /// The point where <paramref name="curve"/> meets <paramref name="surface"/>, starting from <paramref name="uv"/> on
+        /// the surface and <paramref name="position"/> on the curve (0..1, see <see cref="ICurve.PointAt"/>), which may be far
+        /// from the solution.
+        /// <para>
+        /// The residual is S(u, v) - C(t), three equations for three unknowns. The iteration is a damped Gauss-Newton
+        /// method (Levenberg-Marquardt with the Marquardt scaling): near an intersection the damping vanishes and it is
+        /// Newton's method, far away or where there is no intersection it decreases the distance of the two points, like
+        /// a minimization of the distance, and ends in a point of locally minimal distance. Only first derivatives are
+        /// needed, everything is on the stack.
+        /// </para>
+        /// <para>
+        /// Returns true, when the iteration ends in an intersection or in a point of locally minimal distance - as the
+        /// Newton minimizer of MathNet, which this replaces, did; the caller checks whether there is an intersection and
+        /// whether it lies in the range it was looking for. False, when it does not settle within
+        /// <paramref name="maxIterations"/>; <paramref name="uv"/> and <paramref name="position"/> are unchanged then.
+        /// </para>
+        /// </summary>
+        /// <param name="ip">the middle of the curve point and the surface point</param>
+        public static bool CurveAndSurface(ISurface surface, ICurve curve, ref GeoPoint2D uv, ref double position, out GeoPoint ip,
+            int maxIterations = 30)
+        {
+            ip = GeoPoint.Origin;
+            Span<double> x = stackalloc double[3] { uv.x, uv.y, position };
+            Span<double> r = stackalloc double[3];
+            Span<double> jac = stackalloc double[9];
+            Span<double> trial = stackalloc double[3];
+            Span<double> trialR = stackalloc double[3];
+            Span<double> trialJac = stackalloc double[9];
+            Span<double> a = stackalloc double[9];
+            Span<double> g = stackalloc double[3];
+            Span<double> delta = stackalloc double[3];
+            Span<double> damped = stackalloc double[9];
+
+            double norm = EvaluateCurveAndSurface(surface, curve, x, r, jac, out GeoPoint s, out GeoPoint c);
+            if (double.IsNaN(norm)) return false;
+            double scale = Scale(s);
+            double tight = 1e-12 * scale; // an intersection
+            double loose = 1e-9 * scale;
+            double mu = 1e-6; // relative damping, small: near a solution this is Newton's method
+            bool settled = false;
+            for (int iteration = 0; iteration < maxIterations; iteration++)
+            {
+                if (norm <= tight) { settled = true; break; }
+                // the normal equations: a = J^T J, g = J^T r
+                double maxDiag = 0.0;
+                for (int i = 0; i < 3; i++)
+                {
+                    g[i] = jac[i] * r[0] + jac[3 + i] * r[1] + jac[6 + i] * r[2];
+                    for (int k = 0; k < 3; k++) a[i * 3 + k] = jac[i] * jac[k] + jac[3 + i] * jac[3 + k] + jac[6 + i] * jac[6 + k];
+                    maxDiag = Math.Max(maxDiag, a[i * 4]);
+                }
+                if (!(maxDiag > 0.0)) return false;
+                // a point of locally minimal distance: the gradient of |r|^2 / 2 vanishes relative to |J| |r|
+                double gradient = Math.Sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
+                if (gradient <= 1e-12 * Math.Sqrt(maxDiag) * norm) { settled = true; break; }
+                bool improved = false;
+                double stepSize = 0.0;
+                for (int attempt = 0; attempt < 12; attempt++)
+                {
+                    a.CopyTo(damped);
+                    for (int i = 0; i < 3; i++) damped[i * 4] += mu * Math.Max(a[i * 4], 1e-12 * maxDiag);
+                    for (int i = 0; i < 3; i++) delta[i] = -g[i];
+                    if (SolveLinear(damped, delta, 3))
+                    {
+                        for (int i = 0; i < 3; i++) trial[i] = x[i] + delta[i];
+                        double trialNorm = EvaluateCurveAndSurface(surface, curve, trial, trialR, trialJac, out GeoPoint ts, out GeoPoint tc);
+                        if (trialNorm < norm)
+                        {
+                            stepSize = Math.Max(Math.Abs(delta[0]), Math.Max(Math.Abs(delta[1]), Math.Abs(delta[2])));
+                            trial.CopyTo(x);
+                            trialR.CopyTo(r);
+                            trialJac.CopyTo(jac);
+                            s = ts;
+                            c = tc;
+                            norm = trialNorm;
+                            mu = Math.Max(mu / 3.0, 1e-12);
+                            improved = true;
+                            break;
+                        }
+                    }
+                    mu *= 4.0;
+                }
+                if (!improved)
+                {   // no step decreases the distance any more: an intersection or a minimum within the precision
+                    settled = norm <= loose || gradient <= 1e-6 * Math.Sqrt(maxDiag) * norm;
+                    break;
+                }
+                double size = Math.Max(Math.Abs(x[0]), Math.Max(Math.Abs(x[1]), Math.Abs(x[2])));
+                if (stepSize <= 1e-15 * (1.0 + size)) { settled = true; break; } // the parameters don't change any more
+            }
+            if (!settled) return false;
+            uv = new GeoPoint2D(x[0], x[1]);
+            position = x[2];
+            ip = new GeoPoint(c, s);
+            return true;
+        }
+
+        /// <summary>
+        /// The residual S(u, v) - C(t) at <paramref name="x"/> = (u, v, t) and its Jacobian (row major, the columns are
+        /// Su, Sv and -C'), returns the norm of the residual (NaN, when it cannot be evaluated there).
+        /// </summary>
+        private static double EvaluateCurveAndSurface(ISurface surface, ICurve curve, ReadOnlySpan<double> x, Span<double> r, Span<double> jac,
+            out GeoPoint s, out GeoPoint c)
+        {
+            surface.DerivativeAt(new GeoPoint2D(x[0], x[1]), out s, out GeoVector su, out GeoVector sv);
+            GeoVector ct = CurveDerivative(curve, x[2], out c);
+            r[0] = s.x - c.x;
+            r[1] = s.y - c.y;
+            r[2] = s.z - c.z;
+            jac[0] = su.x; jac[1] = sv.x; jac[2] = -ct.x;
+            jac[3] = su.y; jac[4] = sv.y; jac[5] = -ct.y;
+            jac[6] = su.z; jac[7] = sv.z; jac[8] = -ct.z;
+            return Norm(r);
+        }
+
+        /// <summary>
+        /// The point of <paramref name="curve"/> at <paramref name="position"/> and the derivative with respect to the
+        /// position: from <see cref="ICurve.TryPointDeriv2At"/>, or central differences where a curve does not implement
+        /// it. <see cref="ICurve.DirectionAt"/> is not used, it is only required to give the direction (Path, for
+        /// instance, gives the derivative of its segment). The point is always <see cref="ICurve.PointAt"/>.
+        /// </summary>
+        private static GeoVector CurveDerivative(ICurve curve, double position, out GeoPoint point)
+        {
+            point = curve.PointAt(position);
+            if (curve.TryPointDeriv2At(position, out GeoPoint _, out GeoVector d1, out GeoVector _)) return d1;
+            const double h = 1e-6;
+            return (1.0 / (2.0 * h)) * (curve.PointAt(position + h) - curve.PointAt(position - h));
         }
 
         /// <summary>The achievable precision is limited by the magnitude of the coordinates.</summary>
