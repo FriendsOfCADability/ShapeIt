@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace CADability.Tests
@@ -64,6 +63,22 @@ namespace CADability.Tests
                 new GeoPoint(10, 1, 2), new GeoPoint(12, 5, 3), new GeoPoint(9, 8, 6), new GeoPoint(13, 11, 4)
             }, null, new double[] { -1, 0.7 }, new int[] { 4, 4 }, false);
             yield return ("3d BSpline with knots from -1 to 0.7", skew);
+
+            // A Path gives each segment the same share of the position, whatever its length, and its parameter is
+            // position * length. Its ParameterToPosition maps by the length along the path instead, which is not the
+            // inverse of PositionToParameter, so the surface maps v to the position itself.
+            Line first = Line.TwoPoints(AxisLocation + 5 * radial, AxisLocation + 6 * radial + 0.1 * AxisDirection);
+            Ellipse second = Ellipse.Construct();
+            double y = 0.1 * AxisDirection.Length; // where the line ends in the meridian plane
+            second.SetArcPlaneCenterStartEndPoint(new Plane(AxisLocation, radial, AxisDirection.Normalized), new GeoPoint2D(8, y),
+                new GeoPoint2D(6, y), new GeoPoint2D(10, y), new Plane(AxisLocation, radial, AxisDirection.Normalized), false);
+            GeoObject.Path path = GeoObject.Path.FromSegments(new ICurve[] { first, second }, false);
+            Assert.IsNotNull(path, "the path could not be made");
+            yield return ("Path of a short line and a long arc", path);
+
+            Polyline polyline = Polyline.Construct();
+            polyline.SetPoints(new GeoPoint[] { new GeoPoint(10, 1, 2), new GeoPoint(11, 2, 3), new GeoPoint(14, 3, 7), new GeoPoint(15, 9, 8) }, false);
+            yield return ("3d Polyline of different segment lengths", polyline);
         }
 
         private static BSpline RationalCircle(Plane plane, double r)
@@ -103,9 +118,13 @@ namespace CADability.Tests
             return (du, dv);
         }
 
-        private static void AssertClose(GeoVector expected, GeoVector actual, double relTol, string message)
+        /// <summary>
+        /// The relative error of <paramref name="actual"/>, where <paramref name="floor"/> is the smallest length the
+        /// error is related to (a second derivative of a straight segment is zero, its difference only noise).
+        /// </summary>
+        private static void AssertClose(GeoVector expected, GeoVector actual, double relTol, string message, double floor = 1e-12)
         {
-            double err = (expected - actual).Length / Math.Max(expected.Length, 1e-12);
+            double err = (expected - actual).Length / Math.Max(expected.Length, floor);
             Assert.IsTrue(err < relTol, $"{message}: expected {expected}, got {actual}, relative error {err:E2}");
         }
 
@@ -136,10 +155,20 @@ namespace CADability.Tests
                 AssertClose(fdv, dv2, 1e-7, $"Derivative2At dv, {at}");
                 surface.DerivativeAt(new GeoPoint2D(uv.x + hu, uv.y), out _, out GeoVector duP, out GeoVector dvuP);
                 surface.DerivativeAt(new GeoPoint2D(uv.x - hu, uv.y), out _, out GeoVector duM, out GeoVector dvuM);
-                surface.DerivativeAt(new GeoPoint2D(uv.x, uv.y + hv), out _, out _, out GeoVector dvP);
-                surface.DerivativeAt(new GeoPoint2D(uv.x, uv.y - hv), out _, out _, out GeoVector dvM);
+                // a larger step for dvv: dv of a curve without analytic derivatives (Polyline) is itself a difference,
+                // and differencing it again with the small step would leave mostly rounding noise. Richardson
+                // extrapolation of the steps h and h/2 removes the h^2 error of the larger step.
+                double hv2 = 1e-3 * (vmax - vmin);
+                GeoVector DvvDifference(double h)
+                {
+                    surface.DerivativeAt(new GeoPoint2D(uv.x, uv.y + h), out _, out _, out GeoVector dvP);
+                    surface.DerivativeAt(new GeoPoint2D(uv.x, uv.y - h), out _, out _, out GeoVector dvM);
+                    return (1.0 / (2 * h)) * (dvP - dvM);
+                }
+                GeoVector dvvReference = (1.0 / 3.0) * (4.0 * DvvDifference(hv2 / 2) - DvvDifference(hv2));
                 AssertClose((1.0 / (2 * hu)) * (duP - duM), duu, 1e-6, $"Derivative2At duu, {at}");
-                AssertClose((1.0 / (2 * hv)) * (dvP - dvM), dvv, 1e-5, $"Derivative2At dvv, {at}");
+                // dvv has the dimension of dv / (v range); the floor matters for a straight segment, whose dvv is zero
+                AssertClose(dvvReference, dvv, 1e-5, $"Derivative2At dvv, {at}", 1e-2 * dv.Length / Math.Abs(vmax - vmin));
                 AssertClose((1.0 / (2 * hu)) * (dvuP - dvuM), duv, 1e-6, $"Derivative2At duv, {at}");
             }
         }
@@ -166,39 +195,66 @@ namespace CADability.Tests
         }
 
         /// <summary>
-        /// The old implementation: a 2d curve in the xy plane, rotated about the y axis and placed by toSurface,
-        /// v running from curveStartParameter to curveEndParameter. The internal constructor always builds
-        /// curveToRotate too, so the old branch is reached only with curveToRotate removed.
+        /// Modify keeps the uv parameters: the modified surface at uv is the modification of the surface at uv. A
+        /// reflection reverses the sense of the rotation, which the surface compensates by reversing its axis.
+        /// Only isometries: the parameter of a Path or a Polyline is position * length, so scaling changes the v range
+        /// of a surface with such a curve (a known limitation, the range is not stored in the file).
         /// </summary>
-        private static SurfaceOfRevolution OldImplementation(ICurve2D basisCurve2D, ModOp toSurface, double vStart, double vEnd)
+        [TestMethod]
+        public void Modify_keeps_the_parameters_also_for_a_reflection()
         {
-            ConstructorInfo ctor = typeof(SurfaceOfRevolution).GetConstructor(BindingFlags.Instance | BindingFlags.NonPublic, null,
-                new Type[] { typeof(ICurve2D), typeof(ModOp), typeof(double), typeof(double), typeof(double) }, null);
-            Assert.IsNotNull(ctor, "internal constructor of SurfaceOfRevolution not found");
-            SurfaceOfRevolution res = (SurfaceOfRevolution)ctor.Invoke(new object[] { basisCurve2D, toSurface, vStart, vEnd, 0.0 });
-            FieldInfo curveToRotate = typeof(SurfaceOfRevolution).GetField("curveToRotate", BindingFlags.Instance | BindingFlags.NonPublic);
-            Assert.IsNotNull(curveToRotate, "field curveToRotate not found");
-            curveToRotate.SetValue(res, null);
-            return res;
+            ModOp[] modifications =
+            {
+                ModOp.Translate(1, 2, 3) * ModOp.Rotate(new GeoVector(1, 1, 0).Normalized, SweepAngle.Deg(33)),
+                ModOp.ReflectPlane(new Plane(new GeoPoint(1, 2, 3), new GeoVector(1, -2, 0.5))),
+            };
+            foreach (ModOp m in modifications)
+            {
+                foreach ((string what, ICurve curve) in Profiles())
+                {
+                    SurfaceOfRevolution surface = new SurfaceOfRevolution(curve, AxisLocation, AxisDirection);
+                    ISurface modified = surface.GetModified(m);
+                    double vmin = curve.PositionToParameter(0.0), vmax = curve.PositionToParameter(1.0);
+                    foreach (GeoPoint2D uv in Samples(vmin, vmax))
+                    {
+                        GeoPoint expected = m * surface.PointAt(uv);
+                        Assert.IsTrue((expected | modified.PointAt(uv)) < 1e-9 * Math.Max(1.0, expected.ToVector().Length),
+                            $"{what}, determinant {m.Determinant:F2}, at {uv}: expected {expected}, got {modified.PointAt(uv)}");
+                    }
+                    CheckDerivatives($"{what}, determinant {m.Determinant:F2}", modified, vmin, vmax, true);
+                }
+            }
         }
 
+        /// <summary>
+        /// SameGeometry finds the mapping of the parameters between two descriptions of the same surface: the axis
+        /// reversed (u becomes -u) and the curve reversed (v runs the other way).
+        /// </summary>
         [TestMethod]
-        public void the_old_implementation_has_consistent_derivatives_too()
+        public void SameGeometry_maps_the_parameters()
         {
-            ModOp toSurface = ModOp.Translate(3, -2, 7) * ModOp.Rotate(new GeoVector(1, 2, 3).Normalized, SweepAngle.Deg(37));
-            (string what, ICurve2D curve)[] profiles =
+            foreach ((string what, ICurve curve) in Profiles())
             {
-                ("Line2D", new Line2D(new GeoPoint2D(5, 0), new GeoPoint2D(9, 3))),
-                ("Arc2D", new Arc2D(new GeoPoint2D(10, 2), 3.0, 0.4, 2.5)),
-                ("BSpline2D", new BSpline2D(new GeoPoint2D[] { new GeoPoint2D(5, 0), new GeoPoint2D(8, 1), new GeoPoint2D(6, 3), new GeoPoint2D(9, 5) }, 3, false)),
-            };
-            foreach ((string what, ICurve2D curve) in profiles)
-            {
-                foreach ((double vStart, double vEnd) in new[] { (0.0, 1.0), (2.0, 5.0), (-0.3, 0.2) })
+                SurfaceOfRevolution surface = new SurfaceOfRevolution(curve, AxisLocation, AxisDirection);
+                ICurve reversedCurve = curve.Clone();
+                reversedCurve.Reverse();
+                ISurface[] others =
                 {
-                    SurfaceOfRevolution surface = OldImplementation(curve, toSurface, vStart, vEnd);
-                    CheckDerivatives($"old implementation, {what}, v from {vStart} to {vEnd}", surface, vStart, vEnd, false);
+                    new SurfaceOfRevolution(curve, AxisLocation + 2.5 * AxisDirection, -AxisDirection),
+                    new SurfaceOfRevolution(reversedCurve, AxisLocation, AxisDirection),
+                };
+                double vmin = curve.PositionToParameter(0.0), vmax = curve.PositionToParameter(1.0);
+                BoundingRect bounds = new BoundingRect(0, Math.Min(vmin, vmax), 2 * Math.PI, Math.Max(vmin, vmax));
+                foreach (ISurface other in others)
+                {
+                    Assert.IsTrue(surface.SameGeometry(bounds, other, bounds, Precision.eps, out ModOp2D firstToSecond), $"{what}: not recognized as the same surface");
+                    foreach (GeoPoint2D uv in Samples(vmin, vmax))
+                    {
+                        Assert.IsTrue((surface.PointAt(uv) | other.PointAt(firstToSecond * uv)) < 1e-8, $"{what}: wrong mapping at {uv}");
+                    }
                 }
+                SurfaceOfRevolution shifted = new SurfaceOfRevolution(curve, AxisLocation + GeoVector.XAxis, AxisDirection);
+                Assert.IsFalse(surface.SameGeometry(bounds, shifted, bounds, Precision.eps, out _), $"{what}: a shifted axis is not the same surface");
             }
         }
 
