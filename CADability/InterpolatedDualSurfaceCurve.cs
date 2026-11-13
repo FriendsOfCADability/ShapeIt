@@ -552,10 +552,49 @@ namespace CADability
         internal GeoPoint2D UvInStoredPeriods(bool onSurface1, double position)
         {
             ISurface surface = onSurface1 ? surface1 : surface2;
-            GeoPoint2D uv = surface.PositionOf(PointAt(position));
-            SurfacePoint nearest = basePoints[NearestIndex(ChordFractions(), position)];
+            GeoPoint p = PointAt(position);
+            double[] fractions = ChordFractions();
+            SurfacePoint nearest = basePoints[NearestIndex(fractions, position)];
+            // The foot point near the stored uv values of the neighbouring base points. PositionOf is a global search and
+            // may find a different part of the surface where it comes close to itself (the wavy NURBS band of SplitBug3:
+            // the 2d curve was up to 2.5 away from its 3d curve there).
+            if (!LocalFootPoint(surface, onSurface1, fractions, position, p, out GeoPoint2D uv)) uv = surface.PositionOf(p);
             SurfacePoint.FixSurfacePoint2D(ref uv, onSurface1 ? nearest.psurface1 : nearest.psurface2, surface.IsUPeriodic, surface.UPeriod, surface.IsVPeriodic, surface.VPeriod);
             return uv;
+        }
+        /// <summary>
+        /// The uv value on <paramref name="surface"/> of <paramref name="p"/>, the point of this curve at
+        /// <paramref name="position"/>: Gauss-Newton iterations for the foot point, starting from the uv values stored at
+        /// the base points before and after that position, interpolated linearly by their chord fractions
+        /// <paramref name="fractions"/>. False, when this does not lead to <paramref name="p"/> (e.g. at a pole).
+        /// </summary>
+        private bool LocalFootPoint(ISurface surface, bool onSurface1, double[] fractions, double position, GeoPoint p, out GeoPoint2D uv)
+        {
+            uv = GeoPoint2D.Origin;
+            if (basePoints.Length < 2) return false;
+            int index = Array.BinarySearch(fractions, position);
+            if (index < 0) index = ~index - 1; // the last base point before position
+            index = Math.Max(0, Math.Min(fractions.Length - 2, index));
+            SurfacePoint low = basePoints[index], high = basePoints[index + 1];
+            high.FixAgainstNeighbour(low, surface1, surface2);
+            GeoPoint2D uvLow = onSurface1 ? low.psurface1 : low.psurface2, uvHigh = onSurface1 ? high.psurface1 : high.psurface2;
+            double span = fractions[index + 1] - fractions[index];
+            double d = span > 0.0 ? Math.Max(0.0, Math.Min(1.0, (position - fractions[index]) / span)) : 0.0;
+            uv = new GeoPoint2D((1.0 - d) * uvLow.x + d * uvHigh.x, (1.0 - d) * uvLow.y + d * uvHigh.y);
+            // the curve point lies on the surface only up to the precision of the approximating spline (1e-6 of the size)
+            double tolerance = Math.Max(10 * Precision.eps, 1e-5 * BasePointExtent().Size);
+            for (int i = 0; i < 20; i++)
+            {
+                surface.DerivativeAt(uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
+                GeoVector delta = p - location;
+                double a11 = du * du, a12 = du * dv, a22 = dv * dv, r1 = du * delta, r2 = dv * delta;
+                double det = a11 * a22 - a12 * a12;
+                if (!(Math.Abs(det) > 1e-12 * a11 * a22)) break; // degenerate, e.g. at a pole
+                double su = (r1 * a22 - r2 * a12) / det, sv = (a11 * r2 - a12 * r1) / det;
+                uv = new GeoPoint2D(uv.x + su, uv.y + sv);
+                if (Math.Abs(su) + Math.Abs(sv) <= 1e-14 * (1.0 + Math.Abs(uv.x) + Math.Abs(uv.y))) break;
+            }
+            return (surface.PointAt(uv) | p) <= tolerance;
         }
         /// <summary>The uv value on the first or on the second surface stored at the start or at the end of this curve.</summary>
         internal GeoPoint2D StoredUvAtEnd(bool onSurface1, bool atEnd)
