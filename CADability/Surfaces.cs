@@ -811,7 +811,7 @@ namespace CADability.GeoObject
             uv1 = surface1.PositionOf(ip);
             uv2 = surface2.PositionOf(ip);
             uv3 = surface3.PositionOf(ip);
-            if (BoxedSurfaceExtension.SurfacesIntersectionLM(surface1, surface2, surface3, ref uv1, ref uv2, ref uv3, ref ip)) return true;
+            if (SurfaceIntersectionNewton.ThreeSurfacesOrLM(surface1, surface2, surface3, ref uv1, ref uv2, ref uv3, ref ip)) return true;
             return NewtonIntersect(surface1, bounds1, surface2, bounds2, surface3, bounds3, ref ip, out uv1, out uv2, out uv3);
 
         }

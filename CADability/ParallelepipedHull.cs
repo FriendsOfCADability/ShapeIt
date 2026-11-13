@@ -2955,7 +2955,7 @@ namespace CADability.GeoObject
                                     GeoPoint2D uv2 = dsc.Surface2.PositionOf(curve.PointAt(tStart));
                                     uvStart = surface.PositionOf(closePoint);
                                     ip = closePoint;
-                                    if (BoxedSurfaceExtension.SurfacesIntersectionLM(dsc.Surface1, dsc.Surface2, surface, ref uv1, ref uv2, ref uvStart, ref ip))
+                                    if (SurfaceIntersectionNewton.ThreeSurfacesOrLM(dsc.Surface1, dsc.Surface2, surface, ref uv1, ref uv2, ref uvStart, ref ip))
                                     {
                                         luOnCurve.Add(curve.PositionOf(ip));
                                         luvOnFace.Add(uvStart);

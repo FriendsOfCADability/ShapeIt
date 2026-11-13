@@ -9232,7 +9232,7 @@ namespace CADability.GeoObject
                     GeoPoint2D uv1 = dsc.Surface1.PositionOf(tmp);
                     GeoPoint2D uv2 = dsc.Surface2.PositionOf(tmp);
                     GeoPoint2D uv3 = surface.PositionOf(tmp);
-                    bool ok = BoxedSurfaceExtension.SurfacesIntersectionLM(dsc.Surface1, dsc.Surface2, surface, ref uv1, ref uv2, ref uv3, ref ips[i]);
+                    bool ok = SurfaceIntersectionNewton.ThreeSurfacesOrLM(dsc.Surface1, dsc.Surface2, surface, ref uv1, ref uv2, ref uv3, ref ips[i]);
                     // SurfacesIntersectionLM is better than the old IntersectThreeSurfaces at lest with DifferenceBug13 where the old method fails
                     //bool ok = Surfaces.IntersectThreeSurfaces(dsc.Surface1, dsc.GetBoundingRect(true), dsc.Surface2, dsc.GetBoundingRect(false),
                     //        Surface, Domain, ref ips[i], out GeoPoint2D uv1, out GeoPoint2D uv2, out GeoPoint2D uv3);

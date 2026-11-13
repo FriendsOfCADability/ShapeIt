@@ -82,6 +82,75 @@ namespace CADability.Tests
             }
         }
 
+        private static IEnumerable<(string what, ISurface s1, ISurface s2, ISurface s3, GeoPoint near)> Triples()
+        {
+            // x^2 + y^2 = 25 and y^2 + (z - 1)^2 = 9 meet at y = 2.2 in this point, the plane goes through it
+            GeoPoint common = new GeoPoint(Math.Sqrt(25 - 2.2 * 2.2), 2.2, 1 + Math.Sqrt(9 - 2.2 * 2.2));
+            yield return ("two crossing cylinders and an inclined plane",
+                new CylindricalSurface(GeoPoint.Origin, 5 * GeoVector.XAxis, 5 * GeoVector.YAxis, GeoVector.ZAxis),
+                new CylindricalSurface(new GeoPoint(0, 0, 1), 3 * GeoVector.YAxis, 3 * GeoVector.ZAxis, GeoVector.XAxis),
+                new PlaneSurface(new Plane(common, new GeoVector(1, 0.3, 0.1).Normalized)),
+                common + new GeoVector(0.1, -0.1, 0.05));
+            GeoPoint far = new GeoPoint(1000, -2000, 500);
+            yield return ("sphere and two planes, far from the origin",
+                new SphericalSurface(far, 4 * GeoVector.XAxis, 4 * GeoVector.YAxis, 4 * GeoVector.ZAxis),
+                new PlaneSurface(new Plane(far + new GeoVector(0, 0, 1.3), new GeoVector(0.3, 0.2, 1).Normalized)),
+                new PlaneSurface(new Plane(far + new GeoVector(1, 0, 0), new GeoVector(1, -0.4, 0.2).Normalized)),
+                far + new GeoVector(1.2, 3.4, 1.0));
+            // torus (sqrt(x^2 + y^2) - 10)^2 + z^2 = 9 and cylinder y^2 + z^2 = 4 at z = 1.3, a sphere through that point
+            double y = Math.Sqrt(4 - 1.3 * 1.3), rho = 10 + Math.Sqrt(9 - 1.3 * 1.3);
+            GeoPoint onTorusAndCylinder = new GeoPoint(Math.Sqrt(rho * rho - y * y), y, 1.3);
+            GeoPoint center = new GeoPoint(5, -3, 2);
+            double r = center | onTorusAndCylinder;
+            yield return ("torus, cylinder and sphere",
+                new ToroidalSurface(GeoPoint.Origin, GeoVector.XAxis, GeoVector.YAxis, GeoVector.ZAxis, 10, 3),
+                new CylindricalSurface(GeoPoint.Origin, 2 * GeoVector.YAxis, 2 * GeoVector.ZAxis, GeoVector.XAxis),
+                new SphericalSurface(center, r * GeoVector.XAxis, r * GeoVector.YAxis, r * GeoVector.ZAxis),
+                onTorusAndCylinder + new GeoVector(0.05, 0.1, -0.05));
+        }
+
+        [TestMethod]
+        public void finds_the_point_of_three_surfaces_like_the_LM_solver()
+        {
+            foreach ((string what, ISurface s1, ISurface s2, ISurface s3, GeoPoint near) in Triples())
+            {
+                // the reference, by the LM solver from a rough start
+                GeoPoint2D r1 = s1.PositionOf(near), r2 = s2.PositionOf(near), r3 = s3.PositionOf(near);
+                GeoPoint reference = near;
+                Assert.IsTrue(BoxedSurfaceExtension.SurfacesIntersectionLM(s1, s2, s3, ref r1, ref r2, ref r3, ref reference), $"{what}: LM found no point");
+                double scale = 1.0 + Math.Max(Math.Abs(reference.x), Math.Max(Math.Abs(reference.y), Math.Abs(reference.z)));
+                Assert.IsTrue((s1.PointAt(r1) | s2.PointAt(r2)) < 1e-7 * scale && (s2.PointAt(r2) | s3.PointAt(r3)) < 1e-7 * scale, $"{what}: LM reference not on all surfaces");
+                foreach (double offset in new double[] { 0.01, 0.1, 0.4 })
+                {
+                    // start from the projections of a point beside the solution, as a caller refining a vertex does
+                    GeoPoint start = reference + offset * new GeoVector(0.6, -0.5, 0.62);
+                    GeoPoint2D uv1 = s1.PositionOf(start), uv2 = s2.PositionOf(start), uv3 = s3.PositionOf(start);
+                    Assert.IsTrue(SurfaceIntersectionNewton.ThreeSurfaces(s1, s2, s3, ref uv1, ref uv2, ref uv3, out GeoPoint ip),
+                        $"{what}, offset {offset}: Newton did not converge");
+                    GeoPoint q1 = s1.PointAt(uv1), q2 = s2.PointAt(uv2), q3 = s3.PointAt(uv3);
+                    Assert.IsTrue((q1 | q2) < 1e-9 * scale && (q2 | q3) < 1e-9 * scale && (q1 | q3) < 1e-9 * scale,
+                        $"{what}, offset {offset}: the points of the surfaces differ ({q1 | q2}, {q2 | q3})");
+                    Assert.IsTrue((ip | reference) < 1e-7 * scale, $"{what}, offset {offset}: Newton {ip} and LM {reference} differ by {ip | reference}");
+                }
+            }
+        }
+
+        [TestMethod]
+        public void three_surfaces_through_a_common_line_give_up()
+        {
+            // three planes through the z axis: no single common point, the Jacobian is singular
+            PlaneSurface p1 = new PlaneSurface(new Plane(GeoPoint.Origin, GeoVector.XAxis));
+            PlaneSurface p2 = new PlaneSurface(new Plane(GeoPoint.Origin, GeoVector.YAxis));
+            PlaneSurface p3 = new PlaneSurface(new Plane(GeoPoint.Origin, new GeoVector(1, 1, 0).Normalized));
+            GeoPoint start = new GeoPoint(0.3, -0.2, 4);
+            GeoPoint2D uv1 = p1.PositionOf(start), uv2 = p2.PositionOf(start), uv3 = p3.PositionOf(start);
+            GeoPoint2D b1 = uv1, b2 = uv2, b3 = uv3;
+            Assert.IsFalse(SurfaceIntersectionNewton.ThreeSurfaces(p1, p2, p3, ref uv1, ref uv2, ref uv3, out _));
+            Assert.AreEqual(b1, uv1, "the start values must be unchanged on failure");
+            Assert.AreEqual(b2, uv2, "the start values must be unchanged on failure");
+            Assert.AreEqual(b3, uv3, "the start values must be unchanged on failure");
+        }
+
         [TestMethod]
         public void gives_up_where_the_surfaces_touch()
         {
