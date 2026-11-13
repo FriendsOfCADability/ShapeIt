@@ -310,7 +310,7 @@ namespace CADability
         private double eps3;      // 3d tolerance for degeneracy tests (relative to model size)
         private double diagN;     // diagonal of the normalized uv extent
 
-        private readonly Dictionary<long, EdgeDefl> edgeDeflCache = new Dictionary<long, EdgeDefl>();
+        private readonly Dictionary<long, EdgeDefl> edgeDeflCache = new Dictionary<long, EdgeDefl>(MixedLongComparer.Instance);
         private readonly Random rnd = new Random(0x5eed);
 
         private const int KindNone = 0, KindEdge = 1, KindFace = 2, KindBend = 3, KindQuality = 4;
@@ -528,7 +528,7 @@ namespace CADability
             double tol2 = tol * tol;
             // uniform grid with a cell size of tol: a partner closer than tol lies in the cell of
             // the point itself or in one of its 8 neighbours
-            Dictionary<long, List<int>> grid = new Dictionary<long, List<int>>();
+            Dictionary<long, List<int>> grid = new Dictionary<long, List<int>>(MixedLongComparer.Instance);
             for (int i = 0; i < inputVertexCount; ++i)
             {
                 GeoPoint2D p = nuv[i];
@@ -1156,7 +1156,7 @@ namespace CADability
             TriangulatePseudoPolygon(target, a, right, newTris);
 
             // link everything via directed edges
-            Dictionary<long, int> dir = new Dictionary<long, int>(); // directed edge -> new triangle
+            Dictionary<long, int> dir = new Dictionary<long, int>(MixedLongComparer.Instance); // directed edge -> new triangle
             for (int i = 0; i < newTris.Count; ++i)
             {
                 Tri tr = tris[newTris[i]];
@@ -1210,6 +1210,27 @@ namespace CADability
         }
 
         private static long DirectedKey(int a, int b) { return ((long)(uint)a << 32) | (uint)b; }
+
+        /// <summary>
+        /// Hashes a key made of two ints (<see cref="DirectedKey"/>, <see cref="CellKey"/>) with all its bits mixed.
+        /// The hash code of a long is the xor of its two halves, a ^ b here: the edges between n vertices share only
+        /// about n different hash codes, the buckets of the dictionary become chains of growing length and every
+        /// lookup costs O(n). The refinement, which looks up the deflection of every edge it evaluates, became
+        /// quadratic in the number of triangles: 2e5 triangles took 37 s (WolkeTemplateTests ran into its timeout).
+        /// </summary>
+        private sealed class MixedLongComparer : IEqualityComparer<long>
+        {
+            public static readonly MixedLongComparer Instance = new MixedLongComparer();
+            public bool Equals(long x, long y) { return x == y; }
+            public int GetHashCode(long key)
+            {   // the finalizer of SplitMix64
+                ulong z = (ulong)key;
+                z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9UL;
+                z = (z ^ (z >> 27)) * 0x94d049bb133111ebUL;
+                z ^= z >> 31;
+                return (int)z ^ (int)(z >> 32);
+            }
+        }
 
         // Anglada's pseudo polygon retriangulation: chain contains the vertices on the left of
         // the directed base edge u->w, ordered from u to w. Chooses the apex c whose
