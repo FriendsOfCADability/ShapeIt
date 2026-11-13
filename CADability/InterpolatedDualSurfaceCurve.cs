@@ -1223,9 +1223,7 @@ namespace CADability
                 }
                 else
                 {
-                    PlaneSurface ps = new PlaneSurface(normalPlane);
                     p = normalPlane.Location;
-                    GeoPoint2D uvplane = GeoPoint2D.Origin;
                     bool solved = false;
                     // The known points of the curve (the base points, e.g. the marched points, and the points already
                     // calculated) are close by: their uv values give a much better start than the global PositionOf,
@@ -1233,20 +1231,19 @@ namespace CADability
                     if (LocalStart(position, hasLower, lowerKey, lowerValue, hasUpper, upperKey, upperValue,
                         out uv1, out uv2, out GeoPoint expected, out double reach))
                     {
-                        solved = BoxedSurfaceExtension.SurfacesIntersectionLM(ps, surface1, surface2, ref uvplane, ref uv1, ref uv2, ref p)
+                        solved = SolveInPlane(normalPlane, ref uv1, ref uv2, out p)
                             && (p | expected) <= reach
                             && IsPlausibleIntersection(uv1, uv2, normalPlane, approxBSpline != null);
                         DualSurfaceCurveDiagnostics.Count(solved ? "IDSC.ApproximatePosition local start" : "IDSC.ApproximatePosition local start failed");
                     }
                     if (!solved)
                     {
-                        p = normalPlane.Location;
-                        uvplane = GeoPoint2D.Origin;
                         uv1 = surface1.PositionOf(normalPlane.Location);
                         uv2 = surface2.PositionOf(normalPlane.Location);
                         AnchorToNearestBasePoint(position, ref uv1, ref uv2);
-                        solved = BoxedSurfaceExtension.SurfacesIntersectionLM(ps, surface1, surface2, ref uvplane, ref uv1, ref uv2, ref p)
+                        solved = SolveInPlane(normalPlane, ref uv1, ref uv2, out p)
                             && IsPlausibleIntersection(uv1, uv2, normalPlane, approxBSpline != null);
+                        if (!solved) p = normalPlane.Location;
                     }
                     if (solved)
                     {
@@ -1289,6 +1286,18 @@ namespace CADability
                         approxBSpline != null, isTangential, surface1, uv1, surface2, uv2, normalPlane, p);
                 }
             }
+        }
+        /// <summary>
+        /// The common point of <paramref name="plane"/> and the two surfaces, from the start values <paramref name="uv1"/>
+        /// and <paramref name="uv2"/>: Newton's method (<see cref="SurfaceIntersectionNewton"/>), and where it gives up,
+        /// which it does where the surfaces (almost) touch, the damped Levenberg-Marquardt solver.
+        /// </summary>
+        private bool SolveInPlane(Plane plane, ref GeoPoint2D uv1, ref GeoPoint2D uv2, out GeoPoint p)
+        {
+            if (SurfaceIntersectionNewton.PlaneAndSurfaces(plane, surface1, surface2, ref uv1, ref uv2, out p)) return true;
+            GeoPoint2D uvplane = GeoPoint2D.Origin;
+            p = plane.Location;
+            return BoxedSurfaceExtension.SurfacesIntersectionLM(new PlaneSurface(plane), surface1, surface2, ref uvplane, ref uv1, ref uv2, ref p);
         }
         /// <summary>
         /// Start values for the uv parameters of the curve point at <paramref name="position"/>, interpolated between the

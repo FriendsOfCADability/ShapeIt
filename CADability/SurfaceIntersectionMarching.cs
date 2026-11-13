@@ -392,10 +392,7 @@ namespace CADability.GeoObject
             List<GeoVector> directions = StartDirections(ctx, uv1, uv2);
             if (directions.Count == 0) return false;
             GeoVector dir = directions[0];
-            PlaneSurface ps = new PlaneSurface(new Plane(seed, dir));
-            GeoPoint2D uvPlane = GeoPoint2D.Origin;
-            GeoPoint ip = seed;
-            if (!SurfaceIntersectionSolvers.SurfacesIntersectionLM_Analytic9(ps, ctx.surface1, ctx.surface2, ref uvPlane, ref uv1, ref uv2, ref ip)) return false;
+            if (!SolveInPlane(ctx, new Plane(seed, dir), ref uv1, ref uv2, out GeoPoint ip)) return false;
             GeoPoint p1 = ctx.surface1.PointAt(uv1), p2 = ctx.surface2.PointAt(uv2);
             if ((p1 | p2) > ctx.tolerance) return false;
             if ((ip | seed) > ctx.nominalStep) return false; // found some other part of the intersection
@@ -577,8 +574,6 @@ namespace CADability.GeoObject
             GeoVector direction, double step, ref GeoPoint ip, ref GeoPoint2D uv1, ref GeoPoint2D uv2)
         {
             GeoPoint target = from + step * direction;
-            PlaneSurface ps = new PlaneSurface(new Plane(target, direction));
-            GeoPoint2D uvPlane = GeoPoint2D.Origin; // the target point is the origin of that plane
             uv1 = ctx.surface1.PositionOf(target);
             uv2 = ctx.surface2.PositionOf(target);
             // on a periodic surface PositionOf may return a parameter a full period away from the last point,
@@ -592,9 +587,7 @@ namespace CADability.GeoObject
             // predicted from the last point of the branch is local and usually much better.
             uv1 = BetterStartParameter(ctx.surface1, uvFrom1, uv1, target);
             uv2 = BetterStartParameter(ctx.surface2, uvFrom2, uv2, target);
-            ip = target;
-            if (!SurfaceIntersectionSolvers.SurfacesIntersectionLM_Analytic9(ps, ctx.surface1, ctx.surface2,
-                ref uvPlane, ref uv1, ref uv2, ref ip)) return false;
+            if (!SolveInPlane(ctx, new Plane(target, direction), ref uv1, ref uv2, out ip)) return false;
             GeoPoint p1 = ctx.surface1.PointAt(uv1), p2 = ctx.surface2.PointAt(uv2);
             if ((p1 | p2) > ctx.tolerance) return false; // no common point: the solver stopped in a local minimum
             if (Math.Abs((p1 - target) * direction) > ctx.tolerance) return false; // not in the plane
@@ -604,6 +597,19 @@ namespace CADability.GeoObject
             return true;
         }
 
+        /// <summary>
+        /// The common point of <paramref name="plane"/> and the two surfaces, from the start values <paramref name="uv1"/>
+        /// and <paramref name="uv2"/>: Newton's method (<see cref="SurfaceIntersectionNewton"/>), and where it gives up,
+        /// which it does where the surfaces (almost) touch, the damped Levenberg-Marquardt solver.
+        /// </summary>
+        private static bool SolveInPlane(MarchingContext ctx, Plane plane, ref GeoPoint2D uv1, ref GeoPoint2D uv2, out GeoPoint ip)
+        {
+            if (SurfaceIntersectionNewton.PlaneAndSurfaces(plane, ctx.surface1, ctx.surface2, ref uv1, ref uv2, out ip)) return true;
+            GeoPoint2D uvPlane = GeoPoint2D.Origin; // the location is the origin of the plane
+            ip = plane.Location;
+            return SurfaceIntersectionSolvers.SurfacesIntersectionLM_Analytic9(new PlaneSurface(plane), ctx.surface1, ctx.surface2,
+                ref uvPlane, ref uv1, ref uv2, ref ip);
+        }
         /// <summary>
         /// The start parameter for the solver of a marching step: either the parameter predicted from the last
         /// point of the branch (<paramref name="uvFrom"/> moved along the tangent plane there, so that it lands
