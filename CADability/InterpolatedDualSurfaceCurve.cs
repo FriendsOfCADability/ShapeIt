@@ -145,7 +145,23 @@ namespace CADability
                 if (onSurface1) basePoints[i].psurface1 = m * basePoints[i].psurface1;
                 else basePoints[i].psurface2 = m * basePoints[i].psurface2;
             }
+            // The curve in space does not change, so the approximating spline is kept (recalculating it is expensive),
+            // and the points calculated so far are converted like the base points.
+            BSpline keep = approxBSpline;
+            KeyValuePair<double, SurfacePoint>[] calculated;
+            lock (hashedPositions) calculated = hashedPositions.ToArray();
             InvalidateSecondaryData();
+            approxBSpline = keep;
+            lock (hashedPositions)
+            {
+                foreach (KeyValuePair<double, SurfacePoint> kv in calculated)
+                {
+                    SurfacePoint sp = kv.Value;
+                    if (onSurface1) sp.psurface1 = m * sp.psurface1;
+                    else sp.psurface2 = m * sp.psurface2;
+                    hashedPositions[kv.Key] = sp;
+                }
+            }
         }
 
         protected InterpolatedDualSurfaceCurve()
@@ -633,7 +649,9 @@ namespace CADability
         internal InterpolatedDualSurfaceCurve CloneTrimmed(double startPos, double endPos, CADability.ProjectedCurve c1, CADability.ProjectedCurve c2, out ICurve2D c1trimmed, out ICurve2D c2trimmed)
         {
             // this used to pass forwardOriented, which bound to the parameter isTangential
-            InterpolatedDualSurfaceCurve res = new InterpolatedDualSurfaceCurve(surface1, surface2, basePoints.Clone() as SurfacePoint[], isTangential);
+            // a copy on the same surfaces with the same approximating spline, Trim recalculates it for the trimmed part
+            // only (the constructor would approximate the whole curve again, just to throw that away in Trim)
+            InterpolatedDualSurfaceCurve res = SharingCopy(surface1, surface2, basePoints.Clone() as SurfacePoint[], approxBSpline);
             res.Trim(startPos, endPos);
             c1trimmed = c1.OnTrimmedCurve(res);
             c2trimmed = c2.OnTrimmedCurve(res);
@@ -1564,7 +1582,22 @@ namespace CADability
         {
             DualSurfaceCurveDiagnostics.Count("IDSC.Reverse");
             Array.Reverse(basePoints);
+            // The approximating spline is reversed instead of being recalculated: position p becomes 1-p, which is also
+            // what the chord fractions of the reversed base points give. It is shared with clones of this curve and
+            // never modified in place, so a reversed copy is made.
+            BSpline reversed = approxBSpline?.Clone() as BSpline;
+            if (reversed != null) (reversed as ICurve).Reverse();
+            KeyValuePair<double, SurfacePoint>[] calculated;
+            lock (hashedPositions) calculated = hashedPositions.ToArray();
             InvalidateSecondaryData();
+            approxBSpline = reversed;
+            if (reversed != null)
+            {
+                lock (hashedPositions)
+                {
+                    foreach (KeyValuePair<double, SurfacePoint> kv in calculated) hashedPositions[1.0 - kv.Key] = kv.Value;
+                }
+            }
         }
         /// <summary>
         /// Joins pieces of intersection curves of the same two surfaces, which meet at their end points, to as few curves
@@ -1819,12 +1852,83 @@ namespace CADability
                 else throw new ApplicationException("Wrong surfaces in InterpolatedDualSurfaceCurve.SetSurfaces");
             }
         }
+        /// <summary>
+        /// A curve with the provided surfaces, base points and approximating spline, which are used as they are (not
+        /// cloned and not recalculated), and the tangential state of this curve.
+        /// </summary>
+        private InterpolatedDualSurfaceCurve SharingCopy(ISurface surface1, ISurface surface2, SurfacePoint[] basePoints, BSpline approxBSpline)
+        {
+            InterpolatedDualSurfaceCurve res = new InterpolatedDualSurfaceCurve();
+            res.surface1 = surface1;
+            res.surface2 = surface2;
+            res.basePoints = basePoints;
+            res.isTangential = isTangential;
+            res.approxBSpline = approxBSpline;
+            return res;
+        }
+        /// <summary>
+        /// This curve on <paramref name="newSurface1"/> and <paramref name="newSurface2"/>, which are geometrically the two
+        /// surfaces of this curve, but one or both of them may have been reparametrized by <paramref name="m"/> (as
+        /// <see cref="ISurface.ReverseOrientation"/> does), possibly in place. The curve in space does not change, so the
+        /// base points and the approximating spline are kept, and the uv values of the base points are converted: from
+        /// either surface of this curve, with or without <paramref name="m"/>, whatever reproduces all base points on the
+        /// new surface. When nothing does, the curve is rebuilt from its base points with the constructor, which uses
+        /// <paramref name="bounds1"/> and <paramref name="bounds2"/>.
+        /// </summary>
+        internal InterpolatedDualSurfaceCurve OnSurfaces(ISurface newSurface1, BoundingRect bounds1, ISurface newSurface2, BoundingRect bounds2, ModOp2D m, bool isTangential)
+        {
+            if (approxBSpline != null && basePoints.Length > 2
+                && TryUvOn(newSurface1, m, out GeoPoint2D[] uv1) && TryUvOn(newSurface2, m, out GeoPoint2D[] uv2))
+            {
+                SurfacePoint[] sp = new SurfacePoint[basePoints.Length];
+                for (int i = 0; i < sp.Length; i++) sp[i] = new SurfacePoint(basePoints[i].p3d, uv1[i], uv2[i]);
+                InterpolatedDualSurfaceCurve res = SharingCopy(newSurface1, newSurface2, sp, approxBSpline);
+                res.isTangential = isTangential;
+                res.AnchorBasePoints(); // into the periods where PositionOf puts them, as the constructor does
+                DualSurfaceCurveDiagnostics.Count("IDSC.OnSurfaces kept the spline");
+                return res;
+            }
+            DualSurfaceCurveDiagnostics.Count("IDSC.OnSurfaces rebuilt");
+            return new InterpolatedDualSurfaceCurve(newSurface1, bounds1, newSurface2, bounds2, new List<GeoPoint>(BasePoints), null, null, isTangential);
+        }
+        /// <summary>
+        /// The uv values of the base points on <paramref name="surface"/>: those stored for the first or for the second
+        /// surface, unchanged or converted by <paramref name="m"/>, the first of these candidates which puts every base
+        /// point onto <paramref name="surface"/>.
+        /// </summary>
+        private bool TryUvOn(ISurface surface, ModOp2D m, out GeoPoint2D[] uv)
+        {
+            double tolerance = 100 * Precision.eps;
+            uv = new GeoPoint2D[basePoints.Length];
+            for (int candidate = 0; candidate < 4; candidate++)
+            {
+                bool onSurface1 = candidate < 2, convert = (candidate & 1) == 1;
+                bool fits = true;
+                for (int i = 0; i < basePoints.Length && fits; i++)
+                {
+                    GeoPoint2D stored = onSurface1 ? basePoints[i].psurface1 : basePoints[i].psurface2;
+                    uv[i] = convert ? m * stored : stored;
+                    fits = (surface.PointAt(uv[i]) | basePoints[i].p3d) <= tolerance;
+                }
+                if (fits) return true;
+            }
+            return false;
+        }
         public override ICurve CloneModified(ModOp m)
         {
             SurfacePoint[] sp = basePoints.Clone() as SurfacePoint[];
             for (int i = 0; i < sp.Length; ++i)
             {
                 sp[i].p3d = m * sp[i].p3d;
+            }
+            if (approxBSpline != null && m.IsIsogonal)
+            {   // an angle preserving modification maps the approximating spline to an approximation of the modified curve
+                // with the same parametrization (and normal planes), so it need not be recalculated
+                BSpline modified = approxBSpline.Clone() as BSpline;
+                modified.Modify(m);
+                InterpolatedDualSurfaceCurve res = SharingCopy(surface1.GetModified(m), surface2.GetModified(m), sp, modified);
+                res.AnchorBasePoints();
+                return res;
             }
             InterpolatedDualSurfaceCurve ipdsc = new InterpolatedDualSurfaceCurve(surface1.GetModified(m), surface2.GetModified(m), sp, IsTangential);
             return ipdsc;

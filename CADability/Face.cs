@@ -5856,7 +5856,7 @@ namespace CADability.GeoObject
                                 otherSurface = idsc.Surface1;
                             }
                         }
-                        edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, otherSurface, otherBounds, idsc.BasePoints);
+                        edg.Curve3D = idsc.OnSurfaces(this.surface, modifiedBounds, otherSurface, otherBounds, reparameterize, false);
                         edg.PrimaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         if (!edg.Forward(edg.PrimaryFace)) edg.PrimaryCurve2D.Reverse();
                         edg.SecondaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
@@ -5877,7 +5877,7 @@ namespace CADability.GeoObject
                                 otherSurface = idsc.Surface1;
                             }
                         }
-                        edg.Curve3D = new InterpolatedDualSurfaceCurve(otherSurface, otherBounds, this.surface, modifiedBounds, idsc.BasePoints);
+                        edg.Curve3D = idsc.OnSurfaces(otherSurface, otherBounds, this.surface, modifiedBounds, reparameterize, false);
                         edg.PrimaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         if (!edg.Forward(edg.PrimaryFace)) edg.PrimaryCurve2D.Reverse();
                         edg.SecondaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
@@ -9782,7 +9782,7 @@ namespace CADability.GeoObject
                             otherSurface = idsc.Surface2;
                             otherDomain = idsc.Domain2;
                         }
-                        edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, otherSurface, otherDomain, idsc.BasePoints, null, null, idsc.IsTangential);
+                        edg.Curve3D = idsc.OnSurfaces(this.surface, modifiedBounds, otherSurface, otherDomain, m, idsc.IsTangential);
                         edg.PrimaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         if (!edg.Forward(edg.PrimaryFace)) edg.PrimaryCurve2D.Reverse();
                         edg.SecondaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
@@ -9790,8 +9790,8 @@ namespace CADability.GeoObject
                     }
                     else
                     {
-                        if (edg.PrimaryFace == this) edg.Curve3D = new InterpolatedDualSurfaceCurve(this.surface, modifiedBounds, edg.SecondaryFace.surface, edg.SecondaryFace.Area.GetExtent(), idsc.BasePoints, null, null, idsc.IsTangential);
-                        else edg.Curve3D = new InterpolatedDualSurfaceCurve(edg.PrimaryFace.surface, edg.PrimaryFace.Area.GetExtent(), this.surface, modifiedBounds, idsc.BasePoints, null, null, idsc.IsTangential);
+                        if (edg.PrimaryFace == this) edg.Curve3D = idsc.OnSurfaces(this.surface, modifiedBounds, edg.SecondaryFace.surface, edg.SecondaryFace.Area.GetExtent(), m, idsc.IsTangential);
+                        else edg.Curve3D = idsc.OnSurfaces(edg.PrimaryFace.surface, edg.PrimaryFace.Area.GetExtent(), this.surface, modifiedBounds, m, idsc.IsTangential);
                         edg.PrimaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface1;
                         if (!edg.Forward(edg.PrimaryFace)) edg.PrimaryCurve2D.Reverse();
                         edg.SecondaryCurve2D = (edg.Curve3D as InterpolatedDualSurfaceCurve).CurveOnSurface2;
