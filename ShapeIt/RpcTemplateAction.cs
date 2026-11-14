@@ -281,6 +281,8 @@ namespace ShapeIt
                                     ParameterChanged();
                                 };
                                 inputs.Add(curveInput);
+                                // without a default ("value": null) the curve must be picked, like a solid or a profile
+                                if (parameterInfo.defaultValue == null && !curveInput.Optional) requiredInputs.Add((name, curveInput));
                             }
                             break;
                         case "profile":

@@ -6210,7 +6210,16 @@ namespace ShapeIt
                     continue;
                 }
                 if (TemplateParameterRules.InputString(item, "kind") == "curve")
-                {   // the default may be a list of points, which WorkspaceSetImpl would take for a list of names
+                {
+                    if (parValue.ValueKind == JsonValueKind.Null)
+                    {   // "value": null: no default, the curve comes from the instantiation (argument or the user's
+                        // pick), like an object parameter; an outer workspace item of that name must not stand in for it
+                        namedItems.Remove(parName);
+                        if (!replayingTemplate)
+                            AddCallWarning($"The curve parameter '{parName}' has no default value, it is not defined for this recording.");
+                        continue;
+                    }
+                    // the default may be a list of points, which WorkspaceSetImpl would take for a list of names
                     namedItems[parName] = RequireCurves(parValue, parName);
                     continue;
                 }
@@ -6479,6 +6488,22 @@ namespace ShapeIt
                     _ => unwrapped is Sketch || unwrapped is CompoundShape || unwrapped is ICurve2D || unwrapped is IEnumerable<ICurve2D> || unwrapped is IEnumerable<CompoundShape>
                 };
                 if (!ok) throw new JsonRpcException("E_INVALID_PARAMS", $"The {op.Kind} parameter '{op.Name}' of template '{templateName}' got a {GetObjectTypeName(unwrapped)}.");
+            }
+            // a curve parameter without a default ("value": null) has to be given like an object parameter
+            if (GetTemplateBeginParams(templateName) is JsonElement prms && prms.ValueKind == JsonValueKind.Object
+                && prms.TryGetProperty("parameters", out JsonElement parameters) && parameters.ValueKind == JsonValueKind.Array)
+            {
+                foreach (JsonElement item in parameters.EnumerateArray())
+                {
+                    if (TemplateParameterRules.InputString(item, "kind") != "curve") continue;
+                    if (!item.TryGetProperty("value", out JsonElement value) || value.ValueKind != JsonValueKind.Null) continue;
+                    if (item.TryGetProperty("input", out JsonElement input) && input.TryGetProperty("optional", out JsonElement optional)
+                        && optional.ValueKind == JsonValueKind.True) continue;
+                    string name = RequireString(item, "name");
+                    if (!namedItems.TryGetValue(name, out object? curve) || curve == null)
+                        throw new JsonRpcException("E_INVALID_PARAMS", $"Template '{templateName}' needs the curve parameter '{name}': pass the workspace name "
+                            + "of a curve, an edge or a sketch, or a list of points like [[0,0,0],[10,0,0]], as argument.");
+                }
             }
         }
 
