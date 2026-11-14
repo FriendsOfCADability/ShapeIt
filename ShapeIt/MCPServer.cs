@@ -5854,8 +5854,20 @@ namespace ShapeIt
             List<ICurve2D> cl2 => cl2.Select(Curve2DToGeoObject).OfType<IGeoObject>(),
             CompoundShape cs => ShapeToGeoObjects(cs),
             List<CompoundShape> csl => csl.SelectMany(ShapeToGeoObjects),
+            // a point list comes from vertices() and is ordered along its curve: show it as the polyline through
+            // the points. A 2d point carries no sketch plane, so it is placed in the XY plane.
+            List<GeoPoint> pl => PointsToPolyline(pl),
+            List<GeoPoint2D> pl2 => PointsToPolyline(pl2.Select(p => new GeoPoint(p.x, p.y, 0.0)).ToList()),
             _ => Enumerable.Empty<IGeoObject>()
         };
+
+        private static IEnumerable<IGeoObject> PointsToPolyline(List<GeoPoint> points)
+        {
+            if (points.Count < 2) return Enumerable.Empty<IGeoObject>();
+            Polyline polyline = Polyline.Construct();
+            polyline.SetPoints(points.ToArray(), false);
+            return new[] { polyline };
+        }
 
         private static IEnumerable<IGeoObject> SketchToGeoObjects(Sketch sk)
         {
@@ -5913,6 +5925,8 @@ namespace ShapeIt
             List<ICurve> cl when cl.Count == 1 => cl[0],
             List<ICurve2D> cl2 when cl2.Count == 1 => cl2[0],
             List<CompoundShape> csl when csl.Count == 1 => csl[0],
+            List<GeoPoint> pl when pl.Count == 1 => pl[0],
+            List<GeoPoint2D> pl2 when pl2.Count == 1 => pl2[0],
             // workspace.select falls back to an untyped list when MakeTypedList finds no common type
             List<object> ol when ol.Count == 1 => ol[0],
             _ => item
@@ -5941,6 +5955,9 @@ namespace ShapeIt
             List<ICurve> => "curve[]",
             List<ICurve2D> => "curve2d[]",
             List<CompoundShape> => "shape[]",
+            // the formula function vertices() yields these
+            List<GeoPoint> => "point3[]",
+            List<GeoPoint2D> => "point2[]",
             _ => throw new JsonRpcException("E_NOT_FOUND", $"Unsupported workspace item type: {item.GetType().Name}")
         };
 
@@ -6014,6 +6031,18 @@ namespace ShapeIt
                     s["count"] = csl.Count;
                     SetBoundingRect(s, CombineBoundingRects(csl,
                         x => CombineBoundingRects(x.SimpleShapes, ss => ss.GetExtent())));
+                    break;
+                case List<GeoPoint> pl:
+                    s["count"] = pl.Count;
+                    BoundingBox pointsBox = BoundingBox.EmptyBoundingBox;
+                    foreach (GeoPoint p in pl) pointsBox.MinMax(p);
+                    SetBoundingBox(s, pointsBox);
+                    break;
+                case List<GeoPoint2D> pl2:
+                    s["count"] = pl2.Count;
+                    BoundingRect pointsRect = BoundingRect.EmptyBoundingRect;
+                    foreach (GeoPoint2D p in pl2) pointsRect.MinMax(p);
+                    SetBoundingRect(s, pointsRect);
                     break;
             }
             return s;
