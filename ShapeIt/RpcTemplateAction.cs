@@ -155,6 +155,8 @@ namespace ShapeIt
                                     li.SetLengthEvent += l => { parameterValues[name] = l; ParameterChanged(); return true; };
                                     li.GetLengthEvent += () => Convert.ToDouble(parameterValues[name]);
                                     li.Optional = parameterInfo.optional;
+                                    // there is no meaningful way to calculate the length from a mouse position, so we simply return the current value to avoid an exception in ConstructAction.
+                                    li.CalculateLengthEvent += (p) => Convert.ToDouble(parameterValues[name]);
                                     inputs.Add(li);
                                     valueInputs[name] = li;
                                     valueSetters[name] = v => li.ForceValue(Convert.ToDouble(v, CultureInfo.InvariantCulture));
