@@ -3857,8 +3857,9 @@ namespace CADability.GeoObject
         /// <param name="offset"></param>
         /// <returns></returns>
         public virtual ISurface GetOffsetSurface(double offset)
-        {
-            return new OffsetSurface(this, offset);
+        {   // a copy: the offset surface must not change when this surface is changed in place (e.g. ReverseOrientation)
+            // and vice versa, the faces of both surfaces are independent
+            return new OffsetSurface(Clone(), offset);
         }
         public virtual ISurface GetOffsetSurface(double offset, out ModOp2D mod)
         {

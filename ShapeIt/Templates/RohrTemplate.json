@@ -12,7 +12,7 @@
             "name": "rohradapter",
             "label": "Pipe adapter",
             "category": "Pipes",
-            "description": "Adapter between two pipes of different diameters: a straight stub of the first pipe, a transition and a straight stub of the second pipe, open at both ends. Diameters and positions of the pipes are given by two circles in one plane; the pipes need not be concentric (eccentric reducer). The first pipe ends in the plane of the circles, the transition runs along the normal of the first circle, the second pipe starts at the transition length from that plane. The transition is a ruled surface which connects the two circles point by point (an oblique cone). The circles are either the outer or the inner diameters. The wall thickness of the transition is measured in the planes of the circles (always possible, the wall gets thinner where the transition is inclined) or perpendicular to the wall (the same thickness everywhere, only for concentric pipes).",
+            "description": "Adapter between two pipes of different diameters: a straight stub of the first pipe, a transition and a straight stub of the second pipe, open at both ends. Diameters and positions of the pipes are given by two circles in one plane; the pipes need not be concentric (eccentric reducer). The first pipe ends in the plane of the circles, the transition runs along the normal of the first circle, the second pipe starts at the transition length from that plane. The transition is a ruled surface which connects the two circles point by point (an oblique cone). The circles are either the outer or the inner diameters. The wall has the same thickness everywhere, measured perpendicular to the wall, in the transition as well: with outer diameters the solid outer shape is hollowed out, with inner diameters the outer shape is the offset of the inside.",
             "tags": [
               "pipe",
               "tube",
@@ -113,28 +113,7 @@
                   "group": "Wall",
                   "order": 7,
                   "min": 0.01,
-                  "description": "Wall thickness of the stubs and of the transition; how it is measured in the transition is set by 'Wall thickness measured'."
-                }
-              },
-              {
-                "name": "wall",
-                "value": "planes",
-                "label": "Wall thickness measured",
-                "input": {
-                  "kind": "enum",
-                  "group": "Wall",
-                  "order": 8,
-                  "options": [
-                    {
-                      "value": "planes",
-                      "label": "in the planes of the circles"
-                    },
-                    {
-                      "value": "perpendicular",
-                      "label": "perpendicular to the wall"
-                    }
-                  ],
-                  "description": "In the planes of the circles: the other side of the transition is again a ruled surface between two circles, larger or smaller by the wall thickness; where the transition is inclined, the wall there is thinner than the wall thickness. Perpendicular to the wall: the wall has the same thickness everywhere, where it bends towards the other side, that side is rounded with the wall thickness as radius. Perpendicular is only possible for concentric pipes."
+                  "description": "Wall thickness, measured perpendicular to the wall, in the transition as well. Where the wall bends towards the inside, the inside of the bend is rounded with the wall thickness as radius, so that the wall keeps its thickness there."
                 }
               }
             ],
@@ -172,15 +151,6 @@
                   "diameter"
                 ],
                 "message": "With outer diameters the wall thickness ({t}) must be smaller than the radius of both circles ({c1.Radius}, {c2.Radius})."
-              },
-              {
-                "condition": "wall == \"planes\" || distance(c1.Center, c2.Center) < 0.000001 * (c1.Radius + c2.Radius)",
-                "parameters": [
-                  "wall",
-                  "c1",
-                  "c2"
-                ],
-                "message": "The wall thickness can only be measured perpendicular to the wall for concentric pipes, the centers of the circles are {distance(c1.Center, c2.Center)} apart. Measure it in the planes of the circles."
               }
             ],
             "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M4 18H20L40 26H60V46H40L20 50H4Z\" fill=\"#c9d6e6\" stroke=\"#494c4e\" stroke-width=\"3\" stroke-linejoin=\"round\"/><ellipse cx=\"4\" cy=\"34\" rx=\"3\" ry=\"16\" fill=\"#ffffff\" stroke=\"#494c4e\" stroke-width=\"3\"/><path d=\"M20 18V50M40 26V46\" fill=\"none\" stroke=\"#494c4e\" stroke-width=\"1.5\"/></svg>"
@@ -230,88 +200,8 @@
               {
                 "jsonrpc": "2.0",
                 "id": 5,
-                "method": "workspace.set",
-                "when": "diameter == \"outer\"",
-                "params": {
-                  "name": "ro1",
-                  "value": "c1.Radius"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 6,
-                "method": "workspace.set",
-                "when": "diameter == \"outer\"",
-                "params": {
-                  "name": "ro2",
-                  "value": "c2.Radius"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 7,
-                "method": "workspace.set",
-                "when": "diameter == \"outer\"",
-                "params": {
-                  "name": "rc1",
-                  "value": "c1.Radius - t"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 8,
-                "method": "workspace.set",
-                "when": "diameter == \"outer\"",
-                "params": {
-                  "name": "rc2",
-                  "value": "c2.Radius - t"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 9,
-                "method": "workspace.set",
-                "when": "diameter == \"inner\"",
-                "params": {
-                  "name": "ro1",
-                  "value": "c1.Radius + t"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 10,
-                "method": "workspace.set",
-                "when": "diameter == \"inner\"",
-                "params": {
-                  "name": "ro2",
-                  "value": "c2.Radius + t"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 11,
-                "method": "workspace.set",
-                "when": "diameter == \"inner\"",
-                "params": {
-                  "name": "rc1",
-                  "value": "c1.Radius"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 12,
-                "method": "workspace.set",
-                "when": "diameter == \"inner\"",
-                "params": {
-                  "name": "rc2",
-                  "value": "c2.Radius"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 13,
                 "method": "sketch.create",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "plane": {
                     "origin": "A",
@@ -323,23 +213,23 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 14,
+                "id": 6,
                 "method": "sketch.add_circle",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "sketch": "outsideStart",
                   "center": [
                     0,
                     0
                   ],
-                  "radius": "ro1"
+                  "radius": "c1.Radius"
                 }
               },
               {
                 "jsonrpc": "2.0",
-                "id": 15,
+                "id": 7,
                 "method": "sketch.create",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "plane": {
                     "origin": "B",
@@ -351,23 +241,23 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 16,
+                "id": 8,
                 "method": "sketch.add_circle",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "sketch": "outsideEnd",
                   "center": [
                     0,
                     0
                   ],
-                  "radius": "ro2"
+                  "radius": "c2.Radius"
                 }
               },
               {
                 "jsonrpc": "2.0",
-                "id": 17,
+                "id": 9,
                 "method": "solid.ruled",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "profile1": "outsideStart",
                   "profile2": "outsideEnd",
@@ -376,33 +266,33 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 18,
+                "id": 10,
                 "method": "solid.cylinder",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "start": "A - (L1 + 0)*n",
                   "end": "A",
-                  "radius": "ro1",
+                  "radius": "c1.Radius",
                   "name": "outsideStub1"
                 }
               },
               {
                 "jsonrpc": "2.0",
-                "id": 19,
+                "id": 11,
                 "method": "solid.cylinder",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "start": "B",
                   "end": "B + (L2 + 0)*n",
-                  "radius": "ro2",
+                  "radius": "c2.Radius",
                   "name": "outsideStub2"
                 }
               },
               {
                 "jsonrpc": "2.0",
-                "id": 20,
+                "id": 12,
                 "method": "solid.boolean",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "op": "union",
                   "a": "outside",
@@ -412,9 +302,9 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 21,
+                "id": 13,
                 "method": "solid.boolean",
-                "when": "diameter == \"outer\" || wall == \"planes\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "op": "union",
                   "a": "outside",
@@ -424,136 +314,159 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 22,
+                "id": 14,
                 "method": "sketch.create",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
+                "when": "diameter == \"inner\"",
                 "params": {
                   "plane": {
                     "origin": "A",
                     "xAxis": "xd",
                     "normal": "n"
                   },
-                  "name": "cavityStart"
+                  "name": "insideStart"
                 }
               },
               {
                 "jsonrpc": "2.0",
-                "id": 23,
+                "id": 15,
                 "method": "sketch.add_circle",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
+                "when": "diameter == \"inner\"",
                 "params": {
-                  "sketch": "cavityStart",
+                  "sketch": "insideStart",
                   "center": [
                     0,
                     0
                   ],
-                  "radius": "rc1"
+                  "radius": "c1.Radius"
                 }
               },
               {
                 "jsonrpc": "2.0",
-                "id": 24,
+                "id": 16,
                 "method": "sketch.create",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
+                "when": "diameter == \"inner\"",
                 "params": {
                   "plane": {
                     "origin": "B",
                     "xAxis": "xd",
                     "normal": "n"
                   },
-                  "name": "cavityEnd"
+                  "name": "insideEnd"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 17,
+                "method": "sketch.add_circle",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "sketch": "insideEnd",
+                  "center": [
+                    0,
+                    0
+                  ],
+                  "radius": "c2.Radius"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 18,
+                "method": "solid.ruled",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "profile1": "insideStart",
+                  "profile2": "insideEnd",
+                  "name": "inside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 19,
+                "method": "solid.cylinder",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "start": "A - (L1 + t)*n",
+                  "end": "A",
+                  "radius": "c1.Radius",
+                  "name": "insideStub1"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 20,
+                "method": "solid.cylinder",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "start": "B",
+                  "end": "B + (L2 + t)*n",
+                  "radius": "c2.Radius",
+                  "name": "insideStub2"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 21,
+                "method": "solid.boolean",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "op": "union",
+                  "a": "inside",
+                  "b": "insideStub1",
+                  "name": "inside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 22,
+                "method": "solid.boolean",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "op": "union",
+                  "a": "inside",
+                  "b": "insideStub2",
+                  "name": "inside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 23,
+                "method": "solid.offset",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "solid": "inside",
+                  "distance": "t",
+                  "name": "outside"
+                }
+              },
+              {
+                "jsonrpc": "2.0",
+                "id": 24,
+                "method": "solid.cylinder",
+                "when": "diameter == \"inner\"",
+                "params": {
+                  "start": "A - L1*n",
+                  "end": "A + (Lt + L2)*n",
+                  "radius": "distance(c1.Center, c2.Center) + c1.Radius + c2.Radius + 2*t",
+                  "name": "clip"
                 }
               },
               {
                 "jsonrpc": "2.0",
                 "id": 25,
-                "method": "sketch.add_circle",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
+                "method": "solid.boolean",
+                "when": "diameter == \"inner\"",
                 "params": {
-                  "sketch": "cavityEnd",
-                  "center": [
-                    0,
-                    0
-                  ],
-                  "radius": "rc2"
+                  "op": "intersect",
+                  "a": "outside",
+                  "b": "clip",
+                  "name": "outside"
                 }
               },
               {
                 "jsonrpc": "2.0",
                 "id": 26,
-                "method": "solid.ruled",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
-                "params": {
-                  "profile1": "cavityStart",
-                  "profile2": "cavityEnd",
-                  "name": "cavity"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 27,
-                "method": "solid.cylinder",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
-                "params": {
-                  "start": "A - (L1 + t)*n",
-                  "end": "A",
-                  "radius": "rc1",
-                  "name": "cavityStub1"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 28,
-                "method": "solid.cylinder",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
-                "params": {
-                  "start": "B",
-                  "end": "B + (L2 + t)*n",
-                  "radius": "rc2",
-                  "name": "cavityStub2"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 29,
-                "method": "solid.boolean",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
-                "params": {
-                  "op": "union",
-                  "a": "cavity",
-                  "b": "cavityStub1",
-                  "name": "cavity"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 30,
-                "method": "solid.boolean",
-                "when": "diameter == \"inner\" || wall == \"planes\"",
-                "params": {
-                  "op": "union",
-                  "a": "cavity",
-                  "b": "cavityStub2",
-                  "name": "cavity"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 31,
-                "method": "solid.boolean",
-                "when": "wall == \"planes\"",
-                "params": {
-                  "op": "difference",
-                  "a": "outside",
-                  "b": "cavity",
-                  "name": "pipe"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 32,
                 "method": "workspace.select",
-                "when": "wall == \"perpendicular\" && diameter == \"outer\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "selector": {
                     "query": {
@@ -569,9 +482,9 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 33,
+                "id": 27,
                 "method": "solid.hollow",
-                "when": "wall == \"perpendicular\" && diameter == \"outer\"",
+                "when": "diameter == \"outer\"",
                 "params": {
                   "solid": "outside",
                   "openFaces": "ends",
@@ -581,48 +494,13 @@
               },
               {
                 "jsonrpc": "2.0",
-                "id": 34,
-                "method": "solid.offset",
-                "when": "wall == \"perpendicular\" && diameter == \"inner\"",
-                "params": {
-                  "solid": "cavity",
-                  "distance": "t",
-                  "name": "outside"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 35,
-                "method": "solid.cylinder",
-                "when": "wall == \"perpendicular\" && diameter == \"inner\"",
-                "params": {
-                  "start": "A - L1*n",
-                  "end": "A + (Lt + L2)*n",
-                  "radius": "distance(c1.Center, c2.Center) + c1.Radius + c2.Radius + 2*t",
-                  "name": "clip"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 36,
+                "id": 28,
                 "method": "solid.boolean",
-                "when": "wall == \"perpendicular\" && diameter == \"inner\"",
-                "params": {
-                  "op": "intersect",
-                  "a": "outside",
-                  "b": "clip",
-                  "name": "outside"
-                }
-              },
-              {
-                "jsonrpc": "2.0",
-                "id": 37,
-                "method": "solid.boolean",
-                "when": "wall == \"perpendicular\" && diameter == \"inner\"",
+                "when": "diameter == \"inner\"",
                 "params": {
                   "op": "difference",
                   "a": "outside",
-                  "b": "cavity",
+                  "b": "inside",
                   "name": "pipe"
                 }
               }
@@ -646,7 +524,7 @@
         "rohradapter": {
           "label": "Rohradapter",
           "category": "Rohre",
-          "description": "Adapter zwischen zwei Rohren unterschiedlichen Durchmessers: ein gerader Stutzen des ersten Rohrs, ein Übergang und ein gerader Stutzen des zweiten Rohrs, an beiden Enden offen. Durchmesser und Lage der Rohre werden durch zwei Kreise in einer Ebene angegeben; die Rohre müssen nicht konzentrisch sein (exzentrisches Reduzierstück). Das erste Rohr endet in der Ebene der Kreise, der Übergang verläuft entlang der Normalen des ersten Kreises, das zweite Rohr beginnt im Abstand der Übergangslänge von dieser Ebene. Der Übergang ist eine Regelfläche, die die beiden Kreise Punkt für Punkt verbindet (ein schiefer Kegel). Die Kreise sind entweder die Außen- oder die Innendurchmesser. Die Wandstärke des Übergangs wird in den Ebenen der Kreise gemessen (immer möglich, wo der Übergang schräg ist, wird die Wand dünner) oder senkrecht zur Wand (überall gleich dick, nur bei konzentrischen Rohren).",
+          "description": "Adapter zwischen zwei Rohren unterschiedlichen Durchmessers: ein gerader Stutzen des ersten Rohrs, ein Übergang und ein gerader Stutzen des zweiten Rohrs, an beiden Enden offen. Durchmesser und Lage der Rohre werden durch zwei Kreise in einer Ebene angegeben; die Rohre müssen nicht konzentrisch sein (exzentrisches Reduzierstück). Das erste Rohr endet in der Ebene der Kreise, der Übergang verläuft entlang der Normalen des ersten Kreises, das zweite Rohr beginnt im Abstand der Übergangslänge von dieser Ebene. Der Übergang ist eine Regelfläche, die die beiden Kreise Punkt für Punkt verbindet (ein schiefer Kegel). Die Kreise sind entweder die Außen- oder die Innendurchmesser. Die Wand ist überall gleich dick, senkrecht zur Wand gemessen, auch im Übergang: Bei Außendurchmessern wird die massive Außenform ausgehöhlt, bei Innendurchmessern ist die Außenform der Offset der Innenform.",
           "parameters": {
             "c1": {
               "label": "Erstes Rohr",
@@ -685,24 +563,14 @@
             "t": {
               "label": "Wandstärke",
               "group": "Wand",
-              "description": "Wandstärke der Stutzen und des Übergangs; wie sie im Übergang gemessen wird, legt „Wandstärke gemessen“ fest."
-            },
-            "wall": {
-              "label": "Wandstärke gemessen",
-              "group": "Wand",
-              "description": "In den Ebenen der Kreise: Die andere Seite des Übergangs ist wieder eine Regelfläche zwischen zwei Kreisen, die um die Wandstärke größer bzw. kleiner sind; wo der Übergang schräg ist, ist die Wand dort dünner als die Wandstärke. Senkrecht zur Wand: Die Wand ist überall gleich dick, wo sie zur anderen Seite hin knickt, wird diese mit der Wandstärke als Radius gerundet. Senkrecht ist nur bei konzentrischen Rohren möglich.",
-              "options": {
-                "planes": "in den Ebenen der Kreise",
-                "perpendicular": "senkrecht zur Wand"
-              }
+              "description": "Wandstärke, senkrecht zur Wand gemessen, auch im Übergang. Wo die Wand zur Innenseite hin knickt, wird die Innenseite des Knicks mit der Wandstärke als Radius gerundet, damit die Wand dort ihre Dicke behält."
             }
           },
           "checks": [
             "Beide Rohre müssen durch Kreise angegeben werden.",
             "Beide Rohre müssen durch Vollkreise angegeben werden, nicht durch Ellipsen oder Bögen.",
             "Die beiden Kreise müssen in einer Ebene liegen.",
-            "Bei Außendurchmessern muss die Wandstärke ({t}) kleiner sein als der Radius beider Kreise ({c1.Radius}, {c2.Radius}).",
-            "Die Wandstärke kann nur bei konzentrischen Rohren senkrecht zur Wand gemessen werden, die Mittelpunkte der Kreise liegen {distance(c1.Center, c2.Center)} auseinander. Bitte in den Ebenen der Kreise messen."
+            "Bei Außendurchmessern muss die Wandstärke ({t}) kleiner sein als der Radius beider Kreise ({c1.Radius}, {c2.Radius})."
           ]
         }
       }

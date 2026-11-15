@@ -9,11 +9,10 @@ namespace CADability.Tests
 {
     /// <summary>
     /// The "rohradapter" template of RohrTemplate.json: two straight pipe stubs connected by a ruled transition, the
-    /// pipes given by two circles in one plane, possibly eccentric. With the wall thickness measured in the planes of
-    /// the circles, every section parallel to these planes is an annulus of known radii, so the volume follows from
-    /// Cavalieri's principle, also for eccentric pipes. With the wall thickness measured perpendicular to the wall
-    /// (concentric pipes only) the adapter is a solid of revolution, its volume is computed from the profile here.
-    /// In both cases points just inside and just outside the wall are tested.
+    /// pipes given by two circles in one plane, possibly eccentric, the solid outer shape hollowed out, so the wall
+    /// has the same thickness everywhere, measured perpendicular to the wall. Lines through the wall must hit the
+    /// shell at both sides of the wall and nowhere in between. Concentric adapters are solids of revolution, their
+    /// volume is compared with the volume computed from the profile here.
     /// </summary>
     [TestClass]
     [TestCategory("RPC")]
@@ -58,12 +57,11 @@ namespace CADability.Tests
         /// An adapter in the x/y plane: the first circle around the origin, the second around (x2, y2), both with the
         /// normal +z, so the adapter runs from z = -L1 to z = Lt + L2.
         /// </summary>
-        private sealed record Adapter(double r1, double x2, double y2, double r2, string diameter, string wall, double L1, double Lt, double L2, double t)
+        private sealed record Adapter(double r1, double x2, double y2, double r2, string diameter, double L1, double Lt, double L2, double t)
         {
             public string Arguments => FormattableString.Invariant(
-                $"{{\"c1\":\"k1\",\"c2\":\"k2\",\"diameter\":\"{diameter}\",\"wall\":\"{wall}\",\"L1\":{L1},\"Lt\":{Lt},\"L2\":{L2},\"t\":{t}}}");
+                $"{{\"c1\":\"k1\",\"c2\":\"k2\",\"diameter\":\"{diameter}\",\"L1\":{L1},\"Lt\":{Lt},\"L2\":{L2},\"t\":{t}}}");
             public bool Outer => diameter == "outer";
-            public bool Perpendicular => wall == "perpendicular";
         }
 
         private static Solid Instantiate(Adapter a)
@@ -84,8 +82,8 @@ namespace CADability.Tests
         }
 
         /// <summary>
-        /// The wall along lines through it: in both stubs, and in the middle of the transition, along the normal of the
-        /// oblique cone or in the plane of the section, depending on how the wall is measured. Each line starts on the
+        /// The wall along lines through it: in both stubs, and in the middle of the transition along the normal of the
+        /// oblique cone. Each line starts on the
         /// surface given by the circles and runs into the wall, the shell must be hit there and at the wall thickness,
         /// and nowhere in between.
         /// </summary>
@@ -107,7 +105,6 @@ namespace CADability.Tests
                 GeoVector tangent = new GeoVector(-Math.Sin(phi), Math.Cos(phi), 0);
                 GeoVector normal = ((0.5 * (a.r1 + a.r2)) * tangent ^ (p2 - p1)).Normalized;
                 if (normal * radial < 0) normal = -normal;
-                if (!a.Perpendicular) normal = radial; // the section at half the transition length
                 AssertWallAlong(solid, new GeoPoint(p1, p2), wall * normal, a.t, "transition" + at);
             }
             BoundingBox ext = solid.GetExtent(0.0);
@@ -128,108 +125,141 @@ namespace CADability.Tests
             Assert.IsFalse(hits.Any(h => h > tol && h < thickness - tol), $"{what}: nothing inside the wall, hits {string.Join(", ", hits)}");
         }
 
+        /// <summary>The distance of (r, z) to the segments i0 .. i1 - 1 of a polyline in the r/z half plane.</summary>
+        private static double Distance((double r, double z)[] polyline, int i0, int i1, double r, double z)
+        {
+            double min = double.MaxValue;
+            for (int i = i0; i < i1; i++)
+            {
+                double dr = polyline[i + 1].r - polyline[i].r, dz = polyline[i + 1].z - polyline[i].z;
+                double u = Math.Clamp(((r - polyline[i].r) * dr + (z - polyline[i].z) * dz) / (dr * dr + dz * dz), 0, 1);
+                min = Math.Min(min, Math.Sqrt(Math.Pow(r - polyline[i].r - u * dr, 2) + Math.Pow(z - polyline[i].z - u * dz, 2)));
+            }
+            return min;
+        }
+
+        /// <summary>The radius g + sign·m at height z with distance t to a boundary, by bisection over m in [0, 1.5·t].</summary>
+        private static double AtDistance(double g, double sign, double t, Func<double, double> distance)
+        {
+            double lo = 0, hi = 1.5 * t;
+            for (int k = 0; k < 45; k++)
+            {
+                double m = (lo + hi) / 2;
+                if (distance(g + sign * m) < t) lo = m; else hi = m;
+            }
+            return g + sign * (lo + hi) / 2;
+        }
+
         /// <summary>
-        /// The volume of a concentric adapter: π·∫(ro² - ri²)dz over the length, where the radius of the given side
-        /// follows the profile and the other side is the set of points at distance t from it (the wall measured
-        /// perpendicular, with a rounding of radius t where the wall bends towards the other side).
+        /// The volume of a concentric adapter: π·∫(ro² - ri²)dz over the length. One radius follows the profile of the
+        /// circles, the other one lies at distance t from it: inside of it with outer diameters (the outer shape
+        /// hollowed out, so where the wall bends towards the inside, the inside is rounded with radius t), outside of it
+        /// with inner diameters (the offset of the inside, rounded where the wall bends towards the outside). The open
+        /// ends do not count, the profile runs beyond them.
         /// </summary>
         private static double ConcentricVolume(Adapter a)
         {
-            double e = a.Outer ? 0 : 2 * a.t; // the cavity runs beyond the ends, so its offset is not rounded there
-            (double r, double z)[] profile = [(a.r1, -a.L1 - e), (a.r1, 0), (a.r2, a.Lt), (a.r2, a.Lt + a.L2 + e)];
+            double e = 2 * a.t;
+            (double r, double z)[] given = [(a.r1, -a.L1 - e), (a.r1, 0), (a.r2, a.Lt), (a.r2, a.Lt + a.L2 + e)];
             double Given(double z) => z <= 0 ? a.r1 : z >= a.Lt ? a.r2 : a.r1 + (a.r2 - a.r1) * z / a.Lt;
-            double Distance(double r, double z)
-            {
-                double min = double.MaxValue;
-                for (int i = 0; i < profile.Length - 1; i++)
-                {
-                    double dr = profile[i + 1].r - profile[i].r, dz = profile[i + 1].z - profile[i].z;
-                    double u = Math.Clamp(((r - profile[i].r) * dr + (z - profile[i].z) * dz) / (dr * dr + dz * dz), 0, 1);
-                    min = Math.Min(min, Math.Sqrt(Math.Pow(r - profile[i].r - u * dr, 2) + Math.Pow(z - profile[i].z - u * dz, 2)));
-                }
-                return min;
-            }
-            double Other(double z)
-            {   // bisection between the given radius and t beyond it for the radius at distance t
-                double g = Given(z), sign = a.Outer ? -1 : 1, lo = 0, hi = 1.5 * a.t;
-                for (int k = 0; k < 60; k++)
-                {
-                    double m = (lo + hi) / 2;
-                    if (Distance(g + sign * m, z) < a.t) lo = m; else hi = m;
-                }
-                return g + sign * (lo + hi) / 2;
-            }
-            int n = 200000;
+            int n = 100000;
             double z0 = -a.L1, z1 = a.Lt + a.L2, h = (z1 - z0) / n, sum = 0;
             for (int i = 0; i < n; i++)
             {
-                double z = z0 + (i + 0.5) * h, g = Given(z), o = Other(z);
-                sum += Math.Abs(g * g - o * o);
+                double z = z0 + (i + 0.5) * h, g = Given(z);
+                double other = AtDistance(g, a.Outer ? -1 : 1, a.t, r => Distance(given, 0, given.Length - 1, r, z));
+                sum += Math.Abs(g * g - other * other);
             }
             return Math.PI * sum * h;
         }
 
-        /// <summary>
-        /// The volume with the wall measured in the planes of the circles: each section is an annulus, the
-        /// transition is the difference of two oblique cone frustums, which have the volume of the right ones.
-        /// </summary>
-        private static double PlanesVolume(Adapter a)
-        {
-            double o1 = a.Outer ? a.r1 : a.r1 + a.t, o2 = a.Outer ? a.r2 : a.r2 + a.t;
-            double c1 = o1 - a.t, c2 = o2 - a.t;
-            double stubs = Math.PI * ((o1 * o1 - c1 * c1) * a.L1 + (o2 * o2 - c2 * c2) * a.L2);
-            double transition = Math.PI * a.Lt / 3 * ((o1 * o1 + o1 * o2 + o2 * o2) - (c1 * c1 + c1 * c2 + c2 * c2));
-            return stubs + transition;
-        }
-
-        private static void AssertAdapter(Adapter a)
+        private static void AssertConcentric(Adapter a)
         {
             Solid solid = Instantiate(a);
             AssertWall(solid, a);
-            double expected = a.Perpendicular ? ConcentricVolume(a) : PlanesVolume(a);
+            double expected = ConcentricVolume(a);
             Assert.AreEqual(expected, solid.Volume(1e-4), 1e-4 * expected, $"volume of {a}");
         }
 
         [TestMethod]
-        public void PerpendicularReducerOuterDiameters()
+        public void ConcentricReducerOuterDiameters()
         {
-            AssertAdapter(new Adapter(25, 0, 0, 15, "outer", "perpendicular", 30, 40, 30, 2));
+            AssertConcentric(new Adapter(25, 0, 0, 15, "outer", 30, 40, 30, 2));
         }
 
         [TestMethod]
-        public void PerpendicularExpanderOuterDiameters()
+        public void ConcentricExpanderOuterDiameters()
         {
-            AssertAdapter(new Adapter(15, 0, 0, 25, "outer", "perpendicular", 20, 30, 25, 3));
+            AssertConcentric(new Adapter(15, 0, 0, 25, "outer", 20, 30, 25, 3));
         }
 
         [TestMethod]
-        public void PerpendicularReducerInnerDiameters()
+        public void ConcentricReducerInnerDiameters()
         {
-            AssertAdapter(new Adapter(25, 0, 0, 15, "inner", "perpendicular", 30, 40, 30, 2));
+            AssertConcentric(new Adapter(25, 0, 0, 15, "inner", 30, 40, 30, 2));
         }
 
         [TestMethod]
-        public void PlanesConcentricReducer()
+        public void ConcentricExpanderInnerDiameters()
         {
-            AssertAdapter(new Adapter(25, 0, 0, 15, "outer", "planes", 30, 40, 30, 2));
+            AssertConcentric(new Adapter(15, 0, 0, 25, "inner", 20, 30, 25, 3));
+        }
+
+        /// <summary>The second circle lies inside of the first one and touches it nowhere.</summary>
+        [TestMethod]
+        public void EccentricReducerOuterDiameters()
+        {
+            Adapter a = new Adapter(25, 3, -3, 15, "outer", 30, 40, 30, 2);
+            AssertWall(Instantiate(a), a);
         }
 
         [TestMethod]
-        public void PlanesEccentricOuterDiameters()
+        public void EccentricExpanderOuterDiameters()
         {
-            AssertAdapter(new Adapter(25, 10, 0, 15, "outer", "planes", 30, 40, 30, 2));
+            Adapter a = new Adapter(12, -5, 7, 22, "outer", 15, 25, 30, 1.5);
+            AssertWall(Instantiate(a), a);
+        }
+
+        /// <summary>
+        /// The usual eccentric reducer: the circles touch from inside, so one generator of the transition is parallel
+        /// to the axis and the bends between transition and stubs fade out there.
+        /// </summary>
+        [TestMethod]
+        public void FlatEccentricReducerOuterDiameters()
+        {
+            Adapter a = new Adapter(25, 10, 0, 15, "outer", 30, 40, 30, 2);
+            AssertWall(Instantiate(a), a);
+        }
+
+        /// <summary>The second circle reaches beyond the first one: the transition overhangs on that side.</summary>
+        [TestMethod]
+        public void OverhangingEccentricReducerOuterDiameters()
+        {
+            Adapter a = new Adapter(25, 13, 0, 15, "outer", 30, 40, 30, 2);
+            AssertWall(Instantiate(a), a);
+        }
+
+        /// <summary>The bigger second circle reaches beyond the first one on one side and encloses it on the other.</summary>
+        [TestMethod]
+        public void OverhangingEccentricExpanderOuterDiameters()
+        {
+            Adapter a = new Adapter(15, 13, 0, 25, "outer", 20, 30, 25, 3);
+            AssertWall(Instantiate(a), a);
         }
 
         [TestMethod]
-        public void PlanesEccentricInnerDiameters()
+        public void EccentricReducerInnerDiameters()
         {
-            AssertAdapter(new Adapter(20, 6, -8, 12, "inner", "planes", 25, 35, 20, 2.5));
+            Adapter a = new Adapter(20, 3, -4, 12, "inner", 25, 35, 20, 2.5);
+            AssertWall(Instantiate(a), a);
         }
 
+        /// <summary>The usual eccentric reducer given by the inner diameters: the circles touch from inside.</summary>
         [TestMethod]
-        public void PlanesEccentricExpander()
+        public void FlatEccentricReducerInnerDiameters()
         {
-            AssertAdapter(new Adapter(12, -5, 7, 22, "outer", "planes", 15, 25, 30, 1.5));
+            Adapter a = new Adapter(20, 8, 0, 12, "inner", 25, 35, 20, 2.5);
+            AssertWall(Instantiate(a), a);
         }
 
         [TestMethod]
@@ -264,12 +294,6 @@ namespace CADability.Tests
         public void CirclesInDifferentPlanesAreRejected()
         {
             StringAssert.Contains(Rejected("{\"c1\":\"k1\",\"c2\":\"k3\"}"), "one plane");
-        }
-
-        [TestMethod]
-        public void PerpendicularEccentricIsRejected()
-        {
-            StringAssert.Contains(Rejected("{\"c1\":\"k1\",\"c2\":\"k2\",\"wall\":\"perpendicular\"}"), "concentric");
         }
 
         [TestMethod]

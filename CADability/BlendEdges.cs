@@ -33,12 +33,9 @@ namespace CADability.GeoObject
         /// </summary>
         protected static ShellExtensions.AdjacencyType Classify(Edge edge)
         {
-            ShellExtensions.AdjacencyType adjacency = edge.Adjacency();
-            if (adjacency != ShellExtensions.AdjacencyType.Convex && adjacency != ShellExtensions.AdjacencyType.Concave) return adjacency;
-            (bool convex, bool concave) = SampleConvexity(edge);
-            if (convex && !concave) return ShellExtensions.AdjacencyType.Convex;
-            if (concave && !convex) return ShellExtensions.AdjacencyType.Concave;
-            return adjacency; // changing or undecided: see HasChangingConvexity
+            ShellExtensions.AdjacencyType adjacency = edge.AdjacencyAlongEdge();
+            if (adjacency == ShellExtensions.AdjacencyType.Mixed) return edge.Adjacency(); // changing: see HasChangingConvexity
+            return adjacency;
         }
 
         /// <summary>
@@ -398,33 +395,8 @@ namespace CADability.GeoObject
         /// </summary>
         private static bool HasChangingConvexity(Edge edge)
         {
-            (bool convex, bool concave) = SampleConvexity(edge);
+            (bool convex, bool concave) = edge.SampleConvexity();
             return convex && concave;
-        }
-
-        /// <summary>
-        /// Samples the edge: whether it is convex at some sample points and whether it is concave at some. Tangential
-        /// sample points (no clear sign) count for neither.
-        /// </summary>
-        private static (bool convex, bool concave) SampleConvexity(Edge edge)
-        {
-            bool convex = false, concave = false;
-            if (edge.SecondaryFace == null || edge.Curve3D == null) return (convex, concave);
-            const int samples = 8;
-            for (int i = 0; i <= samples; i++)
-            {
-                double t = (double)i / samples;
-                GeoPoint p = edge.Curve3D.PointAt(t);
-                GeoVector dir = edge.Curve3D.DirectionAt(t);
-                if (!edge.Forward(edge.PrimaryFace)) dir = -dir;
-                GeoVector n1 = edge.PrimaryFace.Surface.GetNormal(edge.PrimaryFace.Surface.PositionOf(p));
-                GeoVector n2 = edge.SecondaryFace.Surface.GetNormal(edge.SecondaryFace.Surface.PositionOf(p));
-                if (dir.IsNullVector() || n1.IsNullVector() || n2.IsNullVector()) continue;
-                double orientation = dir.Normalized * (n1.Normalized ^ n2.Normalized);
-                if (orientation > 1e-3) convex = true;
-                else if (orientation < -1e-3) concave = true;
-            }
-            return (convex, concave);
         }
 
         /// <summary>

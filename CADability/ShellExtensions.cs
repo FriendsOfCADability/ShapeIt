@@ -194,6 +194,118 @@ namespace CADability.GeoObject
                 return AdjacencyType.Open;
             }
         }
+        /// <summary>
+        /// Like <see cref="Adjacency"/>, but convex and concave are decided along the whole edge and not only at its
+        /// start vertex. Where the two faces are tangential at the start vertex (e.g. a ruled surface which runs
+        /// parallel to the adjacent cylinder there), the sign at the start is only noise. Returns
+        /// <see cref="AdjacencyType.Mixed"/> for an edge which is convex in some parts and concave in others, and
+        /// the result of <see cref="Adjacency"/> when no sample point has a clear sign.
+        /// </summary>
+        public static AdjacencyType AdjacencyAlongEdge(this Edge edge)
+        {
+            AdjacencyType adjacency = edge.Adjacency();
+            if (adjacency != AdjacencyType.Convex && adjacency != AdjacencyType.Concave) return adjacency;
+            (bool convex, bool concave) = edge.SampleConvexity();
+            if (convex && concave) return AdjacencyType.Mixed;
+            if (convex) return AdjacencyType.Convex;
+            if (concave) return AdjacencyType.Concave;
+            return adjacency;
+        }
+
+        /// <summary>
+        /// Samples the edge: whether it is convex at some sample points and whether it is concave at some. Tangential
+        /// sample points (no clear sign) count for neither.
+        /// </summary>
+        public static (bool convex, bool concave) SampleConvexity(this Edge edge)
+        {
+            bool convex = false, concave = false;
+            if (edge.SecondaryFace == null || edge.Curve3D == null) return (convex, concave);
+            const int samples = 8;
+            for (int i = 0; i <= samples; i++)
+            {
+                double orientation = ConvexityAt(edge, (double)i / samples);
+                if (orientation > 1e-3) convex = true;
+                else if (orientation < -1e-3) concave = true;
+            }
+            return (convex, concave);
+        }
+
+        /// <summary>
+        /// The sine of the angle between the two faces of <paramref name="edge"/> at the parameter <paramref name="t"/> of
+        /// its curve: positive where the edge is convex, negative where it is concave, 0 where the faces are tangential.
+        /// NaN where it is not defined (a pole).
+        /// </summary>
+        private static double ConvexityAt(Edge edge, double t)
+        {
+            GeoPoint p = edge.Curve3D.PointAt(t);
+            GeoVector dir = edge.Curve3D.DirectionAt(t);
+            if (!edge.Forward(edge.PrimaryFace)) dir = -dir;
+            GeoVector n1 = edge.PrimaryFace.Surface.GetNormal(edge.PrimaryFace.Surface.PositionOf(p));
+            GeoVector n2 = edge.SecondaryFace.Surface.GetNormal(edge.SecondaryFace.Surface.PositionOf(p));
+            if (dir.IsNullVector() || n1.IsNullVector() || n2.IsNullVector()) return double.NaN;
+            return dir.Normalized * (n1.Normalized ^ n2.Normalized);
+        }
+
+        /// <summary>
+        /// The parameters on the curve of <paramref name="edge"/> where it changes from convex to concave or back, i.e.
+        /// where its two faces are tangential, e.g. where an oblique cone runs over the end circle of a cylinder.
+        /// </summary>
+        private static List<double> ConvexityChanges(Edge edge)
+        {
+            List<double> res = [];
+            const int samples = 32;
+            double lastT = double.NaN, lastSign = 0;
+            for (int i = 0; i <= samples; i++)
+            {
+                double t = (double)i / samples;
+                double orientation = ConvexityAt(edge, t);
+                if (double.IsNaN(orientation) || Math.Abs(orientation) <= 1e-3) continue; // no clear sign
+                double sign = Math.Sign(orientation);
+                if (lastSign != 0 && sign != lastSign)
+                {   // bisection between the last clear sample and this one
+                    double lo = lastT, hi = t;
+                    for (int k = 0; k < 50; k++)
+                    {
+                        double m = (lo + hi) / 2;
+                        double o = ConvexityAt(edge, m);
+                        if (double.IsNaN(o)) break;
+                        if (Math.Sign(o) == lastSign) lo = m; else hi = m;
+                    }
+                    res.Add((lo + hi) / 2);
+                }
+                lastT = t;
+                lastSign = sign;
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Splits the edges of <paramref name="shell"/> which are convex in some parts and concave in others where they
+        /// change (<see cref="ConvexityChanges"/>), so that each edge is either convex or concave. Returns true, if an
+        /// edge was split.
+        /// </summary>
+        private static bool SplitMixedEdges(Shell shell)
+        {
+            bool split = false;
+            foreach (Edge edge in shell.Edges)
+            {
+                if (edge.AdjacencyAlongEdge() != AdjacencyType.Mixed) continue;
+                List<double> changes = ConvexityChanges(edge);
+                // too close to a vertex the change needs no vertex of its own: the parts would be degenerated
+                double minPar = 1e-6 * shell.GetExtent(0.0).Size / edge.Curve3D.Length;
+                SortedList<double, Vertex> splitAt = [];
+                foreach (double t in changes)
+                {
+                    if (t > minPar && t < 1 - minPar) splitAt[t] = new Vertex(edge.Curve3D.PointAt(t));
+                }
+                if (splitAt.Count == 0) continue;
+                edge.Split(splitAt, Precision.eps);
+                split = true;
+            }
+            if (split) shell.SetFaces(shell.Faces); // the cached edges are outdated
+            return split;
+        }
+
         public static bool AllEdgesAreConvex(this Face face, bool reverse)
         {
             AdjacencyType toFollow = reverse ? AdjacencyType.Concave : AdjacencyType.Convex;
@@ -1182,6 +1294,13 @@ namespace CADability.GeoObject
                                                           // and retrieve them after the brep operation is done.
             HashSet<(Edge, Face)> dontIntersect = new HashSet<(Edge, Face)>(); // NOT USED ANY MORE, these pairs will be connected and there is no need to calculate the intersection
                                                                                // set UserData with the original face and edge references to 
+            // An edge which is convex in some parts and concave in others needs a fillet only in one kind of parts: it is
+            // split where it changes, on a copy, the shell of the caller must stay as it is
+            if (shell.Edges.Any(e => e.AdjacencyAlongEdge() == AdjacencyType.Mixed))
+            {
+                Shell split = shell.Clone() as Shell;
+                if (SplitMixedEdges(split)) shell = split;
+            }
             DebuggerContainer dc = new DebuggerContainer();
             foreach (Face face in shell.Faces)
             {   // makeparallel faces with the provided offset
@@ -1247,12 +1366,15 @@ namespace CADability.GeoObject
             foreach (Edge sedge in shell.Edges)
             {
                 AdjacencyType toCheckFor = offset > 0 ? AdjacencyType.Convex : AdjacencyType.Concave;
-                if (sedge.Adjacency() == toCheckFor && faceEdgeToParallelEdge.TryGetValue((sedge.PrimaryFace, sedge), out Edge e1)
+                // decided along the edge: at a vertex where the faces are tangential the sign is only noise
+                AdjacencyType adjacency = sedge.AdjacencyAlongEdge();
+                if (adjacency == AdjacencyType.Mixed) adjacency = sedge.Adjacency(); // a change which could not be split off
+                if (adjacency == toCheckFor && faceEdgeToParallelEdge.TryGetValue((sedge.PrimaryFace, sedge), out Edge e1)
                     && faceEdgeToParallelEdge.TryGetValue((sedge.SecondaryFace, sedge), out Edge e2))
                 {
                     filletEdges[sedge] = (e1, e2);
                 }
-                else if (sedge.Adjacency() != AdjacencyType.Open && sedge.Adjacency() != AdjacencyType.SameSurface && sedge.Adjacency() != AdjacencyType.Tangent) allEdgesAreConnected = false;
+                else if (adjacency != AdjacencyType.Open && adjacency != AdjacencyType.SameSurface && adjacency != AdjacencyType.Tangent) allEdgesAreConnected = false;
             }
             // edges which continue each other tangentially share a single fillet: only then the pipe which folds
             // over itself at a tightly curved edge can be resolved, because both sheets belong to the same surface

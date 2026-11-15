@@ -1631,22 +1631,44 @@ namespace CADability
         /// <summary>
         /// Returns a vertex of <paramref name="face"/>, which lies on the curve of <paramref name="edge"/> (within the
         /// precision) and close to the intersection point <paramref name="ip"/>, or null, if there is no such vertex.
-        /// "Close" is much more generous than the precision, because tangential intersections may be that imprecise.
+        /// "Close" is much more generous than the precision, because tangential intersections may be that imprecise:
+        /// a vertex within 100 times the precision, or a vertex further away, when the curve runs within the precision
+        /// on the surface of the face all the way from the vertex to <paramref name="ip"/>. Then the two points cannot be
+        /// told apart, the curve only touches the surface there, and the vertex is the exact point of contact. Where the
+        /// curve and the surface touch very flatly (e.g. the circle at the end of a cylinder and an oblique cone, which runs
+        /// parallel to the cylinder along one generator), the intersection may be off by far more than 100 times the
+        /// precision.
         /// </summary>
         private Vertex? FaceVertexOnEdge(Face face, Edge edge, GeoPoint ip)
         {
             Vertex? res = null;
-            double minDist = 100 * precision;
+            double minDist = double.MaxValue;
             foreach (Vertex fv in face.Vertices)
             {
                 double d = fv.Position | ip;
-                if (d < minDist && edge.Curve3D.DistanceTo(fv.Position) < precision)
+                if (d >= minDist || edge.Curve3D.DistanceTo(fv.Position) >= precision) continue;
+                if (d < 100 * precision || CurveTouchesSurfaceBetween(edge.Curve3D, face.Surface, fv.Position, ip))
                 {
                     minDist = d;
                     res = fv;
                 }
             }
             return res;
+        }
+
+        /// <summary>
+        /// True, if <paramref name="curve"/> runs within the precision on <paramref name="surface"/> between the points
+        /// <paramref name="a"/> and <paramref name="b"/> on the curve, checked at some points in between.
+        /// </summary>
+        private bool CurveTouchesSurfaceBetween(ICurve curve, ISurface surface, GeoPoint a, GeoPoint b)
+        {
+            double pa = curve.PositionOf(a), pb = curve.PositionOf(b);
+            const int n = 8;
+            for (int i = 1; i < n; i++)
+            {
+                if (surface.GetDistance(curve.PointAt(pa + (pb - pa) * i / n)) > precision) return false;
+            }
+            return true;
         }
 
         /// <summary>

@@ -37,6 +37,9 @@ namespace CADability.GeoObject
         /// 0..1 runs linear from pstart to pend on the free surface parameter; pstart is greater than pend when the curve
         /// is reversed. Point and derivative are taken from the offset surface itself, not from the iso curve of the base
         /// surface: the latter is the curve this one is parallel to, but its points and its direction are different.
+        /// The offset surface is a copy of its own, which is never changed in place (see <see cref="Modify"/>): the surface
+        /// of a face is changed in place, e.g. <see cref="ReverseOrientation"/> of a ruled surface inverts u, and the
+        /// edges of the face keep their 3d curves. A curve sharing that surface would then describe a different curve.
         /// </summary>
         [Serializable]
         class FixedCurve : GeneralCurve, ISerializable, IJsonSerialize
@@ -142,8 +145,8 @@ namespace CADability.GeoObject
             /// </summary>
             /// <param name="m"></param>
             public override void Modify(ModOp m)
-            {   // this curve cannot be modified, because it is defined by the underlying offset surface.
-                // this is only called when a Face or Surface has been modified.
+            {   // the surface is replaced, not changed in place: it may be shared with clones and pieces of this curve
+                offsetSurface = offsetSurface.GetModified(m) as OffsetSurface;
                 InvalidateSecondaryData();
             }
             /// <summary>
@@ -474,7 +477,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ICurve FixedU(double u, double vmin, double vmax)
         {
-            return new FixedCurve(this, u, vmin, vmax, true); // vmin > vmax gives the reversed curve
+            return new FixedCurve(Clone() as OffsetSurface, u, vmin, vmax, true); // vmin > vmax gives the reversed curve
         }
         /// <summary>
         /// Overrides <see cref="CADability.GeoObject.ISurfaceImpl.FixedV (double, double, double)"/>
@@ -485,7 +488,7 @@ namespace CADability.GeoObject
         /// <returns></returns>
         public override ICurve FixedV(double u, double umin, double umax)
         {
-            return new FixedCurve(this, u, umin, umax, false); // umin > umax gives the reversed curve
+            return new FixedCurve(Clone() as OffsetSurface, u, umin, umax, false); // umin > umax gives the reversed curve
         }
         public override bool IsUPeriodic
         {
