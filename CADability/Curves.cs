@@ -1019,6 +1019,77 @@ namespace CADability.GeoObject
             to2 = c2[1];
             return true;
         }
+        /// <summary>
+        /// Finds the point where <paramref name="curve1"/> and <paramref name="curve2"/> touch tangentially, starting
+        /// at <paramref name="par1"/> on <paramref name="curve1"/> and <paramref name="par2"/> on <paramref name="curve2"/>.
+        /// <para>At a tangential contact the distance between the curves grows with the square of the displacement
+        /// (or with an even higher power), so neither the intersection nor the minimal distance determines the position
+        /// of the contact point well: a distance below the rounding error allows for a displacement of the square root
+        /// of that error. Instead, the point is searched where the two tangents are parallel: the sine of the angle
+        /// between them grows linearly with the displacement, so it has a simple root at the contact point, and the
+        /// position is as exact as the arithmetic allows. For each position on <paramref name="curve1"/> the
+        /// corresponding position on <paramref name="curve2"/> is its foot point, the component of the cross product
+        /// of the two directions in a fixed direction (the one at the start) is then a function of a single parameter,
+        /// whose root is found by a secant iteration.</para>
+        /// <para>The caller must check whether the curves actually meet at the result: when the curves do not touch
+        /// close to the start, the result is a point with parallel tangents, which may be anywhere.</para>
+        /// </summary>
+        /// <param name="curve1">the first curve</param>
+        /// <param name="par1">start position on <paramref name="curve1"/>, the position of the contact point on return</param>
+        /// <param name="curve2">the second curve</param>
+        /// <param name="par2">start position on <paramref name="curve2"/>, the position of the contact point on return</param>
+        /// <param name="contact">the contact point: the middle between the points on both curves</param>
+        /// <returns>true, if the iteration converged</returns>
+        public static bool TangentialContact(ICurve curve1, ref double par1, ICurve curve2, ref double par2, out GeoPoint contact)
+        {
+            contact = GeoPoint.Invalid;
+            GeoVector direction = GeoVector.NullVector; // the fixed direction of the cross product, set at the start
+            bool directionSet = false;
+            double t = par2;
+            // the sine of the angle between the two tangents (signed, measured against "direction"), footPar is the foot point
+            double Residual(double s, ref double footPar)
+            {
+                footPar = curve2.PositionOf(curve1.PointAt(s), footPar);
+                GeoVector d1 = curve1.DirectionAt(s);
+                GeoVector d2 = curve2.DirectionAt(footPar);
+                double scale = d1.Length * d2.Length;
+                if (scale < 1e-30) return double.NaN;
+                GeoVector cross = d1 ^ d2;
+                if (!directionSet)
+                {
+                    if (cross.Length < 1e-15 * scale) return 0.0; // already parallel at the start
+                    direction = cross.Normalized;
+                    directionSet = true;
+                }
+                return (cross * direction) / scale;
+            }
+            double sPrev = par1;
+            double hPrev = Residual(sPrev, ref t);
+            if (double.IsNaN(hPrev)) return false;
+            double s = sPrev;
+            if (hPrev != 0.0)
+            {
+                s = sPrev + 1e-5;
+                bool converged = false;
+                for (int i = 0; i < 50; i++)
+                {
+                    double h = Residual(s, ref t);
+                    if (double.IsNaN(h)) return false;
+                    if (h == 0.0 || h == hPrev) { converged = h == 0.0 || Math.Abs(s - sPrev) < 1e-13; break; }
+                    double sNew = s - h * (s - sPrev) / (h - hPrev);
+                    if (Math.Abs(sNew - s) > 0.1) return false; // runs away, there is no contact close by
+                    sPrev = s; hPrev = h;
+                    s = sNew;
+                    if (Math.Abs(s - sPrev) < 1e-14) { converged = true; break; }
+                }
+                if (!converged) return false;
+                Residual(s, ref t); // the foot point which belongs to the final position
+            }
+            par1 = s;
+            par2 = t;
+            contact = new GeoPoint(curve1.PointAt(s), curve2.PointAt(t));
+            return true;
+        }
         public static bool NewtonMinDist(ICurve curve1, ref double par1, ICurve curve2, ref double par2)
         {   // find the points on both curves where the connecting line of the two curves is perpendicular on both
             int numoutside = 0;

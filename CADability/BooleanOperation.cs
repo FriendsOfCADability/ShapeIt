@@ -1598,6 +1598,13 @@ namespace CADability
                     ip[i] = faceVertex.Position;
                     uvOnFace[i] = faceVertex.GetPositionOnFace(face);
                 }
+                else if (FaceEdgeContact(face, edge, ip[i], uvOnFace[i], uOnCurve3D[i], out GeoPoint contact))
+                {   // the curve touches the surface on the boundary of the face, where it also touches an edge of the face:
+                    // the point of contact of the two curves is exact, the intersection with the surface is not
+                    ip[i] = contact;
+                    uvOnFace[i] = face.Surface.PositionOf(contact);
+                    SurfaceHelper.AdjustPeriodic(face.Surface, face.Domain, ref uvOnFace[i]);
+                }
                 Vertex v = CreateOrFindVertex(ip[i]);
                 if (v.Position != ip[i])
                 {   // an existing vertex close to the intersection point: its uv position is that of its own (better) position
@@ -1654,6 +1661,61 @@ namespace CADability
                 }
             }
             return res;
+        }
+
+        /// <summary>
+        /// The counterpart of <see cref="FaceVertexOnEdge"/> for a contact inside an edge of the face: when the curve of
+        /// <paramref name="edge"/> touches the surface of <paramref name="face"/> tangentially at the boundary of the face,
+        /// it also touches the edge of the face there (typically two faces which touch each other in a single point of
+        /// their boundaries). Such a contact may be of high order, then the curve runs within the precision on the
+        /// surface over a considerable length and the intersections with the surface are scattered along it, each of
+        /// them as good as the others (ShrinkBug1: 0.4 mm with a precision of 1e-4). The contact of the two curves is
+        /// usually of a lower order and can be calculated exactly (<see cref="Curves.TangentialContact"/>), and it is
+        /// the same point for every intersection along that stretch and for both face/edge pairs involved.
+        /// Like with the vertex, the contact is only accepted, when the curve runs on the surface all the way from the
+        /// contact to <paramref name="ip"/>.
+        /// </summary>
+        private bool FaceEdgeContact(Face face, Edge edge, GeoPoint ip, GeoPoint2D uv, double uOnCurve, out GeoPoint contact)
+        {
+            contact = GeoPoint.Invalid;
+            GeoVector normal = face.Surface.GetNormal(uv);
+            GeoVector direction = edge.Curve3D.DirectionAt(uOnCurve);
+            double scale = normal.Length * direction.Length;
+            if (scale < 1e-30 || Math.Abs(normal * direction) / scale > 1e-3) return false; // not tangential
+            // A curve which lies in the surface as a whole (e.g. the contact curve of a fillet, which is only an approximation)
+            // does not touch it in a single point: the intersections with the edges of the face are ordinary 2d intersections.
+            bool leavesSurface = false;
+            for (int i = 0; i <= 8; i++)
+            {
+                if (face.Surface.GetDistance(edge.Curve3D.PointAt(i / 8.0)) > precision)
+                {
+                    leavesSurface = true;
+                    break;
+                }
+            }
+            if (!leavesSurface) return false;
+            double minDist = double.MaxValue;
+            foreach (Edge faceEdge in face.Edges)
+            {
+                if (faceEdge.Curve3D == null || faceEdge == edge) continue;
+                if (faceEdge.Curve3D.DistanceTo(ip) > 10 * precision) continue;
+                // when the edge ends on the edge of the face, its vertex is the exact meeting point of both curves
+                if (faceEdge.Curve3D.DistanceTo(edge.Vertex1.Position) < precision || faceEdge.Curve3D.DistanceTo(edge.Vertex2.Position) < precision) continue;
+                double s = uOnCurve;
+                double t = faceEdge.Curve3D.PositionOf(ip);
+                if (!Curves.TangentialContact(edge.Curve3D, ref s, faceEdge.Curve3D, ref t, out GeoPoint p)) continue;
+                if ((edge.Curve3D.PointAt(s) | faceEdge.Curve3D.PointAt(t)) > precision) continue; // the curves do not meet there
+                double prec1 = precision / edge.Curve3D.Length, prec2 = precision / faceEdge.Curve3D.Length;
+                if (s < -prec1 || s > 1 + prec1 || t < -prec2 || t > 1 + prec2) continue;
+                double d = p | ip;
+                if (d >= minDist) continue;
+                if (d < precision || CurveTouchesSurfaceBetween(edge.Curve3D, face.Surface, p, ip))
+                {
+                    minDist = d;
+                    contact = p;
+                }
+            }
+            return minDist < double.MaxValue;
         }
 
         /// <summary>
