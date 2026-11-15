@@ -1296,7 +1296,7 @@ namespace CADability.GeoObject
             double scale = Math.Max(Math.Abs(d11), Math.Max(Math.Abs(d12), Math.Abs(d22)));
             if (scale < 1e-12 || smallerEigenvalue <= relativeCurvatureTolerance * curvature)
             {   // contact of higher order: a curve of contact, or a node the second order cannot see
-                if (curvature > 1e-12) ProbeNode(surface1, surface2, contact.Location, normal, e1, e2, 0.05 / curvature, contact);
+                if (curvature > 1e-12) ProbeNode(surface1, uv1, surface2, uv2, contact.Location, normal, e1, e2, 0.05 / curvature, contact);
                 return;
             }
             double det = d11 * d22 - d12 * d12;
@@ -1350,9 +1350,15 @@ namespace CADability.GeoObject
         /// contact curve is zero up to round-off, so the absence of sign changes is no proof of an isolated
         /// contact.
         /// </para>
+        /// <para>
+        /// The samples are projected onto the surfaces locally, starting at the parameters of the contact point
+        /// (<paramref name="uv1"/>, <paramref name="uv2"/>) and following the circle. The global
+        /// <see cref="ISurface.PositionOf"/> may fail on a circle which reaches beyond the domain of a surface
+        /// (a contact point on the boundary of a face), and then no node is found (ShrinkBug1).
+        /// </para>
         /// </summary>
-        private static void ProbeNode(ISurface surface1, ISurface surface2, GeoPoint location, GeoVector normal,
-            GeoVector e1, GeoVector e2, double probeRadius, SurfaceContact contact)
+        private static void ProbeNode(ISurface surface1, GeoPoint2D uv1, ISurface surface2, GeoPoint2D uv2,
+            GeoPoint location, GeoVector normal, GeoVector e1, GeoVector e2, double probeRadius, SurfaceContact contact)
         {
             // A point on a curve of contact close to a node sees the node's other branch inside a large circle as
             // well, so the node is only accepted when the circles keep showing it while they shrink: then it is at
@@ -1360,7 +1366,7 @@ namespace CADability.GeoObject
             List<double> changes = null;
             for (int k = 0; k < probeRadii; k++)
             {
-                changes = ZeroDirections(surface1, surface2, location, normal, e1, e2, probeRadius);
+                changes = ZeroDirections(surface1, uv1, surface2, uv2, location, normal, e1, e2, probeRadius);
                 if (changes == null) return;
                 probeRadius /= 10.0;
             }
@@ -1382,19 +1388,30 @@ namespace CADability.GeoObject
         /// vanishes on a circle of the given radius around the contact point, see <see cref="ProbeNode"/>. Null
         /// unless there are exactly four of them.
         /// </summary>
-        private static List<double> ZeroDirections(ISurface surface1, ISurface surface2, GeoPoint location,
-            GeoVector normal, GeoVector e1, GeoVector e2, double probeRadius)
+        private static List<double> ZeroDirections(ISurface surface1, GeoPoint2D uvContact1, ISurface surface2,
+            GeoPoint2D uvContact2, GeoPoint location, GeoVector normal, GeoVector e1, GeoVector e2, double probeRadius)
         {
             // below this a gap is round-off, not a side
             double zero = 1e-8 * probeRadius;
             double[] gap = new double[probeSamples];
+            // walk from the contact point out to the first sample, then along the circle, so that every local
+            // projection starts close to its result
+            GeoPoint2D uv1 = uvContact1, uv2 = uvContact2;
+            const int radialSteps = 4;
+            for (int k = 1; k < radialSteps; k++)
+            {
+                GeoPoint q = location + (k * probeRadius / radialSteps) * e1;
+                uv1 = LocalFootPoint(surface1, uv1, q);
+                uv2 = LocalFootPoint(surface2, uv2, surface1.PointAt(uv1));
+            }
             for (int i = 0; i < probeSamples; i++)
             {
                 double phi = i * 2.0 * Math.PI / probeSamples;
                 GeoPoint q = location + probeRadius * (Math.Cos(phi) * e1 + Math.Sin(phi) * e2);
-                GeoPoint p1 = surface1.PointAt(surface1.PositionOf(q));
+                uv1 = LocalFootPoint(surface1, uv1, q);
+                GeoPoint p1 = surface1.PointAt(uv1);
                 if ((p1 | q) > probeRadius) return null; // not the sheet of the contact point
-                GeoPoint2D uv2 = surface2.PositionOf(p1);
+                uv2 = LocalFootPoint(surface2, uv2, p1);
                 GeoPoint p2 = surface2.PointAt(uv2);
                 if ((p2 | q) > probeRadius) return null;
                 GeoVector n2 = surface2.GetNormal(uv2);
@@ -1447,6 +1464,43 @@ namespace CADability.GeoObject
             for (int k = 0; k < changes.Count; k++) changes[k] = ((changes[k] % (2.0 * Math.PI)) + 2.0 * Math.PI) % (2.0 * Math.PI);
             changes.Sort();
             return changes;
+        }
+
+        /// <summary>
+        /// The foot point of <paramref name="p"/> on the surface, found by a Gauss-Newton iteration starting at
+        /// <paramref name="uvStart"/>. Unlike <see cref="ISurface.PositionOf"/> this is a local search which does
+        /// not depend on the domain of the surface. Falls back to <see cref="ISurface.PositionOf"/> when the
+        /// iteration does not converge.
+        /// </summary>
+        private static GeoPoint2D LocalFootPoint(ISurface surface, GeoPoint2D uvStart, GeoPoint p)
+        {
+            GeoPoint2D uv = uvStart;
+            for (int iteration = 0; iteration < 30; iteration++)
+            {
+                surface.DerivativeAt(uv, out GeoPoint location, out GeoVector du, out GeoVector dv);
+                GeoVector r = p - location;
+                double guu = du * du, guv = du * dv, gvv = dv * dv;
+                double det = guu * gvv - guv * guv;
+                if (!(Math.Abs(det) > 1e-20 * guu * gvv) || det == 0.0) break; // degenerate parametrization
+                double ru = du * r, rv = dv * r;
+                double deltaU = (ru * gvv - rv * guv) / det;
+                double deltaV = (rv * guu - ru * guv) / det;
+                if (double.IsNaN(deltaU) || double.IsNaN(deltaV)) break;
+                uv = new GeoPoint2D(uv.x + deltaU, uv.y + deltaV);
+                double stepLength = Math.Sqrt(deltaU * deltaU * guu + 2.0 * deltaU * deltaV * guv + deltaV * deltaV * gvv);
+                if (stepLength < 1e-11 * (1.0 + r.Length + Math.Abs(location.x) + Math.Abs(location.y) + Math.Abs(location.z)))
+                {
+                    GeoPoint foot = surface.PointAt(uv);
+                    GeoVector n = surface.GetNormal(uv);
+                    if (n.IsNullVector()) break;
+                    // a foot point: the connection is perpendicular to the surface
+                    GeoVector d = p - foot;
+                    if (d.Length < 1e-10 * (1.0 + Math.Abs(foot.x) + Math.Abs(foot.y) + Math.Abs(foot.z))
+                        || Math.Abs(d.Normalized * n.Normalized) > 1.0 - 1e-6) return uv;
+                    break;
+                }
+            }
+            return surface.PositionOf(p);
         }
 
         /// <summary>

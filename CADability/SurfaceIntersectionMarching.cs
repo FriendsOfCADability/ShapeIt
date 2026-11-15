@@ -947,8 +947,10 @@ namespace CADability.GeoObject
                 ctx = context;
                 try
                 {
-                    dc.Add(Face.MakeFace(ctx.surface1, ctx.bounds1), Color.Red);
-                    dc.Add(Face.MakeFace(ctx.surface2, ctx.bounds2), Color.Green);
+                    // clones: Face.MakeFace sets the domain of the surface, which changes its hull and thus PositionOf.
+                    // The debug version must not calculate anything different from the release version (ShrinkBug1)
+                    dc.Add(Face.MakeFace(ctx.surface1.Clone(), ctx.bounds1), Color.Red);
+                    dc.Add(Face.MakeFace(ctx.surface2.Clone(), ctx.bounds2), Color.Green);
                 }
                 catch (Exception) { } // the patches are only there to see where we are
                 dc21.Add(ctx.bounds1.ToBorder(), Color.Red, 0);
