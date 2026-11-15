@@ -24,11 +24,17 @@ The text object names the operation and, where needed, its parameter:
 ```
 Difference        Unite            Intersect        UniteAll
 RoundEdges: 2.5   ChamferEdges: 1  ChamferEdges: 1, 2
+Expand: 2
 ```
 
 Accepted spellings: `Difference`/`Subtract`, `Unite`/`Union`, `Intersect`/`Intersection`,
-`UniteAll`/`UnionAll`, `RoundEdges`/`Fillet`, `ChamferEdges`/`Chamfer`, `Split`/`SplitByShell`. Numbers are always read with the
-invariant culture, so `2.5` is two and a half on a German machine too.
+`UniteAll`/`UnionAll`, `RoundEdges`/`Fillet`, `ChamferEdges`/`Chamfer`, `Split`/`SplitByShell`,
+`Expand`/`Offset`/`OffsetShell`. Numbers are always read with the invariant culture, so `2.5` is two and a half
+on a German machine too.
+
+`Expand: x` calls `ShellExtensions.GetOffset` on the solid `Operand1` with `x` as the offset. The style
+`Operand1` is mandatory here (unlike round/chamfer, a single unmarked solid is not accepted), and so is the
+parameter.
 
 `UniteAll` is the exception to the operand marking: it unites *every* solid of the model, in the order of
 their extent centers, so `Operand1`/`Operand2` are not needed there.

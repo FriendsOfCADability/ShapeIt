@@ -22,6 +22,7 @@ namespace ShapeIt
         UniteAll,
         RoundEdges,
         ChamferEdges,
+        /// <summary>Offset ("Expand") the solid "Operand1" by the parameter, see <see cref="ShellExtensions.GetOffset"/>.</summary>
         OffsetShell,
         /// <summary>Split the solid "Operand1" by the (usually open) shell "Operand2",
         /// see <see cref="BooleanOperation.SplitSolidByShell"/>.</summary>
@@ -38,7 +39,7 @@ namespace ShapeIt
     /// <item>for "Split" the solid "Operand1" is split by the shell "Operand2" (typically an open shell),</item>
     /// <item>the edges to round/chamfer are marked by curves with the style "EdgeMarker",</item>
     /// <item>a single text object names the operation, optionally with a parameter, e.g. "Difference",
-    /// "Unite", "RoundEdges: 2.5", "ChamferEdges: 1" (parameters are always parsed with the invariant culture),</item>
+    /// "Unite", "RoundEdges: 2.5", "ChamferEdges: 1", "Expand: 2" (parameters are always parsed with the invariant culture),</item>
     /// <item>an optional solid/shell with the style "Expected" holds the known good result.</item>
     /// </list>
     /// <para>
@@ -58,7 +59,8 @@ namespace ShapeIt
         public string FilePath { get; set; } = "";
 
         public BRepOperationKind Operation { get; set; } = BRepOperationKind.Unknown;
-        /// <summary>Radius (RoundEdges) or first distance (ChamferEdges); NaN when the operation takes no parameter.</summary>
+        /// <summary>Radius (RoundEdges), first distance (ChamferEdges) or offset distance (OffsetShell);
+        /// NaN when the operation takes no parameter.</summary>
         public double Parameter { get; set; } = double.NaN;
         /// <summary>Second chamfer distance; NaN means "same as <see cref="Parameter"/>".</summary>
         public double SecondaryParameter { get; set; } = double.NaN;
@@ -256,7 +258,9 @@ namespace ShapeIt
                     }
                     break;
                 case OperandLayout.Single:
-                    Shell? single = operand1.Count == 1 ? operand1[0] : (candidates.Count == 1 ? candidates[0].shell : null);
+                    // Round/chamfer accept the only solid of the model without a marker; the offset insists on "Operand1".
+                    bool markerRequired = result.Operation == BRepOperationKind.OffsetShell;
+                    Shell? single = operand1.Count == 1 ? operand1[0] : (candidates.Count == 1 && !markerRequired ? candidates[0].shell : null);
                     if (single == null)
                         result.Problems.Add("expected exactly one operand (style \"Operand1\"), found " + DescribeCandidates(candidates));
                     else
@@ -316,6 +320,8 @@ namespace ShapeIt
             {
                 result.Warnings.Add($"{markerCurves.Count} edge marker curve(s) are ignored for {result.Operation}");
             }
+            if (result.Operation == BRepOperationKind.OffsetShell && double.IsNaN(result.Parameter))
+                result.Problems.Add("Expand needs the offset distance as a parameter, e.g. \"Expand: 2\"");
         }
 
         /// <summary>"DifferenceBug15.cdb.json" -> "DifferenceBug15"</summary>
@@ -392,7 +398,7 @@ namespace ShapeIt
         }
 
         /// <summary>
-        /// Parses a text object like "Difference", "RoundEdges: 2.5" or "ChamferEdges: 1, 2".
+        /// Parses a text object like "Difference", "RoundEdges: 2.5", "ChamferEdges: 1, 2" or "Expand: 2".
         /// Numbers are always read with the invariant culture, so "2.5" is two and a half on a German machine too.
         /// </summary>
         private static bool TryParseCommand(string text, out ParsedCommand parsed)
@@ -414,6 +420,7 @@ namespace ShapeIt
                 case "fillet": parsed.Kind = BRepOperationKind.RoundEdges; break;
                 case "chamferedges":
                 case "chamfer": parsed.Kind = BRepOperationKind.ChamferEdges; break;
+                case "expand":
                 case "offsetshell":
                 case "offset": parsed.Kind = BRepOperationKind.OffsetShell; break;
                 case "split":
