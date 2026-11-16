@@ -751,7 +751,7 @@ namespace CADability
                         }
                         if (intersectionVertices.Count < 2) return;
                     }
-                    // we ant to exclude common edges of fc1 and fc2 from the intersection edges, because they are already present in the faces
+                    // we want to exclude common edges of fc1 and fc2 from the intersection edges, because they are already present in the faces
                     // a problem is the mixed state: we have both common edges and new intersection edges between the same two vertices. 
                     // so preliminary we exclude only common edges when there is nothing else
                     HashSet<Vertex> usedByCommonEdges = [];
