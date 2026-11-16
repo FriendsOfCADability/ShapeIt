@@ -378,35 +378,17 @@ namespace CADability
                 dv = -Math.Round(((ext.Bottom + ext.Top) / 2 - (window.Bottom + window.Top) / 2) / surface.VPeriod) * surface.VPeriod;
             return new GeoVector2D(du, dv);
         }
+        /// <summary>
+        /// The triangulation starts at the knots of the approximation, for both kinds of projected curve: between two knots
+        /// the curve is a cubic polynomial, so the inflections are found exactly and no knot lies inside a segment.
+        /// </summary>
         internal override void GetTriangulationPoints(out GeoPoint2D[] interpol, out double[] interparam)
         {
-            if (ofIntersection) base.GetTriangulationPoints(out interpol, out interparam);
-            else ApproxBSpline2D.GetTriangulationPoints(out interpol, out interparam);
+            ApproxBSpline2D.GetTriangulationPoints(out interpol, out interparam);
         }
-        protected override void GetTriangulationBasis(out GeoPoint2D[] points, out GeoVector2D[] directions, out double[] parameters)
-        {
-            if (!ofIntersection)
-            {
-                base.GetTriangulationBasis(out points, out directions, out parameters);
-                return;
-            }
-            // a couple of points, which may miss some inflection points
-            int n = 12;
-            parameters = new double[n + 1];
-            points = new GeoPoint2D[n + 1];
-            directions = new GeoVector2D[n + 1];
-            for (int i = 0; i < n + 1; i++)
-            {
-                parameters[i] = i / (double)n;
-                points[i] = PointAt(parameters[i]);
-                directions[i] = DirectionAt(parameters[i]);
-            }
-        }
-        public override double[] GetInflectionPoints()
-        {
-            if (ofIntersection) return base.GetInflectionPoints();
-            return ApproxBSpline2D.GetInflectionPoints();
-        }
+        /// <summary>The points of this curve are the points of its approximation, which is a cubic spline.</summary>
+        internal override BSpline2D CubicSplineOfThisCurve => ApproxBSpline2D.IsPolynomialCubic ? ApproxBSpline2D : null;
+        public override double[] GetInflectionPoints() => ApproxBSpline2D.GetInflectionPoints();
         public override double GetArea() => ofIntersection ? ApproxBSpline2D.GetArea() : base.GetArea();
         public override double GetAreaFromPoint(GeoPoint2D p) => ofIntersection ? ApproxBSpline2D.GetAreaFromPoint(p) : base.GetAreaFromPoint(p);
         public override BoundingRect GetExtent() => ofIntersection ? ApproxBSpline2D.GetExtent() : base.GetExtent();

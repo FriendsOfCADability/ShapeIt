@@ -114,6 +114,8 @@ namespace CADability
         Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOverlappingFaces; // all faces which overlap with this face
         Dictionary<Face, Dictionary<Face, ModOp2D>> faceToOppositeFaces; // all faces which are opposite oriented to this face and the ModOp2D to transform 2d curves from one face to the other
         Dictionary<(Edge edge, Face face), (List<Vertex> vertices, bool curveIsInSurface)> FaceEdgeIntersections; // to avoid duplicate calls to GetFaceEdgeIntersection
+        // an edge which lies in the surface of a face: its 2d curve on that face and where the outline of the face clips it, see AddFaceFaceIntersection
+        Dictionary<(Edge edge, Face face), (ICurve2D projected, double[] clipped)> edgeClippedByFace = new Dictionary<(Edge edge, Face face), (ICurve2D projected, double[] clipped)>();
         // the raw intersections of edges with faces, calculated in advance while CreateFaceIntersections runs, see PrecalculateEdgeIntersections
         Dictionary<(Edge edge, Face face), (bool curveIsOnSurface, GeoPoint[] ips, GeoPoint2D[] uvOnFaces, double[] uOnCurve3Ds)> precalculatedEdgeIntersections;
 
@@ -412,7 +414,6 @@ namespace CADability
             }
             HashSet<Edge> sameEdges = FindSameEdges(fc1, fc2);
 
-            bool tangentialIntersectionFound = false;
             HashSet<Vertex> intersectionVertices = new HashSet<Vertex>();
             List<ICurve> knownIntersectionCurves = null;
             List<bool?> knownIntersectionCurveDirections = null;
@@ -514,9 +515,20 @@ namespace CADability
                                 // when a curve is in the surface of a face, it might also be clipped by this face. We need those intersections as well.
                                 // But when the curve overlaps an edge of the face, clipping in 2d yields arbitrary points along the overlapping part:
                                 // then only the vertices of the face on the curve are needed, which are added below
-                                bool overlapsOutline = OverlapsOutline(fca, edge);
-                                ICurve2D edgeProjected = overlapsOutline ? null : fca.GetProjectedCurve(edge.Curve3D, true);
-                                double[] clipped = overlapsOutline ? [] : fca.Area.Clip(edgeProjected, true);
+                                // An edge belongs to two faces of its shell, so the same edge meets the same face fca twice: the
+                                // projection and its clipping only depend on these two and are kept for the second time
+                                if (!edgeClippedByFace.TryGetValue((edge, fca), out (ICurve2D projected, double[] clipped) edgeOnFace))
+                                {
+                                    if (OverlapsOutline(fca, edge)) edgeOnFace = (null, []);
+                                    else
+                                    {
+                                        ICurve2D projected = fca.GetProjectedCurve(edge.Curve3D, true);
+                                        edgeOnFace = (projected, fca.Area.Clip(projected, true));
+                                    }
+                                    edgeClippedByFace[(edge, fca)] = edgeOnFace;
+                                }
+                                ICurve2D edgeProjected = edgeOnFace.projected;
+                                double[] clipped = edgeOnFace.clipped;
                                 for (int i = 0; i < clipped.Length; i++)
                                 {
                                     if (clipped[i] > -Precision.eps && clipped[i] < 1 + Precision.eps)
@@ -615,17 +627,19 @@ namespace CADability
                                 //    }
                                 //}
                             }
-                            vtxs.Sort((v1, v2) => edge.Curve3D.PositionOf(v1.Position).CompareTo(edge.Curve3D.PositionOf(v2.Position)));
+                            // sort the vertices along the curve. The position of each vertex is calculated only once (not in
+                            // every comparison), it is needed again to trim the curve
+                            List<(double pos, Vertex vtx)> sorted = new List<(double pos, Vertex vtx)>(vtxs.Count);
+                            foreach (Vertex vtx in vtxs) sorted.Add((edge.Curve3D.PositionOf(vtx.Position), vtx));
+                            sorted.Sort((v1, v2) => v1.pos.CompareTo(v2.pos));
+                            for (int i = 0; i < sorted.Count; i++) vtxs[i] = sorted[i].vtx;
                             if (curveIsInSurface)
                             {   // why not accumulate the vertices and create the intersection edges later?
                                 List<ICurve> curveParts = new List<ICurve>();
-                                var list = vtxs as IList<Vertex> ?? vtxs.ToList();
-                                for (int i = 0; i < list.Count - 1; i++)
+                                for (int i = 0; i < sorted.Count - 1; i++)
                                 {
-                                    var a = list[i];
-                                    var b = list[i + 1];
                                     ICurve part = edge.Curve3D.Clone();
-                                    part.Trim(edge.Curve3D.PositionOf(a.Position), edge.Curve3D.PositionOf(b.Position));
+                                    part.Trim(sorted[i].pos, sorted[i + 1].pos);
                                     GeoPoint pm = part.PointAt(0.5);
                                     if (fca.Contains(pm, true))
                                     {
@@ -639,7 +653,7 @@ namespace CADability
                                         curveParts.Add(part);
                                     }
                                 }
-                                if (curveParts.Count > 0 && vtxs.Count() > 1)
+                                if (curveParts.Count > 0 && vtxs.Count > 1)
                                 {
                                     if (knownIntersectionCurves == null)
                                     {
@@ -651,7 +665,7 @@ namespace CADability
                                         knownIntersectionCurves.Add(curveParts[i]);
                                         knownIntersectionCurveDirections.Add(null); // orientation correct?
                                     }
-                                    usedVerticedByKnownIntersections.AddRange(list);
+                                    usedVerticedByKnownIntersections.AddRange(vtxs);
                                 }
                                 foreach (Vertex vtx in vtxs) foreach (Edge e in edgesOctTree.GetObjectsFromPoint(vtx.Position))
                                 {   // this intersection curve lies in the surface of a face. It might also lie on an edge of the face. In this case, we have to split the edge as well
@@ -670,7 +684,6 @@ namespace CADability
                     }
                 }
             }
-            if (tangentialIntersectionFound) return; // if there is a tangential intersection, we don't need to calculate further intersections
             if (intersectionVertices.Count == 0)
             {
                 // test for inner intersections, where no edges are involved
@@ -844,13 +857,6 @@ namespace CADability
                 dc0.Add(pnt, vtx.GetHashCode());
             }
 #endif
-            var list = intersectionVertices.ToList();
-
-            IEnumerable<(Vertex, Vertex)> pairs =
-                from i in Enumerable.Range(0, list.Count)
-                from j in Enumerable.Range(i + 1, list.Count - i - 1)
-                select (list[i], list[j]);
-
             if (intersectionVertices.Count < 2) return;
 
             List<Vertex> usedVertices = new List<Vertex>(intersectionVertices.Count);
@@ -999,12 +1005,12 @@ namespace CADability
                             j2IsOnBorder = true;
                             isOnFace1Border = true;
                         }
-                        if (fc2.Area.GetPosition(usedVertices[j1].GetPositionOnFace(fc1)) == Border.Position.OnCurve)
+                        if (fc2.Area.GetPosition(usedVertices[j1].GetPositionOnFace(fc2)) == Border.Position.OnCurve)
                         {
                             j1IsOnBorder = true;
                             isOnFace2Border = true;
                         }
-                        if (fc2.Area.GetPosition(usedVertices[j2].GetPositionOnFace(fc1)) == Border.Position.OnCurve)
+                        if (fc2.Area.GetPosition(usedVertices[j2].GetPositionOnFace(fc2)) == Border.Position.OnCurve)
                         {
                             j2IsOnBorder = true;
                             isOnFace2Border = true;
@@ -1997,12 +2003,10 @@ namespace CADability
             // don't know, whether we need the followin:
             if (shell1 != null && shell2 != null)
             {
-                if (shell1IsClosed && shell1.HasOpenEdgesExceptPoles() && shell1IsClosed) shell1.TryConnectOpenEdges(precision);
-                if (shell2IsClosed && shell2.HasOpenEdgesExceptPoles() && shell2IsClosed) shell2.TryConnectOpenEdges(precision);
-                //shell1.RecalcVertices();
-                //shell2.RecalcVertices();
-                if (shell1IsClosed) shell1.CombineConnectedFaces();
-                if (shell2IsClosed) shell2.CombineConnectedFaces();
+                if (shell1IsClosed && shell1.HasOpenEdgesExceptPoles()) shell1.TryConnectOpenEdges(precision);
+                if (shell2IsClosed && shell2.HasOpenEdgesExceptPoles()) shell2.TryConnectOpenEdges(precision);
+                if (shell1IsClosed) shell1.CombineConnectedFaces(false);
+                if (shell2IsClosed) shell2.CombineConnectedFaces(false);
             }
 
 #if DEBUG
@@ -2055,11 +2059,7 @@ namespace CADability
                 }
             }
 #endif
-            if (multipleFaces != null)
-            {
-
-            }
-            else
+            if (multipleFaces == null)
             {
                 Vertex[] dumy = shell1.Vertices; // only to make the vertices being calculated (they are cached)
                 dumy = shell2.Vertices;
@@ -2257,17 +2257,7 @@ namespace CADability
                         {   // this edge, which is totally inside the main face, is dealt as an intersection edge of the opposite face
                             // the intersection edge is reverse to the edge orientation, to eliminate it.
                             bool forward = !edge.Forward(oppositeFace);
-                            ICurve2D secondaryCurve2D = edge.Curve2D(oppositeFace).Clone();
-                            if (firstToSecond.IsNull)
-                            {
-                                secondaryCurve2D = mainFace.Surface.GetProjectedCurve(edge.Curve3D, precision);
-                                if (!edge.Forward(oppositeFace)) secondaryCurve2D.Reverse(); // still to test!
-                            }
-                            else secondaryCurve2D = secondaryCurve2D.GetModified(firstToSecond.GetInverse());
-                            // the secsecondaryCurve2D is always correct oriented, we don't need to apply "forward" here
-                            SurfaceHelper.AdjustPeriodic(mainFace.Surface, mainFace.Domain, secondaryCurve2D);
-                            //Edge overlappingEdge = new Edge(oppositeFace, edge.Curve3D.Clone(), oppositeFace, edge.Curve2D(oppositeFace).CloneReverse(true), forward,
-                            //    mainFace, secondaryCurve2D, !forward);
+                            // both 2d curves are projected anew from the 3d curve (not taken from the edge and transformed by firstToSecond)
                             ICurve c3d = edge.Curve3D.Clone();
                             ICurve2D c2d1 = oppositeFace.Surface.GetProjectedCurve(c3d, 0.0);
                             if (!forward) c2d1.Reverse();
@@ -2354,7 +2344,6 @@ namespace CADability
                                 SurfaceHelper.AdjustPeriodic(commonFace.Surface, commonFace.Domain, curveOnPrimaryFace);
                                 commonEdge = new Edge(commonFace, edge.Curve3D.Clone(), commonFace, curveOnPrimaryFace, edge.Forward(otherFace));
                             }
-                            ICurve dbg = commonFace.Surface.Make3dCurve(curveOnPrimaryFace);
                             commonEdge.UseVertices(edge.Vertex1, edge.Vertex2);
                             if (!faceToIntersectionEdges.ContainsKey(commonFace)) faceToIntersectionEdges[commonFace] = new HashSet<Edge>();
                             faceToIntersectionEdges[commonFace].Add(commonEdge);
@@ -2789,11 +2778,9 @@ namespace CADability
             foreach (KeyValuePair<Face, HashSet<Edge>> kv in faceToIntersectionEdges)
             {   // faceToIntersectionEdges contains all faces, which are intersected by faces of the relative other shell, as well as those intersection edges
                 Face faceToSplit = kv.Key;
-                HashSet<Edge> faceEdges = new HashSet<Edge>(faceToSplit.Edges.ToHashSet()); // all outline edges and holes of the face, used edges will be removed
-                HashSet<Edge> intersectionEdges = kv.Value.Clone();
-                HashSet<Edge> originalEdges = faceToSplit.Edges.ToHashSet();
-                HashSet<Vertex> faceVertices = new HashSet<Vertex>(faceToSplit.Vertices);
                 if (dontReturnShell2 && faceToSplit.Owner == shell2) continue; // when shell2 is not wanted in the result, skip all its faces
+                HashSet<Edge> intersectionEdges = kv.Value.Clone();
+                HashSet<Edge> originalEdges = faceToSplit.Edges.ToHashSet(); // all outline edges and holes of the face
 
 #if DEBUG
                 DebuggerContainer dcIntersectingFaces = new DebuggerContainer();
@@ -3390,7 +3377,7 @@ namespace CADability
                 }
                 if (allowOpenEdges || !shell.HasOpenEdgesExceptPoles())
                 {
-                    if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(); // two connected faces which have the same surface are merged into one face
+                    if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(false); // two connected faces which have the same surface are merged into one face
                                                                                    // reversing the orientation moved to the end, ater the shells and the holes are combined
 #if DEBUG
                     System.Diagnostics.Debug.Assert(shell.CheckConsistency());
@@ -3412,7 +3399,7 @@ namespace CADability
                         shell.TryConnectOpenEdges(precision);
                         if (!shell.HasOpenEdgesExceptPoles())
                         {
-                            if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(); // two connected faces which have the same surface are merged into one face
+                            if (!dontCombineConnectedFaces) shell.CombineConnectedFaces(false); // two connected faces which have the same surface are merged into one face
                                                                                            // this shell is still in the orientation of the intersection, it is reversed at the end together with all other shells.
                                                                                            // For a union the shells have been reversed, so there the enclosed volume has to be negative
                             double volume = shell.Volume(triangulationPrecision);
@@ -3456,7 +3443,7 @@ namespace CADability
                         if (!IsClosedPart(part)) continue; // all parts should be closed
                         if (!IsInsideShell(part, other)) continue; // the material behind this part is not inside the other shell
                         Shell untouchedShell = Shell.MakeShell(part.ToArray());
-                        untouchedShell.CombineConnectedFaces();
+                        untouchedShell.CombineConnectedFaces(false);
                         res.Add(untouchedShell);
                     }
                 }
@@ -3473,7 +3460,7 @@ namespace CADability
                     Shell connectedShell = Shell.MakeShell(remainingFaces.ToArray(), true);
                     if (!connectedShell.HasOpenEdgesExceptPoles())
                     {
-                        connectedShell.CombineConnectedFaces();
+                        connectedShell.CombineConnectedFaces(false);
                         // two identical shells yield a solid whose cavity is its own outside: it encloses no
                         // volume at all and must not become part of the result
                         if (Math.Abs(connectedShell.Volume(triangulationPrecision)) > triangulationPrecision) res.Add(connectedShell);

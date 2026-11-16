@@ -1866,8 +1866,8 @@ namespace CADability
 #if DEBUG
             bool ok = swapped == surface1.SameGeometry(BoundingRect.UnitBoundingRect, this.surface2, BoundingRect.UnitBoundingRect, 1e-6, out ModOp2D dumy);
 #endif
-            bool ok1 = surface1.SameGeometry(BoundingRect.UnitBoundingRect, this.surface1, BoundingRect.UnitBoundingRect, Precision.eps, out ModOp2D dumy1);
-            bool ok2 = surface2.SameGeometry(BoundingRect.UnitBoundingRect, this.surface2, BoundingRect.UnitBoundingRect, Precision.eps, out ModOp2D dumy2);
+            bool ok1 = SameSurface(surface1, this.surface1);
+            bool ok2 = SameSurface(surface2, this.surface2);
             if (ok1 && ok2)
             {
                 this.surface1 = surface1;
@@ -1876,8 +1876,8 @@ namespace CADability
             }
             else
             {
-                ok1 = surface1.SameGeometry(BoundingRect.UnitBoundingRect, this.surface2, BoundingRect.UnitBoundingRect, Precision.eps, out dumy1);
-                ok2 = surface2.SameGeometry(BoundingRect.UnitBoundingRect, this.surface1, BoundingRect.UnitBoundingRect, Precision.eps, out dumy2);
+                ok1 = SameSurface(surface1, this.surface2);
+                ok2 = SameSurface(surface2, this.surface1);
                 if (ok1 && ok2)
                 {
                     this.surface1 = surface1;
@@ -1899,6 +1899,16 @@ namespace CADability
                 }
                 else throw new ApplicationException("Wrong surfaces in InterpolatedDualSurfaceCurve.SetSurfaces");
             }
+        }
+        /// <summary>
+        /// Whether the two surfaces are geometrically the same, as <see cref="ISurface.SameGeometry"/> tells it, for
+        /// <see cref="SetSurfaces"/>, which is called for every edge of every cloned face and does not need the mapping
+        /// between the uv systems: for two RuledSurfaces that mapping is the expensive part.
+        /// </summary>
+        private static bool SameSurface(ISurface a, ISurface b)
+        {
+            if (a is RuledSurface ra && b is RuledSurface rb && a.GetType() == typeof(RuledSurface)) return ra.SameCurves(rb, Precision.eps);
+            return a.SameGeometry(BoundingRect.UnitBoundingRect, b, BoundingRect.UnitBoundingRect, Precision.eps, out ModOp2D _);
         }
         /// <summary>
         /// A curve with the provided surfaces, base points and approximating spline, which are used as they are (not

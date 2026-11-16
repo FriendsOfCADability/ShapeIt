@@ -1021,13 +1021,21 @@ namespace CADability
             }
             return base.GetLineIntersection(startPoint, direction);
         }
+        /// <summary>
+        /// The answer of <see cref="SameGeometry"/> for another RuledSurface without the mapping between the two uv systems,
+        /// which is the expensive part (it needs PositionOf on the other surface, and that builds its hull).
+        /// </summary>
+        internal bool SameCurves(RuledSurface rsother, double precision)
+        {
+            return (firstCurve.SameGeometry(rsother.firstCurve, precision) && secondCurve.SameGeometry(rsother.secondCurve, precision)) ||
+                (firstCurve.SameGeometry(rsother.secondCurve, precision) && secondCurve.SameGeometry(rsother.firstCurve, precision));
+        }
         public override bool SameGeometry(BoundingRect thisBounds, ISurface other, BoundingRect otherBounds, double precision, out ModOp2D firstToSecond)
         {
             if (other is RuledSurface)
             {
                 RuledSurface rsother = other as RuledSurface;
-                if ((firstCurve.SameGeometry(rsother.firstCurve, precision) && secondCurve.SameGeometry(rsother.secondCurve, precision)) ||
-                    (firstCurve.SameGeometry(rsother.secondCurve, precision) && secondCurve.SameGeometry(rsother.firstCurve, precision)))
+                if (SameCurves(rsother, precision))
                 {
                     GeoPoint2D[] srcPoints = new GeoPoint2D[] { GeoPoint2D.Origin, new GeoPoint2D(1, 0), new GeoPoint2D(0, 1) };
                     GeoPoint2D[] dstPoints = new GeoPoint2D[3];

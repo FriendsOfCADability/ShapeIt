@@ -783,6 +783,7 @@ namespace CADability.Curve2D
             {
                 if (interpol == null) MakeTriangulation();
                 interpol[0] = value; // für nur geringe Änderungen ist das wohl ok
+                segmentHullExcess = null; // the triangle at this end has changed
             }
         }
 
@@ -797,6 +798,7 @@ namespace CADability.Curve2D
             {
                 if (interpol == null) MakeTriangulation();
                 interpol[interpol.Length - 1] = value; // für nur geringe Änderungen ist das wohl ok
+                segmentHullExcess = null; // the triangle at this end has changed
             }
         }
 
@@ -1806,12 +1808,19 @@ namespace CADability.Curve2D
         {
             BoundingRect[] hulls1 = curve1.SegmentHulls(tolerance);
             BoundingRect[] hulls2 = curve2.SegmentHulls(tolerance);
+            double[] excess1 = curve1.SegmentHullExcess();
+            double[] excess2 = curve2.SegmentHullExcess();
             for (int i = 0; i < hulls1.Length; ++i)
             {
                 for (int j = 0; j < hulls2.Length; ++j)
                 {
                     if (crossingPairs.Contains((i, j))) continue;
                     if (BoundingRect.Disjoint(hulls1[i], hulls2[j])) continue;
+                    // The bounding rectangle of a slanted segment (e.g. the test line of Border.GetPosition) covers much more
+                    // than the segment. The hull triangles themselves are a much tighter bound, and the closest approach below
+                    // is expensive: skip the pairs whose triangles are further apart than the tolerance plus the distances by
+                    // which the two curves may leave their triangles
+                    if (excess1[i] < double.MaxValue && excess2[j] < double.MaxValue && HullTrianglesApart(curve1, i, curve2, j, 2 * tolerance + excess1[i] + excess2[j])) continue;
                     double ua = curve1.interparam[i], ub = curve1.interparam[i + 1];
                     double va = curve2.interparam[j], vb = curve2.interparam[j + 1];
                     double u = ClosestApproach(curve1, ua, ub, curve2, va, vb, out double v, out double dist);
@@ -1835,6 +1844,163 @@ namespace CADability.Curve2D
                     if (!known) res.Add(new GeoPoint2DWithParameter(new GeoPoint2D(curve1.PointAt(u), curve2.PointAt(v)), u, v));
                 }
             }
+        }
+
+        private Tuple<GeoPoint2D[], double[]> segmentHullExcess; // see SegmentHullExcess, valid for the triangulation in Item1
+        /// <summary>
+        /// The cubic spline whose points are the points of this curve at the same parameters, null if there is none.
+        /// For such a curve <see cref="SegmentHullExcess"/> is a strict bound.
+        /// </summary>
+        internal virtual BSpline2D CubicSplineOfThisCurve => null;
+        /// <summary>
+        /// For each segment of the triangulation: an upper bound of the distance by which the curve leaves the hull triangle
+        /// of that segment, double.MaxValue if nothing is known. The triangle of the two tangents encloses a piece of a curve
+        /// which has no inflection, but that is not guaranteed: an inflection may have been missed, an almost straight
+        /// piece is deliberately not split at its inflections, and an end point which has been set (see
+        /// <see cref="StartPoint"/>) moves a corner of the triangle away from the curve.
+        /// <para>
+        /// For a curve which is a cubic spline (<see cref="CubicSplineOfThisCurve"/>, e.g. a <see cref="ProjectedCurve"/>)
+        /// the bound is strict: between two knots the spline is a cubic polynomial, which lies in the convex hull of its
+        /// four Bezier points, and these follow from the points and the derivatives at the ends of the piece. The bound
+        /// is the greatest distance of these Bezier points from the triangle. For the other curves the segment is checked
+        /// at its ends and at three points in between, which yields 0 or "unknown".
+        /// </para>
+        /// Calculated once for a triangulation.
+        /// </summary>
+        private double[] SegmentHullExcess()
+        {
+            if (interpol == null) MakeTriangulation();
+            Tuple<GeoPoint2D[], double[]> known = segmentHullExcess;
+            if (known != null && known.Item1 == interpol) return known.Item2;
+            GeoPoint2D[] nodes = interpol;
+            double[] res = new double[nodes.Length - 1];
+            BSpline2D spline = CubicSplineOfThisCurve;
+            if (spline != null)
+            {
+                spline.GetTriangulationPoints(out _, out double[] knotPositions); // ascending positions of the knots
+                int k = 0;
+                for (int i = 0; i < res.Length; ++i)
+                {
+                    double ua = interparam[i], ub = interparam[i + 1];
+                    double minPiece = (ub - ua) * 1e-9;
+                    while (k < knotPositions.Length && knotPositions[k] <= ua + minPiece) ++k;
+                    double excess = 0.0, s = ua;
+                    while (excess < double.MaxValue && s < ub)
+                    {
+                        double t = ub;
+                        if (k < knotPositions.Length && knotPositions[k] < ub - minPiece) t = knotPositions[k++];
+                        excess = Math.Max(excess, CubicPieceExcess(spline, s, t, nodes[i], nodes[i + 1], tringulation[i]));
+                        s = t;
+                    }
+                    res[i] = excess;
+                }
+            }
+            else
+            {
+                bool[] nodeMatches = new bool[nodes.Length];
+                for (int i = 0; i < nodes.Length; ++i)
+                {
+                    double chord = i > 0 ? nodes[i] | nodes[i - 1] : nodes.Length > 1 ? nodes[1] | nodes[0] : 0.0;
+                    nodeMatches[i] = (PointAt(interparam[i]) | nodes[i]) <= 1e-6 * chord + Precision.eps;
+                }
+                for (int i = 0; i < res.Length; ++i)
+                {
+                    bool inside = nodeMatches[i] && nodeMatches[i + 1];
+                    for (int k = 1; k < 4 && inside; ++k)
+                    {
+                        GeoPoint2D p = PointAt(interparam[i] + (interparam[i + 1] - interparam[i]) * k / 4.0);
+                        inside = InHullTriangle(p, nodes[i], nodes[i + 1], tringulation[i], 1e-7 * (nodes[i] | nodes[i + 1]) + 1e-12);
+                    }
+                    res[i] = inside ? 0.0 : double.MaxValue;
+                }
+            }
+            segmentHullExcess = new Tuple<GeoPoint2D[], double[]>(nodes, res);
+            return res;
+        }
+        /// <summary>
+        /// The greatest distance of the four Bezier points of the piece from <paramref name="s"/> to <paramref name="t"/> of
+        /// the cubic <paramref name="spline"/> from the triangle; the piece must not contain a knot. double.MaxValue, if
+        /// the Bezier points do not reproduce the middle of the piece, i.e. the piece is not a single cubic polynomial
+        /// (e.g. the derivative jumps at a multiple knot).
+        /// </summary>
+        private static double CubicPieceExcess(BSpline2D spline, double s, double t, GeoPoint2D t0, GeoPoint2D t1, GeoPoint2D t2)
+        {
+            GeoPoint2D b0 = spline.PointAt(s), b3 = spline.PointAt(t);
+            double third = (t - s) / 3.0;
+            GeoPoint2D b1 = b0 + third * spline.DirectionAt(s); // the derivative by the position, not normalized
+            GeoPoint2D b2 = b3 - third * spline.DirectionAt(t);
+            GeoPoint2D middle = new GeoPoint2D((b0.x + 3 * b1.x + 3 * b2.x + b3.x) / 8.0, (b0.y + 3 * b1.y + 3 * b2.y + b3.y) / 8.0);
+            double size = (b0 | b1) + (b1 | b2) + (b2 | b3);
+            if (!((middle | spline.PointAt((s + t) / 2.0)) <= 1e-8 * size + 1e-13)) return double.MaxValue;
+            return Math.Max(Math.Max(DistanceToTriangle(b0, t0, t1, t2), DistanceToTriangle(b1, t0, t1, t2)),
+                Math.Max(DistanceToTriangle(b2, t0, t1, t2), DistanceToTriangle(b3, t0, t1, t2)));
+        }
+        /// <summary>The distance of <paramref name="p"/> from the triangle, 0 inside. The triangle may be degenerated to a line.</summary>
+        private static double DistanceToTriangle(GeoPoint2D p, GeoPoint2D t0, GeoPoint2D t1, GeoPoint2D t2)
+        {
+            double c0 = (t1.x - t0.x) * (p.y - t0.y) - (t1.y - t0.y) * (p.x - t0.x);
+            double c1 = (t2.x - t1.x) * (p.y - t1.y) - (t2.y - t1.y) * (p.x - t1.x);
+            double c2 = (t0.x - t2.x) * (p.y - t2.y) - (t0.y - t2.y) * (p.x - t2.x);
+            if ((c0 >= 0 && c1 >= 0 && c2 >= 0 && c0 + c1 + c2 > 0) || (c0 <= 0 && c1 <= 0 && c2 <= 0 && c0 + c1 + c2 < 0)) return 0.0;
+            return Math.Min(DistanceToSide(p, t0, t1), Math.Min(DistanceToSide(p, t1, t2), DistanceToSide(p, t2, t0)));
+        }
+        private static double DistanceToSide(GeoPoint2D p, GeoPoint2D e0, GeoPoint2D e1)
+        {
+            double dx = e1.x - e0.x, dy = e1.y - e0.y;
+            double dd = dx * dx + dy * dy;
+            double pos = dd > 0.0 ? Math.Max(0.0, Math.Min(1.0, ((p.x - e0.x) * dx + (p.y - e0.y) * dy) / dd)) : 0.0;
+            double ex = e0.x + pos * dx - p.x, ey = e0.y + pos * dy - p.y;
+            return Math.Sqrt(ex * ex + ey * ey);
+        }
+        /// <summary>
+        /// Whether <paramref name="p"/> lies in the triangle (which may be degenerated to a line), within <paramref name="eps"/>:
+        /// its projections onto the directions and onto the normals of the three sides lie within those of the triangle.
+        /// </summary>
+        private static bool InHullTriangle(GeoPoint2D p, GeoPoint2D t0, GeoPoint2D t1, GeoPoint2D t2, double eps)
+        {
+            return InSlab(p, t0, t1, t2, eps) && InSlab(p, t1, t2, t0, eps) && InSlab(p, t2, t0, t1, eps);
+        }
+        private static bool InSlab(GeoPoint2D p, GeoPoint2D e0, GeoPoint2D e1, GeoPoint2D opposite, double eps)
+        {
+            double dx = e1.x - e0.x, dy = e1.y - e0.y;
+            double len = Math.Sqrt(dx * dx + dy * dy);
+            if (!(len > 1e-100)) return true; // a degenerate side restricts nothing
+            dx /= len; dy /= len;
+            // along the side: all three corners count, across the side: the side itself (0) and the opposite corner
+            double along = dx * (p.x - e0.x) + dy * (p.y - e0.y), alongOpposite = dx * (opposite.x - e0.x) + dy * (opposite.y - e0.y);
+            if (along < Math.Min(0.0, alongOpposite) - eps || along > Math.Max(len, alongOpposite) + eps) return false;
+            double across = dx * (p.y - e0.y) - dy * (p.x - e0.x), acrossOpposite = dx * (opposite.y - e0.y) - dy * (opposite.x - e0.x);
+            return across >= Math.Min(0.0, acrossOpposite) - eps && across <= Math.Max(0.0, acrossOpposite) + eps;
+        }
+        /// <summary>
+        /// True, if the hull triangle of segment <paramref name="i"/> of <paramref name="curve1"/> and the hull triangle of
+        /// segment <paramref name="j"/> of <paramref name="curve2"/> are separated by more than <paramref name="gap"/>.
+        /// Separating axis test with the normals of the six edges: the gap along such an axis is never greater than the
+        /// true distance of the triangles, so a "true" is safe, while two triangles which are apart may still yield "false".
+        /// </summary>
+        private static bool HullTrianglesApart(GeneralCurve2D curve1, int i, GeneralCurve2D curve2, int j, double gap)
+        {
+            GeoPoint2D a0 = curve1.interpol[i], a1 = curve1.interpol[i + 1], a2 = curve1.tringulation[i];
+            GeoPoint2D b0 = curve2.interpol[j], b1 = curve2.interpol[j + 1], b2 = curve2.tringulation[j];
+            return SeparatedAlongNormal(a0, a1, a0, a1, a2, b0, b1, b2, gap) || SeparatedAlongNormal(a1, a2, a0, a1, a2, b0, b1, b2, gap)
+                || SeparatedAlongNormal(a2, a0, a0, a1, a2, b0, b1, b2, gap) || SeparatedAlongNormal(b0, b1, a0, a1, a2, b0, b1, b2, gap)
+                || SeparatedAlongNormal(b1, b2, a0, a1, a2, b0, b1, b2, gap) || SeparatedAlongNormal(b2, b0, a0, a1, a2, b0, b1, b2, gap);
+        }
+        /// <summary>
+        /// True, if the projections of the triangles a and b onto the normal of the edge from <paramref name="e0"/> to
+        /// <paramref name="e1"/> are separated by more than <paramref name="gap"/>.
+        /// </summary>
+        private static bool SeparatedAlongNormal(GeoPoint2D e0, GeoPoint2D e1, GeoPoint2D a0, GeoPoint2D a1, GeoPoint2D a2,
+            GeoPoint2D b0, GeoPoint2D b1, GeoPoint2D b2, double gap)
+        {
+            double nx = e0.y - e1.y, ny = e1.x - e0.x;
+            double len = Math.Sqrt(nx * nx + ny * ny);
+            if (!(len > 1e-100)) return false; // a degenerate edge has no normal
+            double pa0 = nx * a0.x + ny * a0.y, pa1 = nx * a1.x + ny * a1.y, pa2 = nx * a2.x + ny * a2.y;
+            double pb0 = nx * b0.x + ny * b0.y, pb1 = nx * b1.x + ny * b1.y, pb2 = nx * b2.x + ny * b2.y;
+            double mina = Math.Min(pa0, Math.Min(pa1, pa2)), maxa = Math.Max(pa0, Math.Max(pa1, pa2));
+            double minb = Math.Min(pb0, Math.Min(pb1, pb2)), maxb = Math.Max(pb0, Math.Max(pb1, pb2));
+            return Math.Max(minb - maxa, mina - maxb) > gap * len;
         }
 
         /// <summary>

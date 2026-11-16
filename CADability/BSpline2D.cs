@@ -1219,6 +1219,12 @@ namespace CADability.Curve2D
         /// <summary>
         /// Gets the degree of the BSpline (NURBS)
         /// </summary>
+        /// <summary>
+        /// True for a non rational spline of degree 3: between two knots it is a cubic polynomial, see
+        /// <see cref="GeneralCurve2D.SegmentHullExcess"/>.
+        /// </summary>
+        internal bool IsPolynomialCubic => degree == 3 && nubs != null;
+        internal override BSpline2D CubicSplineOfThisCurve => IsPolynomialCubic ? this : null;
         public int Degree
         {
             get

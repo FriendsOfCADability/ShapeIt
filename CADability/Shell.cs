@@ -5202,6 +5202,16 @@ namespace CADability.GeoObject
         /// <returns>Number of faces that have been combined</returns>
         public int CombineConnectedFaces()
         {
+            return CombineConnectedFaces(true);
+        }
+        /// <summary>
+        /// <see cref="CombineConnectedFaces()"/> with the choice to leave out the copy of the whole shell, which is kept for
+        /// undo. A shell which only exists inside an operation (the working copies and the results of a
+        /// <see cref="BooleanOperation"/>) is in no model and can not be undone, and cloning it costs as much as combining it.
+        /// </summary>
+        /// <param name="undoable">false: no copy of the shell is made for undo</param>
+        internal int CombineConnectedFaces(bool undoable)
+        {
 #if DEBUG
             if (!CheckConsistency()) { }
 #endif
@@ -5227,7 +5237,7 @@ namespace CADability.GeoObject
                 }
             }
 #endif
-            using (new Changing(this, "CopyAll", this.Clone(new Dictionary<Edge, Edge>())))
+            using (undoable ? new Changing(this, "CopyAll", this.Clone(new Dictionary<Edge, Edge>())) : new Changing(this, true, false, "CopyAll"))
             {
                 double precision = this.GetExtent(0.0).Size * 1e-6;
                 bool combined = true;
