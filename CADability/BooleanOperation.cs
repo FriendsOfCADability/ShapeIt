@@ -757,8 +757,12 @@ namespace CADability
                     HashSet<Vertex> usedByCommonEdges = [];
                     foreach ((Vertex v1, Vertex v2) in intersectionVertices.Pairs())
                     {
-                        var common = Vertex.ConnectingEdges(v1, v2);
-                        if (fc1.Edges.Intersect(common).Any() && fc2.Edges.Intersect(common).Any())
+                        // only an edge of fc1 and an edge of fc2 with the same geometry form a common edge. Different
+                        // edges between the same two vertices (e.g. a line in fc1 and an arc in fc2) are no intersection curve.
+                        List<Edge> common = Vertex.ConnectingEdges(v1, v2).ToList();
+                        List<Edge> inFc1 = common.Where(e => fc1.Edges.Contains(e)).ToList();
+                        List<Edge> inFc2 = common.Where(e => fc2.Edges.Contains(e)).ToList();
+                        if (inFc1.Any(e1 => inFc2.Any(e2 => SameEdge(e1, e2, precision))))
                         {
                             usedByCommonEdges.Add(v1);
                             usedByCommonEdges.Add(v2);
