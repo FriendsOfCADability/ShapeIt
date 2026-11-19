@@ -70,6 +70,11 @@
       "Comment": "added on 2026-09-12 and correct from the start: an oblique cylinder drilled right through a box, checked by GH, see the verified note in its baseline"
     },
     {
+      "Name": "DifferenceBug22",
+      "Status": "Ok",
+      "Comment": "added on 2026-11-19; threw in ReplaceOrAddFace because BooleanOperation.Result assigned one covering hole several times to the same outline. Fixed by assigning the holes from the biggest to the smallest"
+    },
+    {
       "Name": "UniteBug15",
       "Status": "Ok",
       "Operation": "Union",

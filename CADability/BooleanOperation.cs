@@ -2977,29 +2977,25 @@ namespace CADability
                 {
                     outlineToHoles[i] = new List<int>();
                 }
-                for (int i = numOutlines; i < areas.Length; i++) // for all holes, begin with the smallest
+                // Holes are at the end of loops2D, the biggest hole is the last one. We process the holes beginning with the biggest one.
+                // So a hole that covers other holes is always assigned before the holes it covers, and a covered hole only has to be skipped.
+                // (holes covering each other only occur with overlapping faces)
+                for (int i = areas.Length - 1; i >= numOutlines; --i) // for all holes, begin with the biggest
                 {
                     for (int j = numOutlines - 1; j >= 0; --j) // for all outlines, begin with the smallest outline
                     {
                         if (Border.IsInside(loops2D[j], loops2D[i][0].StartPoint))
-                        {   // this loop (i) is a potential hole for outline j. But we still need to check for holes covering each other
-                            // (holes covering each other only occurs with overlapping faces)
-                            bool doAdd = true;
+                        {   // outline j is the smallest outline enclosing hole i. Hole i belongs to outline j unless it lies inside a bigger hole of j
+                            bool covered = false;
                             for (int k = 0; k < outlineToHoles[j].Count; k++)
-                            {   // check the position of hole i to other holes of outline j
+                            {
                                 if (!Border.IsInside(loops2D[outlineToHoles[j][k]], loops2D[i][0].StartPoint)) // since loops2D[..] is a hole, !IsInside means inside the hole
-                                {   // the hole we ant to add is contained in another hole of this outline
-                                    // actually this never should happen, since we begin with the smalles hole and proceed with the bigger ones
-                                    doAdd = false;
-                                }
-                                else if (!Border.IsInside(loops2D[i], loops2D[outlineToHoles[j][k]][0].StartPoint))
-                                {
-                                    // this hole i covers another hole of this outline j
-                                    outlineToHoles[j][k] = i; // replace the covered hole by this covering hole
-                                    doAdd = false;
+                                {   // hole i is contained in a bigger hole of this outline: ignore it
+                                    covered = true;
+                                    break;
                                 }
                             }
-                            if (doAdd) outlineToHoles[j].Add(i); // this hole (i) has found its outline (j)
+                            if (!covered) outlineToHoles[j].Add(i); // this hole (i) has found its outline (j)
                             break;
                         }
                     }
