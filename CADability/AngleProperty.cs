@@ -153,17 +153,15 @@ namespace CADability.UserInterface
             }
             else
             {
-                object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
-                if (o is double dd)
+                try
                 {
-                    l = dd;
-                    success = true;
-                }
-                else
-                {
-                    l = 0.0;
-                    success = false;
-                }
+                    object o = Evaluator.Evaluate(text, Frame.Project.NamedValues.Table);
+                    if (o is double dd)
+                    {
+                        l = dd;
+                        success = true;
+                    }
+                } catch { }
             }
             if (success)
             {
