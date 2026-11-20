@@ -1477,7 +1477,8 @@ namespace ShapeIt
                 return true;
             };
             res.Add(makeCurves);
-            DirectMenuEntry makeFillet = new DirectMenuEntry("MenuId.Fillet"); // too bad, no icon yet, 
+            res.AddIfNotNull(GetExtendTangentiallyEntry(edges));
+            DirectMenuEntry makeFillet = new DirectMenuEntry("MenuId.Fillet"); // too bad, no icon yet,
             makeFillet.ExecuteMenu = (frame) =>
             {
                 cadFrame.ControlCenter.ShowPropertyPage("Action");
@@ -2751,6 +2752,38 @@ namespace ShapeIt
                 }
             }
         }
+        /// <summary>
+        /// A menu entry, which adds all edges that are tangentially connected to the provided <paramref name="edges"/>
+        /// to the current selection. Returns null, if there are no such edges.
+        /// </summary>
+        private DirectMenuEntry? GetExtendTangentiallyEntry(IEnumerable<Edge> edges)
+        {
+            HashSet<Edge> startEdges = new HashSet<Edge>(edges);
+            HashSet<Edge> tangentialEdges = Shell.TangentiallyConnectedEdges(startEdges);
+            tangentialEdges.UnionWith(Shell.ConnectedSameGeometryEdges(tangentialEdges)); // like a click on an edge selects the same geometry edges
+            if (tangentialEdges.IsSubsetOf(startEdges)) return null; // nothing to extend
+            GeoObjectList feedbackCurves = Helper.ThickCurvesFromEdges(tangentialEdges);
+            DirectMenuEntry extendTangentially = new DirectMenuEntry("MenuId.Edge.ExtendTangentially");
+            extendTangentially.ExecuteMenu = (frame) =>
+            {   // keep the current selection (there may also be faces or curves selected) and add the tangential edges
+                GeoObjectList newSelection = new GeoObjectList(currentlySelected);
+                foreach (Edge edge in tangentialEdges)
+                {
+                    if (edge.Curve3D is IGeoObject go && !currentlySelected.Contains(go)) newSelection.Add(go);
+                }
+                ComposeModellingEntries(newSelection, frame.ActiveView, null);
+                return true;
+            };
+            extendTangentially.IsSelected = (selected, frame) =>
+            {
+                feedback.Clear();
+                if (selected) feedback.ShadowFaces.AddRange(feedbackCurves);
+                feedback.Refresh();
+                return true;
+            };
+            return extendTangentially;
+        }
+
         private IPropertyEntry GetEdgeProperties(IView vw, Edge edg, Axis clickBeam)
         {
             if (edg.PrimaryFace == null || edg.SecondaryFace == null || !(edg.PrimaryFace.Owner is Shell)) return null;
@@ -2773,6 +2806,8 @@ namespace ShapeIt
                 return true;
             };
 
+            DirectMenuEntry? extendTangentially = GetExtendTangentiallyEntry(edges);
+            if (extendTangentially != null) edgeMenus.Add(extendTangentially);
 
             if (edg.Curve3D is Ellipse && (edg.PrimaryFace.Surface is CylindricalSurface || edg.SecondaryFace.Surface is CylindricalSurface
                 || edg.PrimaryFace.Surface is ConicalSurface || edg.SecondaryFace.Surface is ConicalSurface))

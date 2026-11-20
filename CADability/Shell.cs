@@ -6083,6 +6083,66 @@ namespace CADability.GeoObject
             return res;
         }
         /// <summary>
+        /// The provided <paramref name="edges"/> together with all edges that continue them tangentially: at a vertex,
+        /// an edge continues another edge if its direction pointing away from the vertex is opposite to the direction
+        /// of the other edge pointing away from the vertex. This is repeated with the found edges, so the result contains
+        /// the whole tangential chains. At each vertex only the best continuation is followed. Seams (edges connecting
+        /// the same surface) and poles are never part of a chain.
+        /// </summary>
+        /// <param name="edges">The edges to start with</param>
+        /// <param name="maxAngle">The maximum deviation from a tangential connection in radians</param>
+        /// <returns>The starting edges and the tangentially connected edges</returns>
+        public static HashSet<Edge> TangentiallyConnectedEdges(IEnumerable<Edge> edges, double maxAngle = 1e-2)
+        {
+            HashSet<Edge> res = new HashSet<Edge>(edges);
+            Queue<Edge> toIterate = new Queue<Edge>(res);
+            double minCos = Math.Cos(maxAngle);
+            while (toIterate.Count > 0)
+            {
+                Edge edge = toIterate.Dequeue();
+                foreach ((Vertex vtx, GeoVector dir) in DirectionsAwayFromVertices(edge))
+                {
+                    Edge best = null;
+                    double bestCos = minCos;
+                    foreach (Edge candidate in vtx.Edges)
+                    {
+                        if (candidate == edge || candidate.SecondaryFace == null) continue;
+                        if (candidate.ConnectsSameSurfaces()) continue; // a seam is no real edge
+                        foreach ((Vertex cvtx, GeoVector cdir) in DirectionsAwayFromVertices(candidate))
+                        {
+                            if (cvtx != vtx) continue;
+                            double cos = -(dir * cdir); // both are normalized, opposite directions are a tangential continuation
+                            if (cos > bestCos)
+                            {
+                                bestCos = cos;
+                                best = candidate;
+                            }
+                        }
+                    }
+                    if (best != null && res.Add(best)) toIterate.Enqueue(best);
+                }
+            }
+            return res;
+        }
+        /// <summary>
+        /// The vertices of <paramref name="edge"/> together with the normalized direction of the edge pointing away from
+        /// the respective vertex. A closed edge yields its only vertex twice, with the start and the reversed end direction.
+        /// </summary>
+        private static IEnumerable<(Vertex, GeoVector)> DirectionsAwayFromVertices(Edge edge)
+        {
+            if (edge.Curve3D == null) yield break;
+            if (edge.Vertex1 != null)
+            {
+                GeoVector dir = edge.Curve3D.StartDirection;
+                if (!dir.IsNullVector()) yield return (edge.Vertex1, dir.Normalized);
+            }
+            if (edge.Vertex2 != null)
+            {
+                GeoVector dir = -edge.Curve3D.EndDirection;
+                if (!dir.IsNullVector()) yield return (edge.Vertex2, dir.Normalized);
+            }
+        }
+        /// <summary>
         /// Collect all faces which are connected to the provided <paramref name="faces"/> and are part of the same surface geometry 
         /// (like two halves of a cylinder, which are connected by a "seam" edge)
         /// </summary>

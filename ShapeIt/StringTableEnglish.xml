@@ -371,6 +371,10 @@
 		<label>Convert edges to curves</label>
 		<info>Convert the edges to curves and add them to the project.</info>
 	</data>
+	<data name="MenuId.Edge.ExtendTangentially">
+		<label>Extend tangentially</label>
+		<info>Add all edges that are tangentially connected to this edge to the selection.</info>
+	</data>
 	<data name="MenuId.offsetSolid">
 		<label>Offset solid</label>
 		<info>Expand or shrink the solid by a distance in all directions.</info>
