@@ -83,7 +83,7 @@ namespace CADability.GeoObject
     /// <summary>
     /// A base implementation of ICurve
     /// </summary>
-    public abstract class GeneralCurve : IGeoObjectImpl, IColorDef, ICurve, ILineWidth, ILinePattern
+    public abstract class GeneralCurve : IGeoObjectImpl, IColorDef, ICurve, ILineWidth, ILinePattern, IExportStep
     {
         [Serializable]
         private class ProjectedCurve : GeneralCurve2D, ISerializable
@@ -956,6 +956,23 @@ namespace CADability.GeoObject
             info.AddValue("LineWidth", lineWidth);
             info.AddValue("LinePattern", linePattern);
         }
+        #region IExportStep Members
+        /// <summary>
+        /// Approximates this curve by a BSpline with the given precision. The parameter of the BSpline is the position
+        /// of this curve (0 to 1). Derived classes may override this with a better suited approximation.
+        /// </summary>
+        /// <param name="precision">the maximum deviation of the BSpline from this curve, 0.0: a small fraction of its extent</param>
+        /// <returns>the approximating BSpline</returns>
+        public virtual BSpline ToBSpline(double precision)
+        {
+            if (precision < 0.0) precision = 0.0;
+            return BSpline.Approximate(PointAt, precision);
+        }
+        int IExportStep.Export(ExportStep export, bool topLevel)
+        {   // STEP has no entities for the curves derived from GeneralCurve, so they are exported as approximating BSplines
+            return (ToBSpline(export.Precision) as IExportStep).Export(export, topLevel);
+        }
+        #endregion
         #region ILineWidth Members
         private LineWidth lineWidth;
         public LineWidth LineWidth

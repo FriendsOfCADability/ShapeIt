@@ -2389,7 +2389,7 @@ namespace CADability.GeoObject
     /// <summary>
     /// Internal helper class for <see cref="ISurface"/> implementation.
     /// </summary>
-    public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable, IJsonSerialize
+    public abstract class ISurfaceImpl : ISurface, IOctTreeInsertable, IJsonSerialize, IExportStep
     {
         protected GeoPoint2D[] extrema; // Achtung, muss bei Modify auf null gesetzt werden
         protected BoundingRect domain = BoundingRect.EmptyBoundingRect;
@@ -3234,17 +3234,155 @@ namespace CADability.GeoObject
             throw new NotImplementedException("CopyData must be implemented by derived surface");
         }
         /// <summary>
-        /// Implements <see cref="CADability.GeoObject.ISurface.Approximate (double, double, double, double, double)"/>
+        /// Implements <see cref="CADability.GeoObject.ISurface.Approximate (double, double, double, double, double)"/>.
+        /// The surface is interpolated by a bicubic BSpline surface (tensor product) through a grid of surface points. The
+        /// interpolation parameters are the uv values of the grid points, so the NURBS surface has the same uv system as
+        /// this surface in the rectangle (umin, vmin)-(umax, vmax) and the deviation is checked by comparing the points of
+        /// both surfaces at the same uv positions (the midpoints of the grid cells and edges). An interval of the grid,
+        /// where the deviation is larger than <paramref name="precision"/>, is split into as many parts as the error
+        /// order of cubic interpolation (h^4) predicts to be necessary, until the precision is reached or the grid gets
+        /// too large.
         /// </summary>
-        /// <param name="umin"></param>
-        /// <param name="umax"></param>
-        /// <param name="vmin"></param>
-        /// <param name="vmax"></param>
-        /// <param name="precision"></param>
-        /// <returns></returns>
+        /// <param name="umin">the minimal u value</param>
+        /// <param name="umax">the maximal u value</param>
+        /// <param name="vmin">the minimal v value</param>
+        /// <param name="vmax">the maximal v value</param>
+        /// <param name="precision">the maximum deviation, 0.0: a small fraction of the extent of the surface</param>
+        /// <returns>the approximating NURBS surface, null if the rectangle is empty or infinite</returns>
         public virtual NurbsSurface Approximate(double umin, double umax, double vmin, double vmax, double precision)
         {
-            throw new NotImplementedException();
+            if (!(umax > umin) || !(vmax > vmin)) return null;
+            if (double.IsInfinity(umax - umin) || double.IsInfinity(vmax - vmin)) return null;
+            const int initialIntervals = 8;
+            const int maxIntervals = 400; // per direction, avoids absurd surfaces, there the precision may not be reached
+            const int maxSplit = 16; // the h^4 prediction is not reliable at kinks or with very large deviations
+            Dictionary<(double, double), GeoPoint> samples = new Dictionary<(double, double), GeoPoint>();
+            GeoPoint Sample(double u, double v)
+            {
+                if (!samples.TryGetValue((u, v), out GeoPoint p)) samples[(u, v)] = p = PointAt(new GeoPoint2D(u, v));
+                return p;
+            }
+            List<double> us = new List<double>(), vs = new List<double>();
+            for (int i = 0; i <= initialIntervals; i++)
+            {
+                us.Add(i == initialIntervals ? umax : umin + i * (umax - umin) / initialIntervals);
+                vs.Add(i == initialIntervals ? vmax : vmin + i * (vmax - vmin) / initialIntervals);
+            }
+            if (precision <= 0.0)
+            {
+                BoundingBox ext = BoundingBox.EmptyBoundingBox;
+                foreach (double u in us) foreach (double v in vs) ext.MinMax(Sample(u, v));
+                precision = ext.Size * 1e-6;
+                if (precision <= 0.0) precision = Precision.eps; // all points coincide
+            }
+            while (true)
+            {
+                NurbsSurface res = InterpolateGrid(us, vs, Sample);
+                // The largest deviation in each u interval and in each v interval. On a grid line v=vs[j] the tensor product
+                // is the interpolation of the grid points of that line, so the deviation at (um, vs[j]) is the pure
+                // interpolation error in u direction, and vice versa. The deviation in the middle of a cell combines both
+                // and is only used, when the grid lines are precise enough.
+                double[] uError = new double[us.Count - 1], vError = new double[vs.Count - 1];
+                double[] uCellError = new double[us.Count - 1], vCellError = new double[vs.Count - 1];
+                for (int i = 0; i < us.Count; i++)
+                {
+                    double um = i < us.Count - 1 ? (us[i] + us[i + 1]) / 2.0 : double.NaN;
+                    for (int j = 0; j < vs.Count; j++)
+                    {
+                        double vm = j < vs.Count - 1 ? (vs[j] + vs[j + 1]) / 2.0 : double.NaN;
+                        if (!double.IsNaN(um))
+                        {
+                            double d = res.PointAt(new GeoPoint2D(um, vs[j])) | Sample(um, vs[j]);
+                            uError[i] = Math.Max(uError[i], d);
+                        }
+                        if (!double.IsNaN(vm))
+                        {
+                            double d = res.PointAt(new GeoPoint2D(us[i], vm)) | Sample(us[i], vm);
+                            vError[j] = Math.Max(vError[j], d);
+                        }
+                        if (!double.IsNaN(um) && !double.IsNaN(vm))
+                        {
+                            double d = res.PointAt(new GeoPoint2D(um, vm)) | Sample(um, vm);
+                            uCellError[i] = Math.Max(uCellError[i], d);
+                            vCellError[j] = Math.Max(vCellError[j], d);
+                        }
+                    }
+                }
+                List<double> refinedU = Refine(us, uError), refinedV = Refine(vs, vError);
+                if (refinedU.Count == us.Count && refinedV.Count == vs.Count)
+                {   // the grid lines are precise enough, check the middle of the cells
+                    refinedU = Refine(us, uCellError);
+                    refinedV = Refine(vs, vCellError);
+                }
+                if (refinedU.Count == us.Count && refinedV.Count == vs.Count) return res; // precise enough
+                if (refinedU.Count > maxIntervals + 1 || refinedV.Count > maxIntervals + 1) return res; // give up refining
+                us = refinedU;
+                vs = refinedV;
+            }
+
+            List<double> Refine(List<double> parameters, double[] errors)
+            {
+                List<double> refined = new List<double> { parameters[0] };
+                for (int i = 0; i < errors.Length; i++)
+                {
+                    if (errors[i] > precision)
+                    {
+                        int parts = (int)Math.Ceiling(Math.Pow(errors[i] / precision, 0.25));
+                        parts = Math.Min(Math.Max(parts, 2), maxSplit);
+                        for (int k = 1; k < parts; k++) refined.Add(parameters[i] + k * (parameters[i + 1] - parameters[i]) / parts);
+                    }
+                    refined.Add(parameters[i + 1]);
+                }
+                return refined;
+            }
+        }
+        /// <summary>
+        /// The bicubic BSpline surface (lower degree for very few points), which interpolates the points of
+        /// <paramref name="sample"/> at the grid <paramref name="us"/> x <paramref name="vs"/> with these uv values as parameters.
+        /// </summary>
+        private static NurbsSurface InterpolateGrid(List<double> us, List<double> vs, Func<double, double, GeoPoint> sample)
+        {
+            int udegree = Math.Min(3, us.Count - 1), vdegree = Math.Min(3, vs.Count - 1);
+            // first interpolate in u direction for each v, then interpolate these poles in v direction (NURBS book, 9.2.5)
+            GeoPoint[,] rowPoles = new GeoPoint[us.Count, vs.Count];
+            double[] uKnots = null, vKnots = null;
+            for (int j = 0; j < vs.Count; j++)
+            {
+                GeoPoint[] row = new GeoPoint[us.Count];
+                for (int i = 0; i < us.Count; i++) row[i] = sample(us[i], vs[j]);
+                Nurbs<GeoPoint, GeoPointPole> nu = new Nurbs<GeoPoint, GeoPointPole>(row, us, udegree);
+                GeoPoint[] p = nu.Poles;
+                for (int i = 0; i < us.Count; i++) rowPoles[i, j] = p[i];
+                uKnots ??= nu.UKnots; // the same for all rows, it depends only on the parameters
+            }
+            GeoPoint[,] poles = new GeoPoint[us.Count, vs.Count];
+            for (int i = 0; i < us.Count; i++)
+            {
+                GeoPoint[] column = new GeoPoint[vs.Count];
+                for (int j = 0; j < vs.Count; j++) column[j] = rowPoles[i, j];
+                Nurbs<GeoPoint, GeoPointPole> nv = new Nurbs<GeoPoint, GeoPointPole>(column, vs, vdegree);
+                GeoPoint[] p = nv.Poles;
+                for (int j = 0; j < vs.Count; j++) poles[i, j] = p[j];
+                vKnots ??= nv.UKnots;
+            }
+            return new NurbsSurface(poles, null, uKnots, vKnots, udegree, vdegree, false, false);
+        }
+        /// <summary>
+        /// Surfaces which have no entity in STEP are exported as an approximating NURBS surface over their
+        /// <see cref="Domain"/>, see <see cref="Approximate(double, double, double, double, double)"/>. The NURBS surface
+        /// has the same uv system and orientation as this surface.
+        /// </summary>
+        int IExportStep.Export(ExportStep export, bool topLevel)
+        {
+            BoundingRect area = Domain;
+            if (!HasDomain)
+            {
+                GetNaturalBounds(out double umin, out double umax, out double vmin, out double vmax);
+                area = new BoundingRect(umin, vmin, umax, vmax);
+            }
+            NurbsSurface ns = Approximate(area.Left, area.Right, area.Bottom, area.Top, export.Precision);
+            if (ns == null) throw new InvalidOperationException($"STEP export: {GetType().Name} has no bounded domain to approximate");
+            return (ns as IExportStep).Export(export, topLevel);
         }
         /// <summary>
         /// Implements <see cref="CADability.GeoObject.ISurface.GetProjectedCurve (ICurve, double)"/>

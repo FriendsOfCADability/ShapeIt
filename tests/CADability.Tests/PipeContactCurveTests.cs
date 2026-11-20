@@ -142,5 +142,33 @@ namespace CADability.Tests
             Assert.AreEqual(0.0, reversed.PointAt(0.25) | curve.PointAt(0.75), 1e-12, "reversed");
             Assert.IsTrue(reversed.SameGeometry(curve, Precision.eps), "same geometry");
         }
+
+        /// <summary>
+        /// STEP has no entity for the curves derived from <see cref="GeneralCurve"/>, they are exported as approximating
+        /// BSplines. Checked with the curve of contact and with a curve of constant v on the pipe.
+        /// </summary>
+        [TestMethod]
+        public void general_curves_are_exported_to_step_as_bsplines()
+        {
+            ICurve spine = WavySpine();
+            PlaneSurface plane = new PlaneSurface(Plane.XYPlane);
+            GeoPoint onPlane(GeoPoint s) => new GeoPoint(s.x, s.y, s.z - radius);
+            ICurve contact = Contact(plane, spine, onPlane).Curve3D;
+            ICurve fixedV = new SweptCircleSurface(spine, radius).FixedV(0.3, 0.0, 1.0);
+            Assert.IsInstanceOfType(fixedV, typeof(GeneralCurve));
+            foreach (ICurve curve in new[] { contact, fixedV })
+            {
+                BSpline bsp = (curve as GeneralCurve)!.ToBSpline(1e-6);
+                for (int i = 0; i <= 50; i++)
+                {
+                    GeoPoint p = curve.PointAt(i / 50.0);
+                    Assert.AreEqual(0.0, (bsp as ICurve).DistanceTo(p), 2e-6, $"{curve.GetType().Name} at {i / 50.0}");
+                }
+                Project pr = Project.CreateSimpleProject();
+                pr.GetActiveModel().Add(curve as IGeoObject);
+                string step = System.Text.Encoding.UTF8.GetString(new ExportStep().WriteToByteArray(pr));
+                Assert.IsTrue(step.Contains("B_SPLINE_CURVE"), $"{curve.GetType().Name} is exported as a BSpline");
+            }
+        }
     }
 }

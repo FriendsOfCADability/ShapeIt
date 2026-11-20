@@ -31,7 +31,7 @@ namespace CADability
     /// </summary>
     [Serializable()]
     [JsonVersion(1)]
-    public class InterpolatedDualSurfaceCurve : GeneralCurve, IDualSurfaceCurve, IJsonSerialize, IExportStep, IJsonSerializeDone, IOrientation
+    public class InterpolatedDualSurfaceCurve : GeneralCurve, IDualSurfaceCurve, IJsonSerialize, IJsonSerializeDone, IOrientation
     {
         ISurface surface1; // the two surfaces
         ISurface surface2;
@@ -714,7 +714,7 @@ namespace CADability
             c2trimmed = c2.OnTrimmedCurve(res);
             return res;
         }
-        public BSpline ToBSpline(double precision)
+        public override BSpline ToBSpline(double precision)
         {   // better than through the base points. A copy: the spline is shared with the clones of this curve, and the
             // caller may modify what it gets - Edge.UpdateInterpolatedDualSurfaceCurve for instance makes it the curve of an edge.
             return ApproxBSpline.Clone() as BSpline;
@@ -2334,11 +2334,6 @@ namespace CADability
             DualSurfaceCurveDiagnostics.EndConstruction(probe, surface1, surface2, basePoints, isTangential,
                 "JSON deserialization, type version " + jsonSerialize.GetTypeVersion(this.GetType()).ToString());
         }
-        int IExportStep.Export(ExportStep export, bool topLevel)
-        {
-            return (ToBSpline(export.Precision) as IExportStep).Export(export, topLevel);
-        }
-
         IDualSurfaceCurve[] IDualSurfaceCurve.Split(double v)
         {
             ICurve[] crvs = (this as ICurve).Split(v);

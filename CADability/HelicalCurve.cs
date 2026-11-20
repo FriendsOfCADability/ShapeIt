@@ -24,7 +24,7 @@ namespace CADability.GeoObject
     /// </summary>
     [Serializable()]
     [JsonVersion(1)]
-    public class HelicalCurve : GeneralCurve, ISerializable, IJsonSerialize, IExportStep
+    public class HelicalCurve : GeneralCurve, ISerializable, IJsonSerialize
     {
         private Plane plane; // location: point on the axis, normal: direction of the axis, x-axis: reference for the angle 0
         private double radius; // distance from the axis, always >= 0
@@ -654,7 +654,7 @@ namespace CADability.GeoObject
         /// </summary>
         /// <param name="precision">the maximum deviation of the BSpline from this curve</param>
         /// <returns>the approximating BSpline</returns>
-        public BSpline ToBSpline(double precision)
+        public override BSpline ToBSpline(double precision)
         {
             if (precision <= 0.0) precision = Precision.eps;
             // the interpolation error of a cubic spline through the points of a circle with the radius r and the
@@ -674,10 +674,6 @@ namespace CADability.GeoObject
             BSpline res = BSpline.Construct();
             if (!res.ThroughPoints(points, 3, false)) res.ThroughPoints(points, 1, false);
             return res;
-        }
-        int IExportStep.Export(ExportStep export, bool topLevel)
-        {   // STEP has no entity for a helix, so it is exported as an approximating BSpline
-            return (ToBSpline(export.Precision) as IExportStep).Export(export, topLevel);
         }
         #endregion
 
