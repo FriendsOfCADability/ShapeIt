@@ -86,7 +86,9 @@ namespace CADability.GeoObject
             Dictionary<Vertex, List<Edge>> vertexToConvexEdges = createVertexToEdges(convexEdges);
             Dictionary<Vertex, List<Edge>> vertexToConcaveEdges = createVertexToEdges(concaveEdges);
             // at the dead ends the fillets must reach beyond the vertex, so that trimming them with the ending face closes the gap
-            ExtendCuttersAtDeadEnds(vertexToConvexEdges.Concat(vertexToConcaveEdges));
+            Dictionary<Edge, Dictionary<Vertex, double>> deadEndExtensions = ExtendCuttersAtDeadEnds(vertexToConvexEdges.Concat(vertexToConcaveEdges));
+            // fillets which continue each other tangentially with an oblique tangent edge are made as one cutter
+            BuildChainCutters(FindTangentJunctions(vertexToConvexEdges.Concat(vertexToConcaveEdges)), deadEndExtensions);
 
             List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
             List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
@@ -539,6 +541,83 @@ namespace CADability.GeoObject
         /// </summary>
         private Shell? MakeExtendedFilletShell(Edge edgeToRound, double radius, bool convex, double extendStart, double extendEnd)
         {
+            FilletPiece? piece = MakeFilletPiece(edgeToRound, radius, convex, extendStart, extendEnd, null);
+            if (piece == null) return null;
+            Shell[] sf = Make3D.SewFaces(piece.Faces.ToArray());
+            Shell? res = (sf != null && sf.Length > 0) ? sf[0] : null;
+            piece.Tag(extendStart > 0.0, extendEnd > 0.0);
+            if (res != null && !piece.Extended) AddHints(res, [piece]);
+#if DEBUG
+            bool? ok = res?.CheckConsistency();
+#endif
+            return res;
+        }
+
+        /// <summary>
+        /// The faces of the fillet of one edge, not yet sewn together, and what is known about them: which of their curves
+        /// lie in which face of the shell to be rounded (hints for the <see cref="BooleanOperation"/>).
+        /// </summary>
+        private class FilletPiece
+        {
+            public Edge Edge = null!;
+            public List<Face> Faces = [];
+            public Face SweptFace = null!;
+            public Face? LeftEndFace, RightEndFace; // null where the fillet runs out or ends in a tangential junction
+            public bool Extended;
+            /// <summary>curves which lie in a face of the shell, in the order of their priority (a later one overrides an earlier one)</summary>
+            public List<(ICurve curve, Face shellFace, Face cutterFace)> LiesInFace = [];
+            /// <summary>curves which end in the two faces of the edge</summary>
+            public List<ICurve> EndsInFaces = [];
+
+            public void Tag(bool extendedStart, bool extendedEnd)
+            {
+                RightEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
+                LeftEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface");
+                if (extendedStart) LeftEndFace?.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
+                if (extendedEnd) RightEndFace?.UserData.Add("CADability.Cutter.Extended", "extended");
+                SweptFace.UserData.Add("CADability.Cutter.SweptFace", "sweptface");
+            }
+        }
+
+        /// <summary>
+        /// The edges play a role in the BooleanOperation, so we store which edge of <paramref name="cutter"/> lies or ends
+        /// in which face: the BooleanOperation doesn't need to calculate intersections which are already known.
+        /// </summary>
+        private static void AddHints(Shell cutter, IEnumerable<FilletPiece> pieces)
+        {
+            Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace = [];
+            Dictionary<Edge, HashSet<Face>> edgeEndsInFace = [];
+            foreach (Edge edg in cutter.Edges)
+            {
+                if (edg.Curve3D == null) continue;
+                foreach (FilletPiece piece in pieces)
+                {
+                    foreach ((ICurve curve, Face shellFace, Face cutterFace) in piece.LiesInFace)
+                    {
+                        if (edg.Curve3D.SameGeometry(curve, Precision.eps)) edgeLiesInFace[edg] = (shellFace, edg.Forward(cutterFace));
+                    }
+                    foreach (ICurve curve in piece.EndsInFaces)
+                    {
+                        if (edg.Curve3D.SameGeometry(curve, Precision.eps)) edgeEndsInFace[edg] = [piece.Edge.PrimaryFace, piece.Edge.SecondaryFace];
+                    }
+                }
+            }
+            cutter.UserData.Add("CADability.Cutter.EdgeLiesInFace", edgeLiesInFace);
+            cutter.UserData.Add("CADability.Cutter.EdgeEndsInFace", edgeEndsInFace);
+        }
+
+        /// <summary>
+        /// The faces of the fillet of <paramref name="edgeToRound"/>, see <see cref="MakeExtendedFilletShell"/>. At the vertices
+        /// of the <paramref name="junctions"/> the fillet does not get an end face: it ends in the cross section of the ball
+        /// common to both fillets of the junction, and its faces on the shell end in the tangent edge or in the curve from
+        /// the vertex to the contact point on the common face (see <see cref="TangentJunction"/>). The faces of the fillets
+        /// of a chain then fit together without any end faces in between.
+        /// </summary>
+        private FilletPiece? MakeFilletPiece(Edge edgeToRound, double radius, bool convex, double extendStart, double extendEnd,
+            IEnumerable<TangentJunction>? junctions)
+        {
+            TangentJunction? leftJunction = junctions?.FirstOrDefault(j => j.Vertex == edgeToRound.StartVertex(edgeToRound.PrimaryFace));
+            TangentJunction? rightJunction = junctions?.FirstOrDefault(j => j.Vertex == edgeToRound.EndVertex(edgeToRound.PrimaryFace));
             /* Zum Weitermachen:
              * Die Spine Kurve für die SweptCircleSurface Fläche entsteht natürlich aus dem Schnitt der beiden Offset Flächen.
              * Aber wie lang soll die werden?
@@ -595,14 +674,21 @@ namespace CADability.GeoObject
             // on the face below them), the fillet runs out in a point: the ball touches both faces in the end point of the edge.
             // There the spine point is known directly (the offset surfaces touch each other there, so the foot point
             // iteration does not converge), and there is no end face.
-            bool runsOutLeft = RunsOutAt(edgeToRound, leadingEdge.StartPoint, out GeoVector normalLeft);
-            bool runsOutRight = RunsOutAt(edgeToRound, leadingEdge.EndPoint, out GeoVector normalRight);
+            GeoVector normalLeft = GeoVector.NullVector, normalRight = GeoVector.NullVector;
+            bool runsOutLeft = leftJunction == null && RunsOutAt(edgeToRound, leadingEdge.StartPoint, out normalLeft);
+            bool runsOutRight = rightJunction == null && RunsOutAt(edgeToRound, leadingEdge.EndPoint, out normalRight);
             if (runsOutLeft && runsOutRight) return null; // no fillet at all, or the edge is tangential somewhere in between
             double towardsSpine = convex ? -radius : radius; // the normals point outward
             GeoPoint2D uv11 = topOffset.PositionOf(leadingEdge.StartPoint); // start values for TryFootPointOnIntersectionCurveLM
             GeoPoint2D uv12 = bottomOffset.PositionOf(leadingEdge.StartPoint);
             GeoPoint fp;
-            if (runsOutLeft)
+            if (leftJunction != null)
+            {   // the spine ends in the center of the ball common to both fillets of the junction
+                filletAxisLeft = leftJunction.Center;
+                uv11 = topOffset.PositionOf(filletAxisLeft);
+                uv12 = bottomOffset.PositionOf(filletAxisLeft);
+            }
+            else if (runsOutLeft)
             {
                 filletAxisLeft = leadingEdge.StartPoint + towardsSpine * normalLeft;
                 uv11 = topOffset.PositionOf(filletAxisLeft);
@@ -615,7 +701,13 @@ namespace CADability.GeoObject
             else return null; // maybe we should try with a better start point
             GeoPoint2D uv21 = topOffset.PositionOf(leadingEdge.EndPoint); // start values for TryFootPointOnIntersectionCurveLM
             GeoPoint2D uv22 = bottomOffset.PositionOf(leadingEdge.EndPoint);
-            if (runsOutRight)
+            if (rightJunction != null)
+            {
+                filletAxisRight = rightJunction.Center;
+                uv21 = topOffset.PositionOf(filletAxisRight);
+                uv22 = bottomOffset.PositionOf(filletAxisRight);
+            }
+            else if (runsOutRight)
             {
                 filletAxisRight = leadingEdge.EndPoint + towardsSpine * normalRight;
                 uv21 = topOffset.PositionOf(filletAxisRight);
@@ -629,6 +721,11 @@ namespace CADability.GeoObject
             // the four points lt, lb, rt, rb are the vertices of the swept circle face (two of them coincide where the fillet runs out)
             GeoPoint lb, lt;
             if (runsOutLeft) lt = lb = leadingEdge.StartPoint;
+            else if (leftJunction != null)
+            {   // the exact contact points, the tangent edge and the curve on the common face end there
+                lt = leftJunction.ContactPoint(edgeToRound.PrimaryFace);
+                lb = leftJunction.ContactPoint(edgeToRound.SecondaryFace);
+            }
             else
             {
                 lt = FootPoint(edgeToRound.PrimaryFace.Surface, filletAxisLeft);
@@ -637,6 +734,11 @@ namespace CADability.GeoObject
             if (!lb.IsValid || !lt.IsValid) return null;
             GeoPoint rb, rt; // FootPoint is more precise than FindTangentialIntersectionPoint
             if (runsOutRight) rt = rb = leadingEdge.EndPoint;
+            else if (rightJunction != null)
+            {
+                rt = rightJunction.ContactPoint(edgeToRound.PrimaryFace);
+                rb = rightJunction.ContactPoint(edgeToRound.SecondaryFace);
+            }
             else
             {
                 rt = FootPoint(edgeToRound.PrimaryFace.Surface, filletAxisRight);
@@ -823,7 +925,13 @@ namespace CADability.GeoObject
             // Now we want to construct the right end face of the rounding wedge. All edges are forward on the swept circle, i.e. Vertex1 and Vertex2 are start and endpoints.
             // The swept circle points to the outward.
             ICurve? topRight = null, topLeft = null, bottomRight = null, bottomLeft = null;
-            if (rightPlane != null && lid2crv3 != null)
+            if (rightJunction != null)
+            {   // no end face: the faces on the shell end in the tangent edge or the curve on the common face
+                topRight = rightJunction.SideCurve(edgeToRound.PrimaryFace, leadingEdge.EndPoint, rt);
+                bottomRight = rightJunction.SideCurve(edgeToRound.SecondaryFace, rb, leadingEdge.EndPoint);
+                if (topRight == null || bottomRight == null) return null;
+            }
+            else if (rightPlane != null && lid2crv3 != null)
             {
                 IDualSurfaceCurve[] dsctr = rightPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, topFaceDomain, [leadingEdge.EndPoint, lid2crv3.StartPoint], null);
                 topRight = dsctr.MinBy(dsc => dsc.Curve3D.DistanceTo(leadingEdge.EndPoint) + dsc.Curve3D.DistanceTo(lid2crv3.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
@@ -834,7 +942,13 @@ namespace CADability.GeoObject
                 bottomRight = dscbr.MinBy(dsc => dsc.Curve3D.DistanceTo(lid2crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.EndPoint))?.Curve3D; // when there are more, take the shortest
                 bottomRight?.Trim(bottomRight.PositionOf(lid2crv3.EndPoint), bottomRight.PositionOf(leadingEdge.EndPoint));
             }
-            if (leftPlane != null && lid1crv3 != null)
+            if (leftJunction != null)
+            {
+                topLeft = leftJunction.SideCurve(edgeToRound.PrimaryFace, lt, leadingEdge.StartPoint);
+                bottomLeft = leftJunction.SideCurve(edgeToRound.SecondaryFace, leadingEdge.StartPoint, lb);
+                if (topLeft == null || bottomLeft == null) return null;
+            }
+            else if (leftPlane != null && lid1crv3 != null)
             {
                 IDualSurfaceCurve[] dsctl = leftPlane.GetDualSurfaceCurves(plnBounds, edgeToRound.PrimaryFace.Surface, topFaceDomain, [lid1crv3.EndPoint, leadingEdge.StartPoint], null);
                 topLeft = dsctl.MinBy(dsc => dsc.Curve3D.DistanceTo(lid1crv3.EndPoint) + dsc.Curve3D.DistanceTo(leadingEdge.StartPoint))?.Curve3D; // when there are more, take the one closest to the endpoints
@@ -848,41 +962,205 @@ namespace CADability.GeoObject
             Face topFace = Face.MakeFace(topSurface, new ICurve?[] { topRight, topCurve, topLeft, leadingEdge }.OfType<ICurve>().ToArray());
             Face bottomFace = Face.MakeFace(bottomSurface, new ICurve?[] { bottomRight, bottomCurve, bottomLeft, leadingEdge }.OfType<ICurve>().ToArray());
 
-            List<Face> cutterFaces = [sweptFace, topFace, bottomFace];
-            Face? rightEndFace = null, leftEndFace = null;
-            if (rightPlane != null) cutterFaces.Add(rightEndFace = Face.MakeFace(rightPlane, [lid2crv3, topRight, bottomRight]));
-            if (leftPlane != null) cutterFaces.Add(leftEndFace = Face.MakeFace(leftPlane, [lid1crv3, topLeft, bottomLeft]));
-            Shell[] sf = Make3D.SewFaces(cutterFaces.ToArray());
-            Shell? res = (sf != null && sf.Length > 0) ? sf[0] : null;
-            rightEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
-            leftEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface");
-            if (extendStart > 0.0) leftEndFace?.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
-            if (extendEnd > 0.0) rightEndFace?.UserData.Add("CADability.Cutter.Extended", "extended");
-            sweptFace.UserData.Add("CADability.Cutter.SweptFace", "sweptface");
-            if (res != null && !extended)
-            {   // the edges play a role in the BooleanOperation, so we store which edge lies or ends in which face
-                // BooleanOperation doesn't need to calculate intersections which are already known
-                Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace = [];
-                Dictionary<Edge, HashSet<Face>> edgeEndsInFace = [];
-                foreach (Edge edg in res.Edges)
+            FilletPiece piece = new FilletPiece { Edge = edgeToRound, SweptFace = sweptFace, Extended = extended };
+            piece.Faces.AddRange([sweptFace, topFace, bottomFace]);
+            if (rightPlane != null && rightJunction == null) piece.Faces.Add(piece.RightEndFace = Face.MakeFace(rightPlane, [lid2crv3, topRight, bottomRight]));
+            if (leftPlane != null && leftJunction == null) piece.Faces.Add(piece.LeftEndFace = Face.MakeFace(leftPlane, [lid1crv3, topLeft, bottomLeft]));
+            // the hints for the BooleanOperation, in the order of their priority. The tangent edge of a junction coincides
+            // with an edge of the shell, it gets no hint
+            bool isHint(ICurve? curve, TangentJunction? junction) => curve != null && (junction == null || !junction.IsTangentSegment(curve));
+            if (topCurve != null) piece.LiesInFace.Add((topCurve, edgeToRound.PrimaryFace, topFace));
+            if (isHint(topRight, rightJunction)) piece.LiesInFace.Add((topRight!, edgeToRound.PrimaryFace, topFace));
+            if (isHint(topLeft, leftJunction)) piece.LiesInFace.Add((topLeft!, edgeToRound.PrimaryFace, topFace));
+            if (bottomCurve != null) piece.LiesInFace.Add((bottomCurve, edgeToRound.SecondaryFace, bottomFace));
+            if (isHint(bottomRight, rightJunction)) piece.LiesInFace.Add((bottomRight!, edgeToRound.SecondaryFace, bottomFace));
+            if (isHint(bottomLeft, leftJunction)) piece.LiesInFace.Add((bottomLeft!, edgeToRound.SecondaryFace, bottomFace));
+            if (lid1crv3 != null && leftJunction == null) piece.EndsInFaces.Add(lid1crv3);
+            if (lid2crv3 != null && rightJunction == null) piece.EndsInFaces.Add(lid2crv3);
+            return piece;
+        }
+
+        /// <summary>
+        /// A vertex where two fillets continue each other tangentially: the two edges have a common face, and their other
+        /// faces are tangential along a third edge, the tangent edge. The ball which touches the common face and the tangent
+        /// edge belongs to both fillets, its cross section is where the swept faces of the two fillets meet. When the tangent
+        /// edge is not perpendicular to the common face, this cross section is not the plane through the vertex perpendicular
+        /// to the spines, where the fillets end otherwise: there would be a gap on one side and an overlap on the other,
+        /// and no planar end of the fillets can fit, since the faces of the shell change along the (oblique) tangent edge.
+        /// Therefore the fillets of such a chain are made as one cutter (see <see cref="BuildChainCutters"/>): the faces
+        /// of the fillets on the shell end in the tangent edge (from the vertex to the contact point of the ball) and in a
+        /// curve on the common face (from the vertex to the other contact point), the swept faces end in the arc of the
+        /// common ball. There are no end faces in between.
+        /// </summary>
+        private class TangentJunction
+        {
+            public Vertex Vertex = null!;
+            public Edge[] Edges = null!;
+            public Face CommonFace = null!;
+            public GeoPoint Center; // center of the common ball
+            public GeoPoint OnCommonFace, OnTangentEdge; // where the ball touches the common face and the tangent edge
+            public ICurve TangentSegment = null!; // the part of the tangent edge from the vertex to OnTangentEdge
+            private ICurve? onCommonFaceCurve; // from the vertex to OnCommonFace, made once, so that both fillets use the same curve
+
+            /// <summary>Where the common ball touches <paramref name="face"/>, a face of one of the edges.</summary>
+            public GeoPoint ContactPoint(Face face) => face == CommonFace ? OnCommonFace : OnTangentEdge;
+
+            /// <summary>
+            /// The curve on <paramref name="face"/> (a face of one of the edges) from <paramref name="from"/> to
+            /// <paramref name="to"/>, which are the vertex and the contact point in either order: the tangent segment on the
+            /// side faces, a curve on the common face.
+            /// </summary>
+            public ICurve? SideCurve(Face face, GeoPoint from, GeoPoint to)
+            {
+                ICurve? res;
+                if (face == CommonFace)
                 {
-                    if (edg.Curve3D == null) continue;
-                    if (edg.Curve3D.SameGeometry(topCurve, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.PrimaryFace, edg.Forward(topFace));
-                    if (topRight != null && edg.Curve3D.SameGeometry(topRight, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.PrimaryFace, edg.Forward(topFace));
-                    if (topLeft != null && edg.Curve3D.SameGeometry(topLeft, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.PrimaryFace, edg.Forward(topFace));
-                    if (edg.Curve3D.SameGeometry(bottomCurve, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.SecondaryFace, edg.Forward(bottomFace));
-                    if (bottomRight != null && edg.Curve3D.SameGeometry(bottomRight, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.SecondaryFace, edg.Forward(bottomFace));
-                    if (bottomLeft != null && edg.Curve3D.SameGeometry(bottomLeft, Precision.eps)) edgeLiesInFace[edg] = (edgeToRound.SecondaryFace, edg.Forward(bottomFace));
-                    if (lid1crv3 != null && edg.Curve3D.SameGeometry(lid1crv3, Precision.eps)) edgeEndsInFace[edg] = [edgeToRound.PrimaryFace, edgeToRound.SecondaryFace];
-                    if (lid2crv3 != null && edg.Curve3D.SameGeometry(lid2crv3, Precision.eps)) edgeEndsInFace[edg] = [edgeToRound.PrimaryFace, edgeToRound.SecondaryFace];
+                    if (onCommonFaceCurve == null)
+                    {
+                        GeoPoint2D uvVertex = CommonFace.Surface.PositionOf(Vertex.Position);
+                        GeoPoint2D uvContact = CommonFace.Surface.PositionOf(OnCommonFace);
+                        SurfaceHelper.AdjustPeriodic(CommonFace.Surface, new BoundingRect(uvVertex), ref uvContact);
+                        if (CommonFace.Surface is PlaneSurface) onCommonFaceCurve = Line.TwoPoints(Vertex.Position, OnCommonFace);
+                        else onCommonFaceCurve = CommonFace.Surface.Make3dCurve(new Line2D(uvVertex, uvContact));
+                    }
+                    res = onCommonFaceCurve?.Clone();
                 }
-                res.UserData.Add("CADability.Cutter.EdgeLiesInFace", edgeLiesInFace);
-                res.UserData.Add("CADability.Cutter.EdgeEndsInFace", edgeEndsInFace);
+                else res = TangentSegment.Clone();
+                if (res == null) return null;
+                if ((res.StartPoint | from) > (res.EndPoint | from)) res.Reverse();
+                return res;
             }
-#if DEBUG
-            bool? ok = res?.CheckConsistency();
-#endif
+
+            public bool IsTangentSegment(ICurve curve) => curve.SameGeometry(TangentSegment, Precision.eps);
+        }
+
+        /// <summary>
+        /// The tangential junctions (see <see cref="TangentJunction"/>), where the fillets do not fit together, when they end
+        /// in the plane through the vertex.
+        /// </summary>
+        private List<TangentJunction> FindTangentJunctions(IEnumerable<KeyValuePair<Vertex, List<Edge>>> vertexToEdges)
+        {
+            List<TangentJunction> res = [];
+            HashSet<Edge> shellEdges = new HashSet<Edge>(shell.Edges);
+            foreach (KeyValuePair<Vertex, List<Edge>> ve in vertexToEdges)
+            {
+                if (ve.Value.Count != 2) continue;
+                Vertex vtx = ve.Key;
+                Edge e1 = ve.Value[0], e2 = ve.Value[1];
+                if (e1.SecondaryFace == null || e2.SecondaryFace == null) continue;
+                Face? common = Edge.CommonFace(e1, e2);
+                if (common == null) continue;
+                Face faceA = e1.OtherFace(common), faceB = e2.OtherFace(common);
+                if (faceA == null || faceB == null || faceA == faceB) continue;
+                Edge? third = vtx.AllEdges.Distinct().Where(e => shellEdges.Contains(e) && e.Curve3D != null && e.SecondaryFace != null
+                    && ((e.PrimaryFace == faceA && e.SecondaryFace == faceB) || (e.PrimaryFace == faceB && e.SecondaryFace == faceA))).TheOnlyOrDefault();
+                if (third == null) continue;
+                GeoVector nA = faceA.Surface.GetNormal(faceA.Surface.PositionOf(vtx.Position)).Normalized;
+                GeoVector nB = faceB.Surface.GetNormal(faceB.Surface.PositionOf(vtx.Position)).Normalized;
+                if (nA * nB < 1 - 1e-6) continue; // not a tangential junction
+                // a seam of one surface (e.g. two halves of a cylinder): the fillets continue each other on the same surfaces,
+                // their planar ends fit together, even when the seam is oblique
+                if (faceA.Surface.SameGeometry(faceA.Domain, faceB.Surface, faceB.Domain, Precision.eps, out _)) continue;
+                // the center of the common ball is P + k*normal(P), where P is on the tangent edge, and it has the distance k
+                // from the common face (the same offsets as in MakeExtendedFilletShell)
+                double k = convexEdges.Contains(e1) ? -radius : radius;
+                ICurve curve = third.Curve3D;
+                double offsetError(double t)
+                {
+                    GeoPoint p = curve.PointAt(t);
+                    GeoPoint q = p + k * faceA.Surface.GetNormal(faceA.Surface.PositionOf(p)).Normalized;
+                    GeoPoint2D uv = common.Surface.PositionOf(q);
+                    return (q - common.Surface.PointAt(uv)) * common.Surface.GetNormal(uv).Normalized - k;
+                }
+                double tVertex = (curve.StartPoint | vtx.Position) < (curve.EndPoint | vtx.Position) ? 0.0 : 1.0;
+                double t0 = tVertex, f0 = offsetError(t0);
+                if (Math.Abs(f0) < Precision.eps) continue; // degenerate: the ball touches the common face in the vertex
+                double tBall = double.NaN;
+                const int steps = 100;
+                for (int i = 1; i <= steps; i++)
+                {   // the first sign change, walking from the vertex along the tangent edge
+                    double t1 = tVertex + (1.0 - 2.0 * tVertex) * i / steps, f1 = offsetError(t1);
+                    if (Math.Sign(f1) != Math.Sign(f0))
+                    {
+                        for (int j = 0; j < 60; j++)
+                        {
+                            double tm = (t0 + t1) / 2.0, fm = offsetError(tm);
+                            if (Math.Sign(fm) == Math.Sign(f0)) { t0 = tm; f0 = fm; }
+                            else t1 = tm;
+                        }
+                        tBall = (t0 + t1) / 2.0;
+                        break;
+                    }
+                    t0 = t1; f0 = f1;
+                }
+                if (double.IsNaN(tBall)) continue; // the tangent edge is too short, we cannot do better
+                GeoPoint onTangentEdge = curve.PointAt(tBall);
+                GeoPoint center = onTangentEdge + k * faceA.Surface.GetNormal(faceA.Surface.PositionOf(onTangentEdge)).Normalized;
+                GeoPoint onCommonFace = FootPoint(common.Surface, center);
+                if (!onCommonFace.IsValid) continue;
+                GeoVector normal = (onTangentEdge - center) ^ (onCommonFace - center);
+                if (normal.Length < Precision.eps) continue;
+                normal.Norm();
+                // when the cross section of the ball contains the vertex (the tangent edge is perpendicular to the common face),
+                // the fillets fit together with their planar ends
+                if (Math.Abs(normal * (vtx.Position - center)) < 1e-6 * radius) continue;
+                ICurve segment = curve.Clone();
+                segment.Trim(Math.Min(tVertex, tBall), Math.Max(tVertex, tBall));
+                res.Add(new TangentJunction
+                {
+                    Vertex = vtx, Edges = [e1, e2], CommonFace = common, Center = center,
+                    OnCommonFace = onCommonFace, OnTangentEdge = segment.PointAt(tVertex == 0.0 ? 1.0 : 0.0), TangentSegment = segment
+                });
+            }
             return res;
+        }
+
+        /// <summary>
+        /// Makes one cutter for each chain of edges connected by <paramref name="junctions"/>, see <see cref="TangentJunction"/>.
+        /// The fillets of the chain are made with <see cref="MakeFilletPiece"/> and sewn together. All edges of the chain
+        /// refer to this cutter in <see cref="BlendEdges.edgeToCutter"/>. When something fails, the edges keep their own cutters.
+        /// <paramref name="extensions"/> are the extensions at the dead ends (see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>).
+        /// </summary>
+        private void BuildChainCutters(List<TangentJunction> junctions, Dictionary<Edge, Dictionary<Vertex, double>> extensions)
+        {
+            if (edgeToCutter == null || junctions.Count == 0) return;
+            // the chains: connected components of the edges, connected by junctions
+            Dictionary<Edge, int> chainOf = [];
+            int chainCount = 0;
+            foreach (TangentJunction j in junctions)
+            {
+                bool has0 = chainOf.TryGetValue(j.Edges[0], out int c0), has1 = chainOf.TryGetValue(j.Edges[1], out int c1);
+                if (has0 && has1)
+                {
+                    if (c0 != c1) foreach (Edge e in chainOf.Where(kv => kv.Value == c1).Select(kv => kv.Key).ToList()) chainOf[e] = c0;
+                }
+                else if (has0) chainOf[j.Edges[1]] = c0;
+                else if (has1) chainOf[j.Edges[0]] = c1;
+                else chainOf[j.Edges[0]] = chainOf[j.Edges[1]] = chainCount++;
+            }
+            foreach (IGrouping<int, Edge> chain in chainOf.GroupBy(kv => kv.Value, kv => kv.Key))
+            {
+                List<FilletPiece> pieces = [];
+                foreach (Edge edge in chain)
+                {
+                    extensions.TryGetValue(edge, out Dictionary<Vertex, double>? ext);
+                    double extendStart = 0.0, extendEnd = 0.0;
+                    ext?.TryGetValue(edge.StartVertex(edge.PrimaryFace), out extendStart);
+                    ext?.TryGetValue(edge.EndVertex(edge.PrimaryFace), out extendEnd);
+                    FilletPiece? piece = MakeFilletPiece(edge, radius, convexEdges.Contains(edge), extendStart, extendEnd,
+                        junctions.Where(j => j.Edges.Contains(edge)));
+                    if (piece == null) break;
+                    piece.Tag(extendStart > 0.0, extendEnd > 0.0);
+                    pieces.Add(piece);
+                }
+                if (pieces.Count != chain.Count()) continue; // a fillet could not be made, the edges keep their own cutters
+                Shell[] sewn = Make3D.SewFaces(pieces.SelectMany(p => p.Faces).ToArray());
+                if (sewn == null || sewn.Length != 1 || sewn[0].HasOpenEdgesExceptPoles()) continue; // the pieces don't fit together
+                Shell cutter = sewn[0];
+                if (!pieces.Any(p => p.Extended)) AddHints(cutter, pieces);
+                cutter.CopyAttributes(pieces[0].Edge.PrimaryFace);
+                foreach (FilletPiece piece in pieces) edgeToCutter[piece.Edge] = cutter;
+            }
         }
 
         /// <summary>
