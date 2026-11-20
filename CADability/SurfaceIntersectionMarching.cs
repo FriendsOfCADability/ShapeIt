@@ -192,79 +192,87 @@ namespace CADability.GeoObject
             ctx.debug.ShowResult(res);
             for (int i = 0; i < res.Count; i++)
             {
-                ICurve c3d = null;
-                ICurve2D c2d1 = null;
-                ICurve2D c2d2 = null;
-                if (Curves2D.IsLinear(res[i].Curve2D1))
+                // an iso-parametric curve is better than the interpolated one, when one of the 2d curves is a line. Making it
+                // may fail (e.g. the fixed v curve of a SweptCircleSurface cannot be projected onto a plane): then the marched
+                // curve is kept, the whole result must not be lost
+                try
                 {
-                    if (Math.Abs(res[i].Curve2D1.StartPoint.x - res[i].Curve2D1.EndPoint.x) < Precision.eps)
-                    {   // a vertical line
-                        bool forward = res[i].Curve2D1.StartPoint.y < res[i].Curve2D1.EndPoint.y;
-                        if (forward)
-                        {
-                            c3d = surface1.FixedU(res[i].Curve2D1.EndPoint.x, res[i].Curve2D1.StartPoint.y, res[i].Curve2D1.EndPoint.y);
+                    ICurve c3d = null;
+                    ICurve2D c2d1 = null;
+                    ICurve2D c2d2 = null;
+                    if (Curves2D.IsLinear(res[i].Curve2D1))
+                    {
+                        if (Math.Abs(res[i].Curve2D1.StartPoint.x - res[i].Curve2D1.EndPoint.x) < Precision.eps)
+                        {   // a vertical line
+                            bool forward = res[i].Curve2D1.StartPoint.y < res[i].Curve2D1.EndPoint.y;
+                            if (forward)
+                            {
+                                c3d = surface1.FixedU(res[i].Curve2D1.EndPoint.x, res[i].Curve2D1.StartPoint.y, res[i].Curve2D1.EndPoint.y);
+                            }
+                            else
+                            {
+                                c3d = surface1.FixedU(res[i].Curve2D1.EndPoint.x, res[i].Curve2D1.EndPoint.y, res[i].Curve2D1.StartPoint.y);
+                                c3d.Reverse();
+                            }
+                            c2d1 = new Line2D(res[i].Curve2D1.StartPoint, res[i].Curve2D1.EndPoint);
+                            c2d2 = surface2.GetProjectedCurve(c3d, Precision.eps);
                         }
-                        else
-                        {
-                            c3d = surface1.FixedU(res[i].Curve2D1.EndPoint.x, res[i].Curve2D1.EndPoint.y, res[i].Curve2D1.StartPoint.y);
-                            c3d.Reverse();
+                        else if (Math.Abs(res[i].Curve2D1.StartPoint.y - res[i].Curve2D1.EndPoint.y) < Precision.eps)
+                        {   // a horizontal line
+                            bool forward = res[i].Curve2D1.StartPoint.x < res[i].Curve2D1.EndPoint.x;
+                            if (forward)
+                            {
+                                c3d = surface1.FixedV(res[i].Curve2D1.EndPoint.y, res[i].Curve2D1.StartPoint.x, res[i].Curve2D1.EndPoint.x);
+                            }
+                            else
+                            {
+                                c3d = surface1.FixedV(res[i].Curve2D1.EndPoint.y, res[i].Curve2D1.EndPoint.x, res[i].Curve2D1.StartPoint.x);
+                                c3d.Reverse();
+                            }
+                            c2d1 = new Line2D(res[i].Curve2D1.StartPoint, res[i].Curve2D1.EndPoint);
+                            c2d2 = surface2.GetProjectedCurve(c3d, Precision.eps);
                         }
-                        c2d1 = new Line2D(res[i].Curve2D1.StartPoint, res[i].Curve2D1.EndPoint);
-                        c2d2 = surface2.GetProjectedCurve(c3d, Precision.eps);
                     }
-                    else if (Math.Abs(res[i].Curve2D1.StartPoint.y - res[i].Curve2D1.EndPoint.y) < Precision.eps)
-                    {   // a horizontal line
-                        bool forward = res[i].Curve2D1.StartPoint.x < res[i].Curve2D1.EndPoint.x;
-                        if (forward)
-                        {
-                            c3d = surface1.FixedV(res[i].Curve2D1.EndPoint.y, res[i].Curve2D1.StartPoint.x, res[i].Curve2D1.EndPoint.x);
+                    else if (Curves2D.IsLinear(res[i].Curve2D2))
+                    {
+                        if (Math.Abs(res[i].Curve2D2.StartPoint.x - res[i].Curve2D2.EndPoint.x) < Precision.eps)
+                        {   // a vertical line
+                            bool forward = res[i].Curve2D2.StartPoint.y < res[i].Curve2D2.EndPoint.y;
+                            if (forward)
+                            {
+                                c3d = surface2.FixedU(res[i].Curve2D2.EndPoint.x, res[i].Curve2D2.StartPoint.y, res[i].Curve2D2.EndPoint.y);
+                            }
+                            else
+                            {
+                                c3d = surface2.FixedU(res[i].Curve2D2.EndPoint.x, res[i].Curve2D2.EndPoint.y, res[i].Curve2D2.StartPoint.y);
+                                c3d.Reverse();
+                            }
+                            c2d2 = new Line2D(res[i].Curve2D2.StartPoint, res[i].Curve2D2.EndPoint);
+                            c2d1 = surface1.GetProjectedCurve(c3d, Precision.eps);
                         }
-                        else
-                        {
-                            c3d = surface1.FixedV(res[i].Curve2D1.EndPoint.y, res[i].Curve2D1.EndPoint.x, res[i].Curve2D1.StartPoint.x);
-                            c3d.Reverse();
+                        else if (Math.Abs(res[i].Curve2D2.StartPoint.y - res[i].Curve2D2.EndPoint.y) < Precision.eps)
+                        {   // a horizontal line
+                            bool forward = res[i].Curve2D2.StartPoint.x < res[i].Curve2D2.EndPoint.x;
+                            if (forward)
+                            {
+                                c3d = surface2.FixedV(res[i].Curve2D2.EndPoint.y, res[i].Curve2D2.StartPoint.x, res[i].Curve2D2.EndPoint.x);
+                            }
+                            else
+                            {
+                                c3d = surface2.FixedV(res[i].Curve2D2.EndPoint.y, res[i].Curve2D2.EndPoint.x, res[i].Curve2D2.StartPoint.x);
+                                c3d.Reverse();
+                            }
+                            c2d2 = new Line2D(res[i].Curve2D2.StartPoint, res[i].Curve2D2.EndPoint);
+                            c2d1 = surface1.GetProjectedCurve(c3d, Precision.eps);
                         }
-                        c2d1 = new Line2D(res[i].Curve2D1.StartPoint, res[i].Curve2D1.EndPoint);
-                        c2d2 = surface2.GetProjectedCurve(c3d, Precision.eps);
+                    }
+                    if (c3d != null)
+                    {   // we have a better, not interpolated solution
+                        res[i] = new DualSurfaceCurve(c3d, surface1, c2d1, surface2, c2d2);
                     }
                 }
-                else if (Curves2D.IsLinear(res[i].Curve2D2))
-                {
-                    if (Math.Abs(res[i].Curve2D2.StartPoint.x - res[i].Curve2D2.EndPoint.x) < Precision.eps)
-                    {   // a vertical line
-                        bool forward = res[i].Curve2D2.StartPoint.y < res[i].Curve2D2.EndPoint.y;
-                        if (forward)
-                        {
-                            c3d = surface2.FixedU(res[i].Curve2D2.EndPoint.x, res[i].Curve2D2.StartPoint.y, res[i].Curve2D2.EndPoint.y);
-                        }
-                        else
-                        {
-                            c3d = surface2.FixedU(res[i].Curve2D2.EndPoint.x, res[i].Curve2D2.EndPoint.y, res[i].Curve2D2.StartPoint.y);
-                            c3d.Reverse();
-                        }
-                        c2d2 = new Line2D(res[i].Curve2D2.StartPoint, res[i].Curve2D2.EndPoint);
-                        c2d1 = surface1.GetProjectedCurve(c3d, Precision.eps);
-                    }
-                    else if (Math.Abs(res[i].Curve2D2.StartPoint.y - res[i].Curve2D2.EndPoint.y) < Precision.eps)
-                    {   // a horizontal line
-                        bool forward = res[i].Curve2D2.StartPoint.x < res[i].Curve2D2.EndPoint.x;
-                        if (forward)
-                        {
-                            c3d = surface2.FixedV(res[i].Curve2D2.EndPoint.y, res[i].Curve2D2.StartPoint.x, res[i].Curve2D2.EndPoint.x);
-                        }
-                        else
-                        {
-                            c3d = surface2.FixedV(res[i].Curve2D2.EndPoint.y, res[i].Curve2D2.EndPoint.x, res[i].Curve2D2.StartPoint.x);
-                            c3d.Reverse();
-                        }
-                        c2d2 = new Line2D(res[i].Curve2D2.StartPoint, res[i].Curve2D2.EndPoint);
-                        c2d1 = surface1.GetProjectedCurve(c3d, Precision.eps);
-                    }
-                }
-                if (c3d != null)
-                {   // we have a better, not interpolated solution
-                    res[i] = new DualSurfaceCurve(c3d, surface1, c2d1, surface2, c2d2);
-                }
+                catch (NotSupportedException) { }
+                catch (NotImplementedException) { }
             }
             return res.ToArray();
         }

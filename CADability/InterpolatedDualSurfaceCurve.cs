@@ -260,6 +260,24 @@ namespace CADability
             this.surface1 = surface1;
             this.surface2 = surface2;
             this.isTangential = isTangential;
+            // consecutive duplicate points (e.g. from trimming exactly at a base point) would give a segment without direction.
+            // The first and the last point are exact, so of a duplicate pair the inner point is removed
+            List<int> keep = new List<int>();
+            for (int i = 0; i < pts.Count; ++i)
+            {
+                if (keep.Count > 0 && (pts[i] - pts[keep[keep.Count - 1]]).Length < Precision.eps * 1e-3)
+                {
+                    if (i == pts.Count - 1 && keep.Count > 1) keep[keep.Count - 1] = i; // keep the exact last point
+                    continue;
+                }
+                keep.Add(i);
+            }
+            if (keep.Count < pts.Count && keep.Count >= 2)
+            {   // don't change the lists of the caller
+                pts = keep.Select(i => pts[i]).ToList();
+                if (uvpts1 != null) uvpts1 = keep.Select(i => uvpts1[i]).ToList();
+                if (uvpts2 != null) uvpts2 = keep.Select(i => uvpts2[i]).ToList();
+            }
             List<SurfacePoint> points = new List<SurfacePoint>();
             for (int i = 0; i < pts.Count; ++i)
             {

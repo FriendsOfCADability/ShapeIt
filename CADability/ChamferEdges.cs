@@ -79,7 +79,9 @@ namespace CADability.GeoObject
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges.Concat(concaveEdges));
             // at the dead ends the chamfers must reach beyond the vertex, so that trimming them with the ending face closes the gap
-            ExtendCuttersAtDeadEnds(createVertexToEdges(convexEdges).Concat(createVertexToEdges(concaveEdges)));
+            Dictionary<Edge, Dictionary<Vertex, double>> deadEndExtensions = ExtendCuttersAtDeadEnds(createVertexToEdges(convexEdges).Concat(createVertexToEdges(concaveEdges)));
+            // chamfers which continue each other tangentially are made as one cutter
+            BuildChamferChains(FindChamferJunctions(vertexToEdges), deadEndExtensions);
 
             List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
             List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
@@ -258,6 +260,78 @@ namespace CADability.GeoObject
         /// </summary>
         private Shell? MakeExtendedChamferShell(Edge edgeToCutter, double length1, double length2, bool convex, double extendStart, double extendEnd)
         {
+            ChamferPiece? piece = MakeChamferPiece(edgeToCutter, length1, length2, convex, extendStart, extendEnd, null);
+            if (piece == null) return null;
+            Shell[] res = Make3D.SewFaces(piece.Faces.ToArray());
+            if (res == null || res.Length == 0) return null;
+            piece.Tag(extendStart > 0.0, extendEnd > 0.0);
+#if DEBUG
+            bool ok = res[0].CheckConsistency();
+#endif
+            return res[0];
+        }
+
+        /// <summary>
+        /// How a chamfer piece ends at a vertex of a chain (see <see cref="BuildChamferChains"/>): there is no end face, the
+        /// faces of the piece continue in the neighbouring piece or in a transition piece.
+        /// </summary>
+        private class ChamferEnd
+        {
+            /// <summary>the leading edge ends here instead of at the vertex (the foot point of the transition piece)</summary>
+            public GeoPoint? TrimAt;
+            /// <summary>the tangent edge, which is the end curve on <see cref="SideFace"/> (a perpendicular junction)</summary>
+            public ICurve? TangentEdge;
+            public Face? SideFace;
+        }
+
+        /// <summary>
+        /// The faces of the chamfer of one edge, not yet sewn together, and the curves at its ends, which a transition piece
+        /// shares with it.
+        /// </summary>
+        private class ChamferPiece
+        {
+            public Edge Edge = null!;
+            public List<Face> Faces = [];
+            public Face ChamferFace = null!;
+            public Face? LeftEndFace, RightEndFace;
+            public ICurve LeadingEdge = null!; // forward on the primary face
+            // the curves in the end planes: on the primary face, on the secondary face, and the end line of the chamfer face
+            public ICurve LeftTop = null!, LeftBottom = null!, LeftLine = null!, RightTop = null!, RightBottom = null!, RightLine = null!;
+
+            public void Tag(bool extendedStart, bool extendedEnd)
+            {
+                RightEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
+                LeftEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface");
+                if (extendedStart) LeftEndFace?.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
+                if (extendedEnd) RightEndFace?.UserData.Add("CADability.Cutter.Extended", "extended");
+                ChamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");
+            }
+
+            /// <summary>
+            /// The end curves at <paramref name="vtx"/> (a vertex of the edge, or the trimmed end next to it): the one on
+            /// <paramref name="face"/> and the end line of the chamfer face.
+            /// </summary>
+            public (ICurve onFace, ICurve line) EndCurves(Vertex vtx, Face face)
+            {
+                bool left = Edge.StartVertex(Edge.PrimaryFace) == vtx;
+                ICurve onFace = face == Edge.PrimaryFace ? (left ? LeftTop : RightTop) : (left ? LeftBottom : RightBottom);
+                return (onFace, left ? LeftLine : RightLine);
+            }
+
+            /// <summary>The end point of the leading edge at <paramref name="vtx"/>.</summary>
+            public GeoPoint LeadingEnd(Vertex vtx) => Edge.StartVertex(Edge.PrimaryFace) == vtx ? LeadingEdge.StartPoint : LeadingEdge.EndPoint;
+        }
+
+        /// <summary>
+        /// The faces of the chamfer of <paramref name="edgeToCutter"/>, see <see cref="MakeExtendedChamferShell"/>. At the vertices
+        /// in <paramref name="ends"/> there is no end face (see <see cref="ChamferEnd"/>).
+        /// </summary>
+        private ChamferPiece? MakeChamferPiece(Edge edgeToCutter, double length1, double length2, bool convex, double extendStart, double extendEnd,
+            Dictionary<Vertex, ChamferEnd>? ends)
+        {
+            ChamferEnd? startEnd = null, endEnd = null;
+            ends?.TryGetValue(edgeToCutter.StartVertex(edgeToCutter.PrimaryFace), out startEnd);
+            ends?.TryGetValue(edgeToCutter.EndVertex(edgeToCutter.PrimaryFace), out endEnd);
             ISurface topSurface = edgeToCutter.PrimaryFace.Surface.Clone(); // for previty
             ISurface bottomSurface = edgeToCutter.SecondaryFace.Surface.Clone();
             ICurve leadingEdge = edgeToCutter.Curve3D.Clone();
@@ -271,6 +345,9 @@ namespace CADability.GeoObject
                 if (longer == null) return null;
                 leadingEdge = longer;
             }
+            // a transition piece takes the part of the edge next to the vertex
+            if (startEnd?.TrimAt is GeoPoint trimStart) leadingEdge.Trim(leadingEdge.PositionOf(trimStart), 1.0);
+            if (endEnd?.TrimAt is GeoPoint trimEnd) leadingEdge.Trim(0.0, leadingEdge.PositionOf(trimEnd));
             GeoPoint tstPoint = leadingEdge.PointAt(0.5);
             GeoVector n1 = topSurface.GetNormal(topSurface.PositionOf(tstPoint));
             GeoVector n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(tstPoint));
@@ -382,24 +459,240 @@ namespace CADability.GeoObject
             if (rightBottomCurve == null) return null;
             TrimCurve(rightBottomCurve, leadingEdge.EndPoint, bottomCurve.EndPoint);
 
-            Face chamferFace = Face.MakeFace(chamferSurface, new List<ICurve>([topCurve, bottomCurve, leftChamferEdge, rightChamferEdge]));
+            // at a perpendicular junction the end curve on the side face is the tangent edge, which both pieces share
+            ICurve? tangentEnd(ChamferEnd? end, Face face, GeoPoint vertex, GeoPoint onFace)
+            {
+                if (end?.TangentEdge == null || end.SideFace != face) return null;
+                ICurve segment = end.TangentEdge.Clone();
+                TrimCurve(segment, vertex, onFace);
+                return segment;
+            }
+            leftTopCurve = tangentEnd(startEnd, edgeToCutter.PrimaryFace, leadingEdge.StartPoint, topCurve.StartPoint) ?? leftTopCurve;
+            leftBottomCurve = tangentEnd(startEnd, edgeToCutter.SecondaryFace, leadingEdge.StartPoint, bottomCurve.StartPoint) ?? leftBottomCurve;
+            rightTopCurve = tangentEnd(endEnd, edgeToCutter.PrimaryFace, leadingEdge.EndPoint, topCurve.EndPoint) ?? rightTopCurve;
+            rightBottomCurve = tangentEnd(endEnd, edgeToCutter.SecondaryFace, leadingEdge.EndPoint, bottomCurve.EndPoint) ?? rightBottomCurve;
 
-            Face leftFace = Face.MakeFace(leftSurface, new List<ICurve>([leftTopCurve, leftBottomCurve, leftChamferEdge]));
-            Face rightFace = Face.MakeFace(rightSurface, new List<ICurve>([rightTopCurve, rightBottomCurve, rightChamferEdge]));
+            // the same order of creating and sewing the faces as always, so that the cutter of a single edge doesn't change
+            Face chamferFace = Face.MakeFace(chamferSurface, new List<ICurve>([topCurve, bottomCurve, leftChamferEdge, rightChamferEdge]));
+            Face? leftFace = startEnd == null ? Face.MakeFace(leftSurface, new List<ICurve>([leftTopCurve, leftBottomCurve, leftChamferEdge])) : null;
+            Face? rightFace = endEnd == null ? Face.MakeFace(rightSurface, new List<ICurve>([rightTopCurve, rightBottomCurve, rightChamferEdge])) : null;
             Face topFace = Face.MakeFace(topSurface.Clone(), new List<ICurve>([leadingEdge, leftTopCurve, rightTopCurve, topCurve]));
             Face bottomFace = Face.MakeFace(bottomSurface.Clone(), new List<ICurve>([leadingEdge, leftBottomCurve, rightBottomCurve, bottomCurve]));
-            Shell[] res = Make3D.SewFaces([chamferFace, leftFace, rightFace, topFace, bottomFace]);
-            if (res == null || res.Length == 0) return null;
-            rightFace.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
-            leftFace.UserData.Add("CADability.Cutter.EndFace", "endface");
-            if (extendStart > 0.0) leftFace.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
-            if (extendEnd > 0.0) rightFace.UserData.Add("CADability.Cutter.Extended", "extended");
-            chamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");
+            ChamferPiece piece = new ChamferPiece
+            {
+                Edge = edgeToCutter, ChamferFace = chamferFace, LeadingEdge = leadingEdge, LeftEndFace = leftFace, RightEndFace = rightFace,
+                LeftTop = leftTopCurve, LeftBottom = leftBottomCurve, LeftLine = leftChamferEdge,
+                RightTop = rightTopCurve, RightBottom = rightBottomCurve, RightLine = rightChamferEdge
+            };
+            piece.Faces.AddRange(new Face?[] { chamferFace, leftFace, rightFace, topFace, bottomFace }.OfType<Face>());
+            return piece;
+        }
 
-#if DEBUG
-            bool ok = res[0].CheckConsistency();
-#endif
-            return res[0];
+        /// <summary>
+        /// A vertex where two chamfers continue each other tangentially (see <see cref="BlendEdges.TryTangentJunction"/>).
+        /// The chamfers of both edges end in the plane through the vertex perpendicular to the edges, and there they have
+        /// the same cross section, as long as the tangent edge between their side faces lies in this plane (perpendicular).
+        /// When the tangent edge is oblique, it leans into the side face of one of the edges (<see cref="Edge2"/>): the
+        /// boundary curve of the chamfer on the side faces crosses the tangent edge only beyond the plane, at the point which
+        /// has the distance of the chamfer from the foot point <see cref="Foot"/> on <see cref="Edge2"/>. Between the plane
+        /// through the vertex and the cross section through this foot point there is a transition piece
+        /// (<see cref="MakeTransition"/>), whose part on the side faces is split by the tangent edge. All faces of the
+        /// cutter then lie in the faces of the shell, and no planar end has to cross the tangent edge.
+        /// At a seam of one surface the planar ends fit together in any case, there is no transition piece.
+        /// </summary>
+        private class ChamferJunction
+        {
+            public Vertex Vertex = null!;
+            public Edge Edge1 = null!, Edge2 = null!; // the tangent edge leans into the side face of Edge2
+            public Face Common = null!, Side1 = null!, Side2 = null!;
+            public Edge TangentEdge = null!;
+            public bool Oblique;
+            public bool Seam; // both side faces are on the same surface
+            public GeoPoint Foot; // on Edge2, where the transition piece ends (only when oblique)
+            public double CommonLength, SideLength; // the distances of the chamfer on the common face and on the side faces
+        }
+
+        /// <summary>
+        /// The tangential junctions of the edges in <paramref name="vertexToEdges"/>, see <see cref="ChamferJunction"/>.
+        /// </summary>
+        private List<ChamferJunction> FindChamferJunctions(IEnumerable<KeyValuePair<Vertex, List<Edge>>> vertexToEdges)
+        {
+            List<ChamferJunction> res = [];
+            HashSet<Edge> shellEdges = new HashSet<Edge>(shell.Edges);
+            foreach (KeyValuePair<Vertex, List<Edge>> ve in vertexToEdges)
+            {
+                if (ve.Value.Count != 2) continue;
+                Vertex vtx = ve.Key;
+                Edge e1 = ve.Value[0], e2 = ve.Value[1];
+                if (convexEdges.Contains(e1) != convexEdges.Contains(e2)) continue;
+                if (!TryTangentJunction(vtx, e1, e2, shellEdges, out Face common, out Face side1, out Face side2, out Edge tangentEdge)) continue;
+                // both chamfers must have the same distances on the common face and on the side faces
+                (double first1, double second1) = lengthsFor(e1);
+                (double first2, double second2) = lengthsFor(e2);
+                double common1 = e1.PrimaryFace == common ? first1 : second1, sideLength1 = e1.PrimaryFace == common ? second1 : first1;
+                double common2 = e2.PrimaryFace == common ? first2 : second2, sideLength2 = e2.PrimaryFace == common ? second2 : first2;
+                if (Math.Abs(common1 - common2) > Precision.eps || Math.Abs(sideLength1 - sideLength2) > Precision.eps) continue;
+                ChamferJunction junction = new ChamferJunction
+                {
+                    Vertex = vtx, Edge1 = e1, Edge2 = e2, Common = common, Side1 = side1, Side2 = side2, TangentEdge = tangentEdge,
+                    CommonLength = common1, SideLength = sideLength1
+                };
+                // into which side face does the tangent edge lean?
+                double lean = DirectionFrom(tangentEdge, vtx) * DirectionFrom(e2, vtx);
+                // a seam of one surface (e.g. two halves of a cylinder): the planar ends of the chamfers fit together, even when
+                // the seam is oblique, the curves on both sides of the seam are the same
+                junction.Seam = side1.Surface.SameGeometry(side1.Domain, side2.Surface, side2.Domain, Precision.eps, out _);
+                if (lean < 0.0)
+                {
+                    (junction.Edge1, junction.Edge2) = (e2, e1);
+                    (junction.Side1, junction.Side2) = (side2, side1);
+                }
+                if (!junction.Seam && Math.Abs(lean) > 1e-8)
+                {   // the point on the tangent edge with the distance of the chamfer from Edge2
+                    ICurve tangent = tangentEdge.Curve3D;
+                    ICurve leanEdge = junction.Edge2.Curve3D;
+                    GeoPoint foot(GeoPoint p) => leanEdge.PointAt(Math.Max(0.0, Math.Min(1.0, leanEdge.PositionOf(p))));
+                    double distanceError(double t) => (tangent.PointAt(t) - foot(tangent.PointAt(t))).Length - junction.SideLength;
+                    double tVertex = (tangent.StartPoint | vtx.Position) < (tangent.EndPoint | vtx.Position) ? 0.0 : 1.0;
+                    double t0 = tVertex, f0 = distanceError(t0), tFound = double.NaN;
+                    const int steps = 100;
+                    for (int i = 1; i <= steps; i++)
+                    {   // the first sign change, walking from the vertex along the tangent edge
+                        double t1 = tVertex + (1.0 - 2.0 * tVertex) * i / steps, f1 = distanceError(t1);
+                        if (Math.Sign(f1) != Math.Sign(f0))
+                        {
+                            for (int j = 0; j < 60; j++)
+                            {
+                                double tm = (t0 + t1) / 2.0, fm = distanceError(tm);
+                                if (Math.Sign(fm) == Math.Sign(f0)) { t0 = tm; f0 = fm; }
+                                else t1 = tm;
+                            }
+                            tFound = (t0 + t1) / 2.0;
+                            break;
+                        }
+                        t0 = t1; f0 = f1;
+                    }
+                    if (double.IsNaN(tFound)) continue; // the tangent edge is too short
+                    double footPosition = leanEdge.PositionOf(tangent.PointAt(tFound));
+                    if (footPosition <= 0.0 || footPosition >= 1.0) continue; // the edge is too short for the transition piece
+                    junction.Foot = leanEdge.PointAt(footPosition);
+                    junction.Oblique = (junction.Foot | vtx.Position) > Precision.eps;
+                }
+                res.Add(junction);
+            }
+            return res;
+        }
+
+        /// <summary>
+        /// Makes one cutter for each chain of edges connected by <paramref name="junctions"/>: the chamfers of the edges
+        /// (<see cref="MakeChamferPiece"/>) without end faces at the junctions and the transition pieces at the oblique
+        /// junctions (<see cref="MakeTransition"/>), sewn together. All edges of the chain refer to this cutter in
+        /// <see cref="BlendEdges.edgeToCutter"/>. When something fails, the edges keep their own cutters.
+        /// <paramref name="extensions"/> are the extensions at the dead ends (see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>).
+        /// </summary>
+        private void BuildChamferChains(List<ChamferJunction> junctions, Dictionary<Edge, Dictionary<Vertex, double>> extensions)
+        {
+            if (edgeToCutter == null || junctions.Count == 0) return;
+            foreach (List<Edge> chain in Chains(junctions.Select(j => (j.Edge1, j.Edge2))))
+            {
+                List<ChamferJunction> chainJunctions = junctions.Where(j => chain.Contains(j.Edge1)).ToList();
+                Dictionary<Edge, Dictionary<Vertex, ChamferEnd>> ends = chain.ToDictionary(e => e, e => new Dictionary<Vertex, ChamferEnd>());
+                foreach (ChamferJunction j in chainJunctions)
+                {
+                    if (j.Oblique)
+                    {
+                        ends[j.Edge1][j.Vertex] = new ChamferEnd();
+                        ends[j.Edge2][j.Vertex] = new ChamferEnd { TrimAt = j.Foot };
+                    }
+                    else if (j.Seam)
+                    {   // the end curves in the plane through the vertex are the same on both sides of the seam
+                        ends[j.Edge1][j.Vertex] = new ChamferEnd();
+                        ends[j.Edge2][j.Vertex] = new ChamferEnd();
+                    }
+                    else
+                    {
+                        ends[j.Edge1][j.Vertex] = new ChamferEnd { TangentEdge = j.TangentEdge.Curve3D, SideFace = j.Side1 };
+                        ends[j.Edge2][j.Vertex] = new ChamferEnd { TangentEdge = j.TangentEdge.Curve3D, SideFace = j.Side2 };
+                    }
+                }
+                Dictionary<Edge, ChamferPiece> pieces = [];
+                foreach (Edge edge in chain)
+                {
+                    extensions.TryGetValue(edge, out Dictionary<Vertex, double>? ext);
+                    double extendStart = 0.0, extendEnd = 0.0;
+                    ext?.TryGetValue(edge.StartVertex(edge.PrimaryFace), out extendStart);
+                    ext?.TryGetValue(edge.EndVertex(edge.PrimaryFace), out extendEnd);
+                    (double first, double second) = lengthsFor(edge);
+                    ChamferPiece? piece = MakeChamferPiece(edge, first, second, convexEdges.Contains(edge), extendStart, extendEnd, ends[edge]);
+                    if (piece == null) break;
+                    piece.Tag(extendStart > 0.0, extendEnd > 0.0);
+                    pieces[edge] = piece;
+                }
+                if (pieces.Count != chain.Count) continue; // a chamfer could not be made, the edges keep their own cutters
+                List<Face> faces = pieces.Values.SelectMany(p => p.Faces).ToList();
+                bool ok = true;
+                foreach (ChamferJunction j in chainJunctions.Where(j => j.Oblique))
+                {
+                    List<Face>? transition = MakeTransition(j, pieces[j.Edge1], pieces[j.Edge2]);
+                    if (transition == null) { ok = false; break; }
+                    faces.AddRange(transition);
+                }
+                if (!ok) continue;
+                Shell[] sewn = Make3D.SewFaces(faces.ToArray());
+                if (sewn == null || sewn.Length != 1 || sewn[0].HasOpenEdgesExceptPoles()) continue; // the pieces don't fit together
+                Shell cutter = sewn[0];
+                cutter.CopyAttributes(chain[0].PrimaryFace);
+                foreach (Edge edge in chain) edgeToCutter[edge] = cutter;
+            }
+        }
+
+        /// <summary>
+        /// The faces of the transition piece of an oblique junction <paramref name="j"/>, see <see cref="ChamferJunction"/>,
+        /// between the open end of <paramref name="piece1"/> at the vertex and the open end of <paramref name="piece2"/> at the
+        /// foot point. Null, if it cannot be made.
+        /// </summary>
+        private List<Face>? MakeTransition(ChamferJunction j, ChamferPiece piece1, ChamferPiece piece2)
+        {
+            GeoPoint vertex = j.Vertex.Position;
+            // the curves at the open ends of the two pieces, the transition piece shares them
+            (ICurve commonCurve1, ICurve line1) = piece1.EndCurves(j.Vertex, j.Common);
+            ICurve sideCurve1 = piece1.EndCurves(j.Vertex, j.Side1).onFace;
+            (ICurve commonCurve2, ICurve line2) = piece2.EndCurves(j.Vertex, j.Common);
+            ICurve sideCurve2 = piece2.EndCurves(j.Vertex, j.Side2).onFace;
+            GeoPoint foot = piece2.LeadingEnd(j.Vertex);
+            GeoPoint farEnd(ICurve c, GeoPoint from) => (c.StartPoint | from) > (c.EndPoint | from) ? c.StartPoint : c.EndPoint;
+            GeoPoint onCommon1 = farEnd(commonCurve1, vertex), onSide1 = farEnd(sideCurve1, vertex);
+            GeoPoint onCommon2 = farEnd(commonCurve2, foot), onTangent = farEnd(sideCurve2, foot);
+            // the part of Edge2 and of the tangent edge, which belong to the transition piece
+            ICurve edgePart = j.Edge2.Curve3D.Clone();
+            TrimCurve(edgePart, vertex, foot);
+            ICurve tangentPart = j.TangentEdge.Curve3D.Clone();
+            TrimCurve(tangentPart, vertex, onTangent);
+            // the boundary curves of the chamfer: the hulls around this part of Edge2 intersected with the common face and
+            // the side face of Edge1 (the tangent edge leans into Edge2, so this part of the side faces is on Side1)
+            GeoVector seam = NormalAt(j.Common, vertex) + NormalAt(j.Side1, vertex);
+            ISurface? sideHull = hullAroundEdge(edgePart, j.SideLength, seam);
+            ISurface? commonHull = j.CommonLength == j.SideLength ? sideHull : hullAroundEdge(edgePart, j.CommonLength, seam);
+            if (sideHull == null || commonHull == null) return null;
+            ICurve? boundary(Face face, ISurface hull, GeoPoint from, GeoPoint to)
+            {
+                IDualSurfaceCurve[] dscs = face.Surface.GetDualSurfaceCurves(face.Domain, hull, hull.Domain, [from, to]);
+                ICurve? c = dscs?.Select(d => d.Curve3D).MinBy(cv => cv.DistanceTo(from) + cv.DistanceTo(to));
+                if (c == null) return null;
+                TrimCurve(c, from, to);
+                return c;
+            }
+            ICurve? commonBoundary = boundary(j.Common, commonHull, onCommon1, onCommon2);
+            ICurve? sideBoundary = boundary(j.Side1, sideHull, onSide1, onTangent);
+            if (commonBoundary == null || sideBoundary == null) return null;
+            ISurface chamferSurface = Make3D.MakeRuledSurface(PreciseCurve(commonBoundary), PreciseCurve(sideBoundary));
+            foreach (GeoPoint p in new List<GeoPoint>([onCommon1, onCommon2, onSide1, onTangent, commonBoundary.PointAt(0.5)])) chamferSurface.ExtendDomainTo(p);
+            Face chamferFace = Face.MakeFace(chamferSurface, new List<ICurve>([commonBoundary, sideBoundary, line1.Clone(), line2.Clone()]));
+            Face commonFace = Face.MakeFace(j.Common.Surface.Clone(), new List<ICurve>([edgePart, commonCurve1.Clone(), commonBoundary, commonCurve2.Clone()]));
+            Face side1Face = Face.MakeFace(j.Side1.Surface.Clone(), new List<ICurve>([sideCurve1.Clone(), sideBoundary, tangentPart]));
+            Face side2Face = Face.MakeFace(j.Side2.Surface.Clone(), new List<ICurve>([edgePart, tangentPart, sideCurve2.Clone()]));
+            chamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");
+            return [chamferFace, commonFace, side1Face, side2Face];
         }
 
     }

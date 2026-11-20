@@ -1049,17 +1049,7 @@ namespace CADability.GeoObject
                 if (ve.Value.Count != 2) continue;
                 Vertex vtx = ve.Key;
                 Edge e1 = ve.Value[0], e2 = ve.Value[1];
-                if (e1.SecondaryFace == null || e2.SecondaryFace == null) continue;
-                Face? common = Edge.CommonFace(e1, e2);
-                if (common == null) continue;
-                Face faceA = e1.OtherFace(common), faceB = e2.OtherFace(common);
-                if (faceA == null || faceB == null || faceA == faceB) continue;
-                Edge? third = vtx.AllEdges.Distinct().Where(e => shellEdges.Contains(e) && e.Curve3D != null && e.SecondaryFace != null
-                    && ((e.PrimaryFace == faceA && e.SecondaryFace == faceB) || (e.PrimaryFace == faceB && e.SecondaryFace == faceA))).TheOnlyOrDefault();
-                if (third == null) continue;
-                GeoVector nA = faceA.Surface.GetNormal(faceA.Surface.PositionOf(vtx.Position)).Normalized;
-                GeoVector nB = faceB.Surface.GetNormal(faceB.Surface.PositionOf(vtx.Position)).Normalized;
-                if (nA * nB < 1 - 1e-6) continue; // not a tangential junction
+                if (!TryTangentJunction(vtx, e1, e2, shellEdges, out Face common, out Face faceA, out Face _, out Edge third)) continue;
                 // the center of the common ball is P + k*normal(P), where P is on the tangent edge, and it has the distance k
                 // from the common face (the same offsets as in MakeExtendedFilletShell)
                 double k = convexEdges.Contains(e1) ? -radius : radius;
@@ -1120,21 +1110,7 @@ namespace CADability.GeoObject
         private void BuildChainCutters(List<TangentJunction> junctions, Dictionary<Edge, Dictionary<Vertex, double>> extensions)
         {
             if (edgeToCutter == null || junctions.Count == 0) return;
-            // the chains: connected components of the edges, connected by junctions
-            Dictionary<Edge, int> chainOf = [];
-            int chainCount = 0;
-            foreach (TangentJunction j in junctions)
-            {
-                bool has0 = chainOf.TryGetValue(j.Edges[0], out int c0), has1 = chainOf.TryGetValue(j.Edges[1], out int c1);
-                if (has0 && has1)
-                {
-                    if (c0 != c1) foreach (Edge e in chainOf.Where(kv => kv.Value == c1).Select(kv => kv.Key).ToList()) chainOf[e] = c0;
-                }
-                else if (has0) chainOf[j.Edges[1]] = c0;
-                else if (has1) chainOf[j.Edges[0]] = c1;
-                else chainOf[j.Edges[0]] = chainOf[j.Edges[1]] = chainCount++;
-            }
-            foreach (IGrouping<int, Edge> chain in chainOf.GroupBy(kv => kv.Value, kv => kv.Key))
+            foreach (List<Edge> chain in Chains(junctions.Select(j => (j.Edges[0], j.Edges[1]))))
             {
                 List<FilletPiece> pieces = [];
                 foreach (Edge edge in chain)
@@ -1149,7 +1125,7 @@ namespace CADability.GeoObject
                     piece.Tag(extendStart > 0.0, extendEnd > 0.0);
                     pieces.Add(piece);
                 }
-                if (pieces.Count != chain.Count()) continue; // a fillet could not be made, the edges keep their own cutters
+                if (pieces.Count != chain.Count) continue; // a fillet could not be made, the edges keep their own cutters
                 Shell[] sewn = Make3D.SewFaces(pieces.SelectMany(p => p.Faces).ToArray());
                 if (sewn == null || sewn.Length != 1 || sewn[0].HasOpenEdgesExceptPoles()) continue; // the pieces don't fit together
                 Shell cutter = sewn[0];

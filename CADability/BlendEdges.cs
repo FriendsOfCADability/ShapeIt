@@ -378,7 +378,7 @@ namespace CADability.GeoObject
             return best ?? [];
         }
 
-        private static GeoVector NormalAt(Face face, GeoPoint p)
+        protected static GeoVector NormalAt(Face face, GeoPoint p)
         {
             return face.Surface.GetNormal(face.Surface.PositionOf(p)).Normalized;
         }
@@ -794,7 +794,7 @@ namespace CADability.GeoObject
         /// <summary>
         /// The direction of <paramref name="edge"/> at <paramref name="vtx"/>, pointing away from the vertex.
         /// </summary>
-        private static GeoVector DirectionFrom(Edge edge, Vertex vtx)
+        protected static GeoVector DirectionFrom(Edge edge, Vertex vtx)
         {
             if (edge.Vertex1 == vtx) return edge.Curve3D.StartDirection.Normalized;
             else return -edge.Curve3D.EndDirection.Normalized;
@@ -858,6 +858,58 @@ namespace CADability.GeoObject
             return [fillet1, fillet2];
 
         }
+        /// <summary>
+        /// True, if <paramref name="edge1"/> and <paramref name="edge2"/> continue each other tangentially at <paramref name="vtx"/>:
+        /// they have a <paramref name="common"/> face, and their other faces (<paramref name="side1"/> of <paramref name="edge1"/>,
+        /// <paramref name="side2"/> of <paramref name="edge2"/>) are tangential along the <paramref name="tangentEdge"/>, an edge of
+        /// <paramref name="shellEdges"/> at the vertex. The side faces may be on the same surface (a seam).
+        /// </summary>
+        protected static bool TryTangentJunction(Vertex vtx, Edge edge1, Edge edge2, HashSet<Edge> shellEdges,
+            out Face common, out Face side1, out Face side2, out Edge tangentEdge)
+        {
+            common = side1 = side2 = null!;
+            tangentEdge = null!;
+            if (edge1.SecondaryFace == null || edge2.SecondaryFace == null) return false;
+            Face? commonFace = Edge.CommonFace(edge1, edge2);
+            if (commonFace == null) return false;
+            Face faceA = edge1.OtherFace(commonFace), faceB = edge2.OtherFace(commonFace);
+            if (faceA == null || faceB == null || faceA == faceB) return false;
+            Edge? third = vtx.AllEdges.Distinct().Where(e => shellEdges.Contains(e) && e.Curve3D != null && e.SecondaryFace != null
+                && ((e.PrimaryFace == faceA && e.SecondaryFace == faceB) || (e.PrimaryFace == faceB && e.SecondaryFace == faceA))).TheOnlyOrDefault();
+            if (third == null) return false;
+            if (!SameNormal(NormalAt(faceA, vtx.Position), NormalAt(faceB, vtx.Position))) return false; // not tangential
+            common = commonFace;
+            side1 = faceA;
+            side2 = faceB;
+            tangentEdge = third;
+            return true;
+        }
+
+        /// <summary>
+        /// The chains of edges: the connected components of the graph with the edge pairs <paramref name="connections"/>.
+        /// The edges of a chain are in the order in which they were first found.
+        /// </summary>
+        protected static List<List<Edge>> Chains(IEnumerable<(Edge, Edge)> connections)
+        {
+            Dictionary<Edge, int> chainOf = [];
+            List<Edge> order = [];
+            int chainCount = 0;
+            foreach ((Edge e0, Edge e1) in connections)
+            {
+                bool has0 = chainOf.TryGetValue(e0, out int c0), has1 = chainOf.TryGetValue(e1, out int c1);
+                if (!has0) order.Add(e0);
+                if (!has1) order.Add(e1);
+                if (has0 && has1)
+                {
+                    if (c0 != c1) foreach (Edge e in chainOf.Where(kv => kv.Value == c1).Select(kv => kv.Key).ToList()) chainOf[e] = c0;
+                }
+                else if (has0) chainOf[e1] = c0;
+                else if (has1) chainOf[e0] = c1;
+                else chainOf[e0] = chainOf[e1] = chainCount++;
+            }
+            return order.GroupBy(e => chainOf[e]).Select(g => g.ToList()).ToList();
+        }
+
         /// <summary>
         /// The cutter of this edge, null if there is none (creating it may have failed).
         /// </summary>
