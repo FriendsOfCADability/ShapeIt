@@ -87,7 +87,7 @@ namespace CADability.GeoObject
             Dictionary<Vertex, List<Edge>> vertexToConcaveEdges = createVertexToEdges(concaveEdges);
             // at the dead ends the fillets must reach beyond the vertex, so that trimming them with the ending face closes the gap
             Dictionary<Edge, Dictionary<Vertex, double>> deadEndExtensions = ExtendCuttersAtDeadEnds(vertexToConvexEdges.Concat(vertexToConcaveEdges));
-            // fillets which continue each other tangentially with an oblique tangent edge are made as one cutter
+            // fillets which continue each other tangentially are made as one cutter
             BuildChainCutters(FindTangentJunctions(vertexToConvexEdges.Concat(vertexToConcaveEdges)), deadEndExtensions);
 
             List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
@@ -194,14 +194,14 @@ namespace CADability.GeoObject
             if (fillet1 == null || fillet2 == null || fillet3 == null) return null;
 
             // find the end faces of the fillets at this vertex
-            Face? endFace1 = fillet1.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
-            Face? endFace2 = fillet2.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
-            Face? endFace3 = fillet3.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            Face? endFace1 = EndFaceAt(fillet1, vtx);
+            Face? endFace2 = EndFaceAt(fillet2, vtx);
+            Face? endFace3 = EndFaceAt(fillet3, vtx);
             if (endFace1 == null || endFace2 == null || endFace3 == null) return null;
             // find the swept faces of the fillets
-            Face? sweptFace1 = fillet1.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
-            Face? sweptFace2 = fillet2.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
-            Face? sweptFace3 = fillet3.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
+            Face? sweptFace1 = SweptFaceAt(fillet1, vtx);
+            Face? sweptFace2 = SweptFaceAt(fillet2, vtx);
+            Face? sweptFace3 = SweptFaceAt(fillet3, vtx);
             if (sweptFace1 == null || sweptFace2 == null || sweptFace3 == null) return null;
             ISurfaceOfExtrusion? sweptSurface1 = sweptFace1.Surface as ISurfaceOfExtrusion;
             ISurfaceOfExtrusion? sweptSurface2 = sweptFace2.Surface as ISurfaceOfExtrusion;
@@ -990,7 +990,10 @@ namespace CADability.GeoObject
         /// Therefore the fillets of such a chain are made as one cutter (see <see cref="BuildChainCutters"/>): the faces
         /// of the fillets on the shell end in the tangent edge (from the vertex to the contact point of the ball) and in a
         /// curve on the common face (from the vertex to the other contact point), the swept faces end in the arc of the
-        /// common ball. There are no end faces in between.
+        /// common ball. There are no end faces in between. This is done for all tangential junctions, also where planar
+        /// ends would fit (a perpendicular tangent edge, a seam of one surface): one cutter for a whole chain carries the
+        /// connections of its faces, which the BooleanOperation would otherwise have to find again between separate cutters.
+        /// The tangent edge may also be the seam between two faces of the same surface (e.g. two halves of a cylinder).
         /// </summary>
         private class TangentJunction
         {
@@ -1035,8 +1038,7 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// The tangential junctions (see <see cref="TangentJunction"/>), where the fillets do not fit together, when they end
-        /// in the plane through the vertex.
+        /// The tangential junctions (see <see cref="TangentJunction"/>) of the edges in <paramref name="vertexToEdges"/>.
         /// </summary>
         private List<TangentJunction> FindTangentJunctions(IEnumerable<KeyValuePair<Vertex, List<Edge>>> vertexToEdges)
         {
@@ -1058,9 +1060,6 @@ namespace CADability.GeoObject
                 GeoVector nA = faceA.Surface.GetNormal(faceA.Surface.PositionOf(vtx.Position)).Normalized;
                 GeoVector nB = faceB.Surface.GetNormal(faceB.Surface.PositionOf(vtx.Position)).Normalized;
                 if (nA * nB < 1 - 1e-6) continue; // not a tangential junction
-                // a seam of one surface (e.g. two halves of a cylinder): the fillets continue each other on the same surfaces,
-                // their planar ends fit together, even when the seam is oblique
-                if (faceA.Surface.SameGeometry(faceA.Domain, faceB.Surface, faceB.Domain, Precision.eps, out _)) continue;
                 // the center of the common ball is P + k*normal(P), where P is on the tangent edge, and it has the distance k
                 // from the common face (the same offsets as in MakeExtendedFilletShell)
                 double k = convexEdges.Contains(e1) ? -radius : radius;
@@ -1101,9 +1100,6 @@ namespace CADability.GeoObject
                 GeoVector normal = (onTangentEdge - center) ^ (onCommonFace - center);
                 if (normal.Length < Precision.eps) continue;
                 normal.Norm();
-                // when the cross section of the ball contains the vertex (the tangent edge is perpendicular to the common face),
-                // the fillets fit together with their planar ends
-                if (Math.Abs(normal * (vtx.Position - center)) < 1e-6 * radius) continue;
                 ICurve segment = curve.Clone();
                 segment.Trim(Math.Min(tVertex, tBall), Math.Max(tVertex, tBall));
                 res.Add(new TangentJunction

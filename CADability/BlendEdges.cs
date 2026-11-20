@@ -591,10 +591,23 @@ namespace CADability.GeoObject
         /// The end face of <paramref name="cutter"/> at <paramref name="vtx"/>: the one with a vertex closest to it. (The
         /// distance to the plane of the end face is no good criterion: both end planes of a half circle edge coincide.)
         /// </summary>
-        private static Face? EndFaceAt(Shell cutter, Vertex vtx)
+        protected static Face? EndFaceAt(Shell cutter, Vertex vtx)
         {
             return cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace"))
                 .MinBy(f => f.Vertices.Min(v => v.Position | vtx.Position));
+        }
+
+        /// <summary>
+        /// The swept face of <paramref name="cutter"/> which ends at <paramref name="vtx"/>: the one next to the end face at the
+        /// vertex. A chain cutter (see RoundEdges.BuildChainCutters) has a swept face for each edge of the chain.
+        /// </summary>
+        protected static Face? SweptFaceAt(Shell cutter, Vertex vtx)
+        {
+            List<Face> sweptFaces = cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).ToList();
+            if (sweptFaces.Count <= 1) return sweptFaces.FirstOrDefault();
+            Face? endFace = EndFaceAt(cutter, vtx);
+            if (endFace == null) return null;
+            return endFace.AllEdges.Select(e => e.OtherFace(endFace)).FirstOrDefault(f => f != null && sweptFaces.Contains(f));
         }
 
         /// <summary>
@@ -810,8 +823,8 @@ namespace CADability.GeoObject
             if (edge2.EndVertex(commonFace) == edge1.StartVertex(commonFace)) (edge1, edge2) = (edge2, edge1); // tm make sure, the edges are in the order of the outline
             System.Diagnostics.Debug.Assert(edge1.EndVertex(commonFace) == edge2.StartVertex(commonFace));
 
-            Face? endFace1 = fillet1.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
-            Face? endFace2 = fillet2.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            Face? endFace1 = EndFaceAt(fillet1, vtx);
+            Face? endFace2 = EndFaceAt(fillet2, vtx);
             if (endFace1 == null || endFace2 == null) return null;
             GeoVector n1 = (endFace1.Surface as PlaneSurface)!.Normal.Normalized; // endfaces are always PlaneSurfaces
             GeoVector n2 = (endFace2.Surface as PlaneSurface)!.Normal.Normalized;
@@ -876,8 +889,8 @@ namespace CADability.GeoObject
 
         protected virtual Shell? CreateConcavePatch(Shell chamfer1, Shell chamfer2, Face commonFace, Vertex vtx, Edge edge1, Edge edge2)
         {
-            Face? endFace1 = chamfer1.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
-            Face? endFace2 = chamfer2.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace")).MinBy(f => f.Surface.GetDistance(vtx.Position));
+            Face? endFace1 = EndFaceAt(chamfer1, vtx);
+            Face? endFace2 = EndFaceAt(chamfer2, vtx);
             if (endFace1 == null || endFace2 == null) return null;
             List<(Vertex v1, Vertex v2)> cv = ConnectedVertices(endFace1.Vertices, endFace2.Vertices);
             if (cv.Count == 2)
