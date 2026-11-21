@@ -389,8 +389,8 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 #endif
 		long elapsedMs = 0;
 		int defIndex = 0;
-		private bool transformationMode;
 		private bool makeBlocks = false;
+		private Dictionary<Item, HashSet<Item>> representationsOfProductDefinition; // see RepresentationsOf
 
 		Tokenizer tk;
 		List<Item> definitions;
@@ -1230,14 +1230,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			allNames = new SortedDictionary<string, int>();
 			entityPattern = new Dictionary<string, HashSet<string>>();
 #endif
-			transformationMode = Settings.GlobalSettings.GetBoolValue("StepImport.Transformation", false);  // one of two ways to make the transformation, I cannot distinguish the cases when to use which
-
-			// transformationMode = true;
-			// for most files, transformationMode is not important.
-			// files, for which transformationMode must be false: ?? FILE_SCHEMA(('AUTOMOTIVE_DESIGN { 1 0 10303 214 1 1 1 1 }'));
-			// ATTREZZATURA + GIRANTE.stp, AL_1180775_AL_1180775.stp, SSSS4912PCAM.stp
-
-			// Assembly2.step doesn't work correctly with both methods!
 			Item.Init();
 		}
 
@@ -3986,24 +3978,16 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							{
 								CreateEntity(repProdRel);
 								CreateEntity(repRel);
-								Item relatingProduct = repProdRel.parameter["definition"].parameter["relating_product_definition"].parameter["formation"].parameter["of_product"];
-								Item relatedProduct = repProdRel.parameter["definition"].parameter["related_product_definition"].parameter["formation"].parameter["of_product"];
+								Item relatingDefinition = repProdRel.parameter["definition"].parameter["relating_product_definition"];
+								Item relatedDefinition = repProdRel.parameter["definition"].parameter["related_product_definition"];
+								Item relatingProduct = relatingDefinition.parameter["formation"].parameter["of_product"];
+								Item relatedProduct = relatedDefinition.parameter["formation"].parameter["of_product"];
 								if (!relatingProduct.parameter.ContainsKey("_children")) relatingProduct.parameter["_children"] = new Item(Item.ItemType.created, new List<Item>());
 								Item child = new Item(Item.ItemType.created, null);
 								ModOp transformation = ModOp.Identity;
 								if (repRel.parameter.TryGetValue("transformation_operator", out Item transform))
 								{
-									Item rep1 = repRel.parameter["rep_1"];
-									Item rep2 = repRel.parameter["rep_2"];
-									transformation = GetTransformation(transform.parameter["transform_item_1"], transform.parameter["transform_item_2"], rep1, rep2);
-								}
-								else
-								{
-
-								}
-								if (repRel.parameter["rep_1"].parameter["context_of_items"] == repRel.parameter["rep_2"].parameter["context_of_items"])
-								{
-
+									transformation = OccurrenceTransformation(repRel, transform, relatingDefinition, relatedDefinition);
 								}
 								child.parameter["_transformation"] = new Item(Item.ItemType.created, transformation);
 								child.parameter["_referred"] = relatedProduct;
@@ -4621,168 +4605,133 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			FrameImpl.MainFrame?.UIService.ShowProgressBar(true, 100.0 * createdFaces / numFaces);
 		}
 
-		private ModOp GetTransformation(Item origin, Item target, Item origContext, Item targContext)
-		{   // implemented analogous to OpenCascade: STEPControl_ActorRead::ComputeTransformation 
-			FreeCoordSys org = (FreeCoordSys)CreateEntity(origin);
-			FreeCoordSys trg = (FreeCoordSys)CreateEntity(target);
-			int code1 = 0, code2 = 0;
-			foreach (Item item in origContext.parameter["items"].lval)
+		/// <summary>
+		/// Returns the shape representations of a product definition: the representations assigned by
+		/// SHAPE_DEFINITION_REPRESENTATION, together with all representations linked to them by a representation
+		/// relationship without transformation (e.g. SHAPE_REPRESENTATION -> ADVANCED_BREP_SHAPE_REPRESENTATION),
+		/// which share the same coordinate system.
+		/// </summary>
+		private HashSet<Item> RepresentationsOf(Item productDefinition)
+		{
+			lock (definitions)
 			{
-				if (item == origin) code1 = 1;
-				else if (item == target) code1 = -1;
-				if (code1 != 0) break;
-			}
-			foreach (Item item in targContext.parameter["items"].lval)
-			{
-				if (item == origin) code2 = -1;
-				else if (item == target) code2 = 1;
-				if (code2 != 0) break;
-			}
-			if (code1 != 1 && code2 != 1)
-			{
-				if (code1 == -1 && code2 == -1)
+				if (representationsOfProductDefinition == null)
 				{
-					// swap origin and target
-					FreeCoordSys tmp = org;
-					org = trg;
-					trg = tmp;
+					Dictionary<Item, HashSet<Item>> direct = new Dictionary<Item, HashSet<Item>>();
+					Dictionary<Item, List<Item>> linked = new Dictionary<Item, List<Item>>();
+					void Link(Item a, Item b)
+					{
+						if (!linked.TryGetValue(a, out List<Item> l)) linked[a] = l = new List<Item>();
+						l.Add(b);
+					}
+					foreach (Item item in definitions)
+					{
+						if (item?.parameter == null) continue;
+						if (item.type == Item.ItemType.shapeDefinitionRepresentation)
+						{
+							if (!item.parameter.TryGetValue("definition", out Item shape) || shape?.parameter == null) continue;
+							if (!item.parameter.TryGetValue("used_representation", out Item rep) || rep == null) continue;
+							if (!shape.parameter.TryGetValue("definition", out Item pd) || pd == null) continue;
+							if (pd.type == Item.ItemType.shapeAspect && pd.parameter.TryGetValue("of_shape", out Item ofShape) && ofShape?.parameter != null)
+							{
+								ofShape.parameter.TryGetValue("definition", out pd);
+								if (pd == null) continue;
+							}
+							if (!direct.TryGetValue(pd, out HashSet<Item> reps)) direct[pd] = reps = new HashSet<Item>();
+							reps.Add(rep);
+						}
+						else if (item.parameter.TryGetValue("rep_1", out Item rep1) && item.parameter.TryGetValue("rep_2", out Item rep2)
+							&& rep1 != null && rep2 != null && !item.parameter.ContainsKey("transformation_operator"))
+						{   // a relationship without transformation: both representations use the same coordinate system
+							Link(rep1, rep2);
+							Link(rep2, rep1);
+						}
+					}
+					representationsOfProductDefinition = new Dictionary<Item, HashSet<Item>>();
+					foreach (KeyValuePair<Item, HashSet<Item>> kv in direct)
+					{
+						HashSet<Item> all = new HashSet<Item>(kv.Value);
+						Stack<Item> todo = new Stack<Item>(kv.Value);
+						while (todo.Count > 0)
+						{
+							if (linked.TryGetValue(todo.Pop(), out List<Item> l))
+							{
+								foreach (Item r in l) if (all.Add(r)) todo.Push(r);
+							}
+						}
+						representationsOfProductDefinition[kv.Key] = all;
+					}
 				}
-				else
-				{   // this should not happen, since a axis2Placement_3d has not been found neither in origin nor in target
-					// it is an error in the step file
+				if (productDefinition != null && representationsOfProductDefinition.TryGetValue(productDefinition, out HashSet<Item> res)) return res;
+				return new HashSet<Item>();
+			}
+		}
+
+		private static bool ContainsItem(Item representation, Item item)
+		{
+			if (representation?.parameter == null || !representation.parameter.TryGetValue("items", out Item items) || items?.lval == null) return false;
+			return items.lval.Contains(item);
+		}
+
+		/// <summary>
+		/// Computes the placement of an assembly occurrence, i.e. the transformation of the child geometry into the
+		/// coordinate system of the parent (assembly). <paramref name="relationship"/> is the
+		/// REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION of a CONTEXT_DEPENDENT_SHAPE_REPRESENTATION, the product
+		/// definitions are relating (parent) and related (child) of the NEXT_ASSEMBLY_USAGE_OCCURRENCE.
+		/// Exporters do not agree on the order of rep_1 and rep_2: most of them (Inventor, Creo, CATIA, ...) write the
+		/// child representation as rep_1, SolidWorks writes the parent as rep_1. So we decide by the product structure
+		/// which representation belongs to the child (like OpenCascade's CheckSRRReversesNAUO), and by the items of the
+		/// representations which axis placement of the ITEM_DEFINED_TRANSFORMATION belongs to the child.
+		/// The result maps the child placement C onto the parent placement P: P * inverse(C).
+		/// </summary>
+		private ModOp OccurrenceTransformation(Item relationship, Item transform, Item parentDefinition, Item childDefinition)
+		{
+			Item rep1 = relationship.parameter["rep_1"];
+			Item rep2 = relationship.parameter["rep_2"];
+			HashSet<Item> parentReps = RepresentationsOf(parentDefinition);
+			HashSet<Item> childReps = RepresentationsOf(childDefinition);
+			// rep_1 is the child according to the recommended practices, this is also the default when the product
+			// structure doesn't tell
+			bool childFirst = !(parentReps.Contains(rep1) && childReps.Contains(rep2) && !(childReps.Contains(rep1) && parentReps.Contains(rep2)));
+			Item childRep = childFirst ? rep1 : rep2;
+			Item parentRep = childFirst ? rep2 : rep1;
+			if (transform.type == Item.ItemType.itemDefinedTransformation)
+			{
+				Item item1 = transform.parameter["transform_item_1"];
+				Item item2 = transform.parameter["transform_item_2"];
+				// transform_item_1 should be an item of rep_1 and transform_item_2 an item of rep_2, but some exporters swap them
+				Item childItem = childFirst ? item1 : item2;
+				Item parentItem = childFirst ? item2 : item1;
+				if (!ContainsItem(childRep, childItem) && ContainsItem(childRep, parentItem))
+				{
+					Item tmp = childItem;
+					childItem = parentItem;
+					parentItem = tmp;
+				}
+				if (CreateEntity(childItem) is FreeCoordSys c && CreateEntity(parentItem) is FreeCoordSys p)
+				{
+					double cf = GetContextLengthFactor(childRep.parameter["context_of_items"]);
+					double pf = GetContextLengthFactor(parentRep.parameter["context_of_items"]);
+					GeoPoint cloc = GeoPoint.Origin + cf * (c.Location - GeoPoint.Origin);
+					GeoPoint ploc = GeoPoint.Origin + pf * (p.Location - GeoPoint.Origin);
+					return ModOp.Fit(cloc, new GeoVector[] { c.DirectionX, c.DirectionY, c.DirectionZ }, ploc, new GeoVector[] { p.DirectionX, p.DirectionY, p.DirectionZ });
+				}
+				return ModOp.Identity;
+			}
+			// a functionally defined transformation (e.g. CARTESIAN_TRANSFORMATION_OPERATOR_3D) maps the context of rep_1 into the context of rep_2
+			if (CreateEntity(transform) is ModOp m)
+			{
+				if (childFirst) return m;
+				try
+				{
+					return m.GetInverse();
+				}
+				catch (ModOpException)
+				{
+					return ModOp.Identity;
 				}
 			}
-#if DEBUG
-			//DebuggerContainer dc = new DebuggerContainer();
-			//ColorDef cdr = new ColorDef("from", Color.Red);
-			//ColorDef cdb = new ColorDef("to", Color.Blue);
-			//{
-			//    Polyline pl = Polyline.Construct();
-			//    pl.SetPoints(new GeoPoint[] { org.Location, org.Location + 5 * org.DirectionX, org.Location + 5 * org.DirectionY }, true);
-			//    pl.ColorDef = cdr;
-			//    dc.Add(pl);
-			//    pl = Polyline.Construct();
-			//    pl.SetPoints(new GeoPoint[] { trg.Location, trg.Location + 5 * trg.DirectionX, trg.Location + 5 * trg.DirectionY }, true);
-			//    pl.ColorDef = cdb;
-			//    dc.Add(pl);
-			//}
-#endif
-			// von blau nach rot gem. axis drehen (um axis^axis), dann in rot refax blau nach refax rot drehen um axis rot.
-			double lfo = GetContextLengthFactor(origContext.parameter["context_of_items"]);
-			double lft = GetContextLengthFactor(targContext.parameter["context_of_items"]);
-			if (lfo != 1.0)
-			{
-				org.Location.x = lfo * org.Location.x;
-				org.Location.y = lfo * org.Location.y;
-				org.Location.z = lfo * org.Location.z;
-			}
-			if (lft != 1.0)
-			{
-				trg.Location.x = lft * trg.Location.x;
-				trg.Location.y = lft * trg.Location.y;
-				trg.Location.z = lft * trg.Location.z;
-			}
-			//CultureInfo c = CultureInfo.CreateSpecificCulture("en-US");
-			//System.Diagnostics.Trace.WriteLine("ax3Orig (" + org.Location.x.ToString("F3", c) + ", " + org.Location.y.ToString("F3", c) + ", " + org.Location.z.ToString("F3", c) + ") (" + org.DirectionZ.x.ToString("F3", c) + ", " + org.DirectionZ.y.ToString("F3", c) + ", " + org.DirectionZ.z.ToString("F3", c) + ") (" + org.DirectionX.x.ToString("F3", c) + ", " + org.DirectionX.y.ToString("F3", c) + ", " + org.DirectionX.z.ToString("F3", c) + ") (" + org.DirectionY.x.ToString("F3", c) + ", " + org.DirectionY.y.ToString("F3", c) + ", " + org.DirectionY.z.ToString("F3", c) + ")");
-			//System.Diagnostics.Trace.WriteLine("ax3Targ (" + trg.Location.x.ToString("F3", c) + ", " + trg.Location.y.ToString("F3", c) + ", " + trg.Location.z.ToString("F3", c) + ") (" + trg.DirectionZ.x.ToString("F3", c) + ", " + trg.DirectionZ.y.ToString("F3", c) + ", " + trg.DirectionZ.z.ToString("F3", c) + ") (" + trg.DirectionX.x.ToString("F3", c) + ", " + trg.DirectionX.y.ToString("F3", c) + ", " + trg.DirectionX.z.ToString("F3", c) + ") (" + trg.DirectionY.x.ToString("F3", c) + ", " + trg.DirectionY.y.ToString("F3", c) + ", " + trg.DirectionY.z.ToString("F3", c) + ")");
-			ModOp res;
-			{   // gp_Trsf::SetTransformation 
-				FreeCoordSys FromA1 = trg;
-				FreeCoordSys ToA2 = org;
-				Matrix matrix = DenseMatrix.OfRowArrays(ToA2.DirectionX, ToA2.DirectionY, ToA2.DirectionZ);
-				Vector loc = new DenseVector(new double[] { ToA2.Location.x, ToA2.Location.y, ToA2.Location.z });
-				//matrix.Transpose();
-				loc = (Vector)(matrix * loc);
-				loc[0] = -loc[0]; loc[1] = -loc[1]; loc[2] = -loc[2];
-
-				Matrix MA1 = DenseMatrix.OfRowArrays(FromA1.DirectionX, FromA1.DirectionY, FromA1.DirectionZ);
-				MA1.Transpose();
-				Vector MA1loc = new DenseVector(new double[] { FromA1.Location.x, FromA1.Location.y, FromA1.Location.z });
-				MA1loc = (Vector)(matrix * MA1loc);
-				loc = (Vector)(loc + MA1loc);
-				matrix = (Matrix)(MA1 * matrix).Transpose(); // introduced ".Transpose()" because of "FMC1_Rev2.0.stp"
-				res = new ModOp(matrix.ToArray(), new GeoVector(loc[0], loc[1], loc[2]));
-			}
-			if (transformationMode) //trg.Location == GeoPoint.Origin)
-			{
-				res = ModOp.Translate(org.Location - trg.Location) * ModOp.Fit(new GeoVector[] { trg.DirectionX, trg.DirectionY, trg.DirectionZ }, new GeoVector[] { org.DirectionX, org.DirectionY, org.DirectionZ });
-			}
-			else
-			{
-				//res = ModOp.Fit(org, trg);
-			}
-			//System.Diagnostics.Trace.WriteLine("Trsf (" + res.Item(0, 0).ToString("F3", c) + ", " + res.Item(0, 1).ToString("F3", c) + ", " + res.Item(0, 2).ToString("F3", c) + ", " + res.Item(0, 3).ToString("F3", c) + ")");
-			//System.Diagnostics.Trace.WriteLine("     (" + res.Item(1, 0).ToString("F3", c) + ", " + res.Item(1, 1).ToString("F3", c) + ", " + res.Item(1, 2).ToString("F3", c) + ", " + res.Item(1, 3).ToString("F3", c) + ")");
-			//System.Diagnostics.Trace.WriteLine("     (" + res.Item(2, 0).ToString("F3", c) + ", " + res.Item(2, 1).ToString("F3", c) + ", " + res.Item(2, 2).ToString("F3", c) + ", " + res.Item(2, 3).ToString("F3", c) + ")");
-			return res;
-
-			//Unreachable code
-			/*
-            // according to pdmug_release4_3.pdf, page 52, but not used
-            GeoVector zo = (GeoVector)origin.parameter["axis"].val;
-            GeoVector ao = (GeoVector)origin.parameter["ref_direction"].val;
-            GeoVector xo = ao - (ao * zo) * zo;
-            GeoVector yo = zo ^ xo;
-            Matrix A = DenseMatrix.OfRowArrays(xo, yo, zo);
-            GeoVector zt = (GeoVector)target.parameter["axis"].val;
-            GeoVector at = (GeoVector)target.parameter["ref_direction"].val;
-            GeoVector xt = at - (at * zt) * zt;
-            GeoVector yt = zt ^ xt;
-            Matrix B = DenseMatrix.OfRowArrays(xt, yt, zt);
-            B = (Matrix)B.Transpose();
-            Matrix C = (Matrix)(B * A);
-            GeoPoint t = (GeoPoint)origin.parameter["location"].val;
-            GeoPoint u = (GeoPoint)target.parameter["location"].val;
-            t.x *= lfo;
-            t.y *= lfo;
-            t.z *= lfo;
-            u.x *= lft;
-            u.y *= lft;
-            u.z *= lft;
-            Vector v = (Vector)(C * new DenseVector(new double[] { t.x, t.y, t.z }));
-            GeoVector trs = new GeoVector(u.x - v[0], u.y - v[1], u.z - v[2]);
-            res = new ModOp(C.ToArray(), trs);
-            // return res;
-
-            //int code1 = 0, code2 = 0;
-            foreach (Item item in origContext.parameter["items"].lval)
-            {
-                if (item == origin) code1 = 1;
-                else if (item == target) code1 = -1;
-                if (code1 != 0) break;
-            }
-            foreach (Item item in targContext.parameter["items"].lval)
-            {
-                if (item == origin) code2 = -1;
-                else if (item == target) code2 = 1;
-                if (code2 != 0) break;
-            }
-            if (code1 != 1 && code2 != 1)
-            {
-                if (code1 == -1 && code2 == -1)
-                {
-                    // swap origin and target
-                    FreeCoordSys tmp = org;
-                    org = trg;
-                    trg = tmp;
-                }
-                else
-                {   // this should not happen, since a axis2Placement_3d has not been found neither in origin nor in target
-                    // it is an error in the step file
-                }
-            }
-            if (lft != lfo)
-            {
-
-            }
-            GeoVector cross = trg.DirectionZ ^ org.DirectionZ;
-            if (cross.IsNullVector()) return ModOp.Fit(org, trg);
-            GeoVector orgperp = cross ^ org.DirectionZ;
-            GeoVector trgperp = cross ^ trg.DirectionZ;
-            ModOp rot = ModOp.Fit(new GeoVector[] { org.DirectionZ, cross, -orgperp }, new GeoVector[] { trg.DirectionZ, cross, trgperp });
-            ModOp trans = ModOp.Translate(org.Location - trg.Location);
-            return trans * rot;
-            */
+			return ModOp.Identity;
 		}
 
 		private double GetContextLengthFactor(Item item)
