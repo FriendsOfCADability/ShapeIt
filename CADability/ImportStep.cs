@@ -2252,6 +2252,21 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 #if DEBUG
 		static Face dbgfc = null;
 #endif
+		/// <summary>
+		/// Trims a full circle or ellipse to the arc that runs from position <paramref name="sp"/> to position <paramref name="ep"/>
+		/// in the direction of the curve. When <paramref name="sp"/> &gt; <paramref name="ep"/> the arc crosses the start point
+		/// (the x-axis of the ellipse plane). This is what STEP means for closed curves. <see cref="Ellipse.Trim"/> cannot be used
+		/// here: for StartPos &gt; EndPos it returns the reversed arc between EndPos and StartPos, i.e. the complementary arc.
+		/// This happens e.g. when the start vertex lies exactly on the x-axis and PositionOf returns 1 instead of 0.
+		/// </summary>
+		private static void TrimClosedEllipse(Ellipse elli, double sp, double ep)
+		{
+			double sweep = elli.SweepParameter;
+			double part = ep - sp;
+			if (part <= 0.0) part += 1.0;
+			elli.StartParameter = elli.StartParameter + sp * sweep;
+			if (part > 1e-8 && part < 1.0 - 1e-8) elli.SweepParameter = part * sweep; // else it remains the full curve with a new start point
+		}
 
 		private object CreateEntity(Item item)
 		{
@@ -3418,8 +3433,12 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 										}
 										else
 										{
-											if (crv is Ellipse)
+											if (crv is Ellipse elli && elli.IsClosed)
 											{   // take the part that crosses the x-axis (of the ellipse plane)
+												TrimClosedEllipse(elli, sp, ep);
+											}
+											else if (crv is Ellipse)
+											{
 												crv.Trim(sp, ep);
 											}
 											else
@@ -4416,7 +4435,13 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 										}
 									}
 									if (!sense) basisCurve.Reverse();
-									if (startParameter != endParameter) basisCurve.Trim(basisCurve.ParameterToPosition(startParameter), basisCurve.ParameterToPosition(endParameter));
+									if (startParameter != endParameter)
+									{
+										double startPos = basisCurve.ParameterToPosition(startParameter);
+										double endPos = basisCurve.ParameterToPosition(endParameter);
+										if (basisCurve is Ellipse closedElli && closedElli.IsClosed && startPos > endPos) TrimClosedEllipse(closedElli, startPos, endPos);
+										else basisCurve.Trim(startPos, endPos);
+									}
 									item.val = basisCurve;
 								}
 								else if (startPoint.IsValid && endPoint.IsValid)
@@ -4425,7 +4450,8 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 									if (!sense) basisCurve.Reverse();
 									double startPos = basisCurve.PositionOf(startPoint);
 									double endPos = basisCurve.PositionOf(endPoint);
-									basisCurve.Trim(startPos, endPos);
+									if (basisCurve is Ellipse closedElli && closedElli.IsClosed && startPos > endPos) TrimClosedEllipse(closedElli, startPos, endPos);
+									else basisCurve.Trim(startPos, endPos);
 									item.val = basisCurve;
 								}
 							}
