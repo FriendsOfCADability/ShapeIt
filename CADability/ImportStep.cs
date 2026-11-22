@@ -395,6 +395,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		int defIndex = 0;
 		private bool makeBlocks = false;
 		private Dictionary<Item, HashSet<Item>> representationsOfProductDefinition; // see RepresentationsOf
+		private Dictionary<Item, HashSet<Item>> shapeRepresentationsOfProductDefinition; // see RepresentationsOf
 
 		Tokenizer tk;
 		List<Item> definitions;
@@ -409,7 +410,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		/// The units of the representation whose items are currently being created (set by <see cref="CreateEntity"/>).
 		/// </summary>
 		private context context => currentContext.Value ?? defaultContext;
-		HashSet<Item> products = new HashSet<Item>();
+		private List<(Item usage, Item parentDefinition, Item childDefinition, ModOp placement)> occurrences = new List<(Item, Item, Item, ModOp)>(); // assembly occurrences, see ProductStructure
 		HashSet<Item> mappedItems = new HashSet<Item>();
 		private Dictionary<int, string> importProblems;
 		private List<Item> notImportedFaces;
@@ -1619,81 +1620,35 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						object o = CreateEntity(item);
 					}
 
-					// there is the concept of "mappedItem", which is not respected with the "products" concept.
-					// I am not sure how to handle this, so I am doing this as exclusive patterns. If we have mappedItems, we do not use the products.
-					// The mappedItems seem also to appear in the products.
+					// The product structure is the primary source of the result. Mapped items in the representations of the
+					// products are part of their shape. Mapped items, which are not part of a product shape, and files without
+					// a product structure use the other root entities as a fallback.
+					HashSet<Item> reachedItems = new HashSet<Item>();
+					GeoObjectList productList = ProductStructure(reachedItems);
 					HashSet<Item> rootMappedItems = new HashSet<Item>(mappedItems);
-					if (mappedItems.Count > 0)
+					foreach (Item mpItem in mappedItems)
 					{
-						foreach (Item mpItem in mappedItems)
+						foreach (Item subitem in mpItem["mapping_source"]["mapped_representation"]["items"].lval)
 						{
-							foreach (Item subitem in mpItem["mapping_source"]["mapped_representation"]["items"].lval)
-							{
-								if (subitem.type == Item.ItemType.mappedItem) rootMappedItems.Remove(subitem);
-							}
+							if (subitem.type == Item.ItemType.mappedItem) rootMappedItems.Remove(subitem);
 						}
 					}
 					GeoObjectList rmiList = new GeoObjectList();
-					if (rootMappedItems.Count > 0)
+					foreach (Item mi in rootMappedItems.OrderBy(m => m.definingIndex))
 					{
-						foreach (Item mi in rootMappedItems)
-						{
-							object l = CreateEntity(mi);
-							if (l is GeoObjectList) rmiList.AddRange(l as GeoObjectList);
-							if (l is IGeoObject) rmiList.Add(l as IGeoObject); // must be a Block 
-						}
+						if (reachedItems.Contains(mi)) continue;
+						object l = CreateEntity(mi);
+						if (l is GeoObjectList) rmiList.AddRange(l as GeoObjectList);
+						if (l is IGeoObject) rmiList.Add(l as IGeoObject); // must be a Block
 					}
-					if (rootMappedItems.Count > 0 && rmiList.Count > 0)
+					if (productList.Count > 0)
+					{
+						res = productList;
+						res.AddRange(rmiList);
+					}
+					else if (rmiList.Count > 0)
 					{
 						res = rmiList;
-					}
-					else
-					{
-						foreach (Item product in products)
-						{
-							CreateProduct(product);
-						}
-						HashSet<Item> rootProducts = new HashSet<Item>(products);
-						foreach (Item product in products)
-						{
-							if (product.parameter.TryGetValue("_children", out Item children))
-							{
-								for (int j = 0; j < children.lval.Count; j++)
-								{
-									rootProducts.Remove(children.lval[j].parameter["_referred"]);
-								}
-							}
-						}
-						if (rootProducts.Count > 0)
-						{
-							GeoObjectList prodlist = new GeoObjectList();
-							foreach (Item rootProduct in rootProducts)
-							{
-#if DEBUG
-								System.Diagnostics.Trace.WriteLine(ProductHierarchie(rootProduct, ""));
-								Block blk = ProductToBlock(rootProduct);
-#endif
-								if (rootProduct.parameter.ContainsKey("_geo"))
-								{
-									GeoObjectList l = rootProduct.parameter["_geo"].val as GeoObjectList;
-									if (l != null)
-									{
-										if (l.Count > 1 && makeBlocks)
-										{
-											Block prodblk = Block.Construct();
-											prodblk.Name = rootProduct.parameter["name"].sval;
-											prodblk.Set(l);
-											prodlist.Add(prodblk);
-										}
-										else
-										{
-											prodlist.AddRange(l);
-										}
-									}
-								}
-							}
-							if (prodlist.Count > 0) res = prodlist;
-						}
 					}
 					if (res == null || res.Count == 0)
 					{
@@ -1760,200 +1715,195 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			if (!Settings.GlobalSettings.GetBoolValue("StepImport.Blocks", true)) res.DecomposeBlocks();
 			return res;
 		}
-#if DEBUG
-		//public SortedDictionary<string, GeoObjectList> allObjects = new SortedDictionary<string, GeoObjectList>();
-		string ProductHierarchie(Item product, string indent)
+		/// <summary>
+		/// A node of the product structure: a product with the shape of its product definitions and its placed
+		/// children (the assembly occurrences).
+		/// </summary>
+		private class ProductNode
 		{
-			StringBuilder res = new StringBuilder();
-			res.AppendLine(indent + product.parameter["id"].sval);
-			if (product.parameter.TryGetValue("_children", out Item children))
-			{
-				for (int i = 0; i < children.lval.Count; i++)
-				{
-					res.Append(ProductHierarchie(children.lval[i].parameter["_referred"], indent + "---"));
-				}
-			}
-			return res.ToString();
+			public Item product;
+			public HashSet<Item> definitions = new HashSet<Item>(); // the product definitions of this product with a shape
+			public List<(ProductNode child, ModOp placement)> children = new List<(ProductNode child, ModOp placement)>();
+			public HashSet<Item> usages = new HashSet<Item>(); // the NEXT_ASSEMBLY_USAGE_OCCURRENCEs of the children, to skip duplicates
+			public bool isChild; // used in an assembly, so it is not a root
+			public bool instantiating; // protects against cyclic structures
+			public GeoObjectList geometry; // the own shape and the placed children, see InstantiateProduct
 		}
-#endif
-		Block ProductToBlock(Item product)
+
+		/// <summary>
+		/// Creates the product structure: the products are the nodes, the assembly occurrences (CONTEXT_DEPENDENT_SHAPE_REPRESENTATION)
+		/// with their placement are the edges. The shape of a product are the items of the representations of its product
+		/// definitions (see <see cref="RepresentationsOf"/>). The roots are the products, which are not used in any assembly.
+		/// Returns the instantiated roots, ordered as they appear in the file. <paramref name="reachedItems"/> receives all
+		/// representation items which are part of the result.
+		/// </summary>
+		private GeoObjectList ProductStructure(HashSet<Item> reachedItems)
 		{
-			Block blk = Block.Construct();
-			GeoObjectList collect = new GeoObjectList();
-			// if (product.parameter["_geo"].val is GeoObjectList list) collect.AddRange(list);
-			blk.Name = product.parameter["id"].sval;
-			if (product.parameter.TryGetValue("_children", out Item children))
+			Dictionary<Item, ProductNode> nodes = new Dictionary<Item, ProductNode>();
+			ProductNode NodeOf(Item definition)
 			{
-				for (int i = 0; i < children.lval.Count; i++)
+				Item product = definition;
+				if (definition.parameter.TryGetValue("formation", out Item formation) && formation?.parameter != null
+					&& formation.parameter.TryGetValue("of_product", out Item ofProduct) && ofProduct?.parameter != null) product = ofProduct;
+				if (!nodes.TryGetValue(product, out ProductNode node)) nodes[product] = node = new ProductNode() { product = product };
+				return node;
+			}
+			RepresentationsOf(null); // initializes representationsOfProductDefinition
+			foreach (Item definition in representationsOfProductDefinition.Keys)
+			{   // the shape of an occurrence (a SHAPE_DEFINITION_REPRESENTATION of the NEXT_ASSEMBLY_USAGE_OCCURRENCE) is not a product
+				if (definition?.parameter == null || !definition.parameter.ContainsKey("formation")) continue;
+				NodeOf(definition).definitions.Add(definition);
+			}
+			foreach ((Item usage, Item parentDefinition, Item childDefinition, ModOp placement) in occurrences)
+			{
+				if (parentDefinition?.parameter == null || childDefinition?.parameter == null) continue;
+				ProductNode parent = NodeOf(parentDefinition);
+				ProductNode child = NodeOf(childDefinition);
+				if (usage != null && !parent.usages.Add(usage)) continue; // several representation relationships for the same occurrence
+				parent.children.Add((child, placement));
+				child.isChild = true;
+			}
+			// A product whose representation is instanced by a MAPPED_ITEM in the representation of another product (or in a
+			// representation of no product) is placed by that mapped item, so it is not a root either. Exporters use this
+			// instead of an assembly occurrence (e.g. the CADability export, Solid Edge).
+			Dictionary<Item, HashSet<ProductNode>> ownersOfRepresentation = new Dictionary<Item, HashSet<ProductNode>>();
+			foreach (ProductNode node in nodes.Values)
+			{
+				foreach (Item definition in node.definitions)
 				{
-					Block blksub = ProductToBlock(children.lval[i].parameter["_referred"]);
-					if (blksub.NumChildren > 0)
+					foreach (Item representation in RepresentationsOf(definition, false))
 					{
-						for (int j = 0; j < blksub.Count; j++)
-						{
-							collect.Remove(blksub.Child(j));
-						}
-						collect.Add(blksub);
+						if (!ownersOfRepresentation.TryGetValue(representation, out HashSet<ProductNode> owners)) ownersOfRepresentation[representation] = owners = new HashSet<ProductNode>();
+						owners.Add(node);
 					}
-					//if (blksub.NumChildren == 1)
-					//{
-					//    IGeoObject ch = blksub.Child(0);
-					//    blksub.Remove(0);
-					//    collect.Add(ch);
-					//}
-					//else if (blksub.NumChildren > 1)
-					//{
-					//    collect.Add(blksub);
-					//}
 				}
-				blk.Set(collect);
 			}
-			else
+			foreach (Item representation in definitions)
 			{
-				if (product.parameter["_geo"].val is GeoObjectList list) collect.AddRange(list);
-				blk.Set(collect);
+				if (representation?.parameter == null || !representation.parameter.TryGetValue("items", out Item items) || items?.lval == null) continue;
+				ownersOfRepresentation.TryGetValue(representation, out HashSet<ProductNode> containing);
+				foreach (Item it in items.lval)
+				{
+					Item mapped = it;
+					if (mapped != null && mapped.type == Item.ItemType.index) mapped = definitions[(int)mapped.val];
+					if (mapped == null || mapped.type != Item.ItemType.mappedItem || mapped.parameter == null) continue;
+					if (!mapped.parameter.TryGetValue("mapping_source", out Item source) || source?.parameter == null) continue;
+					if (!source.parameter.TryGetValue("mapped_representation", out Item mappedRepresentation) || mappedRepresentation == null) continue;
+					if (!ownersOfRepresentation.TryGetValue(mappedRepresentation, out HashSet<ProductNode> owners)) continue;
+					foreach (ProductNode owner in owners)
+					{
+						if (containing == null || !containing.Contains(owner)) owner.isChild = true;
+					}
+				}
 			}
-			return blk;
+			List<ProductNode> roots = nodes.Values.Where(n => !n.isChild).OrderBy(n => n.product.definingIndex).ToList();
+			GeoObjectList res = new GeoObjectList();
+			foreach (ProductNode root in roots)
+			{
+				GeoObjectList l = InstantiateProduct(root, reachedItems);
+				if (l.Count > 1 && makeBlocks)
+				{
+					Block blk = Block.Construct();
+					blk.Name = ProductName(root.product);
+					blk.Set(l);
+					res.Add(blk);
+				}
+				else
+				{
+					res.AddRange(l);
+				}
+			}
+			return res;
 		}
-		private void CreateProduct(Item product)
+
+		private static string ProductName(Item product)
 		{
-			//System.Diagnostics.Trace.WriteLine(SubTree(product.definingIndex, 5));
-			//System.Diagnostics.Trace.Write(product.parameter["id"].sval + ": ");
-			//for (int i = 0; i < product.parameter["frame_of_reference"].lval.Count; i++)
-			//{
-			//    System.Diagnostics.Trace.Write(product.parameter["frame_of_reference"].lval[i].type.ToString() + ", ");
-			//}
-			//System.Diagnostics.Trace.WriteLine("");
-			if (!product.parameter.ContainsKey("_geo"))
+			if (product.parameter.TryGetValue("name", out Item name) && name?.sval != null) return name.sval;
+			return null;
+		}
+
+		private static string ProductId(Item product)
+		{
+			if (product.parameter.TryGetValue("id", out Item id) && id?.sval != null) return id.sval;
+			return null;
+		}
+
+		/// <summary>
+		/// The geometry of a product in its own coordinate system: the placed copies of the children and the own shape.
+		/// Each product is instantiated once, the parents use clones of this geometry.
+		/// </summary>
+		private GeoObjectList InstantiateProduct(ProductNode node, HashSet<Item> reachedItems)
+		{
+			if (node.geometry != null) return node.geometry;
+			GeoObjectList res = new GeoObjectList();
+			if (node.instantiating) return res; // a cycle in the structure
+			node.instantiating = true;
+			bool addLocation = Settings.GlobalSettings.GetBoolValue("StepImport.AddLocation", true);
+			foreach ((ProductNode child, ModOp placement) in node.children)
 			{
-				// System.Diagnostics.Trace.WriteLine("CreateProduct: " + product.definingIndex.ToString());
-				GeoObjectList res = new GeoObjectList();
-				product.parameter["_geo"] = new Item(Item.ItemType.created, res);
-				if (product.parameter.TryGetValue("_children", out Item children))
+				GeoObjectList list = InstantiateProduct(child, reachedItems);
+				Block blk = null;
+				if (list.Count > 1 && makeBlocks)
 				{
-					for (int i = 0; i < children.lval.Count; i++)
-					{
-						ModOp m = (ModOp)children.lval[i].parameter["_transformation"].val;
-						CreateProduct(children.lval[i].parameter["_referred"]);
-						GeoObjectList list = children.lval[i].parameter["_referred"].parameter["_geo"].val as GeoObjectList;
-						Block blk = Block.Construct();
-						blk.Name = children.lval[i].parameter["_referred"].parameter["name"].sval;
-						HashSet<(IGeoObject, ModOp)> alreadyAdded = new HashSet<(IGeoObject, ModOp)>();
-						if (list.Count > 1 && makeBlocks)
-						{
-							for (int j = 0; j < list.Count; j++)
-							{
-								if (alreadyAdded.Contains((list[j], m))) continue; // avoid adding the same object at the same position multiple times
-								alreadyAdded.Add((list[j], m));
-								IGeoObject sub = list[j].Clone();
-								sub.Modify(m);
-								if (Settings.GlobalSettings.GetBoolValue("StepImport.AddLocation", true)) sub.UserData.Add("STEP.Location", m);
-								blk.Add(sub);
-							}
-							if (blk.NumChildren > 0) res.Add(blk);
-						}
-						else
-						{
-							for (int j = 0; j < list.Count; j++)
-							{
-								if (alreadyAdded.Contains((list[j], m))) continue; // avoid adding the same object at the same position multiple times
-								alreadyAdded.Add((list[j], m));
-								IGeoObject sub = list[j].Clone();
-								sub.Modify(m);
-								if (Settings.GlobalSettings.GetBoolValue("StepImport.AddLocation", true)) sub.UserData.Add("STEP.Location", m);
-								res.Add(sub);
-							}
-						}
-					}
+					blk = Block.Construct();
+					blk.Name = ProductName(child.product);
 				}
-				if (product.parameter.TryGetValue("_context", out Item context))
+				for (int j = 0; j < list.Count; j++)
 				{
-					string name = product.parameter["id"].sval;
-					bool hasRelationship = false;
-					for (int j = 0; j < context.lval.Count; j++)
-					{
-						if (context.lval[j].parameter.TryGetValue("_relationship", out Item rel))
-						{
-							hasRelationship = true;
-							bool found = false;
-							for (int k = 0; k < rel.lval.Count; k++)
-							{
-								Object o = CreateEntity(rel.lval[k]);
-								if (o is IGeoObject)
-								{
-									res.Add(o as IGeoObject);
-									found = true;
-								}
-								else if (o is GeoObjectList gl)
-								{
-									if (gl.Count > 1)
-									{
-										Block blk = Block.Construct();
-										blk.Add(gl);
-										if (!string.IsNullOrWhiteSpace(name)) blk.Name = name;
-										res.Add(blk);
-									}
-									else
-									{
-										res.AddRange(gl);
-									}
-									found = true;
-								}
-								if (!string.IsNullOrWhiteSpace(name))
-								{
-									if (o is Solid sld) sld.Name = name; // was "&& string.IsNullOrWhiteSpace(sld.Name)" before, so here we overwrite the shapes name
-									if (o is Shell shl) shl.Name = name; // && string.IsNullOrWhiteSpace(shl.Name)
-								}
-							}
-							if (!found && namedGeoObjects.TryGetValue(name, out IGeoObject go)) res.Add(go);
-						}
-					}
-					if (!hasRelationship && product.parameter.TryGetValue("_association", out Item assoc))
-					{
-						for (int k = 0; k < assoc.lval.Count; k++)
-						{
-							Object o = CreateEntity(assoc.lval[k]);
-							if (o is IGeoObject) res.AddUnique(o as IGeoObject);
-							else if (o is GeoObjectList) res.AddRange(o as GeoObjectList);
-							if (!string.IsNullOrWhiteSpace(name))
-							{
-								if (o is Solid sld && string.IsNullOrWhiteSpace(sld.Name)) sld.Name = name;
-								if (o is Shell shl && string.IsNullOrWhiteSpace(shl.Name)) shl.Name = name;
-							}
-						}
-					}
+					IGeoObject sub = list[j].Clone();
+					sub.Modify(placement);
+					if (addLocation) sub.UserData.Add("STEP.Location", placement);
+					if (blk != null) blk.Add(sub);
+					else res.Add(sub);
 				}
-				//if (product.parameter.TryGetValue("_association", out Item assoc))
-				//{
-				//    string name = product.parameter["id"].sval;
-				//    for (int i = 0; i < assoc.lval.Count; i++)
-				//    {
-				//        if (assoc.lval[i].type == Item.ItemType.axis2Placement_3d)
-				//        {
-				//            if (assoc.lval[i].parameter.TryGetValue("_relationship", out Item rel))
-				//            {
-				//                for (int j = 0; j < rel.lval.Count; j++)
-				//                {
-				//                    Object o = CreateEntity(rel.lval[j]);
-				//                    if (o is IGeoObject) res.Add(o as IGeoObject);
-				//                    else if (o is GeoObjectList) res.AddRange(o as GeoObjectList);
-				//                    if (o is Solid) (o as Solid).Name = name;
-				//                    if (o is Shell) (o as Shell).Name = name;
-				//                }
-				//            }
-				//        }
-				//        else
-				//        {
-				//            Object o = CreateEntity(assoc.lval[i]);
-				//            if (o is IGeoObject) res.Add(o as IGeoObject);
-				//            else if (o is GeoObjectList) res.AddRange(o as GeoObjectList);
-				//            if (o is Solid) (o as Solid).Name = name;
-				//            if (o is Shell) (o as Shell).Name = name;
-				//        }
-				//    }
-				//}
-				//System.Diagnostics.Trace.WriteLine("Created: " + product.definingIndex.ToString());
+				if (blk != null && blk.NumChildren > 0) res.Add(blk);
 			}
+			string id = ProductId(node.product);
+			HashSet<IGeoObject> added = new HashSet<IGeoObject>();
+			foreach (Item definition in node.definitions.OrderBy(d => d.definingIndex))
+			{
+				foreach (Item representation in RepresentationsOf(definition, false).OrderBy(r => r.definingIndex))
+				{
+					if (representation?.parameter == null || !representation.parameter.TryGetValue("items", out Item items) || items?.lval == null) continue;
+					foreach (Item it in items.lval)
+					{
+						Item item = it;
+						if (item == null) continue;
+						if (item.type == Item.ItemType.index) item = definitions[(int)item.val];
+						object o = CreateEntity(item);
+						reachedItems.Add(item);
+						if (o is IGeoObject go)
+						{
+							if (!added.Add(go)) continue;
+							if (!string.IsNullOrWhiteSpace(id))
+							{
+								if (go is Solid sld) sld.Name = id;
+								if (go is Shell shl) shl.Name = id;
+							}
+							res.Add(go);
+						}
+						else if (o is GeoObjectList gl)
+						{
+							List<IGeoObject> toAdd = gl.Where(g => added.Add(g)).ToList();
+							if (toAdd.Count > 1)
+							{
+								Block blk = Block.Construct();
+								foreach (IGeoObject g in toAdd) blk.Add(g);
+								if (!string.IsNullOrWhiteSpace(id)) blk.Name = id;
+								res.Add(blk);
+							}
+							else res.AddRange(toAdd);
+						}
+						else if (o is IGeoObject[] goa)
+						{
+							foreach (IGeoObject g in goa) if (added.Add(g)) res.Add(g);
+						}
+					}
+				}
+			}
+			node.instantiating = false;
+			node.geometry = res;
+			return res;
 		}
 #if DEBUG
 		private void SetUsedBy(int ind, List<Item> list)
@@ -2358,36 +2308,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							// parameter: definition, definition, formation, of_product
 							// parameter: definition, definition, id
 							// parameter: used_representation, items, axis2d
-							// this is typically a root object, we associate the product-item with the used_representation-itmes
-							Item prodDef = item.parameter["definition"].parameter["definition"];
-							if (prodDef.type == Item.ItemType.shapeAspect)
-							{
-								prodDef = prodDef.parameter["of_shape"].parameter["definition"];
-							}
-							string id = prodDef.parameter["id"].sval;
-							CreateEntity(item.parameter["used_representation"]);
-							List<Item> usedrep = item.parameter["used_representation"].parameter["items"].lval;
-							Item context = item.parameter["used_representation"].parameter["context_of_items"];
-							Item product = prodDef.parameter["formation"].parameter["of_product"];
-							Item assoc, _context;
-							lock (product)
-							{
-								if (!product.parameter.TryGetValue("_association", out assoc))
-								{
-									product.parameter["_association"] = assoc = new Item(Item.ItemType.created, new List<Item>());
-									product.parameter["_context"] = _context = new Item(Item.ItemType.created, new List<Item>());
-								}
-								else
-								{
-									_context = product.parameter["_context"];
-								}
-								assoc.lval.AddRange(usedrep);
-								_context.lval.Add(context);
-							}
-							lock (products)
-							{
-								products.Add(product);
-							}
+							CreateEntity(item.parameter["used_representation"]); // the product structure is built in ProductStructure
 						}
 						break;
 					case Item.ItemType.nextAssemblyUsageOccurrence:
@@ -3890,6 +3811,12 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						{
 							object rep1 = CreateEntity(item.parameter["rep_1"] as Item);
 							object rep2 = CreateEntity(item.parameter["rep_2"] as Item);
+							if (!item.parameter["rep_1"].parameter.ContainsKey("items") || !item.parameter["rep_2"].parameter.ContainsKey("items")
+								|| !item.parameter["rep_1"].parameter.ContainsKey("context_of_items") || !item.parameter["rep_2"].parameter.ContainsKey("context_of_items"))
+							{   // e.g. machining representations (AP 238), which are not geometric representations
+								item.val = null;
+								break;
+							}
 							List<Item> rep1list = item.parameter["rep_1"].parameter["items"].lval;
 							List<Item> rep2list = item.parameter["rep_2"].parameter["items"].lval;
 							string name = item.parameter["rep_1"].parameter["name"].sval;
@@ -3995,19 +3922,12 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 								CreateEntity(repRel);
 								Item relatingDefinition = repProdRel.parameter["definition"].parameter["relating_product_definition"];
 								Item relatedDefinition = repProdRel.parameter["definition"].parameter["related_product_definition"];
-								Item relatingProduct = relatingDefinition.parameter["formation"].parameter["of_product"];
-								Item relatedProduct = relatedDefinition.parameter["formation"].parameter["of_product"];
-								if (!relatingProduct.parameter.ContainsKey("_children")) relatingProduct.parameter["_children"] = new Item(Item.ItemType.created, new List<Item>());
-								Item child = new Item(Item.ItemType.created, null);
 								ModOp transformation = ModOp.Identity;
 								if (repRel.parameter.TryGetValue("transformation_operator", out Item transform))
 								{
 									transformation = OccurrenceTransformation(repRel, transform, relatingDefinition, relatedDefinition);
 								}
-								child.parameter["_transformation"] = new Item(Item.ItemType.created, transformation);
-								child.parameter["_referred"] = relatedProduct;
-								relatingProduct.parameter["_children"].lval.Add(child);
-								products.Add(relatingProduct);
+								lock (occurrences) occurrences.Add((repProdRel.parameter["definition"], relatingDefinition, relatedDefinition, transformation));
 							}
 #if DEBUG
 							//System.Diagnostics.Trace.WriteLine(SubTree(item.definingIndex, 5));
@@ -4511,7 +4431,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							//    System.Diagnostics.Trace.WriteLine(up[i]);
 							//}
 #endif
-							mappedItems.Add(item);
+							lock (mappedItems) mappedItems.Add(item);
 							string name = item.parameter["name"].sval;
 							object mo = CreateEntity(item.parameter["mapping_source"].parameter["mapping_origin"]);
 							object mr = CreateEntity(item.parameter["mapping_source"].parameter["mapped_representation"]);
@@ -4611,15 +4531,18 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		/// Returns the shape representations of a product definition: the representations assigned by
 		/// SHAPE_DEFINITION_REPRESENTATION, together with all representations linked to them by a representation
 		/// relationship without transformation (e.g. SHAPE_REPRESENTATION -> ADVANCED_BREP_SHAPE_REPRESENTATION),
-		/// which share the same coordinate system.
+		/// which share the same coordinate system. With <paramref name="withShapeAspects"/> it also contains the
+		/// representations of the SHAPE_ASPECTs of the product (they define the coordinate system of the product, too),
+		/// without it only the representations of the product's shape.
 		/// </summary>
-		private HashSet<Item> RepresentationsOf(Item productDefinition)
+		private HashSet<Item> RepresentationsOf(Item productDefinition, bool withShapeAspects = true)
 		{
 			lock (definitions)
 			{
 				if (representationsOfProductDefinition == null)
 				{
 					Dictionary<Item, HashSet<Item>> direct = new Dictionary<Item, HashSet<Item>>();
+					Dictionary<Item, HashSet<Item>> directShape = new Dictionary<Item, HashSet<Item>>(); // without the shape aspects
 					Dictionary<Item, List<Item>> linked = new Dictionary<Item, List<Item>>();
 					void Link(Item a, Item b)
 					{
@@ -4634,13 +4557,20 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							if (!item.parameter.TryGetValue("definition", out Item shape) || shape?.parameter == null) continue;
 							if (!item.parameter.TryGetValue("used_representation", out Item rep) || rep == null) continue;
 							if (!shape.parameter.TryGetValue("definition", out Item pd) || pd == null) continue;
+							bool isAspect = false;
 							if (pd.type == Item.ItemType.shapeAspect && pd.parameter.TryGetValue("of_shape", out Item ofShape) && ofShape?.parameter != null)
 							{
 								ofShape.parameter.TryGetValue("definition", out pd);
 								if (pd == null) continue;
+								isAspect = true;
 							}
 							if (!direct.TryGetValue(pd, out HashSet<Item> reps)) direct[pd] = reps = new HashSet<Item>();
 							reps.Add(rep);
+							if (!isAspect)
+							{   // the representation of a shape aspect (e.g. some faces of the solid) is not part of the product's shape
+								if (!directShape.TryGetValue(pd, out HashSet<Item> shapeReps)) directShape[pd] = shapeReps = new HashSet<Item>();
+								shapeReps.Add(rep);
+							}
 						}
 						else if (item.parameter.TryGetValue("rep_1", out Item rep1) && item.parameter.TryGetValue("rep_2", out Item rep2)
 							&& rep1 != null && rep2 != null && !item.parameter.ContainsKey("transformation_operator"))
@@ -4649,22 +4579,29 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							Link(rep2, rep1);
 						}
 					}
-					representationsOfProductDefinition = new Dictionary<Item, HashSet<Item>>();
-					foreach (KeyValuePair<Item, HashSet<Item>> kv in direct)
+					Dictionary<Item, HashSet<Item>> Closure(Dictionary<Item, HashSet<Item>> start)
 					{
-						HashSet<Item> all = new HashSet<Item>(kv.Value);
-						Stack<Item> todo = new Stack<Item>(kv.Value);
-						while (todo.Count > 0)
+						Dictionary<Item, HashSet<Item>> closure = new Dictionary<Item, HashSet<Item>>();
+						foreach (KeyValuePair<Item, HashSet<Item>> kv in start)
 						{
-							if (linked.TryGetValue(todo.Pop(), out List<Item> l))
+							HashSet<Item> all = new HashSet<Item>(kv.Value);
+							Stack<Item> todo = new Stack<Item>(kv.Value);
+							while (todo.Count > 0)
 							{
-								foreach (Item r in l) if (all.Add(r)) todo.Push(r);
+								if (linked.TryGetValue(todo.Pop(), out List<Item> l))
+								{
+									foreach (Item r in l) if (all.Add(r)) todo.Push(r);
+								}
 							}
+							closure[kv.Key] = all;
 						}
-						representationsOfProductDefinition[kv.Key] = all;
+						return closure;
 					}
+					representationsOfProductDefinition = Closure(direct);
+					shapeRepresentationsOfProductDefinition = Closure(directShape);
 				}
-				if (productDefinition != null && representationsOfProductDefinition.TryGetValue(productDefinition, out HashSet<Item> res)) return res;
+				Dictionary<Item, HashSet<Item>> index = withShapeAspects ? representationsOfProductDefinition : shapeRepresentationsOfProductDefinition;
+				if (productDefinition != null && index.TryGetValue(productDefinition, out HashSet<Item> res)) return res;
 				return new HashSet<Item>();
 			}
 		}

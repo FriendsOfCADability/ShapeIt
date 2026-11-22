@@ -93,6 +93,57 @@ namespace CADability.Tests
             Assert.AreEqual(7.0, ext.Ymax, eps, "ymax");
         }
 
+        /// <summary>
+        /// The shape of a product are the items of its own representations. When the representations of several products
+        /// share one representation context, every occurrence must still get only the shape of its own part: the box
+        /// is placed twice, the cube once.
+        /// </summary>
+        [TestMethod]
+        public void each_occurrence_gets_only_the_shape_of_its_own_part_when_parts_share_a_context()
+        {
+            ImportStep import = new ImportStep();
+            GeoObjectList imported = import.Read(StepFile("shared_context.stp"));
+            AssertSolidExtents(Solids(imported).ToList(),
+                new[] { 0.0, 30.0, 25.0, 40.0, 50.0, 35.0 },
+                new[] { 80.0, 0.0, 0.0, 100.0, 10.0, 40.0 },
+                new[] { 200.0, 0.0, 0.0, 205.0, 5.0, 5.0 });
+        }
+
+        /// <summary>
+        /// With the hierarchy as blocks, the root product is one block named after the product, containing the placed parts.
+        /// </summary>
+        [TestMethod]
+        public void the_root_product_becomes_one_block_with_the_placed_parts()
+        {
+            ImportStep import = new ImportStep();
+            import.HierarchyToBlocks = true;
+            GeoObjectList imported = import.Read(StepFile("shared_context.stp"));
+            Assert.AreEqual(1, imported.Count, "one root");
+            Block top = imported[0] as Block;
+            Assert.IsNotNull(top, "the root is a block");
+            Assert.AreEqual("Top", top.Name);
+            Assert.AreEqual(3, top.NumChildren, "three occurrences");
+            AssertSolidExtents(Solids(top.Children).ToList(),
+                new[] { 0.0, 30.0, 25.0, 40.0, 50.0, 35.0 },
+                new[] { 80.0, 0.0, 0.0, 100.0, 10.0, 40.0 },
+                new[] { 200.0, 0.0, 0.0, 205.0, 5.0, 5.0 });
+        }
+
+        private static void AssertSolidExtents(List<Solid> solids, params double[][] expected)
+        {
+            Assert.AreEqual(expected.Length, solids.Count, "number of solids");
+            List<BoundingBox> found = solids.Select(s => s.GetBoundingCube()).OrderBy(b => b.Xmin).ThenBy(b => b.Ymin).ToList();
+            double[][] sorted = expected.OrderBy(e => e[0]).ThenBy(e => e[1]).ToArray();
+            const double eps = 1e-6;
+            for (int i = 0; i < sorted.Length; i++)
+            {
+                double[] e = sorted[i];
+                BoundingBox b = found[i];
+                double[] actual = { b.Xmin, b.Ymin, b.Zmin, b.Xmax, b.Ymax, b.Zmax };
+                for (int k = 0; k < 6; k++) Assert.AreEqual(e[k], actual[k], eps, $"solid {i}, value {k}");
+            }
+        }
+
         private static void AssertImportedBox(string file, double xmin, double ymin, double zmin, double xmax, double ymax, double zmax)
         {
             ImportStep import = new ImportStep();

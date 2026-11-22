@@ -8,7 +8,8 @@ the placement of an occurrence is written:
 - the order of the items in the ITEM_DEFINED_TRANSFORMATION,
 - one or two assembly levels,
 - the length unit of each representation context (mm, m, inch, ...),
-- an instance by MAPPED_ITEM instead of an assembly.
+- an instance by MAPPED_ITEM instead of an assembly,
+- several parts whose representations share one representation context.
 All coordinates are defined in mm and written in the unit of their context, so the expected
 result doesn't depend on the units.
 Run it with python 3 in this directory; it also prints the expected bounding boxes.
@@ -23,6 +24,8 @@ P1 = ((100, 0, 0), (0, 0, 1), (0, 1, 0))            # rotated 90 degrees about z
 P2 = ((0, 50, 25), (1, 0, 0), (0, 0, 1))            # x->z, y->-y, z->x
 FC = ((5, 5, 5), (0, 0, 1), (0, 1, 0))              # non identity placement inside the part
 Q = ((-30, 7, 3), (0, 1, 0), (1, 0, 0))             # placement of the part in the sub assembly
+R = ((200, 0, 0), (0, 0, 1), (1, 0, 0))             # placement of the small cube
+SMALL = (5.0, 5.0, 5.0)
 
 # length units: millimetres per unit
 MM_PER_UNIT = {"mm": 1.0, "mm_deg": 1.0, "m": 1000.0, "inch": 25.4, "inch_m": 25.4, "mm_m": 1.0}
@@ -106,8 +109,8 @@ def product(w, appctx, name):
     return pd, pds
 
 
-def box_brep(w, unit="mm"):
-    a, b, c = BOX
+def box_brep(w, unit="mm", size=BOX):
+    a, b, c = size
     corners = [(x * a, y * b, z * c) for z in (0, 1) for y in (0, 1) for x in (0, 1)]
     vp = [w.add(f"VERTEX_POINT('',{w.pt(p, unit)})") for p in corners]
     edges = {}
@@ -128,7 +131,7 @@ def box_brep(w, unit="mm"):
     for axis in range(3):
         for side in (0, 1):
             n = [0, 0, 0]; n[axis] = 1 if side else -1
-            idx = [k for k, p in enumerate(corners) if p[axis] == (side * BOX[axis])]
+            idx = [k for k, p in enumerate(corners) if p[axis] == (side * size[axis])]
             u = [0, 0, 0]; u[(axis + 1) % 3] = 1
             v = cross(n, u)
             cen = [sum(corners[k][m] for k in idx) / 4 for m in range(3)]
@@ -216,6 +219,36 @@ def make_mapped(name, origin, target, outer_unit, inner_unit):
     write(w, name)
 
 
+def make_shared_context(name):
+    """An assembly "Top" with two different parts, all representations share one representation context:
+    "Box" (BOX) placed twice at P1 and P2, "Cube" (SMALL) placed once at R. Every occurrence must get only the
+    shape of its own part."""
+    w, appctx = start()
+    ctx = context(w)
+    parts = []
+    for pname, size in (("Box", BOX), ("Cube", SMALL)):
+        pd, pds = product(w, appctx, pname)
+        place = w.ax(IDENT)
+        sr = w.add(f"SHAPE_REPRESENTATION('{pname}',({place}),{ctx})")
+        w.add(f"SHAPE_DEFINITION_REPRESENTATION({pds},{sr})")
+        absr = w.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('{pname}',({box_brep(w, size=size)},{w.ax(IDENT)}),{ctx})")
+        w.add(f"SHAPE_REPRESENTATION_RELATIONSHIP('','',{sr},{absr})")
+        parts.append((pd, sr, place))
+    apd, apds = product(w, appctx, "Top")
+    frames = [(parts[0], P1), (parts[0], P2), (parts[1], R)]
+    aplaces = [w.ax(f) for _, f in frames]
+    asr = w.add("SHAPE_REPRESENTATION('Top',(%s),%s)" % (",".join([w.ax(IDENT)] + aplaces), ctx))
+    w.add(f"SHAPE_DEFINITION_REPRESENTATION({apds},{asr})")
+    for k, (((cpd, csr, cplace), _), aplace) in enumerate(zip(frames, aplaces)):
+        nauo = w.add(f"NEXT_ASSEMBLY_USAGE_OCCURRENCE('Top-{k}','Top-{k}','',{apd},{cpd},$)")
+        npds = w.add(f"PRODUCT_DEFINITION_SHAPE('','',{nauo})")
+        idt = w.add(f"ITEM_DEFINED_TRANSFORMATION('','',{cplace},{aplace})")
+        rr = w.add(f"(REPRESENTATION_RELATIONSHIP('','',{csr},{asr})REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION({idt})"
+                   f"SHAPE_REPRESENTATION_RELATIONSHIP())")
+        w.add(f"CONTEXT_DEPENDENT_SHAPE_REPRESENTATION({rr},{npds})")
+    write(w, name)
+
+
 def make_styled_arc(name):
     """A trimmed circle with parameters in degree in a GEOMETRIC_CURVE_SET, styled by a presentation
     representation whose context is a plain REPRESENTATION_CONTEXT without units (as ThinkDesign writes it).
@@ -273,9 +306,9 @@ def apply_inverse(f, p):
     return [sum(R[c][r] * d[c] for c in range(3)) for r in range(3)]
 
 
-def expected(chain):
+def expected(chain, size=BOX):
     """chain: list of (parent_frame, child_frame) from top to the part; world = P0 C0^-1 P1 C1^-1 ... box"""
-    a, b, c = BOX
+    a, b, c = size
     pts = [[x * a, y * b, z * c] for x in (0, 1) for y in (0, 1) for z in (0, 1)]
     for pf, cf in reversed(chain):
         pts = [apply_frame(pf, apply_inverse(cf, p)) for p in pts]
@@ -319,6 +352,10 @@ if __name__ == "__main__":
     show("box_mapped_inch.stp", [(P1, FC)])
     make_mapped("box_mapped_outer_m.stp", FC, P1, "m", "mm")
     show("box_mapped_outer_m.stp", [(P1, FC)])
+    # product structure: several parts share one representation context
+    make_shared_context("shared_context.stp")
+    for f, size in ((P1, BOX), (P2, BOX), (R, SMALL)):
+        print("shared_context.stp", [round(v, 6) for v in expected([(f, IDENT)], size)])
     # angle units: a styled arc in degree, the presentation context has no units
     make_styled_arc("arc_degree_styled.stp")
     print("arc_degree_styled.stp", [round(v, 6) for v in arc_extent()])

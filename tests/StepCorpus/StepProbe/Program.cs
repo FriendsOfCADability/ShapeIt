@@ -34,6 +34,8 @@ class Program
         catch (Exception e)
         {
             sb.AppendLine("# EXCEPTION " + e.GetType().Name + ": " + e.Message);
+            // set STEPPROBE_STACK to get the stack trace of the exception
+            if (Environment.GetEnvironmentVariable("STEPPROBE_STACK") != null) sb.AppendLine("# STACK " + e.ToString().Replace("\n", "\n# STACK "));
         }
         File.WriteAllText(outFile, sb.ToString());
         return 0;
