@@ -415,7 +415,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		private Dictionary<int, string> importProblems;
 		private List<Item> notImportedFaces;
 		private Dictionary<string, ColorDef> definedColors;
-		private System.Collections.Concurrent.ConcurrentDictionary<string, IGeoObject> namedGeoObjects = new System.Collections.Concurrent.ConcurrentDictionary<string, IGeoObject>();
 		private System.Collections.Concurrent.ConcurrentDictionary<NurbsSurface, ModOp2D> nurbsSurfacesWithModifiedKnots; // when in construction the nurbs surface get a different 2d space, the modification is saved here
 		class Tokenizer : IDisposable
 		{
@@ -1395,203 +1394,30 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					// *shapeRepresentation* muss sich das Objekt merken, denn contextDependentShapeRepresentation(5490)->representationRelationship(5489)->shapeRepresentation(5473)
 					// ist das Einfügen selbst. Das sind die wichtigen roots: shapeDefinitionRepresentation, contextDependentShapeRepresentation, shapeRepresentationRelationship
 #endif
-					//Settings.GlobalSettings.SetValue("StepImport.Parallel", false);
+					// 1. the geometry of the shapes of all products (see RepresentationsOf), created in parallel
+					List<Item> shapeItems = ShapeItems();
 					if (Settings.GlobalSettings.GetBoolValue("StepImport.Parallel", true))
 					{
-						Parallel.For(0, roots[Item.ItemType.shapeDefinitionRepresentation].Count, i =>
-						{
-							Item item = definitions[roots[Item.ItemType.shapeDefinitionRepresentation][i]];
-							object so = CreateEntity(item);
-						});
+						Parallel.For(0, shapeItems.Count, i => CreateEntity(shapeItems[i]));
 					}
 					else
 					{
-						for (int i = 0; i < roots[Item.ItemType.shapeDefinitionRepresentation].Count; i++)
-						{
-							Item item = definitions[roots[Item.ItemType.shapeDefinitionRepresentation][i]];
-							object so = CreateEntity(item);
-						}
+						for (int i = 0; i < shapeItems.Count; i++) CreateEntity(shapeItems[i]);
 					}
-					for (int i = 0; i < roots[Item.ItemType.representationRelationship].Count; i++)
-					{
-						Item item = definitions[roots[Item.ItemType.representationRelationship][i]];
-						ModOp tranMop = ModOp.Identity;
-						if (item.parameter.TryGetValue("transformation_operator", out Item transformation))
-						{
-							object o = CreateEntity(transformation);
-							if (o is ModOp t) tranMop = t;
-						}
-						GeoObjectList go = CreateEntity(item) as GeoObjectList;
-						string name = null;
-						if (item.parameter["rep_1"].parameter.TryGetValue("name", out Item shapeRepresentation)) name = shapeRepresentation.sval;
-						object dbg1 = CreateEntity(item.parameter["rep_1"]);
-						object dbg2 = CreateEntity(item.parameter["rep_2"]);
-						if (item.parameter["rep_2"].val is GeoObjectList gol)
-						{
-							if (gol.Count > 1)
-							{
-								Block blk = Block.Construct();
-								if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
-								blk.Name = name;
-								blk.Set(gol.CloneObjects());
-								res.Add(blk);
-							}
-							else
-							{
-								if (!string.IsNullOrWhiteSpace(name))
-								{
-									for (int j = 0; j < gol.Count; j++)
-									{
-										if (gol[j] is Solid sld) sld.Name = name;
-										if (gol[j] is Shell shl) shl.Name = name;
-									}
-								}
-								res.AddRange(gol);
-							}
-						}
-						else if (item.parameter["rep_1"].val is GeoObjectList gol1)
-						{
-							if (gol1.Count > 1)
-							{
-								Block blk = Block.Construct();
-								if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
-								blk.Name = name;
-								blk.Set(gol1.CloneObjects());
-								res.Add(blk);
-							}
-							else
-							{
-								if (!string.IsNullOrWhiteSpace(name))
-								{
-									for (int j = 0; j < gol1.Count; j++)
-									{
-										if (gol1[j] is Solid sld) sld.Name = name;
-										if (gol1[j] is Shell shl) shl.Name = name;
-									}
-								}
-								res.AddRange(gol1);
-							}
-						}
-					}
-					for (int i = 0; i < roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation].Count; i++)
-					{   // we do this before we do the shapeRepresentationRelationship iteration, because here the colors are set and in the next loop the objects are cloned
-						Item item = definitions[roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation][i]];
-						GeoObjectList go = CreateEntity(item) as GeoObjectList;
-					}
-					for (int i = 0; i < roots[Item.ItemType.constructiveGeometryRepresentationRelationship].Count; i++)
-					{   // we do this before we do the shapeRepresentationRelationship iteration, because here the colors are set and in the next loop the objects are cloned
-						Item item = definitions[roots[Item.ItemType.constructiveGeometryRepresentationRelationship][i]];
-						GeoObjectList go = CreateEntity(item) as GeoObjectList;
-#if DEBUG
-						//System.Diagnostics.Trace.WriteLine(SubTree(item.definingIndex, 5));
-#endif
-						string name = null;
-						if (item.parameter["rep_1"].parameter.TryGetValue("name", out Item shapeRepresentation)) name = shapeRepresentation.sval;
-						// I do not understand the semantics of the STEP file in respect to shapeRepresentationRelationship, representationRelationship, shapeRepresentation and so on...
-						// in file 1211_EDS-EL.stp there are some representationRelationship items and some shapeRepresentationRelationship items which have identical "rep_1" parameters
-						// but the representationRelationship items don't refer to a geometry and the shapeRepresentationRelationship items don't refer to a transformation. In other files
-						// this connection is build by the product, productDefinition items, but here we combine the shapeRepresentationRelationship items and the (via "rep_1") corresponding
-						// representationRelationship items to have both the geometry and the transformation.
-						ModOp tranMop = ModOp.Identity;
-						Item transformation = null;
-						if (!item.parameter.TryGetValue("transformation_operator", out transformation))
-						{
-							item.parameter["rep_1"].parameter.TryGetValue("transformation_operator", out transformation);
-						}
-						if (transformation != null)
-						{
-							object o = CreateEntity(transformation);
-							if (o is ModOp)
-							{
-								tranMop = (ModOp)o;
-							}
-						}
-						if (item.parameter["rep_2"].val is GeoObjectList gol)
-						{
-							if (gol.Count > 1)
-							{
-								Block blk = Block.Construct();
-								if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
-								blk.Name = name;
-								blk.Set(gol.CloneObjects());
-								if (!tranMop.IsIdentity(0.0)) blk.Modify(tranMop);
-								res.Add(blk);
-							}
-							else
-							{   // we could also make a block here with a single solid
-								if (!string.IsNullOrWhiteSpace(name))
-								{
-									if (gol[0] is Solid sld) sld.Name = name;
-									if (gol[0] is Shell shl) shl.Name = name;
-								}
-								IGeoObject clone = gol[0].Clone();
-								if (!tranMop.IsIdentity(0.0)) clone.Modify(tranMop);
-								res.Add(clone);
-							}
-						}
-					}
-					for (int i = 0; i < roots[Item.ItemType.styledItem].Count; i++)
-					{   // in most cases the styled items are already created (e.g. as part of mechanicalDesignGeometricPresentationRepresentation), but in some files (e.g. SSSS4912PCAM.stp) 
-						// there are unreferenced styledItems. Upon creation the objects referenced by the styled item are styled (color set)
-						Item item = definitions[roots[Item.ItemType.styledItem][i]];
-						object o = CreateEntity(item);
-					}
-					for (int i = 0; i < roots[Item.ItemType.shapeRepresentationRelationship].Count; i++)
-					{
-						Item item = definitions[roots[Item.ItemType.shapeRepresentationRelationship][i]];
-						GeoObjectList go = CreateEntity(item) as GeoObjectList;
-#if DEBUG
-						//System.Diagnostics.Trace.WriteLine(SubTree(item.definingIndex, 5));
-#endif
-						string name = null;
-						if (item.parameter["rep_1"].parameter.TryGetValue("name", out Item shapeRepresentation)) name = shapeRepresentation.sval;
-						// I do not understand the semantics of the STEP file in respect to shapeRepresentationRelationship, representationRelationship, shapeRepresentation and so on...
-						// in file 1211_EDS-EL.stp there are some representationRelationship items and some shapeRepresentationRelationship items which have identical "rep_1" parameters
-						// but the representationRelationship items don't refer to a geometry and the shapeRepresentationRelationship items don't refer to a transformation. In other files
-						// this connection is build by the product, productDefinition items, but here we combine the shapeRepresentationRelationship items and the (via "rep_1") corresponding
-						// representationRelationship items to have both the geometry and the transformation.
-						ModOp tranMop = ModOp.Identity;
-						Item transformation = null;
-						if (!item.parameter.TryGetValue("transformation_operator", out transformation))
-						{
-							item.parameter["rep_1"].parameter.TryGetValue("transformation_operator", out transformation);
-						}
-						if (transformation != null)
-						{
-							object o = CreateEntity(transformation);
-							if (o is ModOp)
-							{
-								tranMop = (ModOp)o;
-							}
-						}
-						if (item.parameter["rep_2"].val is GeoObjectList gol)
-						{
-							if (gol.Count > 1)
-							{
-								Block blk = Block.Construct();
-								if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
-								blk.Name = name;
-								blk.Set(gol.CloneObjects());
-								if (!tranMop.IsIdentity(0.0)) blk.Modify(tranMop);
-								res.Add(blk);
-							}
-							else
-							{   // we could also make a block here with a single solid
-								if (!string.IsNullOrWhiteSpace(name))
-								{
-									if (gol[0] is Solid sld) sld.Name = name;
-									if (gol[0] is Shell shl) shl.Name = name;
-								}
-								IGeoObject clone = gol[0].Clone();
-								if (!tranMop.IsIdentity(0.0)) clone.Modify(tranMop);
-								res.Add(clone);
-							}
-						}
-					}
+					// 2. the assembly occurrences with their placements, see ProductStructure
 					for (int i = 0; i < roots[Item.ItemType.contextDependentShapeRepresentation].Count; i++)
 					{
-						Item item = definitions[roots[Item.ItemType.contextDependentShapeRepresentation][i]];
-						GeoObjectList go = CreateEntity(item) as GeoObjectList;
+						CreateEntity(definitions[roots[Item.ItemType.contextDependentShapeRepresentation][i]]);
+					}
+					// 3. the attributes: colors and layers are set on the created objects, before the product structure clones them
+					for (int i = 0; i < roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation].Count; i++)
+					{
+						CreateEntity(definitions[roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation][i]]);
+					}
+					for (int i = 0; i < roots[Item.ItemType.styledItem].Count; i++)
+					{   // in most cases the styled items are already created (e.g. as part of mechanicalDesignGeometricPresentationRepresentation), but in some files (e.g. SSSS4912PCAM.stp)
+						// there are unreferenced styledItems. Upon creation the objects referenced by the styled item are styled (color set)
+						CreateEntity(definitions[roots[Item.ItemType.styledItem][i]]);
 					}
 					for (int i = 0; i < roots[Item.ItemType.presentationLayerAssignment].Count; i++)
 					{
@@ -1611,20 +1437,12 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					}
 					for (int i = 0; i < roots[Item.ItemType.draughtingModel].Count; i++)
 					{
-						Item item = definitions[roots[Item.ItemType.draughtingModel][i]];
-						object o = CreateEntity(item);
-					}
-					for (int i = 0; i < roots[Item.ItemType.itemDefinedTransformation].Count; i++)
-					{
-						Item item = definitions[roots[Item.ItemType.itemDefinedTransformation][i]];
-						object o = CreateEntity(item);
+						CreateEntity(definitions[roots[Item.ItemType.draughtingModel][i]]);
 					}
 
-					// The product structure is the primary source of the result. Mapped items in the representations of the
-					// products are part of their shape. Mapped items, which are not part of a product shape, and files without
-					// a product structure use the other root entities as a fallback.
+					// 4. the result: the product structure and the mapped items, which are not part of a product shape
 					HashSet<Item> reachedItems = new HashSet<Item>();
-					GeoObjectList productList = ProductStructure(reachedItems);
+					res = ProductStructure(reachedItems);
 					HashSet<Item> rootMappedItems = new HashSet<Item>(mappedItems);
 					foreach (Item mpItem in mappedItems)
 					{
@@ -1633,26 +1451,17 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							if (subitem.type == Item.ItemType.mappedItem) rootMappedItems.Remove(subitem);
 						}
 					}
-					GeoObjectList rmiList = new GeoObjectList();
 					foreach (Item mi in rootMappedItems.OrderBy(m => m.definingIndex))
 					{
 						if (reachedItems.Contains(mi)) continue;
 						object l = CreateEntity(mi);
-						if (l is GeoObjectList) rmiList.AddRange(l as GeoObjectList);
-						if (l is IGeoObject) rmiList.Add(l as IGeoObject); // must be a Block
+						if (l is GeoObjectList) res.AddRange(l as GeoObjectList);
+						if (l is IGeoObject) res.Add(l as IGeoObject); // must be a Block
 					}
-					if (productList.Count > 0)
+					// 5. fallbacks for files without a product structure: the representation relationships, then the presentation
+					if (res.Count == 0) res = RepresentationRelationships(roots);
+					if (res.Count == 0)
 					{
-						res = productList;
-						res.AddRange(rmiList);
-					}
-					else if (rmiList.Count > 0)
-					{
-						res = rmiList;
-					}
-					if (res == null || res.Count == 0)
-					{
-						if (res == null) res = new GeoObjectList();
 						for (int i = 0; i < roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation].Count; i++)
 						{
 							Item item = definitions[roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation][i]];
@@ -1716,6 +1525,222 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			return res;
 		}
 		/// <summary>
+		/// The fallback for files without a product structure: the geometry of the shape definitions and of the representation
+		/// relationships, which are not referenced by any other entity.
+		/// </summary>
+		private GeoObjectList RepresentationRelationships(Dictionary<Item.ItemType, List<int>> roots)
+		{
+			GeoObjectList res = new GeoObjectList();
+			if (Settings.GlobalSettings.GetBoolValue("StepImport.Parallel", true))
+			{
+				Parallel.For(0, roots[Item.ItemType.shapeDefinitionRepresentation].Count, i =>
+				{
+					Item item = definitions[roots[Item.ItemType.shapeDefinitionRepresentation][i]];
+					object so = CreateEntity(item);
+				});
+			}
+			else
+			{
+				for (int i = 0; i < roots[Item.ItemType.shapeDefinitionRepresentation].Count; i++)
+				{
+					Item item = definitions[roots[Item.ItemType.shapeDefinitionRepresentation][i]];
+					object so = CreateEntity(item);
+				}
+			}
+			for (int i = 0; i < roots[Item.ItemType.representationRelationship].Count; i++)
+			{
+				Item item = definitions[roots[Item.ItemType.representationRelationship][i]];
+				ModOp tranMop = ModOp.Identity;
+				if (item.parameter.TryGetValue("transformation_operator", out Item transformation))
+				{
+					object o = CreateEntity(transformation);
+					if (o is ModOp t) tranMop = t;
+				}
+				GeoObjectList go = CreateEntity(item) as GeoObjectList;
+				string name = null;
+				if (item.parameter["rep_1"].parameter.TryGetValue("name", out Item shapeRepresentation)) name = shapeRepresentation.sval;
+				object dbg1 = CreateEntity(item.parameter["rep_1"]);
+				object dbg2 = CreateEntity(item.parameter["rep_2"]);
+				if (item.parameter["rep_2"].val is GeoObjectList gol)
+				{
+					if (gol.Count > 1)
+					{
+						Block blk = Block.Construct();
+						if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
+						blk.Name = name;
+						blk.Set(gol.CloneObjects());
+						res.Add(blk);
+					}
+					else
+					{
+						if (!string.IsNullOrWhiteSpace(name))
+						{
+							for (int j = 0; j < gol.Count; j++)
+							{
+								if (gol[j] is Solid sld) sld.Name = name;
+								if (gol[j] is Shell shl) shl.Name = name;
+							}
+						}
+						res.AddRange(gol);
+					}
+				}
+				else if (item.parameter["rep_1"].val is GeoObjectList gol1)
+				{
+					if (gol1.Count > 1)
+					{
+						Block blk = Block.Construct();
+						if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
+						blk.Name = name;
+						blk.Set(gol1.CloneObjects());
+						res.Add(blk);
+					}
+					else
+					{
+						if (!string.IsNullOrWhiteSpace(name))
+						{
+							for (int j = 0; j < gol1.Count; j++)
+							{
+								if (gol1[j] is Solid sld) sld.Name = name;
+								if (gol1[j] is Shell shl) shl.Name = name;
+							}
+						}
+						res.AddRange(gol1);
+					}
+				}
+			}
+			for (int i = 0; i < roots[Item.ItemType.constructiveGeometryRepresentationRelationship].Count; i++)
+			{
+				Item item = definitions[roots[Item.ItemType.constructiveGeometryRepresentationRelationship][i]];
+				GeoObjectList go = CreateEntity(item) as GeoObjectList;
+#if DEBUG
+				//System.Diagnostics.Trace.WriteLine(SubTree(item.definingIndex, 5));
+#endif
+				string name = null;
+				if (item.parameter["rep_1"].parameter.TryGetValue("name", out Item shapeRepresentation)) name = shapeRepresentation.sval;
+				// I do not understand the semantics of the STEP file in respect to shapeRepresentationRelationship, representationRelationship, shapeRepresentation and so on...
+				// in file 1211_EDS-EL.stp there are some representationRelationship items and some shapeRepresentationRelationship items which have identical "rep_1" parameters
+				// but the representationRelationship items don't refer to a geometry and the shapeRepresentationRelationship items don't refer to a transformation. In other files
+				// this connection is build by the product, productDefinition items, but here we combine the shapeRepresentationRelationship items and the (via "rep_1") corresponding
+				// representationRelationship items to have both the geometry and the transformation.
+				ModOp tranMop = ModOp.Identity;
+				Item transformation = null;
+				if (!item.parameter.TryGetValue("transformation_operator", out transformation))
+				{
+					item.parameter["rep_1"].parameter.TryGetValue("transformation_operator", out transformation);
+				}
+				if (transformation != null)
+				{
+					object o = CreateEntity(transformation);
+					if (o is ModOp)
+					{
+						tranMop = (ModOp)o;
+					}
+				}
+				if (item.parameter["rep_2"].val is GeoObjectList gol)
+				{
+					if (gol.Count > 1)
+					{
+						Block blk = Block.Construct();
+						if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
+						blk.Name = name;
+						blk.Set(gol.CloneObjects());
+						if (!tranMop.IsIdentity(0.0)) blk.Modify(tranMop);
+						res.Add(blk);
+					}
+					else
+					{   // we could also make a block here with a single solid
+						if (!string.IsNullOrWhiteSpace(name))
+						{
+							if (gol[0] is Solid sld) sld.Name = name;
+							if (gol[0] is Shell shl) shl.Name = name;
+						}
+						IGeoObject clone = gol[0].Clone();
+						if (!tranMop.IsIdentity(0.0)) clone.Modify(tranMop);
+						res.Add(clone);
+					}
+				}
+			}
+			for (int i = 0; i < roots[Item.ItemType.shapeRepresentationRelationship].Count; i++)
+			{
+				Item item = definitions[roots[Item.ItemType.shapeRepresentationRelationship][i]];
+				GeoObjectList go = CreateEntity(item) as GeoObjectList;
+#if DEBUG
+				//System.Diagnostics.Trace.WriteLine(SubTree(item.definingIndex, 5));
+#endif
+				string name = null;
+				if (item.parameter["rep_1"].parameter.TryGetValue("name", out Item shapeRepresentation)) name = shapeRepresentation.sval;
+				// I do not understand the semantics of the STEP file in respect to shapeRepresentationRelationship, representationRelationship, shapeRepresentation and so on...
+				// in file 1211_EDS-EL.stp there are some representationRelationship items and some shapeRepresentationRelationship items which have identical "rep_1" parameters
+				// but the representationRelationship items don't refer to a geometry and the shapeRepresentationRelationship items don't refer to a transformation. In other files
+				// this connection is build by the product, productDefinition items, but here we combine the shapeRepresentationRelationship items and the (via "rep_1") corresponding
+				// representationRelationship items to have both the geometry and the transformation.
+				ModOp tranMop = ModOp.Identity;
+				Item transformation = null;
+				if (!item.parameter.TryGetValue("transformation_operator", out transformation))
+				{
+					item.parameter["rep_1"].parameter.TryGetValue("transformation_operator", out transformation);
+				}
+				if (transformation != null)
+				{
+					object o = CreateEntity(transformation);
+					if (o is ModOp)
+					{
+						tranMop = (ModOp)o;
+					}
+				}
+				if (item.parameter["rep_2"].val is GeoObjectList gol)
+				{
+					if (gol.Count > 1)
+					{
+						Block blk = Block.Construct();
+						if (string.IsNullOrWhiteSpace(name)) name = $"Item {item.definingIndex}";
+						blk.Name = name;
+						blk.Set(gol.CloneObjects());
+						if (!tranMop.IsIdentity(0.0)) blk.Modify(tranMop);
+						res.Add(blk);
+					}
+					else
+					{   // we could also make a block here with a single solid
+						if (!string.IsNullOrWhiteSpace(name))
+						{
+							if (gol[0] is Solid sld) sld.Name = name;
+							if (gol[0] is Shell shl) shl.Name = name;
+						}
+						IGeoObject clone = gol[0].Clone();
+						if (!tranMop.IsIdentity(0.0)) clone.Modify(tranMop);
+						res.Add(clone);
+					}
+				}
+			}
+			return res;
+		}
+
+		/// <summary>
+		/// The representation items of the shapes of all products (see <see cref="RepresentationsOf"/>), ordered as in the file.
+		/// They are created in parallel before the product structure is instantiated.
+		/// </summary>
+		private List<Item> ShapeItems()
+		{
+			RepresentationsOf(null); // initializes shapeRepresentationsOfProductDefinition
+			HashSet<Item> res = new HashSet<Item>();
+			foreach (KeyValuePair<Item, HashSet<Item>> kv in shapeRepresentationsOfProductDefinition)
+			{
+				if (kv.Key?.parameter == null || !kv.Key.parameter.ContainsKey("formation")) continue;
+				foreach (Item representation in kv.Value)
+				{
+					if (representation?.parameter == null || !representation.parameter.TryGetValue("items", out Item items) || items?.lval == null) continue;
+					foreach (Item it in items.lval)
+					{
+						Item item = it;
+						if (item != null && item.type == Item.ItemType.index) item = definitions[(int)item.val];
+						if (item != null) res.Add(item);
+					}
+				}
+			}
+			return res.OrderBy(i => i.definingIndex).ToList();
+		}
+
+		/// <summary>
 		/// A node of the product structure: a product with the shape of its product definitions and its placed
 		/// children (the assembly occurrences).
 		/// </summary>
@@ -1723,7 +1748,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		{
 			public Item product;
 			public HashSet<Item> definitions = new HashSet<Item>(); // the product definitions of this product with a shape
-			public List<(ProductNode child, ModOp placement)> children = new List<(ProductNode child, ModOp placement)>();
+			public List<(ProductNode child, ModOp placement, Item usage)> children = new List<(ProductNode child, ModOp placement, Item usage)>();
 			public HashSet<Item> usages = new HashSet<Item>(); // the NEXT_ASSEMBLY_USAGE_OCCURRENCEs of the children, to skip duplicates
 			public bool isChild; // used in an assembly, so it is not a root
 			public bool instantiating; // protects against cyclic structures
@@ -1760,7 +1785,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				ProductNode parent = NodeOf(parentDefinition);
 				ProductNode child = NodeOf(childDefinition);
 				if (usage != null && !parent.usages.Add(usage)) continue; // several representation relationships for the same occurrence
-				parent.children.Add((child, placement));
+				parent.children.Add((child, placement, usage));
 				child.isChild = true;
 			}
 			// A product whose representation is instanced by a MAPPED_ITEM in the representation of another product (or in a
@@ -1822,6 +1847,28 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			return null;
 		}
 
+		/// <summary>
+		/// The name of an assembly occurrence. Many exporters write an instance name like "part:1" or "part.1" as name or id of the
+		/// NEXT_ASSEMBLY_USAGE_OCCURRENCE, others write generic names ("NAUO1", "1", "Next assembly relationship") or nothing.
+		/// So the name of the occurrence is only used when it extends the name of the product, otherwise the product name is used.
+		/// </summary>
+		private static string OccurrenceName(Item usage, Item product)
+		{
+			string productName = ProductName(product);
+			if (usage?.parameter != null && !string.IsNullOrWhiteSpace(productName))
+			{
+				foreach (string key in new[] { "name", "id" })
+				{
+					if (usage.parameter.TryGetValue(key, out Item n) && n?.sval != null)
+					{
+						string occurrenceName = n.sval.Trim();
+						if (occurrenceName.Length > productName.Length && occurrenceName.StartsWith(productName)) return occurrenceName;
+					}
+				}
+			}
+			return productName;
+		}
+
 		private static string ProductId(Item product)
 		{
 			if (product.parameter.TryGetValue("id", out Item id) && id?.sval != null) return id.sval;
@@ -1839,14 +1886,14 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			if (node.instantiating) return res; // a cycle in the structure
 			node.instantiating = true;
 			bool addLocation = Settings.GlobalSettings.GetBoolValue("StepImport.AddLocation", true);
-			foreach ((ProductNode child, ModOp placement) in node.children)
+			foreach ((ProductNode child, ModOp placement, Item usage) in node.children)
 			{
 				GeoObjectList list = InstantiateProduct(child, reachedItems);
 				Block blk = null;
 				if (list.Count > 1 && makeBlocks)
 				{
 					blk = Block.Construct();
-					blk.Name = ProductName(child.product);
+					blk.Name = OccurrenceName(usage, child.product);
 				}
 				for (int j = 0; j < list.Count; j++)
 				{
@@ -2385,8 +2432,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 								{
 									if (o is Shell && string.IsNullOrEmpty((o as Shell).Name)) (o as Shell).Name = name;
 									if (o is Solid && string.IsNullOrEmpty((o as Solid).Name)) (o as Solid).Name = name;
-									if (o is IGeoObject go) namedGeoObjects[name] = go;
-								}
+									}
 								if (o is IGeoObject) val.Add(o as IGeoObject);
 								if (o is GeoObjectList) val.AddRange(o as GeoObjectList);
 							}
@@ -3817,39 +3863,11 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 								item.val = null;
 								break;
 							}
-							List<Item> rep1list = item.parameter["rep_1"].parameter["items"].lval;
-							List<Item> rep2list = item.parameter["rep_2"].parameter["items"].lval;
-							string name = item.parameter["rep_1"].parameter["name"].sval;
-							Item context1 = item.parameter["rep_1"].parameter["context_of_items"];
-							Item context2 = item.parameter["rep_2"].parameter["context_of_items"];
 							if (item.parameter.TryGetValue("transformation_operator", out Item transformationOperator))
 							{
 								if (!(item.parameter["rep_1"].parameter.TryGetValue("transformation_operator", out Item dumy)))
 								{
 									item.parameter["rep_1"].parameter["transformation_operator"] = transformationOperator;
-								}
-							}
-							if (!context1.parameter.TryGetValue("_relationship", out Item rel1))
-							{
-								context1.parameter["_relationship"] = rel1 = new Item(Item.ItemType.created, new List<Item>());
-							}
-							rel1.lval.AddRange(item.parameter["rep_1"].parameter["items"].lval);
-							if (!context2.parameter.TryGetValue("_relationship", out Item rel2))
-							{
-								context2.parameter["_relationship"] = rel2 = new Item(Item.ItemType.created, new List<Item>());
-							}
-							rel2.lval.AddRange(item.parameter["rep_2"].parameter["items"].lval);
-							foreach (Item it in rep1list)
-							{
-								if (it.type == Item.ItemType.axis2Placement_3d)
-								{
-									CreateEntity(it);
-									Item relatedItems;
-									if (!it.parameter.TryGetValue("_relationship", out relatedItems))
-									{
-										it.parameter["_relationship"] = relatedItems = new Item(Item.ItemType.created, new List<Item>());
-									}
-									relatedItems.lval.AddRange(item.parameter["rep_2"].parameter["items"].lval);
 								}
 							}
 							if (rep2 is GeoObjectList)
@@ -3858,10 +3876,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 								else (item.parameter["rep_1"] as Item).val = rep2;
 							}
 							item.val = (item.parameter["rep_1"] as Item).val;
-							if (item.val is GeoObjectList gol)
-							{
-								if (gol.Count == 1) namedGeoObjects[name] = gol[0];
-							}
 						}
 						break;
 					case Item.ItemType.itemDefinedTransformation: // name, description, transform_item_1, transform_item_2
@@ -3919,7 +3933,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							if (repProdRel != null)
 							{
 								CreateEntity(repProdRel);
-								CreateEntity(repRel);
 								Item relatingDefinition = repProdRel.parameter["definition"].parameter["relating_product_definition"];
 								Item relatedDefinition = repProdRel.parameter["definition"].parameter["related_product_definition"];
 								ModOp transformation = ModOp.Identity;
@@ -4464,9 +4477,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 										item.val = modified;
 									}
 								}
-								if (!item.parameter.ContainsKey("_children")) item.parameter["_children"] = new Item(Item.ItemType.created, new List<Item>());
-								item.parameter["_children"].lval.Add(item.parameter["mapping_source"].parameter["mapped_representation"]);
-								item.parameter["_transformation"] = new Item(Item.ItemType.created, trsf);
 							}
 						}
 						break;

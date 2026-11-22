@@ -9,7 +9,8 @@ the placement of an occurrence is written:
 - one or two assembly levels,
 - the length unit of each representation context (mm, m, inch, ...),
 - an instance by MAPPED_ITEM instead of an assembly,
-- several parts whose representations share one representation context.
+- several parts whose representations share one representation context,
+- the names of the occurrences (instance names or generic names).
 All coordinates are defined in mm and written in the unit of their context, so the expected
 result doesn't depend on the units.
 Run it with python 3 in this directory; it also prints the expected bounding boxes.
@@ -249,6 +250,39 @@ def make_shared_context(name):
     write(w, name)
 
 
+def make_occurrence_names(name):
+    """An assembly "Top" with a part "Pair" of two solids (BOX and SMALL), placed at P1 with the instance name
+    "Pair:1" and at P2 with the generic name "NAUO2", and a part "Box" of one solid, placed at R as "Box:1".
+    An occurrence of several objects is a block named after the instance name, if the instance name extends the
+    product name, otherwise after the product. A single solid is not put into a block and keeps the product name."""
+    w, appctx = start()
+    ctx = context(w)
+    parts = {}
+    for pname, sizes in (("Pair", (BOX, SMALL)), ("Box", (BOX,))):
+        pd, pds = product(w, appctx, pname)
+        place = w.ax(IDENT)
+        sr = w.add(f"SHAPE_REPRESENTATION('{pname}',({place}),{ctx})")
+        w.add(f"SHAPE_DEFINITION_REPRESENTATION({pds},{sr})")
+        breps = ",".join(box_brep(w, size=s) for s in sizes)
+        absr = w.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('{pname}',({breps},{w.ax(IDENT)}),{ctx})")
+        w.add(f"SHAPE_REPRESENTATION_RELATIONSHIP('','',{sr},{absr})")
+        parts[pname] = (pd, sr, place)
+    apd, apds = product(w, appctx, "Top")
+    frames = [("Pair", P1, "Pair:1"), ("Pair", P2, "NAUO2"), ("Box", R, "Box:1")]
+    aplaces = [w.ax(f) for _, f, _ in frames]
+    asr = w.add("SHAPE_REPRESENTATION('Top',(%s),%s)" % (",".join([w.ax(IDENT)] + aplaces), ctx))
+    w.add(f"SHAPE_DEFINITION_REPRESENTATION({apds},{asr})")
+    for (pname, _, nname), aplace in zip(frames, aplaces):
+        cpd, csr, cplace = parts[pname]
+        nauo = w.add(f"NEXT_ASSEMBLY_USAGE_OCCURRENCE('{nname}','{nname}','',{apd},{cpd},$)")
+        npds = w.add(f"PRODUCT_DEFINITION_SHAPE('','',{nauo})")
+        idt = w.add(f"ITEM_DEFINED_TRANSFORMATION('','',{cplace},{aplace})")
+        rr = w.add(f"(REPRESENTATION_RELATIONSHIP('','',{csr},{asr})REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION({idt})"
+                   f"SHAPE_REPRESENTATION_RELATIONSHIP())")
+        w.add(f"CONTEXT_DEPENDENT_SHAPE_REPRESENTATION({rr},{npds})")
+    write(w, name)
+
+
 def make_styled_arc(name):
     """A trimmed circle with parameters in degree in a GEOMETRIC_CURVE_SET, styled by a presentation
     representation whose context is a plain REPRESENTATION_CONTEXT without units (as ThinkDesign writes it).
@@ -356,6 +390,8 @@ if __name__ == "__main__":
     make_shared_context("shared_context.stp")
     for f, size in ((P1, BOX), (P2, BOX), (R, SMALL)):
         print("shared_context.stp", [round(v, 6) for v in expected([(f, IDENT)], size)])
+    # names of the occurrences: blocks only for occurrences of several objects
+    make_occurrence_names("occurrence_names.stp")
     # angle units: a styled arc in degree, the presentation context has no units
     make_styled_arc("arc_degree_styled.stp")
     print("arc_degree_styled.stp", [round(v, 6) for v in arc_extent()])

@@ -129,6 +129,25 @@ namespace CADability.Tests
                 new[] { 200.0, 0.0, 0.0, 205.0, 5.0, 5.0 });
         }
 
+        /// <summary>
+        /// An occurrence of a part with several objects becomes a block. It is named after the instance name of the
+        /// NEXT_ASSEMBLY_USAGE_OCCURRENCE when that extends the product name ("Pair:1"), otherwise after the product (the
+        /// generic "NAUO2"). An occurrence of a single solid is not put into a block, the solid has the product name.
+        /// </summary>
+        [TestMethod]
+        public void occurrences_are_named_after_their_instance_name_or_the_product()
+        {
+            ImportStep import = new ImportStep();
+            import.HierarchyToBlocks = true;
+            GeoObjectList imported = import.Read(StepFile("occurrence_names.stp"));
+            Block top = imported.Single() as Block;
+            Assert.IsNotNull(top, "the root is a block");
+            Assert.AreEqual("Top", top.Name);
+            List<string> names = top.Children.Select(go => go is Block b ? "Block " + b.Name : go is Solid s ? "Solid " + s.Name : go.GetType().Name).ToList();
+            CollectionAssert.AreEqual(new[] { "Block Pair:1", "Block Pair", "Solid Box" }, names);
+            Assert.AreEqual(5, Solids(top.Children).Count(), "two solids per pair, one box");
+        }
+
         private static void AssertSolidExtents(List<Solid> solids, params double[][] expected)
         {
             Assert.AreEqual(expected.Length, solids.Count, "number of solids");
