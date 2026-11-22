@@ -365,11 +365,15 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			found.AddRange(parts);
 		}
 	}
+	/// <summary>
+	/// The units of a representation context: the geometry of a representation is created in the units of its context
+	/// and then scaled to millimetres.
+	/// </summary>
 	internal class context
 	{
-		public double toRadian;
-		public double uncertainty; // from UNCERTAINTY_MEASURE_WITH_UNIT
-		public double factor = 1.0;
+		public double toRadian = 1.0; // radian per angle unit
+		public double uncertainty; // from UNCERTAINTY_MEASURE_WITH_UNIT, in the length unit of the context
+		public double factor = 1.0; // millimetres per length unit
 	}
 	/// <summary>
 	/// CImport and conversion of STEP files into CADability objects.
@@ -397,7 +401,14 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		private int numFaces, createdFaces;
 
 		//StepEdgeCollection edgeCollection; // collects the edges during face and shell construction to reuse already created edges
-		private context context; // convert angle to radian, usually angles are provided as radian, so this factor is 1.0
+		private Dictionary<Item, context> unitsOfContext = new Dictionary<Item, context>(); // representation context -> its units, see UnitsOf
+		private Dictionary<Item, context> contextOfItem; // representation item -> units of the representation it belongs to, see InitUnits
+		private context defaultContext = new context(); // for items which belong to no representation
+		private readonly System.Threading.AsyncLocal<context> currentContext = new System.Threading.AsyncLocal<context>(); // flows into Parallel.For
+		/// <summary>
+		/// The units of the representation whose items are currently being created (set by <see cref="CreateEntity"/>).
+		/// </summary>
+		private context context => currentContext.Value ?? defaultContext;
 		HashSet<Item> products = new HashSet<Item>();
 		HashSet<Item> mappedItems = new HashSet<Item>();
 		private Dictionary<int, string> importProblems;
@@ -1317,6 +1328,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 								|| definitions[i].type == Item.ItemType.curveBoundedSurface) ++numFaces; // for progress
 						}
 					}
+					InitUnits();
 #if DEBUG
 					HashSet<Item> allRootItems = new HashSet<Item>(definitions);
 
@@ -2260,7 +2272,33 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			if (part > 1e-8 && part < 1.0 - 1e-8) elli.SweepParameter = part * sweep; // else it remains the full curve with a new start point
 		}
 
+		/// <summary>
+		/// Creates the CADability object of a STEP item. The geometry is created in the units of the representation
+		/// the item belongs to (see <see cref="InitUnits"/>): this context is valid while the item and all its sub-items
+		/// are created, also in Parallel.For, because it is kept in an AsyncLocal.
+		/// </summary>
 		private object CreateEntity(Item item)
+		{
+			if (item == null) return null;
+			if (item.type == Item.ItemType.index) item = definitions[(int)item.val];
+			if (!(item.val is List<Item>)) return item.val; // already created, maybe null
+			if (contextOfItem != null && contextOfItem.TryGetValue(item, out context units) && units != currentContext.Value)
+			{
+				context outer = currentContext.Value;
+				currentContext.Value = units;
+				try
+				{
+					return CreateEntityCore(item);
+				}
+				finally
+				{
+					currentContext.Value = outer;
+				}
+			}
+			return CreateEntityCore(item);
+		}
+
+		private object CreateEntityCore(Item item)
 		{
 			if (item == null) return null;
 			int defind = -1;
@@ -2288,7 +2326,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				{
 					case Item.ItemType.mechanicalDesignGeometricPresentationRepresentation: // name, items, context
 						{
-							GetContext(item.parameter["context_of_items"]);
 							List<Item> lst = item.SubList(1);
 							GeoObjectList gl = new GeoObjectList();
 							if (Settings.GlobalSettings.GetBoolValue("StepImport.Parallel", true))
@@ -2417,7 +2454,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					case Item.ItemType.manifoldSurfaceShapeRepresentation:
 					case Item.ItemType.advancedBrepShapeRepresentation: // name, items, context_of_items
 						{
-							GetContext(item.parameter["context_of_items"]);
 							string name = item.parameter["name"].val as string;
 							List<Item> lst = item.parameter["items"].lval;
 							GeoObjectList val = new GeoObjectList();
@@ -2445,13 +2481,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							{
 								object o = CreateEntity(sublist[i]);
 								if (o is IGeoObject) val.Add(o as IGeoObject);
-							}
-							if (context != null && context.factor != 1.0 && context.factor > 0.0)
-							{
-								foreach (IGeoObject go in val)
-								{
-									go.Modify(ModOp.Scale(context.factor));
-								}
 							}
 							item.val = val;
 						}
@@ -2561,21 +2590,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						{
 							if (!(item.parameter["outer"].val is IGeoObject) && !(item.parameter["outer"].val is GeoObjectList))
 							{
-								object created = CreateEntity(item.parameter["outer"]);
-								if (context != null && context.factor != 1.0 && context.factor > 0.0)
-								{
-									if (created is IGeoObject)
-									{
-										(created as IGeoObject).Modify(ModOp.Scale(context.factor));
-									}
-									if (created is GeoObjectList)
-									{
-										foreach (IGeoObject go in (created as GeoObjectList))
-										{
-											go.Modify(ModOp.Scale(context.factor));
-										}
-									}
-								}
+								CreateEntity(item.parameter["outer"]);
 							}
 							if (item.parameter["outer"].val is Solid sld) sld.Name = item.parameter["name"].sval;
 							if (item.parameter["outer"].val is Shell shl) shl.Name = item.parameter["name"].sval;
@@ -3927,8 +3942,9 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							object o1 = CreateEntity(item.parameter["transform_item_1"]);
 							object o2 = CreateEntity(item.parameter["transform_item_2"]);
 							if (o1 is FreeCoordSys fcs1 && o2 is FreeCoordSys fcs2)
-							{
-								item.val = ModOp.Fit(fcs1.Location, new GeoVector[] { fcs1.DirectionX, fcs1.DirectionY, fcs1.DirectionZ }, fcs2.Location, new GeoVector[] { fcs2.DirectionX, fcs2.DirectionY, fcs2.DirectionZ });
+							{   // the placements may belong to representations with different units
+								item.val = FitPlacements(fcs1, UnitsOfItem(item.parameter["transform_item_1"], context).factor,
+									fcs2, UnitsOfItem(item.parameter["transform_item_2"], context).factor);
 #if DEBUG
 								System.Diagnostics.Trace.WriteLine("Transformation " + item.definingIndex.ToString() + ", " + ((ModOp)item.val).Matrix[0, 0].ToString() + ", " + ((ModOp)item.val).Matrix[0, 1].ToString() + ", " + ((ModOp)item.val).Matrix[0, 2].ToString()
 									+ ", " + ((ModOp)item.val).Matrix[1, 0].ToString() + ", " + ((ModOp)item.val).Matrix[1, 1].ToString() + ", " + ((ModOp)item.val).Matrix[1, 2].ToString()
@@ -3946,7 +3962,6 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					case Item.ItemType.geometricallyBoundedWireframeShapeRepresentation:
 						{
 							string name = item.parameter["name"].sval;
-							GetContext(item.parameter["context_of_items"]);
 							GeoObjectList lst = new GeoObjectList();
 							List<FreeCoordSys> fcslist = new List<FreeCoordSys>();
 							List<Item> items = item.parameter["items"].lval; // this is either a list of geoobjects or coordinate systems
@@ -4141,24 +4156,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						break;
 					case Item.ItemType.representationContext:
 						{
-							GetContext(item);
-							//context ctxt = new context();
-							//if (item.parameter["units"] != null)
-							//{
-							//    Item units = item.parameter["units"];
-							//    foreach (Item subitem in units.lval)
-							//    {
-							//        if (subitem.parameter["name"] != null)
-							//        {
-							//            string sval = subitem.parameter["name"].sval;
-							//            if (sval == "METRE")
-							//            {
-							//                ctxt.factor = 1000; // meter to mm
-							//            }
-							//        }
-							//    }
-							//}
-							//item.val = ctxt;
+							item.val = UnitsOf(item);
 						}
 						break;
 					case Item.ItemType.seamCurve:
@@ -4519,8 +4517,11 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							object mr = CreateEntity(item.parameter["mapping_source"].parameter["mapped_representation"]);
 							object mt = CreateEntity(item.parameter["mapping_target"]);
 							if (mo is FreeCoordSys && mt is FreeCoordSys)
-							{
-								ModOp trsf = ModOp.Fit((FreeCoordSys)mo, (FreeCoordSys)mt);
+							{   // the mapping origin is a placement in the mapped representation, the target a placement in the
+								// representation of the mapped item, they may have different units
+								Item mappedRepresentation = item.parameter["mapping_source"].parameter["mapped_representation"];
+								context originUnits = UnitsOfItem(item.parameter["mapping_source"].parameter["mapping_origin"], UnitsOf(mappedRepresentation.parameter["context_of_items"]));
+								ModOp trsf = FitPlacements((FreeCoordSys)mo, originUnits.factor, (FreeCoordSys)mt, UnitsOfItem(item.parameter["mapping_target"], context).factor);
 								if (mr is IGeoObject)
 								{
 									IGeoObject modified = (mr as IGeoObject).Clone();
@@ -4572,6 +4573,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 #if DEBUG
 				lock (definitionStack) definitionStack.Pop();
 #endif
+				if (IsScaledToMillimetres(item.type)) ScaleToMillimetres(item.val, context.factor);
 				return item.val; // has now been created
 			} // end lock
 		}
@@ -4710,11 +4712,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				}
 				if (CreateEntity(childItem) is FreeCoordSys c && CreateEntity(parentItem) is FreeCoordSys p)
 				{
-					double cf = GetContextLengthFactor(childRep.parameter["context_of_items"]);
-					double pf = GetContextLengthFactor(parentRep.parameter["context_of_items"]);
-					GeoPoint cloc = GeoPoint.Origin + cf * (c.Location - GeoPoint.Origin);
-					GeoPoint ploc = GeoPoint.Origin + pf * (p.Location - GeoPoint.Origin);
-					return ModOp.Fit(cloc, new GeoVector[] { c.DirectionX, c.DirectionY, c.DirectionZ }, ploc, new GeoVector[] { p.DirectionX, p.DirectionY, p.DirectionZ });
+					return FitPlacements(c, UnitsOf(childRep.parameter["context_of_items"]).factor, p, UnitsOf(parentRep.parameter["context_of_items"]).factor);
 				}
 				return ModOp.Identity;
 			}
@@ -4734,101 +4732,242 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			return ModOp.Identity;
 		}
 
-		private double GetContextLengthFactor(Item item)
+		/// <summary>
+		/// Assigns the units to the items: every item of a representation (and the item of a styled item in a
+		/// representation) is created in the units of the context of that representation. Items of shape
+		/// representations win over items of presentation representations (MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION,
+		/// DRAUGHTING_MODEL), which only style geometry that is defined elsewhere.
+		/// </summary>
+		private void InitUnits()
 		{
-			Item units = item.parameter["units"];
-			if (units != null && units.type == Item.ItemType.list)
+			contextOfItem = new Dictionary<Item, context>();
+			Dictionary<Item, context> styled = new Dictionary<Item, context>();
+			context first = null;
+			foreach (Item representation in definitions)
 			{
-				foreach (Item it in units.val as List<Item>)
+				if (representation?.parameter == null) continue;
+				if (!representation.parameter.TryGetValue("items", out Item items) || items?.lval == null) continue;
+				if (!representation.parameter.TryGetValue("context_of_items", out Item ctx) || ctx?.parameter == null) continue;
+				context units = DefinedUnitsOf(ctx);
+				if (units == null) continue; // e.g. a plain REPRESENTATION_CONTEXT of a presentation: the items keep the units of their geometry
+				bool presentation = representation.type == Item.ItemType.mechanicalDesignGeometricPresentationRepresentation
+					|| representation.type == Item.ItemType.draughtingModel;
+				foreach (Item it in items.lval)
 				{
-					if (it.parameter.TryGetValue("conversion_factor", out Item cf))
+					if (it == null) continue;
+					if (!presentation)
 					{
-						if (cf.parameter.TryGetValue("value_component", out Item vc))
-						{
-							if (cf.type == Item.ItemType.lengthMeasureWithUnit && vc.val is List<Item> && (vc.val as List<Item>)[0].type == Item.ItemType.floatval)
-							{
-								double f = (vc.val as List<Item>)[0].fval;
-								if (cf.parameter.TryGetValue("unit_component", out Item uc))
-								{
-
-								}
-								return f; // * 1000; // why * 1000.0 ??? definitely wrong with AM3024-0x00.stp
-							}
-						}
+						if (first == null && IsScaledToMillimetres(it.type)) first = units;
+						contextOfItem[it] = units;
+					}
+					if ((it.type == Item.ItemType.styledItem || it.type == Item.ItemType.overRidingStyledItem) && it.parameter != null
+						&& it.parameter.TryGetValue("item", out Item styledItem) && styledItem != null && !styled.ContainsKey(styledItem))
+					{
+						styled[styledItem] = units;
 					}
 				}
 			}
-			return 1.0;
+			foreach (KeyValuePair<Item, context> kv in styled)
+			{
+				if (!contextOfItem.ContainsKey(kv.Key)) contextOfItem[kv.Key] = kv.Value;
+			}
+			// items, which are not part of a representation (e.g. only referenced by a layer) use the units of the first
+			// representation with geometry
+			if (first != null) defaultContext = first;
+			else if (unitsOfContext.Values.Any(u => u != null)) defaultContext = unitsOfContext.Values.First(u => u != null);
 		}
 
-		private void GetContext(Item item)
+		/// <summary>
+		/// The units of an item: the units of the representation it belongs to, or <paramref name="fallback"/>.
+		/// </summary>
+		private context UnitsOfItem(Item item, context fallback)
 		{
-			if (item == null) return;
-			if (context == null)
-			{
-				context = new context();
-				context.toRadian = 1.0;
-				context.factor = 1.0;
-			}
+			if (item != null && item.type == Item.ItemType.index) item = definitions[(int)item.val];
+			if (item != null && contextOfItem != null && contextOfItem.TryGetValue(item, out context units)) return units;
+			return fallback;
+		}
 
-			if (item.parameter.TryGetValue("uncertainty", out Item uncertainty) && uncertainty.type == Item.ItemType.list)
+		/// <summary>
+		/// The units of a representation context, or the default units if the context doesn't define any.
+		/// </summary>
+		private context UnitsOf(Item representationContext)
+		{
+			return DefinedUnitsOf(representationContext) ?? defaultContext;
+		}
+
+		/// <summary>
+		/// The units of a representation context (GLOBAL_UNIT_ASSIGNED_CONTEXT, GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT):
+		/// millimetres per length unit, radian per angle unit and the uncertainty. Null, if the context defines neither
+		/// a length nor an angle unit (e.g. a plain REPRESENTATION_CONTEXT).
+		/// </summary>
+		private context DefinedUnitsOf(Item representationContext)
+		{
+			if (representationContext != null && representationContext.type == Item.ItemType.index) representationContext = definitions[(int)representationContext.val];
+			if (representationContext?.parameter == null) return null;
+			lock (unitsOfContext)
 			{
-				foreach (Item it in uncertainty.val as List<Item>)
+				if (unitsOfContext.TryGetValue(representationContext, out context found)) return found;
+				context res = new context();
+				bool defined = false;
+				if (representationContext.parameter.TryGetValue("units", out Item units) && units?.lval != null)
 				{
-					if (it.parameter.TryGetValue("value_component", out Item vc))
-					{   // LENGTH_MEASURE is not a used type
-						if (vc.val is List<Item> && (vc.val as List<Item>)[0].type == Item.ItemType.floatval) context.uncertainty = (double)(vc.val as List<Item>)[0].val;
-					}
-				}
-			}
-			if (item.parameter.TryGetValue("units", out Item units) && units.type == Item.ItemType.list)
-			{
-				foreach (Item it in units.val as List<Item>)
-				{
-					if (it.parameter.TryGetValue("conversion_factor", out Item cf) &&
-						cf.parameter.TryGetValue("value_component", out Item vc) &&
-						vc.val is List<Item> vcList && vcList.Count > 0 &&
-						vcList[0].type == Item.ItemType.floatval)
+					foreach (Item unit in units.lval)
 					{
-						double value = (double)vcList[0].val;
-
-						if (cf.type == Item.ItemType.planeAngleMeasure || cf.type == Item.ItemType.planeAngleMeasureWithUnit)
+						switch (UnitValue(unit, out double factor, 0))
 						{
-							context.toRadian = value;
-						}
-						else if (cf.type == Item.ItemType.positiveLengthMeasure || cf.type == Item.ItemType.lengthMeasureWithUnit)
-						{
-							context.factor = value;
-
-							if (it.parameter.TryGetValue("name", out Item name) &&
-								name.type == Item.ItemType.stringval && name.sval == "METRE")
-							{
-								context.factor *= 1000; // Handle "METRE" case
-							}
-						}
-					}
-					else if (it.parameter.TryGetValue("name", out Item name))
-					{
-						// added because of issue 183.
-						if (it.parameter.TryGetValue("prefix", out Item prefix) &&
-							name.type == Item.ItemType.keyword && name.sval == "METRE")
-						{
-							if (prefix.sval == "MILLI")
-								context.factor = 1;
-							else if (prefix.sval == "CENTI")
-								context.factor = 10;
-							else if (prefix.sval == "DECI")
-								context.factor = 100;
-							else if (prefix.sval == null)
-								context.factor = 1000; // Default case for "METRE" without prefix
-						}
-						else if (name.type == Item.ItemType.keyword && name.sval == "METRE")
-						{
-							// added because of "issue153.stp"
-							context.factor = 1000; // Default case for "METRE"
+							case UnitKind.length: res.factor = factor; defined = true; break;
+							case UnitKind.angle: res.toRadian = factor; defined = true; break;
 						}
 					}
 				}
+				if (representationContext.parameter.TryGetValue("uncertainty", out Item uncertainty) && uncertainty?.lval != null)
+				{
+					foreach (Item it in uncertainty.lval)
+					{
+						if (it?.parameter != null && it.parameter.TryGetValue("value_component", out Item vc) && MeasureValue(vc, out double u) && u > 0.0)
+						{
+							res.uncertainty = u;
+						}
+					}
+				}
+				if (!defined) res = null;
+				unitsOfContext[representationContext] = res;
+				return res;
+			}
+		}
+
+		private enum UnitKind { unknown, length, angle }
+
+		/// <summary>
+		/// The kind and the size of a unit: millimetres for a length unit, radian for an angle unit. SI units are
+		/// METRE or RADIAN with an optional prefix, conversion based units (e.g. INCH, DEGREE) are a multiple of another unit.
+		/// </summary>
+		private static UnitKind UnitValue(Item unit, out double factor, int depth)
+		{
+			factor = 1.0;
+			if (unit?.parameter == null || depth > 5) return UnitKind.unknown;
+			if (unit.parameter.TryGetValue("conversion_factor", out Item cf) && cf?.parameter != null)
+			{
+				if (!cf.parameter.TryGetValue("value_component", out Item vc) || !MeasureValue(vc, out double value) || value <= 0.0) return UnitKind.unknown;
+				if (cf.parameter.TryGetValue("unit_component", out Item uc))
+				{
+					UnitKind kind = UnitValue(uc, out double f, depth + 1);
+					if (kind != UnitKind.unknown)
+					{
+						factor = value * f;
+						return kind;
+					}
+				}
+				// the unit of the conversion factor is unknown: take the value as millimetres or radian
+				factor = value;
+				if (cf.type == Item.ItemType.lengthMeasureWithUnit || cf.type == Item.ItemType.positiveLengthMeasure) return UnitKind.length;
+				if (cf.type == Item.ItemType.planeAngleMeasureWithUnit || cf.type == Item.ItemType.planeAngleMeasure) return UnitKind.angle;
+				factor = 1.0;
+				return UnitKind.unknown;
+			}
+			if (unit.parameter.TryGetValue("name", out Item name) && name?.sval != null)
+			{
+				double prefix = 1.0;
+				if (unit.parameter.TryGetValue("prefix", out Item p) && p?.sval != null) prefix = SiPrefix(p.sval);
+				switch (name.sval.Trim('.'))
+				{
+					case "METRE":
+						factor = 1000.0 * prefix;
+						return UnitKind.length;
+					case "RADIAN":
+						factor = prefix;
+						return UnitKind.angle;
+				}
+			}
+			return UnitKind.unknown;
+		}
+
+		private static double SiPrefix(string prefix)
+		{
+			switch (prefix.Trim('.'))
+			{
+				case "EXA": return 1e18;
+				case "PETA": return 1e15;
+				case "TERA": return 1e12;
+				case "GIGA": return 1e9;
+				case "MEGA": return 1e6;
+				case "KILO": return 1e3;
+				case "HECTO": return 1e2;
+				case "DECA": return 1e1;
+				case "DECI": return 1e-1;
+				case "CENTI": return 1e-2;
+				case "MILLI": return 1e-3;
+				case "MICRO": return 1e-6;
+				case "NANO": return 1e-9;
+				case "PICO": return 1e-12;
+				case "FEMTO": return 1e-15;
+				case "ATTO": return 1e-18;
+				default: return 1.0;
+			}
+		}
+
+		/// <summary>
+		/// The value of a measure, either a plain number or a typed value like LENGTH_MEASURE(25.4).
+		/// </summary>
+		private static bool MeasureValue(Item measure, out double value)
+		{
+			value = 0.0;
+			if (measure == null) return false;
+			if (measure.type == Item.ItemType.floatval || measure.type == Item.ItemType.intval)
+			{
+				value = measure.fval;
+				return true;
+			}
+			if (measure.val is List<Item> l && l.Count > 0 && l[0] != null && (l[0].type == Item.ItemType.floatval || l[0].type == Item.ItemType.intval))
+			{
+				value = l[0].fval;
+				return true;
+			}
+			return false;
+		}
+
+		/// <summary>
+		/// The transformation which maps the placement <paramref name="src"/> onto <paramref name="dst"/>, where the locations
+		/// are given in length units of <paramref name="srcFactor"/> and <paramref name="dstFactor"/> millimetres.
+		/// </summary>
+		private static ModOp FitPlacements(FreeCoordSys src, double srcFactor, FreeCoordSys dst, double dstFactor)
+		{
+			GeoPoint srcLoc = GeoPoint.Origin + srcFactor * (src.Location - GeoPoint.Origin);
+			GeoPoint dstLoc = GeoPoint.Origin + dstFactor * (dst.Location - GeoPoint.Origin);
+			return ModOp.Fit(srcLoc, new GeoVector[] { src.DirectionX, src.DirectionY, src.DirectionZ }, dstLoc, new GeoVector[] { dst.DirectionX, dst.DirectionY, dst.DirectionZ });
+		}
+
+		/// <summary>
+		/// The items whose geometry is created in the units of the file and then scaled to millimetres. Their
+		/// sub-items (shells, faces, curves) are not scaled on their own.
+		/// </summary>
+		private static bool IsScaledToMillimetres(Item.ItemType type)
+		{
+			switch (type)
+			{
+				case Item.ItemType.manifoldSolidBrep:
+				case Item.ItemType.brepWithVoids:
+				case Item.ItemType.shellBasedSurfaceModel:
+				case Item.ItemType.geometricSet:
+				case Item.ItemType.geometricCurveSet:
+					return true;
+				default:
+					return false;
+			}
+		}
+
+		private static void ScaleToMillimetres(object created, double factor)
+		{
+			if (factor == 1.0 || factor <= 0.0) return;
+			ModOp scale = ModOp.Scale(factor);
+			if (created is IGeoObject go) go.Modify(scale);
+			else if (created is GeoObjectList list)
+			{
+				foreach (IGeoObject g in list) g.Modify(scale);
+			}
+			else if (created is IGeoObject[] array)
+			{
+				foreach (IGeoObject g in array) g.Modify(scale);
 			}
 		}
 

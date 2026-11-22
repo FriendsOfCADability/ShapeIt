@@ -48,6 +48,53 @@ namespace CADability.Tests
         public void an_occurrence_is_placed_by_parent_placement_times_inverse_child_placement(string file,
             double xmin, double ymin, double zmin, double xmax, double ymax, double zmax)
         {
+            AssertImportedBox(file, xmin, ymin, zmin, xmax, ymax, zmax);
+        }
+
+        /// <summary>
+        /// Every representation has the length unit of its own context: the geometry and the placements are converted
+        /// to millimetres per representation, also when the part, the assemblies or a mapped representation use
+        /// different units. The files write the same millimetre geometry in inch, metre, "INCH = 0.0254 METRE" and
+        /// "MILLIMETRE = 0.001 METRE".
+        /// </summary>
+        [DataTestMethod]
+        [DataRow("box_unit_inch.stp", 0.0, 0.0, 0.0, 10.0, 20.0, 40.0)]
+        [DataRow("box_unit_m.stp", 0.0, 0.0, 0.0, 10.0, 20.0, 40.0)]
+        [DataRow("box_unit_inch_m.stp", 0.0, 0.0, 0.0, 10.0, 20.0, 40.0)]
+        [DataRow("box_unit_mm_m.stp", 0.0, 0.0, 0.0, 10.0, 20.0, 40.0)]
+        [DataRow("box_child_first_offset_p1_part_inch.stp", 95.0, -5.0, -5.0, 105.0, 15.0, 35.0)]
+        [DataRow("box_parent_first_offset_p2_assembly_inch.stp", -5.0, 45.0, 20.0, 35.0, 55.0, 40.0)]
+        [DataRow("box_two_levels_units.stp", 58.0, -35.0, -2.0, 98.0, -15.0, 8.0)]
+        [DataRow("box_mapped.stp", 95.0, -5.0, -5.0, 105.0, 15.0, 35.0)]
+        [DataRow("box_mapped_inch.stp", 95.0, -5.0, -5.0, 105.0, 15.0, 35.0)]
+        [DataRow("box_mapped_outer_m.stp", 95.0, -5.0, -5.0, 105.0, 15.0, 35.0)]
+        public void each_representation_is_converted_to_millimetres_by_its_own_units(string file,
+            double xmin, double ymin, double zmin, double xmax, double ymax, double zmax)
+        {
+            AssertImportedBox(file, xmin, ymin, zmin, xmax, ymax, zmax);
+        }
+
+        /// <summary>
+        /// The parameters of a trimmed circle are given in the angle unit (here degree) of its representation. A
+        /// presentation representation, which styles the arc and has a plain REPRESENTATION_CONTEXT without units, must
+        /// not replace these units.
+        /// </summary>
+        [TestMethod]
+        public void a_styled_arc_is_trimmed_in_the_angle_unit_of_its_own_representation()
+        {
+            ImportStep import = new ImportStep();
+            GeoObjectList imported = import.Read(StepFile("arc_degree_styled.stp"));
+            BoundingBox ext = BoundingBox.EmptyBoundingBox;
+            foreach (IGeoObject go in imported) ext.MinMax(go.GetBoundingCube());
+            const double eps = 1e-5;
+            Assert.AreEqual(3.872983, ext.Xmin, eps, "xmin");
+            Assert.AreEqual(3.872983, ext.Ymin, eps, "ymin");
+            Assert.AreEqual(7.0, ext.Xmax, eps, "xmax");
+            Assert.AreEqual(7.0, ext.Ymax, eps, "ymax");
+        }
+
+        private static void AssertImportedBox(string file, double xmin, double ymin, double zmin, double xmax, double ymax, double zmax)
+        {
             ImportStep import = new ImportStep();
             GeoObjectList imported = import.Read(StepFile(file));
             Solid box = Solids(imported).Single();

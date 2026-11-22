@@ -1,27 +1,45 @@
 """Generates small synthetic STEP assemblies for StepAssemblyTests.
 
-The part is an axis parallel box (0,0,0)-(10,20,40). The assemblies differ in the way
+The part is an axis parallel box (0,0,0)-(10,20,40) mm. The assemblies differ in the way
 the placement of an occurrence is written:
 - the order of rep_1/rep_2 in the REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION
   (child first like Inventor/Creo/CATIA, or parent first like SolidWorks),
 - an identity or a non identity placement in the child representation,
 - the order of the items in the ITEM_DEFINED_TRANSFORMATION,
-- one or two assembly levels.
+- one or two assembly levels,
+- the length unit of each representation context (mm, m, inch, ...),
+- an instance by MAPPED_ITEM instead of an assembly.
+All coordinates are defined in mm and written in the unit of their context, so the expected
+result doesn't depend on the units.
 Run it with python 3 in this directory; it also prints the expected bounding boxes.
 """
 import math
 
 BOX = (10.0, 20.0, 40.0)
 
-# frames: (location, z axis, x axis)
+# frames in mm: (location, z axis, x axis)
 IDENT = ((0, 0, 0), (0, 0, 1), (1, 0, 0))
 P1 = ((100, 0, 0), (0, 0, 1), (0, 1, 0))            # rotated 90 degrees about z
 P2 = ((0, 50, 25), (1, 0, 0), (0, 0, 1))            # x->z, y->-y, z->x
 FC = ((5, 5, 5), (0, 0, 1), (0, 1, 0))              # non identity placement inside the part
 Q = ((-30, 7, 3), (0, 1, 0), (1, 0, 0))             # placement of the part in the sub assembly
 
+# length units: millimetres per unit
+MM_PER_UNIT = {"mm": 1.0, "mm_deg": 1.0, "m": 1000.0, "inch": 25.4, "inch_m": 25.4, "mm_m": 1.0}
+
 
 def cross(a, b): return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def real(x):
+    """A STEP real: 6 decimals when that is exact (keeps the older files unchanged), else full precision."""
+    x = float(x)
+    if abs(x * 1e6 - round(x * 1e6)) < 1e-6: return f"{x:.6f}"
+    s = f"{x:.15g}"
+    if 'e' in s:
+        m, e = s.split('e')
+        return (m if '.' in m else m + '.') + 'E' + e
+    return s if '.' in s else s + '.'
 
 
 class Writer:
@@ -34,12 +52,12 @@ class Writer:
         self.lines.append(f"#{self.n}={text};")
         return f"#{self.n}"
 
-    def pt(self, p): return self.add("CARTESIAN_POINT('',(%s))" % ",".join(f"{float(x):.6f}" for x in p))
+    def pt(self, p, unit="mm"): return self.add("CARTESIAN_POINT('',(%s))" % ",".join(real(x / MM_PER_UNIT[unit]) for x in p))
     def dir(self, d): return self.add("DIRECTION('',(%s))" % ",".join(f"{float(x):.6f}" for x in d))
 
-    def ax(self, f):
+    def ax(self, f, unit="mm"):
         loc, z, x = f
-        return self.add(f"AXIS2_PLACEMENT_3D('',{self.pt(loc)},{self.dir(z)},{self.dir(x)})")
+        return self.add(f"AXIS2_PLACEMENT_3D('',{self.pt(loc, unit)},{self.dir(z)},{self.dir(x)})")
 
     def text(self, name):
         hdr = ["ISO-10303-21;", "HEADER;", "FILE_DESCRIPTION((''),'2;1');",
@@ -48,13 +66,34 @@ class Writer:
         return "\n".join(hdr + self.lines + ["ENDSEC;", "END-ISO-10303-21;", ""])
 
 
-def context(w):
-    mm = w.add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))")
-    rad = w.add("(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))")
+def context(w, unit="mm"):
+    """A representation context with the length unit `unit`; the non mm contexts use degree as angle unit."""
+    if unit == "mm":
+        length = w.add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))")
+        angle = w.add("(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))")
+    else:
+        rad = w.add("(NAMED_UNIT(*)PLANE_ANGLE_UNIT()SI_UNIT($,.RADIAN.))")
+        dim = w.add("DIMENSIONAL_EXPONENTS(0.,0.,0.,0.,0.,0.,0.)")
+        deg = w.add(f"PLANE_ANGLE_MEASURE_WITH_UNIT(PLANE_ANGLE_MEASURE(0.0174532925199433),{rad})")
+        angle = w.add(f"(CONVERSION_BASED_UNIT('DEGREE',{deg})NAMED_UNIT({dim})PLANE_ANGLE_UNIT())")
+        if unit == "mm_deg":
+            length = w.add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))")
+        elif unit == "m":
+            length = w.add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.))")
+        else:
+            ldim = w.add("DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.)")
+            if unit == "inch":
+                base, name, value = w.add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.))"), "INCH", "25.4"
+            elif unit == "inch_m":
+                base, name, value = w.add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.))"), "INCH", "0.0254"
+            else:  # mm_m
+                base, name, value = w.add("(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT($,.METRE.))"), "MILLIMETRE", "0.001"
+            conv = w.add(f"LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE({value}),{base})")
+            length = w.add(f"(CONVERSION_BASED_UNIT('{name}',{conv})LENGTH_UNIT()NAMED_UNIT({ldim}))")
     sr = w.add("(NAMED_UNIT(*)SI_UNIT($,.STERADIAN.)SOLID_ANGLE_UNIT())")
-    unc = w.add(f"UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),{mm},'distance_accuracy_value','')")
+    unc = w.add(f"UNCERTAINTY_MEASURE_WITH_UNIT(LENGTH_MEASURE(1.E-07),{length},'distance_accuracy_value','')")
     return w.add(f"(GEOMETRIC_REPRESENTATION_CONTEXT(3)GLOBAL_UNCERTAINTY_ASSIGNED_CONTEXT(({unc}))"
-                 f"GLOBAL_UNIT_ASSIGNED_CONTEXT(({mm},{rad},{sr}))REPRESENTATION_CONTEXT('',''))")
+                 f"GLOBAL_UNIT_ASSIGNED_CONTEXT(({length},{angle},{sr}))REPRESENTATION_CONTEXT('',''))")
 
 
 def product(w, appctx, name):
@@ -67,10 +106,10 @@ def product(w, appctx, name):
     return pd, pds
 
 
-def box_brep(w):
+def box_brep(w, unit="mm"):
     a, b, c = BOX
     corners = [(x * a, y * b, z * c) for z in (0, 1) for y in (0, 1) for x in (0, 1)]
-    vp = [w.add(f"VERTEX_POINT('',{w.pt(p)})") for p in corners]
+    vp = [w.add(f"VERTEX_POINT('',{w.pt(p, unit)})") for p in corners]
     edges = {}
 
     def edge(i, j):
@@ -79,7 +118,9 @@ def box_brep(w):
             p, q = corners[key[0]], corners[key[1]]
             d = tuple(qq - pp for pp, qq in zip(p, q))
             ln = math.sqrt(sum(x * x for x in d))
-            line = w.add(f"LINE('',{w.pt(p)},{w.add(f'VECTOR({chr(39)}{chr(39)},{w.dir(tuple(x / ln for x in d))},{ln:.6f})')})")
+            start = w.pt(p, unit)
+            vec = w.add(f"VECTOR('',{w.dir(tuple(x / ln for x in d))},{real(ln / MM_PER_UNIT[unit])})")
+            line = w.add(f"LINE('',{start},{vec})")
             edges[key] = w.add(f"EDGE_CURVE('',{vp[key[0]]},{vp[key[1]]},{line},.T.)")
         return w.add(f"ORIENTED_EDGE('',*,*,{edges[key]},{'.T.' if i < j else '.F.'})")
 
@@ -95,38 +136,52 @@ def box_brep(w):
                                                sum((corners[k][m] - cen[m]) * u[m] for m in range(3))))
             loop = w.add("EDGE_LOOP('',(%s))" % ",".join(edge(idx[m], idx[(m + 1) % 4]) for m in range(4)))
             bound = w.add(f"FACE_OUTER_BOUND('',{loop},.T.)")
-            plane = w.add(f"PLANE('',{w.ax((tuple(cen), tuple(n), tuple(u)))})")
+            plane = w.add(f"PLANE('',{w.ax((tuple(cen), tuple(n), tuple(u)), unit)})")
             faces.append(w.add(f"ADVANCED_FACE('',({bound}),{plane},.T.)"))
     shell = w.add("CLOSED_SHELL('',(%s))" % ",".join(faces))
     return w.add(f"MANIFOLD_SOLID_BREP('Box',{shell})")
 
 
-def make(name, levels):
-    """levels: list of (parent_frame, child_frame, child_first, items_swapped) from top to the part."""
+def start():
     w = Writer()
     appctx = w.add("APPLICATION_CONTEXT('automotive design')")
     w.add(f"APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,{appctx})")
+    return w, appctx
+
+
+def write(w, name):
+    with open(name, "w", newline="\n") as f:
+        f.write(w.text(name))
+
+
+def make(name, levels, units=None):
+    """levels: list of (parent_frame, child_frame, child_first, items_swapped) from top to the part.
+    units: length units of the part and the assemblies from the bottom up (default all mm)."""
+    units = units or ["mm"] * (len(levels) + 1)
+    w, appctx = start()
     # every product gets its own representation context, as most exporters do (a context shared by the
     # representations of several products makes the importer attach all their items to every product)
     # the part
-    ctx = context(w)
+    unit = units[0]
+    ctx = context(w, unit)
     part_pd, part_pds = product(w, appctx, "Box")
-    child_frame = levels[-1][1]
-    part_place = w.ax(child_frame)
+    child_frame = levels[-1][1] if levels else IDENT
+    part_place = w.ax(child_frame, unit)
     part_sr = w.add(f"SHAPE_REPRESENTATION('Box',({part_place}),{ctx})")
     w.add(f"SHAPE_DEFINITION_REPRESENTATION({part_pds},{part_sr})")
-    brep = box_brep(w)
-    absr = w.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('Box',({brep},{w.ax(IDENT)}),{ctx})")
+    brep = box_brep(w, unit)
+    absr = w.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('Box',({brep},{w.ax(IDENT, unit)}),{ctx})")
     w.add(f"SHAPE_REPRESENTATION_RELATIONSHIP('','',{part_sr},{absr})")
     child = (part_pd, part_sr, part_place)
     # assemblies from the bottom up
     for k, (pframe, cframe, child_first, swapped) in enumerate(reversed(levels)):
+        unit = units[k + 1]
         aname = "Top" if k == len(levels) - 1 else f"Sub{k}"
         apd, apds = product(w, appctx, aname)
-        ctx = context(w)
-        aplace = w.ax(pframe)
+        ctx = context(w, unit)
+        aplace = w.ax(pframe, unit)
         # the own placement of this assembly as seen from its parent (identity for the top level)
-        own = w.ax(levels[len(levels) - 2 - k][1]) if k < len(levels) - 1 else w.ax(IDENT)
+        own = w.ax(levels[len(levels) - 2 - k][1], unit) if k < len(levels) - 1 else w.ax(IDENT, unit)
         asr = w.add(f"SHAPE_REPRESENTATION('{aname}',({own},{aplace}),{ctx})")
         w.add(f"SHAPE_DEFINITION_REPRESENTATION({apds},{asr})")
         cpd, csr, cplace = child
@@ -140,8 +195,63 @@ def make(name, levels):
                    f"SHAPE_REPRESENTATION_RELATIONSHIP())")
         w.add(f"CONTEXT_DEPENDENT_SHAPE_REPRESENTATION({rr},{npds})")
         child = (apd, asr, own)
-    with open(name, "w", newline="\n") as f:
-        f.write(w.text(name))
+    write(w, name)
+
+
+def make_mapped(name, origin, target, outer_unit, inner_unit):
+    """A single product whose shape representation instances the box by a MAPPED_ITEM: the box is in its own
+    representation (unit inner_unit) with the mapping origin, the mapping target is in the outer representation."""
+    w, appctx = start()
+    pd, pds = product(w, appctx, "Box")
+    inner_ctx = context(w, inner_unit)
+    brep = box_brep(w, inner_unit)
+    origin_place = w.ax(origin, inner_unit)
+    absr = w.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('Box',({brep},{origin_place}),{inner_ctx})")
+    rmap = w.add(f"REPRESENTATION_MAP({origin_place},{absr})")
+    outer_ctx = context(w, outer_unit)
+    target_place = w.ax(target, outer_unit)
+    mapped = w.add(f"MAPPED_ITEM('',{rmap},{target_place})")
+    sr = w.add(f"SHAPE_REPRESENTATION('Box',({w.ax(IDENT, outer_unit)},{mapped}),{outer_ctx})")
+    w.add(f"SHAPE_DEFINITION_REPRESENTATION({pds},{sr})")
+    write(w, name)
+
+
+def make_styled_arc(name):
+    """A trimmed circle with parameters in degree in a GEOMETRIC_CURVE_SET, styled by a presentation
+    representation whose context is a plain REPRESENTATION_CONTEXT without units (as ThinkDesign writes it).
+    The arc must be trimmed in the degree units of its own representation."""
+    w, appctx = start()
+    pd, pds = product(w, appctx, "Arc")
+    ctx = context(w, "mm_deg")
+    place = w.add(f"AXIS2_PLACEMENT_3D('',{w.pt((0, 0, 0))},{w.dir((0, 0, 1))},{w.dir(ARC_REF)})")
+    circle = w.add(f"CIRCLE('',{place},{real(ARC_RADIUS)})")
+    p1, p2 = w.pt(arc_point(ARC_START)), w.pt(arc_point(ARC_END))
+    arc = w.add(f"TRIMMED_CURVE('',{circle},(PARAMETER_VALUE({real(ARC_START)}),{p1}),(PARAMETER_VALUE({real(ARC_END)}),{p2}),.T.,.PARAMETER.)")
+    gcs = w.add(f"GEOMETRIC_CURVE_SET('',({arc}))")
+    rep = w.add(f"GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION('Arc',({gcs},{w.ax(IDENT)}),{ctx})")
+    w.add(f"SHAPE_DEFINITION_REPRESENTATION({pds},{rep})")
+    colour = w.add("DRAUGHTING_PRE_DEFINED_COLOUR('red')")
+    style = w.add(f"CURVE_STYLE('',$,$,{colour})")
+    psa = w.add(f"PRESENTATION_STYLE_ASSIGNMENT(({style}))")
+    styled = w.add(f"STYLED_ITEM('',({psa}),{arc})")
+    plain = w.add("REPRESENTATION_CONTEXT('','')")
+    w.add(f"MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',({styled}),{plain})")
+    write(w, name)
+
+
+ARC_RADIUS = 8.0
+ARC_REF = (-0.484122918275927, 0.875, 0.0)      # x axis of the circle
+ARC_START, ARC_END = 270.0, 302.08997990417     # degree, relative to ARC_REF
+
+
+def arc_point(deg):
+    a = math.radians(deg) + math.atan2(ARC_REF[1], ARC_REF[0])
+    return (ARC_RADIUS * math.cos(a), ARC_RADIUS * math.sin(a), 0.0)
+
+
+def arc_extent():
+    pts = [arc_point(ARC_START + (ARC_END - ARC_START) * i / 1000) for i in range(1001)]
+    return [min(p[r] for p in pts) for r in range(3)] + [max(p[r] for p in pts) for r in range(3)]
 
 
 # ---------------------------------------------------------------- expected results
@@ -174,6 +284,9 @@ def expected(chain):
     return lo + hi
 
 
+def show(fn, chain): print(fn, [round(v, 6) for v in expected(chain)])
+
+
 if __name__ == "__main__":
     for child_first in (True, False):
         tag = "child_first" if child_first else "parent_first"
@@ -184,7 +297,28 @@ if __name__ == "__main__":
                 for pf, ptag in ((P1, "p1"), (P2, "p2")):
                     f2 = fn.replace(".stp", f"_{ptag}.stp")
                     make(f2, [(pf, cf, child_first, swapped)])
-                    print(f2, [round(v, 6) for v in expected([(pf, cf)])])
+                    show(f2, [(pf, cf)])
     # two levels: Top -(P1, child first)-> Sub -(Q, parent first, child placement FC)-> Box
     make("box_two_levels.stp", [(P1, IDENT, True, False), (Q, FC, False, False)])
-    print("box_two_levels.stp", [round(v, 6) for v in expected([(P1, IDENT), (Q, FC)])])
+    show("box_two_levels.stp", [(P1, IDENT), (Q, FC)])
+    # units: a single part in different length units
+    for unit in ("inch", "m", "inch_m", "mm_m"):
+        make(f"box_unit_{unit}.stp", [], [unit])
+        show(f"box_unit_{unit}.stp", [])
+    # units: part and assembly in different units
+    make("box_child_first_offset_p1_part_inch.stp", [(P1, FC, True, False)], ["inch", "mm"])
+    show("box_child_first_offset_p1_part_inch.stp", [(P1, FC)])
+    make("box_parent_first_offset_p2_assembly_inch.stp", [(P2, FC, False, False)], ["mm", "inch"])
+    show("box_parent_first_offset_p2_assembly_inch.stp", [(P2, FC)])
+    make("box_two_levels_units.stp", [(P1, IDENT, True, False), (Q, FC, False, False)], ["mm", "inch", "m"])
+    show("box_two_levels_units.stp", [(P1, IDENT), (Q, FC)])
+    # mapped items
+    make_mapped("box_mapped.stp", FC, P1, "mm", "mm")
+    show("box_mapped.stp", [(P1, FC)])
+    make_mapped("box_mapped_inch.stp", FC, P1, "mm", "inch")
+    show("box_mapped_inch.stp", [(P1, FC)])
+    make_mapped("box_mapped_outer_m.stp", FC, P1, "m", "mm")
+    show("box_mapped_outer_m.stp", [(P1, FC)])
+    # angle units: a styled arc in degree, the presentation context has no units
+    make_styled_arc("arc_degree_styled.stp")
+    print("arc_degree_styled.stp", [round(v, 6) for v in arc_extent()])
