@@ -1574,7 +1574,7 @@ namespace CADability.GeoObject
             }
             return res;
         }
-        internal List<Face> ClonePart(IEnumerable<Face> toClone)
+        internal static List<Face> ClonePart(IEnumerable<Face> toClone)
         {
             Dictionary<Edge, Edge> clonedEdges = new Dictionary<Edge, Edge>();
             Dictionary<Vertex, Vertex> clonedVertices = new Dictionary<Vertex, Vertex>();
@@ -6820,6 +6820,22 @@ namespace CADability.GeoObject
             return shell;
         }
 
+        /// <summary>
+        /// Writes the provided faces as a CLOSED_SHELL without a style. Used for the outer shell and the voids of a
+        /// BREP_WITH_VOIDS, see <see cref="Solid"/>. The faces need not belong to this shell (reversed cavity faces).
+        /// </summary>
+        internal int ExportClosedShell(ExportStep export, IEnumerable<Face> shellFaces, string name)
+        {
+            StringBuilder faceList = new StringBuilder();
+            foreach (Face fc in shellFaces)
+            {
+                int facenr = (fc as IExportStep).Export(export, false);
+                if (faceList.Length > 0) faceList.Append(",");
+                faceList.Append("#" + facenr.ToString());
+            }
+            return export.WriteDefinition("CLOSED_SHELL(" + ExportStep.StepString(name) + ",(" + faceList.ToString() + "))");
+        }
+
         int IExportStep.Export(ExportStep export, bool topLevel)
         {
             // #31=CLOSED_SHELL('Closed Shell',(#71,#102,#133,#155,#167,#179)) ;
@@ -6837,27 +6853,19 @@ namespace CADability.GeoObject
             int cs;
             if (HasOpenEdgesExceptPoles())
             {
-                cs = export.WriteDefinition("OPEN_SHELL('" + NameOrEmpty + "',(" + faceList.ToString() + "))");
+                cs = export.WriteDefinition("OPEN_SHELL(" + ExportStep.StepString(NameOrEmpty) + ",(" + faceList.ToString() + "))");
             }
             else
             {
-                cs = export.WriteDefinition("CLOSED_SHELL('" + NameOrEmpty + "',(" + faceList.ToString() + "))");
+                cs = export.WriteDefinition("CLOSED_SHELL(" + ExportStep.StepString(NameOrEmpty) + ",(" + faceList.ToString() + "))");
             }
-            if (Owner == null || (Owner is IColorDef && (Owner as IColorDef).ColorDef != colorDef))
+            if (colorDef != null && (Owner == null || (Owner is IColorDef && (Owner as IColorDef).ColorDef != colorDef)))
             {
-                if (colorDef == null) colorDef = new ColorDef("Black", Color.Black);
                 colorDef.MakeStepStyle(cs, export);
             }
             if (topLevel)
             {   // SHELL_BASED_SURFACE_MODEL is a Geometric_Representation_Item
-                int sbsm = export.WriteDefinition("SHELL_BASED_SURFACE_MODEL('',(#" + cs.ToString() + "))");
-                int product = export.WriteDefinition("PRODUCT( '" + NameOrEmpty + "','" + NameOrEmpty + "','',(#2))");
-                int pdf = export.WriteDefinition("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE( ' ', 'NONE', #" + product.ToString() + ", .NOT_KNOWN. )");
-                int pd = export.WriteDefinition("PRODUCT_DEFINITION( 'NONE', 'NONE', #" + pdf.ToString() + ", #3 )");
-                int pds = export.WriteDefinition("PRODUCT_DEFINITION_SHAPE( 'NONE', 'NONE', #" + pd.ToString() + " )");
-                int sr = export.WriteDefinition("ADVANCED_BREP_SHAPE_REPRESENTATION('" + NameOrEmpty + "', ( #" + sbsm.ToString() + "), #4 )");
-                export.WriteDefinition("SHAPE_DEFINITION_REPRESENTATION( #" + pds.ToString() + ", #" + sr.ToString() + ")");
-                return sr;
+                return export.WriteDefinition("SHELL_BASED_SURFACE_MODEL(" + ExportStep.StepString(NameOrEmpty) + ",(#" + cs.ToString() + "))");
             }
             else
             {

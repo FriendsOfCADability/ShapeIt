@@ -3271,19 +3271,7 @@ namespace CADability.GeoObject
                     ntc = res;
                 }
 
-                int gcs = export.WriteDefinition("GEOMETRIC_CURVE_SET('',(#" + ntc.ToString() + "))");
-                ColorDef cd = ColorDef;
-                if (cd == null) cd = new ColorDef("Black", Color.Black);
-                cd.MakeStepStyle(gcs, export);
-                int product = export.WriteDefinition("PRODUCT( '','','',(#2))");
-                int pdf = export.WriteDefinition("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE( ' ', 'NONE', #" +
-                                                 product.ToString() + ", .NOT_KNOWN. )");
-                int pd = export.WriteDefinition("PRODUCT_DEFINITION( 'NONE', 'NONE', #" + pdf.ToString() + ", #3 )");
-                int pds = export.WriteDefinition("PRODUCT_DEFINITION_SHAPE( 'NONE', 'NONE', #" + pd.ToString() + " )");
-                int sr = export.WriteDefinition("SHAPE_REPRESENTATION('', ( #" + gcs.ToString() + "), #4 )");
-                export.WriteDefinition("SHAPE_DEFINITION_REPRESENTATION( #" + pds.ToString() + ", #" + sr.ToString() +
-                                       ")");
-                return sr;
+                return ntc;
             }
             else
             {

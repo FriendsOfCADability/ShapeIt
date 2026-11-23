@@ -15,7 +15,7 @@ namespace CADability.GeoObject
     /// A collection of several <see cref="IGeoObject"/>s 
     /// </summary>
     [Serializable()]
-    public class Block : IGeoObjectImpl, IColorDef, ISerializable, IGeoObjectOwner, IDeserializationCallback, IExportStep, IJsonSerialize, IJsonSerializeDone
+    public class Block : IGeoObjectImpl, IColorDef, ISerializable, IGeoObjectOwner, IDeserializationCallback, IJsonSerialize, IJsonSerializeDone
     {
         private GeoPoint refPoint;
         protected GeoObjectList containedObjects;
@@ -858,40 +858,6 @@ namespace CADability.GeoObject
         internal void MoveToFront(IGeoObject toMove)
         {
             containedObjects.MoveToFront(toMove);
-        }
-
-        int IExportStep.Export(ExportStep export, bool topLevel)
-        {
-            /*
-#248 = ADVANCED_BREP_SHAPE_REPRESENTATION( 'Assem1', ( #717, #718, #719, #720, #721, #722, #723, #724, #725, #726, #727 ), #26 );
-#727 = AXIS2_PLACEMENT_3D( '', #1437, #1438, #1439 );
-#717 = MAPPED_ITEM( '', #1417, #1418 );
-#1417 = REPRESENTATION_MAP( #727, #251 );
-#1418 = AXIS2_PLACEMENT_3D( '', #2213, #2214, #2215 );
-#251 = ADVANCED_BREP_SHAPE_REPRESENTATION( 'A0501_SASIL_plus_00_50_185_3_polig', ( #730 ), #26 );
-             */
-            List<int> representationItems = new List<int>();
-            int mainAxis = export.WriteAxis2Placement3d(GeoPoint.Origin, GeoVector.ZAxis, GeoVector.XAxis);
-            for (int i = 0; i < containedObjects.Count; i++)
-            {
-                if (containedObjects[i] is IExportStep)
-                {
-                    int toMap = (containedObjects[i] as IExportStep).Export(export, true); // true is correct here, because it is part of a map
-                    int axis = export.WriteAxis2Placement3d(GeoPoint.Origin, GeoVector.ZAxis, GeoVector.XAxis);
-                    int repMap = export.WriteDefinition("REPRESENTATION_MAP(#" + mainAxis.ToString() + ",#" + toMap.ToString() + ")");
-                    int mappedItem = export.WriteDefinition("MAPPED_ITEM( '', #" + repMap.ToString() + ",#" + axis.ToString() + ")");
-                    representationItems.Add(mappedItem);
-                }
-            }
-            representationItems.Add(mainAxis);
-            int sr = export.WriteDefinition("SHAPE_REPRESENTATION('" + Name + "',(" + export.ToString(representationItems.ToArray(), true) + "),#4)");
-            int product = export.WriteDefinition("PRODUCT( '" + Name + "','" + Name + "','',(#2))");
-            int pdf = export.WriteDefinition("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE( ' ', 'NONE', #" + product.ToString() + ", .NOT_KNOWN. )");
-            int pd = export.WriteDefinition("PRODUCT_DEFINITION( 'NONE', 'NONE', #" + pdf.ToString() + ", #3 )");
-            int pds = export.WriteDefinition("PRODUCT_DEFINITION_SHAPE( 'NONE', 'NONE', #" + pd.ToString() + " )");
-            export.WriteDefinition("SHAPE_DEFINITION_REPRESENTATION( #" + pds.ToString() + ", #" + sr.ToString() + ")");
-
-            return sr;
         }
 
     }

@@ -4405,25 +4405,7 @@ namespace CADability.GeoObject
                 bsp = export.WriteDefinition("B_SPLINE_CURVE_WITH_KNOTS(''," + degree.ToString() + ",(" + spoles + "),.UNSPECIFIED.,.F.,.F.,("
                     + export.ToString(multiplicities, false) + "),(" + export.ToString(knots) + "),.UNSPECIFIED.)");
             }
-            if (topLevel)
-            {
-                int gcs = export.WriteDefinition("GEOMETRIC_CURVE_SET('',(#" + bsp.ToString() + "))");
-                ColorDef cd = ColorDef;
-                if (cd == null) cd = new ColorDef("Black", Color.Black);
-                cd.MakeStepStyle(gcs, export);
-                int product = export.WriteDefinition("PRODUCT( '','','',(#2))");
-                int pdf = export.WriteDefinition("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE( ' ', 'NONE', #" + product.ToString() + ", .NOT_KNOWN. )");
-                int pd = export.WriteDefinition("PRODUCT_DEFINITION( 'NONE', 'NONE', #" + pdf.ToString() + ", #3 )");
-                int pds = export.WriteDefinition("PRODUCT_DEFINITION_SHAPE( 'NONE', 'NONE', #" + pd.ToString() + " )");
-                int sr = export.WriteDefinition("SHAPE_REPRESENTATION('', ( #" + gcs.ToString() + "), #4 )");
-                export.WriteDefinition("SHAPE_DEFINITION_REPRESENTATION( #" + pds.ToString() + ", #" + sr.ToString() + ")");
-                return sr;
-            }
-            else
-            {
-                return bsp;
-            }
-
+            return bsp; // a bounded curve, also on the top level
         }
         public IReadOnlyList<GeoVector> PointAndDerivativesAt(double position, int grad)
         {   // implement here!

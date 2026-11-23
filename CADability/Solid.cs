@@ -4,6 +4,7 @@ using CADability.Substitutes;
 using CADability.UserInterface;
 using MathNet.Numerics;
 using System;
+using System.Text;
 using System.Collections.Generic;
 using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Serialization;
@@ -1051,27 +1052,42 @@ namespace CADability.GeoObject
         }
 
         int IExportStep.Export(ExportStep export, bool topLevel)
-        {   // MANIFOLD_SOLID_BREP is a Geometric_Representation_Item
+        {   // MANIFOLD_SOLID_BREP and BREP_WITH_VOIDS are Geometric_Representation_Items
             if (string.IsNullOrEmpty(shells[0].Name)) shells[0].Name = NameOrEmpty;
-            int shellnr = (shells[0] as IExportStep).Export(export, false);
-            int msb = export.WriteDefinition("MANIFOLD_SOLID_BREP('" + NameOrEmpty + "',#" + shellnr.ToString() + ")");
+            // the cavities are either additional connected components of the first shell or (historically) additional shells
+            (HashSet<Face> hull, HashSet<Face>[] holes) = shells[0].GetHullAndHoles();
+            List<IEnumerable<Face>> voids = new List<IEnumerable<Face>>(holes);
+            for (int i = 1; i < shells.Length; i++) voids.Add(shells[i].Faces);
+            int msb;
+            if (voids.Count == 0)
+            {
+                int shellnr = (shells[0] as IExportStep).Export(export, false);
+                msb = export.WriteDefinition("MANIFOLD_SOLID_BREP(" + ExportStep.StepString(NameOrEmpty) + ",#" + shellnr.ToString() + ")");
+            }
+            else
+            {   // #10=BREP_WITH_VOIDS('name',#11,(#12));
+                // #12=ORIENTED_CLOSED_SHELL('',*,#13,.F.);
+                // The normals of a CLOSED_SHELL point out of the enclosed volume, the normals of a void shell therefore point into
+                // the material, and the orientation .F. reverses them. In CADability the normals of a cavity point into the cavity,
+                // so the faces of a cavity are written reversed.
+                int outer = shells[0].ExportClosedShell(export, hull, shells[0].NameOrEmpty);
+                StringBuilder voidList = new StringBuilder();
+                foreach (IEnumerable<Face> cavity in voids)
+                {
+                    List<Face> reversed = Shell.ClonePart(cavity);
+                    foreach (Face fc in reversed) fc.ReverseOrientation();
+                    int cs = shells[0].ExportClosedShell(export, reversed, "");
+                    int ocs = export.WriteDefinition("ORIENTED_CLOSED_SHELL('',*,#" + cs.ToString() + ",.F.)");
+                    if (voidList.Length > 0) voidList.Append(",");
+                    voidList.Append("#" + ocs.ToString());
+                }
+                msb = export.WriteDefinition("BREP_WITH_VOIDS(" + ExportStep.StepString(NameOrEmpty) + ",#" + outer.ToString() + ",(" + voidList.ToString() + "))");
+            }
             if (colorDef != null)
             {
                 colorDef.MakeStepStyle(msb, export);
             }
-            //#731 = PRODUCT( 'A0501_SASIL_plus_00_50_185_3_polig', 'A0501_SASIL_plus_00_50_185_3_polig', 'PART-A0501_SASIL_plus_00_50_185_3_polig-DESC', ( #2 ) );
-            //#1442 = PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE( ' ', 'NONE', #731, .NOT_KNOWN. );
-            //#732 = PRODUCT_DEFINITION( 'NONE', 'NONE', #1442, #3 );
-            //#253 = PRODUCT_DEFINITION_SHAPE( 'NONE', 'NONE', #732 );
-            //#254 = ADVANCED_BREP_SHAPE_REPRESENTATION( 'A0501_SASIL_plus_00_50_185_3_polig', ( #733 ), #4 );
-            //#9 = SHAPE_DEFINITION_REPRESENTATION( #253, #254 );
-            int product = export.WriteDefinition("PRODUCT( '" + NameOrEmpty + "','" + NameOrEmpty + "','',(#2))");
-            int pdf = export.WriteDefinition("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE( ' ', 'NONE', #" + product.ToString() + ", .NOT_KNOWN. )");
-            int pd = export.WriteDefinition("PRODUCT_DEFINITION( 'NONE', 'NONE', #" + pdf.ToString() + ", #3 )");
-            int pds = export.WriteDefinition("PRODUCT_DEFINITION_SHAPE( 'NONE', 'NONE', #" + pd.ToString() + " )");
-            int brep = export.WriteDefinition("ADVANCED_BREP_SHAPE_REPRESENTATION('" + NameOrEmpty + "', ( #" + msb.ToString() + "), #4 )");
-            export.WriteDefinition("SHAPE_DEFINITION_REPRESENTATION( #" + pds.ToString() + ", #" + brep.ToString() + ")");
-            return brep;
+            return msb;
         }
 
         private class BRepOpAction : ConstructAction

@@ -1929,6 +1929,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			}
 			string id = ProductId(node.product);
 			HashSet<IGeoObject> added = new HashSet<IGeoObject>();
+			List<IGeoObject> own = new List<IGeoObject>(); // the solids and shells of the product's own shape
 			foreach (Item definition in node.definitions.OrderBy(d => d.definingIndex))
 			{
 				foreach (Item representation in RepresentationsOf(definition, false).OrderBy(r => r.definingIndex))
@@ -1944,11 +1945,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						if (o is IGeoObject go)
 						{
 							if (!added.Add(go)) continue;
-							if (!string.IsNullOrWhiteSpace(id))
-							{
-								if (go is Solid sld) sld.Name = id;
-								if (go is Shell shl) shl.Name = id;
-							}
+							own.Add(go);
 							res.Add(go);
 						}
 						else if (o is GeoObjectList gl)
@@ -1968,6 +1965,15 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							foreach (IGeoObject g in goa) if (added.Add(g)) res.Add(g);
 						}
 					}
+				}
+			}
+			if (!string.IsNullOrWhiteSpace(id))
+			{   // a single solid or shell is named after the product. The bodies of a multi-body part keep their own names,
+				// only those without a name get the name of the product
+				foreach (IGeoObject go in own)
+				{
+					if (go is Solid sld && (own.Count == 1 || string.IsNullOrWhiteSpace(sld.Name))) sld.Name = id;
+					if (go is Shell shl && (own.Count == 1 || string.IsNullOrWhiteSpace(shl.Name))) shl.Name = id;
 				}
 			}
 			node.instantiating = false;
@@ -2599,9 +2605,10 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							item.val = cd;
 						}
 						break;
-					case Item.ItemType.curveStyle: // curve_font, curve_width, curve_colour
-						{   // curve_font is the line pattern
-
+					case Item.ItemType.curveStyle: // name, curve_font, curve_width, curve_colour
+						{   // curve_font is the line pattern, which is not used. The colour is the color of the styled curve
+							if (item.parameter.TryGetValue("curve_colour", out Item colour) && colour != null) item.val = CreateEntity(colour) as ColorDef;
+							else item.val = null;
 						}
 						break;
 					case Item.ItemType.manifoldSolidBrep: // name, outer
@@ -2615,23 +2622,45 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							item.val = item.parameter["outer"].val;
 						}
 						break;
-					case Item.ItemType.brepWithVoids:
-						{   // a solid with other shells as holes. We currently only return the solid
+					case Item.ItemType.brepWithVoids: // name, outer, voids
+						{   // a solid with cavities: the faces of the voids are added to the shell of the outer hull as further
+							// connected components (see Shell.GetHullAndHoles), their normals pointing into the cavity
 							object shell = CreateEntity(item.parameter["outer"]);
 							List<Item> voids = item.parameter["voids"].val as List<Item>;
-							if (shell is GeoObjectList || shell is IGeoObject) item.val = shell;
-							else
-							{
-								for (int i = 0; i < voids.Count; i++)
+							Shell hull = shell is Solid outerSolid ? outerSolid.Shells[0] : shell as Shell;
+							if (hull == null || hull.OpenEdgesExceptPoles.Length > 0 || voids == null)
+							{   // no valid outer hull: return what was created
+								if (shell is GeoObjectList || shell is IGeoObject) item.val = shell;
+								else if (voids != null)
 								{
-									shell = CreateEntity(voids[i]);
-									if (shell is GeoObjectList || shell is IGeoObject)
+									for (int i = 0; i < voids.Count; i++)
 									{
-										item.val = shell;
-										break;
+										shell = CreateEntity(voids[i]);
+										if (shell is GeoObjectList || shell is IGeoObject)
+										{
+											item.val = shell;
+											break;
+										}
 									}
 								}
+								break;
 							}
+							List<Face> cavityFaces = new List<Face>();
+							for (int i = 0; i < voids.Count; i++)
+							{
+								object v = CreateEntity(voids[i]);
+								Shell cavity = v is Solid voidSolid ? voidSolid.Shells[0] : v as Shell;
+								if (cavity == null || cavity.Faces.Length == 0) continue;
+								// The orientation of an ORIENTED_CLOSED_SHELL is not reliable in all files, so the direction of the normals
+								// is taken from the volume: a cavity encloses a negative volume
+								if (cavity.Volume(cavity.GetExtent(0.0).Size * 1e-3) > 0) cavity.ReverseOrientation();
+								cavityFaces.AddRange(cavity.Faces);
+							}
+							if (cavityFaces.Count > 0) hull.AddInnerHole(cavityFaces.ToArray());
+							Solid sld = Solid.MakeSolid(hull);
+							if (shell is Solid os && os.ColorDef != null) sld.ColorDef = os.ColorDef;
+							sld.Name = item.parameter["name"].sval;
+							item.val = sld;
 						}
 						break;
 					case Item.ItemType.orientedClosedShell:
@@ -5435,6 +5464,79 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			return new Item(Item.ItemType.list, lst);
 		}
 
+		/// <summary>
+		/// Decodes the content of a STEP string literal (ISO 10303-21, 6.4.3): '' is an apostrophe, \\ a backslash,
+		/// \S\c a character of the upper half of ISO 8859-1, \X\hh a character of ISO 8859-1, \X2\...\X0\ and \X4\...\X0\
+		/// sequences of UTF-16 or UCS-4 hex codes. The code page switch \Px\ is ignored. A backslash which does not start
+		/// one of these sequences is kept, because many files contain unescaped backslashes (e.g. in paths).
+		/// </summary>
+		public static string DecodeString(string s)
+		{
+			if (s.IndexOf('\\') < 0 && s.IndexOf("''") < 0) return s;
+			StringBuilder res = new StringBuilder(s.Length);
+			bool IsHex(int start, int count)
+			{
+				if (start + count > s.Length) return false;
+				for (int k = start; k < start + count; k++) if (!Uri.IsHexDigit(s[k])) return false;
+				return true;
+			}
+			int i = 0;
+			while (i < s.Length)
+			{
+				char c = s[i];
+				if (c == '\'' && i + 1 < s.Length && s[i + 1] == '\'')
+				{
+					res.Append('\'');
+					i += 2;
+					continue;
+				}
+				if (c == '\\' && i + 1 < s.Length)
+				{
+					if (s[i + 1] == '\\')
+					{
+						res.Append('\\');
+						i += 2;
+						continue;
+					}
+					if (string.CompareOrdinal(s, i, "\\X2\\", 0, 4) == 0 || string.CompareOrdinal(s, i, "\\X4\\", 0, 4) == 0)
+					{
+						int digits = s[i + 2] == '2' ? 4 : 8;
+						int end = s.IndexOf("\\X0\\", i + 4, StringComparison.Ordinal);
+						if (end > 0)
+						{
+							for (int j = i + 4; j + digits <= end && IsHex(j, digits); j += digits)
+							{
+								int code = int.Parse(s.Substring(j, digits), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
+								if (digits == 4) res.Append((char)code);
+								else if (code >= 0 && code <= 0x10FFFF) res.Append(char.ConvertFromUtf32(code));
+							}
+							i = end + 4;
+							continue;
+						}
+					}
+					if (string.CompareOrdinal(s, i, "\\X\\", 0, 3) == 0 && IsHex(i + 3, 2))
+					{
+						res.Append((char)int.Parse(s.Substring(i + 3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture));
+						i += 5;
+						continue;
+					}
+					if (string.CompareOrdinal(s, i, "\\S\\", 0, 3) == 0 && i + 3 < s.Length)
+					{
+						res.Append((char)(s[i + 3] + 128));
+						i += 4;
+						continue;
+					}
+					if (s[i + 1] == 'P' && i + 3 < s.Length && s[i + 3] == '\\')
+					{
+						i += 4;
+						continue;
+					}
+				}
+				res.Append(c);
+				++i;
+			}
+			return res.ToString();
+		}
 		private Item GetItem(string line, int start, int length)
 		{
 			if (char.IsNumber(line[start]) || line[start] == '.' || line[start] == '+' || line[start] == '-')
@@ -5455,7 +5557,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					}
 					break;
 				case '\'':
-					string stringval = line.Substring(start + 1, length - 2);
+					string stringval = DecodeString(line.Substring(start + 1, length - 2));
 					return new Item(Item.ItemType.stringval, stringval);
 				case '.':
 					string keyword = line.Substring(start + 1, length - 2);

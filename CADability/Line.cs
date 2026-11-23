@@ -854,23 +854,12 @@ namespace CADability.GeoObject
             int vec = export.WriteDefinition("VECTOR('',#" + dir.ToString() + ",1.)");
             int ln = export.WriteDefinition("LINE('',#" + p1.ToString() + ",#" + vec.ToString() + ")");
             if (topLevel)
-            {   // export as a geometric curve set of a single trimmed curve
-                // #37 = GEOMETRIC_CURVE_SET('',(#38));
+            {   // export as a trimmed curve, ExportStep puts it into a GEOMETRIC_CURVE_SET
                 // #38 = TRIMMED_CURVE('',#39,(#43,PARAMETER_VALUE(0.E+000)),(#44,PARAMETER_VALUE(62.52263230373)),.T.,.PARAMETER.);
                 int sp = (startPoint as IExportStep).Export(export, false);
                 int ep = (endPoint as IExportStep).Export(export, false);
                 int tc = export.WriteDefinition("TRIMMED_CURVE('',#" + ln.ToString() + ",(#" + sp.ToString() + ",PARAMETER_VALUE(0.0)),(#" + ep.ToString() + ",PARAMETER_VALUE(" + export.ToString(Length) + ")),.T.,.CARTESIAN.)");
-                int gcs = export.WriteDefinition("GEOMETRIC_CURVE_SET('',(#" + tc.ToString() + "))"); // is a Representation_Item 
-                ColorDef cd = ColorDef;
-                if (cd == null) cd = new ColorDef("Black", Color.Black);
-                cd.MakeStepStyle(gcs, export);
-                int product = export.WriteDefinition("PRODUCT( '','','',(#2))");
-                int pdf = export.WriteDefinition("PRODUCT_DEFINITION_FORMATION_WITH_SPECIFIED_SOURCE( ' ', 'NONE', #" + product.ToString() + ", .NOT_KNOWN. )");
-                int pd = export.WriteDefinition("PRODUCT_DEFINITION( 'NONE', 'NONE', #" + pdf.ToString() + ", #3 )");
-                int pds = export.WriteDefinition("PRODUCT_DEFINITION_SHAPE( 'NONE', 'NONE', #" + pd.ToString() + " )");
-                int sr = export.WriteDefinition("SHAPE_REPRESENTATION('', ( #" + gcs.ToString() + "), #4 )");
-                export.WriteDefinition("SHAPE_DEFINITION_REPRESENTATION( #" + pds.ToString() + ", #" + sr.ToString() + ")");
-                return sr;
+                return tc;
             }
             else
             {

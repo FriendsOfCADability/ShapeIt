@@ -2,6 +2,7 @@
 using CADability.Substitutes;
 using CADability.UserInterface;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.Serialization;
 
@@ -232,7 +233,12 @@ namespace CADability.Attribute
             color = Color.FromArgb(dict.GetIntProperty("Color"));
         }
 #endregion
-        internal void MakeStepStyle(int msb, ExportStep export)
+        /// <summary>
+        /// Writes a STYLED_ITEM, which assigns this color to the STEP entity <paramref name="item"/>: a fill area style for
+        /// solids, shells and faces, a curve style for curves (<paramref name="curve"/>). The presentation style
+        /// assignments are written once per color, the styled items are collected by <see cref="ExportStep"/>.
+        /// </summary>
+        internal void MakeStepStyle(int item, ExportStep export, bool curve = false)
         {
             //#23=COLOUR_RGB('Colour',0.,0.501960784314,1.) ;
             //#24=FILL_AREA_STYLE_COLOUR(' ',#23) ;
@@ -242,25 +248,35 @@ namespace CADability.Attribute
             //#28=SURFACE_STYLE_USAGE(.BOTH.,#27) ;
             //#29=PRESENTATION_STYLE_ASSIGNMENT((#28)) ;
             //#30=STYLED_ITEM(' ',(#29),#22) ;
-            //#60 = DRAUGHTING_PRE_DEFINED_COLOUR('red');
             //#61 = CURVE_STYLE('',#62,POSITIVE_LENGTH_MEASURE(0.1),#60);
             //#62 = DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous');
-            //#63 = MECHANICAL_DESIGN_GEOMETRIC_PRESENTATION_REPRESENTATION('',(#64),
-            if (!export.StyledItems.TryGetValue(this, out int psa))
+            Dictionary<ColorDef, int> styles = curve ? export.CurveStyles : export.StyledItems;
+            if (!styles.TryGetValue(this, out int psa))
             {
-                int clr = export.WriteDefinition("COLOUR_RGB('" + Name + "'," + export.ToString(color.R / 255.0) + ","
-                    + export.ToString(color.G / 255.0) + "," + export.ToString(color.B / 255.0) + ")");
-                int cnt = export.WriteDefinition("DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous')");
-                int cs = export.WriteDefinition("CURVE_STYLE(' ',#" + cnt.ToString() + ",POSITIVE_LENGTH_MEASURE(0.1),#" + clr.ToString() + ")");
-                int fac = export.WriteDefinition("FILL_AREA_STYLE_COLOUR(' ',#" + clr.ToString() + ")");
-                int fas = export.WriteDefinition("FILL_AREA_STYLE(' ',(#" + fac.ToString() + "))");
-                int ssf = export.WriteDefinition("SURFACE_STYLE_FILL_AREA(#" + fas.ToString() + ")");
-                int sss = export.WriteDefinition("SURFACE_SIDE_STYLE(' ',(#" + ssf.ToString() + "))");
-                int ssu = export.WriteDefinition("SURFACE_STYLE_USAGE(.BOTH.,#" + sss.ToString() + ")");
-                psa = export.WriteDefinition("PRESENTATION_STYLE_ASSIGNMENT((#" + ssu.ToString() + "))");
-                export.StyledItems[this] = psa;
+                if (!export.Colours.TryGetValue(this, out int clr))
+                {
+                    clr = export.WriteDefinition("COLOUR_RGB(" + ExportStep.StepString(Name) + "," + export.ToString(color.R / 255.0) + ","
+                        + export.ToString(color.G / 255.0) + "," + export.ToString(color.B / 255.0) + ")");
+                    export.Colours[this] = clr;
+                }
+                if (curve)
+                {
+                    int cnt = export.WriteDefinition("DRAUGHTING_PRE_DEFINED_CURVE_FONT('continuous')");
+                    int cs = export.WriteDefinition("CURVE_STYLE('',#" + cnt.ToString() + ",POSITIVE_LENGTH_MEASURE(0.1),#" + clr.ToString() + ")");
+                    psa = export.WriteDefinition("PRESENTATION_STYLE_ASSIGNMENT((#" + cs.ToString() + "))");
+                }
+                else
+                {
+                    int fac = export.WriteDefinition("FILL_AREA_STYLE_COLOUR('',#" + clr.ToString() + ")");
+                    int fas = export.WriteDefinition("FILL_AREA_STYLE('',(#" + fac.ToString() + "))");
+                    int ssf = export.WriteDefinition("SURFACE_STYLE_FILL_AREA(#" + fas.ToString() + ")");
+                    int sss = export.WriteDefinition("SURFACE_SIDE_STYLE('',(#" + ssf.ToString() + "))");
+                    int ssu = export.WriteDefinition("SURFACE_STYLE_USAGE(.BOTH.,#" + sss.ToString() + ")");
+                    psa = export.WriteDefinition("PRESENTATION_STYLE_ASSIGNMENT((#" + ssu.ToString() + "))");
+                }
+                styles[this] = psa;
             }
-            export.WriteDefinition("STYLED_ITEM(' ',(#" + psa.ToString() + "),#" + msb.ToString() + ")");
+            export.WriteStyledItem(psa, item);
         }
     }
     /// <summary>

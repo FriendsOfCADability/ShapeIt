@@ -11914,7 +11914,7 @@ namespace CADability.GeoObject
 #if DEBUG
                 int af = export.WriteDefinition("ADVANCED_FACE('" + iv.ToString() + "',(" + boundList.ToString() + "),#" + surfacenr.ToString() + "," + orient + ")");
 #else
-                int af = export.WriteDefinition("ADVANCED_FACE('" + this.NameOrEmpty + "',(" + boundList.ToString() + "),#" + surfacenr.ToString() + "," + orient + ")");
+                int af = export.WriteDefinition("ADVANCED_FACE(" + ExportStep.StepString(this.NameOrEmpty) + ",(" + boundList.ToString() + "),#" + surfacenr.ToString() + "," + orient + ")");
 #endif
                 if (colorDef != null && Owner is IColorDef && (Owner as IColorDef).ColorDef != colorDef)
                 {
