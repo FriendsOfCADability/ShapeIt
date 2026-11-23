@@ -75,6 +75,21 @@ namespace CADability.Tests
         }
 
         /// <summary>
+        /// A CARTESIAN_TRANSFORMATION_OPERATOR_3D maps rep_1 into rep_2, its local origin is given in the units of rep_2. The
+        /// axes are normalized as in base_axis (a missing axis2 is the cross product of axis3 and axis1), the scale applies
+        /// to the mapped geometry: as the target of a mapped item the box is placed twice as large.
+        /// </summary>
+        [DataTestMethod]
+        [DataRow("box_cto_child_first_offset_p1_assembly_inch.stp", 95.0, -5.0, -5.0, 105.0, 15.0, 35.0)]
+        [DataRow("box_cto_parent_first_offset_p2_part_inch.stp", -5.0, 45.0, 20.0, 35.0, 55.0, 40.0)]
+        [DataRow("box_mapped_cto_scaled.stp", 90.0, -10.0, -10.0, 110.0, 30.0, 70.0)]
+        public void a_cartesian_transformation_operator_places_the_occurrence(string file,
+            double xmin, double ymin, double zmin, double xmax, double ymax, double zmax)
+        {
+            AssertImportedBox(file, xmin, ymin, zmin, xmax, ymax, zmax);
+        }
+
+        /// <summary>
         /// The parameters of a trimmed circle are given in the angle unit (here degree) of its representation. A
         /// presentation representation, which styles the arc and has a plain REPRESENTATION_CONTEXT without units, must
         /// not replace these units.

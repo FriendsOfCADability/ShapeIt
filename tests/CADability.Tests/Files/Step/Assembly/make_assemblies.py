@@ -63,6 +63,14 @@ class Writer:
         loc, z, x = f
         return self.add(f"AXIS2_PLACEMENT_3D('',{self.pt(loc, unit)},{self.dir(z)},{self.dir(x)})")
 
+    def cto(self, rot, t, unit="mm", scale=None, omit_axis2=False, stretch_axis1=1.0):
+        """A CARTESIAN_TRANSFORMATION_OPERATOR_3D p -> t + scale * rot * p, rot given by its columns, t in mm."""
+        a1 = self.dir([stretch_axis1 * v for v in rot[0]])
+        a2 = "$" if omit_axis2 else self.dir(rot[1])
+        a3 = self.dir(rot[2])
+        s = "$" if scale is None else real(scale)
+        return self.add(f"CARTESIAN_TRANSFORMATION_OPERATOR_3D('','','',{a1},{a2},{self.pt(t, unit)},{s},{a3})")
+
     def text(self, name):
         hdr = ["ISO-10303-21;", "HEADER;", "FILE_DESCRIPTION((''),'2;1');",
                f"FILE_NAME('{name}','2026-11-21T00:00:00',(''),(''),'make_assemblies.py','CADability tests','');",
@@ -159,7 +167,9 @@ def write(w, name):
 
 
 def make(name, levels, units=None):
-    """levels: list of (parent_frame, child_frame, child_first, items_swapped) from top to the part.
+    """levels: list of (parent_frame, child_frame, child_first, items_swapped[, cto]) from top to the part.
+    cto: None for an ITEM_DEFINED_TRANSFORMATION, else a dict of options for Writer.cto: the placement is then written as
+    a CARTESIAN_TRANSFORMATION_OPERATOR_3D, which maps rep_1 into rep_2.
     units: length units of the part and the assemblies from the bottom up (default all mm)."""
     units = units or ["mm"] * (len(levels) + 1)
     w, appctx = start()
@@ -178,7 +188,9 @@ def make(name, levels, units=None):
     w.add(f"SHAPE_REPRESENTATION_RELATIONSHIP('','',{part_sr},{absr})")
     child = (part_pd, part_sr, part_place)
     # assemblies from the bottom up
-    for k, (pframe, cframe, child_first, swapped) in enumerate(reversed(levels)):
+    for k, level in enumerate(reversed(levels)):
+        pframe, cframe, child_first, swapped = level[:4]
+        cto = level[4] if len(level) > 4 else None
         unit = units[k + 1]
         aname = "Top" if k == len(levels) - 1 else f"Sub{k}"
         apd, apds = product(w, appctx, aname)
@@ -194,7 +206,13 @@ def make(name, levels, units=None):
         rep1, rep2 = (csr, asr) if child_first else (asr, csr)
         it1, it2 = (cplace, aplace) if child_first else (aplace, cplace)
         if swapped: it1, it2 = it2, it1
-        idt = w.add(f"ITEM_DEFINED_TRANSFORMATION('','',{it1},{it2})")
+        if cto is None:
+            idt = w.add(f"ITEM_DEFINED_TRANSFORMATION('','',{it1},{it2})")
+        else:
+            # rep_1 -> rep_2: child into parent (P C^-1) or parent into child (C P^-1), the origin in the units of rep_2
+            src, dst = (cframe, pframe) if child_first else (pframe, cframe)
+            rot, t = relative(src, dst)
+            idt = w.cto(rot, t, unit if child_first else units[k], **cto)
         rr = w.add(f"(REPRESENTATION_RELATIONSHIP('','',{rep1},{rep2})REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION({idt})"
                    f"SHAPE_REPRESENTATION_RELATIONSHIP())")
         w.add(f"CONTEXT_DEPENDENT_SHAPE_REPRESENTATION({rr},{npds})")
@@ -202,9 +220,10 @@ def make(name, levels, units=None):
     write(w, name)
 
 
-def make_mapped(name, origin, target, outer_unit, inner_unit):
+def make_mapped(name, origin, target, outer_unit, inner_unit, target_scale=None):
     """A single product whose shape representation instances the box by a MAPPED_ITEM: the box is in its own
-    representation (unit inner_unit) with the mapping origin, the mapping target is in the outer representation."""
+    representation (unit inner_unit) with the mapping origin, the mapping target is in the outer representation.
+    With target_scale the target is a CARTESIAN_TRANSFORMATION_OPERATOR_3D with the axes of the target frame."""
     w, appctx = start()
     pd, pds = product(w, appctx, "Box")
     inner_ctx = context(w, inner_unit)
@@ -213,7 +232,11 @@ def make_mapped(name, origin, target, outer_unit, inner_unit):
     absr = w.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('Box',({brep},{origin_place}),{inner_ctx})")
     rmap = w.add(f"REPRESENTATION_MAP({origin_place},{absr})")
     outer_ctx = context(w, outer_unit)
-    target_place = w.ax(target, outer_unit)
+    if target_scale is None:
+        target_place = w.ax(target, outer_unit)
+    else:
+        rot, t = relative(IDENT, target)
+        target_place = w.cto(rot, t, outer_unit, scale=target_scale)
     mapped = w.add(f"MAPPED_ITEM('',{rmap},{target_place})")
     sr = w.add(f"SHAPE_REPRESENTATION('Box',({w.ax(IDENT, outer_unit)},{mapped}),{outer_ctx})")
     w.add(f"SHAPE_DEFINITION_REPRESENTATION({pds},{sr})")
@@ -340,6 +363,15 @@ def apply_inverse(f, p):
     return [sum(R[c][r] * d[c] for c in range(3)) for r in range(3)]
 
 
+def relative(src, dst):
+    """The transformation dst * inverse(src) as (columns of the rotation, translation)."""
+    rs, ts = frame_matrix(src)
+    rd, td = frame_matrix(dst)
+    rot = [[sum(rd[r][i] * rs[c][i] for i in range(3)) for r in range(3)] for c in range(3)]  # columns
+    t = [td[r] - sum(rot[c][r] * ts[c] for c in range(3)) for r in range(3)]
+    return rot, t
+
+
 def expected(chain, size=BOX):
     """chain: list of (parent_frame, child_frame) from top to the part; world = P0 C0^-1 P1 C1^-1 ... box"""
     a, b, c = size
@@ -386,6 +418,15 @@ if __name__ == "__main__":
     show("box_mapped_inch.stp", [(P1, FC)])
     make_mapped("box_mapped_outer_m.stp", FC, P1, "m", "mm")
     show("box_mapped_outer_m.stp", [(P1, FC)])
+    # cartesian transformation operators instead of item defined transformations; the second one with axis2 omitted
+    # and a non normalized axis1, the mapped one scaled by 2
+    make("box_cto_child_first_offset_p1_assembly_inch.stp", [(P1, FC, True, False, {})], ["mm", "inch"])
+    show("box_cto_child_first_offset_p1_assembly_inch.stp", [(P1, FC)])
+    make("box_cto_parent_first_offset_p2_part_inch.stp", [(P2, FC, False, False, {"omit_axis2": True, "stretch_axis1": 3.0})], ["inch", "mm"])
+    show("box_cto_parent_first_offset_p2_part_inch.stp", [(P2, FC)])
+    make_mapped("box_mapped_cto_scaled.stp", FC, P1, "inch", "mm", target_scale=2.0)
+    # P1 * 2 * inverse(FC) is P1 * inverse(FC with twice the location) applied to the box scaled by 2
+    print("box_mapped_cto_scaled.stp", [round(v, 6) for v in expected([(P1, ((10, 10, 10), FC[1], FC[2]))], (20.0, 40.0, 80.0))])
     # product structure: several parts share one representation context
     make_shared_context("shared_context.stp")
     for f, size in ((P1, BOX), (P2, BOX), (R, SMALL)):

@@ -1,4 +1,4 @@
-﻿using CADability.Attribute;
+﻿﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
 using MathNet.Numerics.LinearAlgebra.Double;
@@ -669,7 +669,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				definitionalRepresentation, parametricRepresentationContext, boundedCurve, bSplineCurve, curve, geometricRepresentationItem, rationalBSplineCurve,
 				representationItem, axis2Placement_2d, curveStyle, draughtingPreDefinedCurveFont, surfaceOfLinearExtrusion, ellipse, manifoldSurfaceShapeRepresentation,
 				faceSurface, mappedItem, brepWithVoids, shellBasedSurfaceModel, boundedSurface, bSplineSurface, rationalBSplineSurface, surface, offsetSurface,
-				representationMap, orientedClosedShell, vertexLoop, draughtingPreDefinedColour, quasiUniformCurve, nextAssemblyUsageOccurrence, itemDefinedTransformation,
+				representationMap, orientedClosedShell, vertexLoop, draughtingPreDefinedColour, quasiUniformCurve, nextAssemblyUsageOccurrence, itemDefinedTransformation, cartesianTransformationOperator_3d,
 				representationRelationship, representationRelationshipWithTransformation, contextDependentShapeRepresentation, group, appliedGroupAssignment, openShell,
 				seamCurve, productType, overRidingStyledItem, geometricCurveSet, geometricallyBoundedWireframeShapeRepresentation, pointStyle, trimmedCurve, compositeCurve,
 				compositeCurveSegment, preDefinedMarker, outerBoundaryCurve, curveBoundedSurface, boundaryCurve, quasiUniformSurface, propertyDefinitionRepresentation,
@@ -865,6 +865,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				TypeOfName["QUASI_UNIFORM_CURVE"] = ItemType.quasiUniformCurve;
 				TypeOfName["NEXT_ASSEMBLY_USAGE_OCCURRENCE"] = ItemType.nextAssemblyUsageOccurrence;
 				TypeOfName["ITEM_DEFINED_TRANSFORMATION"] = ItemType.itemDefinedTransformation;
+				TypeOfName["CARTESIAN_TRANSFORMATION_OPERATOR_3D"] = ItemType.cartesianTransformationOperator_3d;
 				TypeOfName["REPRESENTATION_RELATIONSHIP"] = ItemType.representationRelationship;
 				TypeOfName["REPRESENTATION_RELATIONSHIP_WITH_TRANSFORMATION"] = ItemType.representationRelationshipWithTransformation;
 				TypeOfName["CONTEXT_DEPENDENT_SHAPE_REPRESENTATION"] = ItemType.contextDependentShapeRepresentation;
@@ -3878,6 +3879,11 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							item.val = (item.parameter["rep_1"] as Item).val;
 						}
 						break;
+					case Item.ItemType.cartesianTransformationOperator_3d: // name, name, description, axis1, axis2, local_origin, scale, axis3
+						// the units of the local origin are those of the representation the operator maps into, which only the
+						// user of the operator knows, see CartesianTransformation
+						item.val = null;
+						break;
 					case Item.ItemType.itemDefinedTransformation: // name, description, transform_item_1, transform_item_2
 						{
 							object o1 = CreateEntity(item.parameter["transform_item_1"]);
@@ -4449,12 +4455,23 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							object mo = CreateEntity(item.parameter["mapping_source"].parameter["mapping_origin"]);
 							object mr = CreateEntity(item.parameter["mapping_source"].parameter["mapped_representation"]);
 							object mt = CreateEntity(item.parameter["mapping_target"]);
-							if (mo is FreeCoordSys && mt is FreeCoordSys)
-							{   // the mapping origin is a placement in the mapped representation, the target a placement in the
-								// representation of the mapped item, they may have different units
+							bool targetIsOperator = item.parameter["mapping_target"].type == Item.ItemType.cartesianTransformationOperator_3d;
+							if (mo is FreeCoordSys && (mt is FreeCoordSys || targetIsOperator))
+							{   // the mapping origin is a placement in the mapped representation, the target a placement (or a
+								// cartesian transformation operator) in the representation of the mapped item, they may have different units
 								Item mappedRepresentation = item.parameter["mapping_source"].parameter["mapped_representation"];
 								context originUnits = UnitsOfItem(item.parameter["mapping_source"].parameter["mapping_origin"], UnitsOf(mappedRepresentation.parameter["context_of_items"]));
-								ModOp trsf = FitPlacements((FreeCoordSys)mo, originUnits.factor, (FreeCoordSys)mt, UnitsOfItem(item.parameter["mapping_target"], context).factor);
+								double targetFactor = UnitsOfItem(item.parameter["mapping_target"], context).factor;
+								ModOp trsf;
+								if (targetIsOperator)
+								{   // the mapping origin is moved onto the standard placement, which the operator then transforms
+									FreeCoordSys standard = new FreeCoordSys(GeoPoint.Origin, GeoVector.XAxis, GeoVector.YAxis, GeoVector.ZAxis);
+									trsf = CartesianTransformation(item.parameter["mapping_target"], targetFactor) * FitPlacements((FreeCoordSys)mo, originUnits.factor, standard, 1.0);
+								}
+								else
+								{
+									trsf = FitPlacements((FreeCoordSys)mo, originUnits.factor, (FreeCoordSys)mt, targetFactor);
+								}
 								if (mr is IGeoObject)
 								{
 									IGeoObject modified = (mr as IGeoObject).Clone();
@@ -4664,7 +4681,10 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				return ModOp.Identity;
 			}
 			// a functionally defined transformation (e.g. CARTESIAN_TRANSFORMATION_OPERATOR_3D) maps the context of rep_1 into the context of rep_2
-			if (CreateEntity(transform) is ModOp m)
+			ModOp? functional = null;
+			if (transform.type == Item.ItemType.cartesianTransformationOperator_3d) functional = CartesianTransformation(transform, UnitsOf(rep2.parameter["context_of_items"]).factor);
+			else if (CreateEntity(transform) is ModOp fdt) functional = fdt;
+			if (functional is ModOp m)
 			{
 				if (childFirst) return m;
 				try
@@ -4677,6 +4697,45 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				}
 			}
 			return ModOp.Identity;
+		}
+
+		/// <summary>
+		/// The transformation of a CARTESIAN_TRANSFORMATION_OPERATOR_3D: a point p is mapped to
+		/// local_origin + scale * (p.x * u1 + p.y * u2 + p.z * u3), where u1, u2, u3 are the axes normalized as in base_axis
+		/// of ISO 10303-42: u3 is axis3 (default z), u1 is axis1 (default x) made perpendicular to u3, u2 is axis2 (default
+		/// u3 x u1) made perpendicular to both. The geometry is already in millimetres, so only the local origin, which is
+		/// given in the units of the representation the operator maps into (<paramref name="targetFactor"/>), is converted.
+		/// The scale is a plain ratio.
+		/// </summary>
+		private ModOp CartesianTransformation(Item cto, double targetFactor)
+		{
+			GeoVector Axis(string name)
+			{
+				if (cto.parameter.TryGetValue(name, out Item a) && a != null && CreateEntity(a) is GeoVector v && !v.IsNullVector()) return v.Normalized;
+				return GeoVector.NullVector;
+			}
+			GeoVector u3 = Axis("axis3");
+			if (u3.IsNullVector()) u3 = GeoVector.ZAxis;
+			GeoVector u1 = Axis("axis1");
+			if (u1.IsNullVector()) u1 = Precision.SameDirection(u3, GeoVector.XAxis, false) ? GeoVector.ZAxis : GeoVector.XAxis;
+			u1 = u1 - (u1 * u3) * u3;
+			if (u1.IsNullVector()) u1 = Precision.SameDirection(u3, GeoVector.XAxis, false) ? GeoVector.YAxis : (u3 ^ GeoVector.XAxis) ^ u3;
+			u1.Norm();
+			GeoVector u2 = Axis("axis2");
+			if (u2.IsNullVector()) u2 = u3 ^ u1;
+			u2 = u2 - (u2 * u3) * u3 - (u2 * u1) * u1;
+			if (u2.IsNullVector()) u2 = u3 ^ u1;
+			u2.Norm();
+			double scale = 1.0;
+			if (cto.parameter.TryGetValue("scale", out Item sc) && sc != null && (sc.type == Item.ItemType.floatval || sc.type == Item.ItemType.intval))
+			{
+				scale = Convert.ToDouble(sc.val);
+			}
+			GeoPoint origin = GeoPoint.Origin;
+			if (cto.parameter.TryGetValue("local_origin", out Item lo) && lo != null && CreateEntity(lo) is GeoPoint o) origin = o;
+			return new ModOp(scale * u1.x, scale * u2.x, scale * u3.x, targetFactor * origin.x,
+				scale * u1.y, scale * u2.y, scale * u3.y, targetFactor * origin.y,
+				scale * u1.z, scale * u2.z, scale * u3.z, targetFactor * origin.z);
 		}
 
 		/// <summary>
