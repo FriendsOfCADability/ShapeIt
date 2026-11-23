@@ -997,7 +997,7 @@ namespace CADability.GeoObject
                 {
                     if (surface is ConicalSurface cs) cs.MakeCanonicalForm(); // remove v-offset here, before 2d curves are calculated
                 }
-                if (surface is CylindricalSurface || surface is ConicalSurface || surface is ToroidalSurface || surface is SurfaceOfRevolution)
+                if (surface is CylindricalSurface || surface is ConicalSurface || surface is ToroidalSurface || surface is SurfaceOfRevolution || (surface is SphericalSurface rsph && rsph.IsRealSphere))
                 {   // avoid vertices close to 0 or 180°, because here the surface might be split and cause very short edges which might make problems
                     List<double> uvalues = new List<double>();
                     foreach (Vertex vtx in allVertices)
@@ -1043,6 +1043,11 @@ namespace CADability.GeoObject
                         {
                             location = (surface as SurfaceOfRevolution).Location;
                             axis = (surface as SurfaceOfRevolution).Axis;
+                        }
+                        if (surface is SphericalSurface sphs)
+                        {   // rotating a sphere around its axis keeps the poles, which have been chosen above
+                            location = sphs.Location;
+                            axis = sphs.ZAxis;
                         }
                         ModOp rotation = ModOp.Rotate(location, axis, new SweepAngle(bestu));
                         surface.Modify(rotation);
