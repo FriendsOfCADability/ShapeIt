@@ -1,4 +1,4 @@
-﻿﻿using CADability.Attribute;
+﻿﻿﻿﻿﻿using CADability.Attribute;
 using CADability.Curve2D;
 using CADability.GeoObject;
 using MathNet.Numerics.LinearAlgebra.Double;
@@ -412,7 +412,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		private context context => currentContext.Value ?? defaultContext;
 		private List<(Item usage, Item parentDefinition, Item childDefinition, ModOp placement)> occurrences = new List<(Item, Item, Item, ModOp)>(); // assembly occurrences, see ProductStructure
 		HashSet<Item> mappedItems = new HashSet<Item>();
-		private Dictionary<int, string> importProblems;
+		private System.Collections.Concurrent.ConcurrentDictionary<int, string> importProblems; // written from parallel item creation
 		private List<Item> notImportedFaces;
 		private Dictionary<string, ColorDef> definedColors;
 		private System.Collections.Concurrent.ConcurrentDictionary<NurbsSurface, ModOp2D> nurbsSurfacesWithModifiedKnots; // when in construction the nurbs surface get a different 2d space, the modification is saved here
@@ -1235,7 +1235,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		public ImportStep()
 		{
 			definitions = new List<Item>();
-			importProblems = new Dictionary<int, string>();
+			importProblems = new System.Collections.Concurrent.ConcurrentDictionary<int, string>();
 			notImportedFaces = new List<Item>();
 			nurbsSurfacesWithModifiedKnots = new System.Collections.Concurrent.ConcurrentDictionary<NurbsSurface, ModOp2D>();
 #if DEBUG
@@ -1261,11 +1261,15 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				Item item = definitions[cdsr[i]];
 			}
 		}
+		/// <summary>
+		/// The problems of the last import: the index of the STEP entity and a description. Items, which could not be
+		/// created because of an exception, are listed here, the rest of the file is still imported.
+		/// </summary>
 		public Dictionary<int, string> Problems
 		{
 			get
 			{
-				return importProblems;
+				return new Dictionary<int, string>(importProblems);
 			}
 		}
 		/// <summary>
@@ -1323,7 +1327,15 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						if (definitions[i] != null)
 						{
 							definitions[i].definingIndex = i;
-							definitions[i].Resolve(definitions, roots);
+							try
+							{
+								definitions[i].Resolve(definitions, roots);
+							}
+							catch (Exception ex) when (!(ex is OutOfMemoryException))
+							{   // e.g. fewer parameters than the entity has or a reference to a missing entity: creating this item will fail
+								// later and is reported there, the other items are still imported
+								importProblems[i] = "cannot resolve " + definitions[i].type.ToString() + ": " + ex.Message;
+							}
 							if (definitions[i].type == Item.ItemType.productDefinition) productDefinitions.Add(definitions[i]);
 							if (definitions[i].type == Item.ItemType.advancedFace || definitions[i].type == Item.ItemType.faceSurface
 								|| definitions[i].type == Item.ItemType.curveBoundedSurface) ++numFaces; // for progress
@@ -1399,31 +1411,31 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					List<Item> shapeItems = ShapeItems();
 					if (Settings.GlobalSettings.GetBoolValue("StepImport.Parallel", true))
 					{
-						Parallel.For(0, shapeItems.Count, i => CreateEntity(shapeItems[i]));
+						Parallel.For(0, shapeItems.Count, i => CreateEntitySafe(shapeItems[i]));
 					}
 					else
 					{
-						for (int i = 0; i < shapeItems.Count; i++) CreateEntity(shapeItems[i]);
+						for (int i = 0; i < shapeItems.Count; i++) CreateEntitySafe(shapeItems[i]);
 					}
 					// 2. the assembly occurrences with their placements, see ProductStructure
 					for (int i = 0; i < roots[Item.ItemType.contextDependentShapeRepresentation].Count; i++)
 					{
-						CreateEntity(definitions[roots[Item.ItemType.contextDependentShapeRepresentation][i]]);
+						CreateEntitySafe(definitions[roots[Item.ItemType.contextDependentShapeRepresentation][i]]);
 					}
 					// 3. the attributes: colors and layers are set on the created objects, before the product structure clones them
 					for (int i = 0; i < roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation].Count; i++)
 					{
-						CreateEntity(definitions[roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation][i]]);
+						CreateEntitySafe(definitions[roots[Item.ItemType.mechanicalDesignGeometricPresentationRepresentation][i]]);
 					}
 					for (int i = 0; i < roots[Item.ItemType.styledItem].Count; i++)
 					{   // in most cases the styled items are already created (e.g. as part of mechanicalDesignGeometricPresentationRepresentation), but in some files (e.g. SSSS4912PCAM.stp)
 						// there are unreferenced styledItems. Upon creation the objects referenced by the styled item are styled (color set)
-						CreateEntity(definitions[roots[Item.ItemType.styledItem][i]]);
+						CreateEntitySafe(definitions[roots[Item.ItemType.styledItem][i]]);
 					}
 					for (int i = 0; i < roots[Item.ItemType.presentationLayerAssignment].Count; i++)
 					{
 						Item item = definitions[roots[Item.ItemType.presentationLayerAssignment][i]];
-						object o = CreateEntity(item);
+						object o = CreateEntitySafe(item);
 						// A boxed tuple has to be tested as ValueTuple<,>: naming the elements inside the
 						// pattern would make it a positional pattern and ask the type for Deconstruct.
 						if (o is ValueTuple<Layer, GeoObjectList> layerAndList)
@@ -1438,7 +1450,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					}
 					for (int i = 0; i < roots[Item.ItemType.draughtingModel].Count; i++)
 					{
-						CreateEntity(definitions[roots[Item.ItemType.draughtingModel][i]]);
+						CreateEntitySafe(definitions[roots[Item.ItemType.draughtingModel][i]]);
 					}
 
 					// 4. the result: the product structure and the mapped items, which are not part of a product shape
@@ -1455,7 +1467,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					foreach (Item mi in rootMappedItems.OrderBy(m => m.definingIndex))
 					{
 						if (reachedItems.Contains(mi)) continue;
-						object l = CreateEntity(mi);
+						object l = CreateEntitySafe(mi);
 						if (l is GeoObjectList) res.AddRange(l as GeoObjectList);
 						if (l is IGeoObject) res.Add(l as IGeoObject); // must be a Block
 					}
@@ -1537,7 +1549,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				Parallel.For(0, roots[Item.ItemType.shapeDefinitionRepresentation].Count, i =>
 				{
 					Item item = definitions[roots[Item.ItemType.shapeDefinitionRepresentation][i]];
-					object so = CreateEntity(item);
+					object so = CreateEntitySafe(item);
 				});
 			}
 			else
@@ -1545,7 +1557,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				for (int i = 0; i < roots[Item.ItemType.shapeDefinitionRepresentation].Count; i++)
 				{
 					Item item = definitions[roots[Item.ItemType.shapeDefinitionRepresentation][i]];
-					object so = CreateEntity(item);
+					object so = CreateEntitySafe(item);
 				}
 			}
 			for (int i = 0; i < roots[Item.ItemType.representationRelationship].Count; i++)
@@ -1554,14 +1566,14 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				ModOp tranMop = ModOp.Identity;
 				if (item.parameter.TryGetValue("transformation_operator", out Item transformation))
 				{
-					object o = CreateEntity(transformation);
+					object o = CreateEntitySafe(transformation);
 					if (o is ModOp t) tranMop = t;
 				}
-				GeoObjectList go = CreateEntity(item) as GeoObjectList;
+				GeoObjectList go = CreateEntitySafe(item) as GeoObjectList;
 				string name = null;
 				if (item.parameter["rep_1"].parameter.TryGetValue("name", out Item shapeRepresentation)) name = shapeRepresentation.sval;
-				object dbg1 = CreateEntity(item.parameter["rep_1"]);
-				object dbg2 = CreateEntity(item.parameter["rep_2"]);
+				object dbg1 = CreateEntitySafe(item.parameter["rep_1"]);
+				object dbg2 = CreateEntitySafe(item.parameter["rep_2"]);
 				if (item.parameter["rep_2"].val is GeoObjectList gol)
 				{
 					if (gol.Count > 1)
@@ -1612,7 +1624,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			for (int i = 0; i < roots[Item.ItemType.constructiveGeometryRepresentationRelationship].Count; i++)
 			{
 				Item item = definitions[roots[Item.ItemType.constructiveGeometryRepresentationRelationship][i]];
-				GeoObjectList go = CreateEntity(item) as GeoObjectList;
+				GeoObjectList go = CreateEntitySafe(item) as GeoObjectList;
 #if DEBUG
 				//System.Diagnostics.Trace.WriteLine(SubTree(item.definingIndex, 5));
 #endif
@@ -1631,7 +1643,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				}
 				if (transformation != null)
 				{
-					object o = CreateEntity(transformation);
+					object o = CreateEntitySafe(transformation);
 					if (o is ModOp)
 					{
 						tranMop = (ModOp)o;
@@ -1648,7 +1660,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						if (!tranMop.IsIdentity(0.0)) blk.Modify(tranMop);
 						res.Add(blk);
 					}
-					else
+					else if (gol.Count == 1) // empty, when the items could not be created
 					{   // we could also make a block here with a single solid
 						if (!string.IsNullOrWhiteSpace(name))
 						{
@@ -1664,7 +1676,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			for (int i = 0; i < roots[Item.ItemType.shapeRepresentationRelationship].Count; i++)
 			{
 				Item item = definitions[roots[Item.ItemType.shapeRepresentationRelationship][i]];
-				GeoObjectList go = CreateEntity(item) as GeoObjectList;
+				GeoObjectList go = CreateEntitySafe(item) as GeoObjectList;
 #if DEBUG
 				//System.Diagnostics.Trace.WriteLine(SubTree(item.definingIndex, 5));
 #endif
@@ -1683,7 +1695,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				}
 				if (transformation != null)
 				{
-					object o = CreateEntity(transformation);
+					object o = CreateEntitySafe(transformation);
 					if (o is ModOp)
 					{
 						tranMop = (ModOp)o;
@@ -1700,7 +1712,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						if (!tranMop.IsIdentity(0.0)) blk.Modify(tranMop);
 						res.Add(blk);
 					}
-					else
+					else if (gol.Count == 1) // empty, when the items could not be created
 					{   // we could also make a block here with a single solid
 						if (!string.IsNullOrWhiteSpace(name))
 						{
@@ -1898,8 +1910,17 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 				}
 				for (int j = 0; j < list.Count; j++)
 				{
-					IGeoObject sub = list[j].Clone();
-					sub.Modify(placement);
+					IGeoObject sub;
+					try
+					{
+						sub = list[j].Clone();
+						sub.Modify(placement);
+					}
+					catch (Exception ex) when (!(ex is OutOfMemoryException))
+					{   // a broken object (e.g. a face with an invalid outline) may fail when it is cloned or placed: skip this copy
+						importProblems.TryAdd(usage?.definingIndex ?? child.product.definingIndex, "cannot place an object of " + ProductName(child.product) + ": " + ex.GetType().Name + ": " + ex.Message);
+						continue;
+					}
 					if (addLocation) sub.UserData.Add("STEP.Location", placement);
 					if (blk != null) blk.Add(sub);
 					else res.Add(sub);
@@ -1918,7 +1939,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 						Item item = it;
 						if (item == null) continue;
 						if (item.type == Item.ItemType.index) item = definitions[(int)item.val];
-						object o = CreateEntity(item);
+						object o = CreateEntitySafe(item);
 						reachedItems.Add(item);
 						if (o is IGeoObject go)
 						{
@@ -2271,6 +2292,35 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 		}
 
 		/// <summary>
+		/// Creates the CADability object of a STEP item like <see cref="CreateEntity"/>, but an exception does not abort the
+		/// import: it is recorded in <see cref="Problems"/> and the item is regarded as created without a result, so it is not
+		/// tried again when other items refer to it. Used where the import creates independent items (shapes, occurrences,
+		/// styles, layers).
+		/// </summary>
+		private object CreateEntitySafe(Item item)
+		{
+			try
+			{
+				return CreateEntity(item);
+			}
+			catch (Exception ex) when (!(ex is OutOfMemoryException))
+			{
+				if (item.type == Item.ItemType.index) item = definitions[(int)item.val];
+				lock (item)
+				{
+					if (item.val is List<Item>) item.val = null;
+				}
+				Exception inner = ex;
+				while (inner is AggregateException ae && ae.InnerExceptions.Count > 0) inner = ae.InnerExceptions[0];
+				importProblems[item.definingIndex] = "exception on " + item.type.ToString() + ": " + inner.GetType().Name + ": " + inner.Message;
+#if DEBUG
+				System.Diagnostics.Trace.WriteLine("STEP: exception on item " + item.definingIndex.ToString() + ": " + ex.ToString());
+#endif
+				return null;
+			}
+		}
+
+		/// <summary>
 		/// Creates the CADability object of a STEP item. The geometry is created in the units of the representation
 		/// the item belongs to (see <see cref="InitUnits"/>): this context is valid while the item and all its sub-items
 		/// are created, also in Parallel.For, because it is kept in an AsyncLocal.
@@ -2330,7 +2380,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							{
 								Parallel.For(0, lst.Count, i =>
 								{
-									object o = CreateEntity(lst[i]);
+									object o = CreateEntitySafe(lst[i]);
 									lock (gl)
 									{
 										if (o is IGeoObject) gl.Add(o as IGeoObject);
@@ -2342,7 +2392,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 							{
 								for (int i = 0; i < lst.Count; i++)
 								{
-									object o = CreateEntity(lst[i]);
+									object o = CreateEntitySafe(lst[i]);
 									if (o is IGeoObject) gl.Add(o as IGeoObject);
 									else if (o is IGeoObject[]) gl.AddRange(o as IGeoObject[]);
 								}

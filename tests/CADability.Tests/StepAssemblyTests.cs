@@ -163,6 +163,19 @@ namespace CADability.Tests
             Assert.AreEqual(5, Solids(top.Children).Count(), "two solids per pair, one box");
         }
 
+        /// <summary>
+        /// An exception while creating one item (here an ellipse with zero semi axes in a wireframe of the part) does not
+        /// abort the import: the item is reported in <see cref="ImportStep.Problems"/>, the box is still imported.
+        /// </summary>
+        [TestMethod]
+        public void an_item_which_cannot_be_created_is_reported_and_the_rest_is_imported()
+        {
+            ImportStep import = new ImportStep();
+            GeoObjectList imported = import.Read(StepFile("broken_item.stp"));
+            AssertSolidExtents(Solids(imported).ToList(), new[] { 0.0, 0.0, 0.0, 10.0, 20.0, 40.0 });
+            Assert.IsTrue(import.Problems.Values.Any(p => p.StartsWith("exception on ")), "the exception is reported: " + string.Join("; ", import.Problems.Values));
+        }
+
         private static void AssertSolidExtents(List<Solid> solids, params double[][] expected)
         {
             Assert.AreEqual(expected.Length, solids.Count, "number of solids");

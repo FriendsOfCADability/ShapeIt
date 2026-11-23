@@ -273,6 +273,23 @@ def make_shared_context(name):
     write(w, name)
 
 
+def make_broken_item(name):
+    """A part "Box" whose shape is the box and a wireframe with an ellipse with zero semi axes, whose creation throws.
+    The broken curve must not abort the import of the box."""
+    w, appctx = start()
+    ctx = context(w)
+    pd, pds = product(w, appctx, "Box")
+    sr = w.add(f"SHAPE_REPRESENTATION('Box',({w.ax(IDENT)}),{ctx})")
+    w.add(f"SHAPE_DEFINITION_REPRESENTATION({pds},{sr})")
+    absr = w.add(f"ADVANCED_BREP_SHAPE_REPRESENTATION('Box',({box_brep(w)},{w.ax(IDENT)}),{ctx})")
+    w.add(f"SHAPE_REPRESENTATION_RELATIONSHIP('','',{sr},{absr})")
+    curve = w.add(f"ELLIPSE('',{w.ax(IDENT)},0.,0.)")
+    gcs = w.add(f"GEOMETRIC_CURVE_SET('',({curve}))")
+    wire = w.add(f"GEOMETRICALLY_BOUNDED_WIREFRAME_SHAPE_REPRESENTATION('Wire',({gcs},{w.ax(IDENT)}),{ctx})")
+    w.add(f"SHAPE_REPRESENTATION_RELATIONSHIP('','',{sr},{wire})")
+    write(w, name)
+
+
 def make_occurrence_names(name):
     """An assembly "Top" with a part "Pair" of two solids (BOX and SMALL), placed at P1 with the instance name
     "Pair:1" and at P2 with the generic name "NAUO2", and a part "Box" of one solid, placed at R as "Box:1".
@@ -433,6 +450,8 @@ if __name__ == "__main__":
         print("shared_context.stp", [round(v, 6) for v in expected([(f, IDENT)], size)])
     # names of the occurrences: blocks only for occurrences of several objects
     make_occurrence_names("occurrence_names.stp")
+    # a broken item: an exception while creating it must not abort the import
+    make_broken_item("broken_item.stp")
     # angle units: a styled arc in degree, the presentation context has no units
     make_styled_arc("arc_degree_styled.stp")
     print("arc_degree_styled.stp", [round(v, 6) for v in arc_extent()])
