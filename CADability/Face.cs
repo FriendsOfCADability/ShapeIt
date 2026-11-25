@@ -267,6 +267,27 @@ namespace CADability.GeoObject
             if (res.OutwardOriented != original.OutwardOriented) res = new SphericalSurface(loc, radius * dirx, -radius * diry, radius * axdir);
             return res;
         }
+        /// <summary>
+        /// True, if the edge curves of <paramref name="loops"/> are on <paramref name="surface"/>: no sample point deviates more
+        /// than <paramref name="maxDist"/>. 32 points per curve, so that an outlier pole near the end of a long curve is noticed.
+        /// Only meant to detect gross defects: the distance to a NURBS surface outside of its domain is not reliable.
+        /// </summary>
+        private static bool EdgesAreOnSurface(ISurface surface, List<List<StepEdgeDescriptor>> loops, double maxDist)
+        {
+            foreach (List<StepEdgeDescriptor> loop in loops)
+            {
+                foreach (StepEdgeDescriptor sed in loop)
+                {
+                    if (sed.curve == null) continue;
+                    for (int k = 1; k < 32; k++)
+                    {
+                        double d = Math.Abs(surface.GetDistance(sed.curve.PointAt(k / 32.0)));
+                        if (!(d <= maxDist)) return false; // also NaN
+                    }
+                }
+            }
+            return true;
+        }
         internal static Face[] MakeFacesFromStepAdvancedFace(ISurface surface, List<List<StepEdgeDescriptor>> loops, bool sameSense, double precision)
         {
             List<object> toLock = new List<object>();
@@ -844,6 +865,12 @@ namespace CADability.GeoObject
                 if (canonical is ToroidalSurface ts)
                 {
                     if (ts.MinorRadius > ts.XAxis.Length * 10) canonical = null; // torus with poles are not very stable, especially when they almost resemble a sphere
+                }
+                if (canonical != null && !EdgesAreOnSurface(surface, loops, vertexExtent.Size * 0.1))
+                {   // a defective edge curve (e.g. an outlier pole) is far away from the original surface. It may still be close to the
+                    // (unbounded) analytic surface, e.g. along the axis of a cylinder, and wrap around its axis, then the face seems to
+                    // cover the whole period and is split. On the original surface the face is inconsistent but complete.
+                    canonical = null;
                 }
                 if (canonical != null)
                 {
@@ -1797,6 +1824,11 @@ namespace CADability.GeoObject
                                 {
                                     loops[i][j].curve2d = loops[i][j].curve2d.GetModified(mreverse);
                                 }
+                                // the projected curves are in the standard period, the modified curves are mirrored: the curves must
+                                // be connected again, as when they were created, otherwise the loop seems to span the whole period
+                                // and the face would be split
+                                if (j > 0) SurfaceHelper.AdjustPeriodicStartPoint(surface, loops[i][j - 1].curve2d.EndPoint, loops[i][j].curve2d);
+                                else if (i > 0) SurfaceHelper.AdjustPeriodic(surface, loopExt[0], loops[i][j].curve2d);
                                 loopExt[i].MinMax(loops[i][j].curve2d.GetExtent());
                             }
                             ext.MinMax(loopExt[i]);

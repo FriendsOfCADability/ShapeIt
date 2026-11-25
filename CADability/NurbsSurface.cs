@@ -1150,7 +1150,34 @@ namespace CADability.GeoObject
             GeoVector normalnrbs = GetNormal(uvtest);
             GeoVector normalfound = found.GetNormal(found.PositionOf(PointAt(uvtest)));
             if (normalfound * normalnrbs < 0) found.ReverseOrientation();
+            // the seam of the analytic surface is arbitrary. The 2d curves of a face, which crosses the seam, are not continuous
+            // and the STEP import splits such a face, which is error prone. The seam opposite to the middle of this surface is
+            // outside of any face on this surface (or it is the seam of this surface, if it is closed)
+            MoveSeamAway(found, PointAt(new GeoPoint2D((umin + umax) / 2.0, (vmin + vmax) / 2.0)));
             return found;
+        }
+        /// <summary>
+        /// Rotates the periodic analytic surface <paramref name="surface"/> around its axis (which doesn't change its geometry)
+        /// so that the seam (u = 0) is on the opposite side of <paramref name="middle"/>: middle gets the u parameter pi.
+        /// </summary>
+        private static void MoveSeamAway(ISurface surface, GeoPoint middle)
+        {
+            GeoPoint location;
+            GeoVector axis;
+            switch (surface)
+            {
+                case CylindricalSurface cyl: location = cyl.Location; axis = cyl.Axis; break;
+                case ConicalSurface cone: location = cone.Location; axis = cone.Axis; break;
+                case SphericalSurface sph: location = sph.Location; axis = sph.Axis; break;
+                case ToroidalSurface tor: location = tor.Location; axis = tor.Axis; break;
+                default: return;
+            }
+            if (!surface.IsUPeriodic || Geometry.DistPL(middle, location, axis) < Precision.eps) return; // middle on the axis
+            double u = surface.PositionOf(middle).x;
+            double angle = Math.PI - u; // the rotation, which moves u to pi, either this or the opposite direction
+            surface.Modify(ModOp.Rotate(location, axis, new SweepAngle(angle)));
+            double ur = surface.PositionOf(middle).x;
+            if (Math.Abs(Math.IEEERemainder(ur - Math.PI, 2.0 * Math.PI)) > 1e-6) surface.Modify(ModOp.Rotate(location, axis, new SweepAngle(-2 * angle)));
         }
         /// <summary>
         /// The maximum distance of the points of this surface on a 9x9 grid (avoiding singularities and the seam) from
