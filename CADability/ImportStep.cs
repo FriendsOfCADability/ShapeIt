@@ -5194,6 +5194,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 			{
 				nurbsSurfacesWithModifiedKnots[res] = knotModification; // remember the modification for later use
 			}
+			bool uClampedExact = false, vClampedExact = false;
 			// we should not make canonical surfaces here, because a nurbs surface in a "GEOMETRIC_SET" used in a "GEOMETRICALLY_BOUNDED_SURFACE_SHAPE_REPRESENTATION"
 			// uses nurbs surfaces as faces with natural bounds
 			switch (form)
@@ -5212,38 +5213,31 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					}
 					break;
 				default:
-					if (uClosed)
+					// A closed direction with unclamped knots (end multiplicity <= degree, e.g. a uniform periodic B-spline)
+					// is self-overlapping: according to ISO 10303-42 the surface is only defined on [U_p, U_{m-p}] (expanded
+					// knots, p = degree). Outside of this interval the poles at the ends do not have full support and the surface
+					// leaves its proper shape. Trimming to this interval is exact (knot insertion, the parameterization is kept)
+					// and yields a clamped surface, which is closed at the trimming parameters.
+					if (uClosed && (uMults[0] <= uDegree || uMults[uMults.Length - 1] <= uDegree))
 					{
-						if (uMults[0] <= uDegree)
-						{   // the same should be here for vClosed, but TrimmV must be implemented
-							// this is an self-overlapping surface
-							BSpline crv = res.FixedV((vKnots[0] + vKnots[vKnots.Length - 1]) / 2, uKnots[0], uKnots[uKnots.Length - 1]) as BSpline;
-							GeoPoint k1 = crv.PointAtParam(crv.Knots[crv.Knots.Length - 2]);
-							GeoPoint k2 = crv.PointAtParam(crv.Knots[1]);
-							if (Precision.IsEqual(k1, k2))
-								res = res.TrimmU(uKnots[1], uKnots[uKnots.Length - 2]);
-							else
-							{ }
-						}
+						double[] uk = res.UKnots;
+						res = res.TrimmU(uk[uDegree], uk[uk.Length - 1 - uDegree]);
+						uClampedExact = true;
 					}
-					if (vClosed)
+					if (vClosed && (vMults[0] <= vDegree || vMults[vMults.Length - 1] <= vDegree))
 					{
-						if (vMults[0] <= vDegree)
-						{   // the same should be here for vClosed, but TrimmV must be implemented
-							// this is an self-overlapping surface
-							BSpline crv = res.FixedU((uKnots[0] + uKnots[uKnots.Length - 1]) / 2, vKnots[0], vKnots[vKnots.Length - 1]) as BSpline;
-							GeoPoint k1 = crv.PointAtParam(crv.Knots[crv.Knots.Length - 2]);
-							GeoPoint k2 = crv.PointAtParam(crv.Knots[1]);
-							if (Precision.IsEqual(k1, k2))
-								res = res.TrimmV(vKnots[1], vKnots[vKnots.Length - 2]);
-						}
+						double[] vk = res.VKnots;
+						res = res.TrimmV(vk[vDegree], vk[vk.Length - 1 - vDegree]);
+						vClampedExact = true;
 					}
 					res.SetPeriodic(uClosed, vClosed); // set periodic now for all closed surfaces, was only for non trimmed surfaces before
 					break;
 			}
 
-			double uMinRestrict = 0.0, uMaxRestrict = 0.0, vMinRestrict = 0.0, vMaxRestrict = 0.0; // restriction for periodic                 
-			if (uClosed)
+			// the restriction of a self-overlapping periodic surface by the self intersections of its middle curve is only needed
+			// for closed directions with clamped knots. The exactly clamped directions above are already restricted to their domain.
+			double uMinRestrict = 0.0, uMaxRestrict = 0.0, vMinRestrict = 0.0, vMaxRestrict = 0.0; // restriction for periodic
+			if (uClosed && !uClampedExact)
 			{
 				double v = (vKnots[0] + vKnots[vKnots.Length - 1]) / 2.0;
 				ICurve fv = res.FixedV(v, res.UKnots[0], res.UKnots[res.UKnots.Length - 1]);
@@ -5265,7 +5259,7 @@ VERTEX_POINT: C:\Zeichnungen\STEP\Ligna - Staab - Halle 1.stp (85207)
 					uMaxRestrict = fv.PositionToParameter(si[bestPair + 1]);
 				}
 			}
-			if (vClosed)
+			if (vClosed && !vClampedExact)
 			{
 				double u = (uKnots[0] + uKnots[uKnots.Length - 1]) / 2.0;
 				ICurve fu = res.FixedU(u, res.VKnots[0], res.VKnots[res.VKnots.Length - 1]);
