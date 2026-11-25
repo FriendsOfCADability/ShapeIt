@@ -255,6 +255,18 @@ namespace CADability.GeoObject
         /// <param name="loops">the loops of 3d edges, both outlines and holes, for this face</param>
         /// <param name="sameSense">orientation of the surface so that the normal points outward</param>
         /// <returns></returns>
+        /// <summary>
+        /// The sphere <paramref name="original"/> with the axis <paramref name="axdir"/>, used to keep the poles away from the
+        /// bounds of a face. The orientation (outward or inward normals) depends on the handedness of the axes, it must be the
+        /// orientation of the original sphere, which already reflects the same_sense flag of the face.
+        /// (dirx, diry, axdir) as constructed by the caller is left-handed, which would always make an inward oriented sphere.
+        /// </summary>
+        private static SphericalSurface RotatedSphere(SphericalSurface original, GeoPoint loc, double radius, GeoVector dirx, GeoVector diry, GeoVector axdir)
+        {
+            SphericalSurface res = new SphericalSurface(loc, radius * dirx, radius * diry, radius * axdir);
+            if (res.OutwardOriented != original.OutwardOriented) res = new SphericalSurface(loc, radius * dirx, -radius * diry, radius * axdir);
+            return res;
+        }
         internal static Face[] MakeFacesFromStepAdvancedFace(ISurface surface, List<List<StepEdgeDescriptor>> loops, bool sameSense, double precision)
         {
             List<object> toLock = new List<object>();
@@ -822,7 +834,13 @@ namespace CADability.GeoObject
                         if (curvesAreInPlane) surface = new PlaneSurface(pln);
                     }
                 }
-                ISurface canonical = surface.GetCanonicalForm(surfacePrecision);
+                // an analytic surface may replace a NURBS surface, when it deviates less than the uncertainty of the file:
+                // then the vertices and edges are still on the surface. surfacePrecision would only accept exact representations
+                // and the approximations of other CAD systems would remain NURBS surfaces, which are less reliable.
+                // Other surfaces (e.g. a SurfaceOfLinearExtrusion with a BSpline, which is almost a circle) are only replaced when
+                // they are exact: with the uncertainty of the file, they produced inconsistent faces in the STEP corpus.
+                double canonicalPrecision = surface is NurbsSurface ? Math.Min(precision, vertexExtent.Size * 1e-3) : surfacePrecision;
+                ISurface canonical = surface.GetCanonicalForm(canonicalPrecision);
                 if (canonical is ToroidalSurface ts)
                 {
                     if (ts.MinorRadius > ts.XAxis.Length * 10) canonical = null; // torus with poles are not very stable, especially when they almost resemble a sphere
@@ -956,7 +974,7 @@ namespace CADability.GeoObject
                             GeoVector diry = dirx ^ axdir;
                             dirx.Norm();
                             diry.Norm();
-                            surface = new SphericalSurface(loc, radius * dirx, radius * diry, radius * axdir);
+                            surface = RotatedSphere(sphericalSurface, loc, radius, dirx, diry, axdir);
                             done = true;
                         }
                     }
@@ -991,7 +1009,7 @@ namespace CADability.GeoObject
                         GeoVector diry = dirx ^ axdir;
                         dirx.Norm();
                         diry.Norm();
-                        surface = new SphericalSurface(loc, radius * dirx, radius * diry, radius * axdir);
+                        surface = RotatedSphere(sphericalSurface, loc, radius, dirx, diry, axdir);
                     }
                 }
                 {
@@ -1518,15 +1536,39 @@ namespace CADability.GeoObject
                 {
                     // only a single open loop (like the equator on the sphere): there must be a pole which belongs to the surface
                     // we must assume that the surface and loops are correct oriented, otherwise it is not possible to decide which pole to use
+                    // The open loop together with the pole line encloses the face: close the loop along the pole line (from the end of
+                    // the loop perpendicular to the pole line, along the pole line back to the start). If this area is positive (ccw),
+                    // the pole is on the left side of the loop and belongs to the face. The area from the pole point itself is not
+                    // reliable, because the pole point may lie outside the u (or v) range of the loop, and when the loop is not
+                    // parallel to the pole line (e.g. a great circle on a sphere with a different axis) the sign may be wrong.
                     int poleIndex = -1;
+                    double maxArea = 0.0;
+                    GeoPoint2D loopStart = loops[0][0].curve2d.StartPoint;
+                    GeoPoint2D loopEnd = loops[0][loops[0].Count - 1].curve2d.EndPoint;
                     for (int i = 0; i < poles2d.Count; i++)
                     {
-                        double area = 0.0;
+                        GeoPoint2D onPoleAtStart, onPoleAtEnd;
+                        if (poleIsInU[i])
+                        {
+                            onPoleAtStart = new GeoPoint2D(loopStart.x, poles2d[i].y);
+                            onPoleAtEnd = new GeoPoint2D(loopEnd.x, poles2d[i].y);
+                        }
+                        else
+                        {
+                            onPoleAtStart = new GeoPoint2D(poles2d[i].x, loopStart.y);
+                            onPoleAtEnd = new GeoPoint2D(poles2d[i].x, loopEnd.y);
+                        }
+                        // measured from onPoleAtStart, the closing segments on the pole line and back to the start contribute nothing
+                        double area = new Line2D(loopEnd, onPoleAtEnd).GetAreaFromPoint(onPoleAtStart);
                         for (int j = 0; j < loops[0].Count; j++)
                         {
-                            area += loops[0][j].curve2d.GetAreaFromPoint(poles2d[i]);
+                            area += loops[0][j].curve2d.GetAreaFromPoint(onPoleAtStart);
                         }
-                        if (area > 0) poleIndex = i;
+                        if (area > maxArea)
+                        {
+                            maxArea = area;
+                            poleIndex = i;
+                        }
                     }
                     if (poleIndex < 0 && poles2d.Count == 1)
                     {   // e.g. conical, we reverse the loop and use the only pole

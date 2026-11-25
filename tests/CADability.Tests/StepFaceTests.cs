@@ -46,5 +46,32 @@ namespace CADability.Tests
                 Assert.IsTrue(edge.Curve3D.Length > 1.0, "the circles are not cut at the seam");
             }
         }
+
+        /// <summary>
+        /// A sphere made of two hemispheres, which are bounded by a great circle through the poles of the spherical surface
+        /// (two half circles between the poles), like a sphere from Rhino. The import rotates the sphere to keep the poles
+        /// away from the outline, so each hemisphere has a single open loop which runs once around the period and must be
+        /// closed by one of the poles. Two errors made this fail:
+        /// the pole was chosen by the area from the pole point, which has a meaningless sign when the loop is not parallel
+        /// to the pole line, so one hemisphere was not imported; and the rotated sphere was always oriented inward, because
+        /// its axes were left-handed, which is not repaired for faces with an open loop.
+        /// </summary>
+        [TestMethod]
+        public void a_sphere_from_two_hemispheres_is_closed_and_oriented_outward()
+        {
+            ImportStep import = new ImportStep();
+            GeoObjectList imported = import.Read(StepFile("sphere_two_hemispheres.stp"));
+            Assert.AreEqual(0, import.Problems.Count, "import problems: " + string.Join("; ", import.Problems.Select(p => $"#{p.Key} {p.Value}")));
+            Solid solid = imported.OfType<Solid>().Single();
+            Assert.AreEqual(0, solid.Shells[0].OpenEdgesExceptPoles.Length, "closed");
+            Assert.AreEqual(4.0 / 3.0 * Math.PI * 1000.0, solid.Volume(1e-3), 4.0, "the volume of the sphere, positive for outward normals");
+            foreach (Face face in solid.Shells[0].Faces)
+            {
+                Assert.IsInstanceOfType(face.Surface, typeof(SphericalSurface));
+                GeoPoint2D uv = face.Area.GetExtent().GetCenter();
+                GeoPoint p = face.Surface.PointAt(uv);
+                Assert.AreEqual(1.0, face.Surface.GetNormal(uv).Normalized * (p - GeoPoint.Origin).Normalized, 1e-6, "the normal points outward");
+            }
+        }
     }
 }

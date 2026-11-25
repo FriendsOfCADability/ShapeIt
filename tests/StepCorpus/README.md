@@ -22,23 +22,63 @@ python list_assemblies.py struct.jsonl asmfiles.txt asmorient.tsv
 
 ## Comparing two versions of the import
 
-`StepProbe` imports a file with `Project.ReadFromFile(file, "stp")` and dumps the object hierarchy
-(type, name, bounding box) into a text file. It references the built
-`CADability/bin/Release/netstandard2.0/CADability.dll`.
+`StepProbe` imports a file with `ImportStep` (like `Project.ReadFromFile` does) and dumps
+- the problems reported by the import (`ImportStep.Problems`),
+- the object hierarchy (type, name, bounding box), compared by `compare.py`,
+- one line per solid and shell (faces, edges, open edges, volume, surface types), compared by
+  `geomcompare.py`.
 
-1. Build CADability in Release with the old state, build StepProbe, and copy its output folder,
-   e.g. to `probe_base`.
-2. Make the change, build CADability in Release again, build StepProbe again (`probe_new`).
-3. Run both over the file list and compare:
+StepProbe references the built `CADability/bin/Release/netstandard2.0/CADability.dll`, not the
+project: building StepProbe does not rebuild CADability. Always build CADability first.
+
+### The two scenarios
+
+`makelists.py` searches the corpus and writes two file lists (sorted, so the numbering of
+`runcorpus.py` stays the same between runs):
+
+- `quick.txt`: the files smaller than 10 MB (about 850 files, about 1.5 hours with 6 workers).
+  This is the regular check of a change of the import or of the geometry.
+- `full.txt`: all files. Some large files take many minutes each; run this when there is time,
+  e.g. before a release or after a larger change.
 
 ```
-dotnet build CADability/CADability.csproj -c Release
-dotnet build tests/StepCorpus/StepProbe -c Release -o <work>/probe_base
-python runcorpus.py <work>/probe_base/StepProbe.exe asmfiles.txt <work>/base base 3 900
-python runcorpus.py <work>/probe_new/StepProbe.exe asmfiles.txt <work>/new new 3 900
+python makelists.py <corpus root> <work> [--max-mb 10]
+```
+
+### Procedure
+
+1. Build the old state and keep the probe:
+   ```
+   dotnet build CADability/CADability.csproj -c Release
+   dotnet build tests/StepCorpus/StepProbe -c Release -o <work>/probe_base
+   ```
+2. Make the change and build the new probe (`probe_new`) the same way.
+3. Run the baseline twice (two labels in one run) and the new state once, then compare:
+   ```
+   python runcorpus.py <work>/probe_base/StepProbe.exe <work>/quick.txt <work>/base base,base2 6 600
+   python runcorpus.py <work>/probe_new/StepProbe.exe <work>/quick.txt <work>/new new 6 600
+   python geomcompare.py <work>/base base <work>/new new --noise <work>/base base2
+   ```
+   For the full scenario use `full.txt` and a larger timeout. The baseline runs can be kept and
+   reused as long as the baseline state does not change.
+
+`geomcompare.py` gives every changed file a verdict: `worse` (only deteriorations: exception,
+timeout, more problems, fewer solids, more open edges, inward oriented solids), `better`, `mixed`
+or `changed` (only neutral changes: faces, volumes, surface types). Files whose two baseline runs
+already differ are listed as `noisy`: the import is not deterministic (the solids are created in
+parallel and the unit factor is global), in the quick scenario about 6 % of the files differ between
+two runs of the same version. Before blaming a change, import a reported file again with both
+versions. The report also lists files that became much slower and the totals of the surface types,
+e.g. how many NURBS surfaces became analytic surfaces.
+
+`compare.py` compares the hierarchies (names, bounding boxes, assembly orientation):
+
+```
 python compare.py <work>/base base <work>/new new --orientation asmorient.tsv
 ```
 
-Some imports are not deterministic (the solids are created in parallel and the unit factor is
-global), so the same version can give different results in two runs. Import a reported file again
-with both versions before blaming the change.
+### Pitfalls
+
+- Use Release builds only. A Debug CADability.dll is much slower and stops at `Debug.Assert`;
+  StepProbe writes `DEBUG` into the header of every result and `geomcompare.py` warns about it.
+- Do not run the unit tests at the same time: the tests with time limits fail under the load.

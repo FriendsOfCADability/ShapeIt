@@ -821,283 +821,89 @@ namespace CADability.GeoObject
             vPeriodic = vperiodic;
         }
         int induv(int u, int v) { return u + upoles * v; }
+        /// <summary>
+        /// Creates the NURBS evaluator from the poles, weights, knots and multiplicities. There are two representations of a
+        /// periodic direction:
+        /// <list type="bullet">
+        /// <item>The usual one is a clamped surface which is closed in this direction (constructors and imports create it that
+        /// way). The knots fit the poles (number of knots = number of poles + degree + 1) and the evaluator works on exactly
+        /// this data. The periodicity only means that a parameter outside the knot span is moved by the period into the span
+        /// before the evaluation (see <see cref="PointAt"/>).</item>
+        /// <item>The compact periodic representation has fewer knots: n distinct poles and the knots of one period. Here the
+        /// first poles are appended (wrapped around) and the knots are extended by one period on both sides.</item>
+        /// </list>
+        /// Which representation is used is decided by the data, not by the flags alone, so setting the flags of a clamped surface
+        /// (<see cref="SetPeriodic"/>) does not change the evaluator and <see cref="Clone"/> reproduces the surface.
+        /// </summary>
         private void Init()
         {
-            List<double> uknotslist = new List<double>();
-            for (int i = 0; i < uKnots.Length; ++i)
-            {
-                for (int j = 0; j < uMults[i]; ++j)
-                {
-                    uknotslist.Add(uKnots[i]);
-                }
-            }
-            if (false) // uPeriodic)
-            {
-                double dknot = uKnots[uKnots.Length - 1] - uKnots[0];
-                // letztlich ist es komisch, dass zwei knoten vornedran müssen
-                // ACHTUNG auf 1 geändert, warum ist das bei Surface 1 und bei Curve 2
-                // das gibt keine Logik!!!
-                //for (int i = 0; i < 1; ++i) 
-                //{
-                //    uknotslist.Insert(0, uknotslist[uknotslist.Count - uDegree - i] - dknot);
-                //}
-                //for (int i = 0; i < 2 * uDegree - 2; ++i)
-                //{
-                //    // hier "-1" zu gefügt wg Datei "prova filo.igs"
-                //    uknotslist.Add(uknotslist[2 * (uDegree - 1) -1 + i] + dknot);
-                //}
-                // Neu:
-                int secondknotindex = uMults[0];
-                for (int i = 0; i <= uDegree - uMults[0]; ++i)
-                {
-                    uknotslist.Insert(0, uknotslist[uknotslist.Count - uDegree - i] - dknot);
-                    ++secondknotindex;
-                }
-                while (uknotslist.Count - uDegree - 1 < poles.GetLength(0) + uDegree)
-                {
-                    uknotslist.Add(uknotslist[secondknotindex] + dknot);
-                    ++secondknotindex;
-                }
-            }
-            List<double> vknotslist = new List<double>();
-            for (int i = 0; i < vKnots.Length; ++i)
-            {
-                for (int j = 0; j < vMults[i]; ++j)
-                {
-                    vknotslist.Add(vKnots[i]);
-                }
-            }
-            if (vPeriodic)
-            {
-                double dknot = vKnots[vKnots.Length - 1] - vKnots[0];
-                // letztlich ist es komisch, dass zwei knoten vornedran müssen
-                //for (int i = 0; i < 1; ++i) // 
-                //{
-                //    vknotslist.Insert(0, vknotslist[vknotslist.Count - vDegree - i] - dknot);
-                //}
-                //for (int i = 0; i < 2 * vDegree - 2; ++i)
-                //{
-                //    // hier "-1" zu gefügt wg Datei "prova filo.igs"
-                //    vknotslist.Add(vknotslist[2 * (vDegree - 1) -1 + i] + dknot);
-                //}
-                int secondknotindex = vMults[0];
-                for (int i = 0; i <= vDegree - vMults[0]; ++i)
-                {
-                    vknotslist.Insert(0, vknotslist[vknotslist.Count - vDegree - i] - dknot);
-                    ++secondknotindex;
-                }
-                while (vknotslist.Count - vDegree - 1 < poles.GetLength(1) + vDegree)
-                {
-                    vknotslist.Add(vknotslist[secondknotindex] + dknot);
-                    ++secondknotindex;
-                }
-            }
+            List<double> uknotslist = ExpandKnots(uKnots, uMults);
+            List<double> vknotslist = ExpandKnots(vKnots, vMults);
+            int numU = poles.GetLength(0);
+            int numV = poles.GetLength(1);
+            // a periodic direction in compact representation: the knots do not suffice for the poles
+            bool wrapU = uPeriodic && uknotslist.Count - uDegree - 1 < numU;
+            bool wrapV = vPeriodic && vknotslist.Count - vDegree - 1 < numV;
+            if (wrapU) uknotslist = PeriodicKnots(uknotslist, uMults[0], uDegree, numU);
+            if (wrapV) vknotslist = PeriodicKnots(vknotslist, vMults[0], vDegree, numV);
+            upoles = wrapU ? numU + uDegree : numU;
+            vpoles = wrapV ? numV + vDegree : numV;
             if (weights == null || !isRational)
             {
-                GeoPoint[] npoles;
-                if (uPeriodic && vPeriodic)
-                {
-                    upoles = poles.GetLength(0) + uDegree;
-                    vpoles = poles.GetLength(1) + vDegree;
-                    npoles = new GeoPoint[upoles * vpoles];
-                    for (int i = 0; i < poles.GetLength(0); ++i)
+                GeoPoint[] npoles = new GeoPoint[upoles * vpoles];
+                for (int i = 0; i < upoles; ++i)
+                    for (int j = 0; j < vpoles; ++j)
                     {
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(i, j)] = poles[i, j];
-                        }
-                        for (int j = 0; j < vDegree; ++j)
-                        {
-                            npoles[induv(i, poles.GetLength(1) + j)] = poles[i, j];
-                        }
+                        npoles[induv(i, j)] = poles[i % numU, j % numV];
                     }
-                    for (int i = 0; i < uDegree; ++i)
-                    {
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(poles.GetLength(0) + i, j)] = poles[i, j];
-                        }
-                        for (int j = 0; j < vDegree; ++j)
-                        {
-                            npoles[induv(poles.GetLength(0) + i, poles.GetLength(1) + j)] = poles[i, j];
-                        }
-                    }
-                }
-                else if (false) // uPeriodic)
-                {
-                    //upoles = poles.GetLength(0) + 2 * uDegree - 2;
-                    //vpoles = poles.GetLength(1);
-                    //npoles = new GeoPoint[upoles * vpoles];
-                    //for (int j = 0; j < poles.GetLength(1); ++j)
-                    //{
-                    //    for (int i = 0; i < poles.GetLength(0); ++i)
-                    //    {
-                    //        npoles[induv(i, j)] = poles[i, j];
-                    //    }
-                    //    for (int i = 0; i < 2 * uDegree - 2; ++i)
-                    //    {
-                    //        npoles[induv(poles.GetLength(0) + i, j)] = poles[i, j];
-                    //    }
-                    //}
-                    // Jetzt besser:
-                    upoles = poles.GetLength(0) + uDegree;
-                    vpoles = poles.GetLength(1);
-                    npoles = new GeoPoint[upoles * vpoles];
-                    for (int j = 0; j < poles.GetLength(1); ++j)
-                    {
-                        for (int i = 0; i < poles.GetLength(0); ++i)
-                        {
-                            npoles[induv(i, j)] = poles[i, j];
-                        }
-                        for (int i = 0; i < uDegree; ++i)
-                        {
-                            npoles[induv(poles.GetLength(0) + i, j)] = poles[i, j];
-                        }
-                    }
-                }
-                else if (vPeriodic)
-                {
-                    upoles = poles.GetLength(0);
-                    vpoles = poles.GetLength(1) + vDegree;
-                    npoles = new GeoPoint[upoles * vpoles];
-                    for (int i = 0; i < poles.GetLength(0); ++i)
-                    {
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(i, j)] = poles[i, j];
-                        }
-                        for (int j = 0; j < vDegree; ++j)
-                        {
-                            npoles[induv(i, poles.GetLength(1) + j)] = poles[i, j];
-                        }
-                    }
-                }
-                else
-                {
-                    upoles = poles.GetLength(0);
-                    vpoles = poles.GetLength(1);
-                    npoles = new GeoPoint[poles.GetLength(0) * poles.GetLength(1)];
-                    for (int i = 0; i < poles.GetLength(0); ++i)
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(i, j)] = poles[i, j];
-                        }
-                }
                 this.nubs = new Nurbs<GeoPoint, GeoPointPole>(uDegree, vDegree, npoles, upoles, vpoles, uknotslist.ToArray(), vknotslist.ToArray());
                 nubs.InitDerivS();
             }
             else
             {
-                GeoPointH[] npoles;
-                if (uPeriodic && vPeriodic)
-                {
-                    upoles = poles.GetLength(0) + uDegree;
-                    vpoles = poles.GetLength(1) + vDegree;
-                    npoles = new GeoPointH[upoles * vpoles];
-                    for (int i = 0; i < poles.GetLength(0); ++i)
+                GeoPointH[] npoles = new GeoPointH[upoles * vpoles];
+                for (int i = 0; i < upoles; ++i)
+                    for (int j = 0; j < vpoles; ++j)
                     {
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                        for (int j = 0; j < vDegree; ++j)
-                        {
-                            npoles[induv(i, poles.GetLength(1) + j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
+                        npoles[induv(i, j)] = new GeoPointH(poles[i % numU, j % numV], weights[i % numU, j % numV]);
                     }
-                    for (int i = 0; i < uDegree; ++i)
-                    {
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(poles.GetLength(0) + i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                        for (int j = 0; j < vDegree; ++j)
-                        {
-                            npoles[induv(poles.GetLength(0) + i, poles.GetLength(1) + j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                    }
-                }
-                else if (uPeriodic)
-                {
-                    //upoles = poles.GetLength(0) + 2 * uDegree - 2;
-                    //vpoles = poles.GetLength(1);
-                    //npoles = new GeoPointH[upoles * vpoles];
-                    //for (int j = 0; j < poles.GetLength(1); ++j)
-                    //{
-                    //    for (int i = 0; i < poles.GetLength(0); ++i)
-                    //    {
-                    //        npoles[induv(i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                    //    }
-                    //    for (int i = 0; i < 2 * uDegree - 2; ++i)
-                    //    {
-                    //        npoles[induv(poles.GetLength(0) + i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                    //    }
-                    //}
-                    // Test für neues System
-                    upoles = poles.GetLength(0) + uDegree;
-                    vpoles = poles.GetLength(1);
-                    npoles = new GeoPointH[upoles * vpoles];
-                    for (int j = 0; j < poles.GetLength(1); ++j)
-                    {
-                        for (int i = 0; i < poles.GetLength(0); ++i)
-                        {
-                            npoles[induv(i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                        for (int i = 0; i < uDegree; ++i)
-                        {
-                            npoles[induv(poles.GetLength(0) + i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                    }
-                }
-                else if (vPeriodic)
-                {
-                    //upoles = poles.GetLength(0);
-                    //vpoles = poles.GetLength(1) + 2 * vDegree - 2;
-                    //npoles = new GeoPointH[upoles * vpoles];
-                    //for (int i = 0; i < poles.GetLength(0); ++i)
-                    //{
-                    //    for (int j = 0; j < poles.GetLength(1); ++j)
-                    //    {
-                    //        npoles[induv(i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                    //    }
-                    //    for (int j = 0; j < 2 * vDegree - 2; ++j)
-                    //    {
-                    //        npoles[induv(i, poles.GetLength(1) + j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                    //    }
-                    //}
-                    upoles = poles.GetLength(0);
-                    vpoles = poles.GetLength(1) + vDegree;
-                    npoles = new GeoPointH[upoles * vpoles];
-                    for (int i = 0; i < poles.GetLength(0); ++i)
-                    {
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                        for (int j = 0; j < vDegree; ++j)
-                        {
-                            npoles[induv(i, poles.GetLength(1) + j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                    }
-                }
-                else
-                {
-                    upoles = poles.GetLength(0);
-                    vpoles = poles.GetLength(1);
-                    npoles = new GeoPointH[poles.GetLength(0) * poles.GetLength(1)];
-                    for (int i = 0; i < poles.GetLength(0); ++i)
-                        for (int j = 0; j < poles.GetLength(1); ++j)
-                        {
-                            npoles[induv(i, j)] = new GeoPointH(poles[i, j], weights[i, j]);
-                        }
-                }
                 this.nurbs = new Nurbs<GeoPointH, GeoPointHPole>(uDegree, vDegree, npoles, upoles, vpoles, uknotslist.ToArray(), vknotslist.ToArray());
                 nurbs.InitDerivS();
             }
-#if DEBUG
-            if (vKnots.Length == 1 || vKnots[0] == vKnots[vKnots.Length - 1])
-            { }
-#endif
+        }
+        private static List<double> ExpandKnots(double[] knots, int[] mults)
+        {
+            List<double> res = new List<double>();
+            for (int i = 0; i < knots.Length; ++i)
+            {
+                for (int j = 0; j < mults[i]; ++j)
+                {
+                    res.Add(knots[i]);
+                }
+            }
+            return res;
+        }
+        /// <summary>
+        /// Extends the knots of one period (compact periodic representation) to the knots of the surface with
+        /// <paramref name="numPoles"/> + <paramref name="degree"/> poles, where the first <paramref name="degree"/> poles are
+        /// appended at the end: the knots are continued by the period on both sides.
+        /// </summary>
+        private static List<double> PeriodicKnots(List<double> knots, int firstMult, int degree, int numPoles)
+        {
+            List<double> res = new List<double>(knots);
+            double period = knots[knots.Count - 1] - knots[0];
+            int secondknotindex = firstMult;
+            for (int i = 0; i <= degree - firstMult; ++i)
+            {
+                res.Insert(0, res[res.Count - degree - i] - period);
+                ++secondknotindex;
+            }
+            while (res.Count - degree - 1 < numPoles + degree)
+            {
+                res.Add(res[secondknotindex] + period);
+                ++secondknotindex;
+            }
+            return res;
         }
 
         private bool IsLine(IArray<GeoPoint> pnts, double precision)
@@ -1149,6 +955,22 @@ namespace CADability.GeoObject
                 return false;
             }
         }
+        /// <summary>
+        /// The minimum tolerance of <see cref="GetCanonicalForm"/> relative to the size of the poles: an exact representation of
+        /// an analytic surface deviates only by rounding errors. The caller decides which deviation is acceptable by the
+        /// precision, e.g. the STEP import passes the uncertainty of the file. A corpus run with a fixed tolerance of 1e-3
+        /// replaced many approximated cylinders, whose vertices then were not on the surface (inconsistent faces).
+        /// </summary>
+        internal static double CanonicalTolerance = 1e-6;
+        /// <summary>
+        /// Returns an analytic surface (plane, cylinder, cone, sphere or torus), which describes the same geometry as this
+        /// NURBS surface, or null. The surface is sampled on a 5x5 grid, which avoids singularities and the seam of a closed
+        /// surface. If the middle row and column are lines or circles, the type of the surface is derived from the rows and
+        /// columns and a candidate is fitted to the samples. A candidate is only accepted, when its distance to this surface
+        /// on a denser grid (9x9) does not exceed the tolerance (<paramref name="precision"/>, but at least
+        /// <see cref="CanonicalTolerance"/> times the size of the poles). The orientation of the result is the orientation
+        /// of this surface, its uv system is different.
+        /// </summary>
         public override ISurface GetCanonicalForm(double precision, BoundingRect? bounds)
         {
             double umin, umax, vmin, vmax;
@@ -1158,9 +980,11 @@ namespace CADability.GeoObject
             double[] upars = GetPars(umin, umax, IsUPeriodic, us, 5);
             double[] vpars = GetPars(vmin, vmax, IsVPeriodic, vs, 5);
             // upars, vpars describe an almost evenly spaced 5x5 grid while singularities and seams (of closed surface) are avoided
-            // now lets see, whether in the middle we have a line or circular arc
-
-            precision = Math.Max(precision, PolesExtent.Size * 1e-3);
+            double size = PolesExtent.Size;
+            // the classification of the sample rows and columns is only a rough preselection, the candidates are checked
+            // with the (smaller) tolerance below
+            double detection = Math.Max(precision, size * 1e-3);
+            double tolerance = Math.Max(precision, size * CanonicalTolerance);
 
             GeoPoint[,] samples = new GeoPoint[5, 5];
             for (int i = 0; i < 5; i++)
@@ -1168,13 +992,14 @@ namespace CADability.GeoObject
                 samples[i, 2] = PointAt(new GeoPoint2D(upars[i], vpars[2]));
                 if (i != 2) samples[2, i] = PointAt(new GeoPoint2D(upars[2], vpars[i]));
             }
+            // now lets see, whether in the middle we have a line or circular arc
             bool uIsLine = false, uIsCircle = false, vIsLine = false, vIsCircle = false;
             GeoPoint cnt;
             double rad;
             GeoPoint[] ucnt = null, vcnt = null; // centers of the circles in u resp. v
             double[] urad = null, vrad = null; //radii of the circles in u resp. v
-            if (IsLine(samples.Row(2), precision)) uIsLine = true;
-            else if (IsCircle(samples.Row(2), precision, out cnt, out rad))
+            if (IsLine(samples.Row(2), detection)) uIsLine = true;
+            else if (IsCircle(samples.Row(2), detection, out cnt, out rad))
             {
                 uIsCircle = true;
                 ucnt = new GeoPoint[5];
@@ -1182,8 +1007,8 @@ namespace CADability.GeoObject
                 ucnt[2] = cnt;
                 urad[2] = rad;
             }
-            if (IsLine(samples.Column(2), precision)) vIsLine = true;
-            else if (IsCircle(samples.Column(2), precision, out cnt, out rad))
+            if (IsLine(samples.Column(2), detection)) vIsLine = true;
+            else if (IsCircle(samples.Column(2), detection, out cnt, out rad))
             {
                 vIsCircle = true;
                 vcnt = new GeoPoint[5];
@@ -1191,185 +1016,161 @@ namespace CADability.GeoObject
                 vcnt[2] = cnt;
                 vrad[2] = rad;
             }
-            if ((uIsLine || uIsCircle) && (vIsLine || vIsCircle))
-            {   // we can try to create a plane, cylinder, cone, sphere or torus
-                for (int i = 0; i < 5; i++) for (int j = 0; j < 5; j++)
+            if (!(uIsLine || uIsCircle) || !(vIsLine || vIsCircle)) return null;
+            // we can try to create a plane, cylinder, cone, sphere or torus
+            for (int i = 0; i < 5; i++) for (int j = 0; j < 5; j++)
                 {
-                    //if (i == 2 || j == 2) continue; // already calculated
                     samples[i, j] = PointAt(new GeoPoint2D(upars[i], vpars[j]));
                 }
-                bool failed = false;
-                foreach (int i in new int[] { 0, 4 })
+            foreach (int i in new int[] { 0, 4 })
+            {
+                if (uIsCircle)
                 {
-                    if (failed) break;
-                    if (uIsCircle)
-                    {
-                        if (IsCircle(samples.Row(i), precision, out cnt, out rad))
-                        {
-                            ucnt[i] = cnt;
-                            urad[i] = rad;
-                        }
-                        else failed = true;
-                    }
-                    if (uIsLine) if (!IsLine(samples.Row(i), precision)) failed = true;
-                    if (vIsCircle)
-                    {
-                        if (IsCircle(samples.Column(i), precision, out cnt, out rad))
-                        {
-                            vcnt[i] = cnt;
-                            vrad[i] = rad;
-                        }
-                        else failed = true;
-                    }
-                    if (vIsLine) if (!IsLine(samples.Column(i), precision)) failed = true;
+                    if (!IsCircle(samples.Row(i), detection, out cnt, out rad)) return null;
+                    ucnt[i] = cnt;
+                    urad[i] = rad;
                 }
-                if (!failed)
+                if (uIsLine && !IsLine(samples.Row(i), detection)) return null;
+                if (vIsCircle)
                 {
-                    ISurface found = null;
-                    // now in each direction there are either 3 circles or 3 lines
-                    if (uIsLine && vIsLine)
-                    {   // a plane or a hyperboloid
-                        //double minerror = GaussNewtonMinimizer.PlaneFit(samples.Linear(), precision, out Plane pln);
-                        //if (minerror < precision)
-                        //{
-                        //    found = new PlaneSurface(pln);
-                        //}
-                        //else
-                        //{
-                        Plane plfp = Plane.FromPoints(samples.Linear().ToArray(), out double maxdist1, out bool islin1);
-                        if (maxdist1 < precision) found = new PlaneSurface(plfp); // GaussNewtonMinimizer not well implemented
-                        //}
-
-                    }
-                    else if (uIsCircle && vIsCircle)
-                    {   // a sphere or a torus
-                        // which circles are the longitude and which are the latitudes (latitudes differ in radius)
-                        double du = Math.Abs(urad[0] - urad[2]) + Math.Abs(urad[2] - urad[4]);
-                        double dv = Math.Abs(vrad[0] - vrad[2]) + Math.Abs(vrad[2] - vrad[4]);
-                        GeoPoint[] latcnt, loncnt;
-                        double[] latrad, lonrad;
-                        if (du < dv)
-                        {
-                            loncnt = ucnt;
-                            latcnt = vcnt;
-                            lonrad = urad;
-                            latrad = vrad;
-                        }
-                        else
-                        {
-                            loncnt = vcnt;
-                            latcnt = ucnt;
-                            lonrad = vrad;
-                            latrad = urad;
-                        }
-                        double c = (loncnt[0] | loncnt[2]) + (loncnt[2] | loncnt[4]);
-                        if (c < 2 * precision)
-                        {   // this should be a sphere, because all longitudes have the same center
-                            double minerror = GaussNewtonMinimizer.SphereFit(samples.Linear(), new GeoPoint(loncnt[0], loncnt[2], loncnt[4]), (lonrad[0] + lonrad[2] + lonrad[4]) / 3, precision, out SphericalSurface ss);
-                            if (minerror < precision) found = ss;
-                            else
-                            {
-
-                            }
-                        }
-                        else
-                        {   // this could be a torus
-                            // the axis should be the longest connection of the three latitude centers (two could be identical)
-                            double d0 = latcnt[0] | latcnt[2];
-                            double d2 = latcnt[2] | latcnt[4];
-                            double d4 = latcnt[4] | latcnt[0];
-                            GeoVector axis;
-                            if (d0 < d2)
-                            {
-                                if (d2 < d4) axis = latcnt[4] - latcnt[0];
-                                else axis = latcnt[2] - latcnt[4];
-                            }
-                            else
-                            {
-                                if (d0 < d4) axis = latcnt[4] - latcnt[0];
-                                else axis = latcnt[0] - latcnt[2];
-                            }
-                            GeoPoint center = Geometry.DropPL(loncnt[0], latcnt[0], axis);
-                            axis.Length = center | loncnt[0];
-                            double minerror = BoxedSurfaceExtension.TorusFit(samples.Linear(), center, axis, lonrad[0], precision, out ToroidalSurface ts);
-                            if (minerror < precision)
-                            {
-                                if (ts.MinorRadius > ts.XAxis.Length * 10)
-                                {   // almost a sphere
-                                    minerror = GaussNewtonMinimizer.SphereFit(samples.Linear(), ts.Location, ts.MinorRadius, precision, out SphericalSurface ss);
-                                    if (minerror < precision) found = ss;
-                                }
-                                else
-                                {
-                                    found = ts; // no torus with pole, this is usually meant to be a sphere
-                                    foreach (GeoPoint point in samples)
-                                    {
-                                        if (ts.GetDistance(point) > precision)
-                                        {
-                                            found = null;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else // mixed case: a line and a circle
-                    {   // a cylinder or a cone
-                        GeoPoint[] centers = uIsCircle ? ucnt : vcnt;
-                        double[] radii = uIsCircle ? urad : vrad;
-                        if (Math.Abs(radii[0] - radii[2]) < precision && Math.Abs(radii[4] - radii[2]) < precision)
-                        {   // could be a cylinder
-                            GeoVector axis = (centers[4] - centers[0]).Normalized;
-                            // GaussNewtonMinimizer.CylinderFit not working with 6.stp
-                            //double minerror = GaussNewtonMinimizer.CylinderFit(samples.Linear(), centers[2], axis, radii[0], precision, out CylindricalSurface cs);
-                            //if (minerror < precision) found = cs;
-                            //else
-                            //{
-
-                            //}
-                        }
-                        else
-                        {   // could be a cone
-                            IArray<GeoPoint> l1 = uIsLine ? samples.Row(1) : samples.Column(1);
-                            IArray<GeoPoint> l2 = uIsLine ? samples.Row(3) : samples.Column(3);
-                            if (IsLine(l1, precision) && IsLine(l2, precision))
-                            {
-                                try
-                                {
-                                    GeoPoint apex = Geometry.IntersectLL(l1.First, l1.Last - l1.First, l2.First, l2.Last - l2.First); // they are not parallel
-                                    GeoVector axis = centers[4] - centers[0];
-                                    double a = axis.Length;
-                                    double x = a * radii[0] / (radii[0] - radii[4]);
-                                    GeoPoint a1 = centers[0] + x * axis.Normalized;
-                                    double openingAngle = Math.Atan2(Math.Abs(radii[0] - radii[4]), centers[0] | centers[4]);
-                                    double minerror = BoxedSurfaceExtension.ConeFit(samples.Linear(), a1, axis, openingAngle, precision, out ConicalSurface cs);
-                                    if (minerror < precision) found = cs;
-                                    if (Math.Abs(radii[0] - radii[4]) < 10 * precision)
-                                    {   // could still be a cylinder
-                                        double minerrorcyl = GaussNewtonMinimizer.CylinderFit(samples.Linear(), centers[2], axis, radii[0], precision, out CylindricalSurface cyls);
-                                        if (minerrorcyl < precision && minerrorcyl < minerror) found = cyls;
-                                    }
-                                }
-                                catch (Geometry.GeometryException) { }
-                            }
-                        }
-                    }
-                    if (found != null)
+                    if (!IsCircle(samples.Column(i), detection, out cnt, out rad)) return null;
+                    vcnt[i] = cnt;
+                    vrad[i] = rad;
+                }
+                if (vIsLine && !IsLine(samples.Column(i), detection)) return null;
+            }
+            // now in each direction there are either 3 circles or 3 lines. Collect the candidates, the fit functions only
+            // provide a start, their error values are not geometric distances, so they are only used to detect a failure
+            List<ISurface> candidates = new List<ISurface>();
+            if (uIsLine && vIsLine)
+            {   // a plane (or a hyperbolic paraboloid, which is rejected by the distance check)
+                Plane plfp = Plane.FromPoints(samples.Linear().ToArray(), out double maxdist1, out bool islin1);
+                if (!islin1) candidates.Add(new PlaneSurface(plfp));
+            }
+            else if (uIsCircle && vIsCircle)
+            {   // a sphere or a torus
+                // which circles are the longitude and which are the latitudes (latitudes differ in radius)
+                double du = Math.Abs(urad[0] - urad[2]) + Math.Abs(urad[2] - urad[4]);
+                double dv = Math.Abs(vrad[0] - vrad[2]) + Math.Abs(vrad[2] - vrad[4]);
+                GeoPoint[] latcnt, loncnt;
+                double[] lonrad;
+                if (du < dv)
+                {
+                    loncnt = ucnt;
+                    latcnt = vcnt;
+                    lonrad = urad;
+                }
+                else
+                {
+                    loncnt = vcnt;
+                    latcnt = ucnt;
+                    lonrad = vrad;
+                }
+                double c = (loncnt[0] | loncnt[2]) + (loncnt[2] | loncnt[4]);
+                if (c < 2 * detection)
+                {   // this should be a sphere, because all longitudes have the same center
+                    if (GaussNewtonMinimizer.SphereFit(samples.Linear(), new GeoPoint(loncnt[0], loncnt[2], loncnt[4]), (lonrad[0] + lonrad[2] + lonrad[4]) / 3, detection, out SphericalSurface ss) < double.MaxValue)
+                        candidates.Add(ss);
+                }
+                else
+                {   // this could be a torus
+                    // the axis should be the longest connection of the three latitude centers (two could be identical)
+                    double d0 = latcnt[0] | latcnt[2];
+                    double d2 = latcnt[2] | latcnt[4];
+                    double d4 = latcnt[4] | latcnt[0];
+                    GeoVector axis;
+                    if (d0 < d2)
                     {
-                        // test the orientation:
-                        GeoPoint2D uvcnt = new GeoPoint2D((umin + umax) / 2.0, (vmin + vmax) / 2.0);
-                        GeoVector normalnrbs = GetNormal(uvcnt);
-                        GeoVector normalts = found.GetNormal(found.PositionOf(PointAt(uvcnt)));
-                        if (normalts * normalnrbs < 0) found.ReverseOrientation();
-                        return found;
+                        if (d2 < d4) axis = latcnt[4] - latcnt[0];
+                        else axis = latcnt[2] - latcnt[4];
                     }
+                    else
+                    {
+                        if (d0 < d4) axis = latcnt[4] - latcnt[0];
+                        else axis = latcnt[0] - latcnt[2];
+                    }
+                    try
+                    {
+                        GeoPoint center = Geometry.DropPL(loncnt[0], latcnt[0], axis);
+                        axis.Length = center | loncnt[0];
+                        if (BoxedSurfaceExtension.TorusFit(samples.Linear(), center, axis, lonrad[0], detection, out ToroidalSurface ts) < double.MaxValue)
+                        {
+                            if (ts.MinorRadius > ts.XAxis.Length * 10)
+                            {   // almost a sphere, a torus with poles is not very stable
+                                if (GaussNewtonMinimizer.SphereFit(samples.Linear(), ts.Location, ts.MinorRadius, detection, out SphericalSurface ss) < double.MaxValue)
+                                    candidates.Add(ss);
+                            }
+                            else candidates.Add(ts);
+                        }
+                    }
+                    catch (Exception ex) when (ex is Geometry.GeometryException || ex is ModOpException || ex is ArithmeticException) { }
                 }
             }
-
-
-
-            return null;
+            else
+            {   // mixed case: a line and a circle: a cylinder or a cone
+                GeoPoint[] centers = uIsCircle ? ucnt : vcnt;
+                double[] radii = uIsCircle ? urad : vrad;
+                GeoVector axis = centers[4] - centers[0];
+                try
+                {
+                    if (Math.Abs(radii[0] - radii[4]) < 10 * detection)
+                    {   // a cylinder: the axis through the centers of the circles
+                        Plane pln = new Plane(centers[2], axis);
+                        double r = (radii[0] + radii[2] + radii[4]) / 3.0;
+                        candidates.Add(new CylindricalSurface(centers[2], r * pln.DirectionX, r * pln.DirectionY, axis.Normalized));
+                        if (GaussNewtonMinimizer.CylinderFit(samples.Linear(), centers[2], axis, r, detection, out CylindricalSurface cyls) < double.MaxValue)
+                            candidates.Add(cyls);
+                    }
+                    if (Math.Abs(radii[0] - radii[4]) > detection)
+                    {   // a cone
+                        double x = axis.Length * radii[0] / (radii[0] - radii[4]);
+                        GeoPoint apex = centers[0] + x * axis.Normalized;
+                        double openingAngle = Math.Atan2(Math.Abs(radii[0] - radii[4]), centers[0] | centers[4]);
+                        if (BoxedSurfaceExtension.ConeFit(samples.Linear(), apex, axis, openingAngle, detection, out ConicalSurface cs) < double.MaxValue)
+                            candidates.Add(cs);
+                    }
+                }
+                catch (Exception ex) when (ex is Geometry.GeometryException || ex is ModOpException || ex is ArithmeticException) { }
+            }
+            // the candidate with the smallest distance to this surface on a denser grid, if it is within the tolerance
+            ISurface found = null;
+            double minDist = double.MaxValue;
+            foreach (ISurface candidate in candidates)
+            {
+                double dist = MaxDistance(candidate, umin, umax, vmin, vmax, us, vs);
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    found = candidate;
+                }
+            }
+            if (found == null || minDist > tolerance) return null;
+            // the orientation must be the orientation of this surface: compare the normals at a sample point, which is not singular
+            GeoPoint2D uvtest = new GeoPoint2D(upars[2], vpars[2]);
+            GeoVector normalnrbs = GetNormal(uvtest);
+            GeoVector normalfound = found.GetNormal(found.PositionOf(PointAt(uvtest)));
+            if (normalfound * normalnrbs < 0) found.ReverseOrientation();
+            return found;
+        }
+        /// <summary>
+        /// The maximum distance of the points of this surface on a 9x9 grid (avoiding singularities and the seam) from
+        /// <paramref name="candidate"/>.
+        /// </summary>
+        private double MaxDistance(ISurface candidate, double umin, double umax, double vmin, double vmax, double[] us, double[] vs)
+        {
+            double[] upars = GetPars(umin, umax, IsUPeriodic, us, 9);
+            double[] vpars = GetPars(vmin, vmax, IsVPeriodic, vs, 9);
+            double res = 0.0;
+            for (int i = 0; i < upars.Length; i++)
+            {
+                for (int j = 0; j < vpars.Length; j++)
+                {
+                    double d = Math.Abs(candidate.GetDistance(PointAt(new GeoPoint2D(upars[i], vpars[j]))));
+                    if (double.IsNaN(d)) return double.MaxValue;
+                    res = Math.Max(res, d);
+                }
+            }
+            return res;
         }
         public ISurface GetCanonicalFormOld(double precision, BoundingRect? bounds)
         {
@@ -4113,17 +3914,7 @@ namespace CADability.GeoObject
                 uMinRestrict = tmp;
             }
             InvalidateSecondaryData();
-            // Init is fiddeling around with the knots, inserting extra knots when periodic. But here we already are ok with the knots
-            // so we pretend not to be periodic and reset it afterwards
-            bool wasUPeriodic = uPeriodic;
-            bool wasVPeriodic = vPeriodic;
-            if (uMults[0] > UDegree && vMults[0] > VDegree && uMults[uMults.Length - 1] > UDegree && vMults[vMults.Length - 1] > VDegree)
-            {
-                uPeriodic = vPeriodic = false;
-            }
             Init();
-            uPeriodic = wasUPeriodic;
-            vPeriodic = wasVPeriodic;
             return new ModOp2D(-1, 0, umove, 0, 1, 0);
 
         }
