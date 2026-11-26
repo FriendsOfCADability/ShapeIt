@@ -27,6 +27,7 @@ public partial class MainWindow : Window, ICommandHandler
     public MainWindow()
     {
         InitializeComponent();
+        Title = AppVersion.Title(); // the XAML only has "ShapeIt"; show the version right away
         // Defer initialisation until the visual tree (including CadControl) is fully
         // loaded so that the OpenGL surface and all named controls are accessible.
         Dispatcher.UIThread.Post(Initialize, DispatcherPriority.Loaded);
@@ -68,7 +69,7 @@ public partial class MainWindow : Window, ICommandHandler
 
         // 3. Subscribe to frame lifecycle events.
         cadFrame.FileNameChangedEvent += name =>
-            Title = string.IsNullOrEmpty(name) ? "ShapeIt" : $"ShapeIt — {name}";
+            Title = AppVersion.Title(name);
         cadFrame.ProjectClosedEvent += OnProjectClosed;
         cadFrame.ProjectOpenedEvent += OnProjectOpened;
 
@@ -350,14 +351,12 @@ public partial class MainWindow : Window, ICommandHandler
     // ── Frame event handlers ───────────────────────────────────────────────
 
     private void OnProjectClosed(Project project, IFrame frame)
-        => Title = "ShapeIt";
+        => Title = AppVersion.Title();
 
     private void OnProjectOpened(Project project, IFrame frame)
     {
         lastSaved = DateTime.Now;
-        Title = string.IsNullOrEmpty(project.FileName)
-            ? "ShapeIt"
-            : $"ShapeIt — {project.FileName}";
+        Title = AppVersion.Title(project.FileName);
     }
 
     private static string CrashDir => Path.Combine(Path.GetTempPath(), "ShapeIt");
@@ -414,7 +413,7 @@ public partial class MainWindow : Window, ICommandHandler
                     if (lines[0] != "unknown")
                     {
                         cadFrame.Project.FileName = lines[0];
-                        Title = "ShapeIt — " + lines[0];
+                        Title = AppVersion.Title(lines[0]);
                     }
                 }
             }

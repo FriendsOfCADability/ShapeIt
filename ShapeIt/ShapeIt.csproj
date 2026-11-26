@@ -79,18 +79,9 @@
 		</None>
 	</ItemGroup>
 
-	<!-- Version number. The repo-root version.txt is the single source for every ShapeIt
-	     head (this WinForms app, ShapeIt.Avalonia, ShapeIt.Browser) and for the packaging
-	     scripts under scripts\windows-packaging and scripts\linux-packaging. It is
-	     maintained by hand: no build step rewrites it, so a Release build can no longer
-	     silently change the version that the installers and packages carry. -->
-	<ItemGroup>
-		<EmbeddedResource Include="..\version.txt">
-			<Link>version.txt</Link>
-			<!-- Fixed resource name, so reading it back is trivial -->
-			<LogicalName>App.Version</LogicalName>
-		</EmbeddedResource>
-	</ItemGroup>
+	<!-- Version number from the repo-root version.txt (see ShapeIt.Version.props), shared
+	     by every ShapeIt head and the packaging scripts. -->
+	<Import Project="..\ShapeIt.Version.props" />
 
 	<ProjectExtensions><VisualStudio><UserProperties /></VisualStudio></ProjectExtensions>
 

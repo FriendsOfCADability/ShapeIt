@@ -273,7 +273,7 @@ namespace ShapeIt.Browser
             bool de = StringTable.ActiveLanguage?
                 .StartsWith("deutsch", StringComparison.OrdinalIgnoreCase) ?? false;
 
-            aboutVersionText.Text = "Version " + ReadVersion();
+            aboutVersionText.Text = "Version " + AppVersion.Current;
             aboutBasedOnText.Text = de
                 ? "ShapeIt ist ein 3D-CAD-Programm, das auf der quelloffenen Bibliothek "
                   + "CADability (MIT-Lizenz, © SOFA GmbH) aufbaut. Diese Web-Version läuft "
@@ -284,30 +284,10 @@ namespace ShapeIt.Browser
             aboutOverlay.IsVisible = true;
         }
 
-        // Prefer the embedded "App.Version" (version.txt); fall back to the assembly version
-        // (mirrors AboutWindow.ReadVersion in the desktop head).
-        private static string ReadVersion()
-        {
-            try
-            {
-                var asm = Assembly.GetExecutingAssembly();
-                using Stream? s = asm.GetManifestResourceStream("App.Version");
-                if (s != null)
-                {
-                    using var sr = new StreamReader(s);
-                    string v = sr.ReadToEnd().Trim();
-                    if (!string.IsNullOrEmpty(v)) return v;
-                }
-            }
-            catch { /* fall through */ }
-
-            return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "?";
-        }
-
         // ── Browser-lifecycle bridge helpers (features 2 + 3) ──────────────
         private void SetDocumentTitle(string? fileName)
         {
-            string title = string.IsNullOrEmpty(fileName) ? "ShapeIt" : $"ShapeIt — {fileName}";
+            string title = AppVersion.Title(fileName);
             try { BrowserHostInterop.SetTitle(title); }
             catch (Exception ex) { Console.WriteLine("setTitle failed: " + ex); }
         }

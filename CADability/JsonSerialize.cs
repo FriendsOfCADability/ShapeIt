@@ -96,6 +96,18 @@ namespace CADability
         /// </summary>
         public static event ResolveTypeDelegate ResolveType;
         /// <summary>
+        /// Name of the application that uses CADability (e.g. "ShapeIt"). When set together with
+        /// <see cref="ApplicationVersion"/>, every saved file gets an "Application" block next to the
+        /// "CADability" block: {"CADability":{...},"Application":{"Name":"ShapeIt","Version":"0.8.9"},"Entities":...}.
+        /// The "CADability" block keeps the library version, which is the file format version that
+        /// deserialization code compares against (see <see cref="FileVersion"/>).
+        /// </summary>
+        public static string ApplicationName { get; set; }
+        /// <summary>
+        /// Version of the application that uses CADability, see <see cref="ApplicationName"/>.
+        /// </summary>
+        public static string ApplicationVersion { get; set; }
+        /// <summary>
         /// Force the StreamWriter to write numbers with InvariantInfo
         /// </summary>
         class FormattingStreamWriter : StreamWriter
@@ -679,6 +691,7 @@ namespace CADability
         Queue<Tuple<IJsonSerialize, JsonDict>> deferred;
         private bool verbose;
         private string fileVersion;
+        private string fileApplicationName, fileApplicationVersion;
 
         public JsonSerialize()
         {
@@ -869,6 +882,11 @@ namespace CADability
                 {
                     fileVersion = cdb["Version"] as string;
                 }
+                if (allObjects.TryGetValue("Application", out object app) && app is JsonDict appDict)
+                {
+                    fileApplicationName = appDict.TryGetValue("Name", out object n) ? n as string : null;
+                    fileApplicationVersion = appDict.TryGetValue("Version", out object v) ? v as string : null;
+                }
                 if (!allObjects.ContainsKey("Entities")) return null;
                 List<object> entities = allObjects["Entities"] as List<object>;
                 if (entities != null)
@@ -914,6 +932,12 @@ namespace CADability
             get { return outStream != null; }
         }
         public Version FileVersion { get { return new Version(fileVersion); } }
+        /// <summary>
+        /// Name and version of the application that wrote the file being read (the "Application" block),
+        /// or null for files without that block.
+        /// </summary>
+        public string FileApplicationName => fileApplicationName;
+        public string FileApplicationVersion => fileApplicationVersion;
         private SerializationInfo SerializationInfoFromJsonData(JsonDict data, Type tp, List<object> entities, HashSet<ulong> underConstruction)
         {
             SerializationInfo si = new SerializationInfo(tp, new FormatterConverter());
@@ -1270,6 +1294,16 @@ namespace CADability
             WriteProperty("Assembly");
             WriteString(ass.GetName().Name);
             EndObject();
+            if (!string.IsNullOrEmpty(ApplicationName) && !string.IsNullOrEmpty(ApplicationVersion))
+            {   // readers that don't know this block simply ignore it
+                WriteProperty("Application");
+                BeginObject();
+                WriteProperty("Name");
+                WriteString(ApplicationName);
+                WriteProperty("Version");
+                WriteString(ApplicationVersion);
+                EndObject();
+            }
             queue = new Queue<object>();
             serializedTypes = new Dictionary<Type, int>();
             queue.Enqueue(toSerialize);

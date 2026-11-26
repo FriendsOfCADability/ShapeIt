@@ -27,7 +27,7 @@ public partial class AboutWindow : Window
     private void PopulateContent()
     {
         bool de = IsGerman;
-        string version = ReadVersion();
+        string version = AppVersion.Current;
 
         Title = de ? "Über ShapeIt" : "About ShapeIt";
 
@@ -71,25 +71,6 @@ public partial class AboutWindow : Window
         new("StbImageSharp",                "Public Domain (MIT-0)", "Port by Roman Shapiro, based on stb by Sean Barrett"),
         new("System.Collections.Immutable", "MIT License",           "© .NET Foundation and Contributors"),
     };
-
-    // Prefer the embedded "App.Version" (version.txt); fall back to the assembly version.
-    private static string ReadVersion()
-    {
-        try
-        {
-            var asm = Assembly.GetExecutingAssembly();
-            using Stream? s = asm.GetManifestResourceStream("App.Version");
-            if (s != null)
-            {
-                using var sr = new StreamReader(s);
-                string v = sr.ReadToEnd().Trim();
-                if (!string.IsNullOrEmpty(v)) return v;
-            }
-        }
-        catch { /* fall through */ }
-
-        return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "?";
-    }
 
     private void OnCloseClick(object? sender, RoutedEventArgs e) => Close();
 }

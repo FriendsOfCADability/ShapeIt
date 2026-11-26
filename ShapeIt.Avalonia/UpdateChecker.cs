@@ -17,7 +17,7 @@ namespace ShapeIt;
 ///   1. Eine kleine Textdatei auf dem Server (latest.txt) enthaelt die aktuell
 ///      veroeffentlichte Versionsnummer (z. B. "0.8.4").
 ///   2. Beim Start liest ShapeIt diese Datei, vergleicht sie mit der eigenen
-///      eingebetteten Version (App.Version aus version.txt) und bietet bei einer
+///      Version (AppVersion.Current, aus version.txt) und bietet bei einer
 ///      neueren Version an, die Download-Seite im Browser zu oeffnen.
 ///
 /// Die Pruefung ist bewusst:
@@ -51,7 +51,7 @@ internal static class UpdateChecker
         {
             try
             {
-                string current = ReadCurrentVersion();
+                string current = AppVersion.Current;
                 string? latest = await FetchLatestVersionAsync().ConfigureAwait(false);
                 if (latest == null || !IsNewer(latest, current)) return;
 
@@ -100,22 +100,4 @@ internal static class UpdateChecker
         return false; // bei nicht parsbaren Werten lieber nicht stoeren
     }
 
-    /// <summary>Liest die eingebettete Version (App.Version / version.txt).</summary>
-    private static string ReadCurrentVersion()
-    {
-        try
-        {
-            var asm = Assembly.GetExecutingAssembly();
-            using Stream? s = asm.GetManifestResourceStream("App.Version");
-            if (s != null)
-            {
-                using var sr = new StreamReader(s);
-                string v = sr.ReadToEnd().Trim();
-                if (!string.IsNullOrEmpty(v)) return v;
-            }
-        }
-        catch { /* fall through */ }
-
-        return Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "0.0.0";
-    }
 }

@@ -1,0 +1,24 @@
+<Project>
+  <!-- Single source of the ShapeIt version number, imported by every ShapeIt head
+       (ShapeIt WinForms, ShapeIt.Avalonia, ShapeIt.Browser).
+
+       version.txt next to this file is maintained by hand: change it before a release,
+       nothing in the build rewrites it. The value becomes AssemblyVersion, FileVersion and
+       InformationalVersion of the head assembly; at runtime AppVersion.Current reads it back
+       (title bar, About window, update check, "Application" block in saved JSON files).
+
+       The packaging scripts can override it with -p:ShapeItVersion=x.y.z. That property is
+       only evaluated here, so - unlike -p:AssemblyVersion - it does not leak into the
+       referenced CADability project, which keeps its own library/file-format version. -->
+  <PropertyGroup>
+    <ShapeItVersion Condition="'$(ShapeItVersion)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)version.txt').Trim())</ShapeItVersion>
+    <Version>$(ShapeItVersion)</Version>
+    <!-- Keep InformationalVersion exactly "x.y.z" (no "+<git hash>" suffix). -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Only for the Solution Explorer: makes version.txt easy to find and edit. A changed value
+         still triggers a rebuild, because the generated AssemblyInfo depends on $(Version). -->
+    <None Include="$(MSBuildThisFileDirectory)version.txt" Link="version.txt" />
+  </ItemGroup>
+</Project>

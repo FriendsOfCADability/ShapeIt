@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk.WebAssembly">
 
+  <!-- Version number from the repo-root version.txt (see ShapeIt.Version.props) -->
+  <Import Project="..\ShapeIt.Version.props" />
+
   <!-- ============================================================
        ShapeIt.Browser  –  WebAssembly/PWA feasibility-spike head.
        Reuses the CADability kernel (netstandard2.0) and the Avalonia
@@ -90,13 +93,6 @@
     <EmbeddedResource Include="..\ShapeIt\StringTableEnglish.xml">
       <Link>Shared\StringTableEnglish.xml</Link>
       <LogicalName>ShapeIt.StringTableEnglish.xml</LogicalName>
-    </EmbeddedResource>
-    <!-- Versionsnummer als "App.Version" einbetten, damit das About-Panel sie
-         anzeigen kann (gleiche Quelle und gleicher LogicalName wie der Desktop-Head,
-         siehe ShapeIt.Avalonia.csproj). -->
-    <EmbeddedResource Include="..\version.txt">
-      <Link>version.txt</Link>
-      <LogicalName>App.Version</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

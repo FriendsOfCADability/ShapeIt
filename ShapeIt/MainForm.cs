@@ -137,13 +137,6 @@ namespace ShapeIt
             };
         }
 
-        private string ReadEmbeddedVersion()
-        {
-            var asm = typeof(Program).Assembly;
-            using var s = asm.GetManifestResourceStream("App.Version");
-            using var sr = new StreamReader(s!);
-            return sr.ReadToEnd().Trim();
-        }
         public MainForm(string[] args) : base(args)
         {   // interpret the command line arguments as a name of a file, which should be opened
             // The parallelization of MathNet.Numerics is switched off in CADability.NumericsConfiguration now,
@@ -231,8 +224,7 @@ namespace ShapeIt
                 else CadFrame.Project = toOpen;
             }
 
-            string version = ReadEmbeddedVersion(); // version from version.txt
-            this.Text = $"ShapeIt with CADability – Version: {version}";
+            this.Text = $"ShapeIt with CADability – Version: {AppVersion.Current}";
 
             if (!Settings.GlobalSettings.ContainsSetting("UserInterface"))
             {

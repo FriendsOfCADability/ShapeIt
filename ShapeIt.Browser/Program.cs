@@ -16,6 +16,9 @@ namespace ShapeIt.Browser
             // Surface Avalonia rendering errors in the browser console.
             Logger.Sink = new ConsoleLogSink(LogEventLevel.Warning);
 
+            // "Application" block (name and version) in saved JSON files.
+            AppVersion.RegisterWithCADability();
+
             // Load the WebGL module so [JSImport(...,"webgl")] resolves.
             // Path is relative to /_framework/, so step up to wwwroot root.
             await JSHost.ImportAsync("webgl", "../webgl.js");

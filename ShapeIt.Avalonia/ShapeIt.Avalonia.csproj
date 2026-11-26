@@ -1,5 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- Version number from the repo-root version.txt (see ShapeIt.Version.props) -->
+  <Import Project="..\ShapeIt.Version.props" />
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
@@ -60,14 +63,6 @@
     <EmbeddedResource Include="..\ShapeIt\StringTableEnglish.xml">
       <Link>Shared\StringTableEnglish.xml</Link>
       <LogicalName>ShapeIt.StringTableEnglish.xml</LogicalName>
-    </EmbeddedResource>
-    <!-- Versionsnummer als "App.Version" einbetten, damit das Hilfe-Fenster sie
-         anzeigen kann. Quelle ist die manuell gepflegte version.txt im Repo-Root –
-         dieselbe Datei, die das Linux-Packaging (scripts/linux-packaging/1-build.ps1)
-         verwendet. So stimmen angezeigte Version und Paketversion überein. -->
-    <EmbeddedResource Include="..\version.txt">
-      <Link>version.txt</Link>
-      <LogicalName>App.Version</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 

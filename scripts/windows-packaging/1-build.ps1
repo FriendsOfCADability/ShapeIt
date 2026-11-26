@@ -81,13 +81,14 @@ if (-not $SkipBuild) {
         Remove-Item $PublishDir -Recurse -Force
     }
 
+    # ShapeItVersion is read only by ShapeIt.Version.props (the ShapeIt heads); unlike
+    # -p:AssemblyVersion it does not leak into CADability.dll, which keeps its own version.
     & dotnet publish $CsprojFile `
         -r win-x64 `
         --self-contained true `
         -c Release `
         -o $PublishDir `
-        -p:AssemblyVersion=$Version `
-        -p:FileVersion=$Version
+        -p:ShapeItVersion=$Version
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "dotnet publish fehlgeschlagen (Exit-Code $LASTEXITCODE)"
