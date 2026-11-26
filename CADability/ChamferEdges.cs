@@ -68,10 +68,10 @@ namespace CADability.GeoObject
             // 1. make a raw chamfer for each edge. The chamfer is a swept circle around a spine curve. The spine curve is the intersection
             // of two offset surfaces of the adjacent faces. The chamfer starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the chamfer faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
-            edgeToCutter = createChamfers();
+            edgeToTool = createChamfers();
 #if DEBUG
             DebuggerContainer dccut = new DebuggerContainer();
-            foreach (Shell s in edgeToCutter.Values)
+            foreach (Shell s in edgeToTool.Values)
             {
                 dccut.Add(s);
             }
@@ -79,12 +79,12 @@ namespace CADability.GeoObject
             // there are one or more edges meeting at a vertex.
             Dictionary<Vertex, List<Edge>> vertexToEdges = createVertexToEdges(convexEdges.Concat(concaveEdges));
             // at the dead ends the chamfers must reach beyond the vertex, so that trimming them with the ending face closes the gap
-            Dictionary<Edge, Dictionary<Vertex, double>> deadEndExtensions = ExtendCuttersAtDeadEnds(createVertexToEdges(convexEdges).Concat(createVertexToEdges(concaveEdges)));
-            // chamfers which continue each other tangentially are made as one cutter
-            BuildChamferChains(FindChamferJunctions(vertexToEdges), deadEndExtensions);
+            Dictionary<Edge, Dictionary<Vertex, double>> deadEndExtensions = ExtendToolsAtDeadEnds(createVertexToEdges(convexEdges).Concat(createVertexToEdges(concaveEdges)));
+            // chamfers which continue each other tangentially are made as one tool
+            BuildChainTools(FindChamferJunctions(vertexToEdges), deadEndExtensions);
 
-            List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
-            List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the chamfer and maybe some patches
+            List<HashSet<Shell>> cutters = []; // convex edges: each set contains the shells of one cutter (material to remove), the chamfer tool and maybe some patches
+            List<HashSet<Shell>> fillers = []; // concave edges: each set contains the shells of one filler (material to add), the chamfer tool and maybe some patches
             foreach (var ve in vertexToEdges)
             {
                 HashSet<Shell>? chamferAndExtension = null;
@@ -99,45 +99,45 @@ namespace CADability.GeoObject
                 { // the chamfer ends here, there are different cases:
                     // There is one or more "impact" faces
                     chamferAndExtension = createDeadEndExtension(ve.Key, convexEdges[0], Math.Max(length1, length2));
-                    if (chamferAndExtension != null) convexRoundingShells.Add(chamferAndExtension);
+                    if (chamferAndExtension != null) cutters.Add(chamferAndExtension);
                 }
                 if (convexEdges.Count == 2 )
                 {   // both convex
                     chamferAndExtension = createExtensionTwoEdges(ve.Key, convexEdges[0], convexEdges[1], Math.Max(length1, length2));
-                    if (chamferAndExtension != null) convexRoundingShells.Add(chamferAndExtension);
+                    if (chamferAndExtension != null) cutters.Add(chamferAndExtension);
                 }
                 if (concaveEdges.Count == 1)
                 { // the chamfer ends here, there are different cases:
                     // There is one or more "impact" faces
                     chamferAndExtension = createDeadEndExtension(ve.Key, concaveEdges[0], Math.Max(length1, length2));
-                    if (chamferAndExtension != null) concaveRoundingShells.Add(chamferAndExtension);
+                    if (chamferAndExtension != null) fillers.Add(chamferAndExtension);
                 }
                 if (concaveEdges.Count == 2)
                 {   // both concave 
                     chamferAndExtension = createExtensionTwoEdges(ve.Key, concaveEdges[0], concaveEdges[1], Math.Max(length1, length2));
-                    if (chamferAndExtension != null) concaveRoundingShells.Add(chamferAndExtension);
+                    if (chamferAndExtension != null) fillers.Add(chamferAndExtension);
                 }
                 if (chamferAndExtension==null) // no other case
                 {   // three or more edges or mixed concave/convex
                     foreach (Edge edge in ve.Value)
                     {
-                        Shell? cutter = CutterOf(edge);
-                        if (cutter == null) continue; // creating the cutter failed
-                        if (edge.Adjacency() == AdjacencyType.Convex) convexRoundingShells.Add([cutter]);
-                        else if (edge.Adjacency() == AdjacencyType.Concave) concaveRoundingShells.Add([cutter]);
+                        Shell? tool = ToolOf(edge);
+                        if (tool == null) continue; // creating the tool failed
+                        if (edge.Adjacency() == AdjacencyType.Convex) cutters.Add([tool]);
+                        else if (edge.Adjacency() == AdjacencyType.Concave) fillers.Add([tool]);
                     }
                 }
             }
-            Combine(convexRoundingShells);
-            Combine(concaveRoundingShells);
+            Combine(cutters);
+            Combine(fillers);
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
             Shell? toOperateOn = shell.Clone() as Shell;
-            for (int i = 0; i < convexRoundingShells.Count; i++)
+            for (int i = 0; i < cutters.Count; i++)
             {
-                //foreach (var item in convexRoundingShells[i])
-                List<Shell> dbgList = convexRoundingShells[i].ToList();
+                //foreach (var item in cutters[i])
+                List<Shell> dbgList = cutters[i].ToList();
                     for (int j = 0;j< dbgList.Count;j++)
                 {
                     BooleanOperation bo = new BooleanOperation();
@@ -147,9 +147,9 @@ namespace CADability.GeoObject
                     if (roundedShells != null && roundedShells.Length == 1) toOperateOn = roundedShells[0];
                 }
             }
-            for (int i = 0; i < concaveRoundingShells.Count; i++)
+            for (int i = 0; i < fillers.Count; i++)
             {
-                foreach (var item in concaveRoundingShells[i])
+                foreach (var item in fillers[i])
                 {
                     BooleanOperation bo = new BooleanOperation();
                     bo.SetShells(toOperateOn, item, BooleanOperation.Operation.union);
@@ -163,7 +163,7 @@ namespace CADability.GeoObject
         }
         private Dictionary<Edge, Shell> createChamfers()
         {
-            Dictionary<Edge, Shell> edgeToCutter = new();
+            Dictionary<Edge, Shell> edgeToTool = new();
             var edgesToRound = convexEdges.Select(e => (edge: e, isConvex: true)).Concat(concaveEdges.Select(e => (edge: e, isConvex: false)));
 
             foreach (var (edgeToRound, isConvex) in edgesToRound)
@@ -173,10 +173,10 @@ namespace CADability.GeoObject
                 if (chamferShell != null)
                 {
                     chamferShell.CopyAttributes(edgeToRound.PrimaryFace);
-                    edgeToCutter[edgeToRound] = chamferShell;
+                    edgeToTool[edgeToRound] = chamferShell;
                 }
             }
-            return edgeToCutter;
+            return edgeToTool;
         }
 
         /// <summary>
@@ -231,16 +231,16 @@ namespace CADability.GeoObject
             sweptCircle.Domain = sweptCircleDomain;
             return sweptCircle;
         }
-        public Shell? MakeChamferShell(Edge edgeToCutter, double length1, double length2, bool convex)
+        public Shell? MakeChamferShell(Edge edgeToChamfer, double length1, double length2, bool convex)
         {
-            return MakeExtendedChamferShell(edgeToCutter, length1, length2, convex, 0.0, 0.0);
+            return MakeExtendedChamferShell(edgeToChamfer, length1, length2, convex, 0.0, 0.0);
         }
 
         /// <summary>
         /// Rebuilds the chamfer of <paramref name="edge"/> along a longer edge, which reaches the provided distances beyond
-        /// the vertices of the edge, see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>.
+        /// the vertices of the edge, see <see cref="BlendEdges.ExtendToolsAtDeadEnds"/>.
         /// </summary>
-        protected override Shell? MakeExtendedCutter(Edge edge, Dictionary<Vertex, double> extensions)
+        protected override Shell? MakeExtendedTool(Edge edge, Dictionary<Vertex, double> extensions)
         {
             // MakeExtendedChamferShell works on the edge oriented forward on the primary face
             Vertex start = edge.StartVertex(edge.PrimaryFace);
@@ -258,9 +258,9 @@ namespace CADability.GeoObject
         /// Like <see cref="MakeChamferShell"/>, but the chamfer is made along the edge extended by <paramref name="extendStart"/>
         /// and <paramref name="extendEnd"/> beyond its start and end point (with respect to the primary face).
         /// </summary>
-        private Shell? MakeExtendedChamferShell(Edge edgeToCutter, double length1, double length2, bool convex, double extendStart, double extendEnd)
+        private Shell? MakeExtendedChamferShell(Edge edgeToChamfer, double length1, double length2, bool convex, double extendStart, double extendEnd)
         {
-            ChamferPiece? piece = MakeChamferPiece(edgeToCutter, length1, length2, convex, extendStart, extendEnd, null);
+            ChamferPiece? piece = MakeChamferPiece(edgeToChamfer, length1, length2, convex, extendStart, extendEnd, null);
             if (piece == null) return null;
             Shell[] res = Make3D.SewFaces(piece.Faces.ToArray());
             if (res == null || res.Length == 0) return null;
@@ -272,7 +272,7 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// How a chamfer piece ends at a vertex of a chain (see <see cref="BuildChamferChains"/>): there is no end face, the
+        /// How a chamfer piece ends at a vertex of a chain (see <see cref="BuildChainTools"/>): there is no end face, the
         /// faces of the piece continue in the neighbouring piece or in a transition piece.
         /// </summary>
         private class ChamferEnd
@@ -300,11 +300,11 @@ namespace CADability.GeoObject
 
             public void Tag(bool extendedStart, bool extendedEnd)
             {
-                RightEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
-                LeftEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface");
-                if (extendedStart) LeftEndFace?.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
-                if (extendedEnd) RightEndFace?.UserData.Add("CADability.Cutter.Extended", "extended");
-                ChamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");
+                RightEndFace?.UserData.Add("CADability.BlendTool.EndFace", "endface"); // categorize faces
+                LeftEndFace?.UserData.Add("CADability.BlendTool.EndFace", "endface");
+                if (extendedStart) LeftEndFace?.UserData.Add("CADability.BlendTool.Extended", "extended"); // reaches beyond the edge
+                if (extendedEnd) RightEndFace?.UserData.Add("CADability.BlendTool.Extended", "extended");
+                ChamferFace.UserData.Add("CADability.BlendTool.SweptFace", "chamferface");
             }
 
             /// <summary>
@@ -323,22 +323,22 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// The faces of the chamfer of <paramref name="edgeToCutter"/>, see <see cref="MakeExtendedChamferShell"/>. At the vertices
+        /// The faces of the chamfer of <paramref name="edgeToChamfer"/>, see <see cref="MakeExtendedChamferShell"/>. At the vertices
         /// in <paramref name="ends"/> there is no end face (see <see cref="ChamferEnd"/>).
         /// </summary>
-        private ChamferPiece? MakeChamferPiece(Edge edgeToCutter, double length1, double length2, bool convex, double extendStart, double extendEnd,
+        private ChamferPiece? MakeChamferPiece(Edge edgeToChamfer, double length1, double length2, bool convex, double extendStart, double extendEnd,
             Dictionary<Vertex, ChamferEnd>? ends)
         {
             ChamferEnd? startEnd = null, endEnd = null;
-            ends?.TryGetValue(edgeToCutter.StartVertex(edgeToCutter.PrimaryFace), out startEnd);
-            ends?.TryGetValue(edgeToCutter.EndVertex(edgeToCutter.PrimaryFace), out endEnd);
-            ISurface topSurface = edgeToCutter.PrimaryFace.Surface.Clone(); // for previty
-            ISurface bottomSurface = edgeToCutter.SecondaryFace.Surface.Clone();
-            ICurve leadingEdge = edgeToCutter.Curve3D.Clone();
-            if (!edgeToCutter.Forward(edgeToCutter.PrimaryFace)) leadingEdge.Reverse(); // always forward on topSurface
+            ends?.TryGetValue(edgeToChamfer.StartVertex(edgeToChamfer.PrimaryFace), out startEnd);
+            ends?.TryGetValue(edgeToChamfer.EndVertex(edgeToChamfer.PrimaryFace), out endEnd);
+            ISurface topSurface = edgeToChamfer.PrimaryFace.Surface.Clone(); // for previty
+            ISurface bottomSurface = edgeToChamfer.SecondaryFace.Surface.Clone();
+            ICurve leadingEdge = edgeToChamfer.Curve3D.Clone();
+            if (!edgeToChamfer.Forward(edgeToChamfer.PrimaryFace)) leadingEdge.Reverse(); // always forward on topSurface
             // the domains of the two faces, extended when the chamfer has to reach beyond the edge
-            BoundingRect topFaceDomain = edgeToCutter.PrimaryFace.Domain;
-            BoundingRect bottomFaceDomain = edgeToCutter.SecondaryFace.Domain;
+            BoundingRect topFaceDomain = edgeToChamfer.PrimaryFace.Domain;
+            BoundingRect bottomFaceDomain = edgeToChamfer.SecondaryFace.Domain;
             if (extendStart > 0.0 || extendEnd > 0.0)
             {   // the chamfer is made along a longer edge: the intersection of the two surfaces beyond the vertices
                 ICurve? longer = ExtendIntersectionCurve(leadingEdge, topSurface, ref topFaceDomain, bottomSurface, ref bottomFaceDomain, extendStart, extendEnd);
@@ -393,7 +393,7 @@ namespace CADability.GeoObject
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
             GeoPoint mp = ips.MinBy(p => convexFactor*(p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
-            IDualSurfaceCurve[] dscs = edgeToCutter.PrimaryFace.Surface.GetDualSurfaceCurves(topFaceDomain, sweptCircle, sweptCircle.Domain, [sp, ep]);
+            IDualSurfaceCurve[] dscs = edgeToChamfer.PrimaryFace.Surface.GetDualSurfaceCurves(topFaceDomain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
             ICurve? topCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(ep) + c.DistanceTo(mp));
             if (topCurve == null) return null;
@@ -422,7 +422,7 @@ namespace CADability.GeoObject
             n2 = bottomSurface.GetNormal(bottomSurface.PositionOf(leadingEdge.PointAt(0.5)));
             mp = ips.MinBy(p => convexFactor * (p - leadingEdge.PointAt(0.5)) * (n1 + n2)); // the one to the inside
 
-            dscs = edgeToCutter.SecondaryFace.Surface.GetDualSurfaceCurves(bottomFaceDomain, sweptCircle, sweptCircle.Domain, [sp, ep]);
+            dscs = edgeToChamfer.SecondaryFace.Surface.GetDualSurfaceCurves(bottomFaceDomain, sweptCircle, sweptCircle.Domain, [sp, ep]);
             if (dscs == null) return null; // there should only be one
             ICurve? bottomCurve = dscs.Select(c => c.Curve3D).MinBy(c => c.DistanceTo(sp) + c.DistanceTo(ep) + c.DistanceTo(mp));
             if (bottomCurve == null) return null;
@@ -467,12 +467,12 @@ namespace CADability.GeoObject
                 TrimCurve(segment, vertex, onFace);
                 return segment;
             }
-            leftTopCurve = tangentEnd(startEnd, edgeToCutter.PrimaryFace, leadingEdge.StartPoint, topCurve.StartPoint) ?? leftTopCurve;
-            leftBottomCurve = tangentEnd(startEnd, edgeToCutter.SecondaryFace, leadingEdge.StartPoint, bottomCurve.StartPoint) ?? leftBottomCurve;
-            rightTopCurve = tangentEnd(endEnd, edgeToCutter.PrimaryFace, leadingEdge.EndPoint, topCurve.EndPoint) ?? rightTopCurve;
-            rightBottomCurve = tangentEnd(endEnd, edgeToCutter.SecondaryFace, leadingEdge.EndPoint, bottomCurve.EndPoint) ?? rightBottomCurve;
+            leftTopCurve = tangentEnd(startEnd, edgeToChamfer.PrimaryFace, leadingEdge.StartPoint, topCurve.StartPoint) ?? leftTopCurve;
+            leftBottomCurve = tangentEnd(startEnd, edgeToChamfer.SecondaryFace, leadingEdge.StartPoint, bottomCurve.StartPoint) ?? leftBottomCurve;
+            rightTopCurve = tangentEnd(endEnd, edgeToChamfer.PrimaryFace, leadingEdge.EndPoint, topCurve.EndPoint) ?? rightTopCurve;
+            rightBottomCurve = tangentEnd(endEnd, edgeToChamfer.SecondaryFace, leadingEdge.EndPoint, bottomCurve.EndPoint) ?? rightBottomCurve;
 
-            // the same order of creating and sewing the faces as always, so that the cutter of a single edge doesn't change
+            // the same order of creating and sewing the faces as always, so that the tool of a single edge doesn't change
             Face chamferFace = Face.MakeFace(chamferSurface, new List<ICurve>([topCurve, bottomCurve, leftChamferEdge, rightChamferEdge]));
             Face? leftFace = startEnd == null ? Face.MakeFace(leftSurface, new List<ICurve>([leftTopCurve, leftBottomCurve, leftChamferEdge])) : null;
             Face? rightFace = endEnd == null ? Face.MakeFace(rightSurface, new List<ICurve>([rightTopCurve, rightBottomCurve, rightChamferEdge])) : null;
@@ -480,7 +480,7 @@ namespace CADability.GeoObject
             Face bottomFace = Face.MakeFace(bottomSurface.Clone(), new List<ICurve>([leadingEdge, leftBottomCurve, rightBottomCurve, bottomCurve]));
             ChamferPiece piece = new ChamferPiece
             {
-                Edge = edgeToCutter, ChamferFace = chamferFace, LeadingEdge = leadingEdge, LeftEndFace = leftFace, RightEndFace = rightFace,
+                Edge = edgeToChamfer, ChamferFace = chamferFace, LeadingEdge = leadingEdge, LeftEndFace = leftFace, RightEndFace = rightFace,
                 LeftTop = leftTopCurve, LeftBottom = leftBottomCurve, LeftLine = leftChamferEdge,
                 RightTop = rightTopCurve, RightBottom = rightBottomCurve, RightLine = rightChamferEdge
             };
@@ -497,7 +497,7 @@ namespace CADability.GeoObject
         /// has the distance of the chamfer from the foot point <see cref="Foot"/> on <see cref="Edge2"/>. Between the plane
         /// through the vertex and the cross section through this foot point there is a transition piece
         /// (<see cref="MakeTransition"/>), whose part on the side faces is split by the tangent edge. All faces of the
-        /// cutter then lie in the faces of the shell, and no planar end has to cross the tangent edge.
+        /// tool then lie in the faces of the shell, and no planar end has to cross the tangent edge.
         /// At a seam of one surface the planar ends fit together in any case, there is no transition piece.
         /// </summary>
         private class ChamferJunction
@@ -584,15 +584,15 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// Makes one cutter for each chain of edges connected by <paramref name="junctions"/>: the chamfers of the edges
+        /// Makes one tool for each chain of edges connected by <paramref name="junctions"/>: the chamfers of the edges
         /// (<see cref="MakeChamferPiece"/>) without end faces at the junctions and the transition pieces at the oblique
-        /// junctions (<see cref="MakeTransition"/>), sewn together. All edges of the chain refer to this cutter in
-        /// <see cref="BlendEdges.edgeToCutter"/>. When something fails, the edges keep their own cutters.
-        /// <paramref name="extensions"/> are the extensions at the dead ends (see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>).
+        /// junctions (<see cref="MakeTransition"/>), sewn together. All edges of the chain refer to this tool in
+        /// <see cref="BlendEdges.edgeToTool"/>. When something fails, the edges keep their own tools.
+        /// <paramref name="extensions"/> are the extensions at the dead ends (see <see cref="BlendEdges.ExtendToolsAtDeadEnds"/>).
         /// </summary>
-        private void BuildChamferChains(List<ChamferJunction> junctions, Dictionary<Edge, Dictionary<Vertex, double>> extensions)
+        private void BuildChainTools(List<ChamferJunction> junctions, Dictionary<Edge, Dictionary<Vertex, double>> extensions)
         {
-            if (edgeToCutter == null || junctions.Count == 0) return;
+            if (edgeToTool == null || junctions.Count == 0) return;
             foreach (List<Edge> chain in Chains(junctions.Select(j => (j.Edge1, j.Edge2))))
             {
                 List<ChamferJunction> chainJunctions = junctions.Where(j => chain.Contains(j.Edge1)).ToList();
@@ -628,7 +628,7 @@ namespace CADability.GeoObject
                     piece.Tag(extendStart > 0.0, extendEnd > 0.0);
                     pieces[edge] = piece;
                 }
-                if (pieces.Count != chain.Count) continue; // a chamfer could not be made, the edges keep their own cutters
+                if (pieces.Count != chain.Count) continue; // a chamfer could not be made, the edges keep their own tools
                 List<Face> faces = pieces.Values.SelectMany(p => p.Faces).ToList();
                 bool ok = true;
                 foreach (ChamferJunction j in chainJunctions.Where(j => j.Oblique))
@@ -640,9 +640,9 @@ namespace CADability.GeoObject
                 if (!ok) continue;
                 Shell[] sewn = Make3D.SewFaces(faces.ToArray());
                 if (sewn == null || sewn.Length != 1 || sewn[0].HasOpenEdgesExceptPoles()) continue; // the pieces don't fit together
-                Shell cutter = sewn[0];
-                cutter.CopyAttributes(chain[0].PrimaryFace);
-                foreach (Edge edge in chain) edgeToCutter[edge] = cutter;
+                Shell tool = sewn[0];
+                tool.CopyAttributes(chain[0].PrimaryFace);
+                foreach (Edge edge in chain) edgeToTool[edge] = tool;
             }
         }
 
@@ -691,7 +691,7 @@ namespace CADability.GeoObject
             Face commonFace = Face.MakeFace(j.Common.Surface.Clone(), new List<ICurve>([edgePart, commonCurve1.Clone(), commonBoundary, commonCurve2.Clone()]));
             Face side1Face = Face.MakeFace(j.Side1.Surface.Clone(), new List<ICurve>([sideCurve1.Clone(), sideBoundary, tangentPart]));
             Face side2Face = Face.MakeFace(j.Side2.Surface.Clone(), new List<ICurve>([edgePart, tangentPart, sideCurve2.Clone()]));
-            chamferFace.UserData.Add("CADability.Cutter.SweptFace", "chamferface");
+            chamferFace.UserData.Add("CADability.BlendTool.SweptFace", "chamferface");
             return [chamferFace, commonFace, side1Face, side2Face];
         }
 

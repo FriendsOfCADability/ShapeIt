@@ -5607,7 +5607,7 @@ namespace CADability.GeoObject
         /// with the surface <paramref name="onSurface"/>. A curve of an intersection takes its surface from its
         /// <see cref="InterpolatedDualSurfaceCurve"/>. On an edge whose 3d curve is that intersection curve, the clone
         /// rebinds it to the cloned surfaces. But an edge may also carry the curve of another intersection curve, which
-        /// it lies on, e.g. an <see cref="RuledSurface"/> boundary found as the intersection with a face of the cutter.
+        /// it lies on, e.g. an <see cref="RuledSurface"/> boundary found as the intersection with a face of the tool.
         /// A copy of such a curve would still lie on the surface of the original face: reparametrizing the clone, as
         /// <see cref="ReverseOrientation"/> does, would then only move its ends and modify the original. So it is
         /// projected anew onto the cloned surface.

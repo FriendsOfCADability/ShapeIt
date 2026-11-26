@@ -14,7 +14,12 @@ namespace CADability.GeoObject
         public Shell shell;
         public IEnumerable<Edge> convexEdges;
         public IEnumerable<Edge> concaveEdges;
-        public Dictionary<Edge, Shell>? edgeToCutter;
+        /// <summary>
+        /// The tool of each edge: the shell which is the second operand of the boolean operation that blends the edge.
+        /// At a convex edge it is a cutter (material to remove, subtracted from the shell), at a concave edge a filler
+        /// (material to add, united with the shell). Several edges refer to the same tool when it is a chain tool.
+        /// </summary>
+        public Dictionary<Edge, Shell>? edgeToTool;
 
         public BlendEdges(Shell shell, IEnumerable<Edge> edges)
         {
@@ -477,44 +482,44 @@ namespace CADability.GeoObject
 
         }
         /// <summary>
-        /// The blend ends at <paramref name="vtx"/>. The cutter of <paramref name="edge"/> has a planar end face there,
+        /// The blend ends at <paramref name="vtx"/>. The tool of <paramref name="edge"/> has a planar end face there,
         /// perpendicular to the edge. It is trimmed so that it ends where the faces of the edge end:
         /// <list type="bullet">
         /// <item>when there is a single ending face (the normal dead end), it is trimmed by this face (extended)</item>
         /// <item>when there are several ending faces, it is trimmed by the plane spanned by the two edges which continue the
-        /// two faces of the edge at the vertex: the sides of the cutter then end exactly where these faces end.
+        /// two faces of the edge at the vertex: the sides of the tool then end exactly where these faces end.
         /// Extending all the ending faces would give a roof, which leaves parts of the faces of the edge uncovered,
         /// and an ending face may not be extendable at all (a cone beyond its apex)</item>
         /// </list>
         /// Ending faces which touch the vertex only with a singular point (e.g. the apex of a cone) are ignored.
-        /// Where the trimming surface leaves a gap between itself and the end face, the cutter has to reach further: a
-        /// cutter which was rebuilt longer (see <see cref="ExtendCuttersAtDeadEnds"/>) is only trimmed, otherwise the end
+        /// Where the trimming surface leaves a gap between itself and the end face, the tool has to reach further: a
+        /// tool which was rebuilt longer (see <see cref="ExtendToolsAtDeadEnds"/>) is only trimmed, otherwise the end
         /// face is extruded and the extrusion is trimmed as well. The extrusion is only correct, when the faces of the edge
         /// are planes: its sides are straight and leave curved faces tangentially.
         /// </summary>
         protected HashSet<Shell>? createDeadEndExtension(Vertex vtx, Edge edge, double length)
         {   // rounding ends here at vertex vtx. vtx and edge is on the shell to be rounded
-            if (edgeToCutter == null || !edgeToCutter.TryGetValue(edge, out Shell? cutter)) return null; // no cutter for this edge
-            // a chain cutter is the cutter of several edges (see RoundEdges.BuildChainCutters)
-            List<Edge> cutterEdges = edgeToCutter.Where(kv => kv.Value == cutter).Select(kv => kv.Key).ToList();
-            if (RunsOutAt(edge, vtx.Position, out _)) return [cutter]; // the blend ends in a point here, there is no end face to trim
-            Face? endFace = EndFaceAt(cutter, vtx);
-            if (endFace == null) return [cutter]; // should not happen
+            if (edgeToTool == null || !edgeToTool.TryGetValue(edge, out Shell? tool)) return null; // no tool for this edge
+            // a chain tool is the tool of several edges (see RoundEdges.BuildChainTools)
+            List<Edge> toolEdges = edgeToTool.Where(kv => kv.Value == tool).Select(kv => kv.Key).ToList();
+            if (RunsOutAt(edge, vtx.Position, out _)) return [tool]; // the blend ends in a point here, there is no end face to trim
+            Face? endFace = EndFaceAt(tool, vtx);
+            if (endFace == null) return [tool]; // should not happen
             Edge freeEdge = endFace.AllEdges
                 .Where(e => !Precision.IsEqual(e.Vertex1.Position, vtx.Position) && !Precision.IsEqual(e.Vertex2.Position, vtx.Position))
                 .MinBy(e => -new Angle(e.Curve3D.StartPoint - vtx.Position, e.Curve3D.EndPoint - vtx.Position).Radian);
             // the chamfer or rounding edge, the one with the widest opening angle to the vertex (and not coinciding with the vertex)
-            if (freeEdge == null) return [cutter]; // should not happen
+            if (freeEdge == null) return [tool]; // should not happen
             List<ISurface>? trimBy = DeadEndTrimSurfaces(vtx, edge, endFace);
-            if (trimBy == null || trimBy.Count == 0) return [cutter]; // end straight with the end face of the cutter
+            if (trimBy == null || trimBy.Count == 0) return [tool]; // end straight with the end face of the tool
             // beamDirection: the direction where the fillet is pointing to
             GeoVector beamDirection = EndFaceNormal(endFace, vtx);
-            bool extended = endFace.UserData.Contains("CADability.Cutter.Extended"); // the cutter already reaches beyond the vertex
+            bool extended = endFace.UserData.Contains("CADability.BlendTool.Extended"); // the tool already reaches beyond the vertex
             Shell? extension = extended ? null : (Make3D.Extrude(endFace.Clone(), 3 * length * beamDirection, null) as Solid)?.Shells[0];
             bool useExtension = false;
-            // extension of the cutter, maybe we need part of it
+            // extension of the tool, maybe we need part of it
             foreach (ISurface surface in trimBy)
-            {   // with this surface we try to trim the cutter or the extension
+            {   // with this surface we try to trim the tool or the extension
                 GeoPoint2D ip1 = surface.PositionOf(vtx.Position); // vtx is on surface
                 if (surface.GetNormal(ip1) * beamDirection < 0) surface.ReverseOrientation(); // below is good, above is bad
                 GeoPoint2D ip2 = surface.GetLineIntersection(freeEdge.Curve3D.StartPoint, beamDirection).MinByWithDefault(GeoPoint2D.Invalid, uv => surface.PointAt(uv) | vtx.Position);
@@ -523,12 +528,12 @@ namespace CADability.GeoObject
                 {
                     surface.SetDomainTo(vtx.Position, surface.PointAt(ip2), surface.PointAt(ip3));
                     Face splitWith = MakeBigFace(surface);
-                    (Shell[] upperPart, Shell[] lowerPart) = BooleanOperation.SplitByFace(cutter, splitWith);
+                    (Shell[] upperPart, Shell[] lowerPart) = BooleanOperation.SplitByFace(tool, splitWith);
                     if (upperPart.Length > 0 && lowerPart.Length > 0)
-                    {   // the ending face did split the cutter
-                        cutter.UserData.Add("CADability.ReplaceShellBy", lowerPart[0]);
-                        cutter = lowerPart[0];
-                        foreach (Edge e in cutterEdges) edgeToCutter[e] = cutter; // overwrite existing
+                    {   // the ending face did split the tool
+                        tool.UserData.Add("CADability.ReplaceShellBy", lowerPart[0]);
+                        tool = lowerPart[0];
+                        foreach (Edge e in toolEdges) edgeToTool[e] = tool; // overwrite existing
                     }
                     if (extension != null)
                     {
@@ -541,20 +546,20 @@ namespace CADability.GeoObject
                     }
                 }
             }
-            if (extended) AnnotateCutter(cutter, cutterEdges); // the trimmed cutter is a new shell, its edges have no hints yet
-            if (useExtension && extension != null) return [cutter, extension];
-            else return [cutter];
+            if (extended) AnnotateTool(tool, toolEdges); // the trimmed tool is a new shell, its edges have no hints yet
+            if (useExtension && extension != null) return [tool, extension];
+            else return [tool];
         }
 
         /// <summary>
-        /// Stores the hints for the <see cref="BooleanOperation"/> in the user data of <paramref name="cutter"/>, which
-        /// blends <paramref name="edge"/>: the edges between the blend face and the parts of the cutter on the two faces
+        /// Stores the hints for the <see cref="BooleanOperation"/> in the user data of <paramref name="tool"/>, which
+        /// blends <paramref name="edge"/>: the edges between the blend face and the parts of the tool on the two faces
         /// of the edge lie in these faces (a tangential intersection, which is hard to calculate), the edges between the
         /// blend face and an end face end in them.
         /// </summary>
-        private static void AnnotateCutter(Shell cutter, List<Edge> edges)
+        private static void AnnotateTool(Shell tool, List<Edge> edges)
         {
-            List<Face> sweptFaces = cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).ToList();
+            List<Face> sweptFaces = tool.Faces.Where(f => f.UserData.Contains("CADability.BlendTool.SweptFace")).ToList();
             edges = edges.Where(e => e.SecondaryFace != null).ToList();
             if (sweptFaces.Count == 0 || edges.Count == 0) return;
             Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace = [];
@@ -567,14 +572,14 @@ namespace CADability.GeoObject
                     Face other = e.OtherFace(sweptFace);
                     if (other == null) continue;
                     GeoPoint m = e.Curve3D.PointAt(0.5);
-                    if (other.UserData.Contains("CADability.Cutter.EndFace"))
+                    if (other.UserData.Contains("CADability.BlendTool.EndFace"))
                     {   // the end of the fillet of the edge closest to it (with a single edge: of this edge)
                         Edge edge = edges.Count == 1 ? edges[0] : edges.MinBy(ed => ed.Curve3D.DistanceTo(m))!;
                         edgeEndsInFace[e] = [edge.PrimaryFace, edge.SecondaryFace];
                         continue;
                     }
                     foreach (Face face in edges.SelectMany(ed => new[] { ed.PrimaryFace, ed.SecondaryFace }).Distinct())
-                    {   // the part of the cutter on this face: same surface (the normals may be opposite, depending on convexity)
+                    {   // the part of the tool on this face: same surface (the normals may be opposite, depending on convexity)
                         if (face.Surface.GetDistance(m) < 10 * Precision.eps && Math.Abs(NormalAt(face, m) * NormalAt(other, m)) > 1 - 1e-6)
                         {
                             edgeLiesInFace[e] = (face, e.Forward(other));
@@ -583,35 +588,35 @@ namespace CADability.GeoObject
                     }
                 }
             }
-            cutter.UserData.Add("CADability.Cutter.EdgeLiesInFace", edgeLiesInFace);
-            cutter.UserData.Add("CADability.Cutter.EdgeEndsInFace", edgeEndsInFace);
+            tool.UserData.Add("CADability.BlendTool.EdgeLiesInFace", edgeLiesInFace);
+            tool.UserData.Add("CADability.BlendTool.EdgeEndsInFace", edgeEndsInFace);
         }
 
         /// <summary>
-        /// The end face of <paramref name="cutter"/> at <paramref name="vtx"/>: the one with a vertex closest to it. (The
+        /// The end face of <paramref name="tool"/> at <paramref name="vtx"/>: the one with a vertex closest to it. (The
         /// distance to the plane of the end face is no good criterion: both end planes of a half circle edge coincide.)
         /// </summary>
-        protected static Face? EndFaceAt(Shell cutter, Vertex vtx)
+        protected static Face? EndFaceAt(Shell tool, Vertex vtx)
         {
-            return cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.EndFace"))
+            return tool.Faces.Where(f => f.UserData.Contains("CADability.BlendTool.EndFace"))
                 .MinBy(f => f.Vertices.Min(v => v.Position | vtx.Position));
         }
 
         /// <summary>
-        /// The swept face of <paramref name="cutter"/> which ends at <paramref name="vtx"/>: the one next to the end face at the
-        /// vertex. A chain cutter (see RoundEdges.BuildChainCutters) has a swept face for each edge of the chain.
+        /// The swept face of <paramref name="tool"/> which ends at <paramref name="vtx"/>: the one next to the end face at the
+        /// vertex. A chain tool (see RoundEdges.BuildChainTools) has a swept face for each edge of the chain.
         /// </summary>
-        protected static Face? SweptFaceAt(Shell cutter, Vertex vtx)
+        protected static Face? SweptFaceAt(Shell tool, Vertex vtx)
         {
-            List<Face> sweptFaces = cutter.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).ToList();
+            List<Face> sweptFaces = tool.Faces.Where(f => f.UserData.Contains("CADability.BlendTool.SweptFace")).ToList();
             if (sweptFaces.Count <= 1) return sweptFaces.FirstOrDefault();
-            Face? endFace = EndFaceAt(cutter, vtx);
+            Face? endFace = EndFaceAt(tool, vtx);
             if (endFace == null) return null;
             return endFace.AllEdges.Select(e => e.OtherFace(endFace)).FirstOrDefault(f => f != null && sweptFaces.Contains(f));
         }
 
         /// <summary>
-        /// The normal of the planar end face, pointing away from the cutter, i.e. along the edge beyond the vertex.
+        /// The normal of the planar end face, pointing away from the tool, i.e. along the edge beyond the vertex.
         /// </summary>
         private static GeoVector EndFaceNormal(Face endFace, Vertex vtx)
         {
@@ -619,9 +624,9 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// The surfaces, with which the cutter of <paramref name="edge"/> is trimmed at the dead end <paramref name="vtx"/>
+        /// The surfaces, with which the tool of <paramref name="edge"/> is trimmed at the dead end <paramref name="vtx"/>
         /// (see <see cref="createDeadEndExtension"/>): the single ending face or the plane of the two continuing edges.
-        /// An empty list, if the cutter ends straight with its end face. The surfaces are clones, they may be modified.
+        /// An empty list, if the tool ends straight with its end face. The surfaces are clones, they may be modified.
         /// </summary>
         private List<ISurface>? DeadEndTrimSurfaces(Vertex vtx, Edge edge, Face endFace)
         {
@@ -640,7 +645,7 @@ namespace CADability.GeoObject
             endingFaces.RemoveWhere(f => IsSingularAt(f, vtx));
             // a face which continues one of the faces of the edge tangentially (e.g. a plane after a toroidal corner) is no
             // wall where the blend ends: the edge continues with an unselected edge of a tangent chain. Trimming by such a
-            // face is meaningless (it is almost parallel to the cutter), the blend ends straight with its end face.
+            // face is meaningless (it is almost parallel to the tool), the blend ends straight with its end face.
             endingFaces.RemoveWhere(f => SameNormal(NormalAt(f, vtx.Position), NormalAt(edge.PrimaryFace, vtx.Position))
                 || (edge.SecondaryFace != null && SameNormal(NormalAt(f, vtx.Position), NormalAt(edge.SecondaryFace, vtx.Position))));
             List<ISurface> trimBy = [];
@@ -649,24 +654,24 @@ namespace CADability.GeoObject
             {   // the plane spanned by the edges, which continue the two faces of the edge at the vertex
                 Edge? side1 = vertexEdges.Where(e => e != edge && (e.PrimaryFace == edge.PrimaryFace || e.SecondaryFace == edge.PrimaryFace)).TheOnlyOrDefault();
                 Edge? side2 = vertexEdges.Where(e => e != edge && (e.PrimaryFace == edge.SecondaryFace || e.SecondaryFace == edge.SecondaryFace)).TheOnlyOrDefault();
-                if (side1 == null || side2 == null) return trimBy; // end straight with the end face of the cutter
+                if (side1 == null || side2 == null) return trimBy; // end straight with the end face of the tool
                 GeoVector normal = DirectionFrom(side1, vtx) ^ DirectionFrom(side2, vtx);
                 if (normal.Length < Precision.eps) return trimBy; // degenerate, end straight
                 if (endFace.Surface is PlaneSurface endPlane && Precision.SameDirection(normal, endPlane.Normal, false)
                     && Math.Abs(endPlane.GetDistance(vtx.Position)) < Precision.eps)
-                    return trimBy; // the cutter already ends in this plane
+                    return trimBy; // the tool already ends in this plane
                 trimBy.Add(new PlaneSurface(new Plane(vtx.Position, normal)));
             }
             return trimBy;
         }
 
         /// <summary>
-        /// Rebuilds the cutter of <paramref name="edge"/> so that it reaches the provided distance beyond the vertices of
+        /// Rebuilds the tool of <paramref name="edge"/> so that it reaches the provided distance beyond the vertices of
         /// <paramref name="extensions"/> (along the edge). The end faces of the extended ends must be marked with the user
-        /// data "CADability.Cutter.Extended". Returns null, if this kind of blend cannot do it: the dead ends are then
+        /// data "CADability.BlendTool.Extended". Returns null, if this kind of blend cannot do it: the dead ends are then
         /// filled with an extruded end face.
         /// </summary>
-        protected virtual Shell? MakeExtendedCutter(Edge edge, Dictionary<Vertex, double> extensions)
+        protected virtual Shell? MakeExtendedTool(Edge edge, Dictionary<Vertex, double> extensions)
         {
             return null;
         }
@@ -675,7 +680,7 @@ namespace CADability.GeoObject
         /// Extends <paramref name="curve"/>, the intersection curve of <paramref name="surface1"/> and <paramref name="surface2"/>,
         /// by about <paramref name="extendStart"/> beyond its start point and <paramref name="extendEnd"/> beyond its end point.
         /// The domains are enlarged to contain the extended curve. Returns null, if the intersection cannot be followed.
-        /// Used by <see cref="MakeExtendedCutter"/> to make the cutter along a longer edge.
+        /// Used by <see cref="MakeExtendedTool"/> to make the tool along a longer edge.
         /// </summary>
         protected ICurve? ExtendIntersectionCurve(ICurve curve, ISurface surface1, ref BoundingRect domain1, ISurface surface2, ref BoundingRect domain2,
             double extendStart, double extendEnd)
@@ -715,41 +720,41 @@ namespace CADability.GeoObject
 
         /// <summary>
         /// At the dead ends of <paramref name="vertexToEdges"/> (vertices with only one blended edge) the surface which
-        /// trims the cutter (see <see cref="createDeadEndExtension"/>) is usually not the end plane of the cutter, there
-        /// is a gap between them on one side. The cutters are rebuilt (<see cref="MakeExtendedCutter"/>) so that they reach
+        /// trims the tool (see <see cref="createDeadEndExtension"/>) is usually not the end plane of the tool, there
+        /// is a gap between them on one side. The tools are rebuilt (<see cref="MakeExtendedTool"/>) so that they reach
         /// beyond this surface, then trimming them closes the gap with the real faces of the blend.
         /// </summary>
-        /// <returns>the extensions per edge and vertex, also those where rebuilding the cutter failed</returns>
-        protected Dictionary<Edge, Dictionary<Vertex, double>> ExtendCuttersAtDeadEnds(IEnumerable<KeyValuePair<Vertex, List<Edge>>> vertexToEdges)
+        /// <returns>the extensions per edge and vertex, also those where rebuilding the tool failed</returns>
+        protected Dictionary<Edge, Dictionary<Vertex, double>> ExtendToolsAtDeadEnds(IEnumerable<KeyValuePair<Vertex, List<Edge>>> vertexToEdges)
         {
             Dictionary<Edge, Dictionary<Vertex, double>> extensions = [];
-            if (edgeToCutter == null) return extensions;
+            if (edgeToTool == null) return extensions;
             foreach (KeyValuePair<Vertex, List<Edge>> ve in vertexToEdges)
             {
                 if (ve.Value.Count != 1) continue;
                 Edge edge = ve.Value[0];
                 if (RunsOutAt(edge, ve.Key.Position, out _)) continue; // the blend ends in a point here
-                Shell? cutter = CutterOf(edge);
-                if (cutter == null) continue;
-                Face? endFace = EndFaceAt(cutter, ve.Key);
+                Shell? tool = ToolOf(edge);
+                if (tool == null) continue;
+                Face? endFace = EndFaceAt(tool, ve.Key);
                 if (endFace == null) continue;
                 List<ISurface>? trimBy = DeadEndTrimSurfaces(ve.Key, edge, endFace);
                 if (trimBy == null || trimBy.Count == 0) continue;
                 double needed = GapToTrimSurfaces(endFace, ve.Key, trimBy);
-                if (needed <= 0.0) continue; // the cutter already reaches the trimming surface everywhere
+                if (needed <= 0.0) continue; // the tool already reaches the trimming surface everywhere
                 if (!extensions.TryGetValue(edge, out Dictionary<Vertex, double>? ext)) extensions[edge] = ext = [];
                 ext[ve.Key] = needed;
             }
             foreach (KeyValuePair<Edge, Dictionary<Vertex, double>> kv in extensions)
             {
-                Shell? extended = MakeExtendedCutter(kv.Key, kv.Value);
-                if (extended != null) edgeToCutter[kv.Key] = extended;
+                Shell? extended = MakeExtendedTool(kv.Key, kv.Value);
+                if (extended != null) edgeToTool[kv.Key] = extended;
             }
             return extensions;
         }
 
         /// <summary>
-        /// How far the cutter must be extended beyond its end face at <paramref name="vtx"/> to reach the trimming surfaces
+        /// How far the tool must be extended beyond its end face at <paramref name="vtx"/> to reach the trimming surfaces
         /// everywhere: the largest distance along the end face normal from the boundary of the end face to the trimming
         /// surfaces, plus a margin. 0, if the end face is beyond the trimming surfaces everywhere.
         /// </summary>
@@ -775,7 +780,7 @@ namespace CADability.GeoObject
                 }
             }
             if (needed < Precision.eps) return 0.0;
-            return needed + 0.25 * size; // a margin, so that the trimming surface cuts the cutter completely
+            return needed + 0.25 * size; // a margin, so that the trimming surface cuts the tool completely
         }
 
         /// <summary>
@@ -801,10 +806,10 @@ namespace CADability.GeoObject
         }
         protected HashSet<Shell>? createExtensionTwoEdges(Vertex vtx, Edge edge1, Edge edge2, double length)
         {
-            Shell? fillet1 = CutterOf(edge1);
-            Shell? fillet2 = CutterOf(edge2);
+            Shell? fillet1 = ToolOf(edge1);
+            Shell? fillet2 = ToolOf(edge2);
             if (fillet1 == null || fillet2 == null) return null;
-            if (fillet1 == fillet2) return [fillet1]; // both edges are part of one chain cutter, it is already connected here
+            if (fillet1 == fillet2) return [fillet1]; // both edges are part of one chain tool, it is already connected here
             Face? commonFace = Edge.CommonFace(edge1, edge2);
             Edge? thirdEdge = vtx.AllEdges.Except([edge1, edge2]).TheOnlyOrDefault();
             // in most cases we have a vertex with three faces meeting, so one common face and one third edge
@@ -911,11 +916,11 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// The cutter of this edge, null if there is none (creating it may have failed).
+        /// The tool of this edge, null if there is none (creating it may have failed).
         /// </summary>
-        protected Shell? CutterOf(Edge edge)
+        protected Shell? ToolOf(Edge edge)
         {
-            if (edgeToCutter != null && edgeToCutter.TryGetValue(edge, out Shell? cutter)) return cutter;
+            if (edgeToTool != null && edgeToTool.TryGetValue(edge, out Shell? tool)) return tool;
             return null;
         }
 
@@ -963,7 +968,7 @@ namespace CADability.GeoObject
 
         protected void Combine(List<HashSet<Shell>> sets)
         {
-            // some cutter shells may have been splitted and we have the unsplitted part in the set, so replace it
+            // some tool shells may have been splitted and we have the unsplitted part in the set, so replace it
             for (int i = 0; i < sets.Count; i++)
             {
                 foreach (Shell shell in sets[i].Clone())

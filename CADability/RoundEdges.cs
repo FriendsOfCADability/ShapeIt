@@ -74,10 +74,10 @@ namespace CADability.GeoObject
             // 1. make a raw fillet for each edge. The fillet is a swept circle around a spine curve. The spine curve is the intersection
             // of two offset surfaces of the adjacent faces. The fillet starts and ends with a circular arc and has two tangential edges to the adjacent faces.
             // Later we have to trim or extent the fillet faces to get a proper result. The end vertices of the edge lie in the planes of the front arcs.
-            edgeToCutter = createFillets();
+            edgeToTool = createFillets();
 #if DEBUG
             DebuggerContainer dcRaw = new DebuggerContainer();
-            foreach (var item in edgeToCutter)
+            foreach (var item in edgeToTool)
             {
                 dcRaw.Add(item.Value, Color.FromArgb(0xFF, 0xFF, 0x00, 0x00), 0);
             }
@@ -86,12 +86,12 @@ namespace CADability.GeoObject
             Dictionary<Vertex, List<Edge>> vertexToConvexEdges = createVertexToEdges(convexEdges);
             Dictionary<Vertex, List<Edge>> vertexToConcaveEdges = createVertexToEdges(concaveEdges);
             // at the dead ends the fillets must reach beyond the vertex, so that trimming them with the ending face closes the gap
-            Dictionary<Edge, Dictionary<Vertex, double>> deadEndExtensions = ExtendCuttersAtDeadEnds(vertexToConvexEdges.Concat(vertexToConcaveEdges));
-            // fillets which continue each other tangentially are made as one cutter
-            BuildChainCutters(FindTangentJunctions(vertexToConvexEdges.Concat(vertexToConcaveEdges)), deadEndExtensions);
+            Dictionary<Edge, Dictionary<Vertex, double>> deadEndExtensions = ExtendToolsAtDeadEnds(vertexToConvexEdges.Concat(vertexToConcaveEdges));
+            // fillets which continue each other tangentially are made as one tool
+            BuildChainTools(FindTangentJunctions(vertexToConvexEdges.Concat(vertexToConcaveEdges)), deadEndExtensions);
 
-            List<HashSet<Shell>> convexRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
-            List<HashSet<Shell>> concaveRoundingShells = []; // each hashset contains the faces of one rounding shell: the fillet and maybe some patches
+            List<HashSet<Shell>> cutters = []; // convex edges: each set contains the shells of one cutter (material to remove), the fillet tool and maybe some patches
+            List<HashSet<Shell>> fillers = []; // concave edges: each set contains the shells of one filler (material to add), the fillet tool and maybe some patches
             foreach (var ve in vertexToConvexEdges.Concat(vertexToConcaveEdges))
             {
                 HashSet<Shell>? filletAndExtension = null;
@@ -110,26 +110,26 @@ namespace CADability.GeoObject
                 }
                 if (filletAndExtension != null)
                 {
-                    if (convexEdges.Contains(ve.Value[0])) convexRoundingShells.Add(filletAndExtension);
-                    else concaveRoundingShells.Add(filletAndExtension);
+                    if (convexEdges.Contains(ve.Value[0])) cutters.Add(filletAndExtension);
+                    else fillers.Add(filletAndExtension);
                 }
             }
-            Combine(convexRoundingShells);
-            Combine(concaveRoundingShells);
+            Combine(cutters);
+            Combine(fillers);
 
             // here we have the convex rounded edges as shells, which have to be subtracted from the shell on which the edges are to be rounded
             Dictionary<Edge, Edge> clonedEdges = [];
             Dictionary<Vertex, Vertex> clonedVertices = [];
             Dictionary<Face, Face> originalToModified = [];
             Shell? toOperateOn = shell.Clone(clonedEdges, clonedVertices, originalToModified);
-            for (int i = 0; i < convexRoundingShells.Count; i++)
+            for (int i = 0; i < cutters.Count; i++)
             {
-                foreach (var item in convexRoundingShells[i])
+                foreach (var item in cutters[i])
                 {
                     BooleanOperation bo = new BooleanOperation();
                     bo.SetShells(toOperateOn, item, BooleanOperation.Operation.difference);
-                    var edgeLiesInFace = item.UserData.GetData("CADability.Cutter.EdgeLiesInFace") as Dictionary<Edge, (Face face, bool forward)>;
-                    var edgeEndsInFace = item.UserData.GetData("CADability.Cutter.EdgeEndsInFace") as Dictionary<Edge, HashSet<Face>>;
+                    var edgeLiesInFace = item.UserData.GetData("CADability.BlendTool.EdgeLiesInFace") as Dictionary<Edge, (Face face, bool forward)>;
+                    var edgeEndsInFace = item.UserData.GetData("CADability.BlendTool.EdgeEndsInFace") as Dictionary<Edge, HashSet<Face>>;
                     if (edgeLiesInFace != null && edgeEndsInFace != null)
                     {
                         if (originalToModified != null)
@@ -151,15 +151,15 @@ namespace CADability.GeoObject
                     else return null; // the boolean operation failed: a partially rounded shell would look like a valid result
                 }
             }
-            for (int i = 0; i < concaveRoundingShells.Count; i++)
+            for (int i = 0; i < fillers.Count; i++)
             {
-                foreach (var item in concaveRoundingShells[i])
+                foreach (var item in fillers[i])
                 {
                     BooleanOperation bo = new BooleanOperation();
                     bo.SetShells(toOperateOn, item, BooleanOperation.Operation.union);
 
-                    var edgeLiesInFace = item.UserData.GetData("CADability.Cutter.EdgeLiesInFace") as Dictionary<Edge, (Face face, bool forward)>;
-                    var edgeEndsInFace = item.UserData.GetData("CADability.Cutter.EdgeEndsInFace") as Dictionary<Edge, HashSet<Face>>;
+                    var edgeLiesInFace = item.UserData.GetData("CADability.BlendTool.EdgeLiesInFace") as Dictionary<Edge, (Face face, bool forward)>;
+                    var edgeEndsInFace = item.UserData.GetData("CADability.BlendTool.EdgeEndsInFace") as Dictionary<Edge, HashSet<Face>>;
                     if (edgeLiesInFace != null && edgeEndsInFace != null)
                     {
                         if (originalToModified != null)
@@ -188,9 +188,9 @@ namespace CADability.GeoObject
         private HashSet<Shell>? createExtensionThreeEdges(Vertex vtx, Edge edge1, Edge edge2, Edge edge3)
         {
             // find the fillets for these edges
-            Shell? fillet1 = CutterOf(edge1);
-            Shell? fillet2 = CutterOf(edge2);
-            Shell? fillet3 = CutterOf(edge3);
+            Shell? fillet1 = ToolOf(edge1);
+            Shell? fillet2 = ToolOf(edge2);
+            Shell? fillet3 = ToolOf(edge3);
             if (fillet1 == null || fillet2 == null || fillet3 == null) return null;
 
             // find the end faces of the fillets at this vertex
@@ -287,8 +287,8 @@ namespace CADability.GeoObject
             else if (edge1.StartVertex(commonFace) == edge2.EndVertex(commonFace)) forwardConnected = false;
             else return null; // edges are not connected properly
             double orientation = (forwardConnected ? 1 : -1) * normalCommon * (normal1 ^ normal2); // >0: convex, <0: concave, ==0: tangential
-            Face? fillet1 = fillet1Shell.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
-            Face? fillet2 = fillet2Shell.Faces.Where(f => f.UserData.Contains("CADability.Cutter.SweptFace")).TheOnlyOrDefault();
+            Face? fillet1 = fillet1Shell.Faces.Where(f => f.UserData.Contains("CADability.BlendTool.SweptFace")).TheOnlyOrDefault();
+            Face? fillet2 = fillet2Shell.Faces.Where(f => f.UserData.Contains("CADability.BlendTool.SweptFace")).TheOnlyOrDefault();
             ICurve? spine1 = (fillet1.Surface as ISurfaceOfExtrusion)?.Axis(fillet1.Domain);
             ICurve? spine2 = (fillet2.Surface as ISurfaceOfExtrusion)?.Axis(fillet2.Domain);
             // the fillets "overshoot" the leading edge, which they are rounding, so we should find an intersection with the third edge.
@@ -565,36 +565,36 @@ namespace CADability.GeoObject
             public Face? LeftEndFace, RightEndFace; // null where the fillet runs out or ends in a tangential junction
             public bool Extended;
             /// <summary>curves which lie in a face of the shell, in the order of their priority (a later one overrides an earlier one)</summary>
-            public List<(ICurve curve, Face shellFace, Face cutterFace)> LiesInFace = [];
+            public List<(ICurve curve, Face shellFace, Face toolFace)> LiesInFace = [];
             /// <summary>curves which end in the two faces of the edge</summary>
             public List<ICurve> EndsInFaces = [];
 
             public void Tag(bool extendedStart, bool extendedEnd)
             {
-                RightEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface"); // categorize faces
-                LeftEndFace?.UserData.Add("CADability.Cutter.EndFace", "endface");
-                if (extendedStart) LeftEndFace?.UserData.Add("CADability.Cutter.Extended", "extended"); // reaches beyond the edge
-                if (extendedEnd) RightEndFace?.UserData.Add("CADability.Cutter.Extended", "extended");
-                SweptFace.UserData.Add("CADability.Cutter.SweptFace", "sweptface");
+                RightEndFace?.UserData.Add("CADability.BlendTool.EndFace", "endface"); // categorize faces
+                LeftEndFace?.UserData.Add("CADability.BlendTool.EndFace", "endface");
+                if (extendedStart) LeftEndFace?.UserData.Add("CADability.BlendTool.Extended", "extended"); // reaches beyond the edge
+                if (extendedEnd) RightEndFace?.UserData.Add("CADability.BlendTool.Extended", "extended");
+                SweptFace.UserData.Add("CADability.BlendTool.SweptFace", "sweptface");
             }
         }
 
         /// <summary>
-        /// The edges play a role in the BooleanOperation, so we store which edge of <paramref name="cutter"/> lies or ends
+        /// The edges play a role in the BooleanOperation, so we store which edge of <paramref name="tool"/> lies or ends
         /// in which face: the BooleanOperation doesn't need to calculate intersections which are already known.
         /// </summary>
-        private static void AddHints(Shell cutter, IEnumerable<FilletPiece> pieces)
+        private static void AddHints(Shell tool, IEnumerable<FilletPiece> pieces)
         {
             Dictionary<Edge, (Face face, bool forward)> edgeLiesInFace = [];
             Dictionary<Edge, HashSet<Face>> edgeEndsInFace = [];
-            foreach (Edge edg in cutter.Edges)
+            foreach (Edge edg in tool.Edges)
             {
                 if (edg.Curve3D == null) continue;
                 foreach (FilletPiece piece in pieces)
                 {
-                    foreach ((ICurve curve, Face shellFace, Face cutterFace) in piece.LiesInFace)
+                    foreach ((ICurve curve, Face shellFace, Face toolFace) in piece.LiesInFace)
                     {
-                        if (edg.Curve3D.SameGeometry(curve, Precision.eps)) edgeLiesInFace[edg] = (shellFace, edg.Forward(cutterFace));
+                        if (edg.Curve3D.SameGeometry(curve, Precision.eps)) edgeLiesInFace[edg] = (shellFace, edg.Forward(toolFace));
                     }
                     foreach (ICurve curve in piece.EndsInFaces)
                     {
@@ -602,8 +602,8 @@ namespace CADability.GeoObject
                     }
                 }
             }
-            cutter.UserData.Add("CADability.Cutter.EdgeLiesInFace", edgeLiesInFace);
-            cutter.UserData.Add("CADability.Cutter.EdgeEndsInFace", edgeEndsInFace);
+            tool.UserData.Add("CADability.BlendTool.EdgeLiesInFace", edgeLiesInFace);
+            tool.UserData.Add("CADability.BlendTool.EdgeEndsInFace", edgeEndsInFace);
         }
 
         /// <summary>
@@ -987,12 +987,12 @@ namespace CADability.GeoObject
         /// edge is not perpendicular to the common face, this cross section is not the plane through the vertex perpendicular
         /// to the spines, where the fillets end otherwise: there would be a gap on one side and an overlap on the other,
         /// and no planar end of the fillets can fit, since the faces of the shell change along the (oblique) tangent edge.
-        /// Therefore the fillets of such a chain are made as one cutter (see <see cref="BuildChainCutters"/>): the faces
+        /// Therefore the fillets of such a chain are made as one tool (see <see cref="BuildChainTools"/>): the faces
         /// of the fillets on the shell end in the tangent edge (from the vertex to the contact point of the ball) and in a
         /// curve on the common face (from the vertex to the other contact point), the swept faces end in the arc of the
         /// common ball. There are no end faces in between. This is done for all tangential junctions, also where planar
-        /// ends would fit (a perpendicular tangent edge, a seam of one surface): one cutter for a whole chain carries the
-        /// connections of its faces, which the BooleanOperation would otherwise have to find again between separate cutters.
+        /// ends would fit (a perpendicular tangent edge, a seam of one surface): one tool for a whole chain carries the
+        /// connections of its faces, which the BooleanOperation would otherwise have to find again between separate tools.
         /// The tangent edge may also be the seam between two faces of the same surface (e.g. two halves of a cylinder).
         /// </summary>
         private class TangentJunction
@@ -1102,14 +1102,14 @@ namespace CADability.GeoObject
         }
 
         /// <summary>
-        /// Makes one cutter for each chain of edges connected by <paramref name="junctions"/>, see <see cref="TangentJunction"/>.
+        /// Makes one tool for each chain of edges connected by <paramref name="junctions"/>, see <see cref="TangentJunction"/>.
         /// The fillets of the chain are made with <see cref="MakeFilletPiece"/> and sewn together. All edges of the chain
-        /// refer to this cutter in <see cref="BlendEdges.edgeToCutter"/>. When something fails, the edges keep their own cutters.
-        /// <paramref name="extensions"/> are the extensions at the dead ends (see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>).
+        /// refer to this tool in <see cref="BlendEdges.edgeToTool"/>. When something fails, the edges keep their own tools.
+        /// <paramref name="extensions"/> are the extensions at the dead ends (see <see cref="BlendEdges.ExtendToolsAtDeadEnds"/>).
         /// </summary>
-        private void BuildChainCutters(List<TangentJunction> junctions, Dictionary<Edge, Dictionary<Vertex, double>> extensions)
+        private void BuildChainTools(List<TangentJunction> junctions, Dictionary<Edge, Dictionary<Vertex, double>> extensions)
         {
-            if (edgeToCutter == null || junctions.Count == 0) return;
+            if (edgeToTool == null || junctions.Count == 0) return;
             foreach (List<Edge> chain in Chains(junctions.Select(j => (j.Edges[0], j.Edges[1]))))
             {
                 List<FilletPiece> pieces = [];
@@ -1125,21 +1125,21 @@ namespace CADability.GeoObject
                     piece.Tag(extendStart > 0.0, extendEnd > 0.0);
                     pieces.Add(piece);
                 }
-                if (pieces.Count != chain.Count) continue; // a fillet could not be made, the edges keep their own cutters
+                if (pieces.Count != chain.Count) continue; // a fillet could not be made, the edges keep their own tools
                 Shell[] sewn = Make3D.SewFaces(pieces.SelectMany(p => p.Faces).ToArray());
                 if (sewn == null || sewn.Length != 1 || sewn[0].HasOpenEdgesExceptPoles()) continue; // the pieces don't fit together
-                Shell cutter = sewn[0];
-                if (!pieces.Any(p => p.Extended)) AddHints(cutter, pieces);
-                cutter.CopyAttributes(pieces[0].Edge.PrimaryFace);
-                foreach (FilletPiece piece in pieces) edgeToCutter[piece.Edge] = cutter;
+                Shell tool = sewn[0];
+                if (!pieces.Any(p => p.Extended)) AddHints(tool, pieces);
+                tool.CopyAttributes(pieces[0].Edge.PrimaryFace);
+                foreach (FilletPiece piece in pieces) edgeToTool[piece.Edge] = tool;
             }
         }
 
         /// <summary>
         /// Rebuilds the fillet of <paramref name="edge"/> along a longer edge, which reaches the provided distances beyond
-        /// the vertices of the edge, see <see cref="BlendEdges.ExtendCuttersAtDeadEnds"/>.
+        /// the vertices of the edge, see <see cref="BlendEdges.ExtendToolsAtDeadEnds"/>.
         /// </summary>
-        protected override Shell? MakeExtendedCutter(Edge edge, Dictionary<Vertex, double> extensions)
+        protected override Shell? MakeExtendedTool(Edge edge, Dictionary<Vertex, double> extensions)
         {
             // MakeFilletShell works on the edge oriented forward on the primary face
             Vertex start = edge.StartVertex(edge.PrimaryFace);

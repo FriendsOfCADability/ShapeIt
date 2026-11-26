@@ -170,7 +170,7 @@ public static class SurfaceIntersectionFootPoint
 
         var sol = result.MinimizingPoint;
         // LM reports convergence as soon as the squared residual is below functionTolerance, i.e. with residuals of
-        // about 1e-7. f is taken from s1, so it may be that far off s2 (a fillet cutter, whose end arcs are built
+        // about 1e-7. f is taken from s1, so it may be that far off s2 (a fillet tool, whose end arcs are built
         // around f, then sticks out of a face it should touch tangentially). A few full Newton steps on the same
         // square system bring the residual down to rounding errors
         double norm = polish ? Residual(sol).L2Norm() : 0.0;
