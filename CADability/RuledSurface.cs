@@ -1,4 +1,4 @@
-﻿using CADability.Curve2D;
+using CADability.Curve2D;
 using CADability.GeoObject;
 using CADability.UserInterface;
 using System;
@@ -442,7 +442,7 @@ namespace CADability
         /// <returns></returns>
         public override IDualSurfaceCurve[] GetPlaneIntersection(PlaneSurface pl, double umin, double umax, double vmin, double vmax, double precision)
         {
-            return ExactPlaneIntersection(pl, umin, umax) ?? base.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
+            return ExactPlaneIntersection(pl, umin, umax, vmin, vmax) ?? base.GetPlaneIntersection(pl, umin, umax, vmin, vmax, precision);
         }
 
         /// <summary>
@@ -450,7 +450,7 @@ namespace CADability
         /// to the plane, or two planar curves in planes parallel to each other and perpendicular to the plane (the intersection
         /// is a curve of constant v). Null, if none of these cases applies.
         /// </summary>
-        private IDualSurfaceCurve[] ExactPlaneIntersection(PlaneSurface pl, double umin, double umax)
+        private IDualSurfaceCurve[] ExactPlaneIntersection(PlaneSurface pl, double umin, double umax, double vmin, double vmax)
         {
             if (firstCurve is Line && secondCurve is Line)
             {
@@ -521,7 +521,7 @@ namespace CADability
                 }
                 if (ps1 == PlanarState.Planar)
                 {
-                    if (!Precision.IsPerpendicular(firstCurve.GetPlane().Normal, pl.Normal, false))
+                    if (!Precision.SameDirection(firstCurve.GetPlane().Normal, pl.Normal, false))
                     { // first curve not parallel to plane: no fixed v intersection
                         ok = false;
                     }
@@ -529,21 +529,21 @@ namespace CADability
                 else
                 {
                     if (!Precision.IsPerpendicular(firstCurve.StartDirection, pl.Normal, false))
-                    { // first curve parallel to plane: no fixed v intersection
+                    { // first curve (a line) not parallel to plane: no fixed v intersection
                         ok = false;
                     }
                 }
                 if (ps2 == PlanarState.Planar)
                 {
-                    if (!Precision.IsPerpendicular(secondCurve.GetPlane().Normal, pl.Normal, false))
-                    { // first curve not parallel to plane: no fixed v intersection
+                    if (!Precision.SameDirection(secondCurve.GetPlane().Normal, pl.Normal, false))
+                    { // second curve not parallel to plane: no fixed v intersection
                         ok = false;
                     }
                 }
                 else
                 {
                     if (!Precision.IsPerpendicular(secondCurve.StartDirection, pl.Normal, false))
-                    { // first curve parallel to plane: no fixed v intersection
+                    { // second curve (a line) not parallel to plane: no fixed v intersection
                         ok = false;
                     }
                 }
@@ -551,6 +551,8 @@ namespace CADability
                 {   // both curves are parallel to the plane, so the intersection is a fixed v curve
                     GeoPoint ip = pl.Plane.Intersect(firstCurve.StartPoint, secondCurve.StartPoint - firstCurve.StartPoint);
                     double v = Geometry.LinePar(firstCurve.StartPoint, secondCurve.StartPoint, ip);
+                    double vtol = 1e-6 * Math.Abs(vmax - vmin);
+                    if (v <= vmin + vtol || v >= vmax - vtol) return null; // plane outside or at the border: leave it to the general case
                     ICurve cv = FixedV(v, umin, umax);
                     DualSurfaceCurve dsc = new DualSurfaceCurve(cv, this, new Line2D(new GeoPoint2D(umin, v), new GeoPoint2D(umax, v)),
                         pl, cv.GetProjectedCurve(pl.Plane));
@@ -570,7 +572,7 @@ namespace CADability
         {
             if (other is PlaneSurface ps)
             {
-                IDualSurfaceCurve[] exact = ExactPlaneIntersection(ps, thisBounds.Left, thisBounds.Right);
+                IDualSurfaceCurve[] exact = ExactPlaneIntersection(ps, thisBounds.Left, thisBounds.Right, thisBounds.Bottom, thisBounds.Top);
                 if (exact != null) return exact;
                 if (seeds != null && seeds.Count >= 2)
                 {

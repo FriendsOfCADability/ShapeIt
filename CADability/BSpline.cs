@@ -157,6 +157,15 @@ namespace CADability.GeoObject
             lock (bSplineLock)
             {
                 if (nurbsHelper) return; // has already been calculated
+                // Only one of the four helpers is built below, and the evaluation takes the first one it finds (the 2d
+                // ones first). A helper kept from before - Changing(this, true) keeps them for FromNurbs - would then
+                // be evaluated in the plane of the new poles: when the new poles are evaluated in 3d (see PolesLieIn
+                // below), a stale nurbs2d of the trimmed curve, given in the 2d system of the old plane, was used,
+                // and the trimmed curve was off by up to 1e-4 (the plane of almost collinear poles tilts).
+                nubs2d = null;
+                nurbs2d = null;
+                nubs3d = null;
+                nurbs3d = null;
                 // Knotenliste ist von allem anderen unabhängig
                 if (periodic)
                 {   // folgendes wurde notwendig wg. "Ele_matrice.stp". Dort gibt es Splines vom Grad 9 und periodic
