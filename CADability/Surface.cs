@@ -6209,6 +6209,9 @@ namespace CADability.GeoObject
                 if (Math.Abs(toSpine.Length - radius) > tolerance) return null; // not on the curve of contact
                 GeoVector normal = surface.GetNormal(surface.PositionOf(seed));
                 if (normal.IsNullVector()) return null;
+                // the spine point is on the normal of the surface at its contact point. A pipe around a curve on the surface
+                // (the hull of a chamfer) meets the surface at the distance of the radius too, but not along the normal
+                if (Math.Abs(Math.Abs(toSpine.Normalized * normal.Normalized) - 1.0) > 1e-3) return null;
                 int s = Math.Sign(toSpine * normal);
                 if (s == 0 || (side != 0 && s != side)) return null;
                 side = s;
@@ -6238,6 +6241,12 @@ namespace CADability.GeoObject
                 }
             }
             if (!onOffset) return null;
+            // the offset may coincide with the surface itself (a torus with the minor radius r offset by -2r), then a spine
+            // on the surface would pass the test above: the spine must have the distance of the radius from the surface
+            for (int i = 0; i <= 4; i++)
+            {
+                if (Math.Abs(Math.Abs(surface.GetDistance(spine.PointAt(tMin + i * (tMax - tMin) / 4))) - radius) > tolerance) return null;
+            }
             // the curve of contact is defined by the spine: each contact point is the point of the surface, whose offset is the
             // spine point, see PipeContact. It goes from the seed with the smallest to the seed with the largest spine parameter.
             PipeContactCurve contact = PipeContactCurve.Create(surface, pipe, startSeed, tMin, endSeed, tMax);
